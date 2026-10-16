@@ -80,6 +80,8 @@ ProjectSnapshot :: struct {
 	scenes: [dynamic]SceneDef,
 	exports: ExportSettings,
 	physics: e.PhysicsSettings,
+	globals: [dynamic]GlobalDef,
+	data: [dynamic]DataDef,
 	// The scene open at the time, shown again on undo/redo
 	currentScene: int,
 }
@@ -181,7 +183,16 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	case Node_Script_Changed:
 		if hasSelection do return node(selected, string(v) == "" || string(v) == TEXTURE_NONE ? fmt.tprintf("Remove script from %s", name) : fmt.tprintf("Attach %s to %s", string(v), name))
 	case Script_Prop_Changed:
-		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", v.name, name), key("prop", v.name, s.currentScene, selected))
+		switch t in v.target {
+		case SelectedNodeTarget:
+			if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", v.name, name), key("prop", v.name, s.currentScene, selected))
+		case DataTarget:
+			if int(t) < len(s.project.data) {
+				return {scope = .Project, label = fmt.tprintf("Change %s of %s", v.name, DataName(s.project.data[t].path)), mergeKey = key("data", v.name, int(t))}
+			}
+		case DraftGlobalTarget:
+			// The dialog's draft: Apply is the undo step
+		}
 	case New_Script_Created:
 		if hasSelection do return node(selected, fmt.tprintf("Attach a new script to %s", name))
 	case Node_Visibility_Changed:
@@ -620,6 +631,8 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		currentScene = s.currentScene,
 	}
 	for scene in p.scenes do append(&snapshot.scenes, SceneDef_Clone(scene))
+	for g in p.globals do append(&snapshot.globals, GlobalDef_Clone(g))
+	for d in p.data do append(&snapshot.data, DataDef_Clone(d))
 	return snapshot
 }
 
@@ -635,6 +648,16 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
 	p.exports = snapshot.exports
 	p.physics = snapshot.physics
+	for &g in p.globals do GlobalDef_Destroy(&g)
+	clear(&p.globals)
+	for g in snapshot.globals do append(&p.globals, GlobalDef_Clone(g))
+	// Data values by file: resources made or removed since (files, not undoable) stay as they are
+	for d in snapshot.data {
+		i := Project_FindData(p, d.path)
+		if i < 0 do continue
+		DataDef_Destroy(&p.data[i])
+		p.data[i] = DataDef_Clone(d)
+	}
 	for scene in snapshot.scenes do append(&p.scenes, SceneDef_Clone(scene))
 }
 
@@ -644,6 +667,10 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.startScene)
 	for &scene in snapshot.scenes do SceneDef_Destroy(&scene)
 	delete(snapshot.scenes)
+	for &g in snapshot.globals do GlobalDef_Destroy(&g)
+	delete(snapshot.globals)
+	for &d in snapshot.data do DataDef_Destroy(&d)
+	delete(snapshot.data)
 	snapshot^ = {}
 }
 
@@ -656,5 +683,8 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	for scene, i in a.scenes {
 		if scene.name != b.scenes[i].name || !nodesEqual(scene.nodes[:], b.scenes[i].nodes[:]) do return false
 	}
+	if len(a.globals) != len(b.globals) || len(a.data) != len(b.data) do return false
+	for g, i in a.globals do if g.script != b.globals[i].script || !propsEqual(g.props[:], b.globals[i].props[:]) do return false
+	for d, i in a.data do if d.path != b.data[i].path || d.type != b.data[i].type || !propsEqual(d.values[:], b.data[i].values[:]) do return false
 	return true
 }

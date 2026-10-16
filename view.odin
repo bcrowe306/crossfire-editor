@@ -20,7 +20,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	menu, drawn := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
 	browserMenu, browserMenuDrawn := ctx.widgets.states[skald.hash_id("browser-menu")]
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open ||
-		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.projectSettings.open ||
+		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.newData.open || state.projectSettings.open ||
 		(drawn && menu.open) || (browserMenuDrawn && browserMenu.open)
 	// A project with scripts is built once in the background when it opens, so the inspector
 	// knows their fields
@@ -43,6 +43,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingsDialogView(&state, ctx),
 		newProjectDialogView(&state, ctx),
 		newScriptDialogView(&state, ctx),
+		newDataDialogView(&state, ctx),
 		projectSettingsDialogView(&state, ctx),
 		confirmDialogView(&state, ctx),
 		cross_align = .Stretch,

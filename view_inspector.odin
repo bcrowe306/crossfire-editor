@@ -2,8 +2,6 @@ package editor
 
 import "core:fmt"
 import "core:math"
-import "core:strings"
-import "core:strconv"
 import e "engine:."
 import "gui:skald"
 import sdl "vendor:sdl3"
@@ -279,6 +277,15 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	scene := &s.project.scenes[s.currentScene]
 	header := panelHeader(ctx, ICON_CIRCLE_INFO, "Inspector")
 
+	if s.dataSelection >= 0 && s.dataSelection < len(s.project.data) {
+		return skald.col(
+			header,
+			skald.divider(ctx),
+			skald.flex(1, skald.scroll(ctx, {0, 0}, dataInspector(s, ctx), id = skald.hash_id("inspector-scroll"))),
+			cross_align = .Stretch,
+			bg = th.color.bg,
+		)
+	}
 	if s.selectedNode < 0 || s.selectedNode >= len(scene.nodes) {
 		return skald.col(
 			header,
@@ -560,66 +567,9 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 		append(&rows, skald.text("No exported fields (tag a field with export:\"\" to edit it here).", th.color.fg_muted, th.font.size_xs, max_width = 260))
 	}
 	for &field in desc.fields {
-		append(&rows, inspectorRowView(ctx, field.name, scriptFieldControl(ctx, s, node, &field, key, controlWidth, numberWidth)))
+		append(&rows, inspectorRowView(ctx, field.name, FieldControl(ctx, s, node.props[:], &field, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth, numberWidth)))
 	}
 	return rows[:]
-}
-
-// The control for one exported field, editing its value text on the selected node
-@(private="file")
-scriptFieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, field: ^ScriptFieldDesc, key: int, controlWidth, numberWidth: f32) -> skald.View {
-	th := ctx.theme
-	value := NodeDef_ScriptValue(node, field)
-	id :: proc(field: ^ScriptFieldDesc, key: int, part := "") -> string {
-		return fmt.tprintf("inspector-prop-%s%s-%d", field.name, part, key)
-	}
-	Payload :: struct { name, defaultValue: string }
-	payload := Payload{field.name, field.defaultValue}
-	onText :: proc(p: Payload, v: string) -> Msg { return Script_Prop_Changed{p.name, v, p.defaultValue} }
-	lo := field.min.? or_else min(f64)
-	hi := field.max.? or_else max(f64)
-
-	switch field.type {
-	case .Float, .Int:
-		number, _ := strconv.parse_f64(strings.trim_space(value))
-		step := field.type == .Int ? 1.0 : 1.0
-		target := ScriptPropTarget{name = field.name, defaultValue = field.defaultValue, integer = field.type == .Int, component = -1}
-		return numberField(ctx, s, id(field, key), target, number, step, field.type == .Int ? 0 : 2, numberWidth, lo, hi)
-	case .Bool:
-		return skald.checkbox(ctx, value == "true", "", payload,
-			proc(p: Payload, v: bool) -> Msg { return Script_Prop_Changed{p.name, v ? "true" : "false", p.defaultValue} },
-			id = skald.hash_id(id(field, key)))
-	case .String:
-		if field.hint == "scene" {
-			scenes := make([dynamic]string, context.temp_allocator)
-			append(&scenes, TEXTURE_NONE)
-			for scene in s.project.scenes do append(&scenes, scene.name)
-			return skald.select(ctx, value == "" ? TEXTURE_NONE : value, scenes[:], payload,
-				proc(p: Payload, v: string) -> Msg { return Script_Prop_Changed{p.name, v == TEXTURE_NONE ? "" : v, p.defaultValue} },
-				id = skald.hash_id(id(field, key)), width = controlWidth)
-		}
-		return skald.text_input(ctx, value, payload, onText, id = skald.hash_id(id(field, key)), width = controlWidth, padding = InspectorFieldPadding(ctx))
-	case .Vector2:
-		xText, _, yText := strings.partition(value, ",")
-		x, _ := strconv.parse_f64(strings.trim_space(xText))
-		y, _ := strconv.parse_f64(strings.trim_space(yText))
-		half := max((controlWidth - th.spacing.xs) * 0.5, 60)
-		return skald.row(
-			numberField(ctx, s, id(field, key, "-x"), ScriptPropTarget{field.name, field.defaultValue, false, 0, y}, x, 1, 1, half, lo, hi),
-			numberField(ctx, s, id(field, key, "-y"), ScriptPropTarget{field.name, field.defaultValue, false, 1, x}, y, 1, 1, half, lo, hi),
-			spacing = th.spacing.xs,
-		)
-	case .Color:
-		color, ok := e.ParseColor(value)
-		if !ok do color = {255, 255, 255, 255}
-		linear := skald.rgb(u32(color.r) << 16 | u32(color.g) << 8 | u32(color.b))
-		return skald.color_picker(ctx, linear, payload,
-			proc(p: Payload, c: skald.Color) -> Msg { return Script_Prop_Changed{p.name, fmt.tprintf("#%s", strings.to_lower(skald.color_to_hex(c), context.temp_allocator)), p.defaultValue} },
-			id = skald.hash_id(id(field, key)), width = controlWidth)
-	case .Enum:
-		return skald.select(ctx, value, field.enumNames[:], payload, onText, id = skald.hash_id(id(field, key)), width = controlWidth)
-	}
-	return skald.text(value, th.color.fg_muted, th.font.size_sm)
 }
 
 // inspectorRow, for code outside the main inspector proc

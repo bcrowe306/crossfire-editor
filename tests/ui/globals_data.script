@@ -1,0 +1,65 @@
+# Global scripts and data resources: New Script makes a global and a data type, Project Settings >
+# Globals sets the global's field, a data resource is made in the browser and edited in the
+# inspector (with undo), saving writes them, and Play runs the global.
+# Builds the project's player (a few seconds unoptimized). Run with: task test:ui
+
+wait 5
+expect globals none
+
+# A global script: New Script, kind Global (it's added to the globals)
+send New_Script_Opened
+expect new_script_dialog open
+send New_Script_Kind_Changed Global
+type GameState
+click_widget new-script-create
+expect new_script_dialog closed
+expect globals GameState
+wait_until scripts Ready timeout=240
+
+# A data type
+send New_Script_Opened
+send New_Script_Kind_Changed Data
+type ShipStats
+click_widget new-script-create
+wait_until scripts Ready timeout=240
+expect output_contains 1 data type: ShipStats
+
+# Project Settings > Globals: GameState's exported field
+action Open_Project_Settings
+wait_until project_settings open
+click_widget project-settings-tab-Globals
+expect draft_globals GameState
+click_widget global-0
+scroll_into_view globals-fields-scroll inspector-prop-lives-global0-inc
+click_widget inspector-prop-lives-global0-inc
+click_widget project-settings-apply
+wait_until project_settings closed
+
+# A data resource of ShipStats, edited in the inspector
+send New_Data_Opened
+type Fast Ship
+send New_Data_Type_Changed ShipStats
+click_widget new-data-create
+expect data_count 1
+expect inspector_data fast_ship
+scroll_into_view inspector-scroll inspector-prop-speed-data0-inc
+click_widget inspector-prop-speed-data0-inc
+expect data_value fast_ship speed 101
+key ctrl+z
+expect data_value fast_ship speed (default)
+key ctrl+y
+expect data_value fast_ship speed 101
+
+key ctrl+s
+wait_until modified false
+expect project_file_contains project.xml <prop name="lives" value="4"/>
+expect project_file_contains project.xml <asset path="data/fast_ship.data.json" kind="Data"/>
+expect project_file_contains data/fast_ship.data.json "speed": "101"
+expect project_file_contains scripts/assets.odin DATA_FAST_SHIP :: e.DataAsset{"data/fast_ship.data.json"}
+
+# Play: the global starts with the value set in Project Settings
+key F5
+wait_until console_contains Starting with 4 lives timeout=240
+key shift+F5
+wait_until play Stopped
+quit

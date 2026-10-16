@@ -175,6 +175,21 @@ Project_Settings_Physics_Changed :: struct {
 }
 Project_Settings_Physics_Debug_Changed :: distinct bool
 Project_Settings_Physics_Smoothing_Changed :: distinct bool
+// Project Settings > Globals: add a script as a global, remove / move / show one (by index)
+// New Data Resource dialog (view_project_dialogs.odin)
+New_Script_Kind_Changed :: distinct ScriptKind
+New_Data_Opened :: struct {}
+New_Data_Name_Changed :: distinct string
+New_Data_Type_Changed :: distinct string
+New_Data_Created :: struct {}
+New_Data_Cancelled :: struct {}
+Global_Added :: distinct string
+Global_Removed :: distinct int
+Global_Selected :: distinct int
+Global_Moved :: struct {
+	index: int,
+	delta: int,
+}
 Project_Settings_Applied :: struct {}
 Project_Settings_Cancelled :: struct {}
 Project_Settings_Tab_Changed :: distinct ProjectSettingsTab
@@ -346,11 +361,13 @@ Node_Field_Changed :: struct {
 Scripts_Auto_Build :: struct {}
 // Attach a script to the selected node by name ("" detaches)
 Node_Script_Changed :: distinct string
-// A script field's value on the selected node (strings only valid while handling the message)
+// A field's value: on the selected node's script, a draft global or a data resource (`target`).
+// Strings are only valid while handling the message
 Script_Prop_Changed :: struct {
 	name: string,
 	value: string,
 	defaultValue: string,
+	target: PropTarget,
 }
 Script_Open_File :: struct {
 	file: string,
@@ -533,6 +550,16 @@ Msg :: union {
 	Project_Settings_Physics_Changed,
 	Project_Settings_Physics_Debug_Changed,
 	Project_Settings_Physics_Smoothing_Changed,
+	New_Script_Kind_Changed,
+	New_Data_Opened,
+	New_Data_Name_Changed,
+	New_Data_Type_Changed,
+	New_Data_Created,
+	New_Data_Cancelled,
+	Global_Added,
+	Global_Removed,
+	Global_Selected,
+	Global_Moved,
 	Project_Settings_Tab_Changed,
 	Export_Target_Selected,
 	Export_Target_Enabled,

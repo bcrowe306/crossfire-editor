@@ -60,6 +60,8 @@ BrowserFolder :: enum {
 	Images,
 	Audio,
 	Fonts,
+	// Data resources (project_data.odin)
+	Data,
 }
 
 /*
@@ -160,7 +162,17 @@ State :: struct {
 		open: bool,
 		// Owned
 		name: string,
+		kind: ScriptKind,
 	},
+	// New Data Resource dialog: its name and data type (owned)
+	newData: struct {
+		open: bool,
+		name: string,
+		type: string,
+	},
+	// The data resource the inspector shows (index into project.data), -1 for none: chosen in
+	// the browser, cleared when a node is selected
+	dataSelection: int,
 	session: SessionState,
 	// Copied or cut nodes: one subtree, parents relative to the list (see node_edit.odin)
 	clipboard: [dynamic]NodeDef,
@@ -220,8 +232,9 @@ init :: proc() -> State {
 		currentScene = 0,
 		selectedNode = -1,
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false, .Data = true},
 		browserSelection = {kind = .None},
+		dataSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},
 		layout = {
 			leftWidth = 240,
@@ -290,6 +303,8 @@ State_Destroy :: proc(state: ^State) {
 	for f in state.scriptFiles do delete(f)
 	delete(state.scriptFiles)
 	delete(state.newScript.name)
+	delete(state.newData.name)
+	delete(state.newData.type)
 	delete(state.selection)
 	delete(state.settingsPath)
 	delete(state.settingsDialog.search)

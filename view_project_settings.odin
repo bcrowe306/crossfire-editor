@@ -33,7 +33,12 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 				fg = active ? th.color.on_primary : th.color.fg,
 				font_size = th.font.size_sm))
 		}
-		body := d.tab == .General ? generalTab(s, ctx) : exportTab(s, ctx)
+		body: skald.View
+		switch d.tab {
+		case .General: body = generalTab(s, ctx)
+		case .Globals: body = globalsTab(s, ctx)
+		case .Export:  body = exportTab(s, ctx)
+		}
 		// The Export tab scrolls inside a fixed height: 400 px, less in a short window, so the
 		// buttons below stay on screen (the title, tabs and footer take about 220 px)
 		exportHeight: f32 = 400
@@ -57,7 +62,7 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 			cross_align = .Stretch,
 		)
 	}
-	width: f32 = d.tab == .Export ? 760 : 460
+	width: f32 = d.tab == .General ? 460 : 760
 	return skald.dialog(ctx,
 		open = d.open,
 		on_dismiss = proc() -> Msg { return Project_Settings_Cancelled{} },
@@ -129,6 +134,81 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.text("Physics works in meters: a body of 1 m is this many pixels (Box2D does best with things 0.1 to 10 m). Gravity is in pixels per second², y down: 980 is Earth's at 100 px per meter.",
 			th.color.fg_muted, th.font.size_xs, max_width = 420),
 		spacing = th.spacing.sm,
+		cross_align = .Stretch,
+	)
+}
+
+/*
+Globals: the scripts that run for the whole game, in start order, and the shown one's fields.
+Widget keys: `global-<i>` (shows it), `global-up-<i>`, `global-down-<i>`, `global-remove-<i>`,
+`global-add`; fields `inspector-prop-<field>-global<i>`.
+*/
+@(private="file")
+globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	d := &s.projectSettings
+	list := make([dynamic]skald.View, context.temp_allocator)
+	small :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, disabled := false) -> skald.View {
+		th := ctx.theme
+		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg_muted,
+			font_size = th.font.size_xs, padding = {th.spacing.xs, 1}, radius = th.radius.sm, disabled = disabled)
+	}
+	for g, i in d.globals {
+		shown := i == d.selectedGlobal
+		append(&list, skald.row(
+			skald.button(ctx, fmt.tprintf("%s  %s", ICON_GLOBE, g.script), Msg(Global_Selected(i)), id = skald.hash_id(fmt.tprintf("global-%d", i)),
+				bg = shown ? th.color.primary : th.color.bg, fg = shown ? th.color.on_primary : th.color.fg,
+				font_size = th.font.size_sm, padding = {th.spacing.sm, 2}, width = 150),
+			small(ctx, fmt.tprintf("global-up-%d", i), ICON_CHEVRON_UP, Msg(Global_Moved{i, -1}), i == 0),
+			small(ctx, fmt.tprintf("global-down-%d", i), ICON_CHEVRON_DOWN, Msg(Global_Moved{i, 1}), i == len(d.globals) - 1),
+			small(ctx, fmt.tprintf("global-remove-%d", i), ICON_TRASH, Msg(Global_Removed(i))),
+			spacing = th.spacing.xs,
+			cross_align = .Center,
+		))
+	}
+	if len(d.globals) == 0 do append(&list, skald.text("No globals yet.", th.color.fg_muted, th.font.size_sm))
+	// Scripts that could be added
+	choices := make([dynamic]string, context.temp_allocator)
+	append(&choices, TEXTURE_NONE)
+	for script in s.scripts.scripts {
+		taken := false
+		for g in d.globals do if g.script == script.name do taken = true
+		if !taken do append(&choices, script.name)
+	}
+	append(&list, skald.spacer(th.spacing.sm), skald.text("Add a script as a global:", th.color.fg_muted, th.font.size_xs),
+		skald.select(ctx, TEXTURE_NONE, choices[:], proc(v: string) -> Msg { return Global_Added(v) },
+			id = skald.hash_id("global-add"), width = 220, placeholder = "Choose a script"))
+	if s.scripts.status != .Ready {
+		append(&list, skald.text("Build the scripts (Ctrl+B) to list them here.", th.color.fg_muted, th.font.size_xs, max_width = 230))
+	}
+
+	fields := make([dynamic]skald.View, context.temp_allocator)
+	append(&fields,
+		skald.text("Globals run for the whole game, across scenes, in this order: game state, settings, a HUD. Every Play starts them from these values. Scripts reach one with e.Global(Type), and e.Save_Game / e.Load_Game save and restore their fields as JSON.",
+			th.color.fg_muted, th.font.size_xs, max_width = 440),
+		skald.spacer(th.spacing.xs))
+	if d.selectedGlobal >= 0 && d.selectedGlobal < len(d.globals) {
+		g := &d.globals[d.selectedGlobal]
+		append(&fields, skald.text(g.script, th.color.fg, th.font.size_md))
+		desc := ScriptCatalog_Find(&s.scripts, g.script)
+		if desc == nil {
+			append(&fields, skald.text(fmt.tprintf("Build the scripts (Ctrl+B) to edit %s's fields.", g.script), th.color.fg_muted, th.font.size_xs))
+			for p in g.props do append(&fields, settingRow(ctx, p.name, skald.text(p.value, th.color.fg_muted, th.font.size_sm)))
+		} else if len(desc.fields) == 0 {
+			append(&fields, skald.text("No exported fields (tag a field with export:\"\" to set it here).", th.color.fg_muted, th.font.size_xs))
+		} else {
+			for &field in desc.fields {
+				append(&fields, settingRow(ctx, field.name, FieldControl(ctx, s, g.props[:], &field, fmt.tprintf("global%d", d.selectedGlobal),
+					DraftGlobalTarget(d.selectedGlobal), 260, 120)))
+			}
+		}
+	}
+	return skald.row(
+		skald.col(skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..list[:], spacing = th.spacing.xs, cross_align = .Start), id = skald.hash_id("globals-list-scroll"))),
+			width = 270, cross_align = .Stretch),
+		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..fields[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start),
+			id = skald.hash_id("globals-fields-scroll"))),
+		spacing = th.spacing.md,
 		cross_align = .Stretch,
 	)
 }

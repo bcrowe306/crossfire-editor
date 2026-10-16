@@ -49,6 +49,8 @@ ICON_BULLSEYE    :: "\uf140"
 ICON_POLYGON     :: "\uf5ee"
 ICON_RAY         :: "\uf178"
 ICON_JOINT       :: "\uf0c1"
+ICON_DATABASE    :: "\uf1c0"
+ICON_GLOBE       :: "\uf0ac"
 
 @(private="file")
 iconFontRegistered: bool

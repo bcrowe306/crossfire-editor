@@ -138,6 +138,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
+| `project_data.odin` | Global scripts (`GlobalDef`) and data resources (`DataDef`) in the project; prop editing for any owner (`PropTarget`); creating, loading and saving data files; the generated `scripts/assets.odin` (`Scripts_AssetsSource` / `Scripts_WriteAssetsFile`) |
+| `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Keys tabs, collapsible |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
@@ -539,6 +541,36 @@ MyGame/
   - Scene files of deleted or renamed scenes aren't removed.
   - The editor only imports assets one at a time and doesn't scan `assets/` for files added
     outside the editor.
+
+## Globals, data resources, saves, asset handles (implemented; engine: globals.odin, data.odin, save.odin, assets.odin)
+
+- **Globals** (`Project.globals`, `<global>` in project.xml): scripts the game runs once for
+  the whole run, in order, with field values. Project Settings > **Globals** edits a draft
+  (`ProjectSettingsDialog.globals`, Apply is the `.Project` undo step): add a built script
+  (`global-add`), reorder, remove, set fields. New Script's **kind** (`ScriptKind`) Global writes
+  `GlobalScriptTemplate` and adds it to the globals; kind Data writes `DataTypeTemplate`.
+- **Data resources** (`Project.data`, one per asset of kind Data, `data/<name>.data.json`): the
+  browser's **Data** folder (right-click > New Data Resource: `newDataDialogView`,
+  `Project_CreateData`). Selecting one shows it in the inspector (`State.dataSelection`, set in
+  `update` when the browser selects a data asset, cleared when a node is selected;
+  `dataInspector`). Values are text props like script values; `Project_SaveData` writes the
+  files (only changed ones). Undo restores values per file (`restoreProjectSnapshot`): creating
+  and removing resources touches files, so like imports it isn't undone.
+- **One field editor** (`FieldControl`) for all three owners: `Script_Prop_Changed.target` is a
+  `PropTarget` (`SelectedNodeTarget` is the `#no_nil` zero value, `DraftGlobalTarget`,
+  `DataTarget`); number fields carry it in `ScriptPropTarget.target`.
+- **Catalog:** `--describe-scripts` also lists data types (`ScriptCatalog.dataTypes`,
+  `ScriptCatalog_ParseAll`), used by the New Data dialog and the data inspector.
+- **Asset handles:** fields of type `e.TextureAsset` / `SoundAsset` / `FontAsset` / `DataAsset`
+  get a picker of the project's assets of that kind (Data: of the field's `kind=` type).
+  `scripts/assets.odin` is regenerated (when its content changes, never over a file without the
+  editor's marker) on save, import, remove, new data resource, refresh and before every build,
+  so scripts always compile against the current asset list.
+- **Saves** are the engine's (`e.Save_Game` / `e.Load_Game`): games run from the editor (`--dev`)
+  save under "<name> (dev)". The demo shows the whole loop.
+- Test driver: `send <Message> <value>` (dropdown choices), checks `globals`, `draft_globals`,
+  `data_count`, `inspector_data`, `data_value`. `tests/ui/globals_data.script` builds both
+  templates, sets a global's field, makes and edits a data resource, saves and plays.
 
 ## Physics (implemented; the engine does the simulation)
 

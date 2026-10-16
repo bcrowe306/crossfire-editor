@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scene formatVersion="2" name="PlayScene">
+<scene formatVersion="5" name="PlayScene">
 	<node kind="Node2D" name="World" x="0" y="0">
 		<node kind="Camera" name="Camera" x="640" y="360"/>
-		<node kind="Sprite" name="Spaceship" x="640" y="430" texture="assets/ship.png">
-			<node kind="AnimatedSprite" name="ShipLight" x="0" y="60" scaleX="0.4" scaleY="0.4" texture="assets/light.png" columns="2" rows="1" fps="4" loop="true"/>
-		</node>
+		<node kind="Sprite" name="Spaceship" x="640" y="430" texture="assets/ship.png"/>
 		<node kind="Node2D" name="Props" x="640" y="360">
 			<node kind="AnimatedSprite" name="Balloon" x="-340" y="-60" texture="assets/balloons.png" columns="4" rows="1" fps="3" loop="true"/>
 			<node kind="AnimatedSprite" name="BalloonPingPong" x="340" y="-100" texture="assets/balloons.png" columns="4" rows="1" fps="5" loop="true" playMode="PingPong"/>
-			<node kind="AnimatedSprite" name="WarningLight" x="-480" y="260" texture="assets/light.png" columns="2" rows="1" fps="2" loop="true"/>
+			<node kind="AnimatedSprite" name="WarningLight" x="-506.29022" y="-160.91992" texture="assets/light.png" columns="2" rows="1" fps="2" loop="true"/>
 			<node kind="AnimatedSprite" name="WarningLight2" x="480" y="260" texture="assets/light.png" columns="2" rows="1" fps="3" loop="true"/>
 		</node>
 	</node>
@@ -16,5 +14,58 @@
 		<node kind="Menu" name="BackMenu" x="-180" y="0" layer="7">
 			<item label="Menu" action="scene:MenuScene"/>
 		</node>
+	</node>
+	<node kind="Node2D" name="Spaceship" x="0" y="0">
+		<script name="Mover"/>
+		<node kind="Sprite" name="Sprite" x="641.0698" y="334.3263" scaleX="0.17868917" scaleY="0.17868917" texture="assets/Spaceship_12_1.png"/>
+	</node>
+	<node kind="StaticBody" name="Walls" x="0" y="0" friction="0" restitution="1">
+		<node kind="CollisionShape" name="Top" x="0" y="0" shape="Segment" points="0,0 1280,0"/>
+		<node kind="CollisionShape" name="Bottom" x="0" y="0" shape="Segment" points="0,720 1280,720"/>
+		<node kind="CollisionShape" name="Left" x="0" y="0" shape="Segment" points="0,0 0,720"/>
+		<node kind="CollisionShape" name="Right" x="0" y="0" shape="Segment" points="1280,0 1280,720"/>
+	</node>
+	<node kind="CharacterMover" name="Player" x="640" y="600">
+		<script name="PlayerShip">
+			<prop name="fallback" value="data/scout.data.json"/>
+		</script>
+		<node kind="Sprite" name="Sprite" x="0" y="0" texture="assets/ship.png"/>
+		<node kind="CollisionShape" name="Hull" x="0" y="0" shape="Capsule" radius="20" height="56"/>
+	</node>
+	<node kind="Area" name="Star1" x="300" y="200">
+		<script name="Pickup">
+			<prop name="sound" value="assets/pickup.wav"/>
+		</script>
+		<node kind="AnimatedSprite" name="Glow" x="0" y="0" scaleX="0.5" scaleY="0.5" texture="assets/light.png" columns="2" rows="1" fps="4" loop="true"/>
+		<node kind="CollisionShape" name="Reach" x="0" y="0" shape="Circle" radius="24"/>
+	</node>
+	<node kind="Area" name="Star2" x="980" y="180">
+		<script name="Pickup">
+			<prop name="sound" value="assets/pickup.wav"/>
+		</script>
+		<node kind="AnimatedSprite" name="Glow" x="0" y="0" scaleX="0.5" scaleY="0.5" texture="assets/light.png" columns="2" rows="1" fps="4" loop="true"/>
+		<node kind="CollisionShape" name="Reach" x="0" y="0" shape="Circle" radius="24"/>
+	</node>
+	<node kind="Area" name="Star3" x="820" y="470">
+		<script name="Pickup">
+			<prop name="sound" value="assets/pickup.wav"/>
+		</script>
+		<node kind="AnimatedSprite" name="Glow" x="0" y="0" scaleX="0.5" scaleY="0.5" texture="assets/light.png" columns="2" rows="1" fps="4" loop="true"/>
+		<node kind="CollisionShape" name="Reach" x="0" y="0" shape="Circle" radius="24"/>
+	</node>
+	<node kind="DynamicBody" name="Rock1" x="200" y="450" friction="0" restitution="1">
+		<script name="Rock"/>
+		<node kind="AnimatedSprite" name="Look" x="0" y="0" texture="assets/balloons.png" columns="4" rows="1" fps="3" loop="true"/>
+		<node kind="CollisionShape" name="Body" x="0" y="0" shape="Circle" radius="28"/>
+	</node>
+	<node kind="DynamicBody" name="Rock2" x="1050" y="320" friction="0" restitution="1">
+		<script name="Rock"/>
+		<node kind="AnimatedSprite" name="Look" x="0" y="0" texture="assets/balloons.png" columns="4" rows="1" fps="3" loop="true"/>
+		<node kind="CollisionShape" name="Body" x="0" y="0" shape="Circle" radius="28"/>
+	</node>
+	<node kind="DynamicBody" name="Rock3" x="640" y="150" friction="0" restitution="1">
+		<script name="Rock"/>
+		<node kind="AnimatedSprite" name="Look" x="0" y="0" texture="assets/balloons.png" columns="4" rows="1" fps="3" loop="true"/>
+		<node kind="CollisionShape" name="Body" x="0" y="0" shape="Circle" radius="28"/>
 	</node>
 </scene>

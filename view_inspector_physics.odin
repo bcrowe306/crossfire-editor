@@ -263,3 +263,37 @@ moverHasCapsule :: proc(scene: ^SceneDef, body: int) -> bool {
 	}
 	return false
 }
+
+/*
+The inspector for a data resource chosen in the browser: its type and fields, edited in place
+(undoable; written to its .data.json file on Save). Field keys `inspector-prop-<field>-data<i>`.
+*/
+@(private="package")
+dataInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	index := s.dataSelection
+	data := &s.project.data[index]
+	_, sidebarWidth := FittedSidebarWidths(&s.layout)
+	controlWidth := min(max(sidebarWidth - th.spacing.md * 2 - INSPECTOR_LABEL_WIDTH - th.spacing.sm - INSPECTOR_SCROLLBAR_WIDTH, 80), INSPECTOR_MAX_TEXT_WIDTH)
+	numberWidth := min(controlWidth, INSPECTOR_MAX_NUMBER_WIDTH)
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	append(&rows,
+		skald.text(fmt.tprintf("%s  %s", ICON_DATABASE, DataName(data.path)), th.color.fg, th.font.size_md),
+		skald.text(fmt.tprintf("%s  ·  %s", data.type == "" ? "unknown type" : data.type, data.path), th.color.fg_muted, th.font.size_xs, max_width = 260),
+		skald.divider(ctx),
+	)
+	desc := ScriptCatalog_FindData(&s.scripts, data.type)
+	if desc == nil {
+		message := s.scripts.status == .Ready ? fmt.tprintf("No data type named %s in the scripts.", data.type) : "Build the scripts (Ctrl+B) to edit the fields."
+		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
+		for v in data.values do append(&rows, inspectorRow(ctx, v.name, skald.text(v.value, th.color.fg_muted, th.font.size_sm)))
+	} else {
+		for &field in desc.fields {
+			append(&rows, inspectorRow(ctx, field.name, FieldControl(ctx, s, data.values[:], &field, fmt.tprintf("data%d", index), DataTarget(index), controlWidth, numberWidth)))
+		}
+		if len(desc.fields) == 0 do append(&rows, skald.text("No exported fields (tag a field with export:\"\").", th.color.fg_muted, th.font.size_xs))
+	}
+	append(&rows, skald.spacer(th.spacing.sm), skald.text(fmt.tprintf("In code: e.Data(%s, DATA_%s)", data.type, strings.to_upper(sanitize(DataName(data.path)), context.temp_allocator)),
+		th.color.fg_muted, th.font.size_xs, max_width = 260))
+	return skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.md, cross_align = .Stretch)
+}

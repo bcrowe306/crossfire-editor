@@ -181,6 +181,7 @@ browserMenuItems :: proc(s: ^State) -> []string {
 		if s.project.scenes[i].name != s.project.startScene do add(&labels, "Set as Start Scene", Msg(Scene_Action{.Set_Start, i}))
 		add(&labels, "New Scene", Msg(Scene_Action{.New, i}))
 	case .Asset:
+		if selection.folder == .Data do add(&labels, "New Data Resource...", Msg(New_Data_Opened{}))
 		add(&labels, "Remove from Project...", Msg(Action.Remove_Asset))
 	case .Script:
 		if selection.index < len(s.scriptFiles) {
@@ -189,6 +190,10 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			add(&labels, "Open in Editor", Msg(Script_Open_File{file = err == nil ? absolute : path, line = 1}))
 		}
 	case .Folder, .None:
+		if selection.kind == .Folder && selection.folder == .Data {
+			add(&labels, "New Data Resource...", Msg(New_Data_Opened{}))
+			break
+		}
 		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
 		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste Scene", .Paste_Node), Msg(Scene_Action{.Paste, -1}))
 	}
@@ -373,6 +378,14 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				skald.text("Font previews aren't supported yet.", th.color.fg_muted, th.font.size_xs),
 				spacing = th.spacing.xs,
 			)
+		case .Data:
+			i := Project_FindData(&s.project, asset.path)
+			type := i >= 0 ? s.project.data[i].type : "?"
+			content = skald.col(
+				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm),
+				skald.text(fmt.tprintf("%s data resource; edit it in the inspector", type), th.color.fg_muted, th.font.size_xs, max_width = 240),
+				spacing = th.spacing.xs,
+			)
 		}
 	}
 	return skald.col(
@@ -476,6 +489,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Image: return ICON_IMAGE
 	case .Audio: return ICON_MUSIC
 	case .Font:  return ICON_FONT_GLYPH
+	case .Data:  return ICON_DATABASE
 	}
 	return ICON_FILE
 }

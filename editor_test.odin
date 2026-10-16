@@ -23,7 +23,7 @@ testState :: proc() -> State {
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false, .Data = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
@@ -1491,10 +1491,10 @@ attaching_scripts_and_editing_values :: proc(t: ^testing.T) {
 	send(&state, Node_Script_Changed("Mover"))
 	testing.expect_value(t, node.script, "Mover")
 	// A value differing from the default is stored; setting the default removes it
-	send(&state, Script_Prop_Changed{"speed", "250", "100"})
+	send(&state, Script_Prop_Changed{"speed", "250", "100", SelectedNodeTarget{}})
 	testing.expect_value(t, NodeDef_ScriptValue(node, &state.scripts.scripts[0].fields[0]), "250")
 	testing.expect_value(t, len(node.props), 1)
-	send(&state, Script_Prop_Changed{"speed", "100", "100"})
+	send(&state, Script_Prop_Changed{"speed", "100", "100", SelectedNodeTarget{}})
 	testing.expect_value(t, len(node.props), 0)
 	// Number fields send typed text through the same path
 	target := ScriptPropTarget{name = "speed", defaultValue = "100", component = -1}
@@ -2344,5 +2344,143 @@ physics_joint_edits_and_renames :: proc(t: ^testing.T) {
 	// Older editor.ini files with the editor-level setting load without complaint
 	parsed := Settings_Default()
 	testing.expect_value(t, len(Settings_Parse(&parsed, "[editor]\nplay_collision_shapes = true\n")), 0)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+globals_and_data_round_trip :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_globals_data")
+	defer os.remove_all(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	g := GlobalDef{script = strings.clone("GameState")}
+	Props_Set(&g.props, "lives", "5", "3")
+	append(&project.globals, g, GlobalDef{script = strings.clone("Hud")})
+	index, problem := Project_CreateData(&project, "Fast Ship", "ShipStats")
+	testing.expect_value(t, problem, "")
+	testing.expect_value(t, project.data[index].path, "data/fast_ship.data.json")
+	Props_Set(&project.data[index].values, "speed", "300", "100")
+	Props_Set(&project.data[index].values, "sprite", "assets/ship.png", "")
+	// The same name twice, odd names, no type: refused
+	_, problem = Project_CreateData(&project, "fast ship", "ShipStats")
+	testing.expect(t, problem != "")
+	_, problem = Project_CreateData(&project, "a/b", "ShipStats")
+	testing.expect(t, problem != "")
+	_, problem = Project_CreateData(&project, "Slow", "")
+	testing.expect(t, problem != "")
+
+	testing.expect_value(t, Project_Save(&project), "")
+	xml := string(os.read_entire_file(joinPath(dir, "project.xml", allocator = context.temp_allocator), context.temp_allocator) or_else nil)
+	testing.expect(t, strings.contains(xml, `<asset path="data/fast_ship.data.json" kind="Data"/>`))
+	testing.expect(t, strings.contains(xml, `<global script="GameState">`) && strings.contains(xml, `<prop name="lives" value="5"/>`))
+	testing.expect(t, strings.contains(xml, `<global script="Hud"/>`))
+	file := string(os.read_entire_file(joinPath(dir, "data/fast_ship.data.json", allocator = context.temp_allocator), context.temp_allocator) or_else nil)
+	testing.expect(t, strings.contains(file, `"type": "ShipStats"`) && strings.contains(file, `"speed": "300"`))
+
+	loaded, message, warnings := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect_value(t, len(warnings), 0)
+	testing.expect_value(t, len(loaded.globals), 2)
+	testing.expect(t, loaded.globals[0].script == "GameState" && Props_Value(loaded.globals[0].props[:], "lives", "3") == "5")
+	testing.expect_value(t, len(loaded.data), 1)
+	d := loaded.data[0]
+	testing.expect(t, d.type == "ShipStats" && Props_Value(d.values[:], "speed", "100") == "300" && Props_Value(d.values[:], "sprite", "") == "assets/ship.png")
+	// Saving again changes nothing
+	before := file
+	testing.expect_value(t, Project_Save(&loaded), "")
+	after := string(os.read_entire_file(joinPath(dir, "data/fast_ship.data.json", allocator = context.temp_allocator), context.temp_allocator) or_else nil)
+	testing.expect(t, before == after)
+	// Removing the asset removes the resource
+	for asset, i in loaded.assets do if asset.kind == .Data {
+		testing.expect_value(t, Project_RemoveAsset(&loaded, i, true), "")
+		break
+	}
+	testing.expect_value(t, len(loaded.data), 0)
+	testing.expect(t, !os.exists(joinPath(dir, "data/fast_ship.data.json", allocator = context.temp_allocator)))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+generated_asset_constants :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_assets_file")
+	defer os.remove_all(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	append(&project.assets, AssetDef{strings.clone("assets/laser.wav"), .Audio}, AssetDef{strings.clone("other/ship.png"), .Image}, AssetDef{strings.clone("fonts/title font.ttf"), .Font})
+	_, _ = Project_CreateData(&project, "Fast Ship", "ShipStats")
+	source := Scripts_AssetsSource(&project)
+	testing.expect(t, strings.contains(source, "package scripts"))
+	testing.expect(t, strings.contains(source, `TEXTURE_SHIP :: e.TextureAsset{"assets/ship.png"}`))
+	// The second ship.png gets a number
+	testing.expect(t, strings.contains(source, `TEXTURE_SHIP_2 :: e.TextureAsset{"other/ship.png"}`))
+	testing.expect(t, strings.contains(source, `SOUND_LASER :: e.SoundAsset{"assets/laser.wav"}`))
+	testing.expect(t, strings.contains(source, `FONT_TITLE_FONT :: e.FontAsset{"fonts/title font.ttf"}`))
+	testing.expect(t, strings.contains(source, `DATA_FAST_SHIP :: e.DataAsset{"data/fast_ship.data.json"}  // ShipStats`))
+
+	// Written only for projects with scripts, and never over a file the user wrote
+	path := joinPath(dir, SCRIPTS_FOLDER, ASSETS_FILE, allocator = context.temp_allocator)
+	testing.expect_value(t, Scripts_WriteAssetsFile(&project), "")
+	testing.expect(t, !os.exists(path))
+	_ = os.make_directory_all(joinPath(dir, SCRIPTS_FOLDER, allocator = context.temp_allocator))
+	_ = os.write_entire_file(joinPath(dir, SCRIPTS_FOLDER, "game.odin", allocator = context.temp_allocator), transmute([]byte)string("package scripts\n"))
+	testing.expect_value(t, Scripts_WriteAssetsFile(&project), "")
+	testing.expect(t, os.exists(path))
+	_ = os.write_entire_file(path, transmute([]byte)string("package scripts // mine\n"))
+	testing.expect_value(t, Scripts_WriteAssetsFile(&project), "")
+	mine := string(os.read_entire_file(path, context.temp_allocator) or_else nil)
+	testing.expect_value(t, mine, "package scripts // mine\n")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+globals_dialog_and_data_edits :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	state.dataSelection = -1
+	send(&state, Action.Open_Project_Settings)
+	send(&state, Project_Settings_Tab_Changed(.Globals))
+	send(&state, Global_Added("GameState"))
+	send(&state, Global_Added("Hud"))
+	send(&state, Global_Added("GameState")) // already there
+	testing.expect_value(t, len(state.projectSettings.globals), 2)
+	send(&state, Script_Prop_Changed{"lives", "7", "3", DraftGlobalTarget(0)})
+	send(&state, Global_Moved{1, -1})
+	testing.expect_value(t, state.projectSettings.globals[0].script, "Hud")
+	// Nothing changes until Apply
+	testing.expect_value(t, len(state.project.globals), 0)
+	send(&state, Project_Settings_Applied{})
+	testing.expect_value(t, len(state.project.globals), 2)
+	testing.expect(t, state.project.globals[1].script == "GameState" && Props_Value(state.project.globals[1].props[:], "lives", "3") == "7")
+	send(&state, Action.Undo)
+	testing.expect_value(t, len(state.project.globals), 0)
+	send(&state, Action.Redo)
+	testing.expect_value(t, len(state.project.globals), 2)
+	send(&state, Action.Open_Project_Settings)
+	send(&state, Global_Removed(0))
+	send(&state, Project_Settings_Applied{})
+	testing.expect(t, len(state.project.globals) == 1 && state.project.globals[0].script == "GameState")
+
+	// A data resource: chosen in the browser, edited (undoable), deselected by picking a node
+	append(&state.project.assets, AssetDef{strings.clone("data/boss.data.json"), .Data})
+	append(&state.project.data, DataDef{path = strings.clone("data/boss.data.json"), type = strings.clone("EnemyStats")})
+	asset := len(state.project.assets) - 1
+	send(&state, Browser_Right_Clicked(-1))
+	state.browserOpen[.Data] = true
+	rows := BrowserRows(&state)
+	for row, i in rows do if row.kind == .Asset && row.index == asset do send(&state, Browser_Right_Clicked(i))
+	testing.expect_value(t, state.dataSelection, 0)
+	send(&state, Script_Prop_Changed{"health", "99", "10", DataTarget(0)})
+	testing.expect_value(t, Props_Value(state.project.data[0].values[:], "health", "10"), "99")
+	send(&state, Action.Undo)
+	testing.expect_value(t, Props_Value(state.project.data[0].values[:], "health", "10"), "10")
+	send(&state, Node_Selected(1))
+	testing.expect_value(t, state.dataSelection, -1)
+
+	// The catalog lists data types
+	scripts, dataTypes, ok := ScriptCatalog_ParseAll(`{"scripts": [], "data": [{"name": "EnemyStats", "file": "a.odin", "line": 3, "fields": [{"name": "health", "type": "Int", "default": "10", "hint": ""}, {"name": "sprite", "type": "Texture", "default": "", "hint": ""}]}]}`)
+	catalog := ScriptCatalog{scripts = scripts, dataTypes = dataTypes}
+	defer ScriptCatalog_Clear(&catalog)
+	testing.expect(t, ok && len(dataTypes) == 1 && len(dataTypes[0].fields) == 2 && dataTypes[0].fields[1].type == .Texture)
 	free_all(context.temp_allocator)
 }

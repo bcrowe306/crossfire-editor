@@ -43,6 +43,9 @@ Project_Save :: proc(project: ^Project) -> string {
 	}
 	// Scenes renamed or removed since the last save: delete their old files
 	Project_CleanSceneFiles(project)
+	if message := Project_SaveData(project); message != "" do return message
+	// The typed asset constants for scripts follow the asset list
+	if message := Scripts_WriteAssetsFile(project); message != "" do return message
 
 	// Export settings: only once they differ from the defaults (or the file exists)
 	exportsFile, _ := filepath.join({project.rootPath, EXPORT_SETTINGS_FILE}, context.temp_allocator)
@@ -94,6 +97,22 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 		attr(&w, "path", asset.path)
 		attr(&w, "kind", asset.kind)
 		closeEmpty(&w)
+	}
+	for global in project.globals {
+		open(&w, "global")
+		attr(&w, "script", global.script)
+		if len(global.props) == 0 {
+			closeEmpty(&w)
+			continue
+		}
+		endOpen(&w)
+		for prop in global.props {
+			open(&w, "prop")
+			attr(&w, "name", prop.name)
+			attr(&w, "value", prop.value)
+			closeEmpty(&w)
+		}
+		close(&w, "global")
 	}
 	close(&w, "project")
 	return strings.to_string(w.builder)

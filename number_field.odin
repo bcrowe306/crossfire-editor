@@ -44,6 +44,8 @@ ScriptPropTarget :: struct {
 	// Vector fields: which component this is (0 or 1) and the other one's value; -1 otherwise
 	component: int,
 	other: f64,
+	// Whose value it is (the selected node by default)
+	target: PropTarget,
 }
 
 // The text typed into a focused number field (part of State)
@@ -127,7 +129,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 		case t.integer:        text = fmt.tprintf("%d", int(value))
 		case:                  text = fmt.tprintf("%v", f32(value))
 		}
-		return Script_Prop_Changed{name = t.name, value = text, defaultValue = t.defaultValue}
+		return Script_Prop_Changed{name = t.name, value = text, defaultValue = t.defaultValue, target = t.target}
 	}
 	return nil
 }

@@ -1,6 +1,8 @@
 package editor
 
 import "core:fmt"
+import "core:slice"
+import "core:strings"
 import "gui:skald"
 
 /*
@@ -102,12 +104,25 @@ New Script: a name, then Create writes scripts/<name>.odin from the template, at
 selected node, opens it in the code editor and builds the scripts. Keys: `new-script-name`,
 `new-script-create`, `new-script-cancel`.
 */
+// The New Script dialog's kinds, as shown
+@(private="file")
+kindLabels := [ScriptKind]string{
+	.Node   = "Node script (attached to a node)",
+	.Global = "Global script (runs all game)",
+	.Data   = "Data type (for data resources)",
+}
+
 newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	name := s.newScript.name
 	problem := ScriptNameProblem(name)
 	scene := &s.project.scenes[s.currentScene]
 	target := s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) ? fmt.tprintf(" and attaches it to %s", scene.nodes[s.selectedNode].name) : ""
+	switch s.newScript.kind {
+	case .Node:
+	case .Global: target = " and adds it to the globals"
+	case .Data:   target = ""
+	}
 	info := name == "" ? "A struct and its ready/update procedures, in the project's scripts package." :
 		problem != "" ? problem : fmt.tprintf("Creates %s%s, then opens it in your code editor.", ScriptFileFor(name), target)
 	return skald.dialog(ctx,
@@ -120,6 +135,17 @@ newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				skald.flex(1, skald.text_input(ctx, name,
 					proc(v: string) -> Msg { return New_Script_Name_Changed(v) },
 					id = skald.hash_id("new-script-name"), placeholder = "PlayerController")),
+				spacing = th.spacing.sm,
+				cross_align = .Center,
+			),
+			skald.row(
+				skald.col(skald.text("Kind", th.color.fg, th.font.size_sm), width = 60),
+				skald.select(ctx, kindLabels[s.newScript.kind], slice.enumerated_array(&kindLabels),
+					proc(v: string) -> Msg {
+						for label, kind in kindLabels do if label == v do return New_Script_Kind_Changed(kind)
+						return New_Script_Kind_Changed(.Node)
+					},
+					id = skald.hash_id("new-script-kind"), width = 260),
 				spacing = th.spacing.sm,
 				cross_align = .Center,
 			),
@@ -139,6 +165,62 @@ newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		),
 		id = skald.hash_id("new-script-dialog"),
 		initial_focus = skald.hash_id("new-script-name"),
+		width = 440,
+	)
+}
+
+/*
+New Data Resource: a name and a data type (from the scripts' `e.Data_Register` types); Create
+writes data/<name>.data.json with every field at its default, lists it as an asset and shows it
+in the inspector. Keys: `new-data-name`, `new-data-type`, `new-data-create`, `new-data-cancel`.
+*/
+newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	name := s.newData.name
+	problem := DataNameProblem(&s.project, name)
+	types := make([dynamic]string, context.temp_allocator)
+	for t in s.scripts.dataTypes do append(&types, t.name)
+	noTypes := len(types) == 0
+	info := noTypes ? "No data types yet: register one in a script (e.Data_Register) and build (Ctrl+B)." :
+		name == "" ? "A file holding one value of a data type, shared by everything that loads it." :
+		problem != "" ? problem : fmt.tprintf("Creates %s.", DataPathFor(name))
+	return skald.dialog(ctx,
+		open = s.newData.open,
+		on_dismiss = proc() -> Msg { return New_Data_Cancelled{} },
+		content = skald.col(
+			skald.text("New Data Resource", th.color.fg, th.font.size_lg),
+			skald.row(
+				skald.col(skald.text("Name", th.color.fg, th.font.size_sm), width = 60),
+				skald.flex(1, skald.text_input(ctx, strings.clone(name, context.temp_allocator),
+					proc(v: string) -> Msg { return New_Data_Name_Changed(v) },
+					id = skald.hash_id("new-data-name"), placeholder = "Fast Ship")),
+				spacing = th.spacing.sm,
+				cross_align = .Center,
+			),
+			skald.row(
+				skald.col(skald.text("Type", th.color.fg, th.font.size_sm), width = 60),
+				skald.select(ctx, strings.clone(s.newData.type, context.temp_allocator), types[:],
+					proc(v: string) -> Msg { return New_Data_Type_Changed(v) },
+					id = skald.hash_id("new-data-type"), width = 240),
+				spacing = th.spacing.sm,
+				cross_align = .Center,
+			),
+			skald.text(info, (problem != "" && name != "") || noTypes ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = 400),
+			skald.spacer(th.spacing.sm),
+			skald.row(
+				skald.flex(1, skald.spacer(0)),
+				skald.button(ctx, "Cancel", Msg(New_Data_Cancelled{}), id = skald.hash_id("new-data-cancel"),
+					bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm),
+				skald.button(ctx, "Create", Msg(New_Data_Created{}), id = skald.hash_id("new-data-create"),
+					font_size = th.font.size_sm, disabled = problem != "" || noTypes || s.newData.type == ""),
+				spacing = th.spacing.sm,
+			),
+			spacing = th.spacing.sm,
+			padding = th.spacing.lg,
+			cross_align = .Stretch,
+		),
+		id = skald.hash_id("new-data-dialog"),
+		initial_focus = skald.hash_id("new-data-name"),
 		width = 440,
 	)
 }

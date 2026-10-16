@@ -216,6 +216,24 @@ Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, a
 `e.PhysicsBody_IsInArea(body, area)`, `e.PhysicsBody_GetAreas(body)`,
 `e.PhysicsBody_IsTouching(a, b)`.
 
+## Game state, data and assets in code
+
+- **Global scripts** run once for the whole game, across scenes: game state, settings, a HUD.
+  Make one with New Script (kind **Global script**); **File > Project Settings > Globals** lists
+  them, sets their fields and their order. Any script reaches one with `e.Global(GameState)`. A
+  global can draw over the game (its `draw` hook) and hide itself (`self.hidden`).
+- **Saves:** `e.Save_Game()` / `e.Load_Game()` write and read the globals' state as JSON (fields
+  that aren't exported; exported ones are editor settings, unless tagged `save:""`).
+- **Data resources** are reusable data in files: make a type with New Script (kind **Data
+  type**), then right-click the browser's **Data** folder > **New Data Resource**. Select one to
+  edit it in the inspector. Load it in code with `e.Data(EnemyStats, DATA_GOBLIN)`.
+- **Assets from code:** the editor writes `scripts/assets.odin` with a typed constant for every
+  asset (`TEXTURE_SHIP`, `SOUND_LASER`, `DATA_GOBLIN`, ...): `e.Game_PlaySound(game, SOUND_LASER)`,
+  `e.Asset_Texture(game, TEXTURE_SHIP)`. Fields of type `e.SoundAsset` (and Texture, Font, Data)
+  get an asset picker in the inspector.
+
+The demo project (`examples/demo_project`, see its README) uses all of these.
+
 ## Exporting
 
 **File > Project Settings > Export** lists every target. Check the ones you want, set each one's

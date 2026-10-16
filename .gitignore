@@ -13,3 +13,9 @@ editor.ini
 # Export output inside projects (Project Settings > Export; the default output folder)
 examples/*/export/
 tests/fixtures/*/export/
+
+# Written by the editor for the code editor, with paths to this machine
+examples/*/scripts/ols.json
+
+# Task's cache (sources/generates checks)
+.task/

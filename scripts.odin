@@ -34,6 +34,8 @@ SCRIPTS_FOLDER :: "scripts"
 ScriptCatalog :: struct {
 	status: ScriptCatalogStatus,
 	scripts: [dynamic]ScriptDesc,
+	// Registered data types (the engine's data.odin): their fields, like scripts'
+	dataTypes: [dynamic]ScriptDesc,
 }
 
 ScriptCatalogStatus :: enum {
@@ -71,46 +73,65 @@ Returns:
 - The scripts (owned; free with `ScriptCatalog_Clear`), and whether the text was valid
 */
 ScriptCatalog_Parse :: proc(text: string) -> ([dynamic]ScriptDesc, bool) {
-	scripts := make([dynamic]ScriptDesc)
-	// The JSON is the last line that starts with '{' (the player may log before it)
-	start := strings.last_index(text, "{\"scripts\"")
-	if start < 0 do return scripts, false
-	value, err := json.parse_string(text[start:], allocator = context.temp_allocator)
-	if err != .None do return scripts, false
-	root, isObject := value.(json.Object)
-	if !isObject do return scripts, false
-	list, _ := root["scripts"].(json.Array)
-	for item in list {
-		obj, ok := item.(json.Object)
-		if !ok do continue
-		desc := ScriptDesc{
-			name = strings.clone(jsonString(obj, "name")),
-			file = strings.clone(jsonString(obj, "file")),
-			line = int(jsonNumber(obj, "line").? or_else 0),
-		}
-		fields, _ := obj["fields"].(json.Array)
-		for f in fields {
-			fo, isField := f.(json.Object)
-			if !isField do continue
-			field := ScriptFieldDesc{
-				name = strings.clone(jsonString(fo, "name")),
-				defaultValue = strings.clone(jsonString(fo, "default")),
-				hint = strings.clone(jsonString(fo, "hint")),
-				min = jsonNumber(fo, "min"),
-				max = jsonNumber(fo, "max"),
-			}
-			for t in e.ScriptFieldType do if fmt.tprint(t) == jsonString(fo, "type") do field.type = t
-			names, _ := fo["enum"].(json.Array)
-			for n in names do if s, isString := n.(json.String); isString do append(&field.enumNames, strings.clone(s))
-			append(&desc.fields, field)
-		}
-		append(&scripts, desc)
-	}
-	return scripts, true
+	scripts, _, ok := ScriptCatalog_ParseAll(text)
+	return scripts, ok
 }
 
-// Frees the catalog's scripts
+/*
+Reads the JSON `player --describe-scripts` prints: the scripts and the data types.
+
+Returns:
+- Both lists (owned), and whether the text was valid
+*/
+ScriptCatalog_ParseAll :: proc(text: string) -> (scripts, dataTypes: [dynamic]ScriptDesc, ok: bool) {
+	scripts = make([dynamic]ScriptDesc)
+	dataTypes = make([dynamic]ScriptDesc)
+	// The JSON is the last line that starts with '{' (the player may log before it)
+	start := strings.last_index(text, "{\"scripts\"")
+	if start < 0 do return scripts, dataTypes, false
+	value, err := json.parse_string(text[start:], allocator = context.temp_allocator)
+	if err != .None do return scripts, dataTypes, false
+	root, isObject := value.(json.Object)
+	if !isObject do return scripts, dataTypes, false
+	read :: proc(list: json.Array, into: ^[dynamic]ScriptDesc) {
+		for item in list {
+			obj, isItem := item.(json.Object)
+			if !isItem do continue
+			desc := ScriptDesc{
+				name = strings.clone(jsonString(obj, "name")),
+				file = strings.clone(jsonString(obj, "file")),
+				line = int(jsonNumber(obj, "line").? or_else 0),
+			}
+			fields, _ := obj["fields"].(json.Array)
+			for f in fields {
+				fo, isField := f.(json.Object)
+				if !isField do continue
+				field := ScriptFieldDesc{
+					name = strings.clone(jsonString(fo, "name")),
+					defaultValue = strings.clone(jsonString(fo, "default")),
+					hint = strings.clone(jsonString(fo, "hint")),
+					min = jsonNumber(fo, "min"),
+					max = jsonNumber(fo, "max"),
+				}
+				for t in e.ScriptFieldType do if fmt.tprint(t) == jsonString(fo, "type") do field.type = t
+				names, _ := fo["enum"].(json.Array)
+				for n in names do if s, isString := n.(json.String); isString do append(&field.enumNames, strings.clone(s))
+				append(&desc.fields, field)
+			}
+			append(into, desc)
+		}
+	}
+	list, _ := root["scripts"].(json.Array)
+	read(list, &scripts)
+	data, _ := root["data"].(json.Array)
+	read(data, &dataTypes)
+	return scripts, dataTypes, true
+}
+
+// Frees the catalog's scripts and data types
 ScriptCatalog_Clear :: proc(catalog: ^ScriptCatalog) {
+	scriptDescs_Destroy(&catalog.dataTypes)
+	catalog.dataTypes = {}
 	for &script in catalog.scripts {
 		delete(script.name)
 		delete(script.file)
@@ -125,6 +146,29 @@ ScriptCatalog_Clear :: proc(catalog: ^ScriptCatalog) {
 	}
 	delete(catalog.scripts)
 	catalog.scripts = {}
+}
+
+@(private="file")
+scriptDescs_Destroy :: proc(list: ^[dynamic]ScriptDesc) {
+	for &d in list {
+		delete(d.name)
+		delete(d.file)
+		for &field in d.fields {
+			delete(field.name)
+			delete(field.defaultValue)
+			delete(field.hint)
+			for n in field.enumNames do delete(n)
+			delete(field.enumNames)
+		}
+		delete(d.fields)
+	}
+	delete(list^)
+}
+
+// The described data type with that name, or nil
+ScriptCatalog_FindData :: proc(catalog: ^ScriptCatalog, name: string) -> ^ScriptDesc {
+	for &d in catalog.dataTypes do if d.name == name do return &d
+	return nil
 }
 
 // The described script with that name, or nil
@@ -200,7 +244,7 @@ Inputs:
 Returns:
 - The file, relative to the project folder (temp allocated), and an error message ("" on success)
 */
-Project_CreateScript :: proc(project: ^Project, name: string) -> (file: string, message: string) {
+Project_CreateScript :: proc(project: ^Project, name: string, kind := ScriptKind.Node) -> (file: string, message: string) {
 	if problem := ScriptNameProblem(name); problem != "" do return "", problem
 	file = ScriptFileFor(name)
 	path, _ := filepath.join({project.rootPath, file}, context.temp_allocator)
@@ -209,10 +253,100 @@ Project_CreateScript :: proc(project: ^Project, name: string) -> (file: string, 
 	if err := os.make_directory_all(dir); err != nil && !os.exists(dir) {
 		return "", fmt.tprintf("couldn't create %s: %v", dir, err)
 	}
-	if err := os.write_entire_file(path, transmute([]byte)ScriptTemplate(name)); err != nil {
+	source: string
+	switch kind {
+	case .Node:   source = ScriptTemplate(name)
+	case .Global: source = GlobalScriptTemplate(name)
+	case .Data:   source = DataTypeTemplate(name)
+	}
+	if err := os.write_entire_file(path, transmute([]byte)source); err != nil {
 		return "", fmt.tprintf("couldn't write %s: %v", path, err)
 	}
 	return file, ""
+}
+
+// What New Script makes
+ScriptKind :: enum {
+	// Attached to a node
+	Node,
+	// Runs for the whole game (Project Settings > Globals; the engine's globals.odin)
+	Global,
+	// A data type for data resources (the engine's data.odin)
+	Data,
+}
+
+// The source of a new global script (temp allocated)
+GlobalScriptTemplate :: proc(name: string) -> string {
+	return strings.concatenate({`package scripts
+
+import "core:log"
+import e "engine:."
+import sdl "vendor:sdl3"
+
+/*
+`, name, `: a global script. It runs for the whole game, across scenes, from when the game
+starts (Project Settings > Globals lists the globals and sets their exported fields; every Play
+starts from those values).
+
+Any script reaches it with e.Global(`, name, `). e.Save_Game() saves its state as JSON and
+e.Load_Game() brings it back: fields that aren't exported (except ` + "save:\"-\"" + ` ones), and exported
+ones tagged ` + "save:\"\"" + ` (exported fields are editor settings otherwise).
+*/
+`, name, ` :: struct {
+	using script: e.Script,
+	// Set in Project Settings > Globals
+	lives: int ` + "`export:\"default=3 min=0\"`" + `,
+	// The game's own state (saved, not shown in the editor)
+	score: int,
+}
+
+@(init)
+register_`, name, ` :: proc "contextless" () {
+	e.Script_Register(`, name, `, {
+		// Once, when the game starts (after the scenes are built)
+		ready = proc(self: ^`, name, `) {
+			log.infof("Starting with %d lives", self.lives)
+		},
+		// Every frame, before the scene updates
+		update = proc(self: ^`, name, `, events: []sdl.Event, dt: f64) {
+		},
+		// The game switched scenes
+		sceneChanged = proc(self: ^`, name, `, scene: ^e.Scene) {
+		},
+		// Optional: draws over the scene, unmoved by the camera (a HUD). Set self.hidden to skip it
+		// draw = proc(self: ^`, name, `, renderer: ^sdl.Renderer) {},
+	})
+}
+`}, context.temp_allocator)
+}
+
+// The source of a new data type (temp allocated)
+DataTypeTemplate :: proc(name: string) -> string {
+	return strings.concatenate({`package scripts
+
+import e "engine:."
+
+/*
+`, name, `: a data type. Make data resources of it in the project browser (Data folder >
+New Data Resource): files holding one value each, edited in the inspector, shared by everything
+that loads them:
+
+	stats := e.Data(`, name, `, DATA_MY_RESOURCE)  // the constant is in assets.odin
+
+Fields tagged ` + "`export:\"\"`" + ` are the resource's values; asset fields (e.TextureAsset, e.SoundAsset,
+e.FontAsset, e.DataAsset) pick a project asset.
+*/
+`, name, ` :: struct {
+	health: int ` + "`export:\"default=10 min=1\"`" + `,
+	speed: f32 ` + "`export:\"default=100 min=0\"`" + `,
+	sprite: e.TextureAsset ` + "`export:\"\"`" + `,
+}
+
+@(init)
+register_`, name, ` :: proc "contextless" () {
+	e.Data_Register(`, name, `)
+}
+`}, context.temp_allocator)
 }
 
 // The source of a new script (temp allocated)
@@ -467,6 +601,8 @@ Re-reads the project's script files from disk (after opening a project, creating
 building).
 */
 Scripts_Refresh :: proc(state: ^State) {
+	// The generated asset constants first, so they're listed with the scripts
+	if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, fmt.aprintf("assets.odin: %s", message))
 	for f in state.scriptFiles do delete(f)
 	clear(&state.scriptFiles)
 	for f in Project_ScriptFiles(&state.project) do append(&state.scriptFiles, strings.clone(f))

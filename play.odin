@@ -128,6 +128,8 @@ scriptsBuild :: proc(state: ^State) -> skald.Command(Msg) {
 @(private="file")
 buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 	state.play.purpose = purpose
+	// The scripts compile against the current asset constants
+	if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, strings.clone(message))
 	target := playerTarget(state)
 	if Project_HasScripts(&state.project) do state.scripts.status = .Building
 	if playerIsCurrent(target) {
@@ -228,18 +230,20 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 		state.play.purpose = purpose
 		return afterBuild(state)
 	case .Describing:
-		scripts, ok := ScriptCatalog_Parse(string(described[:]))
+		scripts, dataTypes, ok := ScriptCatalog_ParseAll(string(described[:]))
 		delete(described)
 		if status.exit_code != 0 || !ok {
-			ScriptCatalog_Clear(&ScriptCatalog{scripts = scripts})
+			ScriptCatalog_Clear(&ScriptCatalog{scripts = scripts, dataTypes = dataTypes})
 			state.scripts.status = .Failed
 			logLine(state, .Error, fmt.aprintf("Couldn't read the project's scripts (exit code %d)", status.exit_code))
 			return {}
 		}
 		ScriptCatalog_Clear(&state.scripts)
 		state.scripts.scripts = scripts
+		state.scripts.dataTypes = dataTypes
 		state.scripts.status = .Ready
 		outputLine(state, .Info, fmt.aprintf("%d script%s: %s", len(scripts), len(scripts) == 1 ? "" : "s", scriptNames(scripts[:])))
+		if len(dataTypes) > 0 do outputLine(state, .Info, fmt.aprintf("%d data type%s: %s", len(dataTypes), len(dataTypes) == 1 ? "" : "s", scriptNames(dataTypes[:])))
 		if purpose == .Play do return startGame(state)
 	case .Running:
 		level := status.exit_code == 0 ? LogLevel.Info : LogLevel.Error

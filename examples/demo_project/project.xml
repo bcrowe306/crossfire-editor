@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project formatVersion="2" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene">
+<project formatVersion="5" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
 	<scene name="MenuScene" path="scenes/MenuScene.scene.xml"/>
 	<scene name="PlayScene" path="scenes/PlayScene.scene.xml"/>
 	<scene name="OptionsScene" path="scenes/OptionsScene.scene.xml"/>
+	<scene name="TestScene" path="scenes/TestScene.scene.xml"/>
 	<asset path="assets/ship.png" kind="Image"/>
 	<asset path="assets/balloons.png" kind="Image"/>
 	<asset path="assets/light.png" kind="Image"/>
+	<asset path="assets/Spaceship_12_1.png" kind="Image"/>
+	<asset path="assets/pickup.wav" kind="Audio"/>
+	<asset path="assets/hit.wav" kind="Audio"/>
+	<asset path="data/scout.data.json" kind="Data"/>
+	<asset path="data/hauler.data.json" kind="Data"/>
+	<global script="GameState">
+		<prop name="ship" value="data/scout.data.json"/>
+	</global>
+	<global script="Hud"/>
 </project>

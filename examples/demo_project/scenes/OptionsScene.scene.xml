@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scene formatVersion="2" name="OptionsScene">
+<scene formatVersion="5" name="OptionsScene">
 	<node kind="Label" name="Title" x="640" y="120" layer="7" text="Options" fontSize="64" color="#ebf0ff"/>
-	<node kind="Label" name="Info" x="640" y="260" layer="7" text="Settings will live here." fontSize="28" color="#96a0b9"/>
+	<node kind="Label" name="Info" x="640" y="260" layer="7" text="Ship" fontSize="32" color="#ebf0ff">
+		<script name="ShipPicker"/>
+	</node>
+	<node kind="Label" name="Hint" x="640" y="320" layer="7" text="Left / Right: choose your ship (saved)" fontSize="22" color="#96a0b9"/>
 	<node kind="Menu" name="OptionsMenu" x="640" y="420">
 		<item label="Back" action="scene:MenuScene"/>
 	</node>

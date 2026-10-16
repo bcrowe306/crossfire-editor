@@ -1,0 +1,10 @@
+{
+	"formatVersion": 1,
+	"type": "ShipStats",
+	"values": {
+		"name": "Hauler",
+		"speed": "260",
+		"sprite": "assets/ship.png",
+		"tint": "#ffd9a8"
+	}
+}

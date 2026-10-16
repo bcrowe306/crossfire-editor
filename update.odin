@@ -23,6 +23,13 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	snap: EditSnapshot
 	if info.scope != .None do snap = History_Snapshot(&state, info)
 	out, command := applyMsg(state, m)
+	// The inspector shows a data resource chosen in the browser, until a node is selected
+	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
+	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Data {
+		out.dataSelection = Project_FindData(&out.project, out.project.assets[out.browserSelection.index].path)
+	}
+	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.dataSelection = -1
+	if out.dataSelection >= len(out.project.data) do out.dataSelection = -1
 	// A structural edit renumbers nodes: the old multi-selection is meaningless unless the edit
 	// chose a new one. Then make the selection agree with selectedNode (selection.odin)
 	if (info.scope == .Scene || info.scope == .Project) && !out.selectionSet do clear(&out.selection)
@@ -68,15 +75,51 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		for prop in node.props { delete(prop.name); delete(prop.value) }
 		clear(&node.props)
 		logLine(&out, .Info, name == "" ? fmt.aprintf("Removed the script from %s", node.name) : fmt.aprintf("Attached %s to %s", name, node.name))
+	case New_Script_Kind_Changed:
+		out.newScript.kind = ScriptKind(v)
+	case New_Data_Opened:
+		delete(out.newData.name)
+		delete(out.newData.type)
+		first := len(out.scripts.dataTypes) > 0 ? out.scripts.dataTypes[0].name : ""
+		out.newData = {open = true, name = strings.clone(""), type = strings.clone(first)}
+	case New_Data_Name_Changed:
+		delete(out.newData.name)
+		out.newData.name = strings.clone(string(v))
+	case New_Data_Type_Changed:
+		delete(out.newData.type)
+		out.newData.type = strings.clone(string(v))
+	case New_Data_Cancelled:
+		out.newData.open = false
+	case New_Data_Created:
+		index, problem := Project_CreateData(&out.project, out.newData.name, out.newData.type)
+		if problem != "" {
+			logLine(&out, .Error, fmt.aprintf("New data resource: %s", problem))
+			break
+		}
+		out.newData.open = false
+		out.session.assetsChanged = true
+		out.browserOpen[.Data] = true
+		out.dataSelection = index
+		for asset, i in out.project.assets do if asset.path == out.project.data[index].path do out.browserSelection = {kind = .Asset, folder = .Data, index = i}
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+		logLine(&out, .Info, fmt.aprintf("Created %s (%s)", out.project.data[index].path, out.project.data[index].type))
 	case Script_Prop_Changed:
-		if node := selectedNode(&out); node != nil do NodeDef_SetScriptValue(node, v.name, v.value, v.defaultValue)
+		switch t in v.target {
+		case SelectedNodeTarget:
+			if node := selectedNode(&out); node != nil do NodeDef_SetScriptValue(node, v.name, v.value, v.defaultValue)
+		case DraftGlobalTarget:
+			globals := &out.projectSettings.globals
+			if int(t) >= 0 && int(t) < len(globals) do Props_Set(&globals[t].props, v.name, v.value, v.defaultValue)
+		case DataTarget:
+			if int(t) >= 0 && int(t) < len(out.project.data) do Props_Set(&out.project.data[t].values, v.name, v.value, v.defaultValue)
+		}
 	case Script_Open_File:
 		return out, Script_OpenInEditor(&out, v.file, v.line)
 	case Editor_Process_Check:
 		return out, Editor_CheckProcesses(&out)
 	case New_Script_Opened:
 		delete(out.newScript.name)
-		out.newScript = {open = true, name = strings.clone("")}
+		out.newScript = {open = true, name = strings.clone(""), kind = out.newScript.kind}
 	case New_Script_Name_Changed:
 		delete(out.newScript.name)
 		out.newScript.name = strings.clone(string(v))
@@ -84,7 +127,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.newScript.open = false
 	case New_Script_Created:
 		name := strings.trim_space(out.newScript.name)
-		file, message := Project_CreateScript(&out.project, name)
+		kind := out.newScript.kind
+		file, message := Project_CreateScript(&out.project, name, kind)
 		if message != "" {
 			logLine(&out, .Error, fmt.aprintf("New script: %s", message))
 			break
@@ -92,10 +136,17 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.newScript.open = false
 		Scripts_Refresh(&out)
 		logLine(&out, .Info, fmt.aprintf("Created %s", file))
-		// Attach it to the selected node, open it, and build so its fields show up
-		if node := selectedNode(&out); node != nil {
-			delete(node.script)
-			node.script = strings.clone(name)
+		switch kind {
+		case .Node:
+			// Attach it to the selected node, open it, and build so its fields show up
+			if node := selectedNode(&out); node != nil {
+				delete(node.script)
+				node.script = strings.clone(name)
+			}
+		case .Global:
+			// Runs for the whole game from the next Play (Project Settings > Globals lists it)
+			append(&out.project.globals, GlobalDef{script = strings.clone(name)})
+		case .Data:
 		}
 		path, line := Script_Location(&out, name)
 		return out, skald.cmd_batch(Script_OpenInEditor(&out, path, line), scriptsBuild(&out))
@@ -104,7 +155,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Project_Settings_Start_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
-	     Project_Settings_Physics_Smoothing_Changed:
+	     Project_Settings_Physics_Smoothing_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)
@@ -168,6 +219,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 				usage > 0 ? fmt.tprintf(" (still used by %d node%s)", usage, usage == 1 ? "" : "s") : ""))
 		}
 		out.browserSelection = {kind = .None}
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
 	case Asset_Remove_Cancelled:
 		out.removeConfirm = {}
 
@@ -763,6 +815,7 @@ importAsset :: proc(state: ^State, path: string) {
 	}
 	asset := state.project.assets[index]
 	logLine(state, .Info, fmt.aprintf("Imported %s (Save to keep it in the project)", asset.path))
+	if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, strings.clone(message))
 	state.browserOpen[AssetFolder(asset.kind)] = true
 	selectAsset(state, index)
 }

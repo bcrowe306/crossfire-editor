@@ -30,6 +30,8 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		return .Audio, true
 	case ".ttf", ".otf":
 		return .Font, true
+	case ".json":
+		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), DATA_EXTENSION) do return .Data, true
 	}
 	return .Image, false
 }
@@ -82,6 +84,11 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 	for asset, i in project.assets {
 		if asset.path == relative do return i, ""
 	}
+	if kind == .Data {
+		def, problem := Project_LoadData(project.rootPath, relative)
+		if problem != "" do return -1, problem
+		append(&project.data, def)
+	}
 	append(&project.assets, AssetDef{strings.clone(relative), kind})
 	return len(project.assets) - 1, ""
 }
@@ -109,6 +116,10 @@ Project_RemoveAsset :: proc(project: ^Project, index: int, deleteFile: bool) -> 
 		if err := os.remove(path); err != nil && os.exists(path) {
 			message = fmt.tprintf("Removed from the project, but couldn't delete %s: %v", asset.path, err)
 		}
+	}
+	if d := Project_FindData(project, asset.path); d >= 0 {
+		DataDef_Destroy(&project.data[d])
+		ordered_remove(&project.data, d)
 	}
 	delete(asset.path)
 	ordered_remove(&project.assets, index)

@@ -18,6 +18,7 @@ scene instead: Delete, Ctrl+D (duplicate), Ctrl+C / Ctrl+X / Ctrl+V, F2 (rename)
 // The Project Settings dialog's tabs
 ProjectSettingsTab :: enum {
 	General,
+	Globals,
 	Export,
 }
 
@@ -36,6 +37,9 @@ ProjectSettingsDialog :: struct {
 	// Owned
 	startScene: string,
 	physics: e.PhysicsSettings,
+	// Globals tab: a copy of the project's globals (owned), and the one shown
+	globals: [dynamic]GlobalDef,
+	selectedGlobal: int,
 }
 
 /*
@@ -175,6 +179,8 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 	exportTarget := dialog.exportTarget
 	delete(dialog.name)
 	delete(dialog.startScene)
+	for &g in dialog.globals do GlobalDef_Destroy(&g)
+	delete(dialog.globals)
 	p := &state.project
 	c := p.background
 	dialog^ = {
@@ -189,6 +195,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		exports = p.exports,
 		physics = p.physics,
 	}
+	for g in p.globals do append(&dialog.globals, GlobalDef_Clone(g))
 }
 
 /*
@@ -210,6 +217,27 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 		}
 	case Project_Settings_Physics_Debug_Changed:
 		dialog.physics.debugDraw = bool(v)
+	case Global_Added:
+		name := strings.trim_space(string(v))
+		if name == "" || name == TEXTURE_NONE do break
+		known := false
+		for g in dialog.globals do if g.script == name do known = true
+		if known do break
+		append(&dialog.globals, GlobalDef{script = strings.clone(name)})
+		dialog.selectedGlobal = len(dialog.globals) - 1
+	case Global_Removed:
+		i := int(v)
+		if i < 0 || i >= len(dialog.globals) do break
+		GlobalDef_Destroy(&dialog.globals[i])
+		ordered_remove(&dialog.globals, i)
+		dialog.selectedGlobal = clamp(dialog.selectedGlobal, 0, max(len(dialog.globals) - 1, 0))
+	case Global_Moved:
+		j := v.index + v.delta
+		if v.index < 0 || v.index >= len(dialog.globals) || j < 0 || j >= len(dialog.globals) do break
+		dialog.globals[v.index], dialog.globals[j] = dialog.globals[j], dialog.globals[v.index]
+		dialog.selectedGlobal = j
+	case Global_Selected:
+		dialog.selectedGlobal = int(v)
 	case Project_Settings_Physics_Smoothing_Changed:
 		dialog.physics.smoothing = bool(v)
 	case Export_Target_Selected:
@@ -267,6 +295,9 @@ applyProjectSettings :: proc(state: ^State) {
 		p.startScene = strings.clone(dialog.startScene)
 	}
 	p.exports = dialog.exports
+	for &g in p.globals do GlobalDef_Destroy(&g)
+	clear(&p.globals)
+	for g in dialog.globals do append(&p.globals, GlobalDef_Clone(g))
 	p.physics = dialog.physics
 }
 

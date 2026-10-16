@@ -46,6 +46,11 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	                                 Drag a browser row into the viewport, to (dx, dy) window
 	                                 pixels from its center
 	action <Action>                  Send an action, as its menu item would (e.g. Open_Project_Settings)
+	send <Message> <value>           Send what a dropdown choice would (dropdowns can't be clicked
+	                                 open): New_Script_Kind_Changed <Node | Global | Data>,
+	                                 Global_Added <script>, New_Data_Type_Changed <type>,
+	                                 Project_Settings_Tab_Changed <tab>, New_Script_Opened,
+	                                 New_Data_Opened (no value)
 	open_project <folder>            Open a project, as if picked in the folder dialog (no
 	                                 unsaved-changes prompt)
 	drag_node <name> <dx> <dy>       Press on a node, move by (dx, dy) window pixels, release
@@ -113,6 +118,11 @@ Checks:
 	project_file <path>          A file exists, relative to the project folder (an export's output)
 	project_file_contains <path> <text>   A project file contains the text (after saving)
 	shapes <on | off>            The viewport outlines collision shapes, rays and joints
+	globals <A,B | none>         The project's global scripts, in order
+	draft_globals <A,B | none>   The Project Settings dialog's globals
+	data_count <n>               The project's data resources
+	inspector_data <name | none> The data resource the inspector shows
+	data_value <name> <field> <value>   A data resource's value ("(default)" if it has none)
 	physics_debug <on | off>     The project's Show collision shapes (development) setting
 
 Every input command waits INPUT_SETTLE_FRAMES afterwards, so its effects are visible to the
@@ -498,6 +508,30 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "send":
+		name, _, value := strings.partition(rest, " ")
+		msg: Msg
+		switch name {
+		case "New_Script_Kind_Changed":
+			kind, ok := reflect.enum_from_name(ScriptKind, value)
+			if ok do msg = New_Script_Kind_Changed(kind)
+		case "Global_Added":          msg = Global_Added(strings.clone(value, context.temp_allocator))
+		case "New_Script_Opened":     msg = New_Script_Opened{}
+		case "New_Data_Opened":       msg = New_Data_Opened{}
+		case "New_Data_Type_Changed": msg = New_Data_Type_Changed(strings.clone(value, context.temp_allocator))
+		case "Project_Settings_Tab_Changed":
+			tab, ok := reflect.enum_from_name(ProjectSettingsTab, value)
+			if ok do msg = Project_Settings_Tab_Changed(tab)
+		}
+		if msg == nil {
+			fail(fmt.tprintf("%s: unknown message or value", line))
+			return true
+		}
+		skald.send(ctx, msg)
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "action":
 		// Menu bar entries without a shortcut (menus can't be clicked by key): send the action
 		action, known := reflect.enum_from_name(Action, rest)
@@ -761,6 +795,23 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "project_file":
 		path := joinPath(s.project.rootPath, value, allocator = context.temp_allocator)
 		return os.exists(path), fmt.tprintf("%s doesn't exist", path)
+	case "globals", "draft_globals":
+		list := name == "globals" ? s.project.globals[:] : s.projectSettings.globals[:]
+		names := make([dynamic]string, context.temp_allocator)
+		for g in list do append(&names, g.script)
+		found = len(names) == 0 ? "none" : strings.join(names[:], ",", context.temp_allocator)
+	case "data_count":
+		found = fmt.tprint(len(s.project.data))
+	case "inspector_data":
+		found = s.dataSelection >= 0 && s.dataSelection < len(s.project.data) ? DataName(s.project.data[s.dataSelection].path) : "none"
+	case "data_value":
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 3 do return false, "expected <name> <field> <value>"
+		for d in s.project.data do if DataName(d.path) == parts[0] {
+			found = Props_Value(d.values[:], parts[1], "(default)")
+			return found == strings.join(parts[2:], " ", context.temp_allocator), found
+		}
+		return false, "no such data resource"
 	case "shapes":
 		found = s.viewport.showShapes ? "on" : "off"
 	case "physics_debug":

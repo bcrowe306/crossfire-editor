@@ -129,6 +129,8 @@ AssetKind :: enum {
 	Image,
 	Audio,
 	Font,
+	// A data resource (`.data.json`, project_data.odin)
+	Data,
 }
 
 /*
@@ -162,6 +164,9 @@ Project :: struct {
 	sceneFiles: [dynamic]string,
 	// Export targets and their settings, saved in export.ini (export.odin)
 	exports: ExportSettings,
+	// Global scripts, in start order, and data resources (project_data.odin)
+	globals: [dynamic]GlobalDef,
+	data: [dynamic]DataDef,
 }
 
 // Path of a scene's file inside the project folder
@@ -387,6 +392,10 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.startScene)
 	for f in project.sceneFiles do delete(f)
 	delete(project.sceneFiles)
+	for &g in project.globals do GlobalDef_Destroy(&g)
+	delete(project.globals)
+	for &d in project.data do DataDef_Destroy(&d)
+	delete(project.data)
 	project^ = {}
 }
 
@@ -431,8 +440,26 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		switch asset.kind {
 		case "Audio": kind = .Audio
 		case "Font":  kind = .Font
+		case "Data":  kind = .Data
 		}
 		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
+		// A data resource's values come from its file
+		if kind == .Data {
+			def, problem := Project_LoadData(rootPath, asset.path)
+			if problem != "" {
+				list := make([dynamic]string, context.temp_allocator)
+				append(&list, ..warnings)
+				append(&list, problem)
+				warnings = list[:]
+				def = DataDef{path = strings.clone(asset.path), type = strings.clone("")}
+			}
+			append(&project.data, def)
+		}
+	}
+	for g in data.globals {
+		global := GlobalDef{script = strings.clone(g.script)}
+		for p in g.props do append(&global.props, ScriptPropDef{strings.clone(p.name), strings.clone(p.value)})
+		append(&project.globals, global)
 	}
 
 	for ref in data.scenes {
