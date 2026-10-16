@@ -67,6 +67,7 @@ Checks:
 	dialog <open | closed>       The remove-asset dialog
 	add_dialog <open | closed>   The Add Node dialog
 	menu <key> <open | closed>   A context menu, e.g. scene-tree-menu
+	menu_idle <key>              A context menu is closed and done fading out
 	row <n> <name>               Node shown in row n of the scene tree
 	clipboard <count>            Nodes copied (a subtree)
 	settings_dialog <open | closed>
@@ -86,6 +87,9 @@ next check.
 */
 
 INPUT_SETTLE_FRAMES :: 3
+// Context menus the driver lets finish fading out before the next command
+@(private="file")
+FADING_MENUS := [?]string{"scene-tree-menu"}
 DEFAULT_WAIT_TIMEOUT :: 10 * time.Second
 // A script that hasn't finished after this long fails
 SCRIPT_TIMEOUT :: 300 * time.Second
@@ -175,6 +179,12 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 	if driver.waitFrames > 0 {
 		driver.waitFrames -= 1
 		return
+	}
+	// A context menu fades out after it closes and blocks clicks under it until it has. Wait for
+	// that, so the next command doesn't land on a fading menu (a person is never that quick)
+	for key in FADING_MENUS {
+		menu := ctx.widgets.states[skald.hash_id(key)]
+		if !menu.open && menu.anim_t > 0.01 do return
 	}
 	if driver.waitCheck != "" {
 		ok, message := runCheck(s, ctx, driver.waitCheck)
@@ -496,6 +506,9 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = Keymap_FormatChords(s.settings.keymap[action])
 		if found == "" do found = "-"
 		return found == strings.trim_space(expected), found
+	case "menu_idle":
+		state := ctx.widgets.states[skald.hash_id(value)]
+		return !state.open && state.anim_t <= 0.01, fmt.tprintf("open %v, fade %.2f", state.open, state.anim_t)
 	case "capture":
 		found = s.settingsDialog.capture.active ? "on" : "off"
 	case "settings_file_contains":

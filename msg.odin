@@ -171,6 +171,8 @@ Viewport_Drag_Move :: struct {
 Viewport_Drag_End :: struct {}
 // Sent every frame while viewport animations play, so frames keep coming
 Viewport_Tick :: struct {}
+// The view wants the next animation frame: starts a timer that sends Viewport_Tick
+Viewport_Tick_Requested :: struct {}
 
 // Project browser
 Browser_Search_Changed :: distinct string
@@ -239,6 +241,7 @@ Msg :: union {
 	Viewport_Drag_Move,
 	Viewport_Drag_End,
 	Viewport_Tick,
+	Viewport_Tick_Requested,
 	Browser_Search_Changed,
 	Asset_Import_Result,
 	Asset_Remove_Confirmed,

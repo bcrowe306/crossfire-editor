@@ -45,8 +45,9 @@ add it as a task and to the README's command table.
 | `task verify` | `check` + `test` |
 | `task test:ui` | UI test scripts (`tests/ui/*.script`) driving the real editor with injected input |
 | `task build` / `task build:release` | Debug build into `build/`, optimized build into `build/release/` |
-| `task run` | Build and run (debug); program arguments after `--` |
-| `task run:fullscreen` | Run with `-define:EDITOR_FULLSCREEN=true` |
+| `task run` | Build optimized (`build/release/`) and run; program arguments after `--` |
+| `task run:debug` | Build with `-debug` and run (unoptimized: the viewport ran at ~14 fps vs 60) |
+| `task run:fullscreen` | Optimized, with `-define:EDITOR_FULLSCREEN=true` |
 | `task player` | Build the engine's player into `build/player/player` |
 | `task play:demo` | Run the demo project in the player, without the editor |
 | `task clean` | Delete build output |
@@ -159,6 +160,15 @@ sprites, animations, text and menus look as they do in the game. Future engine f
 - The engine draws with SDL's software renderer into a surface, then the view uploads the pixels
   with `skald.image_update_pixels` (or `image_load_pixels` when the size changes). The image is
   drawn with `draw_image` inside a canvas.
+- **The upload is the expensive part** (Skald rebuilds mipmaps on the CPU and waits for the GPU on
+  every update: ~4 ms optimized, ~46 ms in a debug build, for a 400x730 px viewport). So:
+  - the view only renders and uploads when `Preview_FrameKey` changes (scene, transforms, view,
+    size, animation frame); other redraws reuse the image
+  - animations run on a timer at `VIEWPORT_ANIMATION_FPS` (30): `Viewport_Tick` schedules the
+    next tick itself, and stops when the window isn't focused (`EditorFocused`)
+  - Making the upload cheap needs a Skald change (no mipmaps, a reused staging buffer, no
+    `QueueWaitIdle`); drawing the engine through Skald on the GPU needs a public textured-quad
+    API in Skald. Both were deferred; ask before changing Skald.
 - Skald draws with Vulkan, so it can't share a GPU context with the engine.
 - The preview is package state, not `State`, because it holds SDL resources:
   - The engine scene is rebuilt only when the scene's structure changes (`sceneSignature`).
@@ -306,7 +316,7 @@ after, and its scene. Undo switches to that scene and restores "before"; redo re
 - `settings.default.ini` (in git) holds every default and is built in with `#load`;
   `Settings_Default` parses it, so the file and the code can't disagree.
 - The user's settings are `editor.ini` next to the executable (`Settings_DefaultPath`, so
-  `build/editor.ini` for `task run`). Loading parses the defaults, then that file over them;
+  `build/release/editor.ini` for `task run`, `build/editor.ini` for the debug build). Loading parses the defaults, then that file over them;
   unknown or bad lines are reported in the Console and skipped. Saving writes every setting.
 - `--settings <file>` picks another file. Test scripts (`--script`) use the defaults and never
   save unless `--settings` is given; `task test:ui` passes a scratch `build/ui_settings.ini`.

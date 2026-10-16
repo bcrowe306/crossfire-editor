@@ -85,20 +85,30 @@ tasks:
       - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}}
 
   run:
-    desc: Build and run (debug). Pass program arguments after --, e.g. task run -- --help
+    desc: Build optimized and run. Pass program arguments after --, e.g. task run -- path/to/project
+    # Optimized: the debug build is several times slower (the viewport ran at ~14 fps vs 60)
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}/release
+      - odin build . {{.COLLECTIONS}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}}
+      - '{{.BUILD_DIR}}/release/{{.NAME}} {{.CLI_ARGS}}'
+
+  run:debug:
+    desc: Build with debug info (unoptimized, slower) and run, for a debugger or bounds checks
     cmds:
       - odin run . {{.COLLECTIONS}} -debug -- {{.CLI_ARGS}}
 
   run:fullscreen:
-    desc: Build and run fullscreen, to see the full layout on a tiling window manager
+    desc: Build optimized and run fullscreen, to see the full layout on a tiling window manager
     cmds:
-      - odin run . {{.COLLECTIONS}} -debug -define:EDITOR_FULLSCREEN=true -- {{.CLI_ARGS}}
+      - mkdir -p {{.BUILD_DIR}}/release
+      - odin build . {{.COLLECTIONS}} -o:speed -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/release/{{.NAME}}-fullscreen
+      - '{{.BUILD_DIR}}/release/{{.NAME}}-fullscreen {{.CLI_ARGS}}'
 
   player:
     desc: Build the engine's game player (Play does this automatically when the engine changed)
     cmds:
       - mkdir -p {{.BUILD_DIR}}/player
-      - odin build {{.ENGINE_DIR}}/player -debug -out:{{.BUILD_DIR}}/player/player
+      - odin build {{.ENGINE_DIR}}/player -o:speed -out:{{.BUILD_DIR}}/player/player
 
   play:demo:
     desc: Run the demo project in the player, without the editor

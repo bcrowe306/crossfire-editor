@@ -47,7 +47,8 @@ Run `task` to list them all.
 | `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input (opens the editor window). They use a copy of `tests/fixtures/ui_project` and default settings |
 | `task build` | Debug build into `build/odin_sdl_editor` |
 | `task build:release` | Optimized build into `build/release/odin_sdl_editor` |
-| `task run` | Build and run (debug). Program arguments go after `--` |
+| `task run` | Build optimized and run. Program arguments go after `--` |
+| `task run:debug` | Build with debug info (unoptimized, several times slower) and run |
 | `task run:fullscreen` | Run fullscreen. Useful on tiling window managers, which shrink the window into a tile |
 | `task player` | Build the engine's game player into `build/player/` |
 | `task play:demo` | Run the demo project in the player, without the editor |

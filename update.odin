@@ -40,7 +40,21 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Settings_Capture_Started, Settings_Key_Captured, Settings_Capture_Cancelled, Settings_Key_Cleared,
 	     Settings_Key_Reset, Settings_Tab_Reset, Settings_Applied, Settings_Cancelled:
 		// Handled by SettingsDialog_Update above
-	case Script_Tick, Viewport_Tick, Preview_Tick:
+	case Viewport_Tick:
+		out.viewport.animationFrame += 1
+		// Schedule the next frame here rather than from the view, which would cost extra redraws.
+		// Stops when animations are off or the window loses focus; the view restarts it
+		if !out.viewport.animate || !Preview_IsAnimated() || !EditorFocused() {
+			out.viewport.tickPending = false
+			break
+		}
+		return out, nextViewportTick(&out.viewport)
+	case Viewport_Tick_Requested:
+		if out.viewport.tickPending do break
+		out.viewport.tickPending = true
+		out.viewport.nextTick = time.tick_now()
+		return out, nextViewportTick(&out.viewport)
+	case Script_Tick, Preview_Tick:
 		// Only keep frames coming (test script, viewport animations, audio progress)
 
 	case Browser_Search_Changed:
@@ -466,4 +480,19 @@ addNodeOfKind :: proc(state: ^State, kind: NodeKind) {
 	state.addNode.open = false
 	scene := &state.project.scenes[state.currentScene]
 	logLine(state, .Info, fmt.aprintf("Added %s to %s", scene.nodes[index].name, scene.name))
+}
+
+// A timer for the next viewport animation frame, due 1 / VIEWPORT_ANIMATION_FPS after the last one
+@(private="file")
+nextViewportTick :: proc(v: ^ViewportState) -> skald.Command(Msg) {
+	period := time.Second / VIEWPORT_ANIMATION_FPS
+	now := time.tick_now()
+	v.nextTick = time.tick_add(v.nextTick, period)
+	wait := time.tick_diff(now, v.nextTick)
+	// Fell behind (a slow frame, a stall): start again from now
+	if wait <= 0 {
+		v.nextTick = time.tick_add(now, period)
+		wait = period
+	}
+	return skald.cmd_delay(f32(time.duration_seconds(wait)), Msg(Viewport_Tick{}))
 }

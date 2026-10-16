@@ -1,6 +1,7 @@
 package editor
 
 import "core:math"
+import "core:time"
 import e "engine:."
 
 /*
@@ -64,7 +65,17 @@ ViewportState :: struct {
 	// Play AnimatedSprite animations in the viewport
 	animate: bool,
 	drag: ViewportDrag,
+	// Animation frames shown so far; each one is a 1 / VIEWPORT_ANIMATION_FPS timer tick
+	animationFrame: int,
+	// A tick timer is running (`Viewport_Tick_Requested` started it; each tick starts the next)
+	tickPending: bool,
+	// When the next tick is due, so ticks keep a steady rate however late each one lands
+	nextTick: time.Tick,
 }
+
+// Viewport animations are drawn at this rate, not the display's: each frame re-renders the scene
+// in software and uploads it, and the rest of the editor redraws with it
+VIEWPORT_ANIMATION_FPS :: 30
 
 Viewport_WorldToView :: proc(v: ^ViewportState, world: [2]f32) -> [2]f32 {
 	return (world - v.center) * v.zoom + v.size * 0.5

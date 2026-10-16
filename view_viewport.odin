@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:math"
 import e "engine:."
 import "gui:skald"
+import sdl "vendor:sdl3"
 
 /*
 Center area: scene tabs and view controls above the viewport.
@@ -33,6 +34,14 @@ WHEEL_ZOOM_STEP :: 1.15
 // Size of the last image uploaded to Skald (it must be re-registered when the size changes)
 @(private="file")
 uploadedSize: [2]int
+// `Preview_FrameKey` of the uploaded image
+@(private="file")
+uploadedKey: u64
+
+// Whether the editor window has keyboard focus (the user is working in it)
+EditorFocused :: proc() -> bool {
+	return sdl.GetKeyboardFocus() != nil
+}
 
 // Where a node is and what it covers, in world coordinates
 @(private="file")
@@ -65,7 +74,12 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if ctx.renderer != nil && s.viewport.zoom > 0 && viewRect.w > 0 && viewRect.h > 0 {
 		pixelScale := max(ctx.renderer.scale, 1)
 		size := [2]int{int(math.ceil(viewRect.w * pixelScale)), int(math.ceil(viewRect.h * pixelScale))}
-		if pixels, ok := Preview_Render(s, size, pixelScale); ok {
+		// Re-render and upload only when what the viewport shows changed. Other redraws (hovering,
+		// typing, the console) reuse the uploaded image
+		key := Preview_FrameKey(s, size, pixelScale)
+		if key == uploadedKey && size == uploadedSize {
+			imageReady = true
+		} else if pixels, ok := Preview_Render(s, size, pixelScale); ok {
 			if size == uploadedSize {
 				imageReady = skald.image_update_pixels(ctx.renderer, VIEWPORT_IMAGE, u32(size.x), u32(size.y), pixels)
 			}
@@ -73,8 +87,13 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				imageReady = skald.image_load_pixels(ctx.renderer, VIEWPORT_IMAGE, u32(size.x), u32(size.y), pixels)
 				uploadedSize = size
 			}
+			uploadedKey = imageReady ? key : 0
 		}
-		if s.viewport.animate && Preview_IsAnimated() do skald.send(ctx, Msg(Viewport_Tick{}))
+		// Animations ask for frames at VIEWPORT_ANIMATION_FPS, and stop while the editor window
+		// isn't focused (focusing it again redraws, which asks again)
+		if s.viewport.animate && Preview_IsAnimated() && !s.viewport.tickPending && EditorFocused() {
+			skald.send(ctx, Msg(Viewport_Tick_Requested{}))
+		}
 	}
 
 	labels := make([]string, len(s.project.scenes), context.temp_allocator)

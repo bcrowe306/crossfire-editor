@@ -14,7 +14,7 @@ animations, text and menus look exactly as they do in the game (and future engin
 like particles, show up without editor work).
 
 The engine draws with SDL's software renderer into a surface; the view uploads those pixels to a
-Skald image each frame. The preview keeps SDL resources, so it lives here as package state, not
+Skald image when `Preview_FrameKey` says the picture changed (the upload is the slow part). The preview keeps SDL resources, so it lives here as package state, not
 in `State`:
 - The engine scene is rebuilt only when the scene's structure changes (node kinds, textures, text,
   animation settings...), detected with `sceneSignature`.
@@ -93,6 +93,39 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	// SDL batches draw commands; run them before reading the surface
 	sdl.FlushRenderer(r)
 	return copyPixels(size), true
+}
+
+/*
+A hash of everything the rendered image depends on: the scene (structure and transforms), the
+view, the image size and, while animations play, the animation frame. Equal keys mean the last
+rendered image is still right.
+*/
+Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
+	scene := &s.project.scenes[s.currentScene]
+	State :: struct {
+		signature: u64,
+		size: [2]int,
+		pixelScale: f32,
+		center: [2]f32,
+		zoom: f32,
+		animationFrame: int,
+		background: [4]u8,
+	}
+	key := State{
+		signature = sceneSignature(s, scene),
+		size = size,
+		pixelScale = pixelScale,
+		center = s.viewport.center,
+		zoom = s.viewport.zoom,
+		animationFrame = s.viewport.animate ? s.viewport.animationFrame : -1,
+		background = transmute([4]u8)s.project.background,
+	}
+	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
+	for node in scene.nodes {
+		t := struct { position: [2]f32, rotation: f32, scale: [2]f32, visible: bool, layer: int }{node.position, node.rotation, node.scale, node.visible, node.layer}
+		h = hash.fnv64a(([^]u8)(&t)[:size_of(t)], h)
+	}
+	return h
 }
 
 /*

@@ -73,7 +73,8 @@ playStart :: proc(state: ^State) -> skald.Command(Msg) {
 
 	engineDir := absolutePath(ENGINE_DIR)
 	playerSource, _ := filepath.join({engineDir, "player"}, context.temp_allocator)
-	command := []string{"odin", "build", playerSource, "-debug", fmt.tprintf("-out:%s", playerPath())}
+	// Optimized, like an exported game. Rebuilt only when the engine changes
+	command := []string{"odin", "build", playerSource, "-o:speed", fmt.tprintf("-out:%s", playerPath())}
 	outputLine(state, .Info, fmt.aprintf("$ %s", strings.join(command, " ", context.temp_allocator)))
 
 	if !startProcess(state, command, "") {
