@@ -46,7 +46,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	return skald.col(
 		panelHeader(ctx, ICON_SITEMAP, scene.name,
-			panelButton(ctx, "add-node", ICON_PLUS, "Add child node (Ctrl+Shift+A)", Action.Add_Node),
+			panelButton(ctx, "add-node", ICON_PLUS, "Add node (Ctrl+Shift+A)", Action.Add_Node),
 			panelButton(ctx, "delete-node", ICON_TRASH, "Delete node (Delete)", Action.Delete_Node, disabled = s.selectedNode < 0),
 		),
 		skald.divider(ctx),

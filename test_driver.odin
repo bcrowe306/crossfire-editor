@@ -59,6 +59,7 @@ Checks:
 	preview_visible <true | false>   The image preview got usable space (at least 32 x 32)
 	audio <playing | stopped>    Sound preview playback
 	dialog <open | closed>       The remove-asset dialog
+	add_dialog <open | closed>   The Add Node dialog
 	console_contains <text>      A console line contains the text
 	output_contains <text>       An Output line contains the text
 
@@ -375,6 +376,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = AudioPreview_IsPlaying() ? "playing" : "stopped"
 	case "dialog":
 		found = s.removeConfirm.open ? "open" : "closed"
+	case "add_dialog":
+		found = s.addNode.open ? "open" : "closed"
 	case "field":
 		field, _, expected := strings.partition(value, " ")
 		if selected == nil do return false, "nothing selected"
@@ -481,6 +484,9 @@ pressKey :: proc(combo: string) -> bool {
 	_ = sdl.PushEvent(&event)
 	event.type = .KEY_UP
 	event.key.down = false
+	// Skald takes the modifiers from each key event, so release them too, as letting go of the
+	// keys would. Otherwise Ctrl stays held and text inputs ignore later typing.
+	event.key.mod = {}
 	queueBatch(event)
 	driver.waitFrames = INPUT_SETTLE_FRAMES
 	return true

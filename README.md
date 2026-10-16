@@ -80,6 +80,13 @@ The Taskfile passes the flags every build needs:
 
 Imported and removed assets are saved to project.xml on Save (Ctrl+S) or Play.
 
+## Adding nodes
+
+**Add Node** (Ctrl+Shift+A, or + above the scene tree) opens a list of the node types the engine
+supports. Type to search by name or description, use Up/Down and Enter or click a type to add it,
+and Escape to cancel. The new node is added as a child of the selected node, or at the top level
+when nothing is selected.
+
 ## Viewport and keyboard
 
 The viewport renders the open scene with the engine (animations play; P toggles them).

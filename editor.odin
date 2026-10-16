@@ -138,6 +138,7 @@ State :: struct {
 		open: bool,
 		asset: int,
 	},
+	addNode: AddNodeDialog,
 	tool: Tool,
 	viewport: ViewportState,
 	playState: PlayState,
@@ -206,6 +207,7 @@ State_Destroy :: proc(state: ^State) {
 	for line in state.output do delete(line.text)
 	delete(state.output)
 	delete(state.browserSearch)
+	delete(state.addNode.search)
 	delete(state.play.partial)
 }
 

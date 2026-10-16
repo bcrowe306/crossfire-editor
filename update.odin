@@ -55,6 +55,21 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Asset_Remove_Cancelled:
 		out.removeConfirm = {}
 
+	case Add_Node_Search_Changed:
+		delete(out.addNode.search)
+		out.addNode.search = strings.clone(string(v))
+		out.addNode.highlight = 0
+	case Add_Node_Highlight_Moved:
+		count := len(AddNode_Kinds(out.addNode.search))
+		if count > 0 do out.addNode.highlight = clamp(out.addNode.highlight + int(v), 0, count - 1)
+	case Add_Node_Confirmed:
+		kinds := AddNode_Kinds(out.addNode.search)
+		if out.addNode.highlight < len(kinds) do addNodeOfKind(&out, kinds[out.addNode.highlight])
+	case Add_Node_Kind_Chosen:
+		addNodeOfKind(&out, NodeKind(v))
+	case Add_Node_Cancelled:
+		out.addNode.open = false
+
 	case Viewport_Measured:
 		out.viewport.size = cast([2]f32)v
 		if out.viewport.zoom == 0 do Viewport_Fit(&out.viewport, out.project.gameSize)
@@ -218,10 +233,9 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		playStop(&out)
 
 	case .Add_Node:
-		scene := &out.project.scenes[out.currentScene]
-		parent := out.selectedNode
-		out.selectedNode = Scene_InsertNode(scene, "Node", .Node2D, parent)
-		logLine(&out, .Info, fmt.aprintf("Added node to %s", scene.name))
+		// Opens the dialog; the node is added when a kind is picked
+		delete(out.addNode.search)
+		out.addNode = {open = true}
 	case .Delete_Node:
 		if out.selectedNode < 0 do break
 		scene := &out.project.scenes[out.currentScene]
@@ -356,4 +370,13 @@ selectAsset :: proc(state: ^State, index: int) {
 	} else {
 		AudioPreview_Unload()
 	}
+}
+
+// Adds a node from the Add Node dialog and closes it
+@(private="file")
+addNodeOfKind :: proc(state: ^State, kind: NodeKind) {
+	index := AddNode_Create(state, kind)
+	state.addNode.open = false
+	scene := &state.project.scenes[state.currentScene]
+	logLine(state, .Info, fmt.aprintf("Added %s to %s", scene.nodes[index].name, scene.name))
 }

@@ -14,9 +14,14 @@ click_row scene-tree 2
 expect selected Spaceship
 expect field x 640
 
-# Add a child with the panel button, then delete it with the keyboard
+# Add a child with the panel button: search, pick with the keyboard, then delete it
 click_widget panel-add-node
-expect selected Node
+expect add_dialog open
+type sprite
+key DOWN
+key RETURN
+expect add_dialog closed
+expect selected AnimatedSprite
 expect nodes 12
 key DELETE
 expect nodes 11

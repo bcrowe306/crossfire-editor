@@ -172,9 +172,14 @@ add_and_delete_node_actions :: proc(t: ^testing.T) {
 	scene := playScene(&state)
 	before := len(scene.nodes)
 
+	// Add Node opens the dialog; picking a kind adds it
 	send(&state, Action.Add_Node)
+	testing.expect(t, state.addNode.open)
+	testing.expect_value(t, len(scene.nodes), before)
+	send(&state, Add_Node_Kind_Chosen(.Node2D))
+	testing.expect(t, !state.addNode.open)
 	testing.expect_value(t, len(scene.nodes), before + 1)
-	testing.expect_value(t, scene.nodes[state.selectedNode].name, "Node")
+	testing.expect_value(t, scene.nodes[state.selectedNode].name, "Node2D")
 
 	send(&state, Action.Delete_Node)
 	testing.expect_value(t, len(scene.nodes), before)
@@ -646,4 +651,57 @@ import_and_remove_through_messages :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(state.project.assets), before)
 	testing.expect_value(t, state.browserSelection.kind, BrowserItemKind.None)
 	AudioPreview_Unload()
+}
+
+@(test)
+add_node_search_filters_kinds :: proc(t: ^testing.T) {
+	testing.expect_value(t, len(AddNode_Kinds("")), len(NodeKind))
+	// By name, case-insensitive
+	sprites := AddNode_Kinds("SPRITE")
+	testing.expect_value(t, len(sprites), 2)
+	testing.expect_value(t, sprites[0], NodeKind.Sprite)
+	testing.expect_value(t, sprites[1], NodeKind.AnimatedSprite)
+	// By description: "Draws an image"
+	images := AddNode_Kinds("image")
+	testing.expect_value(t, len(images), 1)
+	testing.expect_value(t, images[0], NodeKind.Sprite)
+	testing.expect_value(t, len(AddNode_Kinds("zzz")), 0)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+add_node_dialog_keys_and_naming :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	before := len(scene.nodes)
+
+	// Nothing selected: a top-level node
+	send(&state, Action.Deselect)
+	send(&state, Action.Add_Node)
+	send(&state, Add_Node_Search_Changed("sprite"))
+	send(&state, Add_Node_Highlight_Moved(1))
+	send(&state, Add_Node_Highlight_Moved(1)) // stays on the last match
+	testing.expect_value(t, state.addNode.highlight, 1)
+	send(&state, Add_Node_Confirmed{})
+	first := state.selectedNode
+	testing.expect_value(t, scene.nodes[first].kind, NodeKind.AnimatedSprite)
+	testing.expect_value(t, scene.nodes[first].parent, -1)
+
+	// Reopening clears the search; the new node becomes the parent and the name is numbered
+	send(&state, Action.Add_Node)
+	testing.expect_value(t, state.addNode.search, "")
+	testing.expect_value(t, state.addNode.highlight, 0)
+	send(&state, Add_Node_Kind_Chosen(.AnimatedSprite))
+	second := state.selectedNode
+	testing.expect_value(t, scene.nodes[second].name, "AnimatedSprite2")
+	testing.expect_value(t, scene.nodes[second].parent, first)
+	testing.expect_value(t, len(scene.nodes), before + 2)
+
+	// Cancel adds nothing
+	send(&state, Action.Add_Node)
+	send(&state, Add_Node_Cancelled{})
+	testing.expect(t, !state.addNode.open)
+	testing.expect_value(t, len(scene.nodes), before + 2)
+	free_all(context.temp_allocator)
 }

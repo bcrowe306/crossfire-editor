@@ -101,6 +101,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
 | `viewport_preview.odin` | Engine-rendered preview of the open scene (software renderer → Skald image) |
 | `viewport_math.odin` | Viewport pan/zoom math and drag (move/rotate/scale) math |
+| `add_node.odin` | Add Node dialog logic: `AddNode_Kinds` (search over the engine's `SCENE_NODE_KINDS`), `AddNode_Create` (parent, unique name) |
+| `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Keys tabs, collapsible |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
@@ -217,6 +219,18 @@ sprites, animations, text and menus look as they do in the game. Future engine f
   Project" (the file stays) or "Delete File".
 - Imports and removals change `project.assets`, which is written to project.xml on Save or Play.
   Copying and deleting the files happens immediately.
+
+### Adding nodes (implemented, `add_node.odin`, `view_add_node.odin`)
+
+Add Node (Ctrl+Shift+A, the scene tree's + button, Edit menu) opens a dialog listing every
+`SceneNodeKind` with its description from the engine's `SCENE_NODE_KINDS`. A new kind in the engine
+shows up here with no editor change (it still needs inspector fields).
+- The search box has focus when it opens and filters by name or description, case-insensitive.
+- Up/Down move the highlight, Enter or a click adds that kind, Escape cancels.
+- The node becomes a child of the selected node (top-level when nothing is selected), is named
+  after its kind (`Sprite`, `Sprite2`, ...), and is selected.
+- While any modal dialog is open, `KeymapDispatch` registers nothing, so Escape reaches the dialog.
+  Pass new dialogs' open flags to it in `view`.
 
 ### Play mode (implemented, `play.odin`)
 
@@ -396,6 +410,7 @@ Highlights:
   - toolbar buttons `toolbar-<name>`, panel buttons `panel-<name>`
   - trees `browser-tree` / `scene-tree`, the search box `browser-search`
   - dialog buttons `dialog-<name>`, the viewport `viewport-canvas`
+  - Add Node dialog: `add-node-search`, rows `add-node-<Kind>` (e.g. `add-node-Sprite`), `add-node-cancel`
 - **Tree rows** are clicked by row index using `TREE_ROW_HEIGHT`; keep trees on that row height.
 - **Never read the screen.** The driver checks editor state, never pixels, and nothing here may
   screenshot the desktop: the user's other windows can be on screen. To check rendering, call

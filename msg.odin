@@ -165,6 +165,16 @@ Browser_Body_Measured :: distinct f32
 // Sent every frame while a sound plays in the preview, so its progress keeps updating
 Preview_Tick :: struct {}
 
+// Add Node dialog
+Add_Node_Search_Changed :: distinct string
+// Move the highlight up (-1) or down (+1)
+Add_Node_Highlight_Moved :: distinct int
+// Add the highlighted kind (Enter)
+Add_Node_Confirmed :: struct {}
+// Add this kind (a click on its row)
+Add_Node_Kind_Chosen :: distinct NodeKind
+Add_Node_Cancelled :: struct {}
+
 Msg :: union {
 	Action,
 	Play_Tick,
@@ -181,6 +191,11 @@ Msg :: union {
 	Asset_Remove_Confirmed,
 	Asset_Remove_Cancelled,
 	Browser_Tree_Resized,
+	Add_Node_Search_Changed,
+	Add_Node_Highlight_Moved,
+	Add_Node_Confirmed,
+	Add_Node_Kind_Chosen,
+	Add_Node_Cancelled,
 	Browser_Body_Measured,
 	Preview_Tick,
 	Left_Resized,

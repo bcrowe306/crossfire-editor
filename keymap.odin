@@ -15,6 +15,7 @@ selection, arrows to nudge, Ctrl+0 to fit the view.
 Rules:
 - Bindings without Ctrl/Alt/Super ("plain" keys, including Delete, arrows and Escape) are
   ignored while a text or number field has keyboard focus, so typing never triggers them.
+- Nothing fires while a modal dialog is open; the dialog handles its own keys.
 - `viewportOnly` bindings need the mouse over the viewport (arrow-key nudges, so arrows still
   work in lists and fields elsewhere).
 
@@ -74,7 +75,7 @@ DEFAULT_KEYMAP := [?]KeyBinding{
 ACTION_LABELS := [Action]string{
 	.New_Project = "New project", .Open_Project = "Open project", .Save_Project = "Save",
 	.Export = "Export", .Quit = "Quit", .Undo = "Undo", .Redo = "Redo",
-	.Add_Node = "Add child node", .Delete_Node = "Delete node", .Play = "Play", .Pause = "Pause",
+	.Add_Node = "Add node", .Delete_Node = "Delete node", .Play = "Play", .Pause = "Pause",
 	.Stop = "Stop", .Toggle_Bottom_Panel = "Toggle bottom panel", .Clear_Console = "Clear console",
 	.About = "About",
 	.Tool_Select = "Select tool", .Tool_Move = "Move tool", .Tool_Rotate = "Rotate tool",
@@ -119,7 +120,9 @@ Inputs:
 - ctx: The frame context
 - overViewport: Whether the mouse is over the viewport
 */
-KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), overViewport: bool) {
+KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), overViewport: bool, dialogOpen := false) {
+	// A modal dialog handles its own keys (Escape closes it)
+	if dialogOpen do return
 	typing := IsTyping(ctx)
 	for binding in DEFAULT_KEYMAP {
 		if typing && isPlainKey(binding.chord) do continue

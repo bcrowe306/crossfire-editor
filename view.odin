@@ -13,7 +13,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	state := s
 	ScriptDriver_Frame(&state, ctx)
 	// Before anything else registers shortcuts (see keymap.odin)
-	KeymapDispatch(ctx, ViewportHovered(ctx))
+	KeymapDispatch(ctx, ViewportHovered(ctx), dialogOpen = state.addNode.open || state.removeConfirm.open)
 
 	return skald.col(
 		menuBarView(ctx),
@@ -24,6 +24,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.divider(ctx),
 		statusBarView(&state, ctx),
 		removeAssetDialog(&state, ctx),
+		addNodeDialog(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)

@@ -1,0 +1,36 @@
+# Add Node dialog: search, click a row, Escape. Runs on a scratch copy of the demo project.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect nodes 11
+key escape
+expect selected none
+
+# Ctrl+Shift+A opens it; Escape closes it without adding anything
+key ctrl+shift+a
+expect add_dialog open
+expect typing true
+key escape
+expect add_dialog closed
+expect nodes 11
+
+# Search by description and click the row: a top-level Sprite
+key ctrl+shift+a
+type image
+click_widget add-node-Sprite
+expect add_dialog closed
+expect selected Sprite
+expect nodes 12
+
+# No match: Enter adds nothing and the dialog stays open
+key ctrl+shift+a
+type zzz
+key RETURN
+expect add_dialog open
+expect nodes 12
+key escape
+expect add_dialog closed
+
+quit
