@@ -523,21 +523,23 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 	append(&names, TEXTURE_NONE)
 	for desc in s.scripts.scripts do append(&names, desc.name)
 	if node.script != "" && ScriptCatalog_Find(&s.scripts, node.script) == nil do append(&names, node.script)
-	smallButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg) -> skald.View {
+	append(&rows, inspectorRowView(ctx, "Script", skald.select(ctx, node.script == "" ? TEXTURE_NONE : node.script, names[:],
+		proc(v: string) -> Msg { return Node_Script_Changed(v) },
+		id = skald.hash_id(fmt.tprintf("inspector-script-%d", key)), width = controlWidth)))
+	// The buttons get their own row, under the dropdown: next to it they ran into the scrollbar
+	// strip in a narrow inspector, which covered them (clicks did nothing)
+	textButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, label, tip: string, msg: Msg) -> skald.View {
 		th := ctx.theme
-		button := skald.button(ctx, icon, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg_muted,
-			width = 24, padding = {0, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		button := skald.button(ctx, fmt.tprintf("%s  %s", icon, label), msg, id = skald.hash_id(key),
+			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
 		return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 	}
 	buttons := make([dynamic]skald.View, context.temp_allocator)
-	append(&buttons, skald.select(ctx, node.script == "" ? TEXTURE_NONE : node.script, names[:],
-		proc(v: string) -> Msg { return Node_Script_Changed(v) },
-		id = skald.hash_id(fmt.tprintf("inspector-script-%d", key)), width = max(controlWidth - 56, 80)))
-	append(&buttons, smallButton(ctx, "inspector-new-script", ICON_PLUS, "New script for this node", Msg(New_Script_Opened{})))
+	append(&buttons, textButton(ctx, "inspector-new-script", ICON_PLUS, "New...", "Write a new script and attach it to this node", Msg(New_Script_Opened{})))
 	if node.script != "" {
-		append(&buttons, smallButton(ctx, "inspector-open-script", ICON_FILE_CODE, actionTip(s, "Open in code editor", .Open_Script), Msg(Action.Open_Script)))
+		append(&buttons, textButton(ctx, "inspector-open-script", ICON_FILE_CODE, "Open in Editor", actionTip(s, "Open the script in your code editor", .Open_Script), Msg(Action.Open_Script)))
 	}
-	append(&rows, inspectorRowView(ctx, "Script", skald.row(..buttons[:], spacing = th.spacing.xs, cross_align = .Center)))
+	append(&rows, inspectorRowView(ctx, "", skald.row(..buttons[:], spacing = th.spacing.xs, cross_align = .Center)))
 	if node.script == "" do return rows[:]
 
 	desc := ScriptCatalog_Find(&s.scripts, node.script)

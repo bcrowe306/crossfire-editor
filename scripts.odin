@@ -267,7 +267,7 @@ Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> bool {
 	}
 	append(&editorProcesses, process)
 	reapEditors()
-	logLine(state, .Info, fmt.aprintf("Opened %s in %s", filepath.base(file), args[0]))
+	logLine(state, .Info, fmt.aprintf("Opened %s:%d in %s", filepath.base(file), max(line, 1), args[0]))
 	return true
 }
 

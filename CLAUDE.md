@@ -162,6 +162,9 @@ Skald is not immediate-mode and not a retained widget tree:
   (`LinkedAxis`; from 0 it moves by the same amount). Number widths leave room for that button:
   anything spilling into the reserved scrollbar strip is covered by the scrollbar and can't be
   clicked.
+  **Every inspector row must fit `controlWidth`**: it happened twice (the link button, then the
+  script Open button beside a dropdown held at its minimum width). Put extra buttons on their own
+  row, and check a new button with a UI click in a narrow window.
 - Type colors: node kinds use `kindColor` (scene tree rows and viewport markers); the browser uses
   `BrowserItemColor` (scenes blue, images like sprites, audio pink, fonts amber). Icons get the
   full color, labels `TintLabel` (the text color pulled 45% toward it); hidden nodes are muted.

@@ -25,6 +25,12 @@ expect browser_rows 12
 wait_until scripts Ready timeout=240
 expect output_contains 1 script: Mover
 
+# Open in Editor goes to the line the script registers on (the test settings' editor is `true`).
+# The buttons sit under the dropdown: next to it they were covered by the scrollbar
+scroll_into_view inspector-scroll inspector-open-script
+click_widget inspector-open-script
+expect console_contains Opened mover.odin:20 in true
+
 # The template's exported field shows in the inspector
 scroll_into_view inspector-scroll inspector-prop-speed-2-inc
 click_widget inspector-prop-speed-2-inc
