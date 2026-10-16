@@ -1,0 +1,359 @@
+package editor
+
+import "core:fmt"
+import "core:path/filepath"
+import "core:reflect"
+import "core:strings"
+import e "engine:."
+import "gui:skald"
+
+/*
+Applies a message to the editor state. The only place State changes.
+*/
+update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
+	out := s
+	layout := &out.layout
+
+	switch v in m {
+	case Action:
+		return handleAction(out, v)
+	case Play_Tick:
+		cmd := playTick(&out)
+		return out, cmd
+	case Script_Tick, Viewport_Tick, Preview_Tick:
+		// Only keep frames coming (test script, viewport animations, audio progress)
+
+	case Browser_Search_Changed:
+		// Msg strings only live for the frame
+		delete(out.browserSearch)
+		out.browserSearch = strings.clone(string(v))
+	case Browser_Body_Measured:
+		out.layout.browserBodyHeight = f32(v)
+	case Browser_Tree_Resized:
+		// The preview keeps its own height, so it stays put when the window resizes
+		out.layout.previewHeight = max(out.layout.browserBodyHeight - f32(v) - DIVIDER, MIN_PREVIEW_HEIGHT)
+
+	case Asset_Import_Result:
+		if v.cancelled || v.path == "" do break
+		importAsset(&out, v.path)
+
+	case Asset_Remove_Confirmed:
+		index := out.removeConfirm.asset
+		out.removeConfirm = {}
+		if index < 0 || index >= len(out.project.assets) do break
+		asset := out.project.assets[index]
+		name := strings.clone(filepath.base(asset.path), context.temp_allocator)
+		if AudioPreview_IsLoaded(AssetFilePath(&out.project, asset)) do AudioPreview_Unload()
+		usage := AssetUsage(&out.project, asset.path)
+		if message := Project_RemoveAsset(&out.project, index, v.deleteFile); message != "" {
+			logLine(&out, .Error, fmt.aprintf("%s", message))
+		} else {
+			logLine(&out, .Info, fmt.aprintf("%s %s%s", v.deleteFile ? "Deleted" : "Removed", name,
+				usage > 0 ? fmt.tprintf(" (still used by %d node%s)", usage, usage == 1 ? "" : "s") : ""))
+		}
+		out.browserSelection = {kind = .None}
+	case Asset_Remove_Cancelled:
+		out.removeConfirm = {}
+
+	case Viewport_Measured:
+		out.viewport.size = cast([2]f32)v
+		if out.viewport.zoom == 0 do Viewport_Fit(&out.viewport, out.project.gameSize)
+	case Viewport_Panned:
+		Viewport_Pan(&out.viewport, cast([2]f32)v)
+	case Viewport_Zoomed:
+		Viewport_ZoomAt(&out.viewport, v.factor, v.anchor)
+
+	case Viewport_Drag_Begin:
+		drag := ViewportDrag{mode = v.mode, node = v.node, startMouse = v.mouse}
+		if v.mode != .Pan {
+			scene := &out.project.scenes[out.currentScene]
+			if v.node < 0 || v.node >= len(scene.nodes) do break
+			out.selectedNode = v.node
+			node := &scene.nodes[v.node]
+			world := Scene_WorldTransforms(scene)
+			drag.startPosition = node.position
+			drag.startRotation = node.rotation
+			drag.startScale = node.scale
+			drag.startWorld = world[v.node]
+			drag.parentWorld = node.parent >= 0 ? world[node.parent] : e.TRANSFORM2D_IDENTITY
+		}
+		out.viewport.drag = drag
+	case Viewport_Drag_Move:
+		drag := &out.viewport.drag
+		scene := &out.project.scenes[out.currentScene]
+		if drag.mode == .None || drag.mode == .Pan || drag.node < 0 || drag.node >= len(scene.nodes) do break
+		Viewport_ApplyDrag(&scene.nodes[drag.node], drag, v.mouse, v.constrain)
+	case Viewport_Drag_End:
+		out.viewport.drag = {}
+
+	// Panel sizes. Splits report the size of their first pane; sidebars and the bottom panel
+	// are stored as their own size so they stay put when the window resizes
+	case Left_Resized:
+		layout.leftWidth = max(f32(v), MIN_SIDEBAR_WIDTH)
+	case Center_Resized:
+		left, _ := FittedSidebarWidths(layout)
+		rest := layout.workspace.x - left - DIVIDER
+		layout.rightWidth = max(rest - f32(v) - DIVIDER, MIN_SIDEBAR_WIDTH)
+	case Viewport_Resized:
+		layout.bottomHeight = max(layout.workspace.y - f32(v) - DIVIDER, MIN_BOTTOM_HEIGHT)
+	case Scene_Tree_Resized:
+		layout.sceneTreeHeight = max(f32(v), MIN_SCENE_TREE_HEIGHT)
+	case Workspace_Measured:
+		layout.workspace = cast([2]f32)v
+
+	case Bottom_Tab_Changed:
+		out.bottomTab = BottomTab(int(v))
+		layout.bottomOpen = true
+	case Scene_Tab_Changed:
+		openScene(&out, int(v))
+	case Tool_Selected:
+		out.tool = Tool(v)
+
+	case Browser_Toggled:
+		rows := BrowserRows(&out)
+		if int(v) < len(rows) && rows[v].kind == .Folder {
+			out.browserOpen[rows[v].folder] = !out.browserOpen[rows[v].folder]
+		}
+	case Browser_Selected:
+		rows := BrowserRows(&out)
+		if int(v) >= len(rows) do break
+		item := rows[v]
+		out.browserSelection = item
+		switch item.kind {
+		case .Folder:
+			out.browserOpen[item.folder] = !out.browserOpen[item.folder]
+		case .Scene:
+			openScene(&out, item.index)
+		case .Asset:
+			selectAsset(&out, item.index)
+		case .None:
+		}
+
+	case Node_Toggled:
+		scene := &out.project.scenes[out.currentScene]
+		rows := SceneTreeRows(scene)
+		if int(v) < len(rows) {
+			node := &scene.nodes[rows[v]]
+			node.expanded = !node.expanded
+		}
+	case Node_Selected:
+		rows := SceneTreeRows(&out.project.scenes[out.currentScene])
+		if int(v) < len(rows) do out.selectedNode = rows[v]
+	case Node_Picked:
+		out.selectedNode = int(v)
+
+	case Node_Renamed:
+		if node := selectedNode(&out); node != nil {
+			// Msg strings only live for the frame (see Skald's gotchas), so keep a copy
+			delete(node.name)
+			node.name = strings.clone(string(v))
+		}
+	case Node_Visibility_Changed:
+		if node := selectedNode(&out); node != nil do node.visible = bool(v)
+	case Node_Field_Changed:
+		node := selectedNode(&out)
+		if node == nil do break
+		value := f32(v.value)
+		switch v.field {
+		case .Position_X: node.position.x = value
+		case .Position_Y: node.position.y = value
+		case .Rotation:   node.rotation = value
+		case .Scale_X:    node.scale.x = value
+		case .Scale_Y:    node.scale.y = value
+		case .Layer:      node.layer = clamp(int(v.value), 0, 7)
+		case .Font_Size:  node.fontSize = max(value, 1)
+		case .Zoom:       node.zoom = max(value, 0.05)
+		case .Columns:    node.columns = max(int(v.value), 1)
+		case .Rows:       node.rows = max(int(v.value), 1)
+		case .FPS:        node.fps = max(value, 0)
+		}
+	case Node_Text_Changed:
+		node := selectedNode(&out)
+		if node == nil do break
+		// Msg strings only live for the frame, so keep copies
+		switch v.field {
+		case .Text:
+			delete(node.text)
+			node.text = strings.clone(v.value)
+		case .Texture:
+			delete(node.texture)
+			node.texture = strings.clone(v.value)
+		case .Color:
+			if color, ok := e.ParseColor(v.value); ok do node.color = color
+		case .Play_Mode:
+			if mode, ok := reflect.enum_from_name(e.AnimationPlayMode, v.value); ok do node.playMode = mode
+		}
+	case Node_Flag_Changed:
+		node := selectedNode(&out)
+		if node == nil do break
+		switch v.flag {
+		case .Loop:     node.loop = v.value
+		case .Centered: node.centered = v.value
+		}
+	}
+	return out, {}
+}
+
+@(private="file")
+handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
+	out := s
+	switch action {
+	case .Quit:
+		// Don't leave a game running after the editor closes
+		playStop(&out)
+		return out, skald.cmd_quit(Msg)
+
+	case .Save_Project:
+		if message := Project_Save(&out.project); message != "" {
+			logLine(&out, .Error, fmt.aprintf("Save failed: %s", message))
+		} else {
+			logLine(&out, .Info, fmt.aprintf("Saved to %s", out.project.rootPath))
+		}
+	case .Play:
+		cmd := playStart(&out)
+		return out, cmd
+	case .Pause:
+		playPause(&out)
+	case .Stop:
+		playStop(&out)
+
+	case .Add_Node:
+		scene := &out.project.scenes[out.currentScene]
+		parent := out.selectedNode
+		out.selectedNode = Scene_InsertNode(scene, "Node", .Node2D, parent)
+		logLine(&out, .Info, fmt.aprintf("Added node to %s", scene.name))
+	case .Delete_Node:
+		if out.selectedNode < 0 do break
+		scene := &out.project.scenes[out.currentScene]
+		logLine(&out, .Info, fmt.aprintf("Deleted %s", scene.nodes[out.selectedNode].name))
+		Scene_RemoveNode(scene, out.selectedNode)
+		out.selectedNode = -1
+		out.viewport.drag = {}
+
+	case .Toggle_Bottom_Panel:
+		out.layout.bottomOpen = !out.layout.bottomOpen
+	case .Clear_Console:
+		// Clears whichever log tab is showing
+		lines := out.bottomTab == .Output ? &out.output : &out.console
+		for line in lines do delete(line.text)
+		clear(lines)
+
+	case .Tool_Select: out.tool = .Select
+	case .Tool_Move:   out.tool = .Move
+	case .Tool_Rotate: out.tool = .Rotate
+	case .Tool_Scale:  out.tool = .Scale
+
+	case .View_Fit:
+		Viewport_Fit(&out.viewport, out.project.gameSize)
+	case .Zoom_In:
+		Viewport_ZoomAt(&out.viewport, VIEWPORT_ZOOM_STEP, out.viewport.center)
+	case .Zoom_Out:
+		Viewport_ZoomAt(&out.viewport, 1 / VIEWPORT_ZOOM_STEP, out.viewport.center)
+	case .Zoom_100:
+		out.viewport.zoom = 1
+	case .Frame_Selected:
+		scene := &out.project.scenes[out.currentScene]
+		if out.selectedNode >= 0 && out.selectedNode < len(scene.nodes) {
+			out.viewport.center = Scene_WorldTransforms(scene)[out.selectedNode].origin
+		}
+	case .Toggle_Animation:
+		out.viewport.animate = !out.viewport.animate
+	case .Deselect:
+		out.selectedNode = -1
+
+	case .Nudge_Left, .Nudge_Right, .Nudge_Up, .Nudge_Down,
+	     .Nudge_Left_Large, .Nudge_Right_Large, .Nudge_Up_Large, .Nudge_Down_Large:
+		scene := &out.project.scenes[out.currentScene]
+		if out.selectedNode < 0 || out.selectedNode >= len(scene.nodes) do break
+		delta: [2]f32
+		#partial switch action {
+		case .Nudge_Left:        delta = {-NUDGE_SMALL, 0}
+		case .Nudge_Right:       delta = {NUDGE_SMALL, 0}
+		case .Nudge_Up:          delta = {0, -NUDGE_SMALL}
+		case .Nudge_Down:        delta = {0, NUDGE_SMALL}
+		case .Nudge_Left_Large:  delta = {-NUDGE_LARGE, 0}
+		case .Nudge_Right_Large: delta = {NUDGE_LARGE, 0}
+		case .Nudge_Up_Large:    delta = {0, -NUDGE_LARGE}
+		case .Nudge_Down_Large:  delta = {0, NUDGE_LARGE}
+		}
+		// The nudge is in world units; convert it into the parent's space
+		node := &scene.nodes[out.selectedNode]
+		if node.parent >= 0 {
+			delta = e.Transform2D_ApplyVector(e.Transform2D_Inverse(Scene_WorldTransforms(scene)[node.parent]), delta)
+		}
+		node.position += delta
+
+	case .Import_Asset:
+		@(static) filters := [?]skald.File_Filter{
+			{"Images, audio and fonts", IMPORT_IMAGE_PATTERN + ";" + IMPORT_AUDIO_PATTERN + ";" + IMPORT_FONT_PATTERN},
+			{"Images", IMPORT_IMAGE_PATTERN},
+			{"Audio", IMPORT_AUDIO_PATTERN},
+			{"Fonts", IMPORT_FONT_PATTERN},
+		}
+		return out, skald.cmd_open_file_dialog(filters[:], proc(r: skald.File_Dialog_Result) -> Msg { return Asset_Import_Result(r) })
+	case .Remove_Asset:
+		if out.browserSelection.kind == .Asset {
+			out.removeConfirm = {open = true, asset = out.browserSelection.index}
+		}
+	case .Toggle_Preview_Panel:
+		out.layout.previewOpen = !out.layout.previewOpen
+	case .Play_Audio_Preview:
+		AudioPreview_Play()
+	case .Stop_Audio_Preview:
+		AudioPreview_Stop()
+
+	case .New_Project, .Open_Project, .Export, .Undo, .Redo, .About:
+		logLine(&out, .Warning, fmt.aprintf("%v is not implemented yet", action))
+	}
+	return out, {}
+}
+
+@(private="file")
+openScene :: proc(state: ^State, index: int) {
+	if index < 0 || index >= len(state.project.scenes) || index == state.currentScene do return
+	state.currentScene = index
+	state.selectedNode = -1
+	state.viewport.drag = {}
+	// Show the whole game area of the newly opened scene. Before the viewport has been measured,
+	// zoom 0 makes the first Viewport_Measured fit it instead
+	if state.viewport.size.x > 0 && state.viewport.size.y > 0 {
+		Viewport_Fit(&state.viewport, state.project.gameSize)
+	} else {
+		state.viewport.zoom = 0
+	}
+}
+
+@(private="file")
+selectedNode :: proc(state: ^State) -> ^NodeDef {
+	scene := &state.project.scenes[state.currentScene]
+	if state.selectedNode < 0 || state.selectedNode >= len(scene.nodes) do return nil
+	return &scene.nodes[state.selectedNode]
+}
+
+// Imports a file and selects it in the browser
+@(private="file")
+importAsset :: proc(state: ^State, path: string) {
+	index, message := Project_ImportAsset(&state.project, path)
+	if message != "" {
+		logLine(state, .Error, fmt.aprintf("Import failed: %s", message))
+		return
+	}
+	asset := state.project.assets[index]
+	logLine(state, .Info, fmt.aprintf("Imported %s (Save to keep it in the project)", asset.path))
+	state.browserOpen[AssetFolder(asset.kind)] = true
+	selectAsset(state, index)
+}
+
+// Selects an asset in the browser; a sound gets loaded for the preview panel
+@(private="file")
+selectAsset :: proc(state: ^State, index: int) {
+	asset := state.project.assets[index]
+	state.browserSelection = {kind = .Asset, folder = AssetFolder(asset.kind), index = index}
+	if asset.kind == .Audio {
+		if message := AudioPreview_Load(AssetFilePath(&state.project, asset)); message != "" {
+			logLine(state, .Warning, fmt.aprintf("Audio preview: %s", message))
+		}
+	} else {
+		AudioPreview_Unload()
+	}
+}

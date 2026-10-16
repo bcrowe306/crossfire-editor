@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="2" name="PlayScene">
+	<node kind="Node2D" name="World" x="0" y="0">
+		<node kind="Camera" name="Camera" x="640" y="360"/>
+		<node kind="Sprite" name="Spaceship" x="640" y="430" texture="assets/ship.png">
+			<node kind="AnimatedSprite" name="ShipLight" x="0" y="60" scaleX="0.4" scaleY="0.4" texture="assets/light.png" columns="2" rows="1" fps="4" loop="true"/>
+		</node>
+		<node kind="Node2D" name="Props" x="640" y="360">
+			<node kind="AnimatedSprite" name="Balloon" x="-340" y="-60" texture="assets/balloons.png" columns="4" rows="1" fps="3" loop="true"/>
+			<node kind="AnimatedSprite" name="BalloonPingPong" x="340" y="-100" texture="assets/balloons.png" columns="4" rows="1" fps="5" loop="true" playMode="PingPong"/>
+			<node kind="AnimatedSprite" name="WarningLight" x="-480" y="260" texture="assets/light.png" columns="2" rows="1" fps="2" loop="true"/>
+			<node kind="AnimatedSprite" name="WarningLight2" x="480" y="260" texture="assets/light.png" columns="2" rows="1" fps="3" loop="true"/>
+		</node>
+	</node>
+	<node kind="Node2D" name="HUD" x="1240" y="24" layer="7">
+		<node kind="Menu" name="BackMenu" x="-180" y="0" layer="7">
+			<item label="Menu" action="scene:MenuScene"/>
+		</node>
+	</node>
+</scene>

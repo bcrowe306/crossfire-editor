@@ -1,0 +1,50 @@
+# Viewport: keyboard tools, zoom, selecting and dragging a rendered sprite, nudging.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+wait 3
+
+# Zoom with keys and the mouse wheel
+key ctrl+1
+expect zoom 100
+scroll 1
+expect zoom 115
+key ctrl+1
+expect zoom 100
+
+# Tool keys
+key w
+expect tool Move
+key e
+expect tool Rotate
+key r
+expect tool Scale
+key q
+expect tool Select
+
+# Click the rendered sprite (its bounds come from the engine node) and drag it
+click_node Spaceship
+expect selected Spaceship
+expect field x 640
+drag_node Spaceship 40 0
+expect field x 680
+expect field y 430
+
+# Arrow keys nudge while the mouse is over the viewport (the drag left it there)
+key right
+expect field x 681
+key shift+left
+expect field x 671
+
+# Scale tool: the node stays selected and its scale is untouched until dragged
+key r
+expect field scale_x 1.00
+
+# Typing in a field must not trigger single-key shortcuts
+key q
+click_widget inspector-name-2
+expect typing true
+key w
+expect tool Select

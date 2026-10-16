@@ -1,0 +1,204 @@
+package editor
+
+import "gui:skald"
+
+/*
+Commands triggered from the menu bar, toolbar and keyboard shortcuts. Default keys are in
+keymap.odin.
+*/
+Action :: enum {
+	New_Project,
+	Open_Project,
+	Save_Project,
+	Export,
+	Quit,
+	Undo,
+	Redo,
+	Add_Node,
+	Delete_Node,
+	Play,
+	Pause,
+	Stop,
+	Toggle_Bottom_Panel,
+	Clear_Console,
+	About,
+
+	// Viewport tools
+	Tool_Select,
+	Tool_Move,
+	Tool_Rotate,
+	Tool_Scale,
+	// Viewport navigation
+	Frame_Selected,
+	View_Fit,
+	Zoom_In,
+	Zoom_Out,
+	Zoom_100,
+	Toggle_Animation,
+	// Selection
+	Deselect,
+	Nudge_Left,
+	Nudge_Right,
+	Nudge_Up,
+	Nudge_Down,
+	Nudge_Left_Large,
+	Nudge_Right_Large,
+	Nudge_Up_Large,
+	Nudge_Down_Large,
+
+	// Project browser
+	Import_Asset,
+	Remove_Asset,
+	Toggle_Preview_Panel,
+	Play_Audio_Preview,
+	Stop_Audio_Preview,
+}
+
+// Panel resizing. Each carries the new size of a split's first pane
+Left_Resized       :: distinct f32
+Center_Resized     :: distinct f32
+Viewport_Resized   :: distinct f32
+Scene_Tree_Resized :: distinct f32
+// Sent by the layout when the workspace size changes
+Workspace_Measured :: distinct [2]f32
+
+Bottom_Tab_Changed :: distinct int
+Scene_Tab_Changed  :: distinct int
+Tool_Selected      :: distinct Tool
+
+// Project browser: row index in the browser tree
+Browser_Toggled  :: distinct int
+Browser_Selected :: distinct int
+
+// Scene tree: row index in the scene tree
+Node_Toggled  :: distinct int
+Node_Selected :: distinct int
+// Viewport click: node index in the scene, -1 for empty space
+Node_Picked   :: distinct int
+
+// Inspector edits to the selected node
+Node_Renamed            :: distinct string
+Node_Visibility_Changed :: distinct bool
+
+// Number properties
+NodeField :: enum {
+	Position_X,
+	Position_Y,
+	Rotation,
+	Scale_X,
+	Scale_Y,
+	Layer,
+	Font_Size,
+	Zoom,
+	Columns,
+	Rows,
+	FPS,
+}
+
+// Text properties. Play_Mode carries the enum value's name; Color carries #rrggbb
+NodeTextField :: enum {
+	Text,
+	Texture,
+	Color,
+	Play_Mode,
+}
+
+Node_Text_Changed :: struct {
+	field: NodeTextField,
+	value: string,
+}
+
+NodeFlag :: enum {
+	Loop,
+	Centered,
+}
+
+Node_Flag_Changed :: struct {
+	flag: NodeFlag,
+	value: bool,
+}
+
+Node_Field_Changed :: struct {
+	field: NodeField,
+	value: f64,
+}
+
+/*
+Everything that can happen in the editor. `update` handles each case.
+*/
+// Viewport: the view area's size changed (logical pixels)
+Viewport_Measured :: distinct [2]f32
+// Viewport: pan by a mouse movement in pixels
+Viewport_Panned :: distinct [2]f32
+// Viewport: zoom by a factor around a world point
+Viewport_Zoomed :: struct {
+	factor: f32,
+	anchor: [2]f32,
+}
+// Viewport: a drag started on a node (or a pan); positions are world coordinates
+Viewport_Drag_Begin :: struct {
+	mode: DragMode,
+	node: int,
+	mouse: [2]f32,
+}
+Viewport_Drag_Move :: struct {
+	mouse: [2]f32,
+	constrain: bool,
+}
+Viewport_Drag_End :: struct {}
+// Sent every frame while viewport animations play, so frames keep coming
+Viewport_Tick :: struct {}
+
+// Project browser
+Browser_Search_Changed :: distinct string
+// The import file dialog closed (path is only valid while handling the message)
+Asset_Import_Result :: distinct skald.File_Dialog_Result
+// The remove-asset dialog's choice
+Asset_Remove_Confirmed :: struct {
+	deleteFile: bool,
+}
+Asset_Remove_Cancelled :: struct {}
+// The browser's tree/preview divider moved: the tree's new height
+Browser_Tree_Resized :: distinct f32
+// Height of the space the browser tree and preview share, measured by layout
+Browser_Body_Measured :: distinct f32
+// Sent every frame while a sound plays in the preview, so its progress keeps updating
+Preview_Tick :: struct {}
+
+Msg :: union {
+	Action,
+	Play_Tick,
+	Script_Tick,
+	Viewport_Measured,
+	Viewport_Panned,
+	Viewport_Zoomed,
+	Viewport_Drag_Begin,
+	Viewport_Drag_Move,
+	Viewport_Drag_End,
+	Viewport_Tick,
+	Browser_Search_Changed,
+	Asset_Import_Result,
+	Asset_Remove_Confirmed,
+	Asset_Remove_Cancelled,
+	Browser_Tree_Resized,
+	Browser_Body_Measured,
+	Preview_Tick,
+	Left_Resized,
+	Center_Resized,
+	Viewport_Resized,
+	Scene_Tree_Resized,
+	Workspace_Measured,
+	Bottom_Tab_Changed,
+	Scene_Tab_Changed,
+	Tool_Selected,
+	Browser_Toggled,
+	Browser_Selected,
+	Node_Toggled,
+	Node_Selected,
+	Node_Picked,
+	Node_Renamed,
+	Node_Visibility_Changed,
+	Node_Field_Changed,
+	Node_Text_Changed,
+	Node_Flag_Changed,
+}

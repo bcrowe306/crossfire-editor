@@ -1,0 +1,649 @@
+package editor
+
+import "core:os"
+import "core:path/filepath"
+import "core:strings"
+import "core:testing"
+import e "engine:."
+import "gui:skald"
+import sdl "vendor:sdl3"
+
+// Tests for the editor's logic: the project model, XML saving and loading, tree flattening
+// and update. Run with: task test
+
+// Editor state with the demo project in memory, independent of what's on disk
+@(private="file")
+testState :: proc() -> State {
+	state := State{
+		project = Project_CreateDemo("unused"),
+		browserSelection = {kind = .None},
+		currentScene = 1, // PlayScene
+		selectedNode = -1,
+		browserOpen = {.Scenes = true, .Images = true, .Audio = false, .Fonts = false},
+		layout = {bottomOpen = true},
+	}
+	state.selectedNode = nodeIndex(&state.project.scenes[1], "Spaceship")
+	return state
+}
+
+@(private="file")
+nodeIndex :: proc(scene: ^SceneDef, name: string) -> int {
+	for node, i in scene.nodes do if node.name == name do return i
+	return -1
+}
+
+@(private="file")
+playScene :: proc(state: ^State) -> ^SceneDef {
+	return &state.project.scenes[1]
+}
+
+@(private="file")
+send :: proc(state: ^State, msg: Msg) {
+	state^, _ = update(state^, msg)
+}
+
+// A fresh empty folder under the system temp directory
+@(private="file")
+tempDir :: proc(name: string) -> string {
+	base, _ := os.temp_directory(context.temp_allocator)
+	dir, _ := filepath.join({base, name}, context.temp_allocator)
+	_ = os.remove_all(dir)
+	_ = os.make_directory_all(dir)
+	return dir
+}
+
+@(test)
+scene_tree_rows_hide_collapsed_subtrees :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+
+	testing.expect_value(t, len(SceneTreeRows(scene)), len(scene.nodes))
+
+	scene.nodes[nodeIndex(scene, "World")].expanded = false
+	rows := SceneTreeRows(scene)
+	testing.expect_value(t, len(rows), 3) // World, HUD, BackMenu
+	testing.expect_value(t, scene.nodes[rows[0]].name, "World")
+	testing.expect_value(t, scene.nodes[rows[1]].name, "HUD")
+	testing.expect_value(t, scene.nodes[rows[2]].name, "BackMenu")
+}
+
+@(test)
+insert_node_keeps_depth_first_order :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+
+	props := nodeIndex(scene, "Props")
+	added := Scene_InsertNode(scene, "Shield", .Sprite, props)
+
+	// Becomes Props' last child
+	testing.expect_value(t, added, nodeIndex(scene, "WarningLight2") + 1)
+	testing.expect_value(t, scene.nodes[added].parent, props)
+	// Nodes after it still point at the right parents
+	testing.expect_value(t, scene.nodes[nodeIndex(scene, "BackMenu")].parent, nodeIndex(scene, "HUD"))
+}
+
+@(test)
+remove_node_removes_subtree_and_fixes_parents :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	before := len(scene.nodes)
+
+	Scene_RemoveNode(scene, nodeIndex(scene, "Props")) // Props + 4 children
+
+	testing.expect_value(t, len(scene.nodes), before - 5)
+	testing.expect_value(t, nodeIndex(scene, "Balloon"), -1)
+	testing.expect_value(t, scene.nodes[nodeIndex(scene, "BackMenu")].parent, nodeIndex(scene, "HUD"))
+	testing.expect_value(t, scene.nodes[nodeIndex(scene, "HUD")].parent, -1)
+}
+
+@(test)
+selecting_tree_rows_maps_to_nodes :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+
+	// Collapse World so the row numbers no longer match node indexes
+	send(&state, Node_Toggled(0))
+	send(&state, Node_Selected(1))
+	testing.expect_value(t, scene.nodes[state.selectedNode].name, "HUD")
+}
+
+@(test)
+rename_copies_the_message_string :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+
+	name := make([]u8, 6)
+	copy(name, "Player")
+	send(&state, Node_Renamed(string(name)))
+	delete(name) // Skald frees message strings at the end of the frame
+
+	testing.expect_value(t, playScene(&state).nodes[state.selectedNode].name, "Player")
+}
+
+@(test)
+inspector_edits_change_the_selected_node :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+
+	send(&state, Node_Field_Changed{.Position_X, 100})
+	send(&state, Node_Field_Changed{.Layer, 42})
+	send(&state, Node_Visibility_Changed(false))
+	send(&state, Node_Text_Changed{.Texture, "assets/light.png"})
+
+	node := playScene(&state).nodes[state.selectedNode]
+	testing.expect_value(t, node.position.x, 100)
+	testing.expect_value(t, node.layer, 7) // Clamped to the engine's 8 layers
+	testing.expect_value(t, node.visible, false)
+	testing.expect_value(t, node.texture, "assets/light.png")
+}
+
+@(test)
+kind_property_edits :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+
+	state.selectedNode = nodeIndex(scene, "Balloon")
+	send(&state, Node_Field_Changed{.Columns, 0}) // Clamped to at least 1
+	send(&state, Node_Text_Changed{.Play_Mode, "Reverse"})
+	send(&state, Node_Text_Changed{.Play_Mode, "NotAMode"}) // Ignored
+	send(&state, Node_Flag_Changed{.Loop, false})
+	balloon := scene.nodes[state.selectedNode]
+	testing.expect_value(t, balloon.columns, 1)
+	testing.expect_value(t, balloon.playMode, e.AnimationPlayMode.Reverse)
+	testing.expect_value(t, balloon.loop, false)
+
+	label := &state.project.scenes[0].nodes[0] // MenuScene Title
+	state.currentScene = 0
+	state.selectedNode = 0
+	send(&state, Node_Text_Changed{.Color, "#ff8000"})
+	send(&state, Node_Text_Changed{.Color, "orange"}) // Ignored
+	testing.expect_value(t, label.color, sdl.Color{255, 128, 0, 255})
+}
+
+@(test)
+add_and_delete_node_actions :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	before := len(scene.nodes)
+
+	send(&state, Action.Add_Node)
+	testing.expect_value(t, len(scene.nodes), before + 1)
+	testing.expect_value(t, scene.nodes[state.selectedNode].name, "Node")
+
+	send(&state, Action.Delete_Node)
+	testing.expect_value(t, len(scene.nodes), before)
+	testing.expect_value(t, state.selectedNode, -1)
+
+	// Nothing selected: delete does nothing
+	send(&state, Action.Delete_Node)
+	testing.expect_value(t, len(scene.nodes), before)
+}
+
+@(test)
+browser_opens_scenes_and_toggles_folders :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+
+	// Row 0 is the Scenes folder, row 1 its first scene
+	send(&state, Browser_Selected(1))
+	testing.expect_value(t, state.currentScene, 0)
+	testing.expect_value(t, state.selectedNode, -1)
+
+	send(&state, Browser_Toggled(0))
+	testing.expect_value(t, state.browserOpen[.Scenes], false)
+	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) + 3) // only Images is open, with 3 images
+}
+
+@(test)
+divider_drags_round_trip_through_layout :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	state.layout = {leftWidth = 240, rightWidth = 300, bottomHeight = 200, sceneTreeHeight = 280, bottomOpen = true}
+	send(&state, Workspace_Measured({1400, 800}))
+	layout := &state.layout
+
+	// Dragging the right divider to where it already is changes nothing
+	left, right := FittedSidebarWidths(layout)
+	center := layout.workspace.x - left - right - DIVIDER * 2
+	send(&state, Center_Resized(center))
+	testing.expect_value(t, layout.rightWidth, right)
+
+	// Dragging it 50 px left makes the right sidebar 50 px wider
+	send(&state, Center_Resized(center - 50))
+	testing.expect_value(t, layout.rightWidth, right + 50)
+
+	viewportHeight := layout.workspace.y - FittedBottomHeight(layout) - DIVIDER
+	send(&state, Viewport_Resized(viewportHeight - 30))
+	testing.expect_value(t, layout.bottomHeight, 230)
+}
+
+@(test)
+sidebars_shrink_to_fit_narrow_windows :: proc(t: ^testing.T) {
+	// Too narrow for 240 + 300 plus the minimum viewport
+	width: f32 = 240 + 300 + MIN_CENTER_WIDTH + DIVIDER * 2 - 100
+	layout := Layout{leftWidth = 240, rightWidth = 300, workspace = {width, 600}}
+	left, right := FittedSidebarWidths(&layout)
+	testing.expect(t, left + right + MIN_CENTER_WIDTH + DIVIDER * 2 <= width + 0.01, "sidebars should leave room for the viewport")
+	testing.expect(t, left < 240 && right < 300, "both sidebars shrink")
+
+	wide := Layout{leftWidth = 240, rightWidth = 300, workspace = {1600, 900}}
+	left, right = FittedSidebarWidths(&wide)
+	testing.expect_value(t, left, 240)
+	testing.expect_value(t, right, 300)
+}
+
+@(test)
+bottom_tab_opens_collapsed_panel :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+
+	send(&state, Action.Toggle_Bottom_Panel)
+	testing.expect_value(t, state.layout.bottomOpen, false)
+	send(&state, Bottom_Tab_Changed(int(BottomTab.Output)))
+	testing.expect_value(t, state.layout.bottomOpen, true)
+	testing.expect_value(t, state.bottomTab, BottomTab.Output)
+}
+
+// XML
+
+@(test)
+escape_xml_covers_special_characters :: proc(t: ^testing.T) {
+	escaped := EscapeXML(`a&b <c> "d" 'e'`, context.temp_allocator)
+	testing.expect_value(t, escaped, "a&amp;b &lt;c&gt; &quot;d&quot; &apos;e&apos;")
+}
+
+@(test)
+project_round_trips_through_xml :: proc(t: ^testing.T) {
+	dir := tempDir("odin_sdl_editor_round_trip")
+	defer os.remove_all(dir)
+
+	original := Project_CreateDemo(dir)
+	defer Project_Destroy(&original)
+	// Characters that need escaping, and non-default values, must survive
+	label := &original.scenes[0].nodes[0]
+	delete(label.text)
+	label.text = strings.clone(`Tom & "Jerry" <3`)
+	label.centered = false
+	original.scenes[1].nodes[1].zoom = 2.5
+	original.scenes[1].nodes[2].visible = false
+	original.scenes[1].nodes[2].rotation = 45
+
+	testing.expect_value(t, Project_Save(&original), "")
+	loaded, message := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+
+	testing.expect_value(t, loaded.name, original.name)
+	testing.expect_value(t, loaded.gameSize, original.gameSize)
+	testing.expect_value(t, loaded.scaleMode, original.scaleMode)
+	testing.expect_value(t, loaded.background, original.background)
+	testing.expect_value(t, loaded.startScene, original.startScene)
+	testing.expect_value(t, len(loaded.assets), len(original.assets))
+	testing.expect_value(t, len(loaded.scenes), len(original.scenes))
+
+	for &scene, s in original.scenes {
+		other := &loaded.scenes[s]
+		testing.expect_value(t, other.name, scene.name)
+		if !testing.expect_value(t, len(other.nodes), len(scene.nodes)) do continue
+		for &a, i in scene.nodes {
+			b := &other.nodes[i]
+			testing.expectf(t, a.name == b.name && a.kind == b.kind && a.parent == b.parent, "%s/%s: identity", scene.name, a.name)
+			testing.expectf(t, a.position == b.position && a.rotation == b.rotation && a.scale == b.scale, "%s/%s: transform", scene.name, a.name)
+			testing.expectf(t, a.layer == b.layer && a.visible == b.visible, "%s/%s: layer/visible", scene.name, a.name)
+			testing.expectf(t, a.texture == b.texture && a.columns == b.columns && a.rows == b.rows && a.fps == b.fps && a.loop == b.loop && a.playMode == b.playMode, "%s/%s: sprite", scene.name, a.name)
+			if a.kind == .Label {
+				testing.expectf(t, a.text == b.text && a.fontSize == b.fontSize && a.color == b.color && a.centered == b.centered, "%s/%s: label", scene.name, a.name)
+			}
+			if a.kind == .Camera do testing.expect_value(t, b.zoom, a.zoom)
+			if testing.expect_value(t, len(b.items), len(a.items)) {
+				for item, k in a.items {
+					testing.expect_value(t, b.items[k].label, item.label)
+					testing.expect_value(t, b.items[k].action, item.action)
+				}
+			}
+		}
+	}
+}
+
+@(test)
+saving_is_deterministic :: proc(t: ^testing.T) {
+	project := Project_CreateDemo("unused")
+	defer Project_Destroy(&project)
+	for &scene in project.scenes {
+		testing.expect_value(t, SceneToXML(&scene, context.temp_allocator), SceneToXML(&scene, context.temp_allocator))
+	}
+	testing.expect_value(t, ProjectToXML(&project, context.temp_allocator), ProjectToXML(&project, context.temp_allocator))
+}
+
+@(test)
+scene_xml_nests_children :: proc(t: ^testing.T) {
+	project := Project_CreateDemo("unused")
+	defer Project_Destroy(&project)
+	text := SceneToXML(&project.scenes[1], context.temp_allocator)
+
+	// Every node with children has a matching close tag, and the file parses
+	// World, Spaceship, Props and HUD have children; BackMenu has button items
+	testing.expect_value(t, strings.count(text, "</node>"), 5)
+	parsed, err := e.ParseScene(text)
+	defer e.SceneData_Destroy(&parsed)
+	testing.expect_value(t, err, e.ProjectError.None)
+	testing.expect_value(t, len(parsed.nodes), len(project.scenes[1].nodes))
+}
+
+@(test)
+world_transforms_combine_parents :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+
+	world := Scene_WorldTransforms(scene)
+	ship := nodeIndex(scene, "Spaceship")
+	light := nodeIndex(scene, "ShipLight")
+	testing.expect_value(t, world[light].origin, world[ship].origin + scene.nodes[light].position)
+
+	// Rotating and scaling the ship moves its child with it
+	scene.nodes[ship].rotation = 90
+	scene.nodes[ship].scale = {2, 2}
+	world = Scene_WorldTransforms(scene)
+	got := world[light].origin
+	want := world[ship].origin + {-120, 0} // (0, 60) local, doubled, turned 90° clockwise
+	testing.expectf(t, abs(got.x - want.x) < 0.01 && abs(got.y - want.y) < 0.01, "child world position %v, want %v", got, want)
+}
+
+@(test)
+new_child_starts_at_parent_origin :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+
+	ship := nodeIndex(scene, "Spaceship")
+	added := Scene_InsertNode(scene, "Child", .Node2D, ship)
+	world := Scene_WorldTransforms(scene)
+	testing.expect_value(t, scene.nodes[added].position, [2]f32{0, 0})
+	testing.expect_value(t, world[added].origin, world[ship].origin)
+}
+
+// VIEWPORT
+
+@(private="file")
+nearly :: proc(a, b: [2]f32, eps: f32 = 0.01) -> bool {
+	return abs(a.x - b.x) < eps && abs(a.y - b.y) < eps
+}
+
+@(test)
+viewport_view_math :: proc(t: ^testing.T) {
+	v := ViewportState{center = {640, 360}, zoom = 2, size = {800, 600}}
+	testing.expect(t, nearly(Viewport_WorldToView(&v, {640, 360}), {400, 300}), "center maps to the middle")
+	p := [2]f32{123, -45}
+	testing.expect(t, nearly(Viewport_ViewToWorld(&v, Viewport_WorldToView(&v, p)), p), "round trip")
+	testing.expect(t, nearly(e.Transform2D_Apply(Viewport_Transform(&v, 1.5), p), Viewport_WorldToView(&v, p) * 1.5), "render transform matches, scaled")
+
+	// Zooming keeps the anchor point under the same pixel
+	anchor := [2]f32{900, 100}
+	before := Viewport_WorldToView(&v, anchor)
+	Viewport_ZoomAt(&v, 1.7, anchor)
+	testing.expect(t, nearly(Viewport_WorldToView(&v, anchor), before, 0.05), "zoom anchored")
+	Viewport_ZoomAt(&v, 1000, anchor)
+	testing.expect_value(t, v.zoom, f32(VIEWPORT_MAX_ZOOM))
+
+	Viewport_Fit(&v, {1280, 720})
+	testing.expect(t, nearly(v.center, {640, 360}), "fit centers the game area")
+	testing.expect(t, abs(v.zoom - 800.0 / 1280 * VIEWPORT_FIT_MARGIN) < 0.001, "fit zoom")
+
+	v.zoom = 1
+	Viewport_Pan(&v, {10, -20})
+	testing.expect(t, nearly(v.center, {630, 380}), "pan moves the content with the mouse")
+
+	testing.expect_value(t, Viewport_RulerStep(1), f32(100))
+	testing.expect_value(t, Viewport_RulerStep(0.25), f32(500))
+	testing.expect_value(t, Viewport_RulerStep(10), f32(10))
+}
+
+@(test)
+viewport_drags :: proc(t: ^testing.T) {
+	// A node inside a parent that is moved, rotated 90° and doubled
+	parentWorld := e.Transform2D_Make({100, 100}, 90, {2, 2})
+	node := NodeDef{position = {10, 0}, scale = {1, 1}}
+	local := e.Transform2D_Make(node.position, node.rotation, node.scale)
+	drag := ViewportDrag{
+		node = 0, startMouse = {100, 120},
+		startPosition = node.position, startScale = node.scale,
+		startWorld = e.Transform2D_Multiply(parentWorld, local), parentWorld = parentWorld,
+	}
+
+	// Moving 40 world units right is 20 local units along the parent's (rotated) -Y
+	drag.mode = .Move
+	Viewport_ApplyDrag(&node, &drag, {140, 120}, false)
+	testing.expectf(t, nearly(node.position, {10, -20}), "move in parent space: %v", node.position)
+	testing.expect(t, nearly(e.Transform2D_Apply(parentWorld, node.position), {140, 120}), "lands under the mouse")
+
+	drag.mode = .Move_Y
+	Viewport_ApplyDrag(&node, &drag, {170, 150}, false)
+	testing.expect(t, nearly(e.Transform2D_Apply(parentWorld, node.position), {100, 150}), "axis move ignores X")
+
+	drag.mode = .Move
+	Viewport_ApplyDrag(&node, &drag, {150, 105}, true)
+	testing.expect(t, nearly(e.Transform2D_Apply(parentWorld, node.position), {150, 120}), "shift keeps the larger axis")
+
+	// Rotate a quarter turn around the node's origin (100, 120), snapping with shift
+	node.position = drag.startPosition
+	drag.mode = .Rotate
+	drag.startMouse = {200, 120}
+	Viewport_ApplyDrag(&node, &drag, {100, 220}, false)
+	testing.expect(t, abs(node.rotation - 90) < 0.01, "rotate follows the mouse angle")
+	Viewport_ApplyDrag(&node, &drag, {100 + 100 * 0.996, 120 + 100 * 0.087}, true)
+	testing.expect(t, abs(node.rotation - 0) < 0.01, "shift snaps to 15° steps")
+
+	// Uniform scale by distance from the origin
+	drag.mode = .Scale
+	Viewport_ApplyDrag(&node, &drag, {300, 120}, false)
+	testing.expect(t, nearly(node.scale, {2, 2}), "uniform scale")
+}
+
+@(test)
+nudge_moves_in_world_units_inside_rotated_parents :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := nodeIndex(scene, "Spaceship")
+	light := nodeIndex(scene, "ShipLight")
+	scene.nodes[ship].rotation = 90
+	state.selectedNode = light
+	before := Scene_WorldTransforms(scene)[light].origin
+
+	send(&state, Action.Nudge_Right_Large)
+	after := Scene_WorldTransforms(scene)[light].origin
+	testing.expectf(t, nearly(after - before, {NUDGE_LARGE, 0}), "nudge right moves right on screen: %v", after - before)
+}
+
+@(test)
+keymap_rules :: proc(t: ^testing.T) {
+	// No two bindings share a chord
+	for a, i in DEFAULT_KEYMAP {
+		for b in DEFAULT_KEYMAP[i + 1:] {
+			testing.expectf(t, a.chord != b.chord, "%v and %v share a shortcut", a.action, b.action)
+		}
+	}
+	// Plain keys are hidden from menus while typing; modified ones stay
+	testing.expect_value(t, Keymap_Shortcut(.Delete_Node, typing = true), skald.Shortcut{})
+	testing.expect_value(t, Keymap_Shortcut(.Delete_Node), skald.Shortcut{.Delete, {}})
+	testing.expect_value(t, Keymap_Shortcut(.Save_Project, typing = true), skald.Shortcut{.S, {.Ctrl}})
+	// Every tool has a key
+	for action in ([]Action{.Tool_Select, .Tool_Move, .Tool_Rotate, .Tool_Scale}) {
+		testing.expectf(t, Keymap_Shortcut(action) != {}, "%v has no shortcut", action)
+	}
+}
+
+@(test)
+tool_and_view_actions :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	state.viewport.size = {800, 450}
+
+	send(&state, Action.Tool_Rotate)
+	testing.expect_value(t, state.tool, Tool.Rotate)
+	send(&state, Action.View_Fit)
+	testing.expect(t, nearly(state.viewport.center, state.project.gameSize * 0.5), "fit")
+	send(&state, Action.Zoom_100)
+	testing.expect_value(t, state.viewport.zoom, f32(1))
+	send(&state, Action.Zoom_In)
+	testing.expect_value(t, state.viewport.zoom, f32(VIEWPORT_ZOOM_STEP))
+	send(&state, Action.Frame_Selected)
+	testing.expect(t, nearly(state.viewport.center, Scene_WorldTransforms(playScene(&state))[state.selectedNode].origin), "frame selected")
+	send(&state, Action.Deselect)
+	testing.expect_value(t, state.selectedNode, -1)
+}
+
+@(test)
+opening_a_scene_fits_the_view :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+
+	// Before the viewport is measured, fitting waits for the first measurement
+	send(&state, Scene_Tab_Changed(0))
+	testing.expect_value(t, state.viewport.zoom, f32(0))
+	send(&state, Viewport_Measured({800, 450}))
+	fitted := state.viewport.zoom
+	testing.expect(t, fitted > 0, "fitted on first measure")
+
+	// Zoom and pan away, then open another scene: back to the fitted view
+	send(&state, Action.Zoom_In)
+	send(&state, Viewport_Panned({120, -40}))
+	send(&state, Scene_Tab_Changed(1))
+	testing.expect_value(t, state.viewport.zoom, fitted)
+	testing.expect(t, nearly(state.viewport.center, state.project.gameSize * 0.5), "centered on the game area")
+
+	// Re-selecting the scene that's already open keeps the current view
+	send(&state, Action.Zoom_In)
+	send(&state, Scene_Tab_Changed(1))
+	testing.expect(t, state.viewport.zoom != fitted, "same scene: view kept")
+}
+
+// ASSETS
+
+// A temp project folder with the demo project saved in it
+@(private="file")
+tempProject :: proc(name: string) -> Project {
+	project := Project_CreateDemo(tempDir(name))
+	Project_Save(&project)
+	return project
+}
+
+@(test)
+asset_kinds_from_extensions :: proc(t: ^testing.T) {
+	cases := [?]struct{path: string, kind: AssetKind, ok: bool}{
+		{"a/ship.PNG", .Image, true}, {"x.jpeg", .Image, true}, {"song.ogg", .Audio, true},
+		{"beep.wav", .Audio, true}, {"font.ttf", .Font, true}, {"notes.txt", .Image, false},
+	}
+	for c in cases {
+		kind, ok := AssetKindForPath(c.path)
+		testing.expectf(t, ok == c.ok && (!ok || kind == c.kind), "%s: got %v %v", c.path, kind, ok)
+	}
+}
+
+@(test)
+importing_copies_files_into_assets :: proc(t: ^testing.T) {
+	project := tempProject("odin_sdl_editor_import")
+	defer { os.remove_all(project.rootPath); Project_Destroy(&project) }
+	before := len(project.assets)
+
+	index, message := Project_ImportAsset(&project, "tests/fixtures/beep.wav")
+	testing.expect_value(t, message, "")
+	testing.expect_value(t, len(project.assets), before + 1)
+	testing.expect_value(t, project.assets[index].path, "assets/beep.wav")
+	testing.expect_value(t, project.assets[index].kind, AssetKind.Audio)
+	testing.expect(t, os.exists(AssetFilePath(&project, project.assets[index])), "file copied")
+
+	// Same file name again: copied under a new name, not overwritten
+	second, _ := Project_ImportAsset(&project, "tests/fixtures/beep.wav")
+	testing.expect_value(t, project.assets[second].path, "assets/beep_1.wav")
+
+	// A file already inside the project folder is referenced, not copied
+	_ = os.remove(AssetFilePath(&project, project.assets[second]))
+	inside, _ := filepath.join({project.rootPath, "assets", "beep.wav"}, context.temp_allocator)
+	again, msg := Project_ImportAsset(&project, inside)
+	testing.expect_value(t, msg, "")
+	testing.expect_value(t, again, index) // Already listed: same asset
+
+	_, bad := Project_ImportAsset(&project, "README.md")
+	testing.expect(t, bad != "", "unsupported type is refused")
+	_, missing := Project_ImportAsset(&project, "tests/fixtures/nope.wav")
+	testing.expect(t, missing != "", "missing file is refused")
+}
+
+@(test)
+removing_assets :: proc(t: ^testing.T) {
+	project := tempProject("odin_sdl_editor_remove")
+	defer { os.remove_all(project.rootPath); Project_Destroy(&project) }
+	index, _ := Project_ImportAsset(&project, "tests/fixtures/beep.wav")
+	file := strings.clone(AssetFilePath(&project, project.assets[index]), context.temp_allocator)
+
+	// Remove from the project only: the file stays
+	testing.expect_value(t, Project_RemoveAsset(&project, index, false), "")
+	testing.expect(t, os.exists(file), "file kept")
+	for asset in project.assets do testing.expect(t, asset.path != "assets/beep.wav", "removed from list")
+
+	// Remove and delete
+	index, _ = Project_ImportAsset(&project, file)
+	testing.expect_value(t, Project_RemoveAsset(&project, index, true), "")
+	testing.expect(t, !os.exists(file), "file deleted")
+
+	// Usage counts nodes that reference an asset
+	testing.expect_value(t, AssetUsage(&project, "assets/balloons.png"), 2)
+	testing.expect_value(t, AssetUsage(&project, "assets/nothing.png"), 0)
+}
+
+@(test)
+browser_search_filters_rows :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+
+	send(&state, Browser_Search_Changed("BALL"))
+	rows := BrowserRows(&state)
+	// Only the Images folder (shown open) with balloons.png
+	testing.expect_value(t, len(rows), 2)
+	testing.expect_value(t, rows[0].kind, BrowserItemKind.Folder)
+	testing.expect_value(t, state.project.assets[rows[1].index].path, "assets/balloons.png")
+
+	send(&state, Browser_Search_Changed("scene"))
+	testing.expect_value(t, len(BrowserRows(&state)), 1 + len(state.project.scenes))
+
+	send(&state, Browser_Search_Changed("zzz"))
+	testing.expect_value(t, len(BrowserRows(&state)), 0)
+
+	send(&state, Browser_Search_Changed(""))
+	testing.expect(t, len(BrowserRows(&state)) > 3, "cleared search shows everything again")
+}
+
+@(test)
+import_and_remove_through_messages :: proc(t: ^testing.T) {
+	state := State{project = tempProject("odin_sdl_editor_import_msgs"), browserSelection = {kind = .None}}
+	defer { os.remove_all(state.project.rootPath); State_Destroy(&state) }
+	before := len(state.project.assets)
+
+	send(&state, Asset_Import_Result{path = "tests/fixtures/beep.wav"})
+	testing.expect_value(t, len(state.project.assets), before + 1)
+	testing.expect_value(t, state.browserSelection.kind, BrowserItemKind.Asset)
+	testing.expect_value(t, state.browserOpen[.Audio], true)
+
+	send(&state, Asset_Import_Result{cancelled = true})
+	testing.expect_value(t, len(state.project.assets), before + 1)
+
+	send(&state, Action.Remove_Asset)
+	testing.expect(t, state.removeConfirm.open, "dialog opens")
+	send(&state, Asset_Remove_Cancelled{})
+	testing.expect(t, !state.removeConfirm.open, "cancel closes it")
+	testing.expect_value(t, len(state.project.assets), before + 1)
+
+	send(&state, Action.Remove_Asset)
+	send(&state, Asset_Remove_Confirmed{deleteFile = true})
+	testing.expect_value(t, len(state.project.assets), before)
+	testing.expect_value(t, state.browserSelection.kind, BrowserItemKind.None)
+	AudioPreview_Unload()
+}

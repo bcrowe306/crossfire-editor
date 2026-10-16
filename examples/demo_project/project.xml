@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project formatVersion="2" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene">
+	<scene name="MenuScene" path="scenes/MenuScene.scene.xml"/>
+	<scene name="PlayScene" path="scenes/PlayScene.scene.xml"/>
+	<scene name="OptionsScene" path="scenes/OptionsScene.scene.xml"/>
+	<asset path="assets/ship.png" kind="Image"/>
+	<asset path="assets/balloons.png" kind="Image"/>
+	<asset path="assets/light.png" kind="Image"/>
+</project>

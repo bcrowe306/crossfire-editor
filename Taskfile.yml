@@ -1,0 +1,109 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+# Build, run and test commands for the editor. `task` with no arguments lists them.
+
+version: '3'
+
+vars:
+  NAME: odin_sdl_editor
+  BUILD_DIR: build
+  # Engine checkout: imported as "engine:." and used by Play to build the player.
+  # Override with: task run ENGINE_DIR=/path/to/odin_sdl_engine
+  ENGINE_DIR: '{{.ENGINE_DIR | default "../odin_sdl_engine"}}'
+  DEMO_PROJECT: examples/demo_project
+  # Skald is imported as "gui:skald", the engine as "engine:."
+  COLLECTIONS: -collection:gui=Skald -collection:engine={{.ENGINE_DIR}} -define:ENGINE_DIR={{.ENGINE_DIR}}
+  # Vet only the editor's own package: Skald itself doesn't pass -vet
+  VET: -vet-unused -vet-packages:editor
+
+tasks:
+  default:
+    desc: List the available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  setup:
+    desc: One-time setup - fetch the Skald submodule and build the STB libraries Skald needs
+    cmds:
+      - task: submodules
+      - task: stb
+
+  submodules:
+    desc: Fetch or update git submodules (Skald)
+    cmds:
+      - git submodule update --init --recursive
+
+  stb:
+    desc: Build Odin's STB libraries (once per Odin install; Linux and macOS)
+    cmds:
+      - cd "$(odin root)/vendor/stb/src" && sh build_stb.sh
+    status:
+      # Already built for this Odin install
+      - test -f "$(odin root)/vendor/stb/lib/stb_image.a" || test -f "$(odin root)/vendor/stb/lib/darwin/stb_image.a"
+
+  check:
+    desc: Type-check the editor with vet
+    cmds:
+      - odin check . {{.COLLECTIONS}} {{.VET}}
+
+  test:
+    desc: Run the unit tests
+    cmds:
+      - odin test . {{.COLLECTIONS}} {{.VET}}
+
+  verify:
+    desc: Check and test (run before saying a change works)
+    cmds:
+      - task: check
+      - task: test
+
+  test:ui:
+    desc: Run the UI test scripts in tests/ui (opens the editor window; uses a copy of the demo project)
+    deps: [build]
+    cmds:
+      - rm -rf {{.BUILD_DIR}}/ui_project && cp -r {{.DEMO_PROJECT}} {{.BUILD_DIR}}/ui_project
+      - for: { var: UI_SCRIPTS }
+        cmd: '{{.BUILD_DIR}}/{{.NAME}} {{.BUILD_DIR}}/ui_project --script {{.ITEM}}'
+    vars:
+      UI_SCRIPTS:
+        sh: ls tests/ui/*.script
+
+  build:
+    desc: Debug build into build/
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - odin build . {{.COLLECTIONS}} {{.VET}} -debug -out:{{.BUILD_DIR}}/{{.NAME}}
+
+  build:release:
+    desc: Optimized build into build/release/
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}/release
+      - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}}
+
+  run:
+    desc: Build and run (debug). Pass program arguments after --, e.g. task run -- --help
+    cmds:
+      - odin run . {{.COLLECTIONS}} -debug -- {{.CLI_ARGS}}
+
+  run:fullscreen:
+    desc: Build and run fullscreen, to see the full layout on a tiling window manager
+    cmds:
+      - odin run . {{.COLLECTIONS}} -debug -define:EDITOR_FULLSCREEN=true -- {{.CLI_ARGS}}
+
+  player:
+    desc: Build the engine's game player (Play does this automatically when the engine changed)
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}/player
+      - odin build {{.ENGINE_DIR}}/player -debug -out:{{.BUILD_DIR}}/player/player
+
+  play:demo:
+    desc: Run the demo project in the player, without the editor
+    deps: [player]
+    cmds:
+      - '{{.BUILD_DIR}}/player/player {{.DEMO_PROJECT}}'
+
+  clean:
+    desc: Delete build output
+    cmds:
+      - rm -rf {{.BUILD_DIR}} {{.NAME}}

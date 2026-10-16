@@ -1,0 +1,44 @@
+# Smoke test: browse, select, edit, play. Runs on a scratch copy of the demo project.
+# Run with: task test:ui
+
+wait 5
+expect scene MenuScene
+
+# Browser rows: 0 Scenes folder, 1 MenuScene, 2 PlayScene
+click_row browser-tree 2
+expect scene PlayScene
+expect nodes 11
+
+# Scene tree rows: 0 World, 1 Camera, 2 Spaceship
+click_row scene-tree 2
+expect selected Spaceship
+expect field x 640
+
+# Add a child with the panel button, then delete it with the keyboard
+click_widget panel-add-node
+expect selected Node
+expect nodes 12
+key DELETE
+expect nodes 11
+expect selected none
+
+# Collapse and reopen the bottom panel
+key ctrl+j
+expect bottom closed
+key ctrl+j
+expect bottom open
+
+# Play builds the player if needed, then runs the game
+click_widget toolbar-play
+wait_until play Playing timeout=120
+wait_until console_contains Playing 'Asteroids Demo' timeout=10
+expect tab Console
+key shift+F5
+wait_until play Stopped timeout=10
+expect console_contains Stopped
+
+# Viewport picking uses world transforms: ShipLight is a child of Spaceship at local (0, 60)
+click_node ShipLight
+expect selected ShipLight
+click_node Props
+expect selected Props

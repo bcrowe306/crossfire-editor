@@ -1,0 +1,3 @@
+[submodule "Skald"]
+	path = Skald
+	url = https://github.com/bcrowe306/Skald.git

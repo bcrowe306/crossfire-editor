@@ -1,0 +1,8 @@
+# Build output
+/odin_sdl_editor
+/odin_sdl_editor.exe
+/build/
+*.pdb
+
+# Per-user editor state for opened projects
+.editor/
