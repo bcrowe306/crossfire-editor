@@ -1608,3 +1608,30 @@ code_editor_command :: proc(t: ^testing.T) {
 	testing.expect_value(t, FixedText_String(&defaults.codeEditorPath), "zed")
 	free_all(context.temp_allocator)
 }
+
+@(test)
+zed_app_binary_is_swapped_for_its_cli :: proc(t: ^testing.T) {
+	// A fake Zed install: <dir>/libexec/zed-editor (the app), <dir>/bin/zed (the CLI), and a
+	// symlink to the app like ~/.local/bin/zed
+	os.make_directory("build")
+	dir := "build/test_zed"
+	os.remove_all(dir)
+	defer os.remove_all(dir)
+	os.make_directory_all("build/test_zed/libexec")
+	os.make_directory_all("build/test_zed/bin")
+	os.make_directory_all("build/test_zed/links")
+	_ = os.write_entire_file("build/test_zed/libexec/zed-editor", transmute([]byte)string("app"))
+	_ = os.write_entire_file("build/test_zed/bin/zed", transmute([]byte)string("cli"))
+	app, _ := os.get_absolute_path("build/test_zed/libexec/zed-editor", context.temp_allocator)
+	_ = os.symlink(app, "build/test_zed/links/zed")
+
+	_, isApp := Script_ZedCLIFor("build/test_zed/bin/zed")
+	testing.expect(t, !isApp)
+	_, isApp = Script_ZedCLIFor("/usr/bin/true")
+	testing.expect(t, !isApp)
+	// Through the symlink, it's the app; the CLI is found (zeditor in PATH first, if installed)
+	cli, viaLink := Script_ZedCLIFor("build/test_zed/links/zed")
+	testing.expect(t, viaLink)
+	testing.expect(t, strings.has_suffix(cli, "zeditor") || strings.has_suffix(cli, "test_zed/bin/zed"))
+	free_all(context.temp_allocator)
+}

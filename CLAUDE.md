@@ -673,7 +673,10 @@ Highlights:
 - **Scripts are edited in an external editor**, set in Settings: the program
   (`code_editor_path`, a path or a name found in PATH, default `zed`; the user uses Zed) and its
   arguments (`code_editor_args`, default `{file}:{line}`). Older files' single `code_editor`
-  command is split on load.
+  command is split on load. **Zed's app binary (`zed-editor`) can't open files in a running Zed**
+  ("zed is already running"); only its command-line tool can (`zed` in Zed's installs, `zeditor` in
+  Arch's package; the user's `~/.local/bin/zed` is a symlink to the app). `Script_ZedCLIFor`
+  detects the app (through symlinks) and Open uses the CLI instead; Settings warns.
 - **Deferred, decided to do later:** custom node kinds registered by game code (a struct embedding
   e.g. `e.Sprite`, used as `kind="Player"`); more than one script per node; hot reload of scripts
   (a shared library via `core:dynlib`, development builds only; exports link statically); and, much

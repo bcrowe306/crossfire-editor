@@ -274,5 +274,10 @@ editorProgramStatus :: proc(ctx: ^skald.Ctx(Msg), program: string) -> skald.View
 	if !found {
 		return skald.text(fmt.tprintf("Not found: %s", program == "" ? DEFAULT_CODE_EDITOR_PATH : program), th.color.warning, th.font.size_xs, max_width = 560)
 	}
+	if cli, isApp := Script_ZedCLIFor(resolved); isApp {
+		message := cli != "" ? fmt.tprintf("%s is Zed's app, which can't open files in a running Zed: Open uses %s (Zed's command-line tool) instead. Set that here to make it explicit.", resolved, cli) :
+			fmt.tprintf("%s is Zed's app, which can't open files in a running Zed. Use Zed's command-line tool (zed, or zeditor on Arch).", resolved)
+		return skald.text(message, th.color.warning, th.font.size_xs, max_width = 560)
+	}
 	return skald.text(fmt.tprintf("Runs %s", resolved), th.color.fg_muted, th.font.size_xs, max_width = 560)
 }

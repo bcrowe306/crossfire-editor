@@ -276,6 +276,16 @@ Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> skald.Com
 		logLine(state, .Error, fmt.aprintf("Couldn't find the code editor '%s'. Set its path in Settings > Editor", program))
 		return {}
 	}
+	// Zed's app binary can't open files in a Zed that's already running ("zed is already
+	// running"); its command-line tool can
+	if cli, isApp := Script_ZedCLIFor(program); isApp {
+		if cli == "" {
+			logLine(state, .Error, fmt.aprintf("%s is Zed's app, which can't open files in a running Zed, and Zed's command-line tool (zed or zeditor) wasn't found. Set it in Settings > Editor", program))
+			return {}
+		}
+		logLine(state, .Info, fmt.aprintf("Using %s (Zed's command-line tool) instead of %s, Zed's app, which can't open files in a running Zed", cli, program))
+		program = cli
+	}
 	command := Script_EditorCommand(program, FixedText_String(&state.settings.codeEditorArgs), file, line)
 	env, envErr := os.environ(context.temp_allocator)
 	if envErr != nil do env = nil // nil also means "this process's environment"
@@ -466,4 +476,31 @@ Script_Location :: proc(state: ^State, name: string) -> (string, int) {
 	path, _ := filepath.join({state.project.rootPath, ScriptFileFor(name)}, context.temp_allocator)
 	absolute, err := os.get_absolute_path(path, context.temp_allocator)
 	return err == nil ? absolute : path, 1
+}
+
+/*
+Whether a program is Zed's app binary (`zed-editor`, directly or through a symlink like
+`~/.local/bin/zed`) rather than its command-line tool. The app, started while Zed is running,
+prints "zed is already running" and exits without opening anything; the command-line tool (`zed`
+in Zed's own installs, `zeditor` in Arch's package) hands the file to the running Zed.
+
+Returns:
+- Zed's command-line tool if found ("" if not; temp allocated), and whether `program` is the app
+*/
+Script_ZedCLIFor :: proc(program: string) -> (cli: string, isApp: bool) {
+	real := program
+	for _ in 0..<8 {
+		target, err := os.read_link(real, context.temp_allocator)
+		if err != nil do break
+		if !filepath.is_abs(target) do target, _ = filepath.join({filepath.dir(real), target}, context.temp_allocator)
+		real = target
+	}
+	if filepath.base(real) != "zed-editor" do return "", false
+	// Arch's package, then Zed's own layout (<prefix>/libexec/zed-editor next to <prefix>/bin/zed)
+	if found, ok := Script_FindEditorProgram("zeditor"); ok do return found, true
+	sibling, _ := filepath.join({filepath.dir(filepath.dir(real)), "bin", "zed"}, context.temp_allocator)
+	if os.exists(sibling) {
+		if _, alsoApp := Script_ZedCLIFor(sibling); !alsoApp do return sibling, true
+	}
+	return "", true
 }
