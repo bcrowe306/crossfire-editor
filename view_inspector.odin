@@ -35,9 +35,13 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
 	visible := SceneTreeRows(scene)
-	rows := make([]skald.Tree_Row, len(visible), context.temp_allocator)
+	rows := make([]ColoredTreeRow, len(visible), context.temp_allocator)
 	for nodeIndex, i in visible {
 		node := &scene.nodes[nodeIndex]
+		// Each node kind in its own color, the same as its marker in the viewport; hidden nodes dimmed
+		color := kindColor(node.kind)
+		label := TintLabel(th, color)
+		if !node.visible do label = th.color.fg_muted
 		rows[i] = {
 			depth = Scene_NodeDepth(scene, nodeIndex),
 			label = node.visible ? node.name : fmt.tprintf("%s (hidden)", node.name),
@@ -45,6 +49,8 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			expanded = node.expanded,
 			selected = Selection_Contains(s, nodeIndex),
 			icon = NodeKindIcon(node.kind),
+			iconColor = color,
+			labelColor = label,
 		}
 	}
 
@@ -58,7 +64,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	shield := menuState.open && skald.mouse_over_overlay(ctx) && ctx.input.mouse_pressed[.Left]
 	if shield do ctx.input.mouse_pressed[.Left] = false
 	tree := skald.scroll(ctx, {0, 0},
-		skald.tree(ctx, rows,
+		coloredTree(ctx, rows,
 			on_toggle = proc(row: int) -> Msg { return Node_Toggled(row) },
 			on_select = proc(row: int) -> Msg { return Node_Selected(row) },
 			id = skald.hash_id("scene-tree"),
@@ -293,12 +299,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	controlWidth := max(sidebarWidth - th.spacing.md * 2 - INSPECTOR_LABEL_WIDTH - th.spacing.sm - INSPECTOR_SCROLLBAR_WIDTH, 80)
 	numberWidth := min(controlWidth, INSPECTOR_MAX_NUMBER_WIDTH)
 
-	onField :: proc(field: NodeField, value: f64) -> Msg { return Node_Field_Changed{field, value} }
-	number :: proc(ctx: ^skald.Ctx(Msg), key: int, field: NodeField, value: f32, step: f64, decimals: int, width: f32, minValue := min(f64), maxValue := max(f64)) -> skald.View {
-		return skald.number_input(ctx, f64(value), field, onField,
-			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", field, key)),
-			step = step, decimals = decimals, min_value = minValue, max_value = maxValue,
-			width = width)
+	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: NodeField, value: f32, step: f64, decimals: int, width: f32, minValue := min(f64), maxValue := max(f64)) -> skald.View {
+		return numberField(ctx, s, fmt.tprintf("inspector-%v-%d", field, key), field, f64(value), step, decimals, width, minValue, maxValue)
 	}
 
 	rows := make([dynamic]skald.View, context.temp_allocator)
@@ -309,12 +311,12 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id(fmt.tprintf("inspector-name-%d", key)),
 			width = controlWidth)),
 		inspectorRow(ctx, "Type", skald.text(fmt.tprintf("%s  %v", NodeKindIcon(node.kind), node.kind), th.color.fg_muted, th.font.size_sm)),
-		inspectorRow(ctx, "Position X", number(ctx, key, .Position_X, node.position.x, 1, 0, numberWidth)),
-		inspectorRow(ctx, "Position Y", number(ctx, key, .Position_Y, node.position.y, 1, 0, numberWidth)),
-		inspectorRow(ctx, "Rotation", number(ctx, key, .Rotation, node.rotation, 5, 1, numberWidth)),
-		inspectorRow(ctx, "Scale X", number(ctx, key, .Scale_X, node.scale.x, 0.1, 2, numberWidth)),
-		inspectorRow(ctx, "Scale Y", number(ctx, key, .Scale_Y, node.scale.y, 0.1, 2, numberWidth)),
-		inspectorRow(ctx, "Layer", number(ctx, key, .Layer, f32(node.layer), 1, 0, numberWidth, 0, 7)),
+		inspectorRow(ctx, "Position X", number(ctx, s, key, .Position_X, node.position.x, 1, 0, numberWidth)),
+		inspectorRow(ctx, "Position Y", number(ctx, s, key, .Position_Y, node.position.y, 1, 0, numberWidth)),
+		inspectorRow(ctx, "Rotation", number(ctx, s, key, .Rotation, node.rotation, 5, 1, numberWidth)),
+		inspectorRow(ctx, "Scale X", number(ctx, s, key, .Scale_X, node.scale.x, 0.1, 2, numberWidth)),
+		inspectorRow(ctx, "Scale Y", number(ctx, s, key, .Scale_Y, node.scale.y, 0.1, 2, numberWidth)),
+		inspectorRow(ctx, "Layer", number(ctx, s, key, .Layer, f32(node.layer), 1, 0, numberWidth, 0, 7)),
 		inspectorRow(ctx, "Visible", skald.checkbox(ctx, node.visible, "",
 			proc(v: bool) -> Msg { return Node_Visibility_Changed(v) },
 			id = skald.hash_id(fmt.tprintf("inspector-visible-%d", key)))),
@@ -358,9 +360,9 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		for mode in e.AnimationPlayMode do modes[mode] = fmt.tprintf("%v", mode)
 		append(&rows,
 			inspectorRow(ctx, "Sheet", textureSelect(ctx, s, key, node.texture, controlWidth)),
-			inspectorRow(ctx, "Columns", number(ctx, key, .Columns, f32(node.columns), 1, 0, numberWidth, 1, 64)),
-			inspectorRow(ctx, "Rows", number(ctx, key, .Rows, f32(node.rows), 1, 0, numberWidth, 1, 64)),
-			inspectorRow(ctx, "FPS", number(ctx, key, .FPS, node.fps, 1, 0, numberWidth, 0, 120)),
+			inspectorRow(ctx, "Columns", number(ctx, s, key, .Columns, f32(node.columns), 1, 0, numberWidth, 1, 64)),
+			inspectorRow(ctx, "Rows", number(ctx, s, key, .Rows, f32(node.rows), 1, 0, numberWidth, 1, 64)),
+			inspectorRow(ctx, "FPS", number(ctx, s, key, .FPS, node.fps, 1, 0, numberWidth, 0, 120)),
 			inspectorRow(ctx, "Loop", flag(ctx, key, .Loop, node.loop)),
 			inspectorRow(ctx, "Play mode", skald.select(ctx, fmt.tprintf("%v", node.playMode), modes, NodeTextField.Play_Mode, onText,
 				id = skald.hash_id(fmt.tprintf("inspector-mode-%d", key)), width = controlWidth)),
@@ -368,12 +370,12 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Label:
 		append(&rows,
 			inspectorRow(ctx, "Text", textField(ctx, key, .Text, node.text, controlWidth)),
-			inspectorRow(ctx, "Font size", number(ctx, key, .Font_Size, node.fontSize, 2, 0, numberWidth, 1, 400)),
+			inspectorRow(ctx, "Font size", number(ctx, s, key, .Font_Size, node.fontSize, 2, 0, numberWidth, 1, 400)),
 			inspectorRow(ctx, "Color", colorPicker(ctx, key, node.color, controlWidth)),
 			inspectorRow(ctx, "Centered", flag(ctx, key, .Centered, node.centered)),
 		)
 	case .Camera:
-		append(&rows, inspectorRow(ctx, "Zoom", number(ctx, key, .Zoom, node.zoom, 0.1, 2, numberWidth, 0.05, 20)))
+		append(&rows, inspectorRow(ctx, "Zoom", number(ctx, s, key, .Zoom, node.zoom, 0.1, 2, numberWidth, 0.05, 20)))
 	case .Menu:
 		// Editing buttons comes later; show what the menu does
 		for item in node.items {

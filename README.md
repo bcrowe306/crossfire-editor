@@ -139,7 +139,9 @@ Single-letter shortcuts are ignored while typing in a field. Help > Keyboard Sho
 - **Images into the scene:** drag an image from the project browser into the viewport to add a
   Sprite there.
 - **Inspector:** a sprite's image is picked from the project's images (or None); a label's color
-  has a color picker.
+  has a color picker. Number fields take typed values, or step with their − and + buttons.
+- **Colors:** the scene tree shows each node kind in its own color (the same as its viewport
+  marker), and the project browser colors scenes, images, audio and fonts.
 
 The status bar shows whether the project has unsaved changes (also a `*` in the window title), and
 the frame rate and the last viewport render time.

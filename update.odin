@@ -121,6 +121,14 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Rename_Cancelled:
 		delete(out.rename.text)
 		out.rename = {}
+	case Number_Text_Changed:
+		// Applies when the text is a number, through the field's own message
+		if apply := NumberEdit_Update(&out, v); apply != nil do return applyMsg(out, apply)
+	case Number_Edit_Ended:
+		if out.numberEdit.id == skald.Widget_ID(v) {
+			delete(out.numberEdit.text)
+			out.numberEdit = {}
+		}
 	case Frame_Requested:
 	case Quit_Without_Asking:
 		playStop(&out)

@@ -105,11 +105,11 @@ appearanceTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Theme", skald.select(ctx, draft.theme == .Light ? "Light" : "Dark", []string{"Dark", "Light"},
 			proc(v: string) -> Msg { return Settings_Theme_Changed(v) },
 			id = skald.hash_id("settings-theme"), width = 140)),
-		settingRow(ctx, "Text size", numberSetting(ctx, .Font_Size, f64(draft.fontSize), 1, SETTINGS_FONT_SIZE_RANGE, "px")),
+		settingRow(ctx, "Text size", numberSetting(ctx, s, .Font_Size, f64(draft.fontSize), 1, SETTINGS_FONT_SIZE_RANGE, "px")),
 		hint(ctx, "Body text, in pixels. Headings and small text scale with it."),
-		settingRow(ctx, "Spacing", numberSetting(ctx, .Spacing, f64(draft.spacing), 5, SETTINGS_SPACING_RANGE, "%")),
+		settingRow(ctx, "Spacing", numberSetting(ctx, s, .Spacing, f64(draft.spacing), 5, SETTINGS_SPACING_RANGE, "%")),
 		hint(ctx, "Padding and gaps between controls, as a percentage of Skald's default."),
-		settingRow(ctx, "Row height", numberSetting(ctx, .Row_Height, f64(draft.rowHeight), 1, SETTINGS_ROW_HEIGHT_RANGE, "px")),
+		settingRow(ctx, "Row height", numberSetting(ctx, s, .Row_Height, f64(draft.rowHeight), 1, SETTINGS_ROW_HEIGHT_RANGE, "px")),
 		hint(ctx, "Rows in the project browser and scene tree."),
 		skald.spacer(th.spacing.sm),
 		hint(ctx, "Changes show when you press Apply or Save."),
@@ -128,14 +128,14 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	gridRange :: [2]f32{f32(SETTINGS_GRID_SIZE_RANGE[0]), f32(SETTINGS_GRID_SIZE_RANGE[1])}
 	return skald.col(
 		skald.text("Undo", th.color.fg, th.font.size_md),
-		settingRow(ctx, "Merge edits within", numberSetting(ctx, .Undo_Merge_Ms, f64(draft.undoMergeMs), 50, msRange, "ms")),
+		settingRow(ctx, "Merge edits within", numberSetting(ctx, s, .Undo_Merge_Ms, f64(draft.undoMergeMs), 50, msRange, "ms")),
 		hint(ctx, "Edits to the same thing closer together than this undo as one step: typing a name, dragging a number, nudging with the arrow keys."),
-		settingRow(ctx, "Longest merged edit", numberSetting(ctx, .Undo_Group_Max_Ms, f64(draft.undoGroupMaxMs), 250, msRange, "ms")),
+		settingRow(ctx, "Longest merged edit", numberSetting(ctx, s, .Undo_Group_Max_Ms, f64(draft.undoGroupMaxMs), 250, msRange, "ms")),
 		hint(ctx, "A long run of merged edits is still cut into steps this long. 0 never cuts. Dragging in the viewport is always one step."),
-		settingRow(ctx, "Undo steps kept", numberSetting(ctx, .Undo_Limit, f64(draft.undoLimit), 10, limitRange, "")),
+		settingRow(ctx, "Undo steps kept", numberSetting(ctx, s, .Undo_Limit, f64(draft.undoLimit), 10, limitRange, "")),
 		skald.spacer(th.spacing.sm),
 		skald.text("Viewport", th.color.fg, th.font.size_md),
-		settingRow(ctx, "Grid size", numberSetting(ctx, .Grid_Size, f64(draft.gridSize), 8, gridRange, "px")),
+		settingRow(ctx, "Grid size", numberSetting(ctx, s, .Grid_Size, f64(draft.gridSize), 8, gridRange, "px")),
 		hint(ctx, "Spacing of the viewport grid, in world units. G shows it; Shift+G snaps moves to it (and rotation to 15°, scale to 0.1)."),
 		spacing = th.spacing.sm,
 		padding = th.spacing.sm,
@@ -225,13 +225,10 @@ settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> 
 }
 
 @(private="file")
-numberSetting :: proc(ctx: ^skald.Ctx(Msg), field: SettingsField, value, step: f64, limits: [2]f32, unit: string) -> skald.View {
+numberSetting :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: SettingsField, value, step: f64, limits: [2]f32, unit: string) -> skald.View {
 	th := ctx.theme
 	return skald.row(
-		skald.number_input(ctx, value, field,
-			proc(field: SettingsField, v: f64) -> Msg { return Settings_Value_Changed{field, v} },
-			id = skald.hash_id(fmt.tprintf("settings-%v", field)),
-			step = step, min_value = f64(limits[0]), max_value = f64(limits[1]), width = 120),
+		numberField(ctx, s, fmt.tprintf("settings-%v", field), field, value, step, 0, 130, f64(limits[0]), f64(limits[1])),
 		skald.text(unit, th.color.fg_muted, th.font.size_sm),
 		spacing = th.spacing.xs,
 		cross_align = .Center,

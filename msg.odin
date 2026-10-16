@@ -203,6 +203,16 @@ Node_Field_Changed :: struct {
 	value: f64,
 }
 
+// Typing in a number field (number_field.odin). `text` is only valid while handling the message
+Number_Text_Changed :: struct {
+	target: NumberTarget,
+	id: skald.Widget_ID,
+	text: string,
+	lo, hi: f64,
+}
+// The field lost focus: drop its typed text
+Number_Edit_Ended :: distinct skald.Widget_ID
+
 /*
 Everything that can happen in the editor. `update` handles each case.
 */
@@ -324,6 +334,8 @@ Msg :: union {
 	New_Project_Cancelled,
 	Open_Project_Chosen,
 	Quit_Without_Asking,
+	Number_Text_Changed,
+	Number_Edit_Ended,
 	Rename_Started,
 	Rename_Text_Changed,
 	Rename_Focused,

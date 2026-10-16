@@ -23,6 +23,24 @@ key shift+g
 expect snap off
 expect modified true
 
+# Number fields: type a value, or step it with the small + and - buttons
+click_widget inspector-Position_X-2
+expect typing true
+key ctrl+a
+type 123
+expect field x 123
+key escape
+click_widget inspector-Position_X-2-inc
+expect field x 124
+click_widget inspector-Position_X-2-dec
+expect field x 123
+# Back where it was, for the box selection below
+click_widget inspector-Position_X-2
+key ctrl+a
+type 672
+key escape
+expect field x 672
+
 # Ctrl+click in the tree adds to the selection; Delete removes both subtrees; undo brings them back
 click_row scene-tree 1
 expect selected Camera

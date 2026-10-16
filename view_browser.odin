@@ -82,9 +82,13 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	ghost := browserDrag(s, ctx, items)
 
-	rows := make([]skald.Tree_Row, len(items), context.temp_allocator)
+	rows := make([]ColoredTreeRow, len(items), context.temp_allocator)
 	for item, i in items {
 		row := &rows[i]
+		// Each type in its own color: folders by what they hold, scenes, images, audio, fonts
+		color := BrowserItemColor(s, item)
+		row.iconColor = color
+		row.labelColor = item.kind == .Folder ? {} : TintLabel(th, color)
 		row.selected = item == s.browserSelection
 		switch item.kind {
 		case .Folder:
@@ -111,7 +115,7 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// flex: a scroll in a content-sized column gets no height
 	return skald.col(
 		skald.flex(1, skald.scroll(ctx, {0, 0},
-			skald.tree(ctx, rows,
+			coloredTree(ctx, rows,
 				on_toggle = proc(row: int) -> Msg { return Browser_Toggled(row) },
 				on_select = proc(row: int) -> Msg { return Browser_Selected(row) },
 				id = skald.hash_id("browser-tree"),

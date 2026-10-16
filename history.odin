@@ -136,6 +136,11 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("%s %s", bool(v) ? "Show" : "Hide", name))
 	case Node_Field_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", fieldLabel(v.field), name), key("field", v.field, s.currentScene, selected))
+	case Number_Text_Changed:
+		// Typing a number: the same step as changing that field
+		if field, isNode := v.target.(NodeField); isNode && hasSelection {
+			return node(selected, fmt.tprintf("Change %s of %s", fieldLabel(field), name), key("field", field, s.currentScene, selected))
+		}
 	case Node_Text_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("text", v.field, s.currentScene, selected))
 	case Node_Flag_Changed:

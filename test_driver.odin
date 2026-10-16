@@ -129,7 +129,15 @@ Driver :: struct {
 	started: time.Tick,
 	failures: int,
 	finished: bool,
+	// Window size, and since when it hasn't changed (the first command waits for it to settle)
+	windowSize: [2]f32,
+	windowSettled: time.Tick,
+	ready: bool,
 }
+
+// A new window may still be resized (tiled) right after it opens; the script starts once its
+// size has stayed the same this long, so clicks aren't aimed at a layout that then moves
+WINDOW_SETTLE_TIME :: 500 * time.Millisecond
 
 @(private="file")
 driver: Driver
@@ -194,6 +202,16 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 	if driver.waitFrames > 0 {
 		driver.waitFrames -= 1
 		return
+	}
+	if !driver.ready {
+		size := ctx.renderer != nil ? [2]f32{f32(ctx.renderer.fb_size.x), f32(ctx.renderer.fb_size.y)} : {}
+		if size != driver.windowSize || driver.windowSettled == {} {
+			driver.windowSize = size
+			driver.windowSettled = time.tick_now()
+			return
+		}
+		if time.tick_since(driver.windowSettled) < WINDOW_SETTLE_TIME do return
+		driver.ready = true
 	}
 	// A context menu fades out after it closes and blocks clicks under it until it has. Wait for
 	// that, so the next command doesn't land on a fading menu (a person is never that quick)

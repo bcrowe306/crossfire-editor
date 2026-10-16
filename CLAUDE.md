@@ -113,6 +113,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard tabs |
 | `settings.default.ini` | Default settings, built into the editor |
+| `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors |
+| `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
 | `selection.odin` | Multi-selection: `Selection_Set/Toggle/Normalize/Roots` |
 | `project_session.odin` | Unsaved changes, New/Open Project, the save prompt, the window title |
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
@@ -139,6 +141,15 @@ Skald is not immediate-mode and not a retained widget tree:
 - Widgets made by a shared helper all have the same call site. Give each one an explicit
   `skald.hash_id(...)` id, or they share widget state.
 - Canvas data must be allocated with `context.temp_allocator`: the canvas draws after `view` returns.
+- `skald.tree` can't color rows and `skald.number_input`'s stepper buttons can't be restyled, so the
+  editor has its own `coloredTree` and `numberField`. Keep their widget ids (`browser-tree`,
+  `scene-tree`, `inspector-<Field>-<node>`, `-dec` / `-inc` for the buttons): tests click them.
+- A custom widget that stores state under an id (`widget_get`) must not also wrap itself in
+  `skald.zone` with that id: the zone claims the slot as another widget kind and Skald resets the
+  state every frame. Return a bare `skald.View_Zone{id, child}` (as `coloredTree` does).
+- Type colors: node kinds use `kindColor` (scene tree rows and viewport markers); the browser uses
+  `BrowserItemColor` (scenes blue, images like sprites, audio pink, fonts amber). Icons get the
+  full color, labels `TintLabel` (the text color pulled 45% toward it); hidden nodes are muted.
 
 ## Architecture
 
@@ -569,6 +580,9 @@ Highlights:
   workspace that isn't visible, the compositor may throttle it, and the run takes minutes instead
   of seconds.
 - Add a script, or extend one, for each new interactive feature.
+- The driver waits until the window size has been stable for `WINDOW_SETTLE_TIME` before the
+  first command: a tiling window manager resizes a new window right after it opens, and a click
+  aimed at the old layout misses.
 - **Modifier clicks:** Skald reads Ctrl/Shift from key events, not mouse events, so the driver
   holds the modifier key around the click (`click_row ... ctrl`, `click_node ... shift`).
 - A context menu fades out after closing and blocks clicks under it meanwhile; the driver waits

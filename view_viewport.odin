@@ -601,7 +601,7 @@ drawRulers :: proc(r: ^skald.Renderer, canvas, viewRect: skald.Rect, v: ^Viewpor
 	skald.pop_clip(r)
 }
 
-@(private="file")
+// Each node kind's color: its marker in the viewport and its row in the scene tree
 kindColor :: proc(kind: NodeKind) -> skald.Color {
 	switch kind {
 	case .Node2D:         return skald.rgb(0x8b93a8)

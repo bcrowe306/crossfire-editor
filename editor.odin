@@ -137,6 +137,8 @@ State :: struct {
 		asset: int,
 	},
 	addNode: AddNodeDialog,
+	// Text typed into the focused number field
+	numberEdit: NumberEdit,
 	// Every selected node of the open scene, sorted; `selectedNode` is the primary one (selection.odin)
 	selection: [dynamic]int,
 	// Set by code that chose a multi-selection this message (Selection_Set), so `update` keeps it
@@ -247,6 +249,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.addNode.search)
 	Subtree_Destroy(&state.clipboard)
 	delete(state.rename.text)
+	delete(state.numberEdit.text)
 	delete(state.session.newProject.name)
 	delete(state.session.newProject.location)
 	History_Destroy(&state.history)

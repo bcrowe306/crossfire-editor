@@ -1394,3 +1394,31 @@ unsaved_changes_new_and_open_project :: proc(t: ^testing.T) {
 	testing.expect_value(t, state.session.confirm.pending, PendingAction.Quit)
 	free_all(context.temp_allocator)
 }
+
+@(test)
+number_field_typing :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := state.selectedNode
+	id := skald.hash_id("inspector-Position_X-2")
+
+	// Half-typed text is kept but not applied; a number applies (clamped to the range)
+	send(&state, Number_Text_Changed{NodeField.Position_X, id, "-", min(f64), max(f64)})
+	testing.expect_value(t, state.numberEdit.text, "-")
+	testing.expect_value(t, scene.nodes[ship].position.x, 640)
+	send(&state, Number_Text_Changed{NodeField.Position_X, id, "-12.5", min(f64), max(f64)})
+	testing.expect_value(t, scene.nodes[ship].position.x, -12.5)
+	send(&state, Number_Text_Changed{NodeField.Layer, id, "99", 0, 7})
+	testing.expect_value(t, scene.nodes[ship].layer, 7)
+	// Typing is undoable like any field change
+	testing.expect_value(t, History_NextLabel(&state.history, false), "Change layer of Spaceship")
+	send(&state, Number_Edit_Ended(id))
+	testing.expect_value(t, state.numberEdit.text, "")
+
+	// Settings fields work the same way
+	send(&state, Action.Open_Settings)
+	send(&state, Number_Text_Changed{SettingsField.Font_Size, id, "15", 9, 24})
+	testing.expect_value(t, state.settingsDialog.draft.fontSize, 15)
+	free_all(context.temp_allocator)
+}
