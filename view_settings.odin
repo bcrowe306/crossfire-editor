@@ -1,6 +1,7 @@
 package editor
 
 import "core:fmt"
+import "core:strings"
 import "gui:skald"
 
 /*
@@ -126,7 +127,8 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	msRange :: [2]f32{f32(SETTINGS_UNDO_MS_RANGE[0]), f32(SETTINGS_UNDO_MS_RANGE[1])}
 	limitRange :: [2]f32{f32(SETTINGS_UNDO_LIMIT_RANGE[0]), f32(SETTINGS_UNDO_LIMIT_RANGE[1])}
 	gridRange :: [2]f32{f32(SETTINGS_GRID_SIZE_RANGE[0]), f32(SETTINGS_GRID_SIZE_RANGE[1])}
-	return skald.col(
+	// Scrolls: the Scripts settings at the bottom don't fit the dialog's height
+	content := skald.col(
 		skald.text("Undo", th.color.fg, th.font.size_md),
 		settingRow(ctx, "Merge edits within", numberSetting(ctx, s, .Undo_Merge_Ms, f64(draft.undoMergeMs), 50, msRange, "ms")),
 		hint(ctx, "Edits to the same thing closer together than this undo as one step: typing a name, dragging a number, nudging with the arrow keys."),
@@ -139,7 +141,9 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		hint(ctx, "Spacing of the viewport grid, in world units. G shows it; Shift+G snaps moves to it (and rotation to 15°, scale to 0.1)."),
 		skald.spacer(th.spacing.sm),
 		skald.text("Scripts", th.color.fg, th.font.size_md),
-		settingRow(ctx, "Code editor", skald.text_input(ctx, FixedText_String(&draft.codeEditor),
+		// A copy: the draft is inside this frame's copy of the state, which is gone by the time
+		// Skald draws the field (it showed garbage, and editing it saved garbage)
+		settingRow(ctx, "Code editor", skald.text_input(ctx, strings.clone(FixedText_String(&draft.codeEditor), context.temp_allocator),
 			proc(v: string) -> Msg { return Settings_Code_Editor_Changed(v) },
 			id = skald.hash_id("settings-code-editor"), width = 300)),
 		hint(ctx, "The command that opens a script: {file} and {line} are replaced, e.g. zed {file}:{line} or code --goto {file}:{line}."),
@@ -151,6 +155,7 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		padding = th.spacing.sm,
 		cross_align = .Stretch,
 	)
+	return skald.scroll(ctx, {0, 0}, content, id = skald.hash_id("settings-editor-scroll"))
 }
 
 @(private="file")

@@ -1575,3 +1575,17 @@ new_script_files :: proc(t: ^testing.T) {
 	testing.expect(t, state.newScript.open)
 	free_all(context.temp_allocator)
 }
+
+@(test)
+code_editor_command :: proc(t: ^testing.T) {
+	expect :: proc(t: ^testing.T, got: []string, want: []string, loc := #caller_location) {
+		testing.expect_value(t, len(got), len(want), loc = loc)
+		for w, i in want do if i < len(got) do testing.expect_value(t, got[i], w, loc = loc)
+	}
+	expect(t, Script_EditorCommand("zed {file}:{line}", "/p/a.odin", 12), {"zed", "/p/a.odin:12"})
+	expect(t, Script_EditorCommand("  code --goto {file}:{line} ", "/p/a.odin", 0), {"code", "--goto", "/p/a.odin:1"})
+	// No {file}: it goes at the end. Empty: the default
+	expect(t, Script_EditorCommand("xdg-open", "/p/a.odin", 3), {"xdg-open", "/p/a.odin"})
+	expect(t, Script_EditorCommand("", "/p/a.odin", 3), {"zed", "/p/a.odin:3"})
+	free_all(context.temp_allocator)
+}

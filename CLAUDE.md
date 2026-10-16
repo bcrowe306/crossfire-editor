@@ -145,6 +145,11 @@ Skald is not immediate-mode and not a retained widget tree:
 - Widgets made by a shared helper all have the same call site. Give each one an explicit
   `skald.hash_id(...)` id, or they share widget state.
 - Canvas data must be allocated with `context.temp_allocator`: the canvas draws after `view` returns.
+- **Never hand a widget a string that points into the view's `State`.** `view` gets a copy of the
+  state on its stack, and Skald lays out and draws after `view` returns, when that memory is reused.
+  Heap strings in State are fine (the copy shares them), but text stored inline (`FixedText`, the
+  code editor setting) must be cloned to `context.temp_allocator` first. The Code editor field
+  showed garbage until it was (only in the optimized build, and tests can't see drawing).
 - `skald.tree` can't color rows and `skald.number_input`'s stepper buttons can't be restyled, so the
   editor has its own `coloredTree` and `numberField`. Keep their widget ids (`browser-tree`,
   `scene-tree`, `inspector-<Field>-<node>`, `-dec` / `-inc` for the buttons): tests click them.

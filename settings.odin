@@ -84,6 +84,10 @@ FixedText_Make :: proc(text: string) -> FixedText {
 	return t
 }
 
+/*
+The text, pointing into `t`. It's only valid as long as `t` is: copy it before handing it to a view
+(a view's state is a copy that's gone by the time Skald draws).
+*/
 FixedText_String :: proc(t: ^FixedText) -> string {
 	return string(t.buffer[:t.length])
 }

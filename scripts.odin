@@ -259,15 +259,8 @@ Returns:
 - Whether it started
 */
 Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> bool {
-	command := strings.trim_space(FixedText_String(&state.settings.codeEditor))
-	if command == "" do command = DEFAULT_CODE_EDITOR
-	args := make([dynamic]string, context.temp_allocator)
-	for part in strings.fields(command, context.temp_allocator) {
-		part, _ := strings.replace_all(part, "{file}", file, context.temp_allocator)
-		part, _ = strings.replace_all(part, "{line}", fmt.tprint(max(line, 1)), context.temp_allocator)
-		append(&args, part)
-	}
-	process, err := os.process_start({command = args[:]})
+	args := Script_EditorCommand(FixedText_String(&state.settings.codeEditor), file, line)
+	process, err := os.process_start({command = args})
 	if err != nil {
 		logLine(state, .Error, fmt.aprintf("Couldn't start '%s': %v. Set the code editor in Settings > Editor", args[0], err))
 		return false
@@ -279,6 +272,28 @@ Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> bool {
 }
 
 DEFAULT_CODE_EDITOR :: "zed {file}:{line}"
+
+/*
+The command line that opens a file: the `code_editor` setting split on spaces, with `{file}` and
+`{line}` replaced. A command without `{file}` gets the file added at the end; an empty one is the
+default.
+
+Returns:
+- The program and its arguments (temp allocated)
+*/
+Script_EditorCommand :: proc(command, file: string, line: int) -> []string {
+	command := strings.trim_space(command)
+	if command == "" do command = DEFAULT_CODE_EDITOR
+	args := make([dynamic]string, context.temp_allocator)
+	hasFile := strings.contains(command, "{file}")
+	for part in strings.fields(command, context.temp_allocator) {
+		part, _ := strings.replace_all(part, "{file}", file, context.temp_allocator)
+		part, _ = strings.replace_all(part, "{line}", fmt.tprint(max(line, 1)), context.temp_allocator)
+		append(&args, part)
+	}
+	if !hasFile do append(&args, file)
+	return args[:]
+}
 
 // Code editor processes started by Script_OpenInEditor. Most exit right away (they hand the file
 // to a running editor); waiting on them frees them. Package state: it's about OS processes
