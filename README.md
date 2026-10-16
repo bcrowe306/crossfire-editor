@@ -158,8 +158,14 @@ register_Player :: proc "contextless" () {
 
 The code editor is set in Settings > Editor: the program (a path, Browse..., or a name found in
 PATH; `zed` by default) and its arguments (`{file}:{line}` by default; `{file}` and `{line}` are
-replaced). It runs in the project's scripts folder with the editor's environment; if it exits with
-an error, the Console says so. Play builds unoptimized (about 4 s); turn on Optimized Play for speed tests. Scripts
+replaced; `{folder}` is the scripts folder). It runs in the project's scripts folder with the
+editor's environment; if it exits with an error, the Console says so.
+
+**Code completion:** the editor writes `scripts/ols.json`, so the Odin language server (OLS, which
+Zed's Odin extension and other editors use) knows where the engine is: completion, hover and
+go-to-definition work for `e.` and the rest of the engine. The default arguments open the scripts
+folder as the editor's workspace, which is where OLS looks for the file. To keep your own changes
+to ols.json, delete its `_generated_by` line. Play builds unoptimized (about 4 s); turn on Optimized Play for speed tests. Scripts
 don't run in the viewport. One script per node for now.
 
 ## Selecting and editing

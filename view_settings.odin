@@ -156,7 +156,7 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Arguments", skald.text_input(ctx, strings.clone(FixedText_String(&draft.codeEditorArgs), context.temp_allocator),
 			proc(v: string) -> Msg { return Settings_Code_Editor_Args_Changed(v) },
 			id = skald.hash_id("settings-code-editor-args"), width = 300, placeholder = "{file}:{line}")),
-		hint(ctx, "{file} and {line} are replaced; without {file}, the file is added at the end. Zed: {file}:{line}. VS Code: --goto {file}:{line}. It runs in the project's scripts folder, with the editor's environment."),
+		hint(ctx, "{file}, {line} and {folder} (the scripts folder) are replaced; without {file}, the file is added at the end. Opening {folder} as the workspace lets the Odin language server use scripts/ols.json for code completion. Zed: {folder} {file}:{line}. VS Code: {folder} --goto {file}:{line}."),
 		settingRow(ctx, "Optimized Play", skald.checkbox(ctx, draft.optimizedPlay, "Build with -o:speed",
 			proc(v: bool) -> Msg { return Settings_Optimized_Play_Changed(v) },
 			id = skald.hash_id("settings-optimized-play"))),

@@ -1,5 +1,6 @@
 package editor
 
+import "core:encoding/json"
 import "core:fmt"
 import "core:log"
 import "core:os"
@@ -1588,6 +1589,8 @@ code_editor_command :: proc(t: ^testing.T) {
 	// No {file}: it goes at the end. Empty arguments: the default
 	expect(t, Script_EditorCommand("gedit", "--new-window", "/p/a.odin", 3), {"gedit", "--new-window", "/p/a.odin"})
 	expect(t, Script_EditorCommand("zed", "", "/p/a.odin", 3), {"zed", "/p/a.odin:3"})
+	// {folder}: the scripts folder, opened as the workspace (the default arguments use it)
+	expect(t, Script_EditorCommand("zed", "", "/p/scripts/a.odin", 3, "/p/scripts"), {"zed", "/p/scripts", "/p/scripts/a.odin:3"})
 
 	// A bare name is looked up in PATH; a path must exist; ~ is the home folder
 	sh, found := Script_FindEditorProgram("sh")
@@ -1633,5 +1636,42 @@ zed_app_binary_is_swapped_for_its_cli :: proc(t: ^testing.T) {
 	cli, viaLink := Script_ZedCLIFor("build/test_zed/links/zed")
 	testing.expect(t, viaLink)
 	testing.expect(t, strings.has_suffix(cli, "zeditor") || strings.has_suffix(cli, "test_zed/bin/zed"))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+ols_config_for_code_completion :: proc(t: ^testing.T) {
+	os.make_directory("build")
+	dir := "build/test_ols_project"
+	os.remove_all(dir)
+	defer os.remove_all(dir)
+	project := Project_CreateEmpty(dir, "OLS")
+	defer Project_Destroy(&project)
+	config := "build/test_ols_project/scripts/ols.json"
+
+	// No scripts folder: nothing written
+	testing.expect_value(t, Scripts_WriteOLSConfig(&project), "")
+	testing.expect(t, !os.exists(config))
+
+	os.make_directory_all("build/test_ols_project/scripts")
+	testing.expect_value(t, Scripts_WriteOLSConfig(&project), "")
+	data, err := os.read_entire_file(config, context.temp_allocator)
+	testing.expect(t, err == nil)
+	// Valid JSON naming the two collections the scripts import, with absolute paths
+	value, parseErr := json.parse(data, allocator = context.temp_allocator)
+	testing.expect_value(t, parseErr, json.Error.None)
+	collections := value.(json.Object)["collections"].(json.Array)
+	testing.expect_value(t, len(collections), 2)
+	engine := collections[0].(json.Object)
+	testing.expect_value(t, engine["name"].(json.String), "engine")
+	testing.expect(t, filepath.is_abs(engine["path"].(json.String)))
+	testing.expect(t, os.exists(fmt.tprintf("%s/script.odin", engine["path"].(json.String))))
+	testing.expect_value(t, collections[1].(json.Object)["name"].(json.String), "project")
+
+	// A file without the generated marker is the user's: left alone
+	_ = os.write_entire_file(config, transmute([]byte)string(`{"collections": []}`))
+	testing.expect_value(t, Scripts_WriteOLSConfig(&project), "")
+	kept, _ := os.read_entire_file(config, context.temp_allocator)
+	testing.expect_value(t, string(kept), `{"collections": []}`)
 	free_all(context.temp_allocator)
 }

@@ -286,13 +286,16 @@ Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> skald.Com
 		logLine(state, .Info, fmt.aprintf("Using %s (Zed's command-line tool) instead of %s, Zed's app, which can't open files in a running Zed", cli, program))
 		program = cli
 	}
-	command := Script_EditorCommand(program, FixedText_String(&state.settings.codeEditorArgs), file, line)
+	// The language server's config sits in the folder the editor opens
+	if message := Scripts_WriteOLSConfig(&state.project); message != "" do logLine(state, .Warning, fmt.aprintf("ols.json: %s", message))
+	workingDir := scriptsWorkingDir(&state.project)
+	command := Script_EditorCommand(program, FixedText_String(&state.settings.codeEditorArgs), file, line, workingDir)
 	env, envErr := os.environ(context.temp_allocator)
 	if envErr != nil do env = nil // nil also means "this process's environment"
 	process, err := os.process_start({
 		command = command,
 		env = env,
-		working_dir = scriptsWorkingDir(&state.project),
+		working_dir = workingDir,
 		stdout = os.stdout,
 		stderr = os.stderr,
 	})
@@ -306,21 +309,23 @@ Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> skald.Com
 }
 
 DEFAULT_CODE_EDITOR_PATH :: "zed"
-DEFAULT_CODE_EDITOR_ARGS :: "{file}:{line}"
+DEFAULT_CODE_EDITOR_ARGS :: "{folder} {file}:{line}"
 
 /*
 The command line that opens a file: the program, then the arguments template split on spaces with
-`{file}` and `{line}` replaced. Arguments without `{file}` get the file added at the end.
+`{file}`, `{line}` and `{folder}` (the scripts folder: opened as the editor's workspace, so the
+language server finds ols.json) replaced. Arguments without `{file}` get the file added at the end.
 
 Inputs:
 - program: The executable (as found by `Script_FindEditorProgram`)
 - args: The arguments template ("" for the default)
 - file, line: What to open
+- folder: What `{folder}` becomes: the project's scripts folder
 
 Returns:
 - The program and its arguments (temp allocated)
 */
-Script_EditorCommand :: proc(program, args, file: string, line: int) -> []string {
+Script_EditorCommand :: proc(program, args, file: string, line: int, folder := "") -> []string {
 	template := strings.trim_space(args)
 	if template == "" do template = DEFAULT_CODE_EDITOR_ARGS
 	command := make([dynamic]string, context.temp_allocator)
@@ -328,7 +333,9 @@ Script_EditorCommand :: proc(program, args, file: string, line: int) -> []string
 	for part in strings.fields(template, context.temp_allocator) {
 		part, _ := strings.replace_all(part, "{file}", file, context.temp_allocator)
 		part, _ = strings.replace_all(part, "{line}", fmt.tprint(max(line, 1)), context.temp_allocator)
-		append(&command, part)
+		part, _ = strings.replace_all(part, "{folder}", folder, context.temp_allocator)
+		// An empty {folder} mustn't become an empty argument
+		if part != "" do append(&command, part)
 	}
 	if !strings.contains(template, "{file}") do append(&command, file)
 	return command[:]
@@ -462,6 +469,7 @@ Scripts_Refresh :: proc(state: ^State) {
 	for f in state.scriptFiles do delete(f)
 	clear(&state.scriptFiles)
 	for f in Project_ScriptFiles(&state.project) do append(&state.scriptFiles, strings.clone(f))
+	if message := Scripts_WriteOLSConfig(&state.project); message != "" do logLine(state, .Warning, fmt.aprintf("ols.json: %s", message))
 }
 
 /*
@@ -503,4 +511,66 @@ Script_ZedCLIFor :: proc(program: string) -> (cli: string, isApp: bool) {
 		if _, alsoApp := Script_ZedCLIFor(sibling); !alsoApp do return sibling, true
 	}
 	return "", true
+}
+
+/*
+The OLS (Odin language server) configuration for the project's scripts: `scripts/ols.json`, so code
+completion, hover and go-to-definition work in the code editor. It names the collections the
+scripts import (`engine` is this editor's engine checkout, `project` the project folder); OLS
+finds `core` and `vendor` itself.
+
+OLS reads ols.json from the root of the folder the code editor has open, which is why Open passes
+the scripts folder (`{folder}`) along with the file.
+
+The file is rewritten when its content would change (the engine moved, say), unless it no longer
+has the `_generated_by` line: delete that line to keep edits of your own.
+
+Inputs:
+- project: The project
+
+Returns:
+- An error message ("" when written, unchanged, kept as the user's, or there's no scripts folder)
+*/
+Scripts_WriteOLSConfig :: proc(project: ^Project) -> string {
+	dir, _ := filepath.join({project.rootPath, SCRIPTS_FOLDER}, context.temp_allocator)
+	if !os.is_dir(dir) do return ""
+	path, _ := filepath.join({dir, OLS_CONFIG_FILE}, context.temp_allocator)
+	existing, readErr := os.read_entire_file(path, context.temp_allocator)
+	if readErr == nil && !strings.contains(string(existing), OLS_GENERATED_KEY) do return ""
+	content := Scripts_OLSConfig(project)
+	if readErr == nil && string(existing) == content do return ""
+	if err := os.write_entire_file(path, transmute([]byte)content); err != nil {
+		return fmt.tprintf("couldn't write %s: %v", path, err)
+	}
+	return ""
+}
+
+OLS_CONFIG_FILE :: "ols.json"
+OLS_GENERATED_KEY :: "_generated_by"
+
+// The ols.json content for a project's scripts (temp allocated)
+Scripts_OLSConfig :: proc(project: ^Project) -> string {
+	absolute :: proc(path: string) -> string {
+		result, err := os.get_absolute_path(path, context.temp_allocator)
+		return err == nil ? result : path
+	}
+	quoted :: proc(text: string) -> string {
+		b := strings.builder_make(context.temp_allocator)
+		strings.write_quoted_string(&b, text)
+		return strings.to_string(b)
+	}
+	return fmt.tprintf(`{{
+	"$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
+	"%s": "odin_sdl_editor: rewritten when the engine or project moves. Delete this line to keep your own edits",
+	"collections": [
+		{{ "name": "engine", "path": %s }},
+		{{ "name": "project", "path": %s }}
+	],
+	"enable_snippets": true,
+	"enable_hover": true,
+	"enable_document_symbols": true,
+	"enable_semantic_tokens": true,
+	"enable_inlay_hints_params": true
+}}
+`, OLS_GENERATED_KEY, quoted(absolute(ENGINE_DIR)), quoted(absolute(project.rootPath)))
 }

@@ -410,6 +410,14 @@ carried across `endSession` between steps (losing it once made describing start 
 - Browser: a Scripts folder (only when there are scripts; `State.scriptFiles`, refreshed by
   `Scripts_Refresh`) whose preview shows the file's start and an Open button.
 - Scripts don't run in the viewport (`Scene_Build(..., attachScripts = false)`).
+- **Code completion:** `Scripts_WriteOLSConfig` writes `scripts/ols.json` for OLS (the Odin
+  language server): collections `engine` (this editor's engine checkout) and `project`. Written
+  whenever the script files are refreshed (project open, New Script, Build) and on Open, only when
+  the content changes; a file without its `_generated_by` line is the user's and is left alone.
+  **OLS only reads ols.json at the root of the folder the code editor has open**, so the default
+  arguments open `{folder}` (the scripts folder) as the workspace: `{folder} {file}:{line}`.
+  Checked with a headless LSP session against Zed's OLS: 0 completions after `e.` without the
+  file, 268 (the engine's procedures) with it, and 0 when the open folder is the project root.
 
 Both are child processes (`core:os` `process_start` with a pipe). A `Play_Tick` message every 0.1 s
 (`skald.cmd_delay`) drains the pipe and checks for exit with `process_wait(…, 0)`, so there are no
