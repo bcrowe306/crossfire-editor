@@ -56,9 +56,12 @@ click_widget panel-viewport-shapes
 expect shapes off
 key shift+c
 expect shapes on
-expect play_shapes off
-action Toggle_Play_Collision_Shapes
-expect play_shapes on
+expect physics_debug off
+action Toggle_Physics_Debug
+expect physics_debug on
+key ctrl+z
+expect physics_debug off
+action Toggle_Physics_Debug
 
 # Play the scene: the player builds with physics and runs it
 key ctrl+F5

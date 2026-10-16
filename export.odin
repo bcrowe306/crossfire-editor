@@ -316,8 +316,10 @@ ExportInput :: struct {
 	projectDir: string,
 	projectName: string,
 	hasScripts: bool,
-	// project.xml, the scene files and the assets, relative to projectDir
+	// The scene files and the assets, relative to projectDir
 	files: []string,
+	// The exported project.xml (`Export_ProjectXML`: development settings off)
+	projectXML: string,
 	engineDir: string,
 	emsdkDir: string,
 	// Web: the SDL_mixer sources, the script that builds them, and the folder the library goes in
@@ -388,6 +390,7 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 		if settings.bundleLibraries do append(&command, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib")
 		append(&steps, ExportStep{kind = .Command, label = "Build the game", command = command[:]})
 		append(&steps, copyProjectStep(input, joinPath(plan.outputDir, "data")))
+		append(&steps, projectFileStep(input, joinPath(plan.outputDir, "data")))
 		if settings.bundleLibraries {
 			ldd := make([]string, 2)
 			ldd[0], ldd[1] = "ldd", binary
@@ -430,6 +433,7 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 		// A fresh copy of the project's files, packaged into the page's virtual file system
 		append(&steps, ExportStep{kind = .Remove_Folder, label = "Clear the staged files", path = dataDir})
 		append(&steps, copyProjectStep(input, dataDir))
+		append(&steps, projectFileStep(input, dataDir))
 		title := Export_Name(&settings, .Page_Title, input.projectName)
 		append(&steps, ExportStep{kind = .Write_File, label = "Write the page template", path = shell, content = Export_WebShell(title)})
 
@@ -483,12 +487,11 @@ Export_EmccPath :: proc(emsdkDir: string, allocator := context.allocator) -> str
 }
 
 /*
-The project's files an export ships: project.xml, each scene's file and each asset (relative
-paths). Scripts are compiled in, not shipped.
+The project's files an export copies: each scene's file and each asset (relative paths).
+project.xml is written instead (`Export_ProjectXML`); scripts are compiled in, not shipped.
 */
 Export_ProjectFiles :: proc(project: ^Project, allocator := context.allocator) -> []string {
 	files := make([dynamic]string, allocator)
-	append(&files, strings.clone("project.xml", allocator))
 	for &scene in project.scenes do append(&files, SceneFilePath(&scene, allocator))
 	for asset in project.assets do append(&files, strings.clone(asset.path, allocator))
 	return files[:]
@@ -554,6 +557,22 @@ var Module = { canvas: canvas };
 </html>
 `
 	return strings.concatenate({head, EscapeXML(title, context.temp_allocator), tail}, allocator)
+}
+
+/*
+The project.xml an export ships: the project's, with what's only for development turned off. The
+physics debug shapes (Project Settings > Show collision shapes) never show in an exported game.
+*/
+Export_ProjectXML :: proc(project: ^Project, allocator := context.allocator) -> string {
+	exported := project^
+	exported.physics.debugDraw = false
+	return ProjectToXML(&exported, allocator)
+}
+
+@(private="file")
+projectFileStep :: proc(input: ExportInput, dataDir: string) -> ExportStep {
+	return {kind = .Write_File, label = "Write project.xml (without development settings)",
+		path = joinPath(dataDir, "project.xml"), content = strings.clone(input.projectXML)}
 }
 
 @(private="file")

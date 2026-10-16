@@ -178,6 +178,7 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 		projectName = strings.clone(state.project.name, allocator),
 		hasScripts = Project_HasScripts(&state.project),
 		files = Export_ProjectFiles(&state.project, allocator),
+		projectXML = Export_ProjectXML(&state.project, allocator),
 		engineDir = strings.clone(absolutePath(ENGINE_DIR), allocator),
 		emsdkDir = strings.clone(absolutePath(EMSDK_DIR), allocator),
 		mixerDir = strings.clone(absolutePath(SDL_MIXER_DIR), allocator),

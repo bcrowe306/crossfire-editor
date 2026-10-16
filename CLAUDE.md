@@ -567,9 +567,13 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   offset point; the slide axis of Prismatic and Wheel). `viewport.showShapes`
   (`Toggle_Collision_Shapes`, Shift+C, the `panel-viewport-shapes` button) hides them. Shapes
   have engine bounds, so picking and selection boxes work as for sprites.
-- **Debug drawing in the game:** the project's Show shapes (always), or the editor setting
-  `play_collision_shapes` (Scene > Show Collision Shapes in Game, `Toggle_Play_Collision_Shapes`,
-  Settings > Editor): Play passes `--physics-debug` to the player.
+- **Debug drawing in the game is a development setting of the project** (`project.physics.debugDraw`,
+  project.xml's `physicsDebug`): Project Settings > Show shapes, or Scene > Show Collision Shapes
+  in Game (`Toggle_Physics_Debug`, a `.Project` undo step). Play uses it (the player reads
+  project.xml). **Exports never ship it:** they write `data/project.xml` with
+  `Export_ProjectXML` (the project with development settings off) instead of copying the file.
+  Play also passes `--dev`, so F9 toggles the shapes while the game runs; exports don't.
+  (Older editor.ini files' `play_collision_shapes` is ignored.)
 - The viewport header clips the scene tabs to what its buttons leave (measured with
   `skald.view_size`), so many scenes or a narrow window can't push the buttons out of view.
 - **Project Settings > General:** pixels per meter, gravity, Show shapes (the game's debug

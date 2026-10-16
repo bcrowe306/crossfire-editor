@@ -206,9 +206,10 @@ Games get 2D physics from the engine (Box2D). Add these nodes like any other (Ct
 A body needs a CollisionShape under it. The inspector edits each body's collision layers (which
 of layers 1-16 it's on, and which it collides with), friction, bounce, mass and more. Shapes and
 rays and joints are drawn in the viewport (Shift+C, or the viewport's shapes button, hides them).
-**Scene > Show Collision Shapes in Game** makes Play draw them in the game too. Project Settings
-has the world's scale (pixels per meter), gravity, Smooth motion (moving bodies glide on
-high-refresh screens) and Show shapes (always draw them in the game, exports included).
+**Scene > Show Collision Shapes in Game** (or Project Settings > Show shapes) makes the game draw
+them when you Play; it's saved with the project, and **exports never draw them**. While a game
+runs from the editor, **F9** shows and hides them. Project Settings also has the world's scale
+(pixels per meter), gravity and Smooth motion (moving bodies glide on high-refresh screens).
 
 Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, and to Areas with
 `areaEnter` / `areaExit` (or the bodies' events), and can ask at any time:

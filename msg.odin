@@ -29,8 +29,8 @@ Action :: enum {
 	Toggle_Snap,
 	// Outline collision shapes, rays and joints in the viewport
 	Toggle_Collision_Shapes,
-	// Play with the engine's physics debug drawing (an editor setting)
-	Toggle_Play_Collision_Shapes,
+	// The project's development setting: the game draws its physics shapes (never in exports)
+	Toggle_Physics_Debug,
 	Play,
 	Pause,
 	Stop,
@@ -441,7 +441,6 @@ Settings_Code_Editor_Args_Changed :: distinct string
 Settings_Code_Editor_Browse :: struct {}
 Settings_Code_Editor_Picked :: distinct skald.File_Dialog_Result
 Settings_Optimized_Play_Changed :: distinct bool
-Settings_Play_Shapes_Changed :: distinct bool
 // Clicked a shortcut: the next key press binds that slot
 Settings_Capture_Started :: struct {
 	action: Action,
@@ -562,7 +561,6 @@ Msg :: union {
 	Settings_Code_Editor_Browse,
 	Settings_Code_Editor_Picked,
 	Settings_Optimized_Play_Changed,
-	Settings_Play_Shapes_Changed,
 	Settings_Capture_Started,
 	Settings_Key_Captured,
 	Settings_Capture_Cancelled,

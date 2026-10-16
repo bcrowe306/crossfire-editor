@@ -50,7 +50,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Play_Shapes_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed:
 		// Handled by SettingsDialog_Update above
 
 	case Scripts_Auto_Build:
@@ -601,12 +601,11 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		out.viewport.gridVisible = !out.viewport.gridVisible
 	case .Toggle_Collision_Shapes:
 		out.viewport.showShapes = !out.viewport.showShapes
-	case .Toggle_Play_Collision_Shapes:
-		out.settings.playCollisionShapes = !out.settings.playCollisionShapes
-		if out.settingsPath != "" {
-			if message := Settings_Save(&out.settings, out.settingsPath); message != "" do logLine(&out, .Error, strings.clone(message))
-		}
-		logLine(&out, .Info, strings.clone(out.settings.playCollisionShapes ? "Play shows collision shapes" : "Play hides collision shapes"))
+	case .Toggle_Physics_Debug:
+		// A project setting (undoable, saved with the project); exports turn it off
+		out.project.physics.debugDraw = !out.project.physics.debugDraw
+		message := out.project.physics.debugDraw ? "The game shows its collision shapes (not in exports; F9 toggles them while playing)" : "The game hides its collision shapes (F9 shows them while playing)"
+		logLine(&out, .Info, strings.clone(message))
 	case .Toggle_Snap:
 		out.viewport.snap = !out.viewport.snap
 

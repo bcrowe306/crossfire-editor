@@ -1855,14 +1855,15 @@ project_settings_dialog :: proc(t: ^testing.T) {
 // An export input for a project at /games/Space, with made-up tool paths
 @(private="file")
 exportTestInput :: proc(target: ExportTarget) -> ExportInput {
-	files := make([]string, 3, context.temp_allocator)
-	files[0], files[1], files[2] = "project.xml", "scenes/Main.scene.xml", "assets/ship.png"
+	files := make([]string, 2, context.temp_allocator)
+	files[0], files[1] = "scenes/Main.scene.xml", "assets/ship.png"
 	return {
 		target = target,
 		settings = ExportSettings_Default().targets[target],
 		projectDir = "/games/Space",
 		projectName = "Space Game",
 		files = files,
+		projectXML = `<project name="Space Game"/>`,
 		engineDir = "/src/engine",
 		emsdkDir = "/src/emsdk",
 		mixerDir = "/src/editor/third_party/SDL_mixer",
@@ -1925,8 +1926,8 @@ export_plan_linux :: proc(t: ^testing.T) {
 		testing.expect_value(t, plan.archive, "")
 		kinds := make([dynamic]ExportStepKind, context.temp_allocator)
 		for step in plan.steps do append(&kinds, step.kind)
-		testing.expect(t, len(kinds) == 5 && kinds[0] == .Make_Folder && kinds[1] == .Command && kinds[2] == .Copy_Files &&
-			kinds[3] == .Command && kinds[4] == .Bundle_Libraries)
+		testing.expect(t, len(kinds) == 6 && kinds[0] == .Make_Folder && kinds[1] == .Command && kinds[2] == .Copy_Files &&
+			kinds[3] == .Write_File && kinds[4] == .Command && kinds[5] == .Bundle_Libraries)
 		testing.expect_value(t, plan.steps[0].path, plan.outputDir)
 
 		build := plan.steps[1].command
@@ -1936,9 +1937,11 @@ export_plan_linux :: proc(t: ^testing.T) {
 		testing.expect(t, hasArg(build, "-out:/games/Space/export/linux_x64/Space_Game"))
 		testing.expect(t, hasArg(build, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib"))
 		testing.expect_value(t, plan.steps[2].path, "/games/Space/export/linux_x64/data")
-		testing.expect_value(t, len(plan.steps[2].files), 3)
-		testing.expect(t, plan.steps[3].capture && plan.steps[3].command[0] == "ldd")
-		testing.expect_value(t, plan.steps[4].path, "/games/Space/export/linux_x64/lib")
+		testing.expect_value(t, len(plan.steps[2].files), 2)
+		// project.xml is written, not copied
+		testing.expect(t, plan.steps[3].path == "/games/Space/export/linux_x64/data/project.xml" && plan.steps[3].content == input.projectXML)
+		testing.expect(t, plan.steps[4].capture && plan.steps[4].command[0] == "ldd")
+		testing.expect_value(t, plan.steps[5].path, "/games/Space/export/linux_x64/lib")
 
 		// Scripts: a generated main that links them; no bundling; an archive; a name of its own
 		input.hasScripts = true
@@ -1981,10 +1984,11 @@ export_plan_web :: proc(t: ^testing.T) {
 	testing.expect_value(t, plan.steps[1].kind, ExportStepKind.Remove_Folder)
 	testing.expect_value(t, plan.steps[1].path, "/src/editor/build/exports/Space-1/web/data")
 	testing.expect_value(t, plan.steps[2].kind, ExportStepKind.Copy_Files)
-	testing.expect_value(t, plan.steps[3].kind, ExportStepKind.Write_File)
-	testing.expect(t, strings.contains(plan.steps[3].content, "<title>Space Game</title>"))
-	testing.expect(t, strings.contains(plan.steps[3].content, "{{{ SCRIPT }}}"))
-	link := plan.steps[4].command
+	testing.expect(t, plan.steps[3].kind == .Write_File && plan.steps[3].path == "/src/editor/build/exports/Space-1/web/data/project.xml")
+	testing.expect_value(t, plan.steps[4].kind, ExportStepKind.Write_File)
+	testing.expect(t, strings.contains(plan.steps[4].content, "<title>Space Game</title>"))
+	testing.expect(t, strings.contains(plan.steps[4].content, "{{{ SCRIPT }}}"))
+	link := plan.steps[5].command
 	testing.expect_value(t, link[0], "/src/emsdk/upstream/emscripten/emcc")
 	testing.expect_value(t, link[1], "/src/engine/web/main.c")
 	testing.expect_value(t, link[3], "/src/editor/build/web/libSDL3_mixer.a")
@@ -1993,7 +1997,7 @@ export_plan_web :: proc(t: ^testing.T) {
 	testing.expect(t, hasArg(link, "-sUSE_SDL=3") && hasArg(link, "-sUSE_SDL_TTF=3") && hasArg(link, "-O2"))
 	testing.expect(t, hasArg(link, "--preload-file=/src/editor/build/exports/Space-1/web/data@/data"))
 	testing.expect(t, hasArg(link, "/src/engine/web/odin_env.js") && hasArg(link, "/src/engine/web/odin_env_pre.js"))
-	zip := plan.steps[5]
+	zip := plan.steps[6]
 	testing.expect_value(t, plan.archive, "/srv/www/space.zip")
 	testing.expect(t, zip.command[0] == "python3" && zip.workingDir == "/srv/www/space" && hasArg(zip.command, "index.wasm"))
 	// Without a built SDL3_mixer, the export builds it first
@@ -2325,12 +2329,20 @@ physics_joint_edits_and_renames :: proc(t: ^testing.T) {
 	shown := state.viewport.showShapes
 	send(&state, Action.Toggle_Collision_Shapes)
 	testing.expect(t, state.viewport.showShapes == !shown)
-	send(&state, Action.Toggle_Play_Collision_Shapes)
-	testing.expect(t, state.settings.playCollisionShapes)
-	text := Settings_ToINI(&state.settings)
-	testing.expect(t, strings.contains(text, "play_collision_shapes = true"))
+	// Collision shapes in the game: the project's setting, undoable
+	testing.expect(t, !state.project.physics.debugDraw)
+	send(&state, Action.Toggle_Physics_Debug)
+	testing.expect(t, state.project.physics.debugDraw)
+	send(&state, Action.Undo)
+	testing.expect(t, !state.project.physics.debugDraw)
+	send(&state, Action.Redo)
+	testing.expect(t, state.project.physics.debugDraw)
+	// Exports never draw them; the project keeps the setting
+	exported := Export_ProjectXML(&state.project, context.temp_allocator)
+	testing.expect(t, !strings.contains(exported, "physicsDebug"))
+	testing.expect(t, strings.contains(ProjectToXML(&state.project, context.temp_allocator), `physicsDebug="true"`))
+	// Older editor.ini files with the editor-level setting load without complaint
 	parsed := Settings_Default()
-	testing.expect_value(t, len(Settings_Parse(&parsed, text)), 0)
-	testing.expect(t, parsed.playCollisionShapes)
+	testing.expect_value(t, len(Settings_Parse(&parsed, "[editor]\nplay_collision_shapes = true\n")), 0)
 	free_all(context.temp_allocator)
 }

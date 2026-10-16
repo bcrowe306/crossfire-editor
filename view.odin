@@ -117,9 +117,9 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 		{"Scene", []skald.Menu_Item(Msg){
 			item("Play", .Play, keys),
 			item("Play This Scene", .Play_Scene, keys),
-			{label = "Show Collision Shapes in Game", msg = Msg(Action.Toggle_Play_Collision_Shapes),
-			 shortcut = keys.taken ? {} : Keymap_Shortcut(keys.keymap, .Toggle_Play_Collision_Shapes, keys.typing),
-			 checked = s.settings.playCollisionShapes},
+			{label = "Show Collision Shapes in Game", msg = Msg(Action.Toggle_Physics_Debug),
+			 shortcut = keys.taken ? {} : Keymap_Shortcut(keys.keymap, .Toggle_Physics_Debug, keys.typing),
+			 checked = s.project.physics.debugDraw},
 			{label = "New Scene", msg = Msg(Scene_Action{.New, -1})},
 			item("Pause", .Pause, keys),
 			item("Stop", .Stop, keys),

@@ -113,7 +113,7 @@ Checks:
 	project_file <path>          A file exists, relative to the project folder (an export's output)
 	project_file_contains <path> <text>   A project file contains the text (after saving)
 	shapes <on | off>            The viewport outlines collision shapes, rays and joints
-	play_shapes <on | off>       Play shows collision shapes (the setting)
+	physics_debug <on | off>     The project's Show collision shapes (development) setting
 
 Every input command waits INPUT_SETTLE_FRAMES afterwards, so its effects are visible to the
 next check.
@@ -763,8 +763,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return os.exists(path), fmt.tprintf("%s doesn't exist", path)
 	case "shapes":
 		found = s.viewport.showShapes ? "on" : "off"
-	case "play_shapes":
-		found = s.settings.playCollisionShapes ? "on" : "off"
+	case "physics_debug":
+		found = s.project.physics.debugDraw ? "on" : "off"
 	case "project_file_contains":
 		path, _, text := strings.partition(value, " ")
 		data, err := os.read_entire_file(joinPath(s.project.rootPath, path, allocator = context.temp_allocator), context.temp_allocator)
