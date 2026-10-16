@@ -4,8 +4,11 @@ import "core:fmt"
 import "core:math"
 import e "engine:."
 import "gui:skald"
+import sdl "vendor:sdl3"
 
 INSPECTOR_LABEL_WIDTH :: 82
+// The texture dropdown's first choice: no image
+TEXTURE_NONE :: "(None)"
 INSPECTOR_MAX_NUMBER_WIDTH :: 160
 // Room kept free on the right of inspector rows for the scrollbar
 INSPECTOR_SCROLLBAR_WIDTH :: 14
@@ -40,13 +43,14 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			label = node.visible ? node.name : fmt.tprintf("%s (hidden)", node.name),
 			expandable = Scene_HasChildren(scene, nodeIndex),
 			expanded = node.expanded,
-			selected = nodeIndex == s.selectedNode,
+			selected = Selection_Contains(s, nodeIndex),
 			icon = NodeKindIcon(node.kind),
 		}
 	}
 
 	// Before the tree and menu are built: they act on this frame's presses too
 	indicator := sceneTreeMouse(s, ctx, visible)
+	renameField := sceneTreeRename(s, ctx, visible)
 
 	// The tree is built before the menu that wraps it, so it would see a click on a menu item
 	// (over the tree) before the menu consumes it, and select the row underneath
@@ -83,13 +87,14 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.divider(ctx),
 		skald.flex(1, menu),
 		indicator,
+		renameField,
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
 }
 
 // The scene tree's right-click menu, in order
-SCENE_TREE_MENU := [?]Action{.Add_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Delete_Node}
+SCENE_TREE_MENU := [?]Action{.Add_Node, .Rename_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Delete_Node}
 
 // How far the mouse moves with the button down before a press on a row becomes a drag
 TREE_DRAG_THRESHOLD :: 5
@@ -121,7 +126,21 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 	if ctx.input.mouse_pressed[.Right] && overArea {
 		skald.send(ctx, Msg(Node_Right_Clicked(onRow ? row : -1)))
 	}
+	// Ctrl+click toggles a row in the selection, Shift+click selects a range. The tree would
+	// select just the clicked row, so it doesn't see this press
+	mods := ctx.input.modifiers
+	if ctx.input.mouse_pressed[.Left] && overArea && onRow && (.Ctrl in mods || .Shift in mods) {
+		skald.send(ctx, Msg(Tree_Selection_Clicked{row = row, range = .Shift in mods}))
+		ctx.input.mouse_pressed[.Left] = false
+		return none
+	}
 	if ctx.input.mouse_pressed[.Left] && overArea && onRow {
+		// Double-click renames. The tree itself would expand or collapse the row on a double
+		// click, so it doesn't see the click count
+		if ctx.input.mouse_click_count[.Left] >= 2 {
+			skald.send(ctx, Msg(Rename_Started(visible[row])))
+			ctx.input.mouse_click_count[.Left] = 1
+		}
 		skald.send(ctx, Msg(Tree_Drag_Pressed{node = visible[row], start = mouse}))
 		return none
 	}
@@ -144,6 +163,17 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 			skald.send(ctx, Msg(Tree_Drag_Started{}))
 		}
 		return none
+	}
+	// Near the top or bottom edge, scroll so rows out of view can be reached. Frames keep coming
+	// while the mouse is held there
+	edge := rowHeight
+	scroll := &ctx.widgets.states[skald.hash_id("scene-tree-scroll")]
+	if mouse.y < area.y + edge && scroll.scroll_y > 0 {
+		scroll.scroll_y = max(scroll.scroll_y - rowHeight * 0.3, 0)
+		skald.send(ctx, Msg(Frame_Requested{}))
+	} else if mouse.y > area.y + area.h - edge && tree.y + tree.h > area.y + area.h {
+		scroll.scroll_y += rowHeight * 0.3
+		skald.send(ctx, Msg(Frame_Requested{}))
 	}
 	if !valid do return none
 
@@ -251,6 +281,12 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	node := &scene.nodes[s.selectedNode]
 	// Ids include the node index so a half-typed value doesn't carry over to another node
 	key := s.selectedNode
+	// Several selected: the inspector edits the primary one
+	multiNote: skald.View = skald.View_Spacer{size = 0}
+	if len(s.selection) > 1 {
+		multiNote = skald.text(fmt.tprintf("%d nodes selected. Editing %s; moving, nudging, copying and deleting act on all.", len(s.selection), node.name),
+			th.color.fg_muted, th.font.size_xs, max_width = 260)
+	}
 
 	// Content inside a scroll view isn't width-limited, so size controls from the sidebar width
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
@@ -267,6 +303,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows,
+		multiNote,
 		inspectorRow(ctx, "Name", skald.text_input(ctx, node.name,
 			proc(v: string) -> Msg { return Node_Renamed(v) },
 			id = skald.hash_id(fmt.tprintf("inspector-name-%d", key)),
@@ -294,10 +331,19 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		return skald.checkbox(ctx, value, "", flag, onFlag, id = skald.hash_id(fmt.tprintf("inspector-%v-%d", flag, key)))
 	}
 	textureSelect :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, value: string, width: f32) -> skald.View {
+		// The project's images, and "None" to clear it
 		images := make([dynamic]string, context.temp_allocator)
+		append(&images, TEXTURE_NONE)
 		for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)
-		return skald.select(ctx, value, images[:], NodeTextField.Texture, onText,
+		return skald.select(ctx, value == "" ? TEXTURE_NONE : value, images[:], NodeTextField.Texture, onText,
 			id = skald.hash_id(fmt.tprintf("inspector-texture-%d", key)), width = width, placeholder = "Choose an image")
+	}
+	colorPicker :: proc(ctx: ^skald.Ctx(Msg), key: int, value: sdl.Color, width: f32) -> skald.View {
+		// The node stores sRGB bytes; Skald's picker works in linear color. The message carries hex
+		linear := skald.rgb(u32(value.r) << 16 | u32(value.g) << 8 | u32(value.b))
+		return skald.color_picker(ctx, linear,
+			proc(c: skald.Color) -> Msg { return Node_Text_Changed{.Color, fmt.tprintf("#%s", skald.color_to_hex(c))} },
+			id = skald.hash_id(fmt.tprintf("inspector-color-%d", key)), width = width)
 	}
 
 	if node.kind != .Node2D {
@@ -323,7 +369,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows,
 			inspectorRow(ctx, "Text", textField(ctx, key, .Text, node.text, controlWidth)),
 			inspectorRow(ctx, "Font size", number(ctx, key, .Font_Size, node.fontSize, 2, 0, numberWidth, 1, 400)),
-			inspectorRow(ctx, "Color", textField(ctx, key, .Color, e.FormatColor(node.color, context.temp_allocator), controlWidth)),
+			inspectorRow(ctx, "Color", colorPicker(ctx, key, node.color, controlWidth)),
 			inspectorRow(ctx, "Centered", flag(ctx, key, .Centered, node.centered)),
 		)
 	case .Camera:
@@ -363,4 +409,48 @@ inspectorRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -
 		spacing = th.spacing.sm,
 		cross_align = .Center,
 	)
+}
+
+/*
+The text field for renaming a node in place: an overlay over its row. Enter or clicking elsewhere
+keeps the new name, Escape cancels.
+*/
+@(private="file")
+sceneTreeRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald.View {
+	th := ctx.theme
+	none := skald.View(skald.View_Spacer{size = 0})
+	if !s.rename.active do return none
+	scene := &s.project.scenes[s.currentScene]
+	row := -1
+	for node, i in visible do if node == s.rename.node do row = i
+	treeState, drawn := ctx.widgets.states[skald.hash_id("scene-tree")]
+	if row < 0 || !drawn || s.rename.node >= len(scene.nodes) {
+		skald.send(ctx, Msg(Rename_Cancelled{}))
+		return none
+	}
+
+	id := skald.hash_id("scene-tree-rename")
+	// Before the field is built, so it doesn't see these keys
+	skald.shortcut(ctx, {.Enter, {}}, Msg(Rename_Committed{}))
+	skald.shortcut(ctx, {.Escape, {}}, Msg(Rename_Cancelled{}))
+	if !s.rename.focused {
+		skald.widget_focus(ctx, id)
+		skald.send(ctx, Msg(Rename_Focused{}))
+	} else if !skald.widget_has_focus(ctx, id) {
+		skald.send(ctx, Msg(Rename_Committed{}))
+	}
+
+	// Over the label: after the row's indent, chevron and icon (Skald's tree layout)
+	tree := treeState.last_rect
+	rowHeight := s.settings.rowHeight
+	x := tree.x + th.spacing.sm + f32(Scene_NodeDepth(scene, s.rename.node)) * th.spacing.lg + 16 + th.font.size_md + th.spacing.xs
+	area := treeState.clip_rect.w > 0 ? treeState.clip_rect : tree
+	y := tree.y + f32(row) * rowHeight
+	if y < area.y || y + rowHeight > area.y + area.h do return none
+	width := max(tree.x + tree.w - x - th.spacing.xs, 60)
+	return skald.overlay({x, y, 0, 0},
+		skald.text_input(ctx, s.rename.text,
+			proc(v: string) -> Msg { return Rename_Text_Changed(v) },
+			id = id, width = width, height = rowHeight, font_size = th.font.size_sm),
+		no_shadow = true, pin = true)
 }

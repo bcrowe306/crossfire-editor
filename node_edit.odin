@@ -2,6 +2,8 @@ package editor
 
 import "core:fmt"
 import "core:math"
+import "core:path/filepath"
+import "core:slice"
 import "core:strings"
 import e "engine:."
 
@@ -11,7 +13,8 @@ place in the tree.
 
 A copied subtree is a list of nodes in depth-first order whose `parent` indices are relative to
 the list: the first node (the subtree's root) has parent -1, and every other node points at an
-earlier entry. That's the same shape as a scene's `nodes`, so it can be inserted anywhere.
+earlier entry. That's the same shape as a scene's `nodes`, so it can be inserted anywhere. A list
+can hold several subtrees one after another (copying a multi-selection): each root has parent -1.
 */
 
 // Where a dragged node goes relative to the node it's dropped on
@@ -75,25 +78,95 @@ Subtree_Destroy :: proc(nodes: ^[dynamic]NodeDef) {
 }
 
 /*
-Inserts a copied subtree as the last child of `parent`. The copy is cloned, so `nodes` can be
-inserted again (pasting twice). The root is renamed if the scene already uses its name.
+Copies several nodes and their descendants into one list, one subtree after another.
 
 Inputs:
 - scene: The scene
-- nodes: A subtree from `Scene_CopySubtree`
-- parent: Parent node index, or -1 for a top-level node
+- roots: The subtrees' roots (none inside another's subtree; see `Selection_Roots`)
 
 Returns:
-- The index of the inserted root, or -1 if `nodes` is empty
+- The nodes, parents relative to the list. Free with `Subtree_Destroy`
+*/
+Scene_CopyNodes :: proc(scene: ^SceneDef, roots: []int, allocator := context.allocator) -> [dynamic]NodeDef {
+	nodes := make([dynamic]NodeDef, allocator)
+	for root in roots {
+		base := len(nodes)
+		subtree := Scene_CopySubtree(scene, root, context.temp_allocator)
+		for node in subtree {
+			node := node
+			if node.parent >= 0 do node.parent += base
+			append(&nodes, node)
+		}
+	}
+	return nodes
+}
+
+/*
+Inserts copied subtrees as the last children of `parent`. The copies are cloned, so `nodes` can be
+inserted again (pasting twice). Roots are renamed if the scene already uses their names.
+
+Inputs:
+- scene: The scene
+- nodes: Subtrees from `Scene_CopySubtree` or `Scene_CopyNodes`
+- parent: Parent node index, or -1 for top-level nodes
+
+Returns:
+- The index of the first inserted root, or -1 if `nodes` is empty
 */
 Scene_PasteSubtree :: proc(scene: ^SceneDef, nodes: []NodeDef, parent: int) -> int {
-	if len(nodes) == 0 do return -1
+	roots := Scene_PasteNodes(scene, nodes, parent)
+	return len(roots) > 0 ? roots[0] : -1
+}
+
+/*
+Like `Scene_PasteSubtree`, returning every inserted root (temp allocated).
+*/
+Scene_PasteNodes :: proc(scene: ^SceneDef, nodes: []NodeDef, parent: int) -> []int {
+	if len(nodes) == 0 do return nil
 	at := len(scene.nodes)
 	if parent >= 0 {
 		at = parent + 1 + Scene_DescendantCount(scene, parent)
 		scene.nodes[parent].expanded = true
 	}
 	return insertSubtree(scene, nodes, parent, at)
+}
+
+/*
+Duplicates several nodes: each copy goes right after its original, as described in
+`Scene_DuplicateNode`.
+
+Inputs:
+- scene: The scene
+- roots: The nodes, in node order, none inside another's subtree
+
+Returns:
+- The copies' indices (temp allocated)
+*/
+Scene_DuplicateNodes :: proc(scene: ^SceneDef, roots: []int) -> []int {
+	copies := make([dynamic]int, context.temp_allocator)
+	// Each copy shifts the nodes after it, including the later roots
+	offset := 0
+	for root in roots {
+		before := len(scene.nodes)
+		append(&copies, Scene_DuplicateNode(scene, root + offset))
+		offset += len(scene.nodes) - before
+	}
+	return copies[:]
+}
+
+/*
+Removes several nodes and their descendants.
+
+Inputs:
+- scene: The scene
+- roots: The nodes, none inside another's subtree
+*/
+Scene_RemoveNodes :: proc(scene: ^SceneDef, roots: []int) {
+	// Last first, so the earlier indices stay valid
+	sorted := make([]int, len(roots), context.temp_allocator)
+	copy(sorted, roots)
+	slice.sort(sorted)
+	#reverse for root in sorted do Scene_RemoveNode(scene, root)
 }
 
 /*
@@ -110,7 +183,7 @@ Returns:
 Scene_DuplicateNode :: proc(scene: ^SceneDef, index: int) -> int {
 	nodes := Scene_CopySubtree(scene, index, context.temp_allocator)
 	defer Subtree_Destroy(&nodes)
-	return insertSubtree(scene, nodes[:], scene.nodes[index].parent, index + len(nodes))
+	return insertSubtree(scene, nodes[:], scene.nodes[index].parent, index + len(nodes))[0]
 }
 
 /*
@@ -231,10 +304,11 @@ Scene_MoveNode :: proc(scene: ^SceneDef, node, target: int, position: DropPositi
 	return newIndex[node], true
 }
 
-// Inserts clones of `nodes` at array position `at` under `parent`. `at` must be where a child of
-// `parent` can go: the end of one of its children's subtrees (or of its own, for the last child)
+// Inserts clones of `nodes` (one or more subtrees) at array position `at` under `parent`, and
+// returns the roots' indices (temp allocated). `at` must be where a child of `parent` can go: the
+// end of one of its children's subtrees (or of its own, for the last child)
 @(private="file")
-insertSubtree :: proc(scene: ^SceneDef, nodes: []NodeDef, parent, at: int) -> int {
+insertSubtree :: proc(scene: ^SceneDef, nodes: []NodeDef, parent, at: int) -> []int {
 	n := len(nodes)
 	// Nodes from `at` on move down by n
 	for i in at..<len(scene.nodes) {
@@ -245,13 +319,21 @@ insertSubtree :: proc(scene: ^SceneDef, nodes: []NodeDef, parent, at: int) -> in
 		clones[i] = NodeDef_Clone(node)
 		clones[i].parent = node.parent < 0 ? parent : at + node.parent
 	}
-	name := Scene_UniqueNodeName(scene, clones[0].name)
-	if name != clones[0].name {
-		delete(clones[0].name)
-		clones[0].name = strings.clone(name)
-	}
 	inject_at(&scene.nodes, at, ..clones)
-	return at
+	// Free names for the roots, one at a time so two pasted roots don't get the same one
+	roots := make([dynamic]int, context.temp_allocator)
+	for node, i in nodes {
+		if node.parent >= 0 do continue
+		index := at + i
+		append(&roots, index)
+		root := &scene.nodes[index]
+		original := root.name
+		root.name = ""
+		name := Scene_UniqueNodeName(scene, original)
+		root.name = name == original ? original : strings.clone(name)
+		if name != original do delete(original)
+	}
+	return roots[:]
 }
 
 @(private="file")
@@ -266,4 +348,32 @@ flatten :: proc(children: [][dynamic]int, slot: int, order: ^[dynamic]int) {
 @(private="file")
 tidy :: proc(v: f32) -> f32 {
 	return math.round(v * 1000) / 1000
+}
+
+/*
+Adds a Sprite showing an image, placed at a world position: what dropping an image from the
+project browser into the viewport does. It's named after the file ("ship.png" -> "ship").
+
+Inputs:
+- scene: The scene
+- texture: Image path relative to the project folder
+- parent: Parent node index (the selection), or -1 for a top-level node
+- world: Where it goes, in world coordinates
+
+Returns:
+- The new node's index
+*/
+Scene_AddSpriteAt :: proc(scene: ^SceneDef, texture: string, parent: int, world: [2]f32) -> int {
+	parent := parent
+	if parent >= len(scene.nodes) do parent = -1
+	base := filepath.stem(filepath.base(texture))
+	index := Scene_InsertNode(scene, Scene_UniqueNodeName(scene, base == "" ? "Sprite" : base), .Sprite, parent)
+	node := &scene.nodes[index]
+	delete(node.texture)
+	node.texture = strings.clone(texture)
+	// The position is relative to the parent
+	parentWorld := parent >= 0 ? Scene_WorldTransforms(scene)[parent] : e.TRANSFORM2D_IDENTITY
+	local := e.Transform2D_Apply(e.Transform2D_Inverse(parentWorld), world)
+	node.position = {tidy(local.x), tidy(local.y)}
+	return index
 }

@@ -1,6 +1,7 @@
 package editor
 
 import "core:fmt"
+import "core:log"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
@@ -1129,5 +1130,267 @@ viewport_drag_is_one_undo_step :: proc(t: ^testing.T) {
 	send(&state, Action.Undo)
 	send(&state, Action.Undo)
 	testing.expect_value(t, scene.nodes[ship].position, start)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+multi_selection_edits_act_on_every_selected_node :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	before := len(scene.nodes)
+	ship, props := nodeNamed(scene, "Spaceship"), nodeNamed(scene, "Props")
+	light := nodeNamed(scene, "ShipLight")
+
+	// Ctrl+click adds; a child of a selected node isn't a separate root
+	send(&state, Node_Picked(ship))
+	send(&state, Node_Pick_Toggled(props))
+	send(&state, Node_Pick_Toggled(light))
+	testing.expect_value(t, len(state.selection), 3)
+	testing.expect_value(t, state.selectedNode, light)
+	testing.expect_value(t, len(Selection_Roots(&state)), 2)
+	// Toggling again removes it
+	send(&state, Node_Pick_Toggled(light))
+	testing.expect_value(t, len(state.selection), 2)
+	testing.expect_value(t, state.selectedNode, props)
+
+	// Nudge moves both, one undo step
+	shipX, propsX := scene.nodes[ship].position.x, scene.nodes[props].position.x
+	send(&state, Action.Nudge_Right_Large)
+	testing.expect_value(t, scene.nodes[ship].position.x, shipX + NUDGE_LARGE)
+	testing.expect_value(t, scene.nodes[props].position.x, propsX + NUDGE_LARGE)
+	testing.expect_value(t, len(state.selection), 2)
+
+	// Duplicate both: the copies are selected
+	send(&state, Action.Duplicate_Node)
+	testing.expect_value(t, len(scene.nodes), before + 2 + 5)
+	testing.expect_value(t, len(state.selection), 2)
+	names := [2]string{scene.nodes[state.selection[0]].name, scene.nodes[state.selection[1]].name}
+	testing.expect_value(t, names, [2]string{"Spaceship2", "Props2"})
+	expectValidTree(t, scene)
+
+	// Copy and paste both into HUD
+	send(&state, Action.Copy_Node)
+	testing.expect_value(t, len(state.clipboard), 7)
+	send(&state, Node_Picked(nodeNamed(scene, "HUD")))
+	send(&state, Action.Paste_Node)
+	testing.expect_value(t, len(state.selection), 2)
+	for node in state.selection do testing.expect_value(t, scene.nodes[node].parent, nodeNamed(scene, "HUD"))
+	testing.expect_value(t, scene.nodes[state.selection[0]].name, "Spaceship3")
+	expectValidTree(t, scene)
+
+	// Delete both pasted subtrees, and undo it
+	count := len(scene.nodes)
+	send(&state, Action.Delete_Node)
+	testing.expect_value(t, len(scene.nodes), count - 7)
+	testing.expect_value(t, len(state.selection), 0)
+	send(&state, Action.Undo)
+	testing.expect_value(t, len(scene.nodes), count)
+	expectValidTree(t, scene)
+
+	// Select all, then a plain pick goes back to one node
+	send(&state, Action.Select_All)
+	testing.expect_value(t, len(state.selection), len(scene.nodes))
+	send(&state, Node_Picked(ship))
+	testing.expect_value(t, len(state.selection), 1)
+	// A structural edit of one node drops the old multi-selection
+	send(&state, Action.Select_All)
+	send(&state, Action.Deselect)
+	testing.expect_value(t, len(state.selection), 0)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+tree_shift_click_selects_a_range :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	// Rows: 0 World, 1 Camera, 2 Spaceship, 3 ShipLight, 4 Props
+	send(&state, Node_Selected(1))
+	send(&state, Tree_Selection_Clicked{row = 4, range = true})
+	testing.expect_value(t, len(state.selection), 4)
+	testing.expect_value(t, state.selectedNode, nodeNamed(playScene(&state), "Props"))
+	send(&state, Tree_Selection_Clicked{row = 2, range = false})
+	testing.expect_value(t, len(state.selection), 3)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+box_select_and_multi_drag :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	// Nothing is rendered in tests, so nodes are picked by their origin
+	camera, ship := nodeNamed(scene, "Camera"), nodeNamed(scene, "Spaceship")
+	send(&state, Viewport_Drag_Begin{mode = .Box, node = -1, mouse = {600, 340}})
+	send(&state, Viewport_Drag_Move{mouse = {700, 440}})
+	send(&state, Viewport_Drag_End{})
+	// Camera (640, 360), Spaceship (640, 430), Props (640, 360)
+	testing.expect_value(t, len(state.selection), 3)
+	testing.expect(t, Selection_Contains(&state, camera) && Selection_Contains(&state, ship))
+
+	// Dragging one moves all of them, as one undo step
+	cameraStart := scene.nodes[camera].position
+	send(&state, Viewport_Drag_Begin{mode = .Move, node = ship, mouse = {640, 430}})
+	send(&state, Viewport_Drag_Move{mouse = {660, 440}})
+	send(&state, Viewport_Drag_Move{mouse = {700, 450}})
+	send(&state, Viewport_Drag_End{})
+	testing.expect_value(t, scene.nodes[camera].position, cameraStart + {60, 20})
+	testing.expect_value(t, len(state.selection), 3)
+	testing.expect_value(t, len(state.history.undo), 1)
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[camera].position, cameraStart)
+
+	// A box on empty space clears the selection; with additive it keeps it
+	send(&state, Action.Select_All)
+	send(&state, Viewport_Drag_Begin{mode = .Box, node = -1, mouse = {-900, -900}, additive = true})
+	send(&state, Viewport_Drag_Move{mouse = {-800, -800}})
+	send(&state, Viewport_Drag_End{})
+	testing.expect_value(t, len(state.selection), len(scene.nodes))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+snapping_drags_to_the_grid :: proc(t: ^testing.T) {
+	node := NodeDef_Make("N", .Sprite, -1)
+	defer NodeDef_Destroy(&node)
+	node.position = {10, 10}
+	drag := ViewportDrag{mode = .Move, startMouse = {10, 10}, startPosition = {10, 10}, startScale = {1, 1}, parentWorld = e.TRANSFORM2D_IDENTITY}
+	drag.startWorld = e.Transform2D_Make({10, 10}, 0, {1, 1})
+	Viewport_ApplyDrag(&node, &drag, {30, 52}, false, 32)
+	testing.expect_value(t, node.position, [2]f32{32, 64})
+	drag.mode = .Rotate
+	Viewport_ApplyDrag(&node, &drag, {10 + 10, 10 + 3}, false, 32)
+	testing.expect_value(t, node.rotation, 15)
+	// Uniform scale by the distance from the origin: 10 -> 13.7 is x1.37, snapped to 1.4
+	drag = ViewportDrag{mode = .Scale, startMouse = {20, 10}, startScale = {1, 1}, startWorld = e.Transform2D_Make({10, 10}, 0, {1, 1})}
+	Viewport_ApplyDrag(&node, &drag, {23.7, 10}, false, 32)
+	testing.expect(t, abs(node.scale.x - 1.4) < 1e-4, "scale snaps to 0.1")
+}
+
+@(test)
+dropping_an_image_adds_a_sprite_there :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	image := -1
+	for asset, i in state.project.assets do if asset.path == "assets/ship.png" do image = i
+	testing.expect(t, image >= 0)
+
+	// Into the selected Spaceship (at 640, 430): local position relative to it
+	send(&state, Asset_Drag_Pressed{asset = image, start = {0, 0}})
+	send(&state, Asset_Drag_Started{})
+	send(&state, Asset_Dropped{world = {700, 400}})
+	sprite := state.selectedNode
+	testing.expect_value(t, scene.nodes[sprite].name, "ship")
+	testing.expect_value(t, scene.nodes[sprite].texture, "assets/ship.png")
+	testing.expect_value(t, scene.nodes[sprite].parent, nodeNamed(scene, "Spaceship"))
+	testing.expect_value(t, scene.nodes[sprite].position, [2]f32{60, -30})
+	testing.expect(t, !state.assetDrag.pressed)
+	send(&state, Action.Undo)
+	testing.expect_value(t, nodeNamed(scene, "ship"), -1)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+inline_rename :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := state.selectedNode
+
+	send(&state, Action.Rename_Node)
+	testing.expect(t, state.rename.active)
+	testing.expect_value(t, state.rename.text, "Spaceship")
+	send(&state, Rename_Text_Changed("Hero"))
+	send(&state, Rename_Committed{})
+	testing.expect(t, !state.rename.active)
+	testing.expect_value(t, scene.nodes[ship].name, "Hero")
+	testing.expect_value(t, History_NextLabel(&state.history, false), "Rename Spaceship")
+
+	// Escape and empty names change nothing
+	send(&state, Rename_Started(ship))
+	send(&state, Rename_Text_Changed("Nope"))
+	send(&state, Rename_Cancelled{})
+	send(&state, Rename_Started(ship))
+	send(&state, Rename_Text_Changed("   "))
+	send(&state, Rename_Committed{})
+	testing.expect_value(t, scene.nodes[ship].name, "Hero")
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[ship].name, "Spaceship")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+texture_none_clears_it :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	send(&state, Node_Text_Changed{.Texture, TEXTURE_NONE})
+	testing.expect_value(t, playScene(&state).nodes[state.selectedNode].texture, "")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+unsaved_changes_new_and_open_project :: proc(t: ^testing.T) {
+	// The failures below are logged as errors, which the test runner would count as failing
+	context.logger = log.nil_logger()
+	state := testState()
+	defer State_Destroy(&state)
+	os.make_directory("build")
+	dir := "build/test_projects"
+	os.remove_all(dir)
+	os.make_directory(dir)
+	defer os.remove_all(dir)
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone("build/test_projects/Demo")
+
+	testing.expect(t, !Project_IsModified(&state))
+	send(&state, Node_Field_Changed{.Rotation, 45})
+	testing.expect(t, Project_IsModified(&state))
+
+	// New Project with unsaved changes asks first; Cancel keeps everything
+	send(&state, Action.New_Project)
+	testing.expect(t, state.session.confirm.open)
+	send(&state, Confirm_Chosen(.Cancel))
+	testing.expect(t, !state.session.newProject.open)
+	// Save from the prompt, then the New Project dialog opens next to the project
+	send(&state, Action.New_Project)
+	send(&state, Confirm_Chosen(.Save))
+	testing.expect(t, !Project_IsModified(&state))
+	testing.expect(t, os.exists("build/test_projects/Demo/project.xml"))
+	testing.expect(t, state.session.newProject.open)
+	testing.expect_value(t, state.session.newProject.location, "build/test_projects")
+
+	// A bad name is refused; a good one creates and opens the project
+	send(&state, New_Project_Name_Changed("a/b"))
+	send(&state, New_Project_Created{})
+	testing.expect(t, state.session.newProject.open)
+	send(&state, New_Project_Name_Changed("Fresh"))
+	send(&state, New_Project_Created{})
+	testing.expect(t, !state.session.newProject.open)
+	testing.expect_value(t, state.project.name, "Fresh")
+	testing.expect_value(t, state.project.scenes[state.currentScene].name, "Main")
+	testing.expect_value(t, len(state.history.undo), 0)
+	testing.expect(t, !Project_IsModified(&state))
+	// Creating it again fails: the folder exists
+	send(&state, Action.New_Project)
+	send(&state, New_Project_Name_Changed("Fresh"))
+	send(&state, New_Project_Created{})
+	testing.expect(t, state.session.newProject.open)
+	send(&state, New_Project_Cancelled{})
+
+	// Open the first project back (no changes, so no prompt)
+	send(&state, Open_Project_Chosen{path = "build/test_projects/Demo"})
+	testing.expect_value(t, state.project.name, "Asteroids Demo")
+	testing.expect_value(t, len(state.project.scenes), 3)
+	// A folder that isn't a project leaves the current one open
+	send(&state, Open_Project_Chosen{path = "build/test_projects/nothing"})
+	testing.expect_value(t, state.project.name, "Asteroids Demo")
+
+	// Quit with changes asks; Don't Save quits
+	send(&state, Node_Picked(0))
+	send(&state, Node_Field_Changed{.Rotation, 10})
+	state, _ = update(state, Msg(Action.Quit))
+	testing.expect(t, state.session.confirm.open)
+	testing.expect_value(t, state.session.confirm.pending, PendingAction.Quit)
 	free_all(context.temp_allocator)
 }

@@ -2,6 +2,7 @@ package editor
 
 import "core:c"
 import "core:fmt"
+import "core:math"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
@@ -79,6 +80,8 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		)
 	}
 
+	ghost := browserDrag(s, ctx, items)
+
 	rows := make([]skald.Tree_Row, len(items), context.temp_allocator)
 	for item, i in items {
 		row := &rows[i]
@@ -105,16 +108,80 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	}
 
-	return skald.scroll(ctx, {0, 0},
-		skald.tree(ctx, rows,
-			on_toggle = proc(row: int) -> Msg { return Browser_Toggled(row) },
-			on_select = proc(row: int) -> Msg { return Browser_Selected(row) },
-			id = skald.hash_id("browser-tree"),
-			row_height = s.settings.rowHeight,
-		),
-		id = skald.hash_id("browser-scroll"),
+	// flex: a scroll in a content-sized column gets no height
+	return skald.col(
+		skald.flex(1, skald.scroll(ctx, {0, 0},
+			skald.tree(ctx, rows,
+				on_toggle = proc(row: int) -> Msg { return Browser_Toggled(row) },
+				on_select = proc(row: int) -> Msg { return Browser_Selected(row) },
+				id = skald.hash_id("browser-tree"),
+				row_height = s.settings.rowHeight,
+			),
+			id = skald.hash_id("browser-scroll"),
+		)),
+		ghost,
+		cross_align = .Stretch,
 	)
 }
+
+/*
+Dragging an image from the browser into the viewport (which adds a Sprite there): a press on an
+image row, then moving the mouse, starts it; releasing over the viewport drops it. Returns the
+label that follows the cursor while dragging (an overlay; empty otherwise).
+*/
+@(private="file")
+browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> skald.View {
+	th := ctx.theme
+	none := skald.View(skald.View_Spacer{size = 0})
+	treeState, drawn := ctx.widgets.states[skald.hash_id("browser-tree")]
+	areaState, _ := ctx.widgets.states[skald.hash_id("browser-scroll")]
+	if !drawn do return none
+	mouse := ctx.input.mouse_pos
+	area := areaState.last_rect
+	overArea := mouse.x >= area.x && mouse.x < area.x + area.w && mouse.y >= area.y && mouse.y < area.y + area.h
+	row := int(math.floor((mouse.y - treeState.last_rect.y) / s.settings.rowHeight))
+
+	if ctx.input.mouse_pressed[.Left] && overArea && !skald.mouse_over_overlay(ctx) && row >= 0 && row < len(items) {
+		item := items[row]
+		if item.kind == .Asset && s.project.assets[item.index].kind == .Image {
+			skald.send(ctx, Msg(Asset_Drag_Pressed{asset = item.index, start = mouse}))
+		}
+		return none
+	}
+	if !s.assetDrag.pressed do return none
+	if !ctx.input.mouse_buttons[.Left] {
+		world, overViewport := ViewportWorldAt(s, ctx, mouse)
+		if s.assetDrag.active && overViewport {
+			skald.send(ctx, Msg(Asset_Dropped{world = world}))
+		} else {
+			skald.send(ctx, Msg(Asset_Drag_Cancelled{}))
+		}
+		return none
+	}
+	if !s.assetDrag.active {
+		d := mouse - s.assetDrag.start
+		if d.x * d.x + d.y * d.y >= ASSET_DRAG_THRESHOLD * ASSET_DRAG_THRESHOLD {
+			skald.send(ctx, Msg(Asset_Drag_Started{}))
+		}
+		return none
+	}
+	if s.assetDrag.asset >= len(s.project.assets) do return none
+	label := fmt.tprintf("%s  %s", ICON_IMAGE, filepath.base(s.project.assets[s.assetDrag.asset].path))
+	_, overViewport := ViewportWorldAt(s, ctx, mouse)
+	hint := overViewport ? "drop to add a Sprite" : "drag into the viewport"
+	return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
+		skald.col(
+			skald.text(label, th.color.fg, th.font.size_sm),
+			skald.text(hint, th.color.fg_muted, th.font.size_xs),
+			padding = th.spacing.sm,
+			bg = th.color.elevated,
+			radius = th.radius.sm,
+		),
+		pin = true)
+}
+
+// How far the mouse moves with the button down before a press on an image becomes a drag
+ASSET_DRAG_THRESHOLD :: 5
 
 @(private="file")
 previewHeader :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {

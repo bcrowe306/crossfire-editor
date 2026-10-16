@@ -137,13 +137,34 @@ State :: struct {
 		asset: int,
 	},
 	addNode: AddNodeDialog,
+	// Every selected node of the open scene, sorted; `selectedNode` is the primary one (selection.odin)
+	selection: [dynamic]int,
+	// Set by code that chose a multi-selection this message (Selection_Set), so `update` keeps it
+	selectionSet: bool,
 	// The active settings (see settings.odin), and the file they're saved to ("" = don't save)
 	settings: Settings,
 	settingsPath: string,
 	settingsDialog: SettingsDialog,
 	history: History,
+	session: SessionState,
 	// Copied or cut nodes: one subtree, parents relative to the list (see node_edit.odin)
 	clipboard: [dynamic]NodeDef,
+	// Renaming a node in place in the scene tree (F2, double-click)
+	rename: struct {
+		active: bool,
+		node: int,
+		// The edited name (owned)
+		text: string,
+		// The text field has been given focus; losing it afterwards commits
+		focused: bool,
+	},
+	// A press on an image in the project browser, which becomes a drag into the viewport
+	assetDrag: struct {
+		pressed: bool,
+		active: bool,
+		asset: int,
+		start: [2]f32,
+	},
 	// A press on a scene tree row, which becomes a drag once the mouse moves
 	treeDrag: struct {
 		pressed: bool,
@@ -173,7 +194,7 @@ init :: proc() -> State {
 
 		browserOpen = {.Scenes = true, .Images = true, .Audio = false, .Fonts = false},
 		browserSelection = {kind = .None},
-		viewport = {animate = true},
+		viewport = {animate = true, gridVisible = true},
 		layout = {
 			leftWidth = 240,
 			rightWidth = 300,
@@ -225,7 +246,11 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.browserSearch)
 	delete(state.addNode.search)
 	Subtree_Destroy(&state.clipboard)
+	delete(state.rename.text)
+	delete(state.session.newProject.name)
+	delete(state.session.newProject.location)
 	History_Destroy(&state.history)
+	delete(state.selection)
 	delete(state.settingsPath)
 	delete(state.settingsDialog.search)
 	delete(state.play.partial)
@@ -297,6 +322,8 @@ main :: proc() {
 		init   = init,
 		update = update,
 		view   = view,
+		// The window's close button asks about unsaved changes, like File > Quit
+		on_close_request = proc() -> Msg { return Msg(Action.Quit) },
 		window_flags = EDITOR_FULLSCREEN ? {.RESIZABLE, .FULLSCREEN} : {},
 	})
 

@@ -65,6 +65,7 @@ playStart :: proc(state: ^State) -> skald.Command(Msg) {
 		logLine(state, .Error, fmt.aprintf("Play: couldn't save the project: %s", message))
 		return {}
 	}
+	Session_MarkSaved(state)
 
 	clearOutput(state)
 	if playerIsCurrent() {

@@ -39,6 +39,7 @@ SettingsField :: enum {
 	Undo_Merge_Ms,
 	Undo_Group_Max_Ms,
 	Undo_Limit,
+	Grid_Size,
 }
 
 // Opens the dialog on a fresh copy of the active settings
@@ -71,6 +72,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		case .Undo_Merge_Ms:     draft.undoMergeMs = clamp(int(v.value), SETTINGS_UNDO_MS_RANGE[0], SETTINGS_UNDO_MS_RANGE[1])
 		case .Undo_Group_Max_Ms: draft.undoGroupMaxMs = clamp(int(v.value), SETTINGS_UNDO_MS_RANGE[0], SETTINGS_UNDO_MS_RANGE[1])
 		case .Undo_Limit:        draft.undoLimit = clamp(int(v.value), SETTINGS_UNDO_LIMIT_RANGE[0], SETTINGS_UNDO_LIMIT_RANGE[1])
+		case .Grid_Size:         draft.gridSize = clamp(int(v.value), SETTINGS_GRID_SIZE_RANGE[0], SETTINGS_GRID_SIZE_RANGE[1])
 		}
 	case Settings_Search_Changed:
 		delete(dialog.search)
@@ -98,6 +100,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.theme, draft.fontSize, draft.spacing, draft.rowHeight = defaults.theme, defaults.fontSize, defaults.spacing, defaults.rowHeight
 		case .Editor:
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
+			draft.gridSize = defaults.gridSize
 		case .Keyboard:
 			draft.keymap = defaults.keymap
 		}

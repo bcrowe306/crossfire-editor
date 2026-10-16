@@ -48,6 +48,8 @@ Settings :: struct {
 	// A merged run is cut after this long, 0 = never (throttle)
 	undoGroupMaxMs: int,
 	undoLimit: int,
+	// Viewport grid spacing, world units
+	gridSize: int,
 
 	// [keymap]
 	keymap: Keymap,
@@ -59,6 +61,7 @@ SETTINGS_SPACING_RANGE :: [2]f32{25, 200}
 SETTINGS_ROW_HEIGHT_RANGE :: [2]f32{18, 48}
 SETTINGS_UNDO_MS_RANGE :: [2]int{0, 10000}
 SETTINGS_UNDO_LIMIT_RANGE :: [2]int{1, 10000}
+SETTINGS_GRID_SIZE_RANGE :: [2]int{2, 1024}
 
 /*
 The default settings, from `settings.default.ini`.
@@ -109,6 +112,7 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 			case "undo_merge_ms":     target, limits = &settings.undoMergeMs, SETTINGS_UNDO_MS_RANGE
 			case "undo_group_max_ms": target, limits = &settings.undoGroupMaxMs, SETTINGS_UNDO_MS_RANGE
 			case "undo_limit":        target, limits = &settings.undoLimit, SETTINGS_UNDO_LIMIT_RANGE
+			case "grid_size":         target, limits = &settings.gridSize, SETTINGS_GRID_SIZE_RANGE
 			case:
 				problem(&problems, it.section, key, value, "unknown setting")
 				continue
@@ -167,8 +171,8 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\n\n",
-		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit)
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ngrid_size = %d\n\n",
+		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit, settings.gridSize)
 	strings.write_string(&b, "[keymap]\n")
 	for chords, action in settings.keymap {
 		fmt.sbprintf(&b, "%v = %s\n", action, Keymap_FormatChords(chords))

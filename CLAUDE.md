@@ -14,9 +14,11 @@ consoles and handhelds).
   - The scene tree has a context menu, copy/paste/duplicate, and drag to reorder and reparent.
   - Undo/redo covers every scene edit. Settings (appearance, undo, keymap) are edited in a dialog
     and saved to editor.ini next to the executable.
+  - Multi-select (Ctrl/Shift+click, box select, Ctrl+A), a viewport grid with snapping, inline
+    rename, dragging images from the browser into the viewport, New/Open Project with an
+    unsaved-changes prompt.
 - **Not yet:**
-  - Export, New and Open only log "not implemented yet". To open a project, pass its folder on
-    the command line.
+  - Export only logs "not implemented yet".
 
 Sections marked "planned" describe where it's going. Update this file as they become real.
 
@@ -111,6 +113,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard tabs |
 | `settings.default.ini` | Default settings, built into the editor |
+| `selection.odin` | Multi-selection: `Selection_Set/Toggle/Normalize/Roots` |
+| `project_session.odin` | Unsaved changes, New/Open Project, the save prompt, the window title |
+| `view_project_dialogs.odin` | The save-changes and New Project dialogs |
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Keys tabs, collapsible |
@@ -275,7 +280,66 @@ shows up here with no editor change (it still needs inspector fields).
   sibling, the middle = its last child, below the rows = last top-level node. The bottom edge of an
   open parent means before its first child. A line or box overlay shows the spot.
   `Scene_MoveNode` rebuilds the depth-first order and keeps the node's world transform under its new
-  parent. A node can't go into its own subtree (`Scene_CanMoveNode`).
+  parent. A node can't go into its own subtree (`Scene_CanMoveNode`). Near the top or bottom edge
+  the tree scrolls (`Frame_Requested` keeps frames coming while the mouse is still).
+- **Inline rename** (F2, double-click, menu): `State.rename` plus an overlay `text_input` pinned
+  over the row (`sceneTreeRename`). Enter or losing focus commits (`Rename_Committed`, undoable),
+  Escape cancels. The double-click's click count is hidden from the tree, which would otherwise
+  expand or collapse the row.
+
+### Multi-selection (implemented, `selection.odin`)
+
+- `State.selection` is every selected node (sorted); `selectedNode` is the primary one, which the
+  inspector edits and the tool handles sit on. `update` runs `Selection_Normalize` before and
+  after every message: setting only `selectedNode` (a plain click) makes a one-node selection.
+- Code choosing several nodes calls `Selection_Set` / `Selection_Toggle`, which set
+  `selectionSet`. After a `.Scene`-scope edit (nodes renumbered), `update` drops the selection
+  unless `selectionSet` is true.
+- Viewport: Ctrl+click toggles, Shift+click adds, a drag on empty space is a box select
+  (`DragMode.Box`, `ViewportNodesInRect`; Ctrl/Shift adds). Clicking a node of a multi-selection
+  keeps it (`Node_Primary_Picked`) so the drag moves all. Tree: Ctrl+click toggles, Shift+click
+  selects the range from the primary row; the press is hidden from the tree. Ctrl+A selects all.
+- Edits act on `Selection_Roots` (selected nodes without a selected ancestor): Delete, Cut, Copy
+  (`Scene_CopyNodes`, several roots in one list), Duplicate (`Scene_DuplicateNodes`), Paste (every
+  root), nudges. A viewport drag applies the tool to the dragged node and `Viewport_FollowDrag`
+  gives the others the same movement, rotation and scale factor. Multi-node drags and nudges are
+  `.Scene`-scope undo steps. Undo/redo restore only the primary node.
+
+### Viewport grid and snapping
+
+- `viewport.gridVisible` (G, on by default) draws lines every `settings.gridSize` world units,
+  doubled until 8 px apart; the axes are brighter. `viewport.snap` (Shift+G) makes
+  `Viewport_ApplyDrag` put the node's origin on the grid, rotation on 15° steps and scale on 0.1.
+  Toolbar toggles sit in the viewport header. A multi-selection keeps its layout: only the dragged
+  node snaps.
+
+### Dragging images into the viewport
+
+A press on an image row in the browser, then moving, starts `assetDrag` (`browserDrag`, with a
+label following the cursor); releasing over the viewport sends `Asset_Dropped` with the world
+point. `Scene_AddSpriteAt` adds a Sprite named after the file, as a child of the selection,
+positioned at that point in the parent's space. Undoable.
+
+### Project session (implemented, `project_session.odin`, `view_project_dialogs.odin`)
+
+- Unsaved changes: `history.version` (bumped by every push, merge, undo and redo) differs from
+  `session.savedVersion`, or `session.assetsChanged` (imports and removals aren't in the history).
+  Save and Play call `Session_MarkSaved`. The status bar shows Modified/Saved; the window title
+  gets a `*` (`Session_UpdateTitle`, through SDL, only when it changes).
+- Quit (Ctrl+Q, and the window's close button through `App.on_close_request`), New and Open go
+  through `Session_Request`: with unsaved changes it opens the "save changes?" dialog
+  (Save / Don't Save / Cancel) and runs the action after. The UI test driver quits with
+  `Quit_Without_Asking`.
+- New Project: a name and location (Browse uses `cmd_open_folder_dialog`); creates
+  `<location>/<name>` with `Project_CreateEmpty` (a Main scene with a World node) and opens it.
+  Open Project: a folder dialog, then `Project_Load`. `switchProject` resets everything that
+  belonged to the old project, including the undo history.
+
+### Status bar frame stats
+
+`FrameStats` (view.odin) counts the frames drawn per second and times the last viewport render and
+upload; the status bar shows them. The editor only draws when something changes, so while idle
+they show the last busy moment.
 
 ### Play mode (implemented, `play.odin`)
 
@@ -500,11 +564,15 @@ Highlights:
   screenshot the desktop: the user's other windows can be on screen. To check rendering, call
   `Preview_Render` from a scratch test and save its pixels. Skald's own off-screen renderer is
   private to Skald, so snapshots of the UI would need a public Skald API first.
-- `task test:ui` runs every script on a scratch copy of the demo project (`build/ui_project`),
-  because Play and imports change the project. The editor window opens while it runs. On a
+- `task test:ui` runs each script on a fresh scratch copy of `tests/fixtures/ui_project`
+  (`build/ui_project`), because scripts save, rename, play and import. The editor window opens while it runs. On a
   workspace that isn't visible, the compositor may throttle it, and the run takes minutes instead
   of seconds.
 - Add a script, or extend one, for each new interactive feature.
+- **Modifier clicks:** Skald reads Ctrl/Shift from key events, not mouse events, so the driver
+  holds the modifier key around the click (`click_row ... ctrl`, `click_node ... shift`).
+- A context menu fades out after closing and blocks clicks under it meanwhile; the driver waits
+  for that (`FADING_MENUS`) before the next command.
 
 ## Verifying work
 

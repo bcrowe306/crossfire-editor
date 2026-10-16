@@ -1,6 +1,7 @@
 package editor
 
 import "core:fmt"
+import "core:time"
 import "core:math"
 import "core:path/filepath"
 import "gui:skald"
@@ -9,6 +10,7 @@ import "gui:skald"
 Draws the whole editor window from the state. Called every frame.
 */
 view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	FrameStats_Begin()
 	ensureIconFont(ctx)
 	th := ctx.theme
 	state := s
@@ -16,7 +18,9 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Before anything else registers shortcuts (see keymap.odin)
 	// Dialogs and the open context menu take Escape (and every other key) themselves
 	menu, drawn := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
-	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || (drawn && menu.open)
+	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open ||
+		state.session.confirm.open || state.session.newProject.open || (drawn && menu.open)
+	Session_UpdateTitle(&state)
 	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
 
 	return skald.col(
@@ -30,6 +34,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		removeAssetDialog(&state, ctx),
 		addNodeDialog(&state, ctx),
 		settingsDialogView(&state, ctx),
+		newProjectDialogView(&state, ctx),
+		confirmDialogView(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
@@ -71,6 +77,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Copy Node", .Copy_Node, keys),
 			item("Cut Node", .Cut_Node, keys),
 			item("Paste Node", .Paste_Node, keys),
+			item("Rename Node", .Rename_Node, keys),
 			item("Delete Node", .Delete_Node, keys),
 			item("Deselect", .Deselect, keys),
 			{separator = true},
@@ -232,10 +239,12 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	return skald.row(
 		statusText(ctx, fmt.tprintf("%s  %s", ICON_SITEMAP, s.project.name)),
+		Project_IsModified(s) ? skald.text("Modified", th.color.warning, th.font.size_sm) : skald.text("Saved", th.color.fg_muted, th.font.size_sm),
 		statusText(ctx, fmt.tprintf("Scene: %s", scene.name)),
 		statusText(ctx, fmt.tprintf("%d nodes", len(scene.nodes))),
 		statusText(ctx, fmt.tprintf("Selection: %s", selection)),
 		skald.flex(1, skald.spacer(0)),
+		statusText(ctx, FrameStats_Text()),
 		statusText(ctx, fmt.tprintf("Tool: %v", s.tool)),
 		statusText(ctx, fmt.tprintf("%v", s.playState)),
 		statusText(ctx, fmt.tprintf("%.0fx%.0f", s.project.gameSize.x, s.project.gameSize.y)),
@@ -326,4 +335,38 @@ removeAssetDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		),
 		id = skald.hash_id("remove-asset-dialog"),
 	)
+}
+
+/*
+Frame statistics for the status bar, so slowdowns are visible: frames drawn in the last second,
+and what the last viewport render cost (the engine's software render plus the upload to Skald).
+The editor only draws when something changes, so while idle these show the last busy moment.
+*/
+FrameStats :: struct {
+	// Start of the current one-second window, and frames drawn in it
+	windowStart: time.Tick,
+	frames: int,
+	// Frames drawn in the last full second
+	fps: int,
+	// The last viewport render and upload, in milliseconds
+	viewportMs: f64,
+}
+
+frameStats: FrameStats
+
+// Counts a frame. Called at the start of `view`
+FrameStats_Begin :: proc() {
+	now := time.tick_now()
+	if frameStats.windowStart == {} do frameStats.windowStart = now
+	frameStats.frames += 1
+	if time.tick_diff(frameStats.windowStart, now) >= time.Second {
+		frameStats.fps = frameStats.frames
+		frameStats.frames = 0
+		frameStats.windowStart = now
+	}
+}
+
+// "30 fps · viewport 1.2 ms"
+FrameStats_Text :: proc() -> string {
+	return fmt.tprintf("%d fps · viewport %.1f ms", frameStats.fps, frameStats.viewportMs)
 }

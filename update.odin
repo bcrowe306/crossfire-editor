@@ -16,11 +16,18 @@ which is copied before the message is applied and compared after (see history.od
 */
 update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	state := s
+	state.selectionSet = false
+	// Also before: code outside update (tests, the test driver) may have set selectedNode alone
+	Selection_Normalize(&state)
 	info := History_Classify(&state, m)
-	if info.scope == .None do return applyMsg(s, m)
-	snap := History_Snapshot(&state, info)
-	out, command := applyMsg(s, m)
-	History_Commit(&out, snap, time.tick_now())
+	snap: EditSnapshot
+	if info.scope != .None do snap = History_Snapshot(&state, info)
+	out, command := applyMsg(state, m)
+	// A structural edit renumbers nodes: the old multi-selection is meaningless unless the edit
+	// chose a new one. Then make the selection agree with selectedNode (selection.odin)
+	if info.scope == .Scene && !out.selectionSet do clear(&out.selection)
+	Selection_Normalize(&out)
+	if info.scope != .None do History_Commit(&out, snap, time.tick_now())
 	return out, command
 }
 
@@ -28,6 +35,7 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
 	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
+	if command, handled := Session_Update(&out, m); handled do return out, command
 	layout := &out.layout
 
 	switch v in m {
@@ -36,6 +44,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Play_Tick:
 		cmd := playTick(&out)
 		return out, cmd
+	case Confirm_Chosen, New_Project_Name_Changed, New_Project_Location_Changed, New_Project_Browse,
+	     New_Project_Location_Chosen, New_Project_Created, New_Project_Cancelled, Open_Project_Chosen:
+		// Handled by Session_Update above
 	case Settings_Tab_Changed, Settings_Theme_Changed, Settings_Value_Changed, Settings_Search_Changed,
 	     Settings_Capture_Started, Settings_Key_Captured, Settings_Capture_Cancelled, Settings_Key_Cleared,
 	     Settings_Key_Reset, Settings_Tab_Reset, Settings_Applied, Settings_Cancelled:
@@ -79,6 +90,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		name := strings.clone(filepath.base(asset.path), context.temp_allocator)
 		if AudioPreview_IsLoaded(AssetFilePath(&out.project, asset)) do AudioPreview_Unload()
 		usage := AssetUsage(&out.project, asset.path)
+		out.session.assetsChanged = true
 		if message := Project_RemoveAsset(&out.project, index, v.deleteFile); message != "" {
 			logLine(&out, .Error, fmt.aprintf("%s", message))
 		} else {
@@ -88,6 +100,45 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.browserSelection = {kind = .None}
 	case Asset_Remove_Cancelled:
 		out.removeConfirm = {}
+
+	case Rename_Started:
+		startRename(&out, int(v))
+	case Rename_Text_Changed:
+		delete(out.rename.text)
+		out.rename.text = strings.clone(string(v))
+	case Rename_Focused:
+		out.rename.focused = true
+	case Rename_Committed:
+		scene := &out.project.scenes[out.currentScene]
+		index, text := out.rename.node, strings.trim_space(out.rename.text)
+		if out.rename.active && index >= 0 && index < len(scene.nodes) && text != "" && text != scene.nodes[index].name {
+			logLine(&out, .Info, fmt.aprintf("Renamed %s to %s", scene.nodes[index].name, text))
+			delete(scene.nodes[index].name)
+			scene.nodes[index].name = strings.clone(text)
+		}
+		delete(out.rename.text)
+		out.rename = {}
+	case Rename_Cancelled:
+		delete(out.rename.text)
+		out.rename = {}
+	case Frame_Requested:
+	case Quit_Without_Asking:
+		playStop(&out)
+		return out, skald.cmd_quit(Msg)
+
+	case Asset_Drag_Pressed:
+		out.assetDrag = {pressed = true, asset = v.asset, start = v.start}
+	case Asset_Drag_Started:
+		out.assetDrag.active = true
+	case Asset_Drag_Cancelled:
+		out.assetDrag = {}
+	case Asset_Dropped:
+		asset := out.assetDrag.asset
+		out.assetDrag = {}
+		if asset < 0 || asset >= len(out.project.assets) || out.project.assets[asset].kind != .Image do break
+		index := Scene_AddSpriteAt(&out.project.scenes[out.currentScene], out.project.assets[asset].path, out.selectedNode, v.world)
+		out.selectedNode = index
+		logLine(&out, .Info, fmt.aprintf("Added %s", out.project.scenes[out.currentScene].nodes[index].name))
 
 	case Add_Node_Search_Changed:
 		delete(out.addNode.search)
@@ -115,11 +166,13 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Viewport_Drag_Begin:
 		// A new gesture: it won't merge with the previous drag's undo step
 		out.history.gesture += 1
-		drag := ViewportDrag{mode = v.mode, node = v.node, startMouse = v.mouse}
-		if v.mode != .Pan {
+		drag := ViewportDrag{mode = v.mode, node = v.node, startMouse = v.mouse, current = v.mouse, additive = v.additive}
+		if v.mode != .Pan && v.mode != .Box {
 			scene := &out.project.scenes[out.currentScene]
 			if v.node < 0 || v.node >= len(scene.nodes) do break
+			// Keeps a multi-selection that includes it (they move together)
 			out.selectedNode = v.node
+			if Selection_Contains(&out, v.node) do out.selectionSet = true
 			node := &scene.nodes[v.node]
 			world := Scene_WorldTransforms(scene)
 			drag.startPosition = node.position
@@ -132,9 +185,21 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Viewport_Drag_Move:
 		drag := &out.viewport.drag
 		scene := &out.project.scenes[out.currentScene]
+		if drag.mode == .Box {
+			drag.current = v.mouse
+			break
+		}
 		if drag.mode == .None || drag.mode == .Pan || drag.node < 0 || drag.node >= len(scene.nodes) do break
-		Viewport_ApplyDrag(&scene.nodes[drag.node], drag, v.mouse, v.constrain)
+		before := scene.nodes[drag.node]
+		grid := out.viewport.snap ? f32(out.settings.gridSize) : 0
+		Viewport_ApplyDrag(&scene.nodes[drag.node], drag, v.mouse, v.constrain, grid)
+		// The rest of the selection follows
+		if len(out.selection) > 1 && Selection_Contains(&out, drag.node) {
+			Viewport_FollowDrag(scene, drag.node, before, Selection_Roots(&out))
+			out.selectionSet = true
+		}
 	case Viewport_Drag_End:
+		if out.viewport.drag.mode == .Box do boxSelect(&out, out.viewport.drag)
 		out.viewport.drag = {}
 
 	// Panel sizes. Splits report the size of their first pane; sidebars and the bottom panel
@@ -187,14 +252,49 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			node := &scene.nodes[rows[v]]
 			node.expanded = !node.expanded
 		}
+	// A plain click selects just that node
 	case Node_Selected:
 		rows := SceneTreeRows(&out.project.scenes[out.currentScene])
-		if int(v) < len(rows) do out.selectedNode = rows[v]
+		if int(v) < len(rows) {
+			clear(&out.selection)
+			out.selectedNode = rows[v]
+		}
 	case Node_Picked:
+		clear(&out.selection)
 		out.selectedNode = int(v)
-	case Node_Right_Clicked:
+	case Node_Pick_Toggled:
+		if int(v) >= 0 do Selection_Toggle(&out, int(v))
+	case Node_Pick_Added:
+		if int(v) >= 0 && !Selection_Contains(&out, int(v)) do Selection_Toggle(&out, int(v))
+	case Node_Primary_Picked:
+		out.selectedNode = int(v)
+		out.selectionSet = true
+	case Tree_Selection_Clicked:
 		rows := SceneTreeRows(&out.project.scenes[out.currentScene])
-		out.selectedNode = int(v) >= 0 && int(v) < len(rows) ? rows[v] : -1
+		if v.row < 0 || v.row >= len(rows) do break
+		node := rows[v.row]
+		if !v.range || out.selectedNode < 0 {
+			Selection_Toggle(&out, node)
+			break
+		}
+		// Shift: every row between the primary node's row and this one
+		from := v.row
+		for r, i in rows do if r == out.selectedNode do from = i
+		nodes := make([dynamic]int, context.temp_allocator)
+		append(&nodes, ..out.selection[:])
+		for i in min(from, v.row)..=max(from, v.row) do append(&nodes, rows[i])
+		Selection_Set(&out, nodes[:], node)
+	case Node_Right_Clicked:
+		// On a node of a multi-selection the menu acts on all of them; elsewhere, just that node
+		rows := SceneTreeRows(&out.project.scenes[out.currentScene])
+		node := int(v) >= 0 && int(v) < len(rows) ? rows[v] : -1
+		if node >= 0 && Selection_Contains(&out, node) {
+			out.selectedNode = node
+			out.selectionSet = true
+		} else {
+			clear(&out.selection)
+			out.selectedNode = node
+		}
 
 	case Tree_Drag_Pressed:
 		out.treeDrag = {pressed = true, node = v.node, start = v.start}
@@ -250,7 +350,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			node.text = strings.clone(v.value)
 		case .Texture:
 			delete(node.texture)
-			node.texture = strings.clone(v.value)
+			node.texture = strings.clone(v.value == TEXTURE_NONE ? "" : v.value)
 		case .Color:
 			if color, ok := e.ParseColor(v.value); ok do node.color = color
 		case .Play_Mode:
@@ -272,16 +372,14 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	out := s
 	switch action {
 	case .Quit:
-		// Don't leave a game running after the editor closes
-		playStop(&out)
-		return out, skald.cmd_quit(Msg)
+		return out, Session_Request(&out, .Quit)
+	case .New_Project:
+		return out, Session_Request(&out, .New_Project)
+	case .Open_Project:
+		return out, Session_Request(&out, .Open_Project)
 
 	case .Save_Project:
-		if message := Project_Save(&out.project); message != "" {
-			logLine(&out, .Error, fmt.aprintf("Save failed: %s", message))
-		} else {
-			logLine(&out, .Info, fmt.aprintf("Saved to %s", out.project.rootPath))
-		}
+		Session_Save(&out)
 	case .Play:
 		cmd := playStart(&out)
 		return out, cmd
@@ -294,22 +392,28 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		// Opens the dialog; the node is added when a kind is picked
 		delete(out.addNode.search)
 		out.addNode = {open = true}
+	// These act on every selected node (the selection's roots: see selection.odin)
 	case .Duplicate_Node:
-		if selectedNode(&out) == nil do break
+		roots := Selection_Roots(&out)
+		if len(roots) == 0 do break
 		scene := &out.project.scenes[out.currentScene]
-		out.selectedNode = Scene_DuplicateNode(scene, out.selectedNode)
-		logLine(&out, .Info, fmt.aprintf("Duplicated as %s", scene.nodes[out.selectedNode].name))
+		primary := slice_index(roots, out.selectedNode)
+		copies := Scene_DuplicateNodes(scene, roots)
+		Selection_Set(&out, copies, primary >= 0 ? copies[primary] : -1)
+		logLine(&out, .Info, fmt.aprintf("Duplicated %s", describeNodes(scene, copies)))
 	case .Copy_Node, .Cut_Node:
-		node := selectedNode(&out)
-		if node == nil do break
+		roots := Selection_Roots(&out)
+		if len(roots) == 0 do break
+		scene := &out.project.scenes[out.currentScene]
 		Subtree_Destroy(&out.clipboard)
-		out.clipboard = Scene_CopySubtree(&out.project.scenes[out.currentScene], out.selectedNode)
+		out.clipboard = Scene_CopyNodes(scene, roots)
+		names := describeNodes(scene, roots)
 		if action == .Copy_Node {
-			logLine(&out, .Info, fmt.aprintf("Copied %s", node.name))
+			logLine(&out, .Info, fmt.aprintf("Copied %s", names))
 			break
 		}
-		logLine(&out, .Info, fmt.aprintf("Cut %s", node.name))
-		Scene_RemoveNode(&out.project.scenes[out.currentScene], out.selectedNode)
+		logLine(&out, .Info, fmt.aprintf("Cut %s", names))
+		Scene_RemoveNodes(scene, roots)
 		out.selectedNode = -1
 		out.viewport.drag = {}
 	case .Paste_Node:
@@ -320,14 +424,25 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		// Into the selected node, like Add Node
 		scene := &out.project.scenes[out.currentScene]
 		parent := selectedNode(&out) != nil ? out.selectedNode : -1
-		out.selectedNode = Scene_PasteSubtree(scene, out.clipboard[:], parent)
-		logLine(&out, .Info, fmt.aprintf("Pasted %s", scene.nodes[out.selectedNode].name))
+		roots := Scene_PasteNodes(scene, out.clipboard[:], parent)
+		Selection_Set(&out, roots, roots[0])
+		logLine(&out, .Info, fmt.aprintf("Pasted %s", describeNodes(scene, roots)))
+	case .Select_All:
+		scene := &out.project.scenes[out.currentScene]
+		all := make([]int, len(scene.nodes), context.temp_allocator)
+		for &n, i in all do n = i
+		if len(all) > 0 do Selection_Set(&out, all, out.selectedNode >= 0 ? out.selectedNode : 0)
+	case .Toggle_Grid:
+		out.viewport.gridVisible = !out.viewport.gridVisible
+	case .Toggle_Snap:
+		out.viewport.snap = !out.viewport.snap
 
 	case .Delete_Node:
-		if out.selectedNode < 0 do break
+		roots := Selection_Roots(&out)
+		if len(roots) == 0 do break
 		scene := &out.project.scenes[out.currentScene]
-		logLine(&out, .Info, fmt.aprintf("Deleted %s", scene.nodes[out.selectedNode].name))
-		Scene_RemoveNode(scene, out.selectedNode)
+		logLine(&out, .Info, fmt.aprintf("Deleted %s", describeNodes(scene, roots)))
+		Scene_RemoveNodes(scene, roots)
 		out.selectedNode = -1
 		out.viewport.drag = {}
 
@@ -377,12 +492,15 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		case .Nudge_Up_Large:    delta = {0, -NUDGE_LARGE}
 		case .Nudge_Down_Large:  delta = {0, NUDGE_LARGE}
 		}
-		// The nudge is in world units; convert it into the parent's space
-		node := &scene.nodes[out.selectedNode]
-		if node.parent >= 0 {
-			delta = e.Transform2D_ApplyVector(e.Transform2D_Inverse(Scene_WorldTransforms(scene)[node.parent]), delta)
+		// The nudge is in world units; convert it into each parent's space
+		world := Scene_WorldTransforms(scene)
+		for root in Selection_Roots(&out) {
+			node := &scene.nodes[root]
+			local := delta
+			if node.parent >= 0 do local = e.Transform2D_ApplyVector(e.Transform2D_Inverse(world[node.parent]), delta)
+			node.position += local
 		}
-		node.position += delta
+		out.selectionSet = true
 
 	case .Import_Asset:
 		@(static) filters := [?]skald.File_Filter{
@@ -415,9 +533,11 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		} else {
 			logLine(&out, .Info, strings.clone("Nothing to redo"))
 		}
+	case .Rename_Node:
+		startRename(&out, out.selectedNode)
 	case .Open_Settings:
 		SettingsDialog_Open(&out)
-	case .New_Project, .Open_Project, .Export, .About:
+	case .Export, .About:
 		logLine(&out, .Warning, fmt.aprintf("%v is not implemented yet", action))
 	}
 	return out, {}
@@ -449,6 +569,7 @@ selectedNode :: proc(state: ^State) -> ^NodeDef {
 @(private="file")
 importAsset :: proc(state: ^State, path: string) {
 	index, message := Project_ImportAsset(&state.project, path)
+	if message == "" do state.session.assetsChanged = true
 	if message != "" {
 		logLine(state, .Error, fmt.aprintf("Import failed: %s", message))
 		return
@@ -495,4 +616,45 @@ nextViewportTick :: proc(v: ^ViewportState) -> skald.Command(Msg) {
 		wait = period
 	}
 	return skald.cmd_delay(f32(time.duration_seconds(wait)), Msg(Viewport_Tick{}))
+}
+
+// Starts renaming a node in place in the scene tree, and selects it
+@(private="file")
+startRename :: proc(state: ^State, index: int) {
+	scene := &state.project.scenes[state.currentScene]
+	if index < 0 || index >= len(scene.nodes) do return
+	delete(state.rename.text)
+	state.rename = {active = true, node = index, text = strings.clone(scene.nodes[index].name)}
+	state.selectedNode = index
+}
+
+// "Spaceship", or "3 nodes" (temp allocated)
+@(private="file")
+describeNodes :: proc(scene: ^SceneDef, nodes: []int) -> string {
+	if len(nodes) == 1 do return scene.nodes[nodes[0]].name
+	return fmt.tprintf("%d nodes", len(nodes))
+}
+
+@(private="file")
+slice_index :: proc(values: []int, value: int) -> int {
+	for v, i in values do if v == value do return i
+	return -1
+}
+
+// Selects the nodes inside a box drag's rectangle (their bounds overlap it, or their marker is in it)
+@(private="file")
+boxSelect :: proc(state: ^State, drag: ViewportDrag) {
+	lo := [2]f32{min(drag.startMouse.x, drag.current.x), min(drag.startMouse.y, drag.current.y)}
+	hi := [2]f32{max(drag.startMouse.x, drag.current.x), max(drag.startMouse.y, drag.current.y)}
+	// A click without a drag
+	if hi.x - lo.x < 1e-3 && hi.y - lo.y < 1e-3 do return
+	hits := ViewportNodesInRect(state, lo, hi)
+	nodes := make([dynamic]int, context.temp_allocator)
+	if drag.additive do append(&nodes, ..state.selection[:])
+	append(&nodes, ..hits)
+	if len(nodes) == 0 {
+		state.selectedNode = -1
+		return
+	}
+	Selection_Set(state, nodes[:], len(hits) > 0 ? hits[len(hits) - 1] : -1)
 }

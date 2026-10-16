@@ -2,6 +2,7 @@ package editor
 
 import "core:fmt"
 import "core:hash"
+import "core:slice"
 import "core:strings"
 import "core:time"
 
@@ -35,6 +36,9 @@ History :: struct {
 	redo: [dynamic]UndoCommand,
 	// Bumped when a viewport drag starts, so two drags never merge
 	gesture: int,
+	// Bumped by every change to the project through the history (a step pushed, merged, undone
+	// or redone), so unsaved changes can be detected (project_session.odin)
+	version: int,
 }
 
 UndoCommand :: struct {
@@ -121,6 +125,11 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	}
 
 	#partial switch v in m {
+	case Rename_Committed:
+		index := s.rename.node
+		if s.rename.active && index >= 0 && index < len(scene.nodes) {
+			return node(index, fmt.tprintf("Rename %s", scene.nodes[index].name))
+		}
 	case Node_Renamed:
 		if hasSelection do return node(selected, fmt.tprintf("Rename %s", name), key("rename", s.currentScene, selected))
 	case Node_Visibility_Changed:
@@ -133,12 +142,19 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.flag, name))
 	case Viewport_Drag_Move:
 		drag := s.viewport.drag
-		if drag.mode == .None || drag.mode == .Pan || drag.node < 0 || drag.node >= len(scene.nodes) do break
+		if drag.mode == .None || drag.mode == .Pan || drag.mode == .Box || drag.node < 0 || drag.node >= len(scene.nodes) do break
 		info := node(drag.node, fmt.tprintf("%v %s", drag.mode, scene.nodes[drag.node].name), key("drag", s.history.gesture))
 		info.sticky = true
+		// Several nodes move together: record the whole scene
+		if len(s.selection) > 1 && slice.contains(s.selection[:], drag.node) {
+			info.scope = .Scene
+			info.label = fmt.tprintf("%v %d nodes", drag.mode, len(s.selection))
+		}
 		return info
 	case Add_Node_Confirmed, Add_Node_Kind_Chosen:
 		return {scope = .Scene, label = "Add node"}
+	case Asset_Dropped:
+		return {scope = .Scene, label = "Add sprite"}
 	case Tree_Drag_Dropped:
 		if s.treeDrag.node >= 0 && s.treeDrag.node < len(scene.nodes) {
 			return {scope = .Scene, label = fmt.tprintf("Move %s", scene.nodes[s.treeDrag.node].name)}
@@ -147,14 +163,24 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		#partial switch v {
 		case .Nudge_Left, .Nudge_Right, .Nudge_Up, .Nudge_Down,
 		     .Nudge_Left_Large, .Nudge_Right_Large, .Nudge_Up_Large, .Nudge_Down_Large:
-			if hasSelection do return node(selected, fmt.tprintf("Nudge %s", name), key("nudge", s.currentScene, selected))
-		case .Delete_Node: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Delete %s", name)}
-		case .Cut_Node: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Cut %s", name)}
-		case .Duplicate_Node: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Duplicate %s", name)}
+			if !hasSelection do break
+			if len(s.selection) > 1 {
+				return {scope = .Scene, label = fmt.tprintf("Nudge %d nodes", len(s.selection)), mergeKey = key("nudge-many", s.currentScene)}
+			}
+			return node(selected, fmt.tprintf("Nudge %s", name), key("nudge", s.currentScene, selected))
+		case .Delete_Node: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Delete %s", many(s, name))}
+		case .Cut_Node: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Cut %s", many(s, name))}
+		case .Duplicate_Node: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Duplicate %s", many(s, name))}
 		case .Paste_Node: return {scope = .Scene, label = "Paste"}
 		}
 	}
 	return {}
+}
+
+// The node's name, or "3 nodes" for a multi-selection
+@(private="file")
+many :: proc(s: ^State, name: string) -> string {
+	return len(s.selection) > 1 ? fmt.tprintf("%d nodes", len(s.selection)) : name
 }
 
 @(private="file")
@@ -247,6 +273,7 @@ top of this file). Clears the redo stack. Takes ownership of `command`.
 */
 History_Push :: proc(h: ^History, command: UndoCommand, settings: ^Settings, now: time.Tick) {
 	command := command
+	h.version += 1
 	if top, ok := mergeTarget(h, &command, settings, now); ok {
 		// Keep the top's "before"; take the new "after"
 		switch &change in top.change {
@@ -316,6 +343,7 @@ History_Redo :: proc(s: ^State) -> (string, bool) {
 step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string, bool) {
 	if len(from) == 0 do return "", false
 	command := pop(from)
+	s.history.version += 1
 	if command.scene >= len(s.project.scenes) {
 		destroyCommand(&command)
 		return "", false
@@ -338,6 +366,8 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	}
 	s.selectedNode = undo ? command.selectionBefore : command.selectionAfter
 	if s.selectedNode >= len(scene.nodes) do s.selectedNode = -1
+	// Only the primary node is remembered; the step selects just it
+	clear(&s.selection)
 	s.viewport.drag = {}
 	s.treeDrag = {}
 	// A merge must not extend a command that was undone and redone

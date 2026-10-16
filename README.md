@@ -29,7 +29,7 @@ Press **Play** (F5) to run the open project. The first time, the editor builds t
 player (progress in the **Output** tab), then starts the game; its log appears in the **Console**.
 **Stop** (Shift+F5) closes it.
 
-To open a different project: `task run -- path/to/project`. To use an engine checkout somewhere
+To open a different project: File > Open Project (Ctrl+O), or `task run -- path/to/project`. To use an engine checkout somewhere
 else: `task run ENGINE_DIR=/path/to/odin_sdl_engine`.
 
 ## Commands
@@ -128,7 +128,26 @@ The viewport renders the open scene with the engine (animations play; P toggles 
 
 Single-letter shortcuts are ignored while typing in a field. Help > Keyboard Shortcuts lists them all.
 
+## Selecting and editing
+
+- **Multi-select:** Ctrl+click toggles a node (viewport or scene tree), Shift+click adds (a range
+  in the tree), drag on empty viewport space to box select, Ctrl+A selects all. Delete, copy, cut,
+  duplicate, nudge and dragging act on every selected node; the inspector edits the last one.
+- **Grid and snapping:** G shows the grid, Shift+G snaps moves to it (rotation to 15°, scale to
+  0.1). The grid size is in Settings > Editor.
+- **Rename in place:** F2 or double-click a node in the scene tree; Enter keeps it, Escape cancels.
+- **Images into the scene:** drag an image from the project browser into the viewport to add a
+  Sprite there.
+- **Inspector:** a sprite's image is picked from the project's images (or None); a label's color
+  has a color picker.
+
+The status bar shows whether the project has unsaved changes (also a `*` in the window title), and
+the frame rate and the last viewport render time.
+
 ## Projects
+
+**File > New Project** (Ctrl+N) creates a project folder with a Main scene. **Open Project**
+(Ctrl+O) opens a project folder. Both, and Quit, ask to save unsaved changes first.
 
 A project is a folder with `project.xml`, a `scenes/` folder with one XML file per scene, and
 `assets/`. The format is specified in the engine's `project_format.odin`.

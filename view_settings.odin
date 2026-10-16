@@ -125,6 +125,7 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	draft := &s.settingsDialog.draft
 	msRange :: [2]f32{f32(SETTINGS_UNDO_MS_RANGE[0]), f32(SETTINGS_UNDO_MS_RANGE[1])}
 	limitRange :: [2]f32{f32(SETTINGS_UNDO_LIMIT_RANGE[0]), f32(SETTINGS_UNDO_LIMIT_RANGE[1])}
+	gridRange :: [2]f32{f32(SETTINGS_GRID_SIZE_RANGE[0]), f32(SETTINGS_GRID_SIZE_RANGE[1])}
 	return skald.col(
 		skald.text("Undo", th.color.fg, th.font.size_md),
 		settingRow(ctx, "Merge edits within", numberSetting(ctx, .Undo_Merge_Ms, f64(draft.undoMergeMs), 50, msRange, "ms")),
@@ -132,6 +133,10 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Longest merged edit", numberSetting(ctx, .Undo_Group_Max_Ms, f64(draft.undoGroupMaxMs), 250, msRange, "ms")),
 		hint(ctx, "A long run of merged edits is still cut into steps this long. 0 never cuts. Dragging in the viewport is always one step."),
 		settingRow(ctx, "Undo steps kept", numberSetting(ctx, .Undo_Limit, f64(draft.undoLimit), 10, limitRange, "")),
+		skald.spacer(th.spacing.sm),
+		skald.text("Viewport", th.color.fg, th.font.size_md),
+		settingRow(ctx, "Grid size", numberSetting(ctx, .Grid_Size, f64(draft.gridSize), 8, gridRange, "px")),
+		hint(ctx, "Spacing of the viewport grid, in world units. G shows it; Shift+G snaps moves to it (and rotation to 15°, scale to 0.1)."),
 		spacing = th.spacing.sm,
 		padding = th.spacing.sm,
 		cross_align = .Stretch,

@@ -1,0 +1,96 @@
+# Usability: grid and snapping, multi-select (Ctrl+click, box select), inline rename, dragging an
+# image into the viewport, unsaved changes and the save prompt, New/Open Project.
+# Runs on a scratch copy of tests/fixtures/ui_project. Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect modified false
+key ctrl+1
+expect zoom 100
+
+# Grid (G) and snapping (Shift+G): a move snaps the node's origin to the 32 px grid
+expect grid on
+key g
+expect grid off
+key g
+key shift+g
+expect snap on
+click_node Spaceship
+drag_node Spaceship 37 0
+expect field x 672
+key shift+g
+expect snap off
+expect modified true
+
+# Ctrl+click in the tree adds to the selection; Delete removes both subtrees; undo brings them back
+click_row scene-tree 1
+expect selected Camera
+click_row scene-tree 4 ctrl
+expect selection 2
+key DELETE
+expect nodes 5
+key ctrl+z
+expect nodes 11
+
+# Box select in the viewport: Camera, Spaceship and Props (world 600,340 to 700,440)
+key escape
+box_select 600 340 700 440
+expect selection 3
+# Ctrl+click in the viewport toggles a node out
+click_node Spaceship ctrl
+expect selection 2
+key escape
+expect selection 0
+
+# Rename in place: F2, type, Enter
+click_row scene-tree 2
+expect selected Spaceship
+key F2
+expect renaming true
+key ctrl+a
+type Hero
+key RETURN
+expect renaming false
+expect selected Hero
+# Double-click starts it too; Escape cancels
+double_click_row scene-tree 2
+expect renaming true
+type Nope
+key escape
+expect renaming false
+expect selected Hero
+
+# Drag an image from the browser (row 5: ship.png) into the viewport: a Sprite, child of Hero
+drag_to_viewport 5 40 20
+expect selected ship
+expect parent Hero
+expect nodes 12
+
+# Save clears the modified flag
+key ctrl+s
+expect modified false
+
+# Quitting with unsaved changes asks; Cancel stays
+key right
+expect modified true
+key ctrl+q
+expect confirm_dialog open
+click_widget confirm-cancel
+expect confirm_dialog closed
+
+# New Project asks too; Don't Save opens the New Project dialog, Cancel closes it
+key ctrl+n
+expect confirm_dialog open
+click_widget confirm-discard
+expect new_project_dialog open
+click_widget new-project-cancel
+expect new_project_dialog closed
+
+# Opening a project replaces the open one (the driver skips the folder dialog)
+open_project build/ui_project
+expect project Asteroids Demo
+expect modified false
+expect undo 0
+
+quit

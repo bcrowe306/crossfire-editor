@@ -20,6 +20,10 @@ Action :: enum {
 	Copy_Node,
 	Cut_Node,
 	Paste_Node,
+	Rename_Node,
+	Select_All,
+	Toggle_Grid,
+	Toggle_Snap,
 	Play,
 	Pause,
 	Stop,
@@ -81,6 +85,17 @@ Node_Toggled  :: distinct int
 Node_Selected :: distinct int
 // Viewport click: node index in the scene, -1 for empty space
 Node_Picked   :: distinct int
+// Ctrl+click (toggle) or Shift+click (add) on a node in the viewport: node index
+Node_Pick_Toggled :: distinct int
+Node_Pick_Added   :: distinct int
+// A click on a node that's already part of a multi-selection: it becomes the primary one and the
+// selection stays (so dragging moves them all)
+Node_Primary_Picked :: distinct int
+// Scene tree Ctrl+click (toggle) or Shift+click (range from the primary node): row index
+Tree_Selection_Clicked :: struct {
+	row: int,
+	range: bool,
+}
 
 // Scene tree right-click (before its context menu opens): row index, -1 below the rows
 Node_Right_Clicked :: distinct int
@@ -98,6 +113,48 @@ Tree_Drag_Dropped :: struct {
 }
 // Released anywhere else
 Tree_Drag_Cancelled :: struct {}
+
+// Renaming a node in the scene tree
+Rename_Started :: distinct int
+Rename_Text_Changed :: distinct string
+Rename_Focused :: struct {}
+// Enter, or the field lost focus
+Rename_Committed :: struct {}
+// Escape
+Rename_Cancelled :: struct {}
+// Keeps frames coming (auto-scrolling while the mouse is held still)
+Frame_Requested :: struct {}
+
+// Project session (project_session.odin)
+ConfirmChoice :: enum {
+	Save,
+	Discard,
+	Cancel,
+}
+// The "save changes?" prompt's answer
+Confirm_Chosen :: distinct ConfirmChoice
+New_Project_Name_Changed :: distinct string
+New_Project_Location_Changed :: distinct string
+New_Project_Browse :: struct {}
+// The folder dialog closed (path is only valid while handling the message)
+New_Project_Location_Chosen :: distinct skald.File_Dialog_Result
+New_Project_Created :: struct {}
+New_Project_Cancelled :: struct {}
+// Quit even with unsaved changes (the UI test driver, when a script ends)
+Quit_Without_Asking :: struct {}
+Open_Project_Chosen :: distinct skald.File_Dialog_Result
+
+// Project browser drag of an image asset into the viewport
+Asset_Drag_Pressed :: struct {
+	asset: int,
+	start: [2]f32,
+}
+Asset_Drag_Started :: struct {}
+// Released over the viewport: a Sprite is created there (world coordinates)
+Asset_Dropped :: struct {
+	world: [2]f32,
+}
+Asset_Drag_Cancelled :: struct {}
 
 // Inspector edits to the selected node
 Node_Renamed            :: distinct string
@@ -163,6 +220,8 @@ Viewport_Drag_Begin :: struct {
 	mode: DragMode,
 	node: int,
 	mouse: [2]f32,
+	// Box selection: Ctrl or Shift held, add to the selection
+	additive: bool,
 }
 Viewport_Drag_Move :: struct {
 	mouse: [2]f32,
@@ -247,11 +306,34 @@ Msg :: union {
 	Asset_Remove_Confirmed,
 	Asset_Remove_Cancelled,
 	Browser_Tree_Resized,
+	Node_Pick_Toggled,
+	Node_Pick_Added,
+	Node_Primary_Picked,
+	Tree_Selection_Clicked,
 	Node_Right_Clicked,
 	Tree_Drag_Pressed,
 	Tree_Drag_Started,
 	Tree_Drag_Dropped,
 	Tree_Drag_Cancelled,
+	Confirm_Chosen,
+	New_Project_Name_Changed,
+	New_Project_Location_Changed,
+	New_Project_Browse,
+	New_Project_Location_Chosen,
+	New_Project_Created,
+	New_Project_Cancelled,
+	Open_Project_Chosen,
+	Quit_Without_Asking,
+	Rename_Started,
+	Rename_Text_Changed,
+	Rename_Focused,
+	Rename_Committed,
+	Rename_Cancelled,
+	Frame_Requested,
+	Asset_Drag_Pressed,
+	Asset_Drag_Started,
+	Asset_Dropped,
+	Asset_Drag_Cancelled,
 	Settings_Tab_Changed,
 	Settings_Theme_Changed,
 	Settings_Value_Changed,

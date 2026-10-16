@@ -28,13 +28,22 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	wait_until <check> [timeout=<s>] Wait (default 10 s) until a check passes; fails on timeout
 	expect <check>                   Fail unless the check passes now
 	click_widget <key>               Click the center of a widget's visible part, e.g. toolbar-play
-	click_row <tree key> <row>       Click a row of a tree: browser-tree, scene-tree
+	click_row <tree key> <row> [ctrl | shift]
+	                                 Click a row of a tree: browser-tree, scene-tree; optionally
+	                                 holding Ctrl or Shift
+	double_click_row <tree key> <row>   Double-click a row
 	right_click_row <tree key> <row> Right-click a row (opens the scene tree's context menu)
 	click_menu_item <menu key> <i>   Click item i of an open context menu, e.g. scene-tree-menu
 	drag_row <tree key> <from> <to> <before | inside | after>
 	                                 Drag a row onto another row (top quarter, middle, bottom
 	                                 quarter); a `to` past the last row drops below the rows
-	click_node <name>                Click a node in the viewport (current scene)
+	click_node <name> [ctrl | shift] Click a node in the viewport (current scene)
+	box_select <x0> <y0> <x1> <y1>   Drag a selection box in the viewport, in world coordinates
+	drag_to_viewport <browser row> <dx> <dy>
+	                                 Drag a browser row into the viewport, to (dx, dy) window
+	                                 pixels from its center
+	open_project <folder>            Open a project, as if picked in the folder dialog (no
+	                                 unsaved-changes prompt)
 	drag_node <name> <dx> <dy>       Press on a node, move by (dx, dy) window pixels, release
 	scroll <notches>                 Mouse wheel over the viewport center (positive zooms in)
 	click <x> <y>                    Click a window position (logical pixels)
@@ -70,6 +79,12 @@ Checks:
 	menu_idle <key>              A context menu is closed and done fading out
 	row <n> <name>               Node shown in row n of the scene tree
 	clipboard <count>            Nodes copied (a subtree)
+	selection <count>            Selected nodes
+	renaming <true | false>      A node is being renamed in the scene tree
+	grid <on | off>, snap <on | off>   Viewport grid and snapping
+	modified <true | false>      The project has unsaved changes
+	project <name>               The open project's name
+	confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
 	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit> <value>
 	                             An active (applied) setting
@@ -268,7 +283,12 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			fail(fmt.tprintf("%s: row %d is scrolled out of view", line, row))
 			return true
 		}
-		click({rect.x + rect.w * 0.5, y})
+		mods, modsOk := clickModifiers(args, 2)
+		if !modsOk {
+			fail(fmt.tprintf("%s: expected ctrl or shift", line))
+			return true
+		}
+		click({rect.x + rect.w * 0.5, y}, mods)
 		report(true, line)
 		return false
 
@@ -326,20 +346,86 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			fail(fmt.tprintf("%s: no open context menu with that key", line))
 			return true
 		}
-		click(contextMenuItemCenter(ctx, state.anchor_pos, atoi(args, 1, 0), atoi(args, 2, 6)))
+		click(contextMenuItemCenter(ctx, state.anchor_pos, atoi(args, 1, 0), atoi(args, 2, len(SCENE_TREE_MENU))))
 		report(true, line)
 		return false
 
 	case "click_node":
 		scene := &s.project.scenes[s.currentScene]
 		index := -1
-		for node, i in scene.nodes do if node.name == rest do index = i
+		name := len(args) > 0 ? args[0] : ""
+		for node, i in scene.nodes do if node.name == name do index = i
 		position, ok := ViewportNodePosition(s, ctx, index)
 		if !ok {
-			fail(fmt.tprintf("%s: no visible node '%s' in the viewport", line, rest))
+			fail(fmt.tprintf("%s: no visible node '%s' in the viewport", line, name))
 			return true
 		}
-		click(position)
+		mods, modsOk := clickModifiers(args, 1)
+		if !modsOk {
+			fail(fmt.tprintf("%s: expected ctrl or shift", line))
+			return true
+		}
+		click(position, mods)
+		report(true, line)
+		return false
+
+	case "double_click_row":
+		rect, ok := widgetRect(ctx, args[0] if len(args) > 0 else "")
+		if !ok || len(args) < 2 {
+			fail(fmt.tprintf("%s: expected a drawn tree and a row", line))
+			return true
+		}
+		top := ctx.widgets.states[skald.hash_id(args[0])].last_rect.y
+		at := [2]f32{rect.x + rect.w * 0.5, top + (f32(atoi(args, 1, 0)) + 0.5) * s.settings.rowHeight}
+		pushMouse(.MOUSE_MOTION, at)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, at))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at))
+		second := mouseEvent(.MOUSE_BUTTON_DOWN, at)
+		second.button.clicks = 2
+		queueBatch(second)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "box_select", "drag_to_viewport":
+		canvas, ok := widgetRect(ctx, "viewport-canvas")
+		if !ok || len(args) < (command == "box_select" ? 4 : 3) {
+			fail(fmt.tprintf("%s: the viewport isn't drawn, or arguments are missing", line))
+			return true
+		}
+		viewOrigin := ctx.widgets.states[skald.hash_id("viewport-canvas")].last_rect
+		toWindow :: proc(s: ^State, canvas: skald.Rect, world: [2]f32) -> [2]f32 {
+			return Viewport_WorldToView(&s.viewport, world) + {canvas.x + RULER_SIZE, canvas.y + RULER_SIZE}
+		}
+		from, to: [2]f32
+		if command == "box_select" {
+			from = toWindow(s, viewOrigin, {f32(atoi(args, 0, 0)), f32(atoi(args, 1, 0))})
+			to = toWindow(s, viewOrigin, {f32(atoi(args, 2, 0)), f32(atoi(args, 3, 0))})
+		} else {
+			tree, drawn := widgetRect(ctx, "browser-tree")
+			if !drawn {
+				fail(fmt.tprintf("%s: the browser isn't drawn", line))
+				return true
+			}
+			top := ctx.widgets.states[skald.hash_id("browser-tree")].last_rect.y
+			from = {tree.x + tree.w * 0.5, top + (f32(atoi(args, 0, 0)) + 0.5) * s.settings.rowHeight}
+			center := [2]f32{canvas.x + RULER_SIZE + (canvas.w - RULER_SIZE) * 0.5, canvas.y + RULER_SIZE + (canvas.h - RULER_SIZE) * 0.5}
+			to = center + {f32(atoi(args, 1, 0)), f32(atoi(args, 2, 0))}
+		}
+		pushMouse(.MOUSE_MOTION, from)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, from))
+		STEPS :: 6
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, from + (to - from) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, to))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "open_project":
+		// Kept: the message may be handled after this frame's temp memory is freed (test-only, tiny)
+		skald.send(ctx, Msg(Open_Project_Chosen{path = strings.clone(rest)}))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 
@@ -485,6 +571,22 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return found == strings.trim_space(expected), found
 	case "clipboard":
 		found = fmt.tprint(len(s.clipboard))
+	case "selection":
+		found = fmt.tprint(len(s.selection))
+	case "renaming":
+		found = fmt.tprint(s.rename.active)
+	case "grid":
+		found = s.viewport.gridVisible ? "on" : "off"
+	case "snap":
+		found = s.viewport.snap ? "on" : "off"
+	case "modified":
+		found = fmt.tprint(Project_IsModified(s))
+	case "project":
+		found = s.project.name
+	case "confirm_dialog":
+		found = s.session.confirm.open ? "open" : "closed"
+	case "new_project_dialog":
+		found = s.session.newProject.open ? "open" : "closed"
 	case "settings_dialog":
 		found = s.settingsDialog.open ? "open" : "closed"
 	case "setting":
@@ -569,11 +671,41 @@ intersect :: proc(a, b: skald.Rect) -> skald.Rect {
 // arrives before the button goes down: widgets that act on press (text fields take focus) check
 // hover from the previous frame
 @(private="file")
-click :: proc(position: [2]f32) {
+click :: proc(position: [2]f32, mods: sdl.Keymod = {}) {
 	pushMouse(.MOUSE_MOTION, position)
+	// Skald takes modifiers from key events, so hold the modifier key around the click
+	if mods != {} do pushKey(.KEY_DOWN, mods)
 	queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, position))
 	queueBatch(mouseEvent(.MOUSE_BUTTON_UP, position))
+	if mods != {} {
+		release: sdl.Event
+		release.type = .KEY_UP
+		release.key.scancode = .LCTRL in mods ? .LCTRL : .LSHIFT
+		queueBatch(release)
+	}
 	driver.waitFrames = INPUT_SETTLE_FRAMES
+}
+
+// A modifier key press (Ctrl or Shift) carrying `mods`
+@(private="file")
+pushKey :: proc(type: sdl.EventType, mods: sdl.Keymod) {
+	event: sdl.Event
+	event.type = type
+	event.key.scancode = .LCTRL in mods ? .LCTRL : .LSHIFT
+	event.key.mod = mods
+	event.key.down = type == .KEY_DOWN
+	_ = sdl.PushEvent(&event)
+}
+
+// The optional "ctrl" or "shift" argument of a click command
+@(private="file")
+clickModifiers :: proc(args: []string, index: int) -> (sdl.Keymod, bool) {
+	if index >= len(args) do return {}, true
+	switch strings.to_lower(args[index], context.temp_allocator) {
+	case "ctrl": return {.LCTRL}, true
+	case "shift": return {.LSHIFT}, true
+	}
+	return {}, false
 }
 
 @(private="file")
@@ -658,7 +790,8 @@ finish :: proc(ctx: ^skald.Ctx(Msg)) {
 	driver.finished = true
 	driver.active = false
 	fmt.printfln("[script] %s: %s (%d failed)", driver.path, driver.failures == 0 ? "PASSED" : "FAILED", driver.failures)
-	skald.send(ctx, Msg(Action.Quit))
+	// Not Action.Quit: that would ask about unsaved changes
+	skald.send(ctx, Msg(Quit_Without_Asking{}))
 }
 
 // Queues events to push together on a later frame (one frame per queued batch)

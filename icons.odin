@@ -34,6 +34,8 @@ ICON_LIST        :: "\uf03a"
 ICON_SITEMAP     :: "\uf0e8"
 ICON_FILE_LINES  :: "\uf15c"
 ICON_CIRCLE_INFO :: "\uf05a"
+ICON_GRID        :: "\uf00a"
+ICON_MAGNET      :: "\uf076"
 
 @(private="file")
 iconFontRegistered: bool

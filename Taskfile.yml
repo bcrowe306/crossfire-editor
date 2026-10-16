@@ -64,10 +64,10 @@ tasks:
     desc: Run the UI test scripts in tests/ui (opens the editor window; uses a copy of tests/fixtures/ui_project)
     deps: [build]
     cmds:
-      - rm -rf {{.BUILD_DIR}}/ui_project && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project
-      # Each script starts from the default settings, in a scratch file (never your editor.ini)
+      # Each script starts from a fresh copy of the project (scripts save and rename things) and
+      # the default settings, in a scratch file (never your editor.ini)
       - for: { var: UI_SCRIPTS }
-        cmd: 'rm -f {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}} {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
+        cmd: 'rm -rf {{.BUILD_DIR}}/ui_project {{.BUILD_DIR}}/ui_settings.ini && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project && {{.BUILD_DIR}}/{{.NAME}} {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
     vars:
       UI_SCRIPTS:
         sh: ls tests/ui/*.script

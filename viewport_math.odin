@@ -21,6 +21,8 @@ VIEWPORT_ZOOM_STEP :: 1.25
 VIEWPORT_FIT_MARGIN :: 0.9
 // Rotation snap with Shift held, degrees
 ROTATE_SNAP :: 15
+// Scale steps while snapping
+SCALE_SNAP :: 0.1
 // Arrow-key nudge distances in world units
 NUDGE_SMALL :: 1
 NUDGE_LARGE :: 10
@@ -38,6 +40,8 @@ DragMode :: enum {
 	// Scale each local axis separately (the scale tool's corner handles)
 	Scale_Axes,
 	Pan,
+	// Drag a rectangle on empty space to select the nodes in it
+	Box,
 }
 
 // A drag in progress: what it does and the values when it started
@@ -50,6 +54,9 @@ ViewportDrag :: struct {
 	startScale: [2]f32,
 	startWorld: e.Transform2D,
 	parentWorld: e.Transform2D,
+	// Box selection: where the mouse is now (world), and whether it adds to the selection
+	current: [2]f32,
+	additive: bool,
 }
 
 /*
@@ -65,6 +72,9 @@ ViewportState :: struct {
 	// Play AnimatedSprite animations in the viewport
 	animate: bool,
 	drag: ViewportDrag,
+	// Draw the grid, and snap drags to it (see Viewport_ApplyDrag)
+	gridVisible: bool,
+	snap: bool,
 	// Animation frames shown so far; each one is a 1 / VIEWPORT_ANIMATION_FPS timer tick
 	animationFrame: int,
 	// A tick timer is running (`Viewport_Tick_Requested` started it; each tick starts the next)
@@ -139,8 +149,10 @@ Inputs:
 - drag: The drag, as started by `Viewport_Drag_Begin`
 - mouse: Current mouse position in world coordinates
 - constrain: Shift held: snap rotation, keep moves on one axis, scale axes separately
+- grid: Snapping on: the grid size. Moves put the node's origin on the grid, rotation snaps to
+  ROTATE_SNAP degrees, scale to SCALE_SNAP steps. 0 for no snapping
 */
-Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, constrain: bool) {
+Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, constrain: bool, grid: f32 = 0) {
 	origin := drag.startWorld.origin
 	switch drag.mode {
 	case .Move, .Move_X, .Move_Y:
@@ -151,6 +163,10 @@ Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, c
 		if mode == .Move_Y do delta.x = 0
 		// The new world origin, expressed in the parent's space
 		world := origin + delta
+		if grid > 0 {
+			if mode != .Move_Y do world.x = math.round(world.x / grid) * grid
+			if mode != .Move_X do world.y = math.round(world.y / grid) * grid
+		}
 		node.position = e.Transform2D_Apply(e.Transform2D_Inverse(drag.parentWorld), world)
 
 	case .Rotate:
@@ -158,7 +174,7 @@ Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, c
 		b := mouse - origin
 		delta := math.to_degrees(math.atan2(b.y, b.x) - math.atan2(a.y, a.x))
 		rotation := drag.startRotation + delta
-		if constrain do rotation = math.round(rotation / ROTATE_SNAP) * ROTATE_SNAP
+		if constrain || grid > 0 do rotation = math.round(rotation / ROTATE_SNAP) * ROTATE_SNAP
 		node.rotation = normalizeDegrees(rotation)
 
 	case .Scale, .Scale_Axes:
@@ -176,8 +192,9 @@ Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, c
 			lb := math.sqrt(b.x * b.x + b.y * b.y)
 			if la > 1e-3 do node.scale = drag.startScale * (lb / la)
 		}
+		if grid > 0 do node.scale = {math.round(node.scale.x / SCALE_SNAP) * SCALE_SNAP, math.round(node.scale.y / SCALE_SNAP) * SCALE_SNAP}
 
-	case .None, .Pan:
+	case .None, .Pan, .Box:
 	}
 }
 
@@ -194,4 +211,36 @@ rotate :: proc(v: [2]f32, degrees: f32) -> [2]f32 {
 	r := math.to_radians(degrees)
 	c, s := math.cos(r), math.sin(r)
 	return {v.x * c - v.y * s, v.x * s + v.y * c}
+}
+
+/*
+Applies the change a drag made to its node to the other selected nodes, so a multi-selection
+moves, rotates and scales together: the same world movement, the same rotation added, the same
+scale factor, each about its own origin.
+
+Inputs:
+- scene: The scene
+- dragged: The dragged node, already updated by `Viewport_ApplyDrag`
+- before: The dragged node as it was before this step
+- others: The other selected roots
+*/
+Viewport_FollowDrag :: proc(scene: ^SceneDef, dragged: int, before: NodeDef, others: []int) {
+	if len(others) == 0 do return
+	world := Scene_WorldTransforms(scene)
+	node := scene.nodes[dragged]
+	// World movement of the dragged node's origin (its parent didn't move)
+	parentWorld := node.parent >= 0 ? world[node.parent] : e.TRANSFORM2D_IDENTITY
+	moved := e.Transform2D_ApplyVector(parentWorld, node.position - before.position)
+	turned := node.rotation - before.rotation
+	ratio := [2]f32{1, 1}
+	if abs(before.scale.x) > 1e-6 do ratio.x = node.scale.x / before.scale.x
+	if abs(before.scale.y) > 1e-6 do ratio.y = node.scale.y / before.scale.y
+	for other in others {
+		if other == dragged do continue
+		o := &scene.nodes[other]
+		otherParent := o.parent >= 0 ? world[o.parent] : e.TRANSFORM2D_IDENTITY
+		o.position += e.Transform2D_ApplyVector(e.Transform2D_Inverse(otherParent), moved)
+		o.rotation = normalizeDegrees(o.rotation + turned)
+		o.scale *= ratio
+	}
 }

@@ -2,6 +2,8 @@ package editor
 
 import "core:fmt"
 import "core:math"
+import "core:slice"
+import "core:time"
 import e "engine:."
 import "gui:skald"
 import sdl "vendor:sdl3"
@@ -53,6 +55,17 @@ NodeShape :: struct {
 	corners: [4][2]f32,
 }
 
+// A panel button that shows whether its setting is on
+@(private="file")
+toggleButton :: proc(s: ^State, ctx: ^skald.Ctx(Msg), key, icon, tip: string, action: Action, on: bool) -> skald.View {
+	th := ctx.theme
+	button := skald.button(ctx, icon, Msg(action),
+		id = skald.hash_id(fmt.tprintf("panel-%s", key)),
+		bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg_muted,
+		width = math.round(th.font.size_md * 1.9), padding = {0, 3}, font_size = th.font.size_sm)
+	return skald.tooltip(ctx, button, actionTip(s, tip, action), id = skald.hash_id(fmt.tprintf("panel-tip-%s", key)))
+}
+
 viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	canvasId := skald.hash_id("viewport-canvas")
@@ -77,9 +90,14 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		// Re-render and upload only when what the viewport shows changed. Other redraws (hovering,
 		// typing, the console) reuse the uploaded image
 		key := Preview_FrameKey(s, size, pixelScale)
+		renderStart := time.tick_now()
+		renderMs: f64
 		if key == uploadedKey && size == uploadedSize {
 			imageReady = true
 		} else if pixels, ok := Preview_Render(s, size, pixelScale); ok {
+			renderMs = time.duration_milliseconds(time.tick_since(renderStart))
+			started := time.tick_now()
+			defer frameStats.viewportMs = renderMs + time.duration_milliseconds(time.tick_since(started))
 			if size == uploadedSize {
 				imageReady = skald.image_update_pixels(ctx.renderer, VIEWPORT_IMAGE, u32(size.x), u32(size.y), pixels)
 			}
@@ -105,6 +123,8 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.flex(1, skald.spacer(0)),
 		panelButton(ctx, "viewport-animate", s.viewport.animate ? ICON_PAUSE : ICON_PLAY,
 			s.viewport.animate ? "Pause viewport animations (P)" : "Play viewport animations (P)", Action.Toggle_Animation),
+		toggleButton(s, ctx, "viewport-grid", ICON_GRID, "Show grid", .Toggle_Grid, s.viewport.gridVisible),
+		toggleButton(s, ctx, "viewport-snap", ICON_MAGNET, "Snap to grid", .Toggle_Snap, s.viewport.snap),
 		panelButton(ctx, "viewport-fit", ICON_SCALE, actionTip(s, "Fit game area", .View_Fit), Action.View_Fit),
 		skald.button(ctx, fmt.tprintf("%.0f%%", s.viewport.zoom * 100), Msg(Action.Zoom_100),
 			id = skald.hash_id("viewport-zoom"), bg = th.color.surface, fg = th.color.fg_muted,
@@ -137,6 +157,47 @@ ViewportHovered :: proc(ctx: ^skald.Ctx(Msg)) -> bool {
 	rect := lastRect(ctx, skald.hash_id("viewport-canvas"))
 	p := ctx.input.mouse_pos
 	return rect.w > 0 && p.x >= rect.x + RULER_SIZE && p.y >= rect.y + RULER_SIZE && p.x < rect.x + rect.w && p.y < rect.y + rect.h
+}
+
+/*
+The nodes a box selection catches: visible nodes whose bounds overlap the rectangle, or whose
+marker (nodes that draw nothing) is inside it. Uses the engine preview's bounds.
+
+Inputs:
+- lo, hi: The rectangle's corners in world coordinates
+
+Returns:
+- The node indices, in node order (temp allocated)
+*/
+ViewportNodesInRect :: proc(s: ^State, lo, hi: [2]f32) -> []int {
+	scene := &s.project.scenes[s.currentScene]
+	hits := make([dynamic]int, context.temp_allocator)
+	for shape, i in nodeShapes(s, scene) {
+		if !shape.visible do continue
+		inside := false
+		if shape.hasBounds {
+			// Axis-aligned overlap of the bounds' extent with the box
+			a, b := shape.corners[0], shape.corners[0]
+			for c in shape.corners do a, b = {min(a.x, c.x), min(a.y, c.y)}, {max(b.x, c.x), max(b.y, c.y)}
+			inside = a.x <= hi.x && b.x >= lo.x && a.y <= hi.y && b.y >= lo.y
+		} else {
+			p := shape.world.origin
+			inside = p.x >= lo.x && p.x <= hi.x && p.y >= lo.y && p.y <= hi.y
+		}
+		if inside do append(&hits, i)
+	}
+	return hits[:]
+}
+
+/*
+The world point under a window position, if it's inside the viewport's view area (last frame's
+layout).
+*/
+ViewportWorldAt :: proc(s: ^State, ctx: ^skald.Ctx(Msg), window: [2]f32) -> ([2]f32, bool) {
+	rect := lastRect(ctx, skald.hash_id("viewport-canvas"))
+	view := window - {rect.x + RULER_SIZE, rect.y + RULER_SIZE}
+	inside := rect.w > 0 && s.viewport.zoom > 0 && view.x >= 0 && view.y >= 0 && view.x < rect.w - RULER_SIZE && view.y < rect.h - RULER_SIZE
+	return Viewport_ViewToWorld(&s.viewport, view), inside
 }
 
 /*
@@ -198,8 +259,23 @@ handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Wid
 		return
 	}
 	hit := pickNode(s, shapes, mouseView, mouseWorld)
-	skald.send(ctx, Node_Picked(hit))
-	if hit >= 0 {
+	toggle := .Ctrl in input.modifiers
+	add := .Shift in input.modifiers
+	switch {
+	case hit < 0:
+		// Empty space: drag a box to select (Ctrl or Shift adds to the selection)
+		if !toggle && !add do skald.send(ctx, Node_Picked(-1))
+		skald.send(ctx, Viewport_Drag_Begin{mode = .Box, node = -1, mouse = mouseWorld, additive = toggle || add})
+	case toggle:
+		skald.send(ctx, Node_Pick_Toggled(hit))
+	case add:
+		skald.send(ctx, Node_Pick_Added(hit))
+	case len(s.selection) > 1 && slice.contains(s.selection[:], hit):
+		// Part of a multi-selection: keep it, so the drag moves them all
+		skald.send(ctx, Node_Primary_Picked(hit))
+		skald.send(ctx, Viewport_Drag_Begin{mode = toolDragMode(s.tool), node = hit, mouse = mouseWorld})
+	case:
+		skald.send(ctx, Node_Picked(hit))
 		skald.send(ctx, Viewport_Drag_Begin{mode = toolDragMode(s.tool), node = hit, mouse = mouseWorld})
 	}
 }
@@ -336,6 +412,7 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 	} else {
 		skald.draw_rect(r, viewRect, skald.rgb(0x101218))
 	}
+	if v.zoom > 0 && v.gridVisible do drawGrid(r, viewRect, v, f32(s.settings.gridSize), th)
 	if v.zoom > 0 {
 		// Game frame
 		a := toWindow(p.bounds, v, {0, 0})
@@ -359,8 +436,22 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 			}
 		}
 
+		// The rest of a multi-selection gets an outline; the primary node also gets the tool handles
+		for node in s.selection {
+			if node == s.selectedNode || node >= len(data.shapes) || !data.shapes[node].visible do continue
+			drawOutline(r, p.bounds, v, data.shapes[node], th.color.primary)
+		}
 		if s.selectedNode >= 0 && s.selectedNode < len(data.shapes) && data.shapes[s.selectedNode].visible {
 			drawSelection(r, p.bounds, s, data.shapes[s.selectedNode], th)
+		}
+		if v.drag.mode == .Box {
+			a := toWindow(p.bounds, v, v.drag.startMouse)
+			b := toWindow(p.bounds, v, v.drag.current)
+			box := skald.Rect{min(a.x, b.x), min(a.y, b.y), abs(b.x - a.x), abs(b.y - a.y)}
+			fill := th.color.primary
+			fill[3] = 0.15
+			skald.draw_rect(r, box, fill)
+			skald.draw_rect_outline(r, box, 1, th.color.primary)
 		}
 	}
 	skald.pop_clip(r)
@@ -377,13 +468,10 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 	}
 }
 
-// Selection box and the active tool's handles
+// A selected node's outline: its bounds, or a ring around its marker
 @(private="file")
-drawSelection :: proc(r: ^skald.Renderer, canvas: skald.Rect, s: ^State, shape: NodeShape, th: ^skald.Theme) {
-	v := &s.viewport
-	color := th.color.primary
+drawOutline :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, shape: NodeShape, color: skald.Color) {
 	origin := viewToWindow(canvas, Viewport_WorldToView(v, shape.world.origin))
-
 	if shape.hasBounds {
 		points := make([][2]f32, 5, context.temp_allocator)
 		for corner, i in shape.corners do points[i] = viewToWindow(canvas, Viewport_WorldToView(v, corner))
@@ -392,6 +480,37 @@ drawSelection :: proc(r: ^skald.Renderer, canvas: skald.Rect, s: ^State, shape: 
 	} else {
 		skald.draw_ring(r, origin, PICK_RADIUS, 1.5, color, aa = true)
 	}
+}
+
+// Grid lines every `size` world units, doubled until they're at least 8 px apart on screen
+@(private="file")
+drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, size: f32, th: ^skald.Theme) {
+	if size <= 0 do return
+	step := size
+	for step * v.zoom < 8 do step *= 2
+	lo := Viewport_ViewToWorld(v, {0, 0})
+	hi := Viewport_ViewToWorld(v, {view.w, view.h})
+	color := th.color.fg
+	color[3] = 0.07
+	axis := th.color.fg
+	axis[3] = 0.18
+	for x := math.floor(lo.x / step) * step; x <= hi.x; x += step {
+		sx := view.x + Viewport_WorldToView(v, {x, 0}).x
+		skald.draw_rect(r, {sx, view.y, 1, view.h}, abs(x) < step * 0.5 ? axis : color)
+	}
+	for y := math.floor(lo.y / step) * step; y <= hi.y; y += step {
+		sy := view.y + Viewport_WorldToView(v, {0, y}).y
+		skald.draw_rect(r, {view.x, sy, view.w, 1}, abs(y) < step * 0.5 ? axis : color)
+	}
+}
+
+// Selection box and the active tool's handles
+@(private="file")
+drawSelection :: proc(r: ^skald.Renderer, canvas: skald.Rect, s: ^State, shape: NodeShape, th: ^skald.Theme) {
+	v := &s.viewport
+	color := th.color.primary
+	origin := viewToWindow(canvas, Viewport_WorldToView(v, shape.world.origin))
+	drawOutline(r, canvas, v, shape, color)
 	skald.draw_circle(r, origin, 3, color, aa = true)
 
 	X_COLOR :: skald.Color{0.95, 0.35, 0.35, 1}
