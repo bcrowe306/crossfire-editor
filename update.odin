@@ -156,6 +156,28 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if int(v) < len(rows) do out.selectedNode = rows[v]
 	case Node_Picked:
 		out.selectedNode = int(v)
+	case Node_Right_Clicked:
+		rows := SceneTreeRows(&out.project.scenes[out.currentScene])
+		out.selectedNode = int(v) >= 0 && int(v) < len(rows) ? rows[v] : -1
+
+	case Tree_Drag_Pressed:
+		out.treeDrag = {pressed = true, node = v.node, start = v.start}
+	case Tree_Drag_Started:
+		out.treeDrag.active = true
+	case Tree_Drag_Cancelled:
+		out.treeDrag = {}
+	case Tree_Drag_Dropped:
+		scene := &out.project.scenes[out.currentScene]
+		node := out.treeDrag.node
+		out.treeDrag = {}
+		if node < 0 || node >= len(scene.nodes) do break
+		name := scene.nodes[node].name
+		if index, moved := Scene_MoveNode(scene, node, v.target, v.position); moved {
+			out.selectedNode = index
+			out.viewport.drag = {}
+			parent := scene.nodes[index].parent
+			logLine(&out, .Info, parent >= 0 ? fmt.aprintf("Moved %s into %s", name, scene.nodes[parent].name) : fmt.aprintf("Moved %s to the top level", name))
+		}
 
 	case Node_Renamed:
 		if node := selectedNode(&out); node != nil {
@@ -236,6 +258,35 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		// Opens the dialog; the node is added when a kind is picked
 		delete(out.addNode.search)
 		out.addNode = {open = true}
+	case .Duplicate_Node:
+		if selectedNode(&out) == nil do break
+		scene := &out.project.scenes[out.currentScene]
+		out.selectedNode = Scene_DuplicateNode(scene, out.selectedNode)
+		logLine(&out, .Info, fmt.aprintf("Duplicated as %s", scene.nodes[out.selectedNode].name))
+	case .Copy_Node, .Cut_Node:
+		node := selectedNode(&out)
+		if node == nil do break
+		Subtree_Destroy(&out.clipboard)
+		out.clipboard = Scene_CopySubtree(&out.project.scenes[out.currentScene], out.selectedNode)
+		if action == .Copy_Node {
+			logLine(&out, .Info, fmt.aprintf("Copied %s", node.name))
+			break
+		}
+		logLine(&out, .Info, fmt.aprintf("Cut %s", node.name))
+		Scene_RemoveNode(&out.project.scenes[out.currentScene], out.selectedNode)
+		out.selectedNode = -1
+		out.viewport.drag = {}
+	case .Paste_Node:
+		if len(out.clipboard) == 0 {
+			logLine(&out, .Info, strings.clone("Nothing to paste: copy a node first"))
+			break
+		}
+		// Into the selected node, like Add Node
+		scene := &out.project.scenes[out.currentScene]
+		parent := selectedNode(&out) != nil ? out.selectedNode : -1
+		out.selectedNode = Scene_PasteSubtree(scene, out.clipboard[:], parent)
+		logLine(&out, .Info, fmt.aprintf("Pasted %s", scene.nodes[out.selectedNode].name))
+
 	case .Delete_Node:
 		if out.selectedNode < 0 do break
 		scene := &out.project.scenes[out.currentScene]

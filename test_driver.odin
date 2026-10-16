@@ -29,6 +29,11 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	expect <check>                   Fail unless the check passes now
 	click_widget <key>               Click the center of a widget's visible part, e.g. toolbar-play
 	click_row <tree key> <row>       Click a row of a tree: browser-tree, scene-tree
+	right_click_row <tree key> <row> Right-click a row (opens the scene tree's context menu)
+	click_menu_item <menu key> <i>   Click item i of an open context menu, e.g. scene-tree-menu
+	drag_row <tree key> <from> <to> <before | inside | after>
+	                                 Drag a row onto another row (top quarter, middle, bottom
+	                                 quarter); a `to` past the last row drops below the rows
 	click_node <name>                Click a node in the viewport (current scene)
 	drag_node <name> <dx> <dy>       Press on a node, move by (dx, dy) window pixels, release
 	scroll <notches>                 Mouse wheel over the viewport center (positive zooms in)
@@ -44,6 +49,7 @@ Checks:
 
 	scene <name>                 Scene open in the viewport
 	selected <name | none>       Selected node
+	parent <name | none>         The selected node's parent
 	nodes <count>                Nodes in the open scene
 	play <Stopped | Building | Playing | Paused>
 	tab <Console | Output | Animation>
@@ -60,6 +66,9 @@ Checks:
 	audio <playing | stopped>    Sound preview playback
 	dialog <open | closed>       The remove-asset dialog
 	add_dialog <open | closed>   The Add Node dialog
+	menu <key> <open | closed>   A context menu, e.g. scene-tree-menu
+	row <n> <name>               Node shown in row n of the scene tree
+	clipboard <count>            Nodes copied (a subtree)
 	console_contains <text>      A console line contains the text
 	output_contains <text>       An Output line contains the text
 
@@ -235,7 +244,70 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// Rows are laid out from the tree's real top edge, which may be scrolled out of view
 		top := ctx.widgets.states[skald.hash_id(args[0])].last_rect.y
 		row := atoi(args, 1, 0)
-		click({rect.x + rect.w * 0.5, top + (f32(row) + 0.5) * TREE_ROW_HEIGHT})
+		y := top + (f32(row) + 0.5) * TREE_ROW_HEIGHT
+		if !rowVisible(ctx, args[0], y) {
+			fail(fmt.tprintf("%s: row %d is scrolled out of view", line, row))
+			return true
+		}
+		click({rect.x + rect.w * 0.5, y})
+		report(true, line)
+		return false
+
+	case "right_click_row", "drag_row":
+		if len(args) < (command == "drag_row" ? 4 : 2) {
+			fail(fmt.tprintf("%s: expected a tree key and rows", line))
+			return true
+		}
+		rect, ok := widgetRect(ctx, args[0])
+		if !ok {
+			fail(fmt.tprintf("%s: no tree with key '%s' was drawn last frame", line, args[0]))
+			return true
+		}
+		top := ctx.widgets.states[skald.hash_id(args[0])].last_rect.y
+		x := rect.x + rect.w * 0.5
+		from := [2]f32{x, top + (f32(atoi(args, 1, 0)) + 0.5) * TREE_ROW_HEIGHT}
+		if !rowVisible(ctx, args[0], from.y) {
+			fail(fmt.tprintf("%s: row %s is scrolled out of view", line, args[1]))
+			return true
+		}
+		if command == "right_click_row" {
+			pushMouse(.MOUSE_MOTION, from)
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, from, sdl.BUTTON_RIGHT))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, from, sdl.BUTTON_RIGHT))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+			report(true, line)
+			return false
+		}
+		fraction: f32
+		switch args[3] {
+		case "before": fraction = 0.1
+		case "inside": fraction = 0.5
+		case "after":  fraction = 0.9
+		case:
+			fail(fmt.tprintf("%s: expected before, inside or after", line))
+			return true
+		}
+		to := [2]f32{x, top + (f32(atoi(args, 2, 0)) + fraction) * TREE_ROW_HEIGHT}
+		if !rowVisible(ctx, args[0], to.y) {
+			fail(fmt.tprintf("%s: row %s is scrolled out of view", line, args[2]))
+			return true
+		}
+		pushMouse(.MOUSE_MOTION, from)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, from))
+		STEPS :: 4
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, from + (to - from) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, to))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "click_menu_item":
+		state, drawn := ctx.widgets.states[skald.hash_id(args[0] if len(args) > 0 else "")]
+		if !drawn || !state.open {
+			fail(fmt.tprintf("%s: no open context menu with that key", line))
+			return true
+		}
+		click(contextMenuItemCenter(ctx, state.anchor_pos, atoi(args, 1, 0), atoi(args, 2, 6)))
 		report(true, line)
 		return false
 
@@ -347,6 +419,9 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = scene.name
 	case "selected":
 		found = selected != nil ? selected.name : "none"
+	case "parent":
+		if selected == nil do return false, "nothing selected"
+		found = selected.parent >= 0 ? scene.nodes[selected.parent].name : "none"
 	case "nodes":
 		found = fmt.tprint(len(scene.nodes))
 	case "play":
@@ -378,6 +453,19 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = s.removeConfirm.open ? "open" : "closed"
 	case "add_dialog":
 		found = s.addNode.open ? "open" : "closed"
+	case "menu":
+		key, _, expected := strings.partition(value, " ")
+		state, drawn := ctx.widgets.states[skald.hash_id(key)]
+		found = drawn && state.open ? "open" : "closed"
+		return found == strings.trim_space(expected), found
+	case "row":
+		index, _, expected := strings.partition(value, " ")
+		rows := SceneTreeRows(scene)
+		row, _ := strconv.parse_int(index)
+		found = row >= 0 && row < len(rows) ? scene.nodes[rows[row]].name : "none"
+		return found == strings.trim_space(expected), found
+	case "clipboard":
+		found = fmt.tprint(len(s.clipboard))
 	case "field":
 		field, _, expected := strings.partition(value, " ")
 		if selected == nil do return false, "nothing selected"
@@ -442,13 +530,13 @@ pushMouse :: proc(type: sdl.EventType, position: [2]f32) {
 }
 
 @(private="file")
-mouseEvent :: proc(type: sdl.EventType, position: [2]f32) -> sdl.Event {
+mouseEvent :: proc(type: sdl.EventType, position: [2]f32, button := sdl.BUTTON_LEFT) -> sdl.Event {
 	event: sdl.Event
 	event.type = type
 	if type == .MOUSE_MOTION {
 		event.motion.x, event.motion.y = position.x, position.y
 	} else {
-		event.button.button = sdl.BUTTON_LEFT
+		event.button.button = u8(button)
 		event.button.down = type == .MOUSE_BUTTON_DOWN
 		event.button.clicks = 1
 		event.button.x, event.button.y = position.x, position.y
@@ -534,4 +622,34 @@ viewportCenter :: proc(ctx: ^skald.Ctx(Msg)) -> ([2]f32, bool) {
 	rect, ok := widgetRect(ctx, "viewport-canvas")
 	if !ok do return {}, false
 	return {rect.x + RULER_SIZE + (rect.w - RULER_SIZE) * 0.5, rect.y + RULER_SIZE + (rect.h - RULER_SIZE) * 0.5}, true
+}
+
+/*
+Center of a context menu item. Mirrors `skald.context_menu`'s layout (fixed-height rows below the
+click point, flipped above it near the window's bottom); update this if Skald's menu changes.
+
+Inputs:
+- anchor: Where the menu was opened (its widget state's `anchor_pos`)
+- index: The item
+- count: How many items the menu has (it decides whether the menu flips)
+*/
+@(private="file")
+contextMenuItemCenter :: proc(ctx: ^skald.Ctx(Msg), anchor: [2]f32, index, count: int) -> [2]f32 {
+	th := ctx.theme
+	BORDER :: f32(1)
+	PAD :: f32(4)
+	GAP :: f32(2)
+	rowHeight := th.font.size_md + 2 * th.spacing.sm + 6
+	height := 2 * (BORDER + PAD) + f32(count) * rowHeight + f32(max(0, count - 1)) * GAP
+	rect := skald.overlay_placement_rect(ctx, skald.Rect{anchor.x, anchor.y, 0, 0}, {250, height}, .Below)
+	return {rect.x + 125, rect.y + BORDER + PAD + f32(index) * (rowHeight + GAP) + rowHeight * 0.5}
+}
+
+// Whether a height in a tree is inside the part of the tree's scroll area that's on screen. Rows
+// past the end of the tree count, as long as they're inside that area (dropping below the rows)
+@(private="file")
+rowVisible :: proc(ctx: ^skald.Ctx(Msg), treeKey: string, y: f32) -> bool {
+	state := ctx.widgets.states[skald.hash_id(treeKey)]
+	area := state.clip_rect.w > 0 ? state.clip_rect : state.last_rect
+	return y >= area.y && y < area.y + area.h
 }

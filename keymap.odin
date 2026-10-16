@@ -16,6 +16,7 @@ Rules:
 - Bindings without Ctrl/Alt/Super ("plain" keys, including Delete, arrows and Escape) are
   ignored while a text or number field has keyboard focus, so typing never triggers them.
 - Nothing fires while a modal dialog is open; the dialog handles its own keys.
+- `textChord` bindings (Ctrl+C/X/V/D) also stand down while typing, so text fields keep them.
 - `viewportOnly` bindings need the mouse over the viewport (arrow-key nudges, so arrows still
   work in lists and fields elsewhere).
 
@@ -27,6 +28,8 @@ KeyBinding :: struct {
 	action: Action,
 	chord: skald.Shortcut,
 	viewportOnly: bool,
+	// Not dispatched while typing: text fields use the same chord (Ctrl+C copies text)
+	textChord: bool,
 }
 
 DEFAULT_KEYMAP := [?]KeyBinding{
@@ -42,6 +45,10 @@ DEFAULT_KEYMAP := [?]KeyBinding{
 	{action = .Redo,         chord = {.Z, {.Ctrl, .Shift}}},
 	{action = .Add_Node,     chord = {.A, {.Ctrl, .Shift}}},
 	{action = .Delete_Node,  chord = {.Delete, {}}},
+	{action = .Duplicate_Node, chord = {.D, {.Ctrl}}, textChord = true},
+	{action = .Copy_Node,    chord = {.C, {.Ctrl}}, textChord = true},
+	{action = .Cut_Node,     chord = {.X, {.Ctrl}}, textChord = true},
+	{action = .Paste_Node,   chord = {.V, {.Ctrl}}, textChord = true},
 	{action = .Deselect,     chord = {.Escape, {}}},
 	// Tools
 	{action = .Tool_Select,  chord = {.Q, {}}},
@@ -75,7 +82,8 @@ DEFAULT_KEYMAP := [?]KeyBinding{
 ACTION_LABELS := [Action]string{
 	.New_Project = "New project", .Open_Project = "Open project", .Save_Project = "Save",
 	.Export = "Export", .Quit = "Quit", .Undo = "Undo", .Redo = "Redo",
-	.Add_Node = "Add node", .Delete_Node = "Delete node", .Play = "Play", .Pause = "Pause",
+	.Add_Node = "Add node", .Delete_Node = "Delete node", .Duplicate_Node = "Duplicate node",
+	.Copy_Node = "Copy node", .Cut_Node = "Cut node", .Paste_Node = "Paste node", .Play = "Play", .Pause = "Pause",
 	.Stop = "Stop", .Toggle_Bottom_Panel = "Toggle bottom panel", .Clear_Console = "Clear console",
 	.About = "About",
 	.Tool_Select = "Select tool", .Tool_Move = "Move tool", .Tool_Rotate = "Rotate tool",
@@ -105,7 +113,7 @@ Returns:
 Keymap_Shortcut :: proc(action: Action, typing := false) -> skald.Shortcut {
 	for binding in DEFAULT_KEYMAP {
 		if binding.action == action {
-			if typing && isPlainKey(binding.chord) do return {}
+			if typing && (isPlainKey(binding.chord) || binding.textChord) do return {}
 			return binding.chord
 		}
 	}
@@ -125,7 +133,7 @@ KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), overViewport: bool, dialogOpen := f
 	if dialogOpen do return
 	typing := IsTyping(ctx)
 	for binding in DEFAULT_KEYMAP {
-		if typing && isPlainKey(binding.chord) do continue
+		if typing && (isPlainKey(binding.chord) || binding.textChord) do continue
 		if binding.viewportOnly && !overViewport do continue
 		skald.shortcut(ctx, binding.chord, Msg(binding.action))
 	}

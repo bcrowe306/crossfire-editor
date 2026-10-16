@@ -1,6 +1,7 @@
 package editor
 
 import "core:fmt"
+import "core:math"
 import e "engine:."
 import "gui:skald"
 
@@ -44,24 +45,187 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	}
 
+	// Before the tree and menu are built: they act on this frame's presses too
+	indicator := sceneTreeMouse(s, ctx, visible)
+
+	// The tree is built before the menu that wraps it, so it would see a click on a menu item
+	// (over the tree) before the menu consumes it, and select the row underneath
+	menuState, _ := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
+	shield := menuState.open && skald.mouse_over_overlay(ctx) && ctx.input.mouse_pressed[.Left]
+	if shield do ctx.input.mouse_pressed[.Left] = false
+	tree := skald.scroll(ctx, {0, 0},
+		skald.tree(ctx, rows,
+			on_toggle = proc(row: int) -> Msg { return Node_Toggled(row) },
+			on_select = proc(row: int) -> Msg { return Node_Selected(row) },
+			id = skald.hash_id("scene-tree"),
+			row_height = TREE_ROW_HEIGHT,
+		),
+		id = skald.hash_id("scene-tree-scroll"),
+	)
+	if shield do ctx.input.mouse_pressed[.Left] = true
+	labels := make([]string, len(SCENE_TREE_MENU), context.temp_allocator)
+	for action, i in SCENE_TREE_MENU {
+		label := action == .Add_Node ? "Add Node..." : ACTION_LABELS[action]
+		shortcut := skald.shortcut_format(Keymap_Shortcut(action))
+		labels[i] = shortcut == "" ? label : fmt.tprintf("%s   (%s)", label, shortcut)
+	}
+	menu := skald.context_menu(ctx, tree, labels,
+		proc(i: int) -> Msg { return Msg(SCENE_TREE_MENU[i]) },
+		id = skald.hash_id("scene-tree-menu"),
+		width = 250,
+	)
+
 	return skald.col(
 		panelHeader(ctx, ICON_SITEMAP, scene.name,
 			panelButton(ctx, "add-node", ICON_PLUS, "Add node (Ctrl+Shift+A)", Action.Add_Node),
 			panelButton(ctx, "delete-node", ICON_TRASH, "Delete node (Delete)", Action.Delete_Node, disabled = s.selectedNode < 0),
 		),
 		skald.divider(ctx),
-		skald.flex(1, skald.scroll(ctx, {0, 0},
-			skald.tree(ctx, rows,
-				on_toggle = proc(row: int) -> Msg { return Node_Toggled(row) },
-				on_select = proc(row: int) -> Msg { return Node_Selected(row) },
-				id = skald.hash_id("scene-tree"),
-				row_height = TREE_ROW_HEIGHT,
-			),
-			id = skald.hash_id("scene-tree-scroll"),
-		)),
+		skald.flex(1, menu),
+		indicator,
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
+}
+
+// The scene tree's right-click menu, in order
+SCENE_TREE_MENU := [?]Action{.Add_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Delete_Node}
+
+// How far the mouse moves with the button down before a press on a row becomes a drag
+TREE_DRAG_THRESHOLD :: 5
+
+/*
+Scene tree mouse handling the tree widget doesn't do itself:
+- right-click selects the row under the cursor (or deselects below the rows), so the context
+  menu acts on it
+- dragging a row moves the node: onto the top or bottom quarter of a row puts it before or after
+  that node, onto the middle makes it a child, below the rows makes it the last top-level node
+
+Returns the drop indicator to draw while dragging (an overlay; empty otherwise).
+*/
+@(private="file")
+sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald.View {
+	th := ctx.theme
+	none := skald.View(skald.View_Spacer{size = 0})
+	treeState, drawn := ctx.widgets.states[skald.hash_id("scene-tree")]
+	areaState, _ := ctx.widgets.states[skald.hash_id("scene-tree-scroll")]
+	if !drawn || areaState.last_rect.w <= 0 do return none
+	area := areaState.last_rect
+	tree := treeState.last_rect
+	mouse := ctx.input.mouse_pos
+	overArea := pointIn(area, mouse) && !skald.mouse_over_overlay(ctx) && ctx.widgets.modal_rect_prev.w == 0
+	row := int(math.floor((mouse.y - tree.y) / TREE_ROW_HEIGHT))
+	onRow := row >= 0 && row < len(visible)
+
+	if ctx.input.mouse_pressed[.Right] && overArea {
+		skald.send(ctx, Msg(Node_Right_Clicked(onRow ? row : -1)))
+	}
+	if ctx.input.mouse_pressed[.Left] && overArea && onRow {
+		skald.send(ctx, Msg(Tree_Drag_Pressed{node = visible[row], start = mouse}))
+		return none
+	}
+	if !s.treeDrag.pressed do return none
+
+	scene := &s.project.scenes[s.currentScene]
+	target, position, valid := sceneTreeDropTarget(scene, visible, s.treeDrag.node, tree, mouse)
+	valid = valid && overArea
+	if !ctx.input.mouse_buttons[.Left] {
+		if s.treeDrag.active && valid {
+			skald.send(ctx, Msg(Tree_Drag_Dropped{target = target, position = position}))
+		} else {
+			skald.send(ctx, Msg(Tree_Drag_Cancelled{}))
+		}
+		return none
+	}
+	if !s.treeDrag.active {
+		d := mouse - s.treeDrag.start
+		if d.x * d.x + d.y * d.y >= TREE_DRAG_THRESHOLD * TREE_DRAG_THRESHOLD {
+			skald.send(ctx, Msg(Tree_Drag_Started{}))
+		}
+		return none
+	}
+	if !valid do return none
+
+	// Where it would land: a line between rows, or a box around the new parent
+	Indicator :: struct { color: skald.Color, box: bool }
+	marker := new_clone(Indicator{th.color.primary, false}, context.temp_allocator)
+	rect: skald.Rect
+	switch {
+	case target < 0:
+		rect = {tree.x, tree.y + f32(len(visible)) * TREE_ROW_HEIGHT - 1, tree.w, 2}
+	case position == .Inside:
+		at := rowOf(visible, target)
+		rect = {tree.x, tree.y + f32(at) * TREE_ROW_HEIGHT, tree.w, TREE_ROW_HEIGHT}
+		marker.box = true
+	case:
+		at := rowOf(visible, target)
+		if position == .After do at += 1 + visibleDescendants(scene, visible, at)
+		indent := th.spacing.sm + f32(Scene_NodeDepth(scene, target)) * th.spacing.lg
+		rect = {tree.x + indent, tree.y + f32(at) * TREE_ROW_HEIGHT - 1, tree.w - indent, 2}
+	}
+	// The tree may be scrolled: don't draw outside its visible area
+	if rect.y + rect.h < area.y || rect.y > area.y + area.h do return none
+
+	return skald.overlay({rect.x, rect.y, rect.w, 0},
+		skald.canvas(ctx, marker, proc(m: ^Indicator, p: skald.Canvas_Painter) {
+			if m.box {
+				fill := m.color
+				fill[3] *= 0.25
+				skald.draw_rect(p.r, p.bounds, fill, 3)
+				b := p.bounds
+				for edge in ([4]skald.Rect{{b.x, b.y, b.w, 1}, {b.x, b.y + b.h - 1, b.w, 1}, {b.x, b.y, 1, b.h}, {b.x + b.w - 1, b.y, 1, b.h}}) {
+					skald.draw_rect(p.r, edge, m.color)
+				}
+			} else {
+				skald.draw_rect(p.r, p.bounds, m.color, 1)
+			}
+		}, width = rect.w, height = rect.h),
+		no_shadow = true, pin = true)
+}
+
+/*
+Where a dragged node would go if released at `mouse`.
+
+Returns:
+- target: The node dropped on, or -1 for the end of the top level
+- position: Before, After or Inside the target
+- valid: Whether the node can go there (not into its own subtree)
+*/
+@(private="file")
+sceneTreeDropTarget :: proc(scene: ^SceneDef, visible: []int, dragged: int, tree: skald.Rect, mouse: [2]f32) -> (target: int, position: DropPosition, valid: bool) {
+	rel := (mouse.y - tree.y) / TREE_ROW_HEIGHT
+	if rel >= f32(len(visible)) {
+		return -1, .Inside, Scene_CanMoveNode(scene, dragged, -1, .Inside)
+	}
+	row := max(int(math.floor(rel)), 0)
+	fraction := rel - f32(row)
+	target = visible[row]
+	position = fraction < 0.25 ? .Before : fraction > 0.75 ? .After : .Inside
+	// The bottom edge of an open parent is the top of its first child
+	if position == .After && row + 1 < len(visible) && scene.nodes[visible[row + 1]].parent == target {
+		target, position = visible[row + 1], .Before
+	}
+	return target, position, Scene_CanMoveNode(scene, dragged, target, position)
+}
+
+@(private="file")
+rowOf :: proc(visible: []int, node: int) -> int {
+	for n, i in visible do if n == node do return i
+	return 0
+}
+
+// Rows after `row` that belong to its node's subtree
+@(private="file")
+visibleDescendants :: proc(scene: ^SceneDef, visible: []int, row: int) -> int {
+	depth := Scene_NodeDepth(scene, visible[row])
+	count := 0
+	for i := row + 1; i < len(visible) && Scene_NodeDepth(scene, visible[i]) > depth; i += 1 do count += 1
+	return count
+}
+
+@(private="file")
+pointIn :: proc(r: skald.Rect, p: [2]f32) -> bool {
+	return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h
 }
 
 @(private="file")

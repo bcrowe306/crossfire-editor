@@ -13,10 +13,13 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	state := s
 	ScriptDriver_Frame(&state, ctx)
 	// Before anything else registers shortcuts (see keymap.odin)
-	KeymapDispatch(ctx, ViewportHovered(ctx), dialogOpen = state.addNode.open || state.removeConfirm.open)
+	// Dialogs and the open context menu take Escape (and every other key) themselves
+	menu, drawn := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
+	keysTaken := state.addNode.open || state.removeConfirm.open || (drawn && menu.open)
+	KeymapDispatch(ctx, ViewportHovered(ctx), dialogOpen = keysTaken)
 
 	return skald.col(
-		menuBarView(ctx),
+		menuBarView(ctx, keysTaken),
 		toolbarView(&state, ctx),
 		skald.divider(ctx),
 		// The workspace needs its own size to place the panels, so it's built once layout knows it
@@ -31,57 +34,65 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 // Menu items take their shortcut hints from the keymap. The keymap already dispatched them this
-// frame, so the menu bar's own registration finds the key consumed and doesn't fire twice
+// frame, so the menu bar's own registration finds the key consumed and doesn't fire twice.
+// `keysTaken` (a dialog or context menu is open) drops the shortcuts, since the menu bar would
+// otherwise fire them itself (Escape would deselect instead of closing the dialog)
 @(private="file")
-menuBarView :: proc(ctx: ^skald.Ctx(Msg)) -> skald.View {
-	typing := IsTyping(ctx)
-	item :: proc(label: string, action: Action, typing: bool) -> skald.Menu_Item(Msg) {
-		return {label = label, shortcut = Keymap_Shortcut(action, typing), msg = action}
+menuBarView :: proc(ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
+	Keys :: struct { typing, taken: bool }
+	keys := Keys{IsTyping(ctx), keysTaken}
+	item :: proc(label: string, action: Action, keys: Keys) -> skald.Menu_Item(Msg) {
+		if keys.taken do return {label = label, msg = action}
+		return {label = label, shortcut = Keymap_Shortcut(action, keys.typing), msg = action}
 	}
 	return skald.menu_bar(ctx, []skald.Menu_Entry(Msg){
 		{"File", []skald.Menu_Item(Msg){
-			item("New Project", .New_Project, typing),
-			item("Open Project", .Open_Project, typing),
-			item("Save", .Save_Project, typing),
+			item("New Project", .New_Project, keys),
+			item("Open Project", .Open_Project, keys),
+			item("Save", .Save_Project, keys),
 			{separator = true},
-			item("Import Asset...", .Import_Asset, typing),
+			item("Import Asset...", .Import_Asset, keys),
 			{separator = true},
-			item("Export...", .Export, typing),
+			item("Export...", .Export, keys),
 			{separator = true},
-			item("Quit", .Quit, typing),
+			item("Quit", .Quit, keys),
 		}},
 		{"Edit", []skald.Menu_Item(Msg){
-			item("Undo", .Undo, typing),
-			item("Redo", .Redo, typing),
+			item("Undo", .Undo, keys),
+			item("Redo", .Redo, keys),
 			{separator = true},
-			item("Add Node", .Add_Node, typing),
-			item("Delete Node", .Delete_Node, typing),
-			item("Deselect", .Deselect, typing),
+			item("Add Node...", .Add_Node, keys),
+			item("Duplicate Node", .Duplicate_Node, keys),
+			item("Copy Node", .Copy_Node, keys),
+			item("Cut Node", .Cut_Node, keys),
+			item("Paste Node", .Paste_Node, keys),
+			item("Delete Node", .Delete_Node, keys),
+			item("Deselect", .Deselect, keys),
 		}},
 		{"View", []skald.Menu_Item(Msg){
-			item("Select Tool", .Tool_Select, typing),
-			item("Move Tool", .Tool_Move, typing),
-			item("Rotate Tool", .Tool_Rotate, typing),
-			item("Scale Tool", .Tool_Scale, typing),
+			item("Select Tool", .Tool_Select, keys),
+			item("Move Tool", .Tool_Move, keys),
+			item("Rotate Tool", .Tool_Rotate, keys),
+			item("Scale Tool", .Tool_Scale, keys),
 			{separator = true},
-			item("Frame Selected", .Frame_Selected, typing),
-			item("Fit Game Area", .View_Fit, typing),
-			item("Zoom In", .Zoom_In, typing),
-			item("Zoom Out", .Zoom_Out, typing),
-			item("Zoom to 100%", .Zoom_100, typing),
-			item("Play/Pause Animations", .Toggle_Animation, typing),
+			item("Frame Selected", .Frame_Selected, keys),
+			item("Fit Game Area", .View_Fit, keys),
+			item("Zoom In", .Zoom_In, keys),
+			item("Zoom Out", .Zoom_Out, keys),
+			item("Zoom to 100%", .Zoom_100, keys),
+			item("Play/Pause Animations", .Toggle_Animation, keys),
 			{separator = true},
-			item("Toggle Bottom Panel", .Toggle_Bottom_Panel, typing),
-			item("Clear Console", .Clear_Console, typing),
+			item("Toggle Bottom Panel", .Toggle_Bottom_Panel, keys),
+			item("Clear Console", .Clear_Console, keys),
 		}},
 		{"Scene", []skald.Menu_Item(Msg){
-			item("Play", .Play, typing),
-			item("Pause", .Pause, typing),
-			item("Stop", .Stop, typing),
+			item("Play", .Play, keys),
+			item("Pause", .Pause, keys),
+			item("Stop", .Stop, keys),
 		}},
 		{"Help", []skald.Menu_Item(Msg){
 			{label = "Keyboard Shortcuts", msg = Bottom_Tab_Changed(int(BottomTab.Keys))},
-			item("About", .About, typing),
+			item("About", .About, keys),
 		}},
 	})
 }

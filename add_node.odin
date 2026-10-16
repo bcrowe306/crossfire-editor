@@ -58,21 +58,8 @@ AddNode_Create :: proc(state: ^State, kind: NodeKind) -> int {
 	parent := state.selectedNode
 	if parent < 0 || parent >= len(scene.nodes) do parent = -1
 
-	index := Scene_InsertNode(scene, uniqueNodeName(scene, fmt.tprintf("%v", kind)), kind, parent)
+	index := Scene_InsertNode(scene, Scene_UniqueNodeName(scene, fmt.tprintf("%v", kind)), kind, parent)
 	state.selectedNode = index
 	return index
 }
 
-// "Sprite", or "Sprite2", "Sprite3"... if the scene already has one
-@(private="file")
-uniqueNodeName :: proc(scene: ^SceneDef, base: string) -> string {
-	taken :: proc(scene: ^SceneDef, name: string) -> bool {
-		for node in scene.nodes do if node.name == name do return true
-		return false
-	}
-	if !taken(scene, base) do return base
-	for i := 2; ; i += 1 {
-		name := fmt.tprintf("%s%d", base, i)
-		if !taken(scene, name) do return name
-	}
-}

@@ -705,3 +705,160 @@ add_node_dialog_keys_and_naming :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(scene.nodes), before + 2)
 	free_all(context.temp_allocator)
 }
+
+// Every node comes after its parent and inside its parent's subtree (depth-first order)
+@(private="file")
+expectValidTree :: proc(t: ^testing.T, scene: ^SceneDef, loc := #caller_location) {
+	for node, i in scene.nodes {
+		if node.parent < 0 do continue
+		testing.expect(t, node.parent < i, "parent comes first", loc = loc)
+		testing.expect(t, i <= node.parent + Scene_DescendantCount(scene, node.parent), "inside the parent's subtree", loc = loc)
+	}
+}
+
+@(private="file")
+nodeNamed :: proc(scene: ^SceneDef, name: string) -> int {
+	for node, i in scene.nodes do if node.name == name do return i
+	return -1
+}
+
+@(test)
+duplicate_node_copies_subtree_as_next_sibling :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	before := len(scene.nodes)
+
+	state.selectedNode = nodeNamed(scene, "Spaceship")
+	send(&state, Action.Duplicate_Node)
+	copy := state.selectedNode
+	testing.expect_value(t, len(scene.nodes), before + 2)
+	testing.expect_value(t, scene.nodes[copy].name, "Spaceship2")
+	testing.expect_value(t, scene.nodes[copy].parent, nodeNamed(scene, "World"))
+	testing.expect_value(t, copy, nodeNamed(scene, "ShipLight") + 1)
+	testing.expect_value(t, scene.nodes[copy + 1].name, "ShipLight")
+	testing.expect_value(t, scene.nodes[copy + 1].parent, copy)
+	expectValidTree(t, scene)
+
+	// Duplicating the copy numbers on from it
+	send(&state, Action.Duplicate_Node)
+	testing.expect_value(t, scene.nodes[state.selectedNode].name, "Spaceship3")
+	expectValidTree(t, scene)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+copy_cut_and_paste_nodes :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	before := len(scene.nodes)
+
+	// Nothing copied yet
+	send(&state, Action.Paste_Node)
+	testing.expect_value(t, len(scene.nodes), before)
+
+	// Copy Props (4 children) into HUD, twice
+	state.selectedNode = nodeNamed(scene, "Props")
+	send(&state, Action.Copy_Node)
+	testing.expect_value(t, len(state.clipboard), 5)
+	testing.expect_value(t, len(scene.nodes), before)
+	state.selectedNode = nodeNamed(scene, "HUD")
+	send(&state, Action.Paste_Node)
+	pasted := state.selectedNode
+	testing.expect_value(t, scene.nodes[pasted].name, "Props2")
+	testing.expect_value(t, scene.nodes[pasted].parent, nodeNamed(scene, "HUD"))
+	testing.expect_value(t, Scene_DescendantCount(scene, pasted), 4)
+	state.selectedNode = nodeNamed(scene, "HUD")
+	send(&state, Action.Paste_Node)
+	testing.expect_value(t, scene.nodes[state.selectedNode].name, "Props3")
+	testing.expect_value(t, len(scene.nodes), before + 10)
+	expectValidTree(t, scene)
+
+	// Cut removes it; pasting with nothing selected makes it top-level, keeping its free name
+	state.selectedNode = nodeNamed(scene, "Camera")
+	send(&state, Action.Cut_Node)
+	testing.expect_value(t, len(scene.nodes), before + 9)
+	testing.expect_value(t, state.selectedNode, -1)
+	send(&state, Action.Paste_Node)
+	testing.expect_value(t, scene.nodes[state.selectedNode].name, "Camera")
+	testing.expect_value(t, scene.nodes[state.selectedNode].parent, -1)
+	testing.expect_value(t, state.selectedNode, len(scene.nodes) - 1)
+	expectValidTree(t, scene)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+move_node_keeps_world_transform :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+
+	// ShipLight is at (640, 490) in the world; inside Props (at 640, 360) it's at (0, 130)
+	light, moved := Scene_MoveNode(scene, nodeNamed(scene, "ShipLight"), nodeNamed(scene, "Props"), .Inside)
+	testing.expect(t, moved)
+	testing.expect_value(t, scene.nodes[light].parent, nodeNamed(scene, "Props"))
+	testing.expect_value(t, scene.nodes[light].position, [2]f32{0, 130})
+	testing.expect_value(t, scene.nodes[light].scale, [2]f32{0.4, 0.4})
+	testing.expect_value(t, light, nodeNamed(scene, "WarningLight2") + 1)
+	testing.expect(t, !Scene_HasChildren(scene, nodeNamed(scene, "Spaceship")))
+	expectValidTree(t, scene)
+
+	// HUD (with its child) before World: top-level, now first; HUD's position is unchanged
+	hud, _ := Scene_MoveNode(scene, nodeNamed(scene, "HUD"), nodeNamed(scene, "World"), .Before)
+	testing.expect_value(t, hud, 0)
+	testing.expect_value(t, scene.nodes[1].name, "BackMenu")
+	testing.expect_value(t, scene.nodes[1].parent, 0)
+	testing.expect_value(t, scene.nodes[0].position, [2]f32{1240, 24})
+	expectValidTree(t, scene)
+
+	// After a sibling, and to the end of the top level
+	camera, _ := Scene_MoveNode(scene, nodeNamed(scene, "Camera"), nodeNamed(scene, "Props"), .After)
+	testing.expect_value(t, scene.nodes[camera].parent, nodeNamed(scene, "World"))
+	testing.expect_value(t, camera, len(scene.nodes) - 1)
+	camera, _ = Scene_MoveNode(scene, camera, -1, .Inside)
+	testing.expect_value(t, scene.nodes[camera].parent, -1)
+	testing.expect_value(t, scene.nodes[camera].position, [2]f32{640, 360})
+	expectValidTree(t, scene)
+
+	// Not into its own subtree
+	before := len(scene.nodes)
+	world := nodeNamed(scene, "World")
+	_, moved = Scene_MoveNode(scene, world, nodeNamed(scene, "Balloon"), .Inside)
+	testing.expect(t, !moved)
+	_, moved = Scene_MoveNode(scene, world, world, .After)
+	testing.expect(t, !moved)
+	testing.expect_value(t, len(scene.nodes), before)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+tree_drag_messages_move_the_node :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+
+	send(&state, Tree_Drag_Pressed{node = nodeNamed(scene, "Camera"), start = {10, 10}})
+	send(&state, Tree_Drag_Started{})
+	testing.expect(t, state.treeDrag.active)
+	send(&state, Tree_Drag_Dropped{target = nodeNamed(scene, "Spaceship"), position = .Inside})
+	testing.expect(t, !state.treeDrag.pressed)
+	testing.expect_value(t, scene.nodes[state.selectedNode].name, "Camera")
+	testing.expect_value(t, scene.nodes[state.selectedNode].parent, nodeNamed(scene, "Spaceship"))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+unique_names_and_text_chords :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	testing.expect_value(t, Scene_UniqueNodeName(scene, "Ship"), "Ship")
+	testing.expect_value(t, Scene_UniqueNodeName(scene, "WarningLight"), "WarningLight3")
+	testing.expect_value(t, Scene_UniqueNodeName(scene, "WarningLight2"), "WarningLight3")
+
+	// Ctrl+C belongs to text fields while typing
+	testing.expect(t, Keymap_Shortcut(.Copy_Node, typing = true) == {})
+	testing.expect(t, Keymap_Shortcut(.Copy_Node) == skald.Shortcut{.C, {.Ctrl}})
+	free_all(context.temp_allocator)
+}

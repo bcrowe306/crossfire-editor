@@ -16,6 +16,10 @@ Action :: enum {
 	Redo,
 	Add_Node,
 	Delete_Node,
+	Duplicate_Node,
+	Copy_Node,
+	Cut_Node,
+	Paste_Node,
 	Play,
 	Pause,
 	Stop,
@@ -75,6 +79,23 @@ Node_Toggled  :: distinct int
 Node_Selected :: distinct int
 // Viewport click: node index in the scene, -1 for empty space
 Node_Picked   :: distinct int
+
+// Scene tree right-click (before its context menu opens): row index, -1 below the rows
+Node_Right_Clicked :: distinct int
+// Scene tree drag: the left button went down on a node's row
+Tree_Drag_Pressed :: struct {
+	node: int,
+	start: [2]f32,
+}
+// The mouse moved far enough with the button down: it's a drag, not a click
+Tree_Drag_Started :: struct {}
+// Released over a place the node can go
+Tree_Drag_Dropped :: struct {
+	target: int,
+	position: DropPosition,
+}
+// Released anywhere else
+Tree_Drag_Cancelled :: struct {}
 
 // Inspector edits to the selected node
 Node_Renamed            :: distinct string
@@ -191,6 +212,11 @@ Msg :: union {
 	Asset_Remove_Confirmed,
 	Asset_Remove_Cancelled,
 	Browser_Tree_Resized,
+	Node_Right_Clicked,
+	Tree_Drag_Pressed,
+	Tree_Drag_Started,
+	Tree_Drag_Dropped,
+	Tree_Drag_Cancelled,
 	Add_Node_Search_Changed,
 	Add_Node_Highlight_Moved,
 	Add_Node_Confirmed,

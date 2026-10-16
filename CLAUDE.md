@@ -102,6 +102,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `viewport_preview.odin` | Engine-rendered preview of the open scene (software renderer → Skald image) |
 | `viewport_math.odin` | Viewport pan/zoom math and drag (move/rotate/scale) math |
 | `add_node.odin` | Add Node dialog logic: `AddNode_Kinds` (search over the engine's `SCENE_NODE_KINDS`), `AddNode_Create` (parent, unique name) |
+| `node_edit.odin` | Subtree copy/paste/duplicate, `Scene_MoveNode` (reorder and reparent keeping the world transform), unique names |
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Keys tabs, collapsible |
@@ -190,6 +191,7 @@ sprites, animations, text and menus look as they do in the game. Future engine f
   - Q W E R tools, F frame selected
   - Ctrl+0 fit, Ctrl+1 100%, Ctrl+=/- zoom, P animations
   - arrows nudge (Shift ×10), Esc deselect, Delete
+  - Ctrl+D duplicate, Ctrl+C/X/V copy/cut/paste nodes (not while typing)
   - F5/F6/Shift+F5 play controls, Ctrl+I import
 - `KeymapDispatch` runs at the start of `view`, before the menu bar, so each shortcut fires once.
 - **Plain keys are ignored while a text or number field has focus** (`IsTyping`), and are hidden
@@ -229,8 +231,29 @@ shows up here with no editor change (it still needs inspector fields).
 - Up/Down move the highlight, Enter or a click adds that kind, Escape cancels.
 - The node becomes a child of the selected node (top-level when nothing is selected), is named
   after its kind (`Sprite`, `Sprite2`, ...), and is selected.
-- While any modal dialog is open, `KeymapDispatch` registers nothing, so Escape reaches the dialog.
-  Pass new dialogs' open flags to it in `view`.
+- While any modal dialog or the scene tree's context menu is open, `KeymapDispatch` registers
+  nothing and the menu bar drops its shortcuts (it registers them itself, and Edit > Deselect would
+  take Escape). Add new dialogs' open flags to `keysTaken` in `view`.
+
+### Scene tree editing (implemented, `node_edit.odin`, `view_inspector.odin`)
+
+- **Subtrees** (`node_edit.odin`): a copied subtree is a node list in depth-first order with
+  parents relative to the list (the root's is -1). `Scene_CopySubtree`, `Scene_PasteSubtree` (last
+  child of a parent), `Scene_DuplicateNode` (next sibling). Pasted and duplicated roots get a free
+  name via `Scene_UniqueNodeName` ("Ship2" -> "Ship3"); their descendants keep theirs.
+- **Clipboard**: `State.clipboard`, editor-internal (not the system clipboard). Copy, Cut and Paste
+  are Ctrl+C/X/V, Duplicate Ctrl+D. These are `textChord` bindings: skipped while typing, so text
+  fields keep the chords. Paste goes into the selected node, or the top level.
+- **Context menu**: `skald.context_menu` wraps the tree's scroll area; items are `SCENE_TREE_MENU`.
+  A right-click first selects the row under the cursor (`Node_Right_Clicked`; below the rows it
+  deselects). Skald builds the tree before the menu that wraps it, so the tree would see a click on
+  a menu item first and select the row under it: `sceneTreeView` hides that press from the tree.
+- **Drag to move** (`sceneTreeMouse`): a press on a row records `treeDrag`; moving
+  `TREE_DRAG_THRESHOLD` px starts the drag. Top/bottom quarter of a row = before/after it as a
+  sibling, the middle = its last child, below the rows = last top-level node. The bottom edge of an
+  open parent means before its first child. A line or box overlay shows the spot.
+  `Scene_MoveNode` rebuilds the depth-first order and keeps the node's world transform under its new
+  parent. A node can't go into its own subtree (`Scene_CanMoveNode`).
 
 ### Play mode (implemented, `play.odin`)
 
@@ -411,6 +434,9 @@ Highlights:
   - trees `browser-tree` / `scene-tree`, the search box `browser-search`
   - dialog buttons `dialog-<name>`, the viewport `viewport-canvas`
   - Add Node dialog: `add-node-search`, rows `add-node-<Kind>` (e.g. `add-node-Sprite`), `add-node-cancel`
+  - the scene tree's context menu `scene-tree-menu` (`right_click_row`, `click_menu_item`)
+- **Rows must be in view.** `click_row`, `right_click_row` and `drag_row` fail on a row scrolled
+  out of the tree's visible area. The scene tree pane is short; collapse nodes to keep rows in view.
 - **Tree rows** are clicked by row index using `TREE_ROW_HEIGHT`; keep trees on that row height.
 - **Never read the screen.** The driver checks editor state, never pixels, and nothing here may
   screenshot the desktop: the user's other windows can be on screen. To check rendering, call

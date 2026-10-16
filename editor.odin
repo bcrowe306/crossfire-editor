@@ -139,6 +139,15 @@ State :: struct {
 		asset: int,
 	},
 	addNode: AddNodeDialog,
+	// Copied or cut nodes: one subtree, parents relative to the list (see node_edit.odin)
+	clipboard: [dynamic]NodeDef,
+	// A press on a scene tree row, which becomes a drag once the mouse moves
+	treeDrag: struct {
+		pressed: bool,
+		active: bool,
+		node: int,
+		start: [2]f32,
+	},
 	tool: Tool,
 	viewport: ViewportState,
 	playState: PlayState,
@@ -208,6 +217,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.output)
 	delete(state.browserSearch)
 	delete(state.addNode.search)
+	Subtree_Destroy(&state.clipboard)
 	delete(state.play.partial)
 }
 

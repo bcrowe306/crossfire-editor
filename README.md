@@ -80,6 +80,16 @@ The Taskfile passes the flags every build needs:
 
 Imported and removed assets are saved to project.xml on Save (Ctrl+S) or Play.
 
+## Scene tree
+
+- **Right-click** a node for Add Node, Duplicate, Copy, Cut, Paste and Delete. Right-click below
+  the nodes to paste at the top level.
+- **Drag** a node onto another: near the top or bottom edge of a row puts it before or after that
+  node, the middle makes it a child. Drop it below the rows to make it a top-level node. It keeps
+  its place in the scene; its position is adjusted for the new parent.
+- **Keys:** Ctrl+D duplicate, Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste (into the selected
+  node). They're left to text fields while you type.
+
 ## Adding nodes
 
 **Add Node** (Ctrl+Shift+A, or + above the scene tree) opens a list of the node types the engine

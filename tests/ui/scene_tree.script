@@ -1,0 +1,145 @@
+# Scene tree editing: adding into the selection, the context menu, keyboard copy/paste, and
+# dragging rows to reorder and reparent. Runs on a scratch copy of the demo project.
+# Run with: task test:ui
+#
+# The scene tree pane is short, so Props is collapsed first to keep every row used here in view.
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect nodes 11
+click_row scene-tree 4
+expect selected Props
+key LEFT
+# Rows: 0 World, 1 Camera, 2 Spaceship, 3 ShipLight, 4 Props, 5 HUD, 6 BackMenu
+expect row 5 HUD
+
+# Add Node adds a child of the selected node
+click_row scene-tree 2
+expect selected Spaceship
+click_widget panel-add-node
+click_widget add-node-Sprite
+expect selected Sprite
+expect parent Spaceship
+key DELETE
+expect nodes 11
+
+# Right-click selects the row and opens the menu; Escape closes it and keeps the selection
+right_click_row scene-tree 2
+expect selected Spaceship
+expect menu scene-tree-menu open
+key escape
+expect menu scene-tree-menu closed
+expect selected Spaceship
+
+# Menu items: 0 Add Node, 1 Duplicate, 2 Copy, 3 Cut, 4 Paste, 5 Delete
+right_click_row scene-tree 2
+click_menu_item scene-tree-menu 1
+expect menu scene-tree-menu closed
+expect selected Spaceship2
+expect parent World
+expect nodes 13
+expect row 4 Spaceship2
+key DELETE
+expect nodes 11
+
+# Copy Props and paste it into HUD; the copy is collapsed like Props
+right_click_row scene-tree 4
+expect selected Props
+click_menu_item scene-tree-menu 2
+expect clipboard 5
+right_click_row scene-tree 5
+expect selected HUD
+click_menu_item scene-tree-menu 4
+expect selected Props2
+expect parent HUD
+expect nodes 16
+expect row 7 Props2
+
+# Delete it from the menu
+right_click_row scene-tree 7
+expect selected Props2
+click_menu_item scene-tree-menu 5
+expect nodes 11
+expect selected none
+
+# Right-click below the rows deselects; Paste then adds a top-level copy
+right_click_row scene-tree 7
+expect selected none
+expect menu scene-tree-menu open
+click_menu_item scene-tree-menu 4
+expect selected Props2
+expect parent none
+key DELETE
+expect nodes 11
+
+# The menu's Add Node opens the dialog
+right_click_row scene-tree 2
+click_menu_item scene-tree-menu 0
+expect add_dialog open
+key escape
+expect add_dialog closed
+
+# Keyboard: Ctrl+D duplicates, Ctrl+X cuts, Ctrl+V pastes into the selection
+click_row scene-tree 1
+expect selected Camera
+key ctrl+d
+expect selected Camera2
+expect nodes 12
+key ctrl+x
+expect nodes 11
+expect clipboard 1
+click_row scene-tree 2
+key ctrl+v
+expect selected Camera2
+expect parent Spaceship
+key DELETE
+expect nodes 11
+
+# Ctrl+C in a text field copies text, not the node
+click_row scene-tree 1
+click_widget inspector-name-1
+expect typing true
+key ctrl+c
+expect clipboard 1
+key escape
+
+# Drag Camera into Spaceship. It stays where it is in the world: (640, 360) is (0, -70) from
+# Spaceship. Rows: 0 World, 1 Spaceship, 2 ShipLight, 3 Camera, 4 Props, 5 HUD, 6 BackMenu
+drag_row scene-tree 1 2 inside
+expect selected Camera
+expect parent Spaceship
+expect row 3 Camera
+expect field x 0
+expect field y -70
+expect nodes 11
+
+# HUD before World; its child comes along.
+# Rows: 0 HUD, 1 BackMenu, 2 World, 3 Spaceship, 4 ShipLight, 5 Camera, 6 Props
+drag_row scene-tree 5 0 before
+expect selected HUD
+expect parent none
+expect row 0 HUD
+expect row 1 BackMenu
+
+# Camera after Props: the last child of World, back at (640, 360)
+drag_row scene-tree 5 6 after
+expect selected Camera
+expect parent World
+expect row 6 Camera
+expect field x 640
+
+# HUD below the rows: the last top-level node.
+# Rows: 0 World, 1 Spaceship, 2 ShipLight, 3 Props, 4 Camera, 5 HUD, 6 BackMenu
+drag_row scene-tree 0 7 inside
+expect selected HUD
+expect row 5 HUD
+
+# World can't go into its own subtree
+drag_row scene-tree 0 1 inside
+expect selected World
+expect parent none
+expect row 0 World
+expect nodes 11
+
+quit
