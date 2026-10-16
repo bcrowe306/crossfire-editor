@@ -74,6 +74,8 @@ ViewportState :: struct {
 	drag: ViewportDrag,
 	// Draw the grid, and snap drags to it (see Viewport_ApplyDrag)
 	gridVisible: bool,
+	// Outline collision shapes, rays and joints (Toggle_Collision_Shapes)
+	showShapes: bool,
 	snap: bool,
 	// Animation frames shown so far; each one is a 1 / VIEWPORT_ANIMATION_FPS timer tick
 	animationFrame: int,

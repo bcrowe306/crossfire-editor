@@ -167,9 +167,16 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		}
 		index := s.rename.node
 		if s.rename.active && index >= 0 && index < len(scene.nodes) {
+			// Renaming a body joints name changes them too: the whole scene is the step
+			if isBodyKind(scene.nodes[index].kind) && Scene_JointsReferTo(scene, scene.nodes[index].name) {
+				return {scope = .Scene, label = fmt.tprintf("Rename %s", scene.nodes[index].name)}
+			}
 			return node(index, fmt.tprintf("Rename %s", scene.nodes[index].name))
 		}
 	case Node_Renamed:
+		if hasSelection && isBodyKind(scene.nodes[selected].kind) && Scene_JointsReferTo(scene, name) {
+			return {scope = .Scene, label = fmt.tprintf("Rename %s", name), mergeKey = key("rename", s.currentScene, selected)}
+		}
 		if hasSelection do return node(selected, fmt.tprintf("Rename %s", name), key("rename", s.currentScene, selected))
 	case Node_Script_Changed:
 		if hasSelection do return node(selected, string(v) == "" || string(v) == TEXTURE_NONE ? fmt.tprintf("Remove script from %s", name) : fmt.tprintf("Attach %s to %s", string(v), name))
@@ -286,6 +293,13 @@ fieldLabel :: proc(field: NodeField) -> string {
 	case .Shape_Height:    return "height"
 	case .Radius:          return "radius"
 	case .Target_X, .Target_Y: return "ray target"
+	case .Offset_X, .Offset_Y: return "joint offset"
+	case .Lower:       return "lower limit"
+	case .Upper:       return "upper limit"
+	case .Motor_Speed: return "motor speed"
+	case .Max_Motor:   return "motor strength"
+	case .Hertz:       return "spring stiffness"
+	case .Damping:     return "spring damping"
 	}
 	return "property"
 }
@@ -526,7 +540,11 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.linearDamping != b.linearDamping || a.angularDamping != b.angularDamping || a.fixedRotation != b.fixedRotation ||
 	   a.bullet != b.bullet || a.floorMaxAngle != b.floorMaxAngle || a.shape != b.shape || a.shapeSize != b.shapeSize ||
 	   a.radius != b.radius || len(a.points) != len(b.points) || a.disabled != b.disabled || a.target != b.target ||
-	   a.enabled != b.enabled || a.excludeParent != b.excludeParent {
+	   a.enabled != b.enabled || a.excludeParent != b.excludeParent ||
+	   a.jointKind != b.jointKind || a.bodyA != b.bodyA || a.bodyB != b.bodyB || a.jointOffset != b.jointOffset ||
+	   a.enableLimit != b.enableLimit || a.lower != b.lower || a.upper != b.upper || a.enableMotor != b.enableMotor ||
+	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
+	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false

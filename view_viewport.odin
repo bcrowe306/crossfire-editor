@@ -2,6 +2,7 @@ package editor
 
 import "core:fmt"
 import "core:math"
+import "core:math/linalg"
 import "core:slice"
 import "core:time"
 import e "engine:."
@@ -116,19 +117,33 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	labels := make([]string, len(s.project.scenes), context.temp_allocator)
 	for sc, i in s.project.scenes do labels[i] = sc.name
-	header := skald.row(
-		skald.tabs(ctx, labels, s.currentScene,
-			proc(index: int) -> Msg { return Scene_Tab_Changed(index) },
-			id = skald.hash_id("scene-tabs")),
-		skald.flex(1, skald.spacer(0)),
+	tabs := skald.tabs(ctx, labels, s.currentScene,
+		proc(index: int) -> Msg { return Scene_Tab_Changed(index) },
+		id = skald.hash_id("scene-tabs"))
+	buttons := skald.row(
 		panelButton(ctx, "viewport-animate", s.viewport.animate ? ICON_PAUSE : ICON_PLAY,
 			s.viewport.animate ? "Pause viewport animations (P)" : "Play viewport animations (P)", Action.Toggle_Animation),
 		toggleButton(s, ctx, "viewport-grid", ICON_GRID, "Show grid", .Toggle_Grid, s.viewport.gridVisible),
 		toggleButton(s, ctx, "viewport-snap", ICON_MAGNET, "Snap to grid", .Toggle_Snap, s.viewport.snap),
+		toggleButton(s, ctx, "viewport-shapes", ICON_POLYGON, "Show collision shapes", .Toggle_Collision_Shapes, s.viewport.showShapes),
 		panelButton(ctx, "viewport-fit", ICON_SCALE, actionTip(s, "Fit game area", .View_Fit), Action.View_Fit),
 		skald.button(ctx, fmt.tprintf("%.0f%%", s.viewport.zoom * 100), Msg(Action.Zoom_100),
 			id = skald.hash_id("viewport-zoom"), bg = th.color.surface, fg = th.color.fg_muted,
 			font_size = th.font.size_sm, width = 64, padding = {0, 3}),
+		spacing = th.spacing.xs,
+		cross_align = .Center,
+	)
+	// The tabs get what the buttons leave (last frame's viewport width), clipped: many scenes
+	// or a narrow window must not push the buttons out of view
+	if ctx.renderer != nil && s.viewport.size.x > 0 {
+		tabsSize := skald.view_size(ctx.renderer, tabs)
+		room := s.viewport.size.x + RULER_SIZE - skald.view_size(ctx.renderer, buttons).x - th.spacing.xs * 3
+		if tabsSize.x > room do tabs = skald.clip({max(room, 40), tabsSize.y}, tabs)
+	}
+	header := skald.row(
+		tabs,
+		skald.flex(1, skald.spacer(0)),
+		buttons,
 		spacing = th.spacing.xs,
 		padding = th.spacing.xs,
 		cross_align = .Center,
@@ -425,6 +440,10 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 			if !shape.visible do continue
 			origin := toWindow(p.bounds, v, shape.world.origin)
 			switch {
+			case !v.showShapes && (node.kind == .CollisionShape || node.kind == .RayCast || node.kind == .Joint):
+				// Hidden (Toggle_Collision_Shapes); still pickable by their bounds
+			case node.kind == .Joint:
+				drawJoint(r, p.bounds, v, scene, i, data.shapes[:], th)
 			case node.kind == .CollisionShape:
 				// Shapes draw nothing in the game: outline them in their body's color
 				body := shapeBody(scene, i)
@@ -575,6 +594,41 @@ drawCameraFrame :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportStat
 	skald.draw_polyline(r, points, 1, {color.r, color.g, color.b, 0.7}, aa = true)
 }
 
+// A joint: a ring at its anchor, a line to body B, Distance's other anchor, a slider's axis
+@(private="file")
+drawJoint :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, scene: ^SceneDef, index: int, shapes: []NodeShape, th: ^skald.Theme) {
+	node := &scene.nodes[index]
+	world := shapes[index].world
+	toWindow :: proc(canvas: skald.Rect, v: ^ViewportState, p: [2]f32) -> [2]f32 {
+		return viewToWindow(canvas, Viewport_WorldToView(v, p))
+	}
+	color := kindColor(.Joint)
+	anchor := toWindow(canvas, v, world.origin)
+	a, b := jointBodies(scene, index)
+	faint := color
+	faint[3] = 0.5
+	if a >= 0 do skald.draw_polyline(r, {toWindow(canvas, v, shapes[a].world.origin), anchor}, 1, faint, aa = true)
+	switch node.jointKind {
+	case .Distance:
+		other := toWindow(canvas, v, e.Transform2D_Apply(world, node.jointOffset))
+		skald.draw_polyline(r, {anchor, other}, 1.5, color, aa = true)
+		skald.draw_circle(r, other, 3, color, aa = true)
+		if b >= 0 do skald.draw_polyline(r, {toWindow(canvas, v, shapes[b].world.origin), other}, 1, faint, aa = true)
+	case .Prismatic, .Wheel:
+		// The axis it slides along: the joint's X direction
+		axis := linalg.normalize0(world.x) * 60
+		skald.draw_polyline(r, {toWindow(canvas, v, world.origin - axis), toWindow(canvas, v, world.origin + axis)}, 1, color, aa = true)
+		if b >= 0 do skald.draw_polyline(r, {anchor, toWindow(canvas, v, shapes[b].world.origin)}, 1, faint, aa = true)
+	case .Revolute, .Weld:
+		if b >= 0 do skald.draw_polyline(r, {anchor, toWindow(canvas, v, shapes[b].world.origin)}, 1, faint, aa = true)
+	}
+	// The anchor; red when body B is missing
+	ring := b >= 0 ? color : skald.rgb(0xff5050)
+	skald.draw_circle(r, anchor, MARKER_RADIUS + 2, ring, aa = true)
+	skald.draw_circle(r, anchor, MARKER_RADIUS - 1, skald.rgb(0x101218), aa = true)
+	skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(.Joint), node.name), anchor.x + 8, anchor.y - 8, th.color.fg_muted, th.font.size_xs)
+}
+
 // A CollisionShape's outline, in the node's space mapped through its world transform
 @(private="file")
 drawCollisionShape :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, node: ^NodeDef, world: e.Transform2D, color: skald.Color) {
@@ -670,6 +724,7 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .Area:           return skald.rgb(0xc878ff)
 	case .CollisionShape: return skald.rgb(0x4fd1c5)
 	case .RayCast:        return skald.rgb(0xff6b6b)
+	case .Joint:          return skald.rgb(0xffdc78)
 	}
 	return skald.rgb(0xffffff)
 }

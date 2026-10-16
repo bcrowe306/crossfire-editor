@@ -42,6 +42,24 @@ expect project_file_contains scenes/PlayScene.scene.xml shape="Rectangle" width=
 key ctrl+z
 expect modified true
 
+# A top-level joint (nothing selected)
+key escape
+key ctrl+shift+a
+type Joint
+key RETURN
+expect selected Joint
+expect nodes 14
+
+# The viewport's shape outlines go off and on; Play's collision shapes on
+expect shapes on
+click_widget panel-viewport-shapes
+expect shapes off
+key shift+c
+expect shapes on
+expect play_shapes off
+action Toggle_Play_Collision_Shapes
+expect play_shapes on
+
 # Play the scene: the player builds with physics and runs it
 key ctrl+F5
 wait_until play Playing timeout=120

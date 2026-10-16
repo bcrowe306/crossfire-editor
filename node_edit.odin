@@ -48,9 +48,42 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.script = strings.clone(node.script)
 	copy.props = make([dynamic]ScriptPropDef, 0, len(node.props))
 	for prop in node.props do append(&copy.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
+	copy.bodyA = strings.clone(node.bodyA)
+	copy.bodyB = strings.clone(node.bodyB)
 	copy.points = make([dynamic][2]f32, 0, len(node.points))
 	append(&copy.points, ..node.points[:])
 	return copy
+}
+
+/*
+Points a scene's joints at a body's new name (joints name their bodies).
+
+Returns:
+- How many references changed
+*/
+Scene_RenameJointReferences :: proc(scene: ^SceneDef, old, new: string) -> int {
+	if old == "" || old == new do return 0
+	changed := 0
+	for &node in scene.nodes {
+		if node.kind != .Joint do continue
+		if node.bodyA == old {
+			delete(node.bodyA)
+			node.bodyA = strings.clone(new)
+			changed += 1
+		}
+		if node.bodyB == old {
+			delete(node.bodyB)
+			node.bodyB = strings.clone(new)
+			changed += 1
+		}
+	}
+	return changed
+}
+
+// Whether any joint in the scene names this body
+Scene_JointsReferTo :: proc(scene: ^SceneDef, name: string) -> bool {
+	for node in scene.nodes do if node.kind == .Joint && name != "" && (node.bodyA == name || node.bodyB == name) do return true
+	return false
 }
 
 /*

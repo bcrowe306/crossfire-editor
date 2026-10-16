@@ -2245,10 +2245,92 @@ physics_project_settings :: proc(t: ^testing.T) {
 	send(&state, Project_Settings_Physics_Debug_Changed(true))
 	testing.expect(t, state.project.physics == e.DEFAULT_PHYSICS)
 	send(&state, Project_Settings_Applied{})
-	testing.expect(t, state.project.physics == e.PhysicsSettings{pixelsPerMeter = 50, gravity = {0, 400}, debugDraw = true})
+	testing.expect(t, state.project.physics == e.PhysicsSettings{pixelsPerMeter = 50, gravity = {0, 400}, debugDraw = true, smoothing = true})
 	send(&state, Action.Undo)
 	testing.expect(t, state.project.physics == e.DEFAULT_PHYSICS)
 	text := ProjectToXML(&state.project, context.temp_allocator)
 	testing.expect(t, !strings.contains(text, "pixelsPerMeter"))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+physics_joints_in_editor :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_joints")
+	defer os.remove_all(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	project.physics.smoothing = false
+	scene := &project.scenes[1]
+	door := Scene_InsertNode(scene, "Door", .DynamicBody, -1)
+	frame := Scene_InsertNode(scene, "Frame", .StaticBody, -1)
+	hinge := Scene_InsertNode(scene, "Hinge", .Joint, frame)
+	j := &scene.nodes[hinge]
+	delete(j.bodyB)
+	j.bodyB = strings.clone("Door")
+	j.enableLimit, j.lower, j.upper = true, -45, 30
+	j.enableMotor, j.motorSpeed, j.maxMotor = true, 90, 5000
+	j.enableSpring, j.hertz, j.dampingRatio = true, 2, 0.25
+	j.collideConnected = true
+	rope := Scene_InsertNode(scene, "Rope", .Joint, -1)
+	r := &scene.nodes[rope]
+	r.jointKind = .Distance
+	delete(r.bodyA)
+	r.bodyA = strings.clone("Frame")
+	delete(r.bodyB)
+	r.bodyB = strings.clone("Door")
+	r.jointOffset = {10, 80}
+	testing.expect_value(t, Project_Save(&project), "")
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect(t, !loaded.physics.smoothing)
+	for node, i in scene.nodes {
+		testing.expectf(t, NodeDef_Equal(node, loaded.scenes[1].nodes[i]), "node %s differs after loading", node.name)
+	}
+	a, b := jointBodies(scene, hinge)
+	testing.expect(t, a == frame && b == door)
+	a, b = jointBodies(scene, rope)
+	testing.expect(t, a == frame && b == door)
+	_ = door
+	free_all(context.temp_allocator)
+}
+
+@(test)
+physics_joint_edits_and_renames :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	body := Scene_InsertNode(scene, "Crate", .DynamicBody, -1)
+	joint := Scene_InsertNode(scene, "Pin", .Joint, -1)
+	state.selectedNode = joint
+	send(&state, Node_Text_Changed{.Joint_Kind, "Prismatic"})
+	send(&state, Node_Text_Changed{.Body_B, "Crate"})
+	send(&state, Node_Text_Changed{.Body_A, JOINT_BODY_DEFAULT})
+	send(&state, Node_Flag_Changed{.Limit, true})
+	send(&state, Node_Field_Changed{.Upper, 120})
+	send(&state, Node_Field_Changed{.Max_Motor, -5}) // clamped
+	pin := &playScene(&state).nodes[joint]
+	testing.expect(t, pin.jointKind == .Prismatic && pin.bodyB == "Crate" && pin.bodyA == "" && pin.enableLimit && pin.upper == 120 && pin.maxMotor == 0)
+
+	// Renaming the body updates the joint, as one undo step
+	state.selectedNode = body
+	state.rename = {active = true, target = .Node, node = body, text = strings.clone("Box")}
+	send(&state, Rename_Committed{})
+	testing.expect_value(t, playScene(&state).nodes[joint].bodyB, "Box")
+	send(&state, Action.Undo)
+	testing.expect_value(t, playScene(&state).nodes[body].name, "Crate")
+	testing.expect_value(t, playScene(&state).nodes[joint].bodyB, "Crate")
+
+	// The toggles
+	shown := state.viewport.showShapes
+	send(&state, Action.Toggle_Collision_Shapes)
+	testing.expect(t, state.viewport.showShapes == !shown)
+	send(&state, Action.Toggle_Play_Collision_Shapes)
+	testing.expect(t, state.settings.playCollisionShapes)
+	text := Settings_ToINI(&state.settings)
+	testing.expect(t, strings.contains(text, "play_collision_shapes = true"))
+	parsed := Settings_Default()
+	testing.expect_value(t, len(Settings_Parse(&parsed, text)), 0)
+	testing.expect(t, parsed.playCollisionShapes)
 	free_all(context.temp_allocator)
 }

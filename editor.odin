@@ -222,7 +222,7 @@ init :: proc() -> State {
 
 		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false},
 		browserSelection = {kind = .None},
-		viewport = {animate = true, gridVisible = true},
+		viewport = {animate = true, gridVisible = true, showShapes = true},
 		layout = {
 			leftWidth = 240,
 			rightWidth = 300,

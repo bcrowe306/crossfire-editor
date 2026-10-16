@@ -56,6 +56,8 @@ Settings :: struct {
 	codeEditorArgs: FixedText,
 	// Build players for Play with -o:speed (about 50 s instead of 4 s per build)
 	optimizedPlay: bool,
+	// Play runs the game with its physics shapes drawn (--physics-debug)
+	playCollisionShapes: bool,
 
 	// [keymap]
 	keymap: Keymap,
@@ -156,10 +158,11 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 				settings.codeEditorPath = FixedText_Make(program)
 				settings.codeEditorArgs = FixedText_Make(strings.trim_space(args))
 				continue
-			case "optimized_play":
+			case "optimized_play", "play_collision_shapes":
+				flag := key == "optimized_play" ? &settings.optimizedPlay : &settings.playCollisionShapes
 				switch strings.to_lower(value, context.temp_allocator) {
-				case "true":  settings.optimizedPlay = true
-				case "false": settings.optimizedPlay = false
+				case "true":  flag^ = true
+				case "false": flag^ = false
 				case: problem(&problems, it.section, key, value, "expected true or false")
 				}
 				continue
@@ -221,9 +224,9 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ngrid_size = %d\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\n\n",
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ngrid_size = %d\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nplay_collision_shapes = %v\n\n",
 		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit, settings.gridSize,
-		FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay)
+		FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.playCollisionShapes)
 	strings.write_string(&b, "[keymap]\n")
 	for chords, action in settings.keymap {
 		fmt.sbprintf(&b, "%v = %s\n", action, Keymap_FormatChords(chords))

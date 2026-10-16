@@ -19,6 +19,10 @@ Widget keys follow the inspector's: `inspector-<Field>-<node>`, layer buttons
 // Layers the inspector's grids show (layers above it are kept, and settable in the scene file)
 INSPECTOR_LAYER_COUNT :: 16
 
+// Joint body choices: body A's default (the body above the joint, or the world), and no body B
+JOINT_BODY_DEFAULT :: "(body above, or the world)"
+JOINT_BODY_NONE :: "(none)"
+
 @(private="package")
 physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
 	rows := make([dynamic]skald.View, context.temp_allocator)
@@ -109,6 +113,64 @@ physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 			inspectorRow(ctx, "Skip own body", flag(ctx, key, .Exclude_Parent, node.excludeParent)),
 			hint(ctx, "Casts from the node to the target (relative to it) after every physics step."),
 		)
+
+	case .Joint:
+		kinds := make([]string, len(e.JointKind), context.temp_allocator)
+		for kind in e.JointKind do kinds[kind] = fmt.tprintf("%v", kind)
+		onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
+		// Every body in the scene, by name
+		bodies := make([dynamic]string, context.temp_allocator)
+		for other in scene.nodes do if isBodyKind(other.kind) do append(&bodies, other.name)
+		choicesA := make([dynamic]string, context.temp_allocator)
+		append(&choicesA, JOINT_BODY_DEFAULT)
+		append(&choicesA, ..bodies[:])
+		choicesB := make([dynamic]string, context.temp_allocator)
+		append(&choicesB, JOINT_BODY_NONE)
+		append(&choicesB, ..bodies[:])
+		append(&rows,
+			inspectorRow(ctx, "Kind", skald.select(ctx, fmt.tprintf("%v", node.jointKind), kinds, NodeTextField.Joint_Kind, onText,
+				id = skald.hash_id(fmt.tprintf("inspector-joint-kind-%d", key)), width = controlWidth)),
+			inspectorRow(ctx, "Body A", skald.select(ctx, node.bodyA == "" ? JOINT_BODY_DEFAULT : node.bodyA, choicesA[:], NodeTextField.Body_A, onText,
+				id = skald.hash_id(fmt.tprintf("inspector-body-a-%d", key)), width = controlWidth)),
+			inspectorRow(ctx, "Body B", skald.select(ctx, node.bodyB == "" ? JOINT_BODY_NONE : node.bodyB, choicesB[:], NodeTextField.Body_B, onText,
+				id = skald.hash_id(fmt.tprintf("inspector-body-b-%d", key)), width = controlWidth)),
+		)
+		switch node.jointKind {
+		case .Revolute:  append(&rows, hint(ctx, "A hinge at the joint: body B turns around it."))
+		case .Distance:  append(&rows, hint(ctx, "Keeps the joint and the offset point (on body B) apart: a rod, a rope (limits) or a spring."))
+		case .Prismatic: append(&rows, hint(ctx, "Body B slides along the joint's X axis (rotate the joint to aim it) without turning."))
+		case .Weld:      append(&rows, hint(ctx, "Glues the bodies together; a spring makes it bend."))
+		case .Wheel:     append(&rows, hint(ctx, "Body B slides along the joint's X axis on a spring and spins freely: a wheel's suspension."))
+		}
+		if node.jointKind == .Distance {
+			append(&rows,
+				inspectorRow(ctx, "Offset X", number(ctx, s, key, .Offset_X, node.jointOffset.x, 1, 0, numberWidth)),
+				inspectorRow(ctx, "Offset Y", number(ctx, s, key, .Offset_Y, node.jointOffset.y, 1, 0, numberWidth)),
+			)
+		}
+		if node.jointKind != .Weld {
+			unit := node.jointKind == .Revolute ? "°" : "px"
+			append(&rows,
+				inspectorRow(ctx, "Limit", flag(ctx, key, .Limit, node.enableLimit)),
+				inspectorRow(ctx, fmt.tprintf("Lower %s", unit), number(ctx, s, key, .Lower, node.lower, 1, 0, numberWidth)),
+				inspectorRow(ctx, fmt.tprintf("Upper %s", unit), number(ctx, s, key, .Upper, node.upper, 1, 0, numberWidth)),
+				inspectorRow(ctx, "Motor", flag(ctx, key, .Motor, node.enableMotor)),
+				inspectorRow(ctx, node.jointKind == .Revolute || node.jointKind == .Wheel ? "Speed °/s" : "Speed px/s",
+					number(ctx, s, key, .Motor_Speed, node.motorSpeed, 10, 0, numberWidth)),
+				inspectorRow(ctx, "Strength", number(ctx, s, key, .Max_Motor, node.maxMotor, 1000, 0, numberWidth, 0)),
+			)
+		}
+		append(&rows,
+			inspectorRow(ctx, "Spring", flag(ctx, key, .Spring, node.enableSpring)),
+			inspectorRow(ctx, "Stiffness Hz", number(ctx, s, key, .Hertz, node.hertz, 0.5, 1, numberWidth, 0, 120)),
+			inspectorRow(ctx, "Damping", number(ctx, s, key, .Damping, node.dampingRatio, 0.1, 2, numberWidth, 0, 10)),
+			inspectorRow(ctx, "Bodies collide", flag(ctx, key, .Collide_Connected, node.collideConnected)),
+		)
+		if node.bodyB == "" {
+			append(&rows, hint(ctx, "Choose body B: the body it connects.", warning = true))
+		} else if count := nodesNamed(scene, node.bodyB); count != 1 {
+			append(&rows, hint(ctx, count == 0 ? fmt.tprintf("No node named %s in this scene.", node.bodyB) : fmt.tprintf("%d nodes are named %s: the first is used.", count, node.bodyB), warning = true))
+		}
 	}
 	return rows[:]
 }
@@ -150,6 +212,28 @@ pointsField :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, points: [][2]f32,
 	text := editing && focused ? strings.clone(s.numberEdit.text, context.temp_allocator) : e.FormatPoints(points, context.temp_allocator)
 	return skald.text_input(ctx, text, id, proc(id: skald.Widget_ID, v: string) -> Msg { return Node_Points_Changed{id, v} },
 		id = id, width = width, padding = InspectorFieldPadding(ctx), placeholder = "x,y x,y x,y")
+}
+
+@(private="file")
+nodesNamed :: proc(scene: ^SceneDef, name: string) -> int {
+	count := 0
+	for node in scene.nodes do if node.name == name do count += 1
+	return count
+}
+
+/*
+A joint's bodies in the scene: body A (its own name, else the body above the joint; -1 = the
+world) and body B (-1 if not found), as the engine finds them (the first node with the name).
+*/
+jointBodies :: proc(scene: ^SceneDef, index: int) -> (a, b: int) {
+	joint := &scene.nodes[index]
+	find :: proc(scene: ^SceneDef, name: string) -> int {
+		for node, i in scene.nodes do if node.name == name && isBodyKind(node.kind) do return i
+		return -1
+	}
+	a = joint.bodyA != "" ? find(scene, joint.bodyA) : shapeBody(scene, index)
+	b = joint.bodyB != "" ? find(scene, joint.bodyB) : -1
+	return a, b
 }
 
 // The body a CollisionShape belongs to (its nearest body ancestor), or -1

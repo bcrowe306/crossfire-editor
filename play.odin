@@ -255,6 +255,7 @@ startGame :: proc(state: ^State) -> skald.Command(Msg) {
 	projectDir := absolutePath(state.project.rootPath)
 	command := make([dynamic]string, context.temp_allocator)
 	append(&command, playerTarget(state).binary, projectDir)
+	if state.settings.playCollisionShapes do append(&command, "--physics-debug")
 	if playScene != "" {
 		append(&command, "--scene", playScene)
 		logLine(state, .Info, fmt.aprintf("Playing %s from scene %s", projectDir, playScene))

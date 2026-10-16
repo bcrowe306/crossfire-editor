@@ -84,6 +84,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		if !v.cancelled && v.path != "" do draft.codeEditorPath = FixedText_Make(v.path)
 	case Settings_Optimized_Play_Changed:
 		draft.optimizedPlay = bool(v)
+	case Settings_Play_Shapes_Changed:
+		draft.playCollisionShapes = bool(v)
 	case Settings_Search_Changed:
 		delete(dialog.search)
 		dialog.search = strings.clone(string(v))

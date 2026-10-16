@@ -48,6 +48,7 @@ ICON_RUNNING     :: "\uf70c"
 ICON_BULLSEYE    :: "\uf140"
 ICON_POLYGON     :: "\uf5ee"
 ICON_RAY         :: "\uf178"
+ICON_JOINT       :: "\uf0c1"
 
 @(private="file")
 iconFontRegistered: bool
@@ -75,6 +76,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .Area:           return ICON_BULLSEYE
 	case .CollisionShape: return ICON_POLYGON
 	case .RayCast:        return ICON_RAY
+	case .Joint:          return ICON_JOINT
 	}
 	return ICON_CUBE
 }

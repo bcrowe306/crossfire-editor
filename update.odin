@@ -50,7 +50,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Play_Shapes_Changed:
 		// Handled by SettingsDialog_Update above
 
 	case Scripts_Auto_Build:
@@ -103,7 +103,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Background_Changed,
 	     Project_Settings_Start_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
-	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed:
+	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
+	     Project_Settings_Physics_Smoothing_Changed:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)
@@ -190,6 +191,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		index, text := out.rename.node, strings.trim_space(out.rename.text)
 		if out.rename.active && index >= 0 && index < len(scene.nodes) && text != "" && text != scene.nodes[index].name {
 			logLine(&out, .Info, fmt.aprintf("Renamed %s to %s", scene.nodes[index].name, text))
+			if isBodyKind(scene.nodes[index].kind) do Scene_RenameJointReferences(scene, scene.nodes[index].name, text)
 			delete(scene.nodes[index].name)
 			scene.nodes[index].name = strings.clone(text)
 		}
@@ -408,6 +410,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 
 	case Node_Renamed:
 		if node := selectedNode(&out); node != nil {
+			// Joints follow a renamed body
+			if isBodyKind(node.kind) do Scene_RenameJointReferences(&out.project.scenes[out.currentScene], node.name, string(v))
 			// Msg strings only live for the frame (see Skald's gotchas), so keep a copy
 			delete(node.name)
 			node.name = strings.clone(string(v))
@@ -451,6 +455,14 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Radius:          node.radius = max(value, 0.5)
 		case .Target_X:        node.target.x = value
 		case .Target_Y:        node.target.y = value
+		case .Offset_X:        node.jointOffset.x = value
+		case .Offset_Y:        node.jointOffset.y = value
+		case .Lower:           node.lower = value
+		case .Upper:           node.upper = value
+		case .Motor_Speed:     node.motorSpeed = value
+		case .Max_Motor:       node.maxMotor = max(value, 0)
+		case .Hertz:           node.hertz = max(value, 0)
+		case .Damping:         node.dampingRatio = max(value, 0)
 		}
 	case Node_Text_Changed:
 		node := selectedNode(&out)
@@ -469,6 +481,14 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			if mode, ok := reflect.enum_from_name(e.AnimationPlayMode, v.value); ok do node.playMode = mode
 		case .Shape:
 			if shape, ok := reflect.enum_from_name(e.CollisionShapeKind, v.value); ok do node.shape = shape
+		case .Joint_Kind:
+			if kind, ok := reflect.enum_from_name(e.JointKind, v.value); ok do node.jointKind = kind
+		case .Body_A:
+			delete(node.bodyA)
+			node.bodyA = strings.clone(v.value == JOINT_BODY_DEFAULT ? "" : v.value)
+		case .Body_B:
+			delete(node.bodyB)
+			node.bodyB = strings.clone(v.value == JOINT_BODY_NONE ? "" : v.value)
 		}
 	case Node_Flag_Changed:
 		node := selectedNode(&out)
@@ -481,6 +501,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Disabled:       node.disabled = v.value
 		case .Enabled:        node.enabled = v.value
 		case .Exclude_Parent: node.excludeParent = v.value
+		case .Limit:          node.enableLimit = v.value
+		case .Motor:          node.enableMotor = v.value
+		case .Spring:         node.enableSpring = v.value
+		case .Collide_Connected: node.collideConnected = v.value
 		}
 	case Node_Layer_Toggled:
 		node := selectedNode(&out)
@@ -575,6 +599,14 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		if len(all) > 0 do Selection_Set(&out, all, out.selectedNode >= 0 ? out.selectedNode : 0)
 	case .Toggle_Grid:
 		out.viewport.gridVisible = !out.viewport.gridVisible
+	case .Toggle_Collision_Shapes:
+		out.viewport.showShapes = !out.viewport.showShapes
+	case .Toggle_Play_Collision_Shapes:
+		out.settings.playCollisionShapes = !out.settings.playCollisionShapes
+		if out.settingsPath != "" {
+			if message := Settings_Save(&out.settings, out.settingsPath); message != "" do logLine(&out, .Error, strings.clone(message))
+		}
+		logLine(&out, .Info, strings.clone(out.settings.playCollisionShapes ? "Play shows collision shapes" : "Play hides collision shapes"))
 	case .Toggle_Snap:
 		out.viewport.snap = !out.viewport.snap
 

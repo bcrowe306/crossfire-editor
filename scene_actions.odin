@@ -210,6 +210,8 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 		}
 	case Project_Settings_Physics_Debug_Changed:
 		dialog.physics.debugDraw = bool(v)
+	case Project_Settings_Physics_Smoothing_Changed:
+		dialog.physics.smoothing = bool(v)
 	case Export_Target_Selected:
 		dialog.exportTarget = ExportTarget(v)
 	case Export_Target_Enabled:

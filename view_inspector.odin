@@ -390,7 +390,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		)
 	case .Camera:
 		append(&rows, inspectorRow(ctx, "Zoom", number(ctx, s, key, .Zoom, node.zoom, 0.1, 2, numberWidth, 0.05, 20)))
-	case .StaticBody, .DynamicBody, .CharacterMover, .Area, .CollisionShape, .RayCast:
+	case .StaticBody, .DynamicBody, .CharacterMover, .Area, .CollisionShape, .RayCast, .Joint:
 		append(&rows, ..physicsInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Menu:
 		// Editing buttons comes later; show what the menu does

@@ -542,8 +542,8 @@ MyGame/
 
 ## Physics (implemented; the engine does the simulation)
 
-The engine integrates Box2D 3.1 (its physics.odin and physics_nodes.odin say how). The editor edits
-the six node kinds like any others:
+The engine integrates Box2D 3.1 (its physics*.odin files say how). The editor edits the seven node
+kinds (bodies, CollisionShape, RayCast, Joint) like any others:
 - **Model:** `NodeDef` has the engine `SceneNodeData`'s physics fields (same names), written by
   `writeNode` only when they apply to the kind and differ from `e.DEFAULT_SCENE_NODE`; layers as
   `e.FormatPhysicsLayers`, points as `e.FormatPoints`. `NodeDef_Equal`, `NodeDef_Clone`, the
@@ -553,13 +553,27 @@ the six node kinds like any others:
   through `NodeTextField.Shape`, flags through `NodeFlag`; layers 1-16 as toggle buttons
   (`Node_Layer_Toggled`; higher layers are kept); points as text kept while typing (it reuses
   `State.numberEdit`, like number fields). Warnings: a body without a shape, a mover without a
-  capsule/circle, a shape not under a body.
+  capsule/circle, a shape not under a body, a joint without body B or naming a missing or
+  duplicated body.
+- **Joints name their bodies** (`bodyA`, `bodyB`; the engine finds them with `Scene_FindNode`, so
+  the first node with the name). The inspector offers the scene's bodies (`JOINT_BODY_DEFAULT` /
+  `JOINT_BODY_NONE` for none). **Renaming a body updates the joints that name it**
+  (`Scene_RenameJointReferences`), and that rename is then a `.Scene` undo step
+  (`Scene_JointsReferTo`). `jointBodies` resolves them as the engine will.
 - **Viewport:** the preview scene has `physicsPaused` (animations update the scene; bodies mustn't
-  fall in the editor). CollisionShape and RayCast nodes draw nothing in the game, so the overlay
-  outlines shapes in their body's kind color (muted when disabled or without a body) and draws
-  rays; shapes have engine bounds, so picking and selection boxes work as for sprites.
+  fall in the editor). CollisionShape, RayCast and Joint nodes draw nothing in the game, so the
+  overlay outlines shapes in their body's kind color (muted when disabled or without a body), draws
+  rays, and joints (`drawJoint`: anchor ring, red without body B; lines to the bodies; Distance's
+  offset point; the slide axis of Prismatic and Wheel). `viewport.showShapes`
+  (`Toggle_Collision_Shapes`, Shift+C, the `panel-viewport-shapes` button) hides them. Shapes
+  have engine bounds, so picking and selection boxes work as for sprites.
+- **Debug drawing in the game:** the project's Show shapes (always), or the editor setting
+  `play_collision_shapes` (Scene > Show Collision Shapes in Game, `Toggle_Play_Collision_Shapes`,
+  Settings > Editor): Play passes `--physics-debug` to the player.
+- The viewport header clips the scene tabs to what its buttons leave (measured with
+  `skald.view_size`), so many scenes or a narrow window can't push the buttons out of view.
 - **Project Settings > General:** pixels per meter, gravity, Show shapes (the game's debug
-  drawing); `Project.physics`, in the `.Project` undo snapshot, written to project.xml only when
+  drawing), Smooth motion (the engine's smoothing: bodies drawn between physics steps); `Project.physics`, in the `.Project` undo snapshot, written to project.xml only when
   not the defaults.
 - Play and exports need nothing more: the player is the engine's. Box2D is static (the native
   `.a` through the engine's binding; on the web, `box2d_web.o` on the emcc line).

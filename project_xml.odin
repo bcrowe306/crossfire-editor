@@ -81,6 +81,7 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	if physics.gravity.x != e.DEFAULT_PHYSICS.gravity.x do attr(&w, "gravityX", physics.gravity.x)
 	if physics.gravity.y != e.DEFAULT_PHYSICS.gravity.y do attr(&w, "gravityY", physics.gravity.y)
 	if physics.debugDraw do attr(&w, "physicsDebug", true)
+	if !physics.smoothing do attr(&w, "physicsSmoothing", false)
 	endOpen(&w)
 	for &scene in project.scenes {
 		open(&w, "scene")
@@ -307,6 +308,24 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.collisionMask != defaults.collisionMask do attr(w, "collisionMask", e.FormatPhysicsLayers(node.collisionMask, context.temp_allocator))
 		if !node.enabled do attr(w, "enabled", false)
 		if !node.excludeParent do attr(w, "excludeParent", false)
+	case .Joint:
+		attr(w, "joint", node.jointKind)
+		if node.bodyA != "" do attr(w, "bodyA", node.bodyA)
+		attr(w, "bodyB", node.bodyB)
+		if node.jointKind == .Distance {
+			attr(w, "offsetX", node.jointOffset.x)
+			attr(w, "offsetY", node.jointOffset.y)
+		}
+		if node.enableLimit do attr(w, "limit", true)
+		if node.lower != 0 do attr(w, "lower", node.lower)
+		if node.upper != 0 do attr(w, "upper", node.upper)
+		if node.enableMotor do attr(w, "motor", true)
+		if node.motorSpeed != 0 do attr(w, "motorSpeed", node.motorSpeed)
+		if node.maxMotor != 0 do attr(w, "maxMotor", node.maxMotor)
+		if node.enableSpring do attr(w, "spring", true)
+		if node.hertz != 0 do attr(w, "hertz", node.hertz)
+		if node.dampingRatio != defaults.dampingRatio do attr(w, "damping", node.dampingRatio)
+		if node.collideConnected do attr(w, "collideConnected", true)
 	case .Node2D, .Menu:
 	}
 }

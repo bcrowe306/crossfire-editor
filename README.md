@@ -201,13 +201,19 @@ Games get 2D physics from the engine (Box2D). Add these nodes like any other (Ct
 | Area | Reports bodies entering and leaving it: pickups, triggers, damage zones |
 | CollisionShape | The shape of the body above it: rectangle, circle, capsule, polygon, segment |
 | RayCast | Reports the first body in its way: line of sight, ground checks |
+| Joint | Connects two bodies at its position: a hinge (Revolute), a rod, rope or spring (Distance), a slider (Prismatic), glue (Weld) or a wheel's suspension (Wheel), with limits, motors and springs |
 
 A body needs a CollisionShape under it. The inspector edits each body's collision layers (which
 of layers 1-16 it's on, and which it collides with), friction, bounce, mass and more. Shapes and
-rays are outlined in the viewport. Project Settings has the world's scale (pixels per meter),
-gravity, and Show shapes, which draws every shape in the running game. Scripts react to
-collisions with `collisionEnter` / `collisionExit` hooks, or the bodies' `onCollisionEnter` /
-`onCollisionExit` events.
+rays and joints are drawn in the viewport (Shift+C, or the viewport's shapes button, hides them).
+**Scene > Show Collision Shapes in Game** makes Play draw them in the game too. Project Settings
+has the world's scale (pixels per meter), gravity, Smooth motion (moving bodies glide on
+high-refresh screens) and Show shapes (always draw them in the game, exports included).
+
+Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, and to Areas with
+`areaEnter` / `areaExit` (or the bodies' events), and can ask at any time:
+`e.PhysicsBody_IsInArea(body, area)`, `e.PhysicsBody_GetAreas(body)`,
+`e.PhysicsBody_IsTouching(a, b)`.
 
 ## Exporting
 

@@ -93,6 +93,22 @@ NodeDef :: struct {
 	target: [2]f32,
 	enabled: bool,
 	excludeParent: bool,
+	// Joint: kind, the bodies by name (bodyA "" = the body above it, or the world), Distance's
+	// second anchor, limits, motor, spring
+	jointKind: e.JointKind,
+	bodyA: string,
+	bodyB: string,
+	jointOffset: [2]f32,
+	enableLimit: bool,
+	lower: f32,
+	upper: f32,
+	enableMotor: bool,
+	motorSpeed: f32,
+	maxMotor: f32,
+	enableSpring: bool,
+	hertz: f32,
+	dampingRatio: f32,
+	collideConnected: bool,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -198,6 +214,10 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		target = defaults.target,
 		enabled = defaults.enabled,
 		excludeParent = defaults.excludeParent,
+		bodyA = strings.clone(""),
+		bodyB = strings.clone(""),
+		jointOffset = defaults.jointOffset,
+		dampingRatio = defaults.dampingRatio,
 	}
 	if kind == .Menu {
 		append(&node.items, MenuItemDef{strings.clone("Button"), strings.clone("quit")})
@@ -216,6 +236,8 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	for prop in node.props { delete(prop.name); delete(prop.value) }
 	delete(node.props)
 	delete(node.points)
+	delete(node.bodyA)
+	delete(node.bodyB)
 }
 
 /*
@@ -461,6 +483,20 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				target = node.target,
 				enabled = node.enabled,
 				excludeParent = node.excludeParent,
+				jointKind = node.jointKind,
+				bodyA = strings.clone(node.bodyA),
+				bodyB = strings.clone(node.bodyB),
+				jointOffset = node.jointOffset,
+				enableLimit = node.enableLimit,
+				lower = node.lower,
+				upper = node.upper,
+				enableMotor = node.enableMotor,
+				motorSpeed = node.motorSpeed,
+				maxMotor = node.maxMotor,
+				enableSpring = node.enableSpring,
+				hertz = node.hertz,
+				dampingRatio = node.dampingRatio,
+				collideConnected = node.collideConnected,
 			}
 			append(&def.points, ..node.points[:])
 			for item in node.items {

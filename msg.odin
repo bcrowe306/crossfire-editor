@@ -27,6 +27,10 @@ Action :: enum {
 	Select_All,
 	Toggle_Grid,
 	Toggle_Snap,
+	// Outline collision shapes, rays and joints in the viewport
+	Toggle_Collision_Shapes,
+	// Play with the engine's physics debug drawing (an editor setting)
+	Toggle_Play_Collision_Shapes,
 	Play,
 	Pause,
 	Stop,
@@ -170,6 +174,7 @@ Project_Settings_Physics_Changed :: struct {
 	value: f64,
 }
 Project_Settings_Physics_Debug_Changed :: distinct bool
+Project_Settings_Physics_Smoothing_Changed :: distinct bool
 Project_Settings_Applied :: struct {}
 Project_Settings_Cancelled :: struct {}
 Project_Settings_Tab_Changed :: distinct ProjectSettingsTab
@@ -270,6 +275,15 @@ NodeField :: enum {
 	Radius,
 	Target_X,
 	Target_Y,
+	// Joint
+	Offset_X,
+	Offset_Y,
+	Lower,
+	Upper,
+	Motor_Speed,
+	Max_Motor,
+	Hertz,
+	Damping,
 }
 
 // Text properties. Play_Mode carries the enum value's name; Color carries #rrggbb
@@ -280,6 +294,10 @@ NodeTextField :: enum {
 	Play_Mode,
 	// A CollisionShape's kind, by name
 	Shape,
+	// A Joint's kind, and its bodies (names; "" for body A's default)
+	Joint_Kind,
+	Body_A,
+	Body_B,
 }
 
 Node_Text_Changed :: struct {
@@ -295,6 +313,10 @@ NodeFlag :: enum {
 	Disabled,
 	Enabled,
 	Exclude_Parent,
+	Limit,
+	Motor,
+	Spring,
+	Collide_Connected,
 }
 
 // Turns one collision layer (1-64) on or off in the selected node's layers (or its mask)
@@ -419,6 +441,7 @@ Settings_Code_Editor_Args_Changed :: distinct string
 Settings_Code_Editor_Browse :: struct {}
 Settings_Code_Editor_Picked :: distinct skald.File_Dialog_Result
 Settings_Optimized_Play_Changed :: distinct bool
+Settings_Play_Shapes_Changed :: distinct bool
 // Clicked a shortcut: the next key press binds that slot
 Settings_Capture_Started :: struct {
 	action: Action,
@@ -510,6 +533,7 @@ Msg :: union {
 	Project_Settings_Cancelled,
 	Project_Settings_Physics_Changed,
 	Project_Settings_Physics_Debug_Changed,
+	Project_Settings_Physics_Smoothing_Changed,
 	Project_Settings_Tab_Changed,
 	Export_Target_Selected,
 	Export_Target_Enabled,
@@ -538,6 +562,7 @@ Msg :: union {
 	Settings_Code_Editor_Browse,
 	Settings_Code_Editor_Picked,
 	Settings_Optimized_Play_Changed,
+	Settings_Play_Shapes_Changed,
 	Settings_Capture_Started,
 	Settings_Key_Captured,
 	Settings_Capture_Cancelled,
