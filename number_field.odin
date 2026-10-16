@@ -38,7 +38,7 @@ Inputs:
 - value: The current value
 - step: How much − and + change it
 - decimals: Decimals shown
-- width: Total width, buttons included
+- width: Total width, buttons included. The box has tight vertical padding (2 px)
 - minValue, maxValue: The allowed range
 */
 numberField :: proc(
@@ -70,7 +70,7 @@ numberField :: proc(
 	}
 	input := skald.text_input(ctx, text, Payload{target, id, minValue, maxValue},
 		proc(p: Payload, v: string) -> Msg { return Number_Text_Changed{p.target, p.id, v, p.lo, p.hi} },
-		id = id, width = max(width - 2 * (buttonWidth + gap), 40))
+		id = id, width = max(width - 2 * (buttonWidth + gap), 40), padding = {th.spacing.sm, 2})
 
 	stepButton :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, width: f32) -> skald.View {
 		th := ctx.theme

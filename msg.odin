@@ -203,6 +203,13 @@ Node_Field_Changed :: struct {
 	value: f64,
 }
 
+// Inspector X/Y pairs that can be linked
+LinkedPair :: enum {
+	Position,
+	Scale,
+}
+Inspector_Link_Toggled :: distinct LinkedPair
+
 // Typing in a number field (number_field.odin). `text` is only valid while handling the message
 Number_Text_Changed :: struct {
 	target: NumberTarget,
@@ -334,6 +341,7 @@ Msg :: union {
 	New_Project_Cancelled,
 	Open_Project_Chosen,
 	Quit_Without_Asking,
+	Inspector_Link_Toggled,
 	Number_Text_Changed,
 	Number_Edit_Ended,
 	Rename_Started,

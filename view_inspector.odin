@@ -9,7 +9,9 @@ import sdl "vendor:sdl3"
 INSPECTOR_LABEL_WIDTH :: 82
 // The texture dropdown's first choice: no image
 TEXTURE_NONE :: "(None)"
-INSPECTOR_MAX_NUMBER_WIDTH :: 160
+// Widest a number field gets (its − and + buttons included), and a text box, dropdown or color
+INSPECTOR_MAX_NUMBER_WIDTH :: 120
+INSPECTOR_MAX_TEXT_WIDTH :: 200
 // Room kept free on the right of inspector rows for the scrollbar
 INSPECTOR_SCROLLBAR_WIDTH :: 14
 
@@ -297,7 +299,9 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Content inside a scroll view isn't width-limited, so size controls from the sidebar width
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
 	controlWidth := max(sidebarWidth - th.spacing.md * 2 - INSPECTOR_LABEL_WIDTH - th.spacing.sm - INSPECTOR_SCROLLBAR_WIDTH, 80)
-	numberWidth := min(controlWidth, INSPECTOR_MAX_NUMBER_WIDTH)
+	// Room for the link button next to X/Y fields, so it never ends up under the scrollbar
+	numberWidth := min(controlWidth - LINK_BUTTON_WIDTH - th.spacing.xs, INSPECTOR_MAX_NUMBER_WIDTH)
+	controlWidth = min(controlWidth, INSPECTOR_MAX_TEXT_WIDTH)
 
 	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: NodeField, value: f32, step: f64, decimals: int, width: f32, minValue := min(f64), maxValue := max(f64)) -> skald.View {
 		return numberField(ctx, s, fmt.tprintf("inspector-%v-%d", field, key), field, f64(value), step, decimals, width, minValue, maxValue)
@@ -309,13 +313,14 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		inspectorRow(ctx, "Name", skald.text_input(ctx, node.name,
 			proc(v: string) -> Msg { return Node_Renamed(v) },
 			id = skald.hash_id(fmt.tprintf("inspector-name-%d", key)),
-			width = controlWidth)),
+			width = controlWidth, padding = InspectorFieldPadding(ctx))),
 		inspectorRow(ctx, "Type", skald.text(fmt.tprintf("%s  %v", NodeKindIcon(node.kind), node.kind), th.color.fg_muted, th.font.size_sm)),
-		inspectorRow(ctx, "Position X", number(ctx, s, key, .Position_X, node.position.x, 1, 0, numberWidth)),
-		inspectorRow(ctx, "Position Y", number(ctx, s, key, .Position_Y, node.position.y, 1, 0, numberWidth)),
+		// X/Y pairs: the chain button links them, so changing one changes the other in proportion
+		inspectorRow(ctx, "Position X", linked(ctx, s, .Position, number(ctx, s, key, .Position_X, node.position.x, 1, 0, numberWidth))),
+		inspectorRow(ctx, "Position Y", linkSpace(ctx, number(ctx, s, key, .Position_Y, node.position.y, 1, 0, numberWidth))),
 		inspectorRow(ctx, "Rotation", number(ctx, s, key, .Rotation, node.rotation, 5, 1, numberWidth)),
-		inspectorRow(ctx, "Scale X", number(ctx, s, key, .Scale_X, node.scale.x, 0.1, 2, numberWidth)),
-		inspectorRow(ctx, "Scale Y", number(ctx, s, key, .Scale_Y, node.scale.y, 0.1, 2, numberWidth)),
+		inspectorRow(ctx, "Scale X", linked(ctx, s, .Scale, number(ctx, s, key, .Scale_X, node.scale.x, 0.1, 2, numberWidth))),
+		inspectorRow(ctx, "Scale Y", linkSpace(ctx, number(ctx, s, key, .Scale_Y, node.scale.y, 0.1, 2, numberWidth))),
 		inspectorRow(ctx, "Layer", number(ctx, s, key, .Layer, f32(node.layer), 1, 0, numberWidth, 0, 7)),
 		inspectorRow(ctx, "Visible", skald.checkbox(ctx, node.visible, "",
 			proc(v: bool) -> Msg { return Node_Visibility_Changed(v) },
@@ -327,7 +332,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	onFlag :: proc(flag: NodeFlag, value: bool) -> Msg { return Node_Flag_Changed{flag, value} }
 	textField :: proc(ctx: ^skald.Ctx(Msg), key: int, field: NodeTextField, value: string, width: f32) -> skald.View {
 		return skald.text_input(ctx, value, field, onText,
-			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", field, key)), width = width)
+			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", field, key)), width = width, padding = InspectorFieldPadding(ctx))
 	}
 	flag :: proc(ctx: ^skald.Ctx(Msg), key: int, flag: NodeFlag, value: bool) -> skald.View {
 		return skald.checkbox(ctx, value, "", flag, onFlag, id = skald.hash_id(fmt.tprintf("inspector-%v-%d", flag, key)))
@@ -456,3 +461,31 @@ sceneTreeRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skal
 			id = id, width = width, height = rowHeight, font_size = th.font.size_sm),
 		no_shadow = true, pin = true)
 }
+
+// Inspector text boxes are a little tighter than Skald's default (spacing.md x spacing.sm)
+InspectorFieldPadding :: proc(ctx: ^skald.Ctx(Msg)) -> [2]f32 {
+	return {ctx.theme.spacing.sm, 2}
+}
+
+// A field followed by its pair's link toggle
+@(private="file")
+linked :: proc(ctx: ^skald.Ctx(Msg), s: ^State, pair: LinkedPair, field: skald.View) -> skald.View {
+	th := ctx.theme
+	on := s.inspectorLinks[pair]
+	button := skald.button(ctx, on ? ICON_LINK : ICON_LINK_SLASH, Msg(Inspector_Link_Toggled(pair)),
+		id = skald.hash_id(fmt.tprintf("inspector-link-%v", pair)),
+		bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg_muted,
+		width = LINK_BUTTON_WIDTH, padding = {0, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
+	tip := on ? "Unlink: change X and Y separately" : "Link X and Y: changing one changes the other in proportion"
+	return skald.row(field, skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("inspector-link-tip-%v", pair))),
+		spacing = th.spacing.xs, cross_align = .Center)
+}
+
+// The second field of a pair, lined up with the first (which has the link button)
+@(private="file")
+linkSpace :: proc(ctx: ^skald.Ctx(Msg), field: skald.View) -> skald.View {
+	return skald.row(field, skald.spacer(LINK_BUTTON_WIDTH), spacing = ctx.theme.spacing.xs)
+}
+
+@(private="file")
+LINK_BUTTON_WIDTH :: 20

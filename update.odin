@@ -331,10 +331,19 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		}
 	case Node_Visibility_Changed:
 		if node := selectedNode(&out); node != nil do node.visible = bool(v)
+	case Inspector_Link_Toggled:
+		out.inspectorLinks[LinkedPair(v)] = !out.inspectorLinks[LinkedPair(v)]
 	case Node_Field_Changed:
 		node := selectedNode(&out)
 		if node == nil do break
 		value := f32(v.value)
+		// A linked pair: the other axis follows in proportion
+		#partial switch v.field {
+		case .Position_X: if out.inspectorLinks[.Position] do node.position.y = LinkedAxis(node.position.x, value, node.position.y)
+		case .Position_Y: if out.inspectorLinks[.Position] do node.position.x = LinkedAxis(node.position.y, value, node.position.x)
+		case .Scale_X:    if out.inspectorLinks[.Scale] do node.scale.y = LinkedAxis(node.scale.x, value, node.scale.y)
+		case .Scale_Y:    if out.inspectorLinks[.Scale] do node.scale.x = LinkedAxis(node.scale.y, value, node.scale.x)
+		}
 		switch v.field {
 		case .Position_X: node.position.x = value
 		case .Position_Y: node.position.y = value
@@ -665,4 +674,13 @@ boxSelect :: proc(state: ^State, drag: ViewportDrag) {
 		return
 	}
 	Selection_Set(state, nodes[:], len(hits) > 0 ? hits[len(hits) - 1] : -1)
+}
+
+/*
+The other axis of a linked X/Y pair after one axis changed from `old` to `new`: scaled by the same
+ratio, so 2 x 1 becomes 4 x 2. When either is 0 there's no ratio, so it moves by the same amount.
+*/
+LinkedAxis :: proc(old, new, other: f32) -> f32 {
+	if abs(old) < 1e-6 || abs(other) < 1e-6 do return other + (new - old)
+	return other * (new / old)
 }

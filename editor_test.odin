@@ -1422,3 +1422,32 @@ number_field_typing :: proc(t: ^testing.T) {
 	testing.expect_value(t, state.settingsDialog.draft.fontSize, 15)
 	free_all(context.temp_allocator)
 }
+
+@(test)
+linked_xy_fields_keep_their_ratio :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := state.selectedNode
+
+	// Unlinked: only X changes
+	send(&state, Node_Field_Changed{.Scale_X, 2})
+	testing.expect_value(t, scene.nodes[ship].scale, [2]f32{2, 1})
+	// Linked: 2 x 1 -> 4 x 2, then Y 2 -> 1 gives 2 x 1
+	send(&state, Inspector_Link_Toggled(.Scale))
+	send(&state, Node_Field_Changed{.Scale_X, 4})
+	testing.expect_value(t, scene.nodes[ship].scale, [2]f32{4, 2})
+	send(&state, Node_Field_Changed{.Scale_Y, 1})
+	testing.expect_value(t, scene.nodes[ship].scale, [2]f32{2, 1})
+	// Typing goes through the same path
+	send(&state, Number_Text_Changed{NodeField.Scale_X, skald.hash_id("x"), "6", min(f64), max(f64)})
+	testing.expect_value(t, scene.nodes[ship].scale, [2]f32{6, 3})
+
+	// Position: 640 x 430 -> 1280 x 860; from 0 there's no ratio, so the same amount
+	send(&state, Inspector_Link_Toggled(.Position))
+	send(&state, Node_Field_Changed{.Position_X, 1280})
+	testing.expect_value(t, scene.nodes[ship].position, [2]f32{1280, 860})
+	testing.expect_value(t, LinkedAxis(0, 5, 3), 8)
+	testing.expect_value(t, LinkedAxis(2, 3, 0), 1)
+	free_all(context.temp_allocator)
+}

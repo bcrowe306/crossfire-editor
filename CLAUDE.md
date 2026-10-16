@@ -147,6 +147,12 @@ Skald is not immediate-mode and not a retained widget tree:
 - A custom widget that stores state under an id (`widget_get`) must not also wrap itself in
   `skald.zone` with that id: the zone claims the slot as another widget kind and Skald resets the
   state every frame. Return a bare `skald.View_Zone{id, child}` (as `coloredTree` does).
+- Inspector fields use tight padding (`InspectorFieldPadding`, 2 px vertical) and capped widths
+  (`INSPECTOR_MAX_NUMBER_WIDTH` 120, `INSPECTOR_MAX_TEXT_WIDTH` 200). Position and Scale have a link
+  toggle (`inspectorLinks`): a change to one axis scales the other by the same ratio
+  (`LinkedAxis`; from 0 it moves by the same amount). Number widths leave room for that button:
+  anything spilling into the reserved scrollbar strip is covered by the scrollbar and can't be
+  clicked.
 - Type colors: node kinds use `kindColor` (scene tree rows and viewport markers); the browser uses
   `BrowserItemColor` (scenes blue, images like sprites, audio pink, fonts amber). Icons get the
   full color, labels `TintLabel` (the text color pulled 45% toward it); hidden nodes are muted.

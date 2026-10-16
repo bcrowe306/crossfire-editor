@@ -36,6 +36,8 @@ ICON_FILE_LINES  :: "\uf15c"
 ICON_CIRCLE_INFO :: "\uf05a"
 ICON_GRID        :: "\uf00a"
 ICON_MAGNET      :: "\uf076"
+ICON_LINK        :: "\uf0c1"
+ICON_LINK_SLASH  :: "\uf127"
 
 @(private="file")
 iconFontRegistered: bool

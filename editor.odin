@@ -137,6 +137,8 @@ State :: struct {
 		asset: int,
 	},
 	addNode: AddNodeDialog,
+	// Inspector X/Y pairs whose axes change together
+	inspectorLinks: [LinkedPair]bool,
 	// Text typed into the focused number field
 	numberEdit: NumberEdit,
 	// Every selected node of the open scene, sorted; `selectedNode` is the primary one (selection.odin)

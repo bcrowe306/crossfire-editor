@@ -80,6 +80,7 @@ Checks:
 	row <n> <name>               Node shown in row n of the scene tree
 	clipboard <count>            Nodes copied (a subtree)
 	selection <count>            Selected nodes
+	linked <Position | Scale> <true | false>   An inspector X/Y pair is linked
 	renaming <true | false>      A node is being renamed in the scene tree
 	grid <on | off>, snap <on | off>   Viewport grid and snapping
 	modified <true | false>      The project has unsaved changes
@@ -591,6 +592,12 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(len(s.clipboard))
 	case "selection":
 		found = fmt.tprint(len(s.selection))
+	case "linked":
+		pairName, _, expected := strings.partition(value, " ")
+		pair, known := reflect.enum_from_name(LinkedPair, pairName)
+		if !known do return false, fmt.tprintf("unknown pair '%s'", pairName)
+		found = fmt.tprint(s.inspectorLinks[pair])
+		return found == strings.trim_space(expected), found
 	case "renaming":
 		found = fmt.tprint(s.rename.active)
 	case "grid":

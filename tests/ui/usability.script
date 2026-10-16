@@ -41,6 +41,17 @@ type 672
 key escape
 expect field x 672
 
+# Linked scale: with the chain on, changing X scales Y by the same ratio
+click_widget inspector-link-Scale
+expect linked Scale true
+click_widget inspector-Scale_X-2-inc
+expect field scale_x 1.10
+expect field scale_y 1.10
+click_widget inspector-link-Scale
+click_widget inspector-Scale_X-2-dec
+expect field scale_x 1.00
+expect field scale_y 1.10
+
 # Ctrl+click in the tree adds to the selection; Delete removes both subtrees; undo brings them back
 click_row scene-tree 1
 expect selected Camera
