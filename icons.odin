@@ -37,6 +37,8 @@ ICON_CIRCLE_INFO :: "\uf05a"
 ICON_GRID        :: "\uf00a"
 ICON_MAGNET      :: "\uf076"
 ICON_LINK        :: "\uf0c1"
+ICON_FILE_CODE   :: "\uf1c9"
+ICON_CODE        :: "\uf121"
 ICON_LINK_SLASH  :: "\uf127"
 
 @(private="file")

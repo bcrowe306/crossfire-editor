@@ -183,7 +183,8 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	preview.scene.game = preview.game
 
 	data := toSceneData(scene)
-	created := e.Scene_Build(preview.scene, &data, s.project.rootPath)
+	// Scripts don't run in the viewport
+	created := e.Scene_Build(preview.scene, &data, s.project.rootPath, attachScripts = false)
 	e.Scene_ProcessQueues(preview.scene)
 
 	clear(&preview.nodes)

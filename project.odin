@@ -61,6 +61,16 @@ NodeDef :: struct {
 	playMode: e.AnimationPlayMode,
 	// Menu
 	items: [dynamic]MenuItemDef,
+	// Any kind: the script attached to it ("" for none) and its exported field values, as text
+	// (scripts.odin). Values for fields the script doesn't have are kept, not shown
+	script: string,
+	props: [dynamic]ScriptPropDef,
+}
+
+// A script field's value: `<prop name="speed" value="250"/>` (both owned)
+ScriptPropDef :: struct {
+	name: string,
+	value: string,
 }
 
 /*
@@ -139,6 +149,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		fps = defaults.fps,
 		loop = defaults.loop,
 		playMode = defaults.playMode,
+		script = strings.clone(""),
 	}
 	if kind == .Menu {
 		append(&node.items, MenuItemDef{strings.clone("Button"), strings.clone("quit")})
@@ -153,6 +164,9 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.text)
 	for item in node.items { delete(item.label); delete(item.action) }
 	delete(node.items)
+	delete(node.script)
+	for prop in node.props { delete(prop.name); delete(prop.value) }
+	delete(node.props)
 }
 
 /*
@@ -371,6 +385,10 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string) {
 			}
 			for item in node.items {
 				append(&def.items, MenuItemDef{strings.clone(item.label), strings.clone(item.action)})
+			}
+			def.script = strings.clone(node.script)
+			for prop in node.props {
+				append(&def.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
 			}
 			append(&scene.nodes, def)
 		}

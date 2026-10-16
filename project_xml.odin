@@ -107,7 +107,7 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		}
 		writeNode(&w, &node)
 		hasChildren := Scene_HasChildren(scene, i)
-		if len(node.items) == 0 && !hasChildren {
+		if len(node.items) == 0 && node.script == "" && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -117,6 +117,22 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			attr(&w, "label", item.label)
 			attr(&w, "action", item.action)
 			closeEmpty(&w)
+		}
+		if node.script != "" {
+			open(&w, "script")
+			attr(&w, "name", node.script)
+			if len(node.props) == 0 {
+				closeEmpty(&w)
+			} else {
+				endOpen(&w)
+				for prop in node.props {
+					open(&w, "prop")
+					attr(&w, "name", prop.name)
+					attr(&w, "value", prop.value)
+					closeEmpty(&w)
+				}
+				close(&w, "script")
+			}
 		}
 		if hasChildren {
 			append(&open_nodes, i)

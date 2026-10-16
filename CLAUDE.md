@@ -14,6 +14,9 @@ consoles and handhelds).
   - The scene tree has a context menu, copy/paste/duplicate, and drag to reorder and reparent.
   - Undo/redo covers every scene edit. Settings (appearance, undo, keymap) are edited in a dialog
     and saved to editor.ini next to the executable.
+  - **Scripts**: Odin code attached to nodes, created from the inspector, edited in an external
+    editor (Zed by default), exported fields edited in the inspector, built into a per-project
+    player for Play.
   - Multi-select (Ctrl/Shift+click, box select, Ctrl+A), a viewport grid with snapping, inline
     rename, dragging images from the browser into the viewport, New/Open Project with an
     unsaved-changes prompt.
@@ -115,6 +118,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `settings.default.ini` | Default settings, built into the editor |
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
+| `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
 | `selection.odin` | Multi-selection: `Selection_Set/Toggle/Normalize/Roots` |
 | `project_session.odin` | Unsaved changes, New/Open Project, the save prompt, the window title |
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
@@ -360,15 +364,42 @@ they show the last busy moment.
 
 ### Play mode (implemented, `play.odin`)
 
-Play runs the project in the engine's **player** (`<engine>/player`), a separate program that loads
-`project.xml` and runs the start scene. A crashing game can't take the editor down, and the player is
-the same runtime exports will ship.
+Play runs the project in a **player** (`e.Player_Run`), a separate program that loads `project.xml`
+and runs the start scene. A crashing game can't take the editor down, and the player is the same
+runtime exports will ship.
+- A project **without scripts** uses the engine's `<engine>/player` (`build/player/player`).
+- A project **with scripts** (`.odin` files in `scripts/`) gets its own: `playerTarget` writes a
+  generated `main.odin` (`playerMainSource`) into `build/players/<project>-<hash>/`, which imports
+  `engine:.` and `project:scripts`, built with `-collection:project=<project folder>`.
 
 1. Save the project (`Project_Save`).
-2. If `build/player/player` is missing or older than any engine `.odin` file, run
-   `odin build <engine>/player`. Output goes to the **Output** tab.
-3. Run `player <absolute project folder>`. Its output goes to the **Console**, with the engine
+2. If the player is missing or older than any `.odin` file it's built from (engine, scripts, the
+   generated main), build it. Unoptimized unless `settings.optimizedPlay` (about 4 s against 50 s
+   with `-o:speed`). Output goes to the **Output** tab.
+3. A project player then runs with `--describe-scripts` (stage `.Describing`); its JSON becomes
+   the script catalog (`ScriptCatalog_Parse`), shown by the inspector.
+4. Run `player <absolute project folder>`. Its output goes to the **Console**, with the engine
    logger's level tag and timestamp stripped (`parseLogLine`).
+
+**Build Scripts** (Ctrl+B, and once in the background when a project with scripts opens) does steps
+2-3 only. `PlaySession.purpose` says which; `.Describe` is its zero value on purpose, and it must be
+carried across `endSession` between steps (losing it once made describing start the game).
+
+### Scripts (implemented, `scripts.odin`, the inspector's Script section)
+
+- `NodeDef.script` and `props` (name/value text, only values that differ from the field's default)
+  are written as `<script name><prop name value/></script>` (format version 3).
+- The catalog (`State.scripts`: status Unknown/Building/Ready/Failed, and each script's fields)
+  comes only from builds. Before one, nodes keep their script and values; the inspector lists the
+  stored values read-only.
+- Inspector: a dropdown of built scripts (or None), New (the New Script dialog: name, then
+  `Project_CreateScript` writes `scripts/<snake_name>.odin` from `ScriptTemplate`, attaches it,
+  opens it and builds), Open (`Script_OpenInEditor`: the `code_editor` command with `{file}` and
+  `{line}`). Fields by type: number fields (`ScriptPropTarget`), checkbox, text or scene dropdown
+  (`kind=scene`), two numbers for vectors, color picker, enum dropdown. All undoable.
+- Browser: a Scripts folder (only when there are scripts; `State.scriptFiles`, refreshed by
+  `Scripts_Refresh`) whose preview shows the file's start and an Open button.
+- Scripts don't run in the viewport (`Scene_Build(..., attachScripts = false)`).
 
 Both are child processes (`core:os` `process_start` with a pipe). A `Play_Tick` message every 0.1 s
 (`skald.cmd_delay`) drains the pipe and checks for exit with `process_wait(…, 0)`, so there are no
@@ -589,6 +620,15 @@ Highlights:
 - The driver waits until the window size has been stable for `WINDOW_SETTLE_TIME` before the
   first command: a tiling window manager resizes a new window right after it opens, and a click
   aimed at the old layout misses.
+- **UI tests never start a real code editor:** `tests/ui/settings.ini` (copied to the scratch
+  settings file) sets `code_editor = true {file}`. Unit tests that create scripts set it too.
+- `scripts.script` really builds a project player (a few seconds unoptimized, longer when the engine
+  changed) and plays it.
+- `scroll_into_view <scroll> <widget>` pages a scroll container until the widget is visible: widgets
+  far outside a scroll aren't laid out, and keep stale rects. A `wait_until` that passes lets a few
+  frames settle before the next command.
+- A game window (Play) makes a tiling window manager shrink the editor's window, which moves every
+  rect: stop the game before clicking things that may move.
 - **Modifier clicks:** Skald reads Ctrl/Shift from key events, not mouse events, so the driver
   holds the modifier key around the click (`click_row ... ctrl`, `click_node ... shift`).
 - A context menu fades out after closing and blocks clicks under it meanwhile; the driver waits
@@ -614,17 +654,23 @@ Highlights:
   `ENGINE_DIR` in the Taskfile, not a submodule.
 - **Scenes load at runtime from XML.** An engine-side loader and a generic player read them; no
   code generation.
-- **Game code is written in Odin, not a scripting language.** A project's `src/` package is
-  compiled into the player and registers its own node types, which scene files refer to by kind
-  name. Hot reload (a shared library loaded with `core:dynlib`) is a possible later step for
-  development only; exports link the code in statically. Lua (`vendor:lua`) stays out unless
+- **Game code is written in Odin, not a scripting language.** Lua (`vendor:lua`) stays out unless
   modding support is wanted.
+- **Scripts attach to built-in nodes, one per node** (2026-10-16). A project's `scripts/` package is
+  compiled into a per-project player; each script registers itself (`e.Script_Register` from an
+  `@(init) proc "contextless"`), scene files attach it by name, and the editor learns its exported
+  fields from `player --describe-scripts`. See "Scripts" above and the engine's `script.odin`.
+- **Scripts are edited in an external editor**, set in Settings (`code_editor`, default
+  `zed {file}:{line}`; the user uses Zed).
+- **Deferred, decided to do later:** custom node kinds registered by game code (a struct embedding
+  e.g. `e.Sprite`, used as `kind="Player"`); more than one script per node; hot reload of scripts
+  (a shared library via `core:dynlib`, development builds only; exports link statically); and, much
+  later, a lightweight built-in code editor using OLS (the Odin language server) for small scripts.
 - **Node transforms are relative to the parent**, with UI nodes (Label, Menu) following position only.
   The camera is a node.
 
 ## Open decisions (confirm with the user before building on them)
 
-- The details of game code: how `src/` is wired into the player build (collection flag or a
-  generated import), the node-kind registry API, and how custom node properties reach the
-  inspector and scene files.
+- How exports package a project's player (the same generated main, built `-o:speed`, plus the
+  project folder) and where it looks for assets.
 - Minimum supported OS versions and CPU architectures for each export target.

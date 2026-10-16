@@ -56,6 +56,7 @@ LogLine :: struct {
 // Folders shown in the project browser
 BrowserFolder :: enum {
 	Scenes,
+	Scripts,
 	Images,
 	Audio,
 	Fonts,
@@ -150,6 +151,16 @@ State :: struct {
 	settingsPath: string,
 	settingsDialog: SettingsDialog,
 	history: History,
+	// What the last build said about the project's scripts, and its script files (scripts.odin)
+	scripts: ScriptCatalog,
+	scriptFiles: [dynamic]string,
+	// A background build of the scripts was requested once for this project
+	scriptsAutoBuilt: bool,
+	newScript: struct {
+		open: bool,
+		// Owned
+		name: string,
+	},
 	session: SessionState,
 	// Copied or cut nodes: one subtree, parents relative to the list (see node_edit.odin)
 	clipboard: [dynamic]NodeDef,
@@ -196,7 +207,7 @@ init :: proc() -> State {
 		currentScene = 0,
 		selectedNode = -1,
 
-		browserOpen = {.Scenes = true, .Images = true, .Audio = false, .Fonts = false},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false},
 		browserSelection = {kind = .None},
 		viewport = {animate = true, gridVisible = true},
 		layout = {
@@ -232,6 +243,8 @@ init :: proc() -> State {
 		state.project = Project_CreateDemo(DEMO_PROJECT)
 		logLine(&state, .Error, fmt.aprintf("%s. Showing the demo project instead", message))
 	}
+	// After the project is chosen: list its script files for the browser
+	Scripts_Refresh(&state)
 	return state
 }
 
@@ -255,6 +268,10 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.session.newProject.name)
 	delete(state.session.newProject.location)
 	History_Destroy(&state.history)
+	ScriptCatalog_Clear(&state.scripts)
+	for f in state.scriptFiles do delete(f)
+	delete(state.scriptFiles)
+	delete(state.newScript.name)
 	delete(state.selection)
 	delete(state.settingsPath)
 	delete(state.settingsDialog.search)

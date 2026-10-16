@@ -16,6 +16,8 @@ BrowserItemKind :: enum {
 	Folder,
 	Scene,
 	Asset,
+	// A script file: index into state.scriptFiles
+	Script,
 }
 
 // What a project browser row refers to
@@ -43,6 +45,12 @@ BrowserRows :: proc(state: ^State) -> []BrowserItem {
 		if folder == .Scenes {
 			for scene, i in state.project.scenes {
 				if matchesSearch(scene.name, search) do append(&contents, BrowserItem{kind = .Scene, folder = folder, index = i})
+			}
+		} else if folder == .Scripts {
+			// Shown only when the project has scripts
+			if len(state.scriptFiles) == 0 do continue
+			for file, i in state.scriptFiles {
+				if matchesSearch(filepath.base(file), search) do append(&contents, BrowserItem{kind = .Script, folder = folder, index = i})
 			}
 		} else {
 			for asset, i in state.project.assets {

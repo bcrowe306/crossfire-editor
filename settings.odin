@@ -50,6 +50,10 @@ Settings :: struct {
 	undoLimit: int,
 	// Viewport grid spacing, world units
 	gridSize: int,
+	// The command that opens a script: {file} and {line} are replaced ("zed {file}:{line}")
+	codeEditor: FixedText,
+	// Build players for Play with -o:speed (about 50 s instead of 4 s per build)
+	optimizedPlay: bool,
 
 	// [keymap]
 	keymap: Keymap,
@@ -62,6 +66,27 @@ SETTINGS_ROW_HEIGHT_RANGE :: [2]f32{18, 48}
 SETTINGS_UNDO_MS_RANGE :: [2]int{0, 10000}
 SETTINGS_UNDO_LIMIT_RANGE :: [2]int{1, 10000}
 SETTINGS_GRID_SIZE_RANGE :: [2]int{2, 1024}
+
+/*
+Text stored inline, so `Settings` stays a plain value that can be copied (the Settings dialog edits
+a copy). Longer text is cut at FIXED_TEXT_SIZE bytes.
+*/
+FixedText :: struct {
+	buffer: [FIXED_TEXT_SIZE]u8,
+	length: int,
+}
+
+FIXED_TEXT_SIZE :: 256
+
+FixedText_Make :: proc(text: string) -> FixedText {
+	t: FixedText
+	t.length = copy(t.buffer[:], text)
+	return t
+}
+
+FixedText_String :: proc(t: ^FixedText) -> string {
+	return string(t.buffer[:t.length])
+}
 
 /*
 The default settings, from `settings.default.ini`.
@@ -113,6 +138,16 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 			case "undo_group_max_ms": target, limits = &settings.undoGroupMaxMs, SETTINGS_UNDO_MS_RANGE
 			case "undo_limit":        target, limits = &settings.undoLimit, SETTINGS_UNDO_LIMIT_RANGE
 			case "grid_size":         target, limits = &settings.gridSize, SETTINGS_GRID_SIZE_RANGE
+			case "code_editor":
+				settings.codeEditor = FixedText_Make(value)
+				continue
+			case "optimized_play":
+				switch strings.to_lower(value, context.temp_allocator) {
+				case "true":  settings.optimizedPlay = true
+				case "false": settings.optimizedPlay = false
+				case: problem(&problems, it.section, key, value, "expected true or false")
+				}
+				continue
 			case:
 				problem(&problems, it.section, key, value, "unknown setting")
 				continue
@@ -171,8 +206,9 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ngrid_size = %d\n\n",
-		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit, settings.gridSize)
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ngrid_size = %d\ncode_editor = %s\noptimized_play = %v\n\n",
+		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit, settings.gridSize,
+		FixedText_String(&settings.codeEditor), settings.optimizedPlay)
 	strings.write_string(&b, "[keymap]\n")
 	for chords, action in settings.keymap {
 		fmt.sbprintf(&b, "%v = %s\n", action, Keymap_FormatChords(chords))

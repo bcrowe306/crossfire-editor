@@ -96,3 +96,49 @@ newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		width = 480,
 	)
 }
+
+/*
+New Script: a name, then Create writes scripts/<name>.odin from the template, attaches it to the
+selected node, opens it in the code editor and builds the scripts. Keys: `new-script-name`,
+`new-script-create`, `new-script-cancel`.
+*/
+newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	name := s.newScript.name
+	problem := ScriptNameProblem(name)
+	scene := &s.project.scenes[s.currentScene]
+	target := s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) ? fmt.tprintf(" and attaches it to %s", scene.nodes[s.selectedNode].name) : ""
+	info := name == "" ? "A struct and its ready/update procedures, in the project's scripts package." :
+		problem != "" ? problem : fmt.tprintf("Creates %s%s, then opens it in your code editor.", ScriptFileFor(name), target)
+	return skald.dialog(ctx,
+		open = s.newScript.open,
+		on_dismiss = proc() -> Msg { return New_Script_Cancelled{} },
+		content = skald.col(
+			skald.text("New Script", th.color.fg, th.font.size_lg),
+			skald.row(
+				skald.col(skald.text("Name", th.color.fg, th.font.size_sm), width = 60),
+				skald.flex(1, skald.text_input(ctx, name,
+					proc(v: string) -> Msg { return New_Script_Name_Changed(v) },
+					id = skald.hash_id("new-script-name"), placeholder = "PlayerController")),
+				spacing = th.spacing.sm,
+				cross_align = .Center,
+			),
+			skald.text(info, problem != "" && name != "" ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = 400),
+			skald.spacer(th.spacing.sm),
+			skald.row(
+				skald.flex(1, skald.spacer(0)),
+				skald.button(ctx, "Cancel", Msg(New_Script_Cancelled{}), id = skald.hash_id("new-script-cancel"),
+					bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm),
+				skald.button(ctx, "Create", Msg(New_Script_Created{}), id = skald.hash_id("new-script-create"),
+					font_size = th.font.size_sm, disabled = problem != ""),
+				spacing = th.spacing.sm,
+			),
+			spacing = th.spacing.sm,
+			padding = th.spacing.lg,
+			cross_align = .Stretch,
+		),
+		id = skald.hash_id("new-script-dialog"),
+		initial_focus = skald.hash_id("new-script-name"),
+		width = 440,
+	)
+}

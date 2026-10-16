@@ -132,6 +132,12 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		}
 	case Node_Renamed:
 		if hasSelection do return node(selected, fmt.tprintf("Rename %s", name), key("rename", s.currentScene, selected))
+	case Node_Script_Changed:
+		if hasSelection do return node(selected, string(v) == "" || string(v) == TEXTURE_NONE ? fmt.tprintf("Remove script from %s", name) : fmt.tprintf("Attach %s to %s", string(v), name))
+	case Script_Prop_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", v.name, name), key("prop", v.name, s.currentScene, selected))
+	case New_Script_Created:
+		if hasSelection do return node(selected, fmt.tprintf("Attach a new script to %s", name))
 	case Node_Visibility_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("%s %s", bool(v) ? "Show" : "Hide", name))
 	case Node_Field_Changed:
@@ -140,6 +146,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		// Typing a number: the same step as changing that field
 		if field, isNode := v.target.(NodeField); isNode && hasSelection {
 			return node(selected, fmt.tprintf("Change %s of %s", fieldLabel(field), name), key("field", field, s.currentScene, selected))
+		}
+		if prop, isProp := v.target.(ScriptPropTarget); isProp && hasSelection {
+			return node(selected, fmt.tprintf("Change %s of %s", prop.name, name), key("prop", prop.name, s.currentScene, selected))
 		}
 	case Node_Text_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("text", v.field, s.currentScene, selected))
@@ -404,10 +413,12 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.rotation != b.rotation || a.scale != b.scale || a.layer != b.layer || a.visible != b.visible ||
 	   a.texture != b.texture || a.text != b.text || a.fontSize != b.fontSize || a.color != b.color ||
 	   a.centered != b.centered || a.zoom != b.zoom || a.columns != b.columns || a.rows != b.rows ||
-	   a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || len(a.items) != len(b.items) {
+	   a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || len(a.items) != len(b.items) ||
+	   a.script != b.script || len(a.props) != len(b.props) {
 		return false
 	}
 	for item, i in a.items do if item != b.items[i] do return false
+	for prop, i in a.props do if prop != b.props[i] do return false
 	return true
 }
 

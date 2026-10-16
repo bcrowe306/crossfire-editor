@@ -44,6 +44,55 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Play_Tick:
 		cmd := playTick(&out)
 		return out, cmd
+	case Settings_Code_Editor_Changed, Settings_Optimized_Play_Changed:
+		// Handled by SettingsDialog_Update above
+
+	case Scripts_Auto_Build:
+		if out.scriptsAutoBuilt do break
+		out.scriptsAutoBuilt = true
+		return out, scriptsBuild(&out)
+	case Node_Script_Changed:
+		node := selectedNode(&out)
+		if node == nil do break
+		name := string(v) == TEXTURE_NONE ? "" : string(v)
+		if name == node.script do break
+		delete(node.script)
+		node.script = strings.clone(name)
+		// Values belonged to the old script
+		for prop in node.props { delete(prop.name); delete(prop.value) }
+		clear(&node.props)
+		logLine(&out, .Info, name == "" ? fmt.aprintf("Removed the script from %s", node.name) : fmt.aprintf("Attached %s to %s", name, node.name))
+	case Script_Prop_Changed:
+		if node := selectedNode(&out); node != nil do NodeDef_SetScriptValue(node, v.name, v.value, v.defaultValue)
+	case Script_Open_File:
+		Script_OpenInEditor(&out, v.file, v.line)
+	case New_Script_Opened:
+		delete(out.newScript.name)
+		out.newScript = {open = true, name = strings.clone("")}
+	case New_Script_Name_Changed:
+		delete(out.newScript.name)
+		out.newScript.name = strings.clone(string(v))
+	case New_Script_Cancelled:
+		out.newScript.open = false
+	case New_Script_Created:
+		name := strings.trim_space(out.newScript.name)
+		file, message := Project_CreateScript(&out.project, name)
+		if message != "" {
+			logLine(&out, .Error, fmt.aprintf("New script: %s", message))
+			break
+		}
+		out.newScript.open = false
+		Scripts_Refresh(&out)
+		logLine(&out, .Info, fmt.aprintf("Created %s", file))
+		// Attach it to the selected node, open it, and build so its fields show up
+		if node := selectedNode(&out); node != nil {
+			delete(node.script)
+			node.script = strings.clone(name)
+		}
+		path, line := Script_Location(&out, name)
+		Script_OpenInEditor(&out, path, line)
+		return out, scriptsBuild(&out)
+
 	case Confirm_Chosen, New_Project_Name_Changed, New_Project_Location_Changed, New_Project_Browse,
 	     New_Project_Location_Chosen, New_Project_Created, New_Project_Cancelled, Open_Project_Chosen:
 		// Handled by Session_Update above
@@ -250,6 +299,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			openScene(&out, item.index)
 		case .Asset:
 			selectAsset(&out, item.index)
+		case .Script:
+			// The preview shows its source; a double-click (a second select of the same row) opens it
 		case .None:
 		}
 
@@ -552,6 +603,17 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		}
 	case .Rename_Node:
 		startRename(&out, out.selectedNode)
+	case .Build_Scripts:
+		Scripts_Refresh(&out)
+		return out, scriptsBuild(&out)
+	case .Open_Script:
+		node := selectedNode(&out)
+		if node == nil || node.script == "" {
+			logLine(&out, .Info, strings.clone("The selected node has no script"))
+			break
+		}
+		path, line := Script_Location(&out, node.script)
+		Script_OpenInEditor(&out, path, line)
 	case .Open_Settings:
 		SettingsDialog_Open(&out)
 	case .Export, .About:

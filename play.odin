@@ -1,6 +1,7 @@
 package editor
 
 import "core:fmt"
+import "core:hash"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
@@ -9,21 +10,33 @@ import "core:time"
 import "gui:skald"
 
 /*
-Play mode: runs the open project in the engine's player as a separate process.
+Play mode: runs the open project in a player program, as a separate process.
 
-Play saves the project, builds the player (`<engine>/player`) if any engine source is newer
-than the last build, then runs `player <project folder>`. Output from the build goes to the
-Output tab and output from the game to the Console. Stop kills the game.
+Which player: a project without scripts uses the engine's own (`<engine>/player`). A project with
+scripts gets its own, generated in `build/players/<project>/`: a two-line main that imports the
+engine and the project's `scripts` package (`-collection:project=<project folder>`) and calls
+`e.Player_Run` (see `playerMainSource`).
 
-Nothing here blocks: the build and the game are child processes, and a `Play_Tick` message
-every PLAY_POLL_SECONDS drains their output and checks whether they exited.
+Play saves the project, builds the player if any engine or script source is newer than it, asks a
+project player to describe its scripts (`--describe-scripts`, which fills the inspector's script
+catalog: scripts.odin), then runs `player <project folder>`. Build Scripts (Ctrl+B) does the same
+without running the game. Output from the build goes to the Output tab and from the game to the
+Console. Stop kills whichever is running.
+
+Builds are unoptimized unless `settings.optimizedPlay` is on: a project player builds in about 4 s
+that way, against about 50 s with -o:speed (exports are always optimized).
+
+Nothing here blocks: the build, the description and the game are child processes, and a
+`Play_Tick` message every PLAY_POLL_SECONDS drains their output and checks whether they exited.
 */
 
 // Engine checkout the player is built from. The Taskfile passes the same folder it uses for
 // the engine collection
 ENGINE_DIR :: #config(ENGINE_DIR, "../odin_sdl_engine")
-// Where the player binary is built, relative to the editor's working directory
+// Where the engine's player binary is built, relative to the editor's working directory
 PLAYER_BINARY :: "build/player/player"
+// Where projects with scripts get their own players: build/players/<project>/player
+PROJECT_PLAYERS_DIR :: "build/players"
 
 PLAY_POLL_SECONDS :: 0.1
 
@@ -31,11 +44,23 @@ PLAY_POLL_SECONDS :: 0.1
 PlayStage :: enum {
 	None,
 	Building,
+	// The player printing its scripts (--describe-scripts)
+	Describing,
 	Running,
+}
+
+// What a session is for: only build and describe the scripts, or play the game. Describe is the
+// zero value, so a session that lost track of it never starts the game by accident
+PlayPurpose :: enum {
+	Describe,
+	Play,
 }
 
 PlaySession :: struct {
 	stage: PlayStage,
+	purpose: PlayPurpose,
+	// What --describe-scripts printed
+	described: [dynamic]u8,
 	process: os.Process,
 	// Read end of the pipe receiving the child's stdout and stderr
 	pipe: ^os.File,
@@ -68,17 +93,48 @@ playStart :: proc(state: ^State) -> skald.Command(Msg) {
 	Session_MarkSaved(state)
 
 	clearOutput(state)
-	if playerIsCurrent() {
-		return startGame(state)
+	return buildPlayer(state, .Play)
+}
+
+/*
+Build Scripts: builds the project's player if needed and reads its scripts, without playing.
+*/
+@(private="package")
+scriptsBuild :: proc(state: ^State) -> skald.Command(Msg) {
+	if state.play.stage != .None {
+		logLine(state, .Warning, fmt.aprintf("Stop the game first: it's using the player"))
+		return {}
+	}
+	// Any build counts as the one the editor would start by itself for this project
+	state.scriptsAutoBuilt = true
+	if !Project_HasScripts(&state.project) {
+		logLine(state, .Info, fmt.aprintf("This project has no scripts yet (no .odin files in %s/)", SCRIPTS_FOLDER))
+		state.scripts.status = .Unknown
+		return {}
+	}
+	clearOutput(state)
+	return buildPlayer(state, .Describe)
+}
+
+// Builds the player the project needs (if it's out of date), then describes or runs it
+@(private="file")
+buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
+	state.play.purpose = purpose
+	target := playerTarget(state)
+	if Project_HasScripts(&state.project) do state.scripts.status = .Building
+	if playerIsCurrent(target) {
+		return afterBuild(state)
 	}
 
-	engineDir := absolutePath(ENGINE_DIR)
-	playerSource, _ := filepath.join({engineDir, "player"}, context.temp_allocator)
-	// Optimized, like an exported game. Rebuilt only when the engine changes
-	command := []string{"odin", "build", playerSource, "-o:speed", fmt.tprintf("-out:%s", playerPath())}
-	outputLine(state, .Info, fmt.aprintf("$ %s", strings.join(command, " ", context.temp_allocator)))
+	command := make([dynamic]string, context.temp_allocator)
+	append(&command, "odin", "build", target.source, fmt.tprintf("-collection:engine=%s", absolutePath(ENGINE_DIR)))
+	if target.project != "" do append(&command, fmt.tprintf("-collection:project=%s", target.project))
+	if state.settings.optimizedPlay do append(&command, "-o:speed")
+	append(&command, fmt.tprintf("-out:%s", target.binary))
+	outputLine(state, .Info, fmt.aprintf("$ %s", strings.join(command[:], " ", context.temp_allocator)))
 
-	if !startProcess(state, command, "") {
+	if !startProcess(state, command[:], "") {
+		state.scripts.status = .Failed
 		return {}
 	}
 	state.play.stage = .Building
@@ -86,6 +142,23 @@ playStart :: proc(state: ^State) -> skald.Command(Msg) {
 	state.bottomTab = .Output
 	state.layout.bottomOpen = true
 	return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Play_Tick{}))
+}
+
+// After a build: describe a project player's scripts, then play (if that's the purpose)
+@(private="file")
+afterBuild :: proc(state: ^State) -> skald.Command(Msg) {
+	if Project_HasScripts(&state.project) {
+		target := playerTarget(state)
+		if !startProcess(state, []string{target.binary, "--describe-scripts"}, "") {
+			state.scripts.status = .Failed
+			return {}
+		}
+		state.play.stage = .Describing
+		state.playState = .Building
+		return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Play_Tick{}))
+	}
+	if state.play.purpose == .Play do return startGame(state)
+	return {}
 }
 
 // Pause: freezes the game process (Linux and macOS)
@@ -108,7 +181,8 @@ playStop :: proc(state: ^State) {
 	_, _ = os.process_wait(state.play.process) // Reap it
 	drainOutput(state, flush = true)
 	endSession(state)
-	logLine(state, .Info, fmt.aprintf(stage == .Building ? "Build cancelled" : "Stopped"))
+	if stage != .Running && state.scripts.status == .Building do state.scripts.status = .Unknown
+	logLine(state, .Info, fmt.aprintf(stage == .Running ? "Stopped" : "Build cancelled"))
 }
 
 // Play_Tick: forward output, notice when the child exits
@@ -124,6 +198,10 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 
 	drainOutput(state, flush = true)
 	stage := state.play.stage
+	purpose := state.play.purpose
+	// endSession frees the session; keep what the player described
+	described := state.play.described
+	state.play.described = {}
 	endSession(state)
 
 	if err != nil {
@@ -133,11 +211,28 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 	switch stage {
 	case .Building:
 		if status.exit_code != 0 {
-			logLine(state, .Error, fmt.aprintf("Play: building the player failed (exit code %d). See the Output tab", status.exit_code))
+			state.scripts.status = .Failed
+			logLine(state, .Error, fmt.aprintf("Building the player failed (exit code %d). See the Output tab", status.exit_code))
 			return {}
 		}
 		outputLine(state, .Info, fmt.aprintf("Player built"))
-		return startGame(state)
+		// endSession cleared the session; the next step needs to know what it's for
+		state.play.purpose = purpose
+		return afterBuild(state)
+	case .Describing:
+		scripts, ok := ScriptCatalog_Parse(string(described[:]))
+		delete(described)
+		if status.exit_code != 0 || !ok {
+			ScriptCatalog_Clear(&ScriptCatalog{scripts = scripts})
+			state.scripts.status = .Failed
+			logLine(state, .Error, fmt.aprintf("Couldn't read the project's scripts (exit code %d)", status.exit_code))
+			return {}
+		}
+		ScriptCatalog_Clear(&state.scripts)
+		state.scripts.scripts = scripts
+		state.scripts.status = .Ready
+		outputLine(state, .Info, fmt.aprintf("%d script%s: %s", len(scripts), len(scripts) == 1 ? "" : "s", scriptNames(scripts[:])))
+		if purpose == .Play do return startGame(state)
 	case .Running:
 		level := status.exit_code == 0 ? LogLevel.Info : LogLevel.Error
 		logLine(state, level, fmt.aprintf("Game exited (exit code %d)", status.exit_code))
@@ -150,7 +245,7 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 @(private="file")
 startGame :: proc(state: ^State) -> skald.Command(Msg) {
 	projectDir := absolutePath(state.project.rootPath)
-	command := []string{playerPath(), projectDir}
+	command := []string{playerTarget(state).binary, projectDir}
 	logLine(state, .Info, fmt.aprintf("Playing %s", projectDir))
 	if !startProcess(state, command, projectDir) {
 		return {}
@@ -213,6 +308,12 @@ drainOutput :: proc(state: ^State, flush := false) {
 
 @(private="file")
 emitLine :: proc(state: ^State, line: string) {
+	// --describe-scripts output is data, not log lines
+	if state.play.stage == .Describing {
+		append(&state.play.described, ..transmute([]u8)line)
+		append(&state.play.described, '\n')
+		return
+	}
 	line, level := parseLogLine(strings.trim_right(line, "\r"))
 	if state.play.stage == .Building {
 		outputLine(state, level, strings.clone(line))
@@ -225,6 +326,7 @@ emitLine :: proc(state: ^State, line: string) {
 endSession :: proc(state: ^State) {
 	if state.play.pipe != nil do os.close(state.play.pipe)
 	delete(state.play.partial)
+	delete(state.play.described)
 	state.play = {}
 	state.playState = .Stopped
 }
@@ -247,14 +349,85 @@ signalGame :: proc(state: ^State, signal: GameSignal) -> bool {
 	}
 }
 
-// Whether the player binary exists and is newer than every engine source file
+// What to build for the open project, and where (paths absolute, temp allocated)
 @(private="file")
-playerIsCurrent :: proc() -> bool {
-	built, err := os.modification_time_by_path(PLAYER_BINARY)
-	if err != nil do return false
+PlayerTarget :: struct {
+	// Package folder to build
+	source: string,
+	binary: string,
+	// The project folder, for -collection:project (projects with scripts), else ""
+	project: string,
+	// Folders whose .odin files the binary depends on
+	inputs: []string,
+}
+
+@(private="file")
+playerTarget :: proc(state: ^State) -> PlayerTarget {
 	engineDir := absolutePath(ENGINE_DIR)
-	playerDir, _ := filepath.join({engineDir, "player"}, context.temp_allocator)
-	return time.diff(newestSource(engineDir), built) > 0 && time.diff(newestSource(playerDir), built) > 0
+	if !Project_HasScripts(&state.project) {
+		source, _ := filepath.join({engineDir, "player"}, context.temp_allocator)
+		inputs := make([]string, 2, context.temp_allocator)
+		inputs[0], inputs[1] = engineDir, source
+		return {source = source, binary = playerPath(), inputs = inputs}
+	}
+	projectDir := absolutePath(state.project.rootPath)
+	// One player per project folder; the main is rewritten if it changed
+	folder := fmt.tprintf("%s-%x", sanitize(filepath.base(projectDir)), hash.fnv32a(transmute([]byte)projectDir))
+	dir, _ := filepath.join({PROJECT_PLAYERS_DIR, folder}, context.temp_allocator)
+	_ = os.make_directory_all(dir)
+	dir = absolutePath(dir)
+	mainFile, _ := filepath.join({dir, "main.odin"}, context.temp_allocator)
+	source := playerMainSource()
+	existing, readErr := os.read_entire_file(mainFile, context.temp_allocator)
+	if readErr != nil || string(existing) != source do _ = os.write_entire_file(mainFile, transmute([]byte)source)
+	binary, _ := filepath.join({dir, "player"}, context.temp_allocator)
+	scripts, _ := filepath.join({projectDir, SCRIPTS_FOLDER}, context.temp_allocator)
+	inputs := make([]string, 3, context.temp_allocator)
+	inputs[0], inputs[1], inputs[2] = engineDir, scripts, dir
+	return {source = dir, binary = binary, project = projectDir, inputs = inputs}
+}
+
+/*
+The generated main of a project's own player: the engine's player, with the project's scripts
+package linked in (its @(init) procedures register the scripts).
+*/
+playerMainSource :: proc() -> string {
+	return `// Generated by the editor: the player for a project with scripts. Don't edit; it's rewritten.
+package main
+
+import "core:os"
+import e "engine:."
+import scripts "project:scripts"
+_ :: scripts
+
+main :: proc() {
+	os.exit(e.Player_Run(os.args))
+}
+`
+}
+
+// Whether the player binary exists and is newer than every source it's built from
+@(private="file")
+playerIsCurrent :: proc(target: PlayerTarget) -> bool {
+	built, err := os.modification_time_by_path(target.binary)
+	if err != nil do return false
+	for dir in target.inputs do if time.diff(newestSource(dir), built) <= 0 do return false
+	return true
+}
+
+// "My Game!" -> "My_Game_"
+@(private="file")
+sanitize :: proc(name: string) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	for r in name do strings.write_rune(&b, (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' ? r : '_')
+	return strings.to_string(b)
+}
+
+@(private="file")
+scriptNames :: proc(scripts: []ScriptDesc) -> string {
+	names := make([dynamic]string, context.temp_allocator)
+	for s in scripts do append(&names, s.name)
+	return len(names) == 0 ? "none" : strings.join(names[:], ", ", context.temp_allocator)
 }
 
 @(private="file")

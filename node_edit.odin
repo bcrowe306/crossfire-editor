@@ -45,6 +45,9 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	for item in node.items {
 		append(&copy.items, MenuItemDef{strings.clone(item.label), strings.clone(item.action)})
 	}
+	copy.script = strings.clone(node.script)
+	copy.props = make([dynamic]ScriptPropDef, 0, len(node.props))
+	for prop in node.props do append(&copy.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
 	return copy
 }
 

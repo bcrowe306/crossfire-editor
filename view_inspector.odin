@@ -2,6 +2,8 @@ package editor
 
 import "core:fmt"
 import "core:math"
+import "core:strings"
+import "core:strconv"
 import e "engine:."
 import "gui:skald"
 import sdl "vendor:sdl3"
@@ -353,6 +355,9 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id(fmt.tprintf("inspector-color-%d", key)), width = width)
 	}
 
+	append(&rows, skald.divider(ctx))
+	append(&rows, ..scriptSection(ctx, s, node, key, controlWidth, numberWidth))
+
 	if node.kind != .Node2D {
 		append(&rows, skald.divider(ctx), skald.text(fmt.tprintf("%v", node.kind), th.color.fg, th.font.size_sm))
 	}
@@ -489,3 +494,127 @@ linkSpace :: proc(ctx: ^skald.Ctx(Msg), field: skald.View) -> skald.View {
 
 @(private="file")
 LINK_BUTTON_WIDTH :: 20
+
+/*
+The inspector's Script section: which script the node has (or none), buttons to make a new one
+and open it, and its exported fields from the last build (scripts.odin).
+*/
+@(private="file")
+scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	th := ctx.theme
+	rows := make([dynamic]skald.View, context.temp_allocator)
+
+	status := ""
+	switch s.scripts.status {
+	case .Unknown:  status = len(s.scriptFiles) > 0 ? "not built yet (Ctrl+B)" : ""
+	case .Building: status = "building..."
+	case .Failed:   status = "build failed: see Output"
+	case .Ready:
+	}
+	append(&rows, skald.row(
+		skald.text(fmt.tprintf("%s  Script", ICON_CODE), th.color.fg, th.font.size_sm),
+		skald.flex(1, skald.spacer(0)),
+		skald.text(status, s.scripts.status == .Failed ? th.color.danger : th.color.fg_muted, th.font.size_xs),
+		cross_align = .Center,
+	))
+
+	// The choices: none, every built script, and the node's own if the catalog doesn't know it
+	names := make([dynamic]string, context.temp_allocator)
+	append(&names, TEXTURE_NONE)
+	for desc in s.scripts.scripts do append(&names, desc.name)
+	if node.script != "" && ScriptCatalog_Find(&s.scripts, node.script) == nil do append(&names, node.script)
+	smallButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg) -> skald.View {
+		th := ctx.theme
+		button := skald.button(ctx, icon, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg_muted,
+			width = 24, padding = {0, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
+	}
+	buttons := make([dynamic]skald.View, context.temp_allocator)
+	append(&buttons, skald.select(ctx, node.script == "" ? TEXTURE_NONE : node.script, names[:],
+		proc(v: string) -> Msg { return Node_Script_Changed(v) },
+		id = skald.hash_id(fmt.tprintf("inspector-script-%d", key)), width = max(controlWidth - 56, 80)))
+	append(&buttons, smallButton(ctx, "inspector-new-script", ICON_PLUS, "New script for this node", Msg(New_Script_Opened{})))
+	if node.script != "" {
+		append(&buttons, smallButton(ctx, "inspector-open-script", ICON_FILE_CODE, actionTip(s, "Open in code editor", .Open_Script), Msg(Action.Open_Script)))
+	}
+	append(&rows, inspectorRowView(ctx, "Script", skald.row(..buttons[:], spacing = th.spacing.xs, cross_align = .Center)))
+	if node.script == "" do return rows[:]
+
+	desc := ScriptCatalog_Find(&s.scripts, node.script)
+	if desc == nil {
+		message := s.scripts.status == .Building ? "Building..." : fmt.tprintf("Build the scripts (Ctrl+B) to edit %s's fields.", node.script)
+		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
+		for prop in node.props do append(&rows, inspectorRowView(ctx, prop.name, skald.text(prop.value, th.color.fg_muted, th.font.size_sm)))
+		return rows[:]
+	}
+	if len(desc.fields) == 0 {
+		append(&rows, skald.text("No exported fields (tag a field with export:\"\" to edit it here).", th.color.fg_muted, th.font.size_xs, max_width = 260))
+	}
+	for &field in desc.fields {
+		append(&rows, inspectorRowView(ctx, field.name, scriptFieldControl(ctx, s, node, &field, key, controlWidth, numberWidth)))
+	}
+	return rows[:]
+}
+
+// The control for one exported field, editing its value text on the selected node
+@(private="file")
+scriptFieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, field: ^ScriptFieldDesc, key: int, controlWidth, numberWidth: f32) -> skald.View {
+	th := ctx.theme
+	value := NodeDef_ScriptValue(node, field)
+	id :: proc(field: ^ScriptFieldDesc, key: int, part := "") -> string {
+		return fmt.tprintf("inspector-prop-%s%s-%d", field.name, part, key)
+	}
+	Payload :: struct { name, defaultValue: string }
+	payload := Payload{field.name, field.defaultValue}
+	onText :: proc(p: Payload, v: string) -> Msg { return Script_Prop_Changed{p.name, v, p.defaultValue} }
+	lo := field.min.? or_else min(f64)
+	hi := field.max.? or_else max(f64)
+
+	switch field.type {
+	case .Float, .Int:
+		number, _ := strconv.parse_f64(strings.trim_space(value))
+		step := field.type == .Int ? 1.0 : 1.0
+		target := ScriptPropTarget{name = field.name, defaultValue = field.defaultValue, integer = field.type == .Int, component = -1}
+		return numberField(ctx, s, id(field, key), target, number, step, field.type == .Int ? 0 : 2, numberWidth, lo, hi)
+	case .Bool:
+		return skald.checkbox(ctx, value == "true", "", payload,
+			proc(p: Payload, v: bool) -> Msg { return Script_Prop_Changed{p.name, v ? "true" : "false", p.defaultValue} },
+			id = skald.hash_id(id(field, key)))
+	case .String:
+		if field.hint == "scene" {
+			scenes := make([dynamic]string, context.temp_allocator)
+			append(&scenes, TEXTURE_NONE)
+			for scene in s.project.scenes do append(&scenes, scene.name)
+			return skald.select(ctx, value == "" ? TEXTURE_NONE : value, scenes[:], payload,
+				proc(p: Payload, v: string) -> Msg { return Script_Prop_Changed{p.name, v == TEXTURE_NONE ? "" : v, p.defaultValue} },
+				id = skald.hash_id(id(field, key)), width = controlWidth)
+		}
+		return skald.text_input(ctx, value, payload, onText, id = skald.hash_id(id(field, key)), width = controlWidth, padding = InspectorFieldPadding(ctx))
+	case .Vector2:
+		xText, _, yText := strings.partition(value, ",")
+		x, _ := strconv.parse_f64(strings.trim_space(xText))
+		y, _ := strconv.parse_f64(strings.trim_space(yText))
+		half := max((controlWidth - th.spacing.xs) * 0.5, 60)
+		return skald.row(
+			numberField(ctx, s, id(field, key, "-x"), ScriptPropTarget{field.name, field.defaultValue, false, 0, y}, x, 1, 1, half, lo, hi),
+			numberField(ctx, s, id(field, key, "-y"), ScriptPropTarget{field.name, field.defaultValue, false, 1, x}, y, 1, 1, half, lo, hi),
+			spacing = th.spacing.xs,
+		)
+	case .Color:
+		color, ok := e.ParseColor(value)
+		if !ok do color = {255, 255, 255, 255}
+		linear := skald.rgb(u32(color.r) << 16 | u32(color.g) << 8 | u32(color.b))
+		return skald.color_picker(ctx, linear, payload,
+			proc(p: Payload, c: skald.Color) -> Msg { return Script_Prop_Changed{p.name, fmt.tprintf("#%s", strings.to_lower(skald.color_to_hex(c), context.temp_allocator)), p.defaultValue} },
+			id = skald.hash_id(id(field, key)), width = controlWidth)
+	case .Enum:
+		return skald.select(ctx, value, field.enumNames[:], payload, onText, id = skald.hash_id(id(field, key)), width = controlWidth)
+	}
+	return skald.text(value, th.color.fg_muted, th.font.size_sm)
+}
+
+// inspectorRow, for code outside the main inspector proc
+@(private="file")
+inspectorRowView :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
+	return inspectorRow(ctx, label, control)
+}

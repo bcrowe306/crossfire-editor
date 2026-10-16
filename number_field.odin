@@ -20,6 +20,18 @@ focus it shows the value again.
 NumberTarget :: union {
 	NodeField,
 	SettingsField,
+	ScriptPropTarget,
+}
+
+// A number-typed script field (or one component of a vector field) on the selected node
+ScriptPropTarget :: struct {
+	// Field name and default (catalog strings, alive while the catalog is)
+	name: string,
+	defaultValue: string,
+	integer: bool,
+	// Vector fields: which component this is (0 or 1) and the other one's value; -1 otherwise
+	component: int,
+	other: f64,
 }
 
 // The text typed into a focused number field (part of State)
@@ -93,6 +105,15 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	switch t in target {
 	case NodeField:     return Node_Field_Changed{t, value}
 	case SettingsField: return Settings_Value_Changed{t, value}
+	case ScriptPropTarget:
+		text: string
+		switch {
+		case t.component == 0: text = fmt.tprintf("%v, %v", f32(value), f32(t.other))
+		case t.component == 1: text = fmt.tprintf("%v, %v", f32(t.other), f32(value))
+		case t.integer:        text = fmt.tprintf("%d", int(value))
+		case:                  text = fmt.tprintf("%v", f32(value))
+		}
+		return Script_Prop_Changed{name = t.name, value = text, defaultValue = t.defaultValue}
 	}
 	return nil
 }

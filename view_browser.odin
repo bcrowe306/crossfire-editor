@@ -97,6 +97,10 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			row.icon = open ? ICON_FOLDER_OPEN : ICON_FOLDER
 			row.expandable = true
 			row.expanded = open
+		case .Script:
+			row.depth = 1
+			row.label = filepath.base(s.scriptFiles[item.index])
+			row.icon = ICON_FILE_CODE
 		case .Scene:
 			row.depth = 1
 			row.label = s.project.scenes[item.index].name
@@ -208,8 +212,10 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	previewImageArea = {}
 	content: skald.View
-	if s.browserSelection.kind != .Asset || s.browserSelection.index >= len(s.project.assets) {
-		content = skald.text("Select an image or sound to preview it.", th.color.fg_muted, th.font.size_sm)
+	if s.browserSelection.kind == .Script && s.browserSelection.index < len(s.scriptFiles) {
+		content = scriptPreview(s, ctx, s.scriptFiles[s.browserSelection.index])
+	} else if s.browserSelection.kind != .Asset || s.browserSelection.index >= len(s.project.assets) {
+		content = skald.text("Select an image, sound or script to preview it.", th.color.fg_muted, th.font.size_sm)
 	} else {
 		asset := s.project.assets[s.browserSelection.index]
 		path := AssetFilePath(&s.project, asset)
@@ -328,4 +334,42 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Font:  return ICON_FONT_GLYPH
 	}
 	return ICON_FILE
+}
+
+// A script file's first lines, and a button that opens it in the code editor
+@(private="file")
+scriptPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skald.View {
+	th := ctx.theme
+	path, _ := filepath.join({s.project.rootPath, file}, context.temp_allocator)
+	absolute, err := os.get_absolute_path(path, context.temp_allocator)
+	if err != nil do absolute = path
+	data, readErr := os.read_entire_file(path, context.temp_allocator)
+	lines := make([dynamic]skald.View, context.temp_allocator)
+	if readErr != nil {
+		append(&lines, skald.text(fmt.tprintf("Couldn't read %s", file), th.color.danger, th.font.size_sm))
+	} else {
+		MAX_LINES :: 40
+		count := 0
+		text := string(data)
+		for line in strings.split_lines_iterator(&text) {
+			if count == MAX_LINES {
+				append(&lines, skald.text("...", th.color.fg_muted, th.font.size_xs))
+				break
+			}
+			append(&lines, skald.text(strings.expand_tabs(line, 4, context.temp_allocator), th.color.fg_muted, th.font.size_xs))
+			count += 1
+		}
+	}
+	return skald.col(
+		skald.row(
+			skald.text(fmt.tprintf("%s  %s", ICON_FILE_CODE, filepath.base(file)), th.color.fg, th.font.size_sm),
+			skald.flex(1, skald.spacer(0)),
+			skald.button(ctx, "Open", Msg(Script_Open_File{file = strings.clone(absolute, context.temp_allocator), line = 1}),
+				id = skald.hash_id("preview-open-script"), font_size = th.font.size_sm, padding = {th.spacing.sm, 2}),
+			cross_align = .Center,
+		),
+		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..lines[:], spacing = 0), id = skald.hash_id("preview-script-scroll"))),
+		spacing = th.spacing.xs,
+		cross_align = .Stretch,
+	)
 }

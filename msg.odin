@@ -62,6 +62,9 @@ Action :: enum {
 	Stop_Audio_Preview,
 
 	Open_Settings,
+	Build_Scripts,
+	// Open the selected node's script in the code editor
+	Open_Script,
 }
 
 // Panel resizing. Each carries the new size of a split's first pane
@@ -203,6 +206,26 @@ Node_Field_Changed :: struct {
 	value: f64,
 }
 
+// Scripts (scripts.odin)
+// The view noticed a project with scripts that hasn't been built: build it once in the background
+Scripts_Auto_Build :: struct {}
+// Attach a script to the selected node by name ("" detaches)
+Node_Script_Changed :: distinct string
+// A script field's value on the selected node (strings only valid while handling the message)
+Script_Prop_Changed :: struct {
+	name: string,
+	value: string,
+	defaultValue: string,
+}
+Script_Open_File :: struct {
+	file: string,
+	line: int,
+}
+New_Script_Opened :: struct {}
+New_Script_Name_Changed :: distinct string
+New_Script_Created :: struct {}
+New_Script_Cancelled :: struct {}
+
 // Inspector X/Y pairs that can be linked
 LinkedPair :: enum {
 	Position,
@@ -275,6 +298,8 @@ Settings_Value_Changed :: struct {
 	value: f64,
 }
 Settings_Search_Changed :: distinct string
+Settings_Code_Editor_Changed :: distinct string
+Settings_Optimized_Play_Changed :: distinct bool
 // Clicked a shortcut: the next key press binds that slot
 Settings_Capture_Started :: struct {
 	action: Action,
@@ -341,6 +366,14 @@ Msg :: union {
 	New_Project_Cancelled,
 	Open_Project_Chosen,
 	Quit_Without_Asking,
+	Scripts_Auto_Build,
+	Node_Script_Changed,
+	Script_Prop_Changed,
+	Script_Open_File,
+	New_Script_Opened,
+	New_Script_Name_Changed,
+	New_Script_Created,
+	New_Script_Cancelled,
 	Inspector_Link_Toggled,
 	Number_Text_Changed,
 	Number_Edit_Ended,
@@ -358,6 +391,8 @@ Msg :: union {
 	Settings_Theme_Changed,
 	Settings_Value_Changed,
 	Settings_Search_Changed,
+	Settings_Code_Editor_Changed,
+	Settings_Optimized_Play_Changed,
 	Settings_Capture_Started,
 	Settings_Key_Captured,
 	Settings_Capture_Cancelled,

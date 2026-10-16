@@ -128,6 +128,38 @@ The viewport renders the open scene with the engine (animations play; P toggles 
 
 Single-letter shortcuts are ignored while typing in a field. Help > Keyboard Shortcuts lists them all.
 
+## Scripts
+
+Game code is Odin, in the project's `scripts/` folder, and attaches to nodes:
+
+1. Select a node, and in the inspector's **Script** section click **+** (or Scripts > New Script).
+   Name it (`PlayerController`); the editor writes `scripts/player_controller.odin`, attaches it,
+   and opens it in your code editor.
+2. Write the struct's fields and its `ready` / `update` procedures. Fields tagged `export:""`
+   (options: `default=`, `min=`, `max=`, `kind=scene`) appear in the inspector after a build.
+3. **Build Scripts** (Ctrl+B) compiles them, which also happens when you Play and when a project
+   with scripts opens. Errors show in the Output tab.
+
+```odin
+Player :: struct {
+    using script: e.Script,
+    speed: f32 `export:"default=250 min=0"`,
+}
+
+@(init)
+register_Player :: proc "contextless" () {
+    e.Script_Register(Player, {
+        update = proc(self: ^Player, events: []sdl.Event, dt: f64) {
+            self.node.position.x += self.speed * f32(dt)
+        },
+    })
+}
+```
+
+The code editor is set in Settings > Editor (`zed {file}:{line}` by default; `{file}` and `{line}`
+are replaced). Play builds unoptimized (about 4 s); turn on Optimized Play for speed tests. Scripts
+don't run in the viewport. One script per node for now.
+
 ## Selecting and editing
 
 - **Multi-select:** Ctrl+click toggles a node (viewport or scene tree), Shift+click adds (a range

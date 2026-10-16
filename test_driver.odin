@@ -32,6 +32,9 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	                                 Click a row of a tree: browser-tree, scene-tree; optionally
 	                                 holding Ctrl or Shift
 	double_click_row <tree key> <row>   Double-click a row
+	scroll_into_view <scroll key> <widget key>
+	                                 Scroll so the widget is in view, e.g.
+	                                 scroll_into_view inspector-scroll inspector-new-script
 	right_click_row <tree key> <row> Right-click a row (opens the scene tree's context menu)
 	click_menu_item <menu key> <i>   Click item i of an open context menu, e.g. scene-tree-menu
 	drag_row <tree key> <from> <to> <before | inside | after>
@@ -80,6 +83,10 @@ Checks:
 	row <n> <name>               Node shown in row n of the scene tree
 	clipboard <count>            Nodes copied (a subtree)
 	selection <count>            Selected nodes
+	script <name | none>         The selected node's script
+	scripts <Unknown | Building | Ready | Failed>   The script catalog (the last build)
+	prop <name> <value>          A script value stored on the selected node ("(default)" if none)
+	new_script_dialog <open | closed>
 	linked <Position | Scale> <true | false>   An inspector X/Y pair is linked
 	renaming <true | false>      A node is being renamed in the scene tree
 	grid <on | off>, snap <on | off>   Viewport grid and snapping
@@ -132,6 +139,8 @@ Driver :: struct {
 	finished: bool,
 	// Window size, and since when it hasn't changed (the first command waits for it to settle)
 	windowSize: [2]f32,
+	// scroll_into_view: pages scrolled so far looking for the widget
+	scrollAttempts: int,
 	windowSettled: time.Tick,
 	ready: bool,
 }
@@ -225,6 +234,9 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 		if ok {
 			report(true, fmt.tprintf("wait_until %s", driver.waitCheck))
 			driver.waitCheck = ""
+			// Let the views catch up: the next command may click something that only appears now
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+			return
 		} else if time.tick_since(driver.waitDeadline) > 0 {
 			fail(fmt.tprintf("wait_until %s: timed out after %v (%s)", driver.waitCheck, driver.waitTimeout, message))
 			driver.waitCheck = ""
@@ -386,6 +398,41 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		}
 		click(position, mods)
 		report(true, line)
+		return false
+
+	case "scroll_into_view":
+		// Scroll a scroll container so a widget inside it is in view, e.g. the inspector's fields
+		if len(args) < 2 {
+			fail(fmt.tprintf("%s: expected a scroll key and a widget key", line))
+			return true
+		}
+		if skald.hash_id(args[0]) not_in ctx.widgets.states {
+			fail(fmt.tprintf("%s: no scroll '%s' was drawn last frame", line, args[0]))
+			return true
+		}
+		scroll := &ctx.widgets.states[skald.hash_id(args[0])]
+		area := scroll.last_rect
+		// A widget out of view keeps the rect from when it was last laid out, so only trust what's
+		// visible now: start from the top and page down until it is
+		if _, visible := widgetRect(ctx, args[1]); visible {
+			driver.scrollAttempts = 0
+			report(true, line)
+			return true
+		}
+		if driver.scrollAttempts == 0 {
+			scroll.scroll_y = 0
+		} else {
+			scroll.scroll_y += max(area.h * 0.6, 40)
+		}
+		driver.scrollAttempts += 1
+		if driver.scrollAttempts > 30 {
+			driver.scrollAttempts = 0
+			fail(fmt.tprintf("%s: no widget '%s' after scrolling", line, args[1]))
+			return true
+		}
+		// Look again once the scroll has been laid out
+		driver.line -= 1
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		return false
 
 	case "double_click_row":
@@ -592,6 +639,19 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(len(s.clipboard))
 	case "selection":
 		found = fmt.tprint(len(s.selection))
+	case "script":
+		if selected == nil do return false, "nothing selected"
+		found = selected.script == "" ? "none" : selected.script
+	case "scripts":
+		found = fmt.tprint(s.scripts.status)
+	case "prop":
+		if selected == nil do return false, "nothing selected"
+		propName, _, expected := strings.partition(value, " ")
+		found = "(default)"
+		for p in selected.props do if p.name == propName do found = p.value
+		return found == strings.trim_space(expected), found
+	case "new_script_dialog":
+		found = s.newScript.open ? "open" : "closed"
 	case "linked":
 		pairName, _, expected := strings.partition(value, " ")
 		pair, known := reflect.enum_from_name(LinkedPair, pairName)

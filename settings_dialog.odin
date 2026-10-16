@@ -74,6 +74,10 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		case .Undo_Limit:        draft.undoLimit = clamp(int(v.value), SETTINGS_UNDO_LIMIT_RANGE[0], SETTINGS_UNDO_LIMIT_RANGE[1])
 		case .Grid_Size:         draft.gridSize = clamp(int(v.value), SETTINGS_GRID_SIZE_RANGE[0], SETTINGS_GRID_SIZE_RANGE[1])
 		}
+	case Settings_Code_Editor_Changed:
+		draft.codeEditor = FixedText_Make(string(v))
+	case Settings_Optimized_Play_Changed:
+		draft.optimizedPlay = bool(v)
 	case Settings_Search_Changed:
 		delete(dialog.search)
 		dialog.search = strings.clone(string(v))
@@ -101,6 +105,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		case .Editor:
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
 			draft.gridSize = defaults.gridSize
+			draft.codeEditor, draft.optimizedPlay = defaults.codeEditor, defaults.optimizedPlay
 		case .Keyboard:
 			draft.keymap = defaults.keymap
 		}

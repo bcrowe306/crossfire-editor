@@ -54,7 +54,9 @@ coloredTree :: proc(
 
 	// Mouse: from last frame's rect, rows stacked from its top
 	mouse := ctx.input.mouse_pos
-	if ctx.input.mouse_pressed[.Left] && rect.w > 0 && mouse.x >= rect.x && mouse.x < rect.x + rect.w && mouse.y >= rect.y && mouse.y < rect.y + rect.h {
+	// Not through a dialog or a popup (a dialog's button over the tree would also select a row)
+	blocked := ctx.widgets.modal_rect_prev.w > 0 || skald.mouse_over_overlay(ctx)
+	if ctx.input.mouse_pressed[.Left] && !blocked && rect.w > 0 && mouse.x >= rect.x && mouse.x < rect.x + rect.w && mouse.y >= rect.y && mouse.y < rect.y + rect.h {
 		i := int((mouse.y - rect.y) / rh)
 		if i >= 0 && i < len(rows) {
 			r := rows[i]
@@ -150,11 +152,13 @@ BrowserItemColor :: proc(state: ^State, item: BrowserItem) -> skald.Color {
 	case .Folder:
 		switch item.folder {
 		case .Scenes: return SCENE_COLOR
+		case .Scripts: return SCRIPT_COLOR
 		case .Images: return assetKindColor(.Image)
 		case .Audio:  return assetKindColor(.Audio)
 		case .Fonts:  return assetKindColor(.Font)
 		}
 	case .Scene: return SCENE_COLOR
+	case .Script: return SCRIPT_COLOR
 	case .Asset: return assetKindColor(state.project.assets[item.index].kind)
 	case .None:
 	}
@@ -162,6 +166,7 @@ BrowserItemColor :: proc(state: ^State, item: BrowserItem) -> skald.Color {
 }
 
 SCENE_COLOR :: skald.Color{0.36, 0.62, 1.0, 1}
+SCRIPT_COLOR :: skald.Color{0.55, 0.85, 0.35, 1}
 
 @(private="file")
 assetKindColor :: proc(kind: AssetKind) -> skald.Color {

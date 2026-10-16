@@ -22,7 +22,7 @@ testState :: proc() -> State {
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
-		browserOpen = {.Scenes = true, .Images = true, .Audio = false, .Fonts = false},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
@@ -206,7 +206,8 @@ browser_opens_scenes_and_toggles_folders :: proc(t: ^testing.T) {
 
 	send(&state, Browser_Toggled(0))
 	testing.expect_value(t, state.browserOpen[.Scenes], false)
-	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) + 3) // only Images is open, with 3 images
+	// Only Images is open, with 3 images; the Scripts folder is hidden (the project has no scripts)
+	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) - 1 + 3)
 }
 
 @(test)
@@ -1449,5 +1450,128 @@ linked_xy_fields_keep_their_ratio :: proc(t: ^testing.T) {
 	testing.expect_value(t, scene.nodes[ship].position, [2]f32{1280, 860})
 	testing.expect_value(t, LinkedAxis(0, 5, 3), 8)
 	testing.expect_value(t, LinkedAxis(2, 3, 0), 1)
+	free_all(context.temp_allocator)
+}
+
+// A described catalog like the player prints, after some log lines
+@(private="file")
+TEST_DESCRIPTION :: `[INFO ] --- [2026-10-16 05:00:52] [player.odin:20:run()] starting
+{"scripts": [{"name": "Mover", "file": "/p/scripts/mover.odin", "line": 18, "fields": [{"name": "speed", "type": "Float", "default": "100", "hint": "", "min": 0}, {"name": "target", "type": "String", "default": "", "hint": "scene"}, {"name": "mood", "type": "Enum", "default": "Calm", "hint": "", "enum": ["Calm", "Angry"]}]}]}`
+
+@(test)
+script_catalog_parses_the_player_description :: proc(t: ^testing.T) {
+	scripts, ok := ScriptCatalog_Parse(TEST_DESCRIPTION)
+	catalog := ScriptCatalog{scripts = scripts}
+	defer ScriptCatalog_Clear(&catalog)
+	testing.expect(t, ok)
+	testing.expect_value(t, len(scripts), 1)
+	mover := ScriptCatalog_Find(&catalog, "Mover")
+	testing.expect(t, mover != nil)
+	if mover == nil do return
+	testing.expect_value(t, mover.line, 18)
+	testing.expect_value(t, len(mover.fields), 3)
+	testing.expect_value(t, mover.fields[0].type, e.ScriptFieldType.Float)
+	testing.expect_value(t, mover.fields[0].min.? or_else -1, 0)
+	testing.expect_value(t, mover.fields[1].hint, "scene")
+	testing.expect_value(t, mover.fields[2].enumNames[1], "Angry")
+	_, bad := ScriptCatalog_Parse("compile error")
+	testing.expect(t, !bad)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+attaching_scripts_and_editing_values :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scripts, _ := ScriptCatalog_Parse(TEST_DESCRIPTION)
+	state.scripts = {status = .Ready, scripts = scripts}
+	node := &playScene(&state).nodes[state.selectedNode]
+
+	send(&state, Node_Script_Changed("Mover"))
+	testing.expect_value(t, node.script, "Mover")
+	// A value differing from the default is stored; setting the default removes it
+	send(&state, Script_Prop_Changed{"speed", "250", "100"})
+	testing.expect_value(t, NodeDef_ScriptValue(node, &state.scripts.scripts[0].fields[0]), "250")
+	testing.expect_value(t, len(node.props), 1)
+	send(&state, Script_Prop_Changed{"speed", "100", "100"})
+	testing.expect_value(t, len(node.props), 0)
+	// Number fields send typed text through the same path
+	target := ScriptPropTarget{name = "speed", defaultValue = "100", component = -1}
+	send(&state, Number_Text_Changed{target, skald.hash_id("x"), "42", 0, max(f64)})
+	testing.expect_value(t, node.props[0].value, "42")
+	testing.expect_value(t, History_NextLabel(&state.history, false), "Change speed of Spaceship")
+	// Vector components keep the other one
+	vec := ScriptPropTarget{name = "spawn", defaultValue = "0, 0", component = 1, other = 3}
+	send(&state, Number_Text_Changed{vec, skald.hash_id("y"), "4", min(f64), max(f64)})
+	testing.expect_value(t, node.props[1].value, "3, 4")
+
+	// Detaching clears the values; undo brings both back
+	send(&state, Node_Script_Changed(TEXTURE_NONE))
+	testing.expect_value(t, node.script, "")
+	testing.expect_value(t, len(node.props), 0)
+	send(&state, Action.Undo)
+	node = &playScene(&state).nodes[state.selectedNode]
+	testing.expect_value(t, node.script, "Mover")
+	testing.expect_value(t, len(node.props), 2)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+scripts_round_trip_through_scene_files :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	node := &scene.nodes[state.selectedNode]
+	delete(node.script)
+	node.script = strings.clone("Mover")
+	append(&node.props, ScriptPropDef{strings.clone("title"), strings.clone(`Say "hi" & <go>`)})
+
+	text := SceneToXML(scene, context.temp_allocator)
+	testing.expect(t, strings.contains(text, `<script name="Mover">`))
+	testing.expect(t, strings.contains(text, `formatVersion="3"`))
+	parsed, err := e.ParseScene(text)
+	defer e.SceneData_Destroy(&parsed)
+	testing.expect_value(t, err, e.ProjectError.None)
+	ship := parsed.nodes[state.selectedNode]
+	testing.expect_value(t, ship.script, "Mover")
+	testing.expect_value(t, ship.props[0].value, `Say "hi" & <go>`)
+	// Its children are still its children
+	testing.expect_value(t, parsed.nodes[state.selectedNode + 1].parent, state.selectedNode)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+new_script_files :: proc(t: ^testing.T) {
+	context.logger = log.nil_logger()
+	testing.expect_value(t, ScriptFileFor("PlayerController"), "scripts/player_controller.odin")
+	testing.expect_value(t, ScriptNameProblem("PlayerController"), "")
+	testing.expect(t, ScriptNameProblem("player") != "")
+	testing.expect(t, ScriptNameProblem("9Lives") != "")
+	testing.expect(t, ScriptNameProblem("Bad-Name") != "")
+
+	state := testState()
+	defer State_Destroy(&state)
+	// Never open a real editor from a test
+	state.settings.codeEditor = FixedText_Make("true {file}")
+	os.make_directory("build")
+	dir := "build/test_script_project"
+	os.remove_all(dir)
+	defer os.remove_all(dir)
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone(dir)
+	os.make_directory(dir)
+
+	send(&state, New_Script_Opened{})
+	send(&state, New_Script_Name_Changed("Mover"))
+	state, _ = update(state, Msg(New_Script_Created{}))
+	testing.expect(t, !state.newScript.open)
+	testing.expect(t, os.exists("build/test_script_project/scripts/mover.odin"))
+	testing.expect_value(t, len(state.scriptFiles), 1)
+	testing.expect_value(t, playScene(&state).nodes[state.selectedNode].script, "Mover")
+	// The same name again fails and keeps the dialog open
+	send(&state, New_Script_Opened{})
+	send(&state, New_Script_Name_Changed("Mover"))
+	send(&state, New_Script_Created{})
+	testing.expect(t, state.newScript.open)
 	free_all(context.temp_allocator)
 }

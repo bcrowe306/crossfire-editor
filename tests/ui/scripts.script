@@ -1,0 +1,47 @@
+# Scripts: create one from the inspector, let the background build describe it, edit its exported
+# field, and play with it. Builds the project's own player (unoptimized: a few seconds; more the
+# first time). tests/ui/settings.ini makes "open in code editor" a no-op.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+expect script none
+expect scripts Unknown
+
+# New Script: writes scripts/mover.odin, attaches it, builds. The Script section is below the
+# node's properties, so scroll the inspector to it first
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+expect new_script_dialog open
+type Mover
+click_widget new-script-create
+expect new_script_dialog closed
+expect script Mover
+# Rows: Scenes + 3 scenes, Scripts + mover.odin, Images + 3 images, Audio, Fonts
+expect browser_rows 12
+wait_until scripts Ready timeout=240
+expect output_contains 1 script: Mover
+
+# The template's exported field shows in the inspector
+scroll_into_view inspector-scroll inspector-prop-speed-2-inc
+click_widget inspector-prop-speed-2-inc
+expect prop speed 101
+key ctrl+z
+expect prop speed (default)
+scroll_into_view inspector-scroll inspector-prop-speed-2-inc
+click_widget inspector-prop-speed-2-inc
+click_widget inspector-prop-speed-2-inc
+expect prop speed 102
+
+# Play builds nothing new (the player is current) and runs with the script registered
+key ctrl+s
+key F5
+wait_until play Playing timeout=240
+wait_until console_contains 1 scripts registered timeout=30
+key shift+F5
+wait_until play Stopped
+
+quit

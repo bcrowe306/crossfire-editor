@@ -19,7 +19,12 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Dialogs and the open context menu take Escape (and every other key) themselves
 	menu, drawn := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open ||
-		state.session.confirm.open || state.session.newProject.open || (drawn && menu.open)
+		state.session.confirm.open || state.session.newProject.open || state.newScript.open || (drawn && menu.open)
+	// A project with scripts is built once in the background when it opens, so the inspector
+	// knows their fields
+	if len(state.scriptFiles) > 0 && !state.scriptsAutoBuilt && state.play.stage == .None {
+		skald.send(ctx, Msg(Scripts_Auto_Build{}))
+	}
 	Session_UpdateTitle(&state)
 	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
 
@@ -35,6 +40,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		addNodeDialog(&state, ctx),
 		settingsDialogView(&state, ctx),
 		newProjectDialogView(&state, ctx),
+		newScriptDialogView(&state, ctx),
 		confirmDialogView(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
@@ -82,6 +88,11 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Deselect", .Deselect, keys),
 			{separator = true},
 			item("Settings...", .Open_Settings, keys),
+		}},
+		{"Scripts", []skald.Menu_Item(Msg){
+			{label = "New Script...", msg = Msg(New_Script_Opened{})},
+			item("Open Script", .Open_Script, keys),
+			item("Build Scripts", .Build_Scripts, keys),
 		}},
 		{"View", []skald.Menu_Item(Msg){
 			item("Select Tool", .Tool_Select, keys),
