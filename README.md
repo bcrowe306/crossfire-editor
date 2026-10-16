@@ -44,6 +44,7 @@ Run `task` to list them all.
 |---|---|
 | `task setup` | One-time setup: `task submodules` + `task stb` |
 | `task submodules` | Fetch or update the submodules (Skald, emsdk) |
+| `task box2d` | Build the engine's Box2D (once; builds and checks do it when needed) |
 | `task emsdk` | Install the Emscripten toolchain web exports need (about 1 GB into `third_party/emsdk`, once per machine), and build SDL3_mixer for the web |
 | `task web:mixer` | Rebuild SDL3_mixer for the web (`build/web/`); exports build it themselves when it's missing |
 | `task stb` | Build Odin's STB libraries, which Skald needs. Skipped if already built |
@@ -187,6 +188,26 @@ Scenes are managed in the project browser's **Scenes** folder:
 - **Play** (F5) starts at the project's start scene, marked "(start)" and set in **File > Project
   Settings** (with the game's name, resolution, scaling and background) or with Set as Start
   Scene. **Play Scene** (Ctrl+F5) starts at the scene open in the viewport.
+
+## Physics
+
+Games get 2D physics from the engine (Box2D). Add these nodes like any other (Ctrl+Shift+A):
+
+| Node | What it is |
+|---|---|
+| StaticBody | Doesn't move by itself: walls, floors, platforms |
+| DynamicBody | Moved by gravity, collisions and forces: crates, balls, debris |
+| CharacterMover | Moved by your script (`e.CharacterMover_Move`), sliding along walls and floors: players, enemies |
+| Area | Reports bodies entering and leaving it: pickups, triggers, damage zones |
+| CollisionShape | The shape of the body above it: rectangle, circle, capsule, polygon, segment |
+| RayCast | Reports the first body in its way: line of sight, ground checks |
+
+A body needs a CollisionShape under it. The inspector edits each body's collision layers (which
+of layers 1-16 it's on, and which it collides with), friction, bounce, mass and more. Shapes and
+rays are outlined in the viewport. Project Settings has the world's scale (pixels per meter),
+gravity, and Show shapes, which draws every shape in the running game. Scripts react to
+collisions with `collisionEnter` / `collisionExit` hooks, or the bodies' `onCollisionEnter` /
+`onCollisionExit` events.
 
 ## Exporting
 

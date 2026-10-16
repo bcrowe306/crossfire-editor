@@ -5,6 +5,7 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "gui:skald"
+import e "engine:."
 import sdl "vendor:sdl3"
 
 /*
@@ -178,6 +179,7 @@ Project_CreateEmpty :: proc(root, name: string) -> Project {
 		scaleMode = .Letterbox,
 		background = {18, 20, 28, 255},
 		startScene = strings.clone("Main"),
+		physics = e.DEFAULT_PHYSICS,
 		exports = ExportSettings_Default(),
 	}
 	scene := SceneDef{name = strings.clone("Main")}

@@ -79,6 +79,7 @@ ProjectSnapshot :: struct {
 	background: sdl.Color,
 	scenes: [dynamic]SceneDef,
 	exports: ExportSettings,
+	physics: e.PhysicsSettings,
 	// The scene open at the time, shown again on undo/redo
 	currentScene: int,
 }
@@ -192,6 +193,10 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("text", v.field, s.currentScene, selected))
 	case Node_Flag_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.flag, name))
+	case Node_Layer_Toggled:
+		if hasSelection do return node(selected, fmt.tprintf("Change collision %s of %s", v.mask ? "mask" : "layers", name))
+	case Node_Points_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change points of %s", name), key("points", s.currentScene, selected))
 	case Viewport_Drag_Move:
 		drag := s.viewport.drag
 		if drag.mode == .None || drag.mode == .Pan || drag.mode == .Box || drag.node < 0 || drag.node >= len(scene.nodes) do break
@@ -270,6 +275,17 @@ fieldLabel :: proc(field: NodeField) -> string {
 	case .Columns:    return "columns"
 	case .Rows:       return "rows"
 	case .FPS:        return "FPS"
+	case .Friction:        return "friction"
+	case .Restitution:     return "bounce"
+	case .Density:         return "density"
+	case .Gravity_Scale:   return "gravity scale"
+	case .Linear_Damping:  return "damping"
+	case .Angular_Damping: return "angular damping"
+	case .Floor_Max_Angle: return "floor angle"
+	case .Shape_Width:     return "width"
+	case .Shape_Height:    return "height"
+	case .Radius:          return "radius"
+	case .Target_X, .Target_Y: return "ray target"
 	}
 	return "property"
 }
@@ -504,9 +520,16 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.texture != b.texture || a.text != b.text || a.fontSize != b.fontSize || a.color != b.color ||
 	   a.centered != b.centered || a.zoom != b.zoom || a.columns != b.columns || a.rows != b.rows ||
 	   a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || len(a.items) != len(b.items) ||
-	   a.script != b.script || len(a.props) != len(b.props) {
+	   a.script != b.script || len(a.props) != len(b.props) ||
+	   a.collisionLayer != b.collisionLayer || a.collisionMask != b.collisionMask || a.friction != b.friction ||
+	   a.restitution != b.restitution || a.density != b.density || a.gravityScale != b.gravityScale ||
+	   a.linearDamping != b.linearDamping || a.angularDamping != b.angularDamping || a.fixedRotation != b.fixedRotation ||
+	   a.bullet != b.bullet || a.floorMaxAngle != b.floorMaxAngle || a.shape != b.shape || a.shapeSize != b.shapeSize ||
+	   a.radius != b.radius || len(a.points) != len(b.points) || a.disabled != b.disabled || a.target != b.target ||
+	   a.enabled != b.enabled || a.excludeParent != b.excludeParent {
 		return false
 	}
+	for p, i in a.points do if p != b.points[i] do return false
 	for item, i in a.items do if item != b.items[i] do return false
 	for prop, i in a.props do if prop != b.props[i] do return false
 	return true
@@ -573,6 +596,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		scaleMode = p.scaleMode,
 		background = p.background,
 		exports = p.exports,
+		physics = p.physics,
 		currentScene = s.currentScene,
 	}
 	for scene in p.scenes do append(&snapshot.scenes, SceneDef_Clone(scene))
@@ -590,6 +614,7 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.startScene = strings.clone(snapshot.startScene)
 	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
 	p.exports = snapshot.exports
+	p.physics = snapshot.physics
 	for scene in snapshot.scenes do append(&p.scenes, SceneDef_Clone(scene))
 }
 
@@ -605,7 +630,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 @(private="file")
 projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if a.name != b.name || a.startScene != b.startScene || a.gameSize != b.gameSize || a.scaleMode != b.scaleMode ||
-	   a.background != b.background || a.exports != b.exports || len(a.scenes) != len(b.scenes) {
+	   a.background != b.background || a.exports != b.exports || a.physics != b.physics || len(a.scenes) != len(b.scenes) {
 		return false
 	}
 	for scene, i in a.scenes {

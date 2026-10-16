@@ -180,6 +180,8 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	preview.game.size = s.project.gameSize
 	preview.scene = new(e.Scene)
 	e.Scene_Init(preview.scene)
+	// Animations play in the preview (Scene_Update), but bodies don't fall: physics runs in Play
+	preview.scene.physicsPaused = true
 	preview.scene.game = preview.game
 
 	data := toSceneData(scene)
@@ -221,6 +223,12 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			texture = node.texture, text = node.text, fontSize = node.fontSize, color = node.color,
 			centered = node.centered, zoom = node.zoom, columns = node.columns, rows = node.rows,
 			fps = node.fps, loop = node.loop, playMode = node.playMode, items = items,
+			collisionLayer = node.collisionLayer, collisionMask = node.collisionMask,
+			friction = node.friction, restitution = node.restitution, density = node.density,
+			gravityScale = node.gravityScale, linearDamping = node.linearDamping, angularDamping = node.angularDamping,
+			fixedRotation = node.fixedRotation, bullet = node.bullet, floorMaxAngle = node.floorMaxAngle,
+			shape = node.shape, shapeSize = node.shapeSize, radius = node.radius, points = node.points,
+			disabled = node.disabled, target = node.target, enabled = node.enabled, excludeParent = node.excludeParent,
 		})
 	}
 	return data
@@ -250,6 +258,17 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		for item in node.items {
 			strings.write_string(&b, item.label)
 			strings.write_string(&b, item.action)
+		}
+		// A shape's size is its bounds (picking, the selection box)
+		if node.kind == .CollisionShape {
+			strings.write_int(&b, int(node.shape))
+			strings.write_f32(&b, node.shapeSize.x, 'g')
+			strings.write_f32(&b, node.shapeSize.y, 'g')
+			strings.write_f32(&b, node.radius, 'g')
+			for p in node.points {
+				strings.write_f32(&b, p.x, 'g')
+				strings.write_f32(&b, p.y, 'g')
+			}
 		}
 	}
 	return hash.fnv64a(b.buf[:])

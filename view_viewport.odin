@@ -425,6 +425,19 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 			if !shape.visible do continue
 			origin := toWindow(p.bounds, v, shape.world.origin)
 			switch {
+			case node.kind == .CollisionShape:
+				// Shapes draw nothing in the game: outline them in their body's color
+				body := shapeBody(scene, i)
+				color := body >= 0 && !node.disabled ? kindColor(scene.nodes[body].kind) : th.color.fg_muted
+				drawCollisionShape(r, p.bounds, v, &node, shape.world, color)
+			case node.kind == .RayCast:
+				end := toWindow(p.bounds, v, e.Transform2D_Apply(shape.world, node.target))
+				color := kindColor(.RayCast)
+				if !node.enabled do color = th.color.fg_muted
+				skald.draw_polyline(r, {origin, end}, 1.5, color, aa = true)
+				skald.draw_circle(r, end, 3, color, aa = true)
+				skald.draw_circle(r, origin, MARKER_RADIUS, color, aa = true)
+				skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case node.kind == .Camera:
 				drawCameraFrame(r, p.bounds, v, shape, node.zoom, s.project.gameSize, kindColor(.Camera))
 				skald.draw_circle(r, origin, MARKER_RADIUS, kindColor(.Camera), aa = true)
@@ -562,6 +575,46 @@ drawCameraFrame :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportStat
 	skald.draw_polyline(r, points, 1, {color.r, color.g, color.b, 0.7}, aa = true)
 }
 
+// A CollisionShape's outline, in the node's space mapped through its world transform
+@(private="file")
+drawCollisionShape :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, node: ^NodeDef, world: e.Transform2D, color: skald.Color) {
+	local := make([dynamic][2]f32, context.temp_allocator)
+	closed := true
+	arc :: proc(points: ^[dynamic][2]f32, center: [2]f32, radius, from, to: f32) {
+		SEGMENTS :: 16
+		for i in 0 ..= SEGMENTS {
+			angle := from + (to - from) * f32(i) / SEGMENTS
+			append(points, center + [2]f32{math.cos(angle), math.sin(angle)} * radius)
+		}
+	}
+	switch node.shape {
+	case .Rectangle:
+		h := node.shapeSize * 0.5
+		append(&local, [2]f32{-h.x, -h.y}, [2]f32{h.x, -h.y}, [2]f32{h.x, h.y}, [2]f32{-h.x, h.y})
+	case .Circle:
+		arc(&local, {0, 0}, node.radius, 0, 2 * math.PI)
+		// A spoke, so rotation shows
+		append(&local, [2]f32{0, 0})
+	case .Capsule:
+		half := max(node.shapeSize.y * 0.5 - node.radius, 0)
+		arc(&local, {0, -half}, node.radius, math.PI, 2 * math.PI)
+		arc(&local, {0, half}, node.radius, 0, math.PI)
+	case .Polygon:
+		append(&local, ..node.points[:])
+	case .Segment:
+		append(&local, ..node.points[:])
+		closed = false
+	}
+	if len(local) < 2 do return
+	points := make([dynamic][2]f32, 0, len(local) + 1, context.temp_allocator)
+	for p in local do append(&points, viewToWindow(canvas, Viewport_WorldToView(v, e.Transform2D_Apply(world, p))))
+	if closed do append(&points, points[0])
+	fill := color
+	fill[3] = 0.08
+	if closed && len(points) >= 4 do skald.draw_polygon(r, points[:len(points) - 1], fill)
+	skald.draw_polyline(r, points[:], 1.5, color, aa = true)
+}
+
 // Rulers along the top and left, in world units, with the mouse position marked
 @(private="file")
 drawRulers :: proc(r: ^skald.Renderer, canvas, viewRect: skald.Rect, v: ^ViewportState, mouse: [2]f32, th: ^skald.Theme) {
@@ -610,6 +663,13 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .Camera:         return skald.rgb(0xffbe46)
 	case .Label:          return skald.rgb(0x7ee0a1)
 	case .Menu:           return skald.rgb(0xff8a7a)
+	// Physics: the colors the engine's debug drawing uses for bodies
+	case .StaticBody:     return skald.rgb(0x78c878)
+	case .DynamicBody:    return skald.rgb(0x6eaaff)
+	case .CharacterMover: return skald.rgb(0xffaa46)
+	case .Area:           return skald.rgb(0xc878ff)
+	case .CollisionShape: return skald.rgb(0x4fd1c5)
+	case .RayCast:        return skald.rgb(0xff6b6b)
 	}
 	return skald.rgb(0xffffff)
 }

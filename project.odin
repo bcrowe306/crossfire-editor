@@ -66,6 +66,33 @@ NodeDef :: struct {
 	// (scripts.odin). Values for fields the script doesn't have are kept, not shown
 	script: string,
 	props: [dynamic]ScriptPropDef,
+
+	// Physics (the engine's SceneNodeData has the same fields; physics_nodes.odin there).
+	// Bodies: layers it's on and collides with (bit sets), surface
+	collisionLayer: u64,
+	collisionMask: u64,
+	friction: f32,
+	restitution: f32,
+	density: f32,
+	// DynamicBody
+	gravityScale: f32,
+	linearDamping: f32,
+	angularDamping: f32,
+	fixedRotation: bool,
+	bullet: bool,
+	// CharacterMover
+	floorMaxAngle: f32,
+	// CollisionShape: Rectangle width/height (shapeSize), Circle radius, Capsule radius and
+	// height (shapeSize.y), Polygon/Segment points
+	shape: e.CollisionShapeKind,
+	shapeSize: [2]f32,
+	radius: f32,
+	points: [dynamic][2]f32,
+	disabled: bool,
+	// RayCast (collisionMask is what it hits)
+	target: [2]f32,
+	enabled: bool,
+	excludeParent: bool,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -112,6 +139,8 @@ Project :: struct {
 	startScene: string,
 	scenes: [dynamic]SceneDef,
 	assets: [dynamic]AssetDef,
+	// Physics: pixels per meter, gravity (px/s²), debug drawing in the game
+	physics: e.PhysicsSettings,
 	// Scene files the editor loaded or saved (relative paths), so Save can delete the files of
 	// scenes that were renamed or removed, and nothing else (project_scenes.odin)
 	sceneFiles: [dynamic]string,
@@ -156,6 +185,19 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		loop = defaults.loop,
 		playMode = defaults.playMode,
 		script = strings.clone(""),
+		collisionLayer = defaults.collisionLayer,
+		collisionMask = defaults.collisionMask,
+		friction = defaults.friction,
+		restitution = defaults.restitution,
+		density = defaults.density,
+		gravityScale = defaults.gravityScale,
+		floorMaxAngle = defaults.floorMaxAngle,
+		shape = defaults.shape,
+		shapeSize = defaults.shapeSize,
+		radius = defaults.radius,
+		target = defaults.target,
+		enabled = defaults.enabled,
+		excludeParent = defaults.excludeParent,
 	}
 	if kind == .Menu {
 		append(&node.items, MenuItemDef{strings.clone("Button"), strings.clone("quit")})
@@ -173,6 +215,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.script)
 	for prop in node.props { delete(prop.name); delete(prop.value) }
 	delete(node.props)
+	delete(node.points)
 }
 
 /*
@@ -350,6 +393,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		scaleMode = data.scaleMode,
 		background = data.background,
 		startScene = strings.clone(data.startScene),
+		physics = data.physics,
 		exports = ExportSettings_Default(),
 	}
 	// Export settings: optional, and a bad line only loses that setting
@@ -399,7 +443,26 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				fps = node.fps,
 				loop = node.loop,
 				playMode = node.playMode,
+				collisionLayer = node.collisionLayer,
+				collisionMask = node.collisionMask,
+				friction = node.friction,
+				restitution = node.restitution,
+				density = node.density,
+				gravityScale = node.gravityScale,
+				linearDamping = node.linearDamping,
+				angularDamping = node.angularDamping,
+				fixedRotation = node.fixedRotation,
+				bullet = node.bullet,
+				floorMaxAngle = node.floorMaxAngle,
+				shape = node.shape,
+				shapeSize = node.shapeSize,
+				radius = node.radius,
+				disabled = node.disabled,
+				target = node.target,
+				enabled = node.enabled,
+				excludeParent = node.excludeParent,
 			}
+			append(&def.points, ..node.points[:])
 			for item in node.items {
 				append(&def.items, MenuItemDef{strings.clone(item.label), strings.clone(item.action)})
 			}
@@ -434,6 +497,7 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 		scaleMode = .Letterbox,
 		background = {15, 18, 30, 255},
 		startScene = strings.clone("MenuScene"),
+		physics = e.DEFAULT_PHYSICS,
 		exports = ExportSettings_Default(),
 	}
 	TITLE_COLOR :: sdl.Color{235, 240, 255, 255}

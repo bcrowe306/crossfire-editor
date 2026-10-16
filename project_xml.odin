@@ -75,6 +75,12 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	attr(&w, "scaleMode", project.scaleMode)
 	attr(&w, "background", e.FormatColor(project.background, context.temp_allocator))
 	attr(&w, "startScene", project.startScene)
+	// Physics settings only when they aren't the defaults
+	physics := project.physics
+	if physics.pixelsPerMeter != e.DEFAULT_PHYSICS.pixelsPerMeter do attr(&w, "pixelsPerMeter", physics.pixelsPerMeter)
+	if physics.gravity.x != e.DEFAULT_PHYSICS.gravity.x do attr(&w, "gravityX", physics.gravity.x)
+	if physics.gravity.y != e.DEFAULT_PHYSICS.gravity.y do attr(&w, "gravityY", physics.gravity.y)
+	if physics.debugDraw do attr(&w, "physicsDebug", true)
 	endOpen(&w)
 	for &scene in project.scenes {
 		open(&w, "scene")
@@ -262,6 +268,45 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.centered != defaults.centered do attr(w, "centered", node.centered)
 	case .Camera:
 		if node.zoom != defaults.zoom do attr(w, "zoom", node.zoom)
+	case .StaticBody, .DynamicBody, .CharacterMover, .Area:
+		if node.collisionLayer != defaults.collisionLayer do attr(w, "collisionLayer", e.FormatPhysicsLayers(node.collisionLayer, context.temp_allocator))
+		if node.collisionMask != defaults.collisionMask do attr(w, "collisionMask", e.FormatPhysicsLayers(node.collisionMask, context.temp_allocator))
+		if node.kind != .Area {
+			if node.friction != defaults.friction do attr(w, "friction", node.friction)
+			if node.restitution != defaults.restitution do attr(w, "restitution", node.restitution)
+		}
+		#partial switch node.kind {
+		case .DynamicBody:
+			if node.density != defaults.density do attr(w, "density", node.density)
+			if node.gravityScale != defaults.gravityScale do attr(w, "gravityScale", node.gravityScale)
+			if node.linearDamping != defaults.linearDamping do attr(w, "linearDamping", node.linearDamping)
+			if node.angularDamping != defaults.angularDamping do attr(w, "angularDamping", node.angularDamping)
+			if node.fixedRotation do attr(w, "fixedRotation", true)
+			if node.bullet do attr(w, "bullet", true)
+		case .CharacterMover:
+			if node.floorMaxAngle != defaults.floorMaxAngle do attr(w, "floorMaxAngle", node.floorMaxAngle)
+		}
+	case .CollisionShape:
+		attr(w, "shape", node.shape)
+		switch node.shape {
+		case .Rectangle:
+			attr(w, "width", node.shapeSize.x)
+			attr(w, "height", node.shapeSize.y)
+		case .Circle:
+			attr(w, "radius", node.radius)
+		case .Capsule:
+			attr(w, "radius", node.radius)
+			attr(w, "height", node.shapeSize.y)
+		case .Polygon, .Segment:
+			attr(w, "points", e.FormatPoints(node.points[:], context.temp_allocator))
+		}
+		if node.disabled do attr(w, "disabled", true)
+	case .RayCast:
+		attr(w, "targetX", node.target.x)
+		attr(w, "targetY", node.target.y)
+		if node.collisionMask != defaults.collisionMask do attr(w, "collisionMask", e.FormatPhysicsLayers(node.collisionMask, context.temp_allocator))
+		if !node.enabled do attr(w, "enabled", false)
+		if !node.excludeParent do attr(w, "excludeParent", false)
 	case .Node2D, .Menu:
 	}
 }

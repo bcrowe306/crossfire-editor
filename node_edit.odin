@@ -48,6 +48,8 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.script = strings.clone(node.script)
 	copy.props = make([dynamic]ScriptPropDef, 0, len(node.props))
 	for prop in node.props do append(&copy.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
+	copy.points = make([dynamic][2]f32, 0, len(node.points))
+	append(&copy.points, ..node.points[:])
 	return copy
 }
 

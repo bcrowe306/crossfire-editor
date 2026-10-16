@@ -109,6 +109,18 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id("project-settings-start"), width = 200)),
 		skald.text("The scene the game starts in (Play, and exports). Play Scene (Ctrl+F5) starts in the open scene instead.",
 			th.color.fg_muted, th.font.size_xs, max_width = 420),
+		skald.divider(ctx),
+		settingRow(ctx, "Pixels per meter", numberField(ctx, s, "project-settings-ppm", PhysicsTarget.Pixels_Per_Meter, f64(d.physics.pixelsPerMeter), 10, 0, 120, 1, 10000)),
+		settingRow(ctx, "Gravity", skald.row(
+			numberField(ctx, s, "project-settings-gravity-x", PhysicsTarget.Gravity_X, f64(d.physics.gravity.x), 10, 0, 120),
+			numberField(ctx, s, "project-settings-gravity-y", PhysicsTarget.Gravity_Y, f64(d.physics.gravity.y), 10, 0, 120),
+			spacing = th.spacing.xs,
+		)),
+		settingRow(ctx, "Show shapes", skald.checkbox(ctx, d.physics.debugDraw, "Draw collision shapes in the game",
+			proc(v: bool) -> Msg { return Project_Settings_Physics_Debug_Changed(v) },
+			id = skald.hash_id("project-settings-physics-debug"))),
+		skald.text("Physics works in meters: a body of 1 m is this many pixels (Box2D does best with things 0.1 to 10 m). Gravity is in pixels per second², y down: 980 is Earth's at 100 px per meter.",
+			th.color.fg_muted, th.font.size_xs, max_width = 420),
 		spacing = th.spacing.sm,
 		cross_align = .Stretch,
 	)

@@ -165,6 +165,11 @@ Project_Settings_Size_Changed :: struct {
 	axis: int,
 	value: f64,
 }
+Project_Settings_Physics_Changed :: struct {
+	field: PhysicsTarget,
+	value: f64,
+}
+Project_Settings_Physics_Debug_Changed :: distinct bool
 Project_Settings_Applied :: struct {}
 Project_Settings_Cancelled :: struct {}
 Project_Settings_Tab_Changed :: distinct ProjectSettingsTab
@@ -252,6 +257,19 @@ NodeField :: enum {
 	Columns,
 	Rows,
 	FPS,
+	// Physics
+	Friction,
+	Restitution,
+	Density,
+	Gravity_Scale,
+	Linear_Damping,
+	Angular_Damping,
+	Floor_Max_Angle,
+	Shape_Width,
+	Shape_Height,
+	Radius,
+	Target_X,
+	Target_Y,
 }
 
 // Text properties. Play_Mode carries the enum value's name; Color carries #rrggbb
@@ -260,6 +278,8 @@ NodeTextField :: enum {
 	Texture,
 	Color,
 	Play_Mode,
+	// A CollisionShape's kind, by name
+	Shape,
 }
 
 Node_Text_Changed :: struct {
@@ -270,6 +290,23 @@ Node_Text_Changed :: struct {
 NodeFlag :: enum {
 	Loop,
 	Centered,
+	Fixed_Rotation,
+	Bullet,
+	Disabled,
+	Enabled,
+	Exclude_Parent,
+}
+
+// Turns one collision layer (1-64) on or off in the selected node's layers (or its mask)
+Node_Layer_Toggled :: struct {
+	mask: bool,
+	layer: int,
+}
+
+// Typing a CollisionShape's points ("x,y x,y"); applies when they all parse (see number_field.odin)
+Node_Points_Changed :: struct {
+	id: skald.Widget_ID,
+	text: string,
 }
 
 Node_Flag_Changed :: struct {
@@ -471,6 +508,8 @@ Msg :: union {
 	Project_Settings_Size_Changed,
 	Project_Settings_Applied,
 	Project_Settings_Cancelled,
+	Project_Settings_Physics_Changed,
+	Project_Settings_Physics_Debug_Changed,
 	Project_Settings_Tab_Changed,
 	Export_Target_Selected,
 	Export_Target_Enabled,
@@ -532,4 +571,6 @@ Msg :: union {
 	Node_Field_Changed,
 	Node_Text_Changed,
 	Node_Flag_Changed,
+	Node_Layer_Toggled,
+	Node_Points_Changed,
 }

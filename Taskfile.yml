@@ -30,10 +30,27 @@ tasks:
     silent: true
 
   setup:
-    desc: One-time setup - fetch the Skald submodule and build the STB libraries Skald needs
+    desc: One-time setup - fetch the submodules, build the STB libraries Skald needs and the engine's Box2D
     cmds:
       - task: submodules
       - task: stb
+      - task: box2d
+
+  box2d:
+    desc: Build Box2D for the engine (its tools/build_box2d.sh, into <engine>/box2d/lib). Builds and checks run it when it's missing
+    status:
+      - test -f {{.ENGINE_DIR}}/box2d/lib/box2d_linux_amd64.a
+    cmds:
+      - git -C {{.ENGINE_DIR}} submodule update --init third_party/box2d
+      - '{{.ENGINE_DIR}}/tools/build_box2d.sh'
+
+  box2d:web:
+    desc: Build the engine's Box2D for web exports (needs emsdk). Exports also build it when it's missing
+    status:
+      - test -f {{.ENGINE_DIR}}/box2d/lib/box2d_web.o
+    cmds:
+      - git -C {{.ENGINE_DIR}} submodule update --init third_party/box2d
+      - '{{.ENGINE_DIR}}/tools/build_box2d.sh "$(realpath {{.EMSDK_DIR}})"'
 
   submodules:
     desc: Fetch or update git submodules (Skald, emsdk)
@@ -48,6 +65,7 @@ tasks:
       - git submodule update --init {{.EMSDK_DIR}} third_party/SDL_mixer
       - cd {{.EMSDK_DIR}} && ./emsdk install {{.EMSDK_VERSION}} && ./emsdk activate {{.EMSDK_VERSION}}
       - task: web:mixer
+      - task: box2d:web
 
   web:mixer:
     desc: Build SDL3_mixer for web exports (build/web/libSDL3_mixer.a, from third_party/SDL_mixer; needs emsdk). Exports also build it when it's missing
@@ -70,11 +88,13 @@ tasks:
 
   check:
     desc: Type-check the editor with vet
+    deps: [box2d]
     cmds:
       - odin check . {{.COLLECTIONS}} {{.VET}}
 
   test:
     desc: Run the unit tests
+    deps: [box2d]
     cmds:
       - odin test . {{.COLLECTIONS}} {{.VET}}
 
@@ -99,18 +119,21 @@ tasks:
 
   build:
     desc: Debug build into build/
+    deps: [box2d]
     cmds:
       - mkdir -p {{.BUILD_DIR}}
       - odin build . {{.COLLECTIONS}} {{.VET}} -debug -out:{{.BUILD_DIR}}/{{.NAME}}
 
   build:release:
     desc: Optimized build into build/release/
+    deps: [box2d]
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
       - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}}
 
   run:
     desc: Build optimized and run. Pass program arguments after --, e.g. task run -- path/to/project
+    deps: [box2d]
     # Optimized: the debug build is several times slower (the viewport ran at ~14 fps vs 60)
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
@@ -119,11 +142,13 @@ tasks:
 
   run:debug:
     desc: Build with debug info (unoptimized, slower) and run, for a debugger or bounds checks
+    deps: [box2d]
     cmds:
       - odin run . {{.COLLECTIONS}} -debug -- {{.CLI_ARGS}}
 
   run:fullscreen:
     desc: Build optimized and run fullscreen, to see the full layout on a tiling window manager
+    deps: [box2d]
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
       - odin build . {{.COLLECTIONS}} -o:speed -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/release/{{.NAME}}-fullscreen
@@ -131,6 +156,7 @@ tasks:
 
   player:
     desc: Build the engine's game player (Play does this automatically when the engine changed)
+    deps: [box2d]
     cmds:
       - mkdir -p {{.BUILD_DIR}}/player
       - odin build {{.ENGINE_DIR}}/player -o:speed -out:{{.BUILD_DIR}}/player/player

@@ -326,6 +326,9 @@ ExportInput :: struct {
 	webLibDir: string,
 	// Whether webLibDir already has libSDL3_mixer.a (else the export builds it first)
 	webMixerBuilt: bool,
+	// Whether the engine's box2d/lib has box2d_web.o (else the export builds it first, with the
+	// engine's tools/build_box2d.sh)
+	webBox2DBuilt: bool,
 	// A folder the export may use for intermediate files (the editor's build/exports/<project>)
 	workDir: string,
 }
@@ -413,6 +416,12 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 			build[0], build[1], build[2], build[3], build[4] = "bash", input.mixerBuildScript, input.emsdkDir, input.mixerDir, input.webLibDir
 			append(&steps, ExportStep{kind = .Command, label = "Build SDL3_mixer for the web (once)", command = build})
 		}
+		box2dObject := joinPath(input.engineDir, "box2d", "lib", "box2d_web.o")
+		if !input.webBox2DBuilt {
+			build := make([]string, 3)
+			build[0], build[1], build[2] = "bash", joinPath(input.engineDir, "tools", "build_box2d.sh"), input.emsdkDir
+			append(&steps, ExportStep{kind = .Command, label = "Build Box2D for the web (once)", command = build})
+		}
 		append(&command, "odin", "build", source, "-target:js_wasm32", "-build-mode:obj")
 		append(&command, ..collections[:])
 		if settings.optimize do append(&command, "-o:speed")
@@ -425,7 +434,7 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 		append(&steps, ExportStep{kind = .Write_File, label = "Write the page template", path = shell, content = Export_WebShell(title)})
 
 		link := make([dynamic]string)
-		append(&link, emcc, joinPath(webFiles, "main.c"), object, mixerLib,
+		append(&link, emcc, joinPath(webFiles, "main.c"), object, mixerLib, box2dObject,
 			"-o", joinPath(plan.outputDir, "index.html"),
 			"-sUSE_SDL=3", "-sUSE_SDL_TTF=3", "-sALLOW_MEMORY_GROWTH",
 			"--js-library", joinPath(webFiles, "odin_env.js"),

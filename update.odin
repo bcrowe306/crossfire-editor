@@ -103,7 +103,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Background_Changed,
 	     Project_Settings_Start_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
-	     Export_Target_Run, Export_Cancel_Requested:
+	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)
@@ -439,6 +439,18 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Columns:    node.columns = max(int(v.value), 1)
 		case .Rows:       node.rows = max(int(v.value), 1)
 		case .FPS:        node.fps = max(value, 0)
+		case .Friction:        node.friction = max(value, 0)
+		case .Restitution:     node.restitution = clamp(value, 0, 1)
+		case .Density:         node.density = max(value, 0)
+		case .Gravity_Scale:   node.gravityScale = value
+		case .Linear_Damping:  node.linearDamping = max(value, 0)
+		case .Angular_Damping: node.angularDamping = max(value, 0)
+		case .Floor_Max_Angle: node.floorMaxAngle = clamp(value, 0, 89)
+		case .Shape_Width:     node.shapeSize.x = max(value, 1)
+		case .Shape_Height:    node.shapeSize.y = max(value, 1)
+		case .Radius:          node.radius = max(value, 0.5)
+		case .Target_X:        node.target.x = value
+		case .Target_Y:        node.target.y = value
 		}
 	case Node_Text_Changed:
 		node := selectedNode(&out)
@@ -455,14 +467,35 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			if color, ok := e.ParseColor(v.value); ok do node.color = color
 		case .Play_Mode:
 			if mode, ok := reflect.enum_from_name(e.AnimationPlayMode, v.value); ok do node.playMode = mode
+		case .Shape:
+			if shape, ok := reflect.enum_from_name(e.CollisionShapeKind, v.value); ok do node.shape = shape
 		}
 	case Node_Flag_Changed:
 		node := selectedNode(&out)
 		if node == nil do break
 		switch v.flag {
-		case .Loop:     node.loop = v.value
-		case .Centered: node.centered = v.value
+		case .Loop:           node.loop = v.value
+		case .Centered:       node.centered = v.value
+		case .Fixed_Rotation: node.fixedRotation = v.value
+		case .Bullet:         node.bullet = v.value
+		case .Disabled:       node.disabled = v.value
+		case .Enabled:        node.enabled = v.value
+		case .Exclude_Parent: node.excludeParent = v.value
 		}
+	case Node_Layer_Toggled:
+		node := selectedNode(&out)
+		if node == nil || v.layer < 1 || v.layer > 64 do break
+		bits := v.mask ? &node.collisionMask : &node.collisionLayer
+		bits^ ~= 1 << u64(v.layer - 1)
+	case Node_Points_Changed:
+		// Keep the typed text (like a number field), apply it when every point reads
+		delete(out.numberEdit.text)
+		out.numberEdit = {id = v.id, text = strings.clone(v.text)}
+		node := selectedNode(&out)
+		points, ok := e.ParsePoints(v.text)
+		if node == nil || !ok do break
+		clear(&node.points)
+		append(&node.points, ..points)
 	}
 	return out, {}
 }

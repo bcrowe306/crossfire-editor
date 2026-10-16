@@ -1529,7 +1529,7 @@ scripts_round_trip_through_scene_files :: proc(t: ^testing.T) {
 
 	text := SceneToXML(scene, context.temp_allocator)
 	testing.expect(t, strings.contains(text, `<script name="Mover">`))
-	testing.expect(t, strings.contains(text, `formatVersion="3"`))
+	testing.expect(t, strings.contains(text, fmt.tprintf(`formatVersion="%d"`, e.PROJECT_FORMAT_VERSION)))
 	parsed, err := e.ParseScene(text)
 	defer e.SceneData_Destroy(&parsed)
 	testing.expect_value(t, err, e.ProjectError.None)
@@ -1869,6 +1869,7 @@ exportTestInput :: proc(target: ExportTarget) -> ExportInput {
 		mixerBuildScript = "/src/editor/tools/build_web_mixer.sh",
 		webLibDir = "/src/editor/build/web",
 		webMixerBuilt = true,
+		webBox2DBuilt = true,
 		workDir = "/src/editor/build/exports/Space-1",
 	}
 }
@@ -1987,6 +1988,7 @@ export_plan_web :: proc(t: ^testing.T) {
 	testing.expect_value(t, link[0], "/src/emsdk/upstream/emscripten/emcc")
 	testing.expect_value(t, link[1], "/src/engine/web/main.c")
 	testing.expect_value(t, link[3], "/src/editor/build/web/libSDL3_mixer.a")
+	testing.expect_value(t, link[4], "/src/engine/box2d/lib/box2d_web.o")
 	testing.expect(t, hasArg(link, "/srv/www/space/index.html"))
 	testing.expect(t, hasArg(link, "-sUSE_SDL=3") && hasArg(link, "-sUSE_SDL_TTF=3") && hasArg(link, "-O2"))
 	testing.expect(t, hasArg(link, "--preload-file=/src/editor/build/exports/Space-1/web/data@/data"))
@@ -2002,6 +2004,11 @@ export_plan_web :: proc(t: ^testing.T) {
 	testing.expect(t, len(mixer) == 5 && mixer[0] == "bash" && mixer[1] == "/src/editor/tools/build_web_mixer.sh" &&
 		mixer[2] == "/src/emsdk" && mixer[3] == "/src/editor/third_party/SDL_mixer" && mixer[4] == "/src/editor/build/web")
 	testing.expect(t, hasArg(plan.steps[3].command, "-target:js_wasm32"))
+	input.webMixerBuilt = true
+	input.webBox2DBuilt = false
+	plan, problem = Export_Plan(input, context.temp_allocator)
+	box2d := plan.steps[2].command
+	testing.expect(t, problem == "" && len(box2d) == 3 && box2d[1] == "/src/engine/tools/build_box2d.sh" && box2d[2] == "/src/emsdk")
 	// The title is escaped for HTML
 	testing.expect(t, strings.contains(Export_WebShell("A <b> & C", context.temp_allocator), "<title>A &lt;b&gt; &amp; C</title>"))
 	free_all(context.temp_allocator)
@@ -2110,5 +2117,138 @@ export_settings_dialog :: proc(t: ^testing.T) {
 	testing.expect(t, !state.project.exports.targets[.Web].enabled)
 	send(&state, Action.Redo)
 	testing.expect(t, state.project.exports.targets[.Web].enabled)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+physics_nodes_round_trip :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_physics")
+	defer os.remove_all(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	project.physics = {pixelsPerMeter = 64, gravity = {5, 600}, debugDraw = true}
+	scene := &project.scenes[1]
+	ground := Scene_InsertNode(scene, "Ground", .StaticBody, -1)
+	scene.nodes[ground].collisionLayer = 0b101
+	scene.nodes[ground].friction = 0.25
+	groundShape := Scene_InsertNode(scene, "GroundShape", .CollisionShape, ground)
+	scene.nodes[groundShape].shapeSize = {500, 24}
+	crate := Scene_InsertNode(scene, "Crate", .DynamicBody, -1)
+	c := &scene.nodes[crate]
+	c.restitution, c.density, c.gravityScale, c.linearDamping, c.angularDamping = 0.5, 2.5, 0.5, 0.1, 0.2
+	c.fixedRotation, c.bullet = true, true
+	c.collisionMask = 0b11
+	poly := Scene_InsertNode(scene, "Hull", .CollisionShape, crate)
+	scene.nodes[poly].shape = .Polygon
+	append(&scene.nodes[poly].points, [2]f32{-10, 0}, [2]f32{10, 0}, [2]f32{0, -12.5})
+	scene.nodes[poly].disabled = true
+	hero := Scene_InsertNode(scene, "Hero", .CharacterMover, -1)
+	scene.nodes[hero].floorMaxAngle = 30
+	capsule := Scene_InsertNode(scene, "Body", .CollisionShape, hero)
+	scene.nodes[capsule].shape = .Capsule
+	scene.nodes[capsule].radius = 9
+	scene.nodes[capsule].shapeSize.y = 40
+	ray := Scene_InsertNode(scene, "Eyes", .RayCast, hero)
+	scene.nodes[ray].target = {120, -4}
+	scene.nodes[ray].enabled = false
+	scene.nodes[ray].excludeParent = false
+	scene.nodes[ray].collisionMask = 1 << 63
+	zone := Scene_InsertNode(scene, "Zone", .Area, -1)
+	edge := Scene_InsertNode(scene, "Edge", .CollisionShape, zone)
+	scene.nodes[edge].shape = .Segment
+	append(&scene.nodes[edge].points, [2]f32{0, 0}, [2]f32{64, 8})
+	circle := Scene_InsertNode(scene, "Ring", .CollisionShape, zone)
+	scene.nodes[circle].shape = .Circle
+	scene.nodes[circle].radius = 33
+
+	testing.expect_value(t, Project_Save(&project), "")
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect(t, loaded.physics == project.physics)
+	got := &loaded.scenes[1]
+	testing.expect_value(t, len(got.nodes), len(scene.nodes))
+	for node, i in scene.nodes {
+		testing.expectf(t, NodeDef_Equal(node, got.nodes[i]), "node %s differs after loading", node.name)
+	}
+	// Saving again changes nothing
+	file, _ := filepath.join({dir, "scenes", "PlayScene.scene.xml"}, context.temp_allocator)
+	first, _ := os.read_entire_file(file, context.temp_allocator)
+	testing.expect_value(t, Project_Save(&loaded), "")
+	second, _ := os.read_entire_file(file, context.temp_allocator)
+	testing.expect(t, string(first) == string(second))
+	text := string(first)
+	testing.expect(t, strings.contains(text, `collisionLayer="1 3"`))
+	testing.expect(t, strings.contains(text, `points="-10,0 10,0 0,-12.5"`))
+	testing.expect(t, strings.contains(text, `collisionMask="64"`))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+physics_defaults_write_little :: proc(t: ^testing.T) {
+	scene := SceneDef{name = strings.clone("S")}
+	defer SceneDef_Destroy(&scene)
+	body := Scene_InsertNode(&scene, "Body", .DynamicBody, -1)
+	_ = Scene_InsertNode(&scene, "Shape", .CollisionShape, body)
+	text := SceneToXML(&scene, context.temp_allocator)
+	testing.expect(t, strings.contains(text, `<node kind="DynamicBody" name="Body" x="0" y="0">`))
+	testing.expect(t, strings.contains(text, `<node kind="CollisionShape" name="Shape" x="0" y="0" shape="Rectangle" width="32" height="32"/>`))
+	// Defaults match the engine's: a node made in the editor builds like one from an empty element
+	defaults := e.DEFAULT_SCENE_NODE
+	def := scene.nodes[body]
+	testing.expect(t, def.collisionLayer == defaults.collisionLayer && def.collisionMask == defaults.collisionMask &&
+		def.friction == defaults.friction && def.density == defaults.density && def.gravityScale == defaults.gravityScale)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+physics_inspector_edits :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	body := Scene_InsertNode(scene, "Crate", .DynamicBody, -1)
+	shape := Scene_InsertNode(scene, "Shape", .CollisionShape, body)
+	state.selectedNode = body
+	send(&state, Node_Field_Changed{.Density, 3})
+	send(&state, Node_Field_Changed{.Restitution, 7}) // clamped to 1
+	send(&state, Node_Flag_Changed{.Fixed_Rotation, true})
+	send(&state, Node_Layer_Toggled{mask = false, layer = 3})
+	send(&state, Node_Layer_Toggled{mask = true, layer = 1})
+	crate := &playScene(&state).nodes[body]
+	testing.expect(t, crate.density == 3 && crate.restitution == 1 && crate.fixedRotation)
+	testing.expect_value(t, crate.collisionLayer, u64(0b101))
+	testing.expect_value(t, crate.collisionMask, e.PHYSICS_ALL_LAYERS &~ 1)
+	send(&state, Action.Undo)
+	testing.expect_value(t, playScene(&state).nodes[body].collisionMask, e.PHYSICS_ALL_LAYERS)
+
+	state.selectedNode = shape
+	send(&state, Node_Text_Changed{.Shape, "Polygon"})
+	send(&state, Node_Points_Changed{id = 7, text = "0,0 10,0 5,"})
+	// Half-typed: kept as text, not applied
+	testing.expect_value(t, len(playScene(&state).nodes[shape].points), 0)
+	testing.expect_value(t, state.numberEdit.text, "0,0 10,0 5,")
+	send(&state, Node_Points_Changed{id = 7, text = "0,0 10,0 5,8"})
+	got := &playScene(&state).nodes[shape]
+	testing.expect(t, got.shape == .Polygon && len(got.points) == 3 && got.points[2] == {5, 8})
+	testing.expect_value(t, shapeBody(playScene(&state), shape), body)
+	send(&state, Number_Edit_Ended(7))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+physics_project_settings :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	send(&state, Action.Open_Project_Settings)
+	send(&state, Project_Settings_Physics_Changed{.Pixels_Per_Meter, 50})
+	send(&state, Project_Settings_Physics_Changed{.Gravity_Y, 400})
+	send(&state, Project_Settings_Physics_Debug_Changed(true))
+	testing.expect(t, state.project.physics == e.DEFAULT_PHYSICS)
+	send(&state, Project_Settings_Applied{})
+	testing.expect(t, state.project.physics == e.PhysicsSettings{pixelsPerMeter = 50, gravity = {0, 400}, debugDraw = true})
+	send(&state, Action.Undo)
+	testing.expect(t, state.project.physics == e.DEFAULT_PHYSICS)
+	text := ProjectToXML(&state.project, context.temp_allocator)
+	testing.expect(t, !strings.contains(text, "pixelsPerMeter"))
 	free_all(context.temp_allocator)
 }

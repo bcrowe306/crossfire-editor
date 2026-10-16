@@ -184,6 +184,7 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 		mixerBuildScript = strings.clone(absolutePath(WEB_MIXER_SCRIPT), allocator),
 		webLibDir = strings.clone(webLibDir, allocator),
 		webMixerBuilt = os.exists(joinPath(webLibDir, "libSDL3_mixer.a", allocator = context.temp_allocator)),
+		webBox2DBuilt = os.exists(joinPath(absolutePath(ENGINE_DIR), "box2d", "lib", "box2d_web.o", allocator = context.temp_allocator)),
 		workDir = strings.clone(workDir, allocator),
 	}
 }

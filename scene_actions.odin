@@ -35,6 +35,7 @@ ProjectSettingsDialog :: struct {
 	background: skald.Color,
 	// Owned
 	startScene: string,
+	physics: e.PhysicsSettings,
 }
 
 /*
@@ -186,6 +187,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		tab = tab,
 		exportTarget = exportTarget,
 		exports = p.exports,
+		physics = p.physics,
 	}
 }
 
@@ -200,6 +202,14 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 	#partial switch v in m {
 	case Project_Settings_Tab_Changed:
 		dialog.tab = ProjectSettingsTab(v)
+	case Project_Settings_Physics_Changed:
+		switch v.field {
+		case .Pixels_Per_Meter: dialog.physics.pixelsPerMeter = clamp(f32(v.value), 1, 10000)
+		case .Gravity_X:        dialog.physics.gravity.x = f32(v.value)
+		case .Gravity_Y:        dialog.physics.gravity.y = f32(v.value)
+		}
+	case Project_Settings_Physics_Debug_Changed:
+		dialog.physics.debugDraw = bool(v)
 	case Export_Target_Selected:
 		dialog.exportTarget = ExportTarget(v)
 	case Export_Target_Enabled:
@@ -255,6 +265,7 @@ applyProjectSettings :: proc(state: ^State) {
 		p.startScene = strings.clone(dialog.startScene)
 	}
 	p.exports = dialog.exports
+	p.physics = dialog.physics
 }
 
 // After a scene was inserted at `index`: the open scene's index moves if it was at or after it

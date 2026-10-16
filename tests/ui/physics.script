@@ -1,0 +1,52 @@
+# Physics nodes: add a DynamicBody and its CollisionShape from the Add Node dialog, edit them in
+# the inspector (layer buttons, a number field), save, undo, and play the scene with them.
+# Run with: task test:ui
+#
+# PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+expect selected none
+
+# A DynamicBody: on layers 1 and 2, not colliding with layer 1
+key ctrl+shift+a
+type DynamicBody
+key RETURN
+expect selected DynamicBody
+expect nodes 12
+scroll_into_view inspector-scroll inspector-layer-2-11
+click_widget inspector-layer-2-11
+scroll_into_view inspector-scroll inspector-mask-1-11
+click_widget inspector-mask-1-11
+
+# Its shape: Add Node with the body selected makes it a child
+key ctrl+shift+a
+type CollisionShape
+key RETURN
+expect selected CollisionShape
+expect parent DynamicBody
+expect nodes 13
+scroll_into_view inspector-scroll inspector-Shape_Width-12-inc
+click_widget inspector-Shape_Width-12-inc
+
+key ctrl+s
+wait_until modified false
+expect project_file_contains scenes/PlayScene.scene.xml kind="DynamicBody" name="DynamicBody"
+expect project_file_contains scenes/PlayScene.scene.xml collisionLayer="1 2"
+expect project_file_contains scenes/PlayScene.scene.xml collisionMask="2 3 4
+expect project_file_contains scenes/PlayScene.scene.xml shape="Rectangle" width="33" height="32"
+
+# Undo the width
+key ctrl+z
+expect modified true
+
+# Play the scene: the player builds with physics and runs it
+key ctrl+F5
+wait_until play Playing timeout=120
+wait 60
+expect play Playing
+key shift+F5
+wait_until play Stopped
+quit

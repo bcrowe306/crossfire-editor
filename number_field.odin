@@ -23,9 +23,17 @@ NumberTarget :: union {
 	ScriptPropTarget,
 	// Project Settings: the game's width (0) or height (1)
 	GameSizeTarget,
+	PhysicsTarget,
 }
 
 GameSizeTarget :: distinct int
+
+// Project Settings' physics numbers
+PhysicsTarget :: enum {
+	Pixels_Per_Meter,
+	Gravity_X,
+	Gravity_Y,
+}
 
 // A number-typed script field (or one component of a vector field) on the selected node
 ScriptPropTarget :: struct {
@@ -110,6 +118,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case NodeField:     return Node_Field_Changed{t, value}
 	case SettingsField: return Settings_Value_Changed{t, value}
 	case GameSizeTarget: return Project_Settings_Size_Changed{int(t), value}
+	case PhysicsTarget:  return Project_Settings_Physics_Changed{t, value}
 	case ScriptPropTarget:
 		text: string
 		switch {

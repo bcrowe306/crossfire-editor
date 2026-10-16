@@ -41,6 +41,13 @@ ICON_FILE_CODE   :: "\uf1c9"
 ICON_PLAY_SCENE  :: "\uf144"
 ICON_CODE        :: "\uf121"
 ICON_LINK_SLASH  :: "\uf127"
+// Physics node kinds
+ICON_SQUARE      :: "\uf0c8"
+ICON_BOX         :: "\uf466"
+ICON_RUNNING     :: "\uf70c"
+ICON_BULLSEYE    :: "\uf140"
+ICON_POLYGON     :: "\uf5ee"
+ICON_RAY         :: "\uf178"
 
 @(private="file")
 iconFontRegistered: bool
@@ -62,6 +69,12 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .Camera:         return ICON_CAMERA
 	case .Label:          return ICON_FONT_GLYPH
 	case .Menu:           return ICON_LIST
+	case .StaticBody:     return ICON_SQUARE
+	case .DynamicBody:    return ICON_BOX
+	case .CharacterMover: return ICON_RUNNING
+	case .Area:           return ICON_BULLSEYE
+	case .CollisionShape: return ICON_POLYGON
+	case .RayCast:        return ICON_RAY
 	}
 	return ICON_CUBE
 }

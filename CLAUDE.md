@@ -20,6 +20,8 @@ consoles and handhelds).
   - Multi-select (Ctrl/Shift+click, box select, Ctrl+A), a viewport grid with snapping, inline
     rename, dragging images from the browser into the viewport, New/Open Project with an
     unsaved-changes prompt.
+  - **Physics** (the engine's Box2D integration): body, shape, Area and RayCast nodes edited in the
+    inspector, shapes and rays outlined in the viewport, physics settings in Project Settings.
   - **Export** to Linux x86_64 and the web (WebAssembly, through Emscripten). Every other target
     is listed with its settings and reports "not implemented yet".
 - **Not yet:** the other export targets, non-PNG/BMP images on the web, CI.
@@ -43,7 +45,9 @@ add it as a task and to the README's command table.
 
 | Command | What it does |
 |---|---|
-| `task setup` | One-time setup: `submodules` + `stb` |
+| `task setup` | One-time setup: `submodules` + `stb` + `box2d` |
+| `task box2d` | Build the engine's Box2D (`<engine>/tools/build_box2d.sh` into `<engine>/box2d/lib`). A dependency of `check`, `test`, the builds and `run`; skipped when built |
+| `task box2d:web` | The engine's Box2D for web exports (`task emsdk` runs it; exports build it when missing) |
 | `task submodules` | `git submodule update --init --recursive` (Skald, emsdk) |
 | `task emsdk` | Install Emscripten into the `third_party/emsdk` submodule (`EMSDK_VERSION`, ~1 GB, once per machine), then `web:mixer`. Web exports need it |
 | `task web:mixer` | Build SDL3_mixer for the web (`tools/build_web_mixer.sh` → `build/web/libSDL3_mixer.a`); exports also build it when it's missing |
@@ -134,6 +138,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
+| `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Keys tabs, collapsible |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
@@ -519,8 +524,10 @@ MyGame/
 
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
   (world positions) are migrated when parsed.
+- **Version 4:** physics node kinds and attributes, and the project's physics settings.
 - **Node kinds** are the engine's `SceneNodeKind` (the editor's `NodeKind` is an alias):
-  Node2D, Sprite, AnimatedSprite, Camera, Label, Menu.
+  Node2D, Sprite, AnimatedSprite, Camera, Label, Menu, StaticBody, DynamicBody, CharacterMover,
+  Area, CollisionShape, RayCast.
   - Menu buttons carry an action: `scene:<Name>` or `quit`.
   - Hidden nodes and their children aren't drawn at runtime.
 - **Writer rules:** attributes are written in a fixed order, and only the ones that apply to the
@@ -532,6 +539,30 @@ MyGame/
   - Scene files of deleted or renamed scenes aren't removed.
   - The editor only imports assets one at a time and doesn't scan `assets/` for files added
     outside the editor.
+
+## Physics (implemented; the engine does the simulation)
+
+The engine integrates Box2D 3.1 (its physics.odin and physics_nodes.odin say how). The editor edits
+the six node kinds like any others:
+- **Model:** `NodeDef` has the engine `SceneNodeData`'s physics fields (same names), written by
+  `writeNode` only when they apply to the kind and differ from `e.DEFAULT_SCENE_NODE`; layers as
+  `e.FormatPhysicsLayers`, points as `e.FormatPoints`. `NodeDef_Equal`, `NodeDef_Clone`, the
+  preview's conversion (`viewport_preview.odin`) and its `sceneSignature` (shape sizes: bounds)
+  include them. **A new physics field needs all of these**, and the round-trip test.
+- **Inspector** (`view_inspector_physics.odin`): numbers through `NodeField`, the shape kind
+  through `NodeTextField.Shape`, flags through `NodeFlag`; layers 1-16 as toggle buttons
+  (`Node_Layer_Toggled`; higher layers are kept); points as text kept while typing (it reuses
+  `State.numberEdit`, like number fields). Warnings: a body without a shape, a mover without a
+  capsule/circle, a shape not under a body.
+- **Viewport:** the preview scene has `physicsPaused` (animations update the scene; bodies mustn't
+  fall in the editor). CollisionShape and RayCast nodes draw nothing in the game, so the overlay
+  outlines shapes in their body's kind color (muted when disabled or without a body) and draws
+  rays; shapes have engine bounds, so picking and selection boxes work as for sprites.
+- **Project Settings > General:** pixels per meter, gravity, Show shapes (the game's debug
+  drawing); `Project.physics`, in the `.Project` undo snapshot, written to project.xml only when
+  not the defaults.
+- Play and exports need nothing more: the player is the engine's. Box2D is static (the native
+  `.a` through the engine's binding; on the web, `box2d_web.o` on the emcc line).
 
 ## Export (implemented, `export.odin`, `export_run.odin`)
 
@@ -573,7 +604,8 @@ project's files staged in `web/data/`, a page template (`Export_WebShell`: title
 the window keeping its shape), then Emscripten's `emcc` (from `third_party/emsdk`, found without any
 environment setup) links `<engine>/web/main.c`, the object, `-sUSE_SDL=3 -sUSE_SDL_TTF=3
 -sALLOW_MEMORY_GROWTH`, the engine's `web/odin_env.js` and `odin_env_pre.js`, and
-`--preload-file data@/data` into `<out>/index.{html,js,wasm,data}` (`-O2` when optimizing). Archive:
+`--preload-file data@/data`, plus `build/web/libSDL3_mixer.a` and the engine's
+`box2d/lib/box2d_web.o` (each built by a first step when missing), into `<out>/index.{html,js,wasm,data}` (`-O2` when optimizing). Archive:
 a .zip made with `python3 -m zipfile` (Emscripten needs Python anyway). The engine side (platform
 layer, frame loop, why each flag) is in the engine's CLAUDE.md, "Web build".
 - **Sound:** the link includes `build/web/libSDL3_mixer.a`, SDL3_mixer compiled with Emscripten
