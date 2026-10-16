@@ -1865,6 +1865,10 @@ exportTestInput :: proc(target: ExportTarget) -> ExportInput {
 		files = files,
 		engineDir = "/src/engine",
 		emsdkDir = "/src/emsdk",
+		mixerDir = "/src/editor/third_party/SDL_mixer",
+		mixerBuildScript = "/src/editor/tools/build_web_mixer.sh",
+		webLibDir = "/src/editor/build/web",
+		webMixerBuilt = true,
 		workDir = "/src/editor/build/exports/Space-1",
 	}
 }
@@ -1982,6 +1986,7 @@ export_plan_web :: proc(t: ^testing.T) {
 	link := plan.steps[4].command
 	testing.expect_value(t, link[0], "/src/emsdk/upstream/emscripten/emcc")
 	testing.expect_value(t, link[1], "/src/engine/web/main.c")
+	testing.expect_value(t, link[3], "/src/editor/build/web/libSDL3_mixer.a")
 	testing.expect(t, hasArg(link, "/srv/www/space/index.html"))
 	testing.expect(t, hasArg(link, "-sUSE_SDL=3") && hasArg(link, "-sUSE_SDL_TTF=3") && hasArg(link, "-O2"))
 	testing.expect(t, hasArg(link, "--preload-file=/src/editor/build/exports/Space-1/web/data@/data"))
@@ -1989,6 +1994,14 @@ export_plan_web :: proc(t: ^testing.T) {
 	zip := plan.steps[5]
 	testing.expect_value(t, plan.archive, "/srv/www/space.zip")
 	testing.expect(t, zip.command[0] == "python3" && zip.workingDir == "/srv/www/space" && hasArg(zip.command, "index.wasm"))
+	// Without a built SDL3_mixer, the export builds it first
+	input.webMixerBuilt = false
+	plan, problem = Export_Plan(input, context.temp_allocator)
+	testing.expect_value(t, problem, "")
+	mixer := plan.steps[2].command
+	testing.expect(t, len(mixer) == 5 && mixer[0] == "bash" && mixer[1] == "/src/editor/tools/build_web_mixer.sh" &&
+		mixer[2] == "/src/emsdk" && mixer[3] == "/src/editor/third_party/SDL_mixer" && mixer[4] == "/src/editor/build/web")
+	testing.expect(t, hasArg(plan.steps[3].command, "-target:js_wasm32"))
 	// The title is escaped for HTML
 	testing.expect(t, strings.contains(Export_WebShell("A <b> & C", context.temp_allocator), "<title>A &lt;b&gt; &amp; C</title>"))
 	free_all(context.temp_allocator)

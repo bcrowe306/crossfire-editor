@@ -17,7 +17,7 @@ Apply makes the changes one undoable step (scene_actions.odin); Export applies t
 Widget keys for UI tests: `project-settings-tab-<Tab>`, `project-settings-name`,
 `project-settings-start`, `project-settings-apply`, `project-settings-cancel`; Export tab:
 `export-target-<Target>` (shows it), `export-enable-<Target>`, `export-field-<Field>`,
-`export-run`, `export-cancel`.
+`export-run`, `export-cancel`, the settings scroll `export-settings-scroll-<Target>`.
 */
 projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
@@ -34,11 +34,15 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 				font_size = th.font.size_sm))
 		}
 		body := d.tab == .General ? generalTab(s, ctx) : exportTab(s, ctx)
+		// The Export tab scrolls inside a fixed height: 400 px, less in a short window, so the
+		// buttons below stay on screen (the title, tabs and footer take about 220 px)
+		exportHeight: f32 = 400
+		if ctx.renderer != nil do exportHeight = clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 400)
 		content = skald.col(
 			skald.text("Project Settings", th.color.fg, th.font.size_lg),
 			skald.row(..tabs[:], spacing = th.spacing.xs),
 			skald.divider(ctx),
-			skald.col(skald.flex(1, body), height = d.tab == .General ? 0 : 400, cross_align = .Stretch),
+			skald.col(skald.flex(1, body), height = d.tab == .General ? 0 : exportHeight, cross_align = .Stretch),
 			skald.divider(ctx),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
@@ -144,7 +148,9 @@ exportTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.row(
 		// flex: a scroll needs a height to scroll in
 		skald.col(skald.flex(1, targets), width = 250, cross_align = .Stretch),
-		skald.flex(1, skald.scroll(ctx, {0, 0}, exportTargetSettings(s, ctx), id = skald.hash_id("export-settings-scroll"))),
+		// A scroll position per target: each opens at the top, with its Export button in view
+		skald.flex(1, skald.scroll(ctx, {0, 0}, exportTargetSettings(s, ctx),
+			id = skald.hash_id(fmt.tprintf("export-settings-scroll-%v", d.exportTarget)))),
 		spacing = th.spacing.md,
 		cross_align = .Stretch,
 	)
@@ -158,7 +164,17 @@ exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	info := EXPORT_TARGETS[target]
 	t := &d.exports.targets[target]
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows, skald.text(info.label, th.color.fg, th.font.size_md))
+	// The buttons sit beside the title, so they're in view whatever the target's settings
+	busy := Export_Busy(s)
+	header := make([dynamic]skald.View, context.temp_allocator)
+	append(&header, skald.text(info.label, th.color.fg, th.font.size_md))
+	append(&header, skald.button(ctx, "Export", Msg(Export_Target_Run(target)),
+		id = skald.hash_id("export-run"), font_size = th.font.size_sm, disabled = busy))
+	if busy {
+		append(&header, skald.button(ctx, "Cancel Export", Msg(Export_Cancel_Requested{}), id = skald.hash_id("export-cancel"),
+			bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm))
+	}
+	append(&rows, skald.row(..header[:], spacing = th.spacing.md, cross_align = .Center))
 
 	status, statusColor := "Ready to export from this machine.", th.color.success
 	if !Export_Implemented(target) {
@@ -201,16 +217,7 @@ exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 
 	append(&rows, skald.spacer(th.spacing.sm))
-	busy := Export_Busy(s)
-	buttons := make([dynamic]skald.View, context.temp_allocator)
-	append(&buttons, skald.button(ctx, fmt.tprintf("Export %s", info.label), Msg(Export_Target_Run(target)),
-		id = skald.hash_id("export-run"), font_size = th.font.size_sm, disabled = busy))
-	if busy {
-		append(&buttons, skald.button(ctx, "Cancel Export", Msg(Export_Cancel_Requested{}), id = skald.hash_id("export-cancel"),
-			bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm))
-	}
-	append(&rows, skald.row(..buttons[:], spacing = th.spacing.sm))
-	append(&rows, skald.text("File > Export exports every checked target. Exporting saves the project and applies these settings.",
+	append(&rows, skald.text("Export (above) exports this target. File > Export exports every checked target. Exporting saves the project and applies these settings.",
 		th.color.fg_muted, th.font.size_xs, max_width = 440))
 	return skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start)
 }

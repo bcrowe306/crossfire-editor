@@ -18,6 +18,8 @@ Project Settings > Export. Implemented so far (`Export_Implemented`):
   `data/`, the SDL3 libraries in `lib/` (rpath `$ORIGIN/lib`), optionally a .tar.gz.
 - Web: the player built for js_wasm32 and linked by Emscripten (the `third_party/emsdk`
   submodule, `task emsdk`) into index.html/.js/.wasm/.data; optionally a .zip (for itch.io).
+  Sound comes from SDL3_mixer built for the web from `third_party/SDL_mixer`
+  (`tools/build_web_mixer.sh`; the export builds it the first time).
 The others report "not implemented yet" when exported.
 */
 
@@ -112,7 +114,7 @@ EXPORT_TARGETS := [ExportTarget]ExportTargetInfo{
 	.Windows_ARM64   = {"Windows ARM64", .Desktop, DESKTOP_FIELDS + {.Hide_Console}, "Needs Windows (or CI) to build."},
 	.macOS_x64       = {"macOS x86_64", .Desktop, DESKTOP_FIELDS + {.Bundle_Identifier}, "Needs a Mac (or CI) to build; distributing needs signing and notarization."},
 	.macOS_ARM64     = {"macOS ARM64", .Desktop, DESKTOP_FIELDS + {.Bundle_Identifier}, "Needs a Mac (or CI) to build; distributing needs signing and notarization."},
-	.Web             = {"Web (WebAssembly)", .Web, {.Output_Folder, .Page_Title, .Optimize, .Archive}, "index.html and its files: serve the folder over HTTP. The archive is a .zip (for itch.io). No audio yet; images must be PNG or BMP."},
+	.Web             = {"Web (WebAssembly)", .Web, {.Output_Folder, .Page_Title, .Optimize, .Archive}, "index.html and its files: serve the folder over HTTP. The archive is a .zip (for itch.io). Sound starts after the player first clicks or presses a key (a browser rule); images must be PNG or BMP."},
 	.Steam           = {"Steam", .Store, {.Output_Folder, .Steam_App_ID, .Steam_Depot_ID}, "Uploads desktop builds with the Steamworks SDK."},
 	.PlayStation_5   = {"PlayStation 5", .Console, {.Output_Folder}, "Needs Sony's SDK (licensed developers only)."},
 	.Xbox_Series     = {"Xbox Series X|S", .Console, {.Output_Folder}, "Needs Microsoft's GDK (licensed developers only)."},
@@ -318,6 +320,12 @@ ExportInput :: struct {
 	files: []string,
 	engineDir: string,
 	emsdkDir: string,
+	// Web: the SDL_mixer sources, the script that builds them, and the folder the library goes in
+	mixerDir: string,
+	mixerBuildScript: string,
+	webLibDir: string,
+	// Whether webLibDir already has libSDL3_mixer.a (else the export builds it first)
+	webMixerBuilt: bool,
 	// A folder the export may use for intermediate files (the editor's build/exports/<project>)
 	workDir: string,
 }
@@ -399,6 +407,12 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 
 		command := make([dynamic]string)
 		append(&steps, ExportStep{kind = .Make_Folder, label = "Create the build folder", path = webDir})
+		mixerLib := joinPath(input.webLibDir, "libSDL3_mixer.a")
+		if !input.webMixerBuilt {
+			build := make([]string, 5)
+			build[0], build[1], build[2], build[3], build[4] = "bash", input.mixerBuildScript, input.emsdkDir, input.mixerDir, input.webLibDir
+			append(&steps, ExportStep{kind = .Command, label = "Build SDL3_mixer for the web (once)", command = build})
+		}
 		append(&command, "odin", "build", source, "-target:js_wasm32", "-build-mode:obj")
 		append(&command, ..collections[:])
 		if settings.optimize do append(&command, "-o:speed")
@@ -411,7 +425,7 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 		append(&steps, ExportStep{kind = .Write_File, label = "Write the page template", path = shell, content = Export_WebShell(title)})
 
 		link := make([dynamic]string)
-		append(&link, emcc, joinPath(webFiles, "main.c"), object,
+		append(&link, emcc, joinPath(webFiles, "main.c"), object, mixerLib,
 			"-o", joinPath(plan.outputDir, "index.html"),
 			"-sUSE_SDL=3", "-sUSE_SDL_TTF=3", "-sALLOW_MEMORY_GROWTH",
 			"--js-library", joinPath(webFiles, "odin_env.js"),

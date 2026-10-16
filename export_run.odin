@@ -22,6 +22,10 @@ EXPORT_WORK_DIR :: "build/exports"
 
 // Emscripten for web exports: the emsdk submodule (`task emsdk` installs it)
 EMSDK_DIR :: #config(EMSDK_DIR, "third_party/emsdk")
+// SDL3_mixer's sources (a submodule), built for the web into WEB_LIB_DIR by WEB_MIXER_SCRIPT
+SDL_MIXER_DIR :: #config(SDL_MIXER_DIR, "third_party/SDL_mixer")
+WEB_MIXER_SCRIPT :: "tools/build_web_mixer.sh"
+WEB_LIB_DIR :: "build/web"
 
 // One target being exported
 ExportJob :: struct {
@@ -89,6 +93,9 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 		job.plan, problem = Export_Plan(exportInput(state, target, vmem.arena_allocator(&job.arena)), vmem.arena_allocator(&job.arena))
 		if problem == "" && target == .Web && !os.exists(Export_EmccPath(absolutePath(EMSDK_DIR), context.temp_allocator)) {
 			problem = "The web export needs Emscripten. In the editor's folder, run: task emsdk (about 1 GB, once per machine)"
+		}
+		if problem == "" && target == .Web && !os.exists(joinPath(SDL_MIXER_DIR, "src", "SDL_mixer.c", allocator = context.temp_allocator)) {
+			problem = "The web export needs the SDL_mixer sources. In the editor's folder, run: task submodules"
 		}
 		if problem != "" {
 			logLine(state, .Error, fmt.aprintf("Export %s: %s", EXPORT_TARGETS[target].label, problem))
@@ -162,6 +169,8 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 	_ = os.make_directory_all(workDir)
 	// The folder exists now, so this is absolute
 	workDir = absolutePath(workDir)
+	_ = os.make_directory_all(WEB_LIB_DIR)
+	webLibDir := absolutePath(WEB_LIB_DIR)
 	return {
 		target = target,
 		settings = state.project.exports.targets[target],
@@ -171,6 +180,10 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 		files = Export_ProjectFiles(&state.project, allocator),
 		engineDir = strings.clone(absolutePath(ENGINE_DIR), allocator),
 		emsdkDir = strings.clone(absolutePath(EMSDK_DIR), allocator),
+		mixerDir = strings.clone(absolutePath(SDL_MIXER_DIR), allocator),
+		mixerBuildScript = strings.clone(absolutePath(WEB_MIXER_SCRIPT), allocator),
+		webLibDir = strings.clone(webLibDir, allocator),
+		webMixerBuilt = os.exists(joinPath(webLibDir, "libSDL3_mixer.a", allocator = context.temp_allocator)),
 		workDir = strings.clone(workDir, allocator),
 	}
 }

@@ -10,9 +10,11 @@ click_widget project-settings-tab-Export
 # Check Linux and Web, without optimizing
 click_widget export-enable-Linux_x64
 click_widget export-target-Linux_x64
+scroll_into_view export-settings-scroll-Linux_x64 export-field-Optimize
 click_widget export-field-Optimize
 click_widget export-enable-Web
 click_widget export-target-Web
+scroll_into_view export-settings-scroll-Web export-field-Optimize
 click_widget export-field-Optimize
 
 # A target that isn't implemented says so

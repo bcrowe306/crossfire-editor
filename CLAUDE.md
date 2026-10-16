@@ -22,7 +22,7 @@ consoles and handhelds).
     unsaved-changes prompt.
   - **Export** to Linux x86_64 and the web (WebAssembly, through Emscripten). Every other target
     is listed with its settings and reports "not implemented yet".
-- **Not yet:** the other export targets, audio and non-PNG images on the web, CI.
+- **Not yet:** the other export targets, non-PNG/BMP images on the web, CI.
 
 Sections marked "planned" describe where it's going. Update this file as they become real.
 
@@ -45,7 +45,8 @@ add it as a task and to the README's command table.
 |---|---|
 | `task setup` | One-time setup: `submodules` + `stb` |
 | `task submodules` | `git submodule update --init --recursive` (Skald, emsdk) |
-| `task emsdk` | Install Emscripten into the `third_party/emsdk` submodule (`EMSDK_VERSION`, ~1 GB, once per machine). Web exports need it |
+| `task emsdk` | Install Emscripten into the `third_party/emsdk` submodule (`EMSDK_VERSION`, ~1 GB, once per machine), then `web:mixer`. Web exports need it |
+| `task web:mixer` | Build SDL3_mixer for the web (`tools/build_web_mixer.sh` → `build/web/libSDL3_mixer.a`); exports also build it when it's missing |
 | `task stb` | Build Odin's STB libraries Skald needs (`build_stb.sh`). Skipped when already built for the active Odin install |
 | `task check` | Type-check with `-vet-unused -vet-packages:editor` (Skald itself doesn't pass vet) |
 | `task test` | Unit tests (`editor_test.odin`) |
@@ -127,6 +128,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `export.odin` | Export targets (`ExportTarget`, `EXPORT_TARGETS`), per-target settings and export.ini, `Export_Plan` (the steps, pure and unit-tested), ldd parsing, the web page template |
 | `export_run.odin` | Running exports: one job per target, commands as child processes (`Export_Tick`), file steps in `update`; `EMSDK_DIR` |
 | `third_party/emsdk` | Emscripten SDK submodule, pinned to a release tag (`task emsdk` installs it) |
+| `third_party/SDL_mixer`, `tools/build_web_mixer.sh` | SDL3_mixer sources (submodule, the native version) and the script that builds them for the web, with the symbol aliases Odin's binding needs (see the engine's CLAUDE.md, "Web build") |
 | `selection.odin` | Multi-selection: `Selection_Set/Toggle/Normalize/Roots` |
 | `project_session.odin` | Unsaved changes, New/Open Project, the save prompt, the window title |
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
@@ -574,8 +576,13 @@ environment setup) links `<engine>/web/main.c`, the object, `-sUSE_SDL=3 -sUSE_S
 `--preload-file data@/data` into `<out>/index.{html,js,wasm,data}` (`-O2` when optimizing). Archive:
 a .zip made with `python3 -m zipfile` (Emscripten needs Python anyway). The engine side (platform
 layer, frame loop, why each flag) is in the engine's CLAUDE.md, "Web build".
-- Limits: no SDL3_image or SDL3_mixer Emscripten ports exist, so web games load PNG and BMP only,
-  and have no audio.
+- **Sound:** the link includes `build/web/libSDL3_mixer.a`, SDL3_mixer compiled with Emscripten
+  (`tools/build_web_mixer.sh`, run by `task emsdk`, `task web:mixer`, or the export's first step
+  when it's missing). Browsers start sound after the player's first click or key press.
+  Verified in headless Chromium: WAV, OGG, MP3, FLAC play (output samples measured); with the
+  default autoplay policy, audio starts on a trusted click (DevTools protocol input).
+- Limits: no SDL3_image Emscripten port exists, so web games load PNG and BMP only (it could be
+  built the same way as SDL3_mixer, with its codecs).
 - Verified in headless Chromium (served over HTTP, real time, console read; colors sampled from the
   canvas inside the page, never screenshots): scenes render at 60 fps, a click through the scaled
   canvas presses a menu button, a script runs, optimized and unoptimized.
@@ -596,8 +603,9 @@ targets (unoptimized; about 10 s once emsdk's port cache is warm).
   macOS (`.app` bundle, dylibs in `Contents/Frameworks`, signing and notarization), Linux ARM64,
   Steam (Steamworks SDK, depots via `steamcmd`; Steam Deck = the Linux build), consoles (licensed
   SDKs).
-- Web audio and other image formats need SDL3_mixer and SDL3_image built for Emscripten (no ports
-  exist yet).
+- Other image formats on the web: build SDL3_image for Emscripten like SDL3_mixer (it needs
+  libpng/libjpeg ports, which Emscripten has).
+- Fold the SDL3_mixer build into the automatic toolchain setup above.
 
 ## Documentation (required)
 
@@ -742,6 +750,8 @@ Highlights:
 
 ## Decisions made
 
+- **SDL3_mixer for the web is built from a submodule** (`third_party/SDL_mixer`, 2026-10-16),
+  because Emscripten has no port; its version follows the native library's.
 - **Emscripten is a pinned git submodule** (`third_party/emsdk`, 2026-10-16): reproducible web
   builds with a known version; installing it (`task emsdk`, ~1 GB) is a separate step, to be
   automated (see Export, future work).

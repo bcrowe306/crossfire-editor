@@ -45,8 +45,20 @@ tasks:
     status:
       - test -x {{.EMSDK_DIR}}/upstream/emscripten/emcc
     cmds:
-      - git submodule update --init {{.EMSDK_DIR}}
+      - git submodule update --init {{.EMSDK_DIR}} third_party/SDL_mixer
       - cd {{.EMSDK_DIR}} && ./emsdk install {{.EMSDK_VERSION}} && ./emsdk activate {{.EMSDK_VERSION}}
+      - task: web:mixer
+
+  web:mixer:
+    desc: Build SDL3_mixer for web exports (build/web/libSDL3_mixer.a, from third_party/SDL_mixer; needs emsdk). Exports also build it when it's missing
+    sources:
+      - tools/build_web_mixer.sh
+      - third_party/SDL_mixer/src/**/*
+      - third_party/SDL_mixer/include/**/*
+    generates:
+      - build/web/libSDL3_mixer.a
+    cmds:
+      - tools/build_web_mixer.sh {{.EMSDK_DIR}} third_party/SDL_mixer build/web
 
   stb:
     desc: Build Odin's STB libraries (once per Odin install; Linux and macOS)

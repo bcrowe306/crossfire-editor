@@ -4,3 +4,6 @@
 [submodule "third_party/emsdk"]
 	path = third_party/emsdk
 	url = https://github.com/emscripten-core/emsdk
+[submodule "third_party/SDL_mixer"]
+	path = third_party/SDL_mixer
+	url = https://github.com/libsdl-org/SDL_mixer

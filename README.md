@@ -15,7 +15,8 @@ not implemented yet).
 - SDL3 (plus SDL3_image, SDL3_ttf, SDL3_mixer for the engine) and a Vulkan loader. Per-platform
   setup is in `Skald/PLATFORMS.md`.
 - For web exports only: Python 3 and `task emsdk` (Emscripten, about 1 GB, installed into the
-  `third_party/emsdk` submodule).
+  `third_party/emsdk` submodule; it also builds SDL3_mixer from the `third_party/SDL_mixer`
+  submodule for game sound).
 - A checkout of [odin_sdl_engine](../odin_sdl_engine). By default it's expected next to this repo
   (`../odin_sdl_engine`); set `ENGINE_DIR` to use another location.
 
@@ -43,7 +44,8 @@ Run `task` to list them all.
 |---|---|
 | `task setup` | One-time setup: `task submodules` + `task stb` |
 | `task submodules` | Fetch or update the submodules (Skald, emsdk) |
-| `task emsdk` | Install the Emscripten toolchain web exports need (about 1 GB into `third_party/emsdk`, once per machine) |
+| `task emsdk` | Install the Emscripten toolchain web exports need (about 1 GB into `third_party/emsdk`, once per machine), and build SDL3_mixer for the web |
+| `task web:mixer` | Rebuild SDL3_mixer for the web (`build/web/`); exports build it themselves when it's missing |
 | `task stb` | Build Odin's STB libraries, which Skald needs. Skipped if already built |
 | `task check` | Type-check the editor, with vet |
 | `task test` | Run the unit tests |
@@ -197,7 +199,7 @@ project folder unless you choose another folder.
 | Target | Status | What you get |
 |---|---|---|
 | Linux x86_64 | Works (on Linux x86_64) | The game, `data/` (project files) and `lib/` (the SDL3 libraries); optional `.tar.gz`. Runs from anywhere: no arguments needed |
-| Web (WebAssembly) | Works | `index.html`, `.js`, `.wasm`, `.data`: serve the folder over HTTP (`python3 -m http.server`); optional `.zip` for itch.io. No audio yet; images must be PNG or BMP. Needs `task emsdk` |
+| Web (WebAssembly) | Works | `index.html`, `.js`, `.wasm`, `.data`: serve the folder over HTTP (`python3 -m http.server`); optional `.zip` for itch.io. Sound works (WAV, OGG, MP3, FLAC) and starts after the first click or key press, as browsers require; images must be PNG or BMP. Needs `task emsdk` |
 | Linux ARM64, Windows, macOS | Not implemented | Planned: built on CI, one runner per OS |
 | Steam | Not implemented | Planned: uploads desktop builds |
 | PlayStation 5, Xbox Series, Switch | Not implemented | Need the platforms' licensed SDKs |
