@@ -402,8 +402,10 @@ carried across `endSession` between steps (losing it once made describing start 
   stored values read-only.
 - Inspector: a dropdown of built scripts (or None), New (the New Script dialog: name, then
   `Project_CreateScript` writes `scripts/<snake_name>.odin` from `ScriptTemplate`, attaches it,
-  opens it and builds), Open (`Script_OpenInEditor`: the `code_editor` command with `{file}` and
-  `{line}`). Fields by type: number fields (`ScriptPropTarget`), checkbox, text or scene dropdown
+  opens it and builds), Open (`Script_OpenInEditor`: an `os.Process_Desc` with the program as
+  `command[0]` and the arguments template after it, `env = os.environ()`, `working_dir` = the
+  project's scripts folder, and the editor's own stdout/stderr; `Editor_Process_Check` polls for
+  10 s and reports a program that exits with an error). Fields by type: number fields (`ScriptPropTarget`), checkbox, text or scene dropdown
   (`kind=scene`), two numbers for vectors, color picker, enum dropdown. All undoable.
 - Browser: a Scripts folder (only when there are scripts; `State.scriptFiles`, refreshed by
   `Scripts_Refresh`) whose preview shows the file's start and an Open button.
@@ -629,7 +631,7 @@ Highlights:
   first command: a tiling window manager resizes a new window right after it opens, and a click
   aimed at the old layout misses.
 - **UI tests never start a real code editor:** `tests/ui/settings.ini` (copied to the scratch
-  settings file) sets `code_editor = true {file}`. Unit tests that create scripts set it too.
+  settings file) sets `code_editor_path = true`. Unit tests that create scripts set it too.
 - `scripts.script` really builds a project player (a few seconds unoptimized, longer when the engine
   changed) and plays it.
 - `scroll_into_view <scroll> <widget>` pages a scroll container until the widget is visible: widgets
@@ -668,8 +670,10 @@ Highlights:
   compiled into a per-project player; each script registers itself (`e.Script_Register` from an
   `@(init) proc "contextless"`), scene files attach it by name, and the editor learns its exported
   fields from `player --describe-scripts`. See "Scripts" above and the engine's `script.odin`.
-- **Scripts are edited in an external editor**, set in Settings (`code_editor`, default
-  `zed {file}:{line}`; the user uses Zed).
+- **Scripts are edited in an external editor**, set in Settings: the program
+  (`code_editor_path`, a path or a name found in PATH, default `zed`; the user uses Zed) and its
+  arguments (`code_editor_args`, default `{file}:{line}`). Older files' single `code_editor`
+  command is split on load.
 - **Deferred, decided to do later:** custom node kinds registered by game code (a struct embedding
   e.g. `e.Sprite`, used as `kind="Player"`); more than one script per node; hot reload of scripts
   (a shared library via `core:dynlib`, development builds only; exports link statically); and, much

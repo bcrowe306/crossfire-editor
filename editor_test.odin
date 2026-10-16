@@ -1552,7 +1552,7 @@ new_script_files :: proc(t: ^testing.T) {
 	state := testState()
 	defer State_Destroy(&state)
 	// Never open a real editor from a test
-	state.settings.codeEditor = FixedText_Make("true {file}")
+	state.settings.codeEditorPath = FixedText_Make("true")
 	os.make_directory("build")
 	dir := "build/test_script_project"
 	os.remove_all(dir)
@@ -1582,10 +1582,29 @@ code_editor_command :: proc(t: ^testing.T) {
 		testing.expect_value(t, len(got), len(want), loc = loc)
 		for w, i in want do if i < len(got) do testing.expect_value(t, got[i], w, loc = loc)
 	}
-	expect(t, Script_EditorCommand("zed {file}:{line}", "/p/a.odin", 12), {"zed", "/p/a.odin:12"})
-	expect(t, Script_EditorCommand("  code --goto {file}:{line} ", "/p/a.odin", 0), {"code", "--goto", "/p/a.odin:1"})
-	// No {file}: it goes at the end. Empty: the default
-	expect(t, Script_EditorCommand("xdg-open", "/p/a.odin", 3), {"xdg-open", "/p/a.odin"})
-	expect(t, Script_EditorCommand("", "/p/a.odin", 3), {"zed", "/p/a.odin:3"})
+	// The program first, then the arguments with {file} and {line} replaced
+	expect(t, Script_EditorCommand("/usr/bin/zed", "{file}:{line}", "/p/a.odin", 12), {"/usr/bin/zed", "/p/a.odin:12"})
+	expect(t, Script_EditorCommand("code", "  --goto {file}:{line} ", "/p/a.odin", 0), {"code", "--goto", "/p/a.odin:1"})
+	// No {file}: it goes at the end. Empty arguments: the default
+	expect(t, Script_EditorCommand("gedit", "--new-window", "/p/a.odin", 3), {"gedit", "--new-window", "/p/a.odin"})
+	expect(t, Script_EditorCommand("zed", "", "/p/a.odin", 3), {"zed", "/p/a.odin:3"})
+
+	// A bare name is looked up in PATH; a path must exist; ~ is the home folder
+	sh, found := Script_FindEditorProgram("sh")
+	testing.expect(t, found && strings.has_suffix(sh, "/sh"))
+	_, missing := Script_FindEditorProgram("/no/such/editor")
+	testing.expect(t, !missing)
+	_, notInPath := Script_FindEditorProgram("no-such-editor-anywhere")
+	testing.expect(t, !notInPath)
+	home, _ := Script_FindEditorProgram("~/x")
+	testing.expect(t, !strings.has_prefix(home, "~"))
+
+	// Settings files from before the split: one command line
+	settings := Settings_Default()
+	_ = Settings_Parse(&settings, "[editor]\ncode_editor = code --goto {file}:{line}\n")
+	testing.expect_value(t, FixedText_String(&settings.codeEditorPath), "code")
+	testing.expect_value(t, FixedText_String(&settings.codeEditorArgs), "--goto {file}:{line}")
+	defaults := Settings_Default()
+	testing.expect_value(t, FixedText_String(&defaults.codeEditorPath), "zed")
 	free_all(context.temp_allocator)
 }

@@ -44,7 +44,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Play_Tick:
 		cmd := playTick(&out)
 		return out, cmd
-	case Settings_Code_Editor_Changed, Settings_Optimized_Play_Changed:
+	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed:
 		// Handled by SettingsDialog_Update above
 
 	case Scripts_Auto_Build:
@@ -65,7 +66,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Script_Prop_Changed:
 		if node := selectedNode(&out); node != nil do NodeDef_SetScriptValue(node, v.name, v.value, v.defaultValue)
 	case Script_Open_File:
-		Script_OpenInEditor(&out, v.file, v.line)
+		return out, Script_OpenInEditor(&out, v.file, v.line)
+	case Editor_Process_Check:
+		return out, Editor_CheckProcesses(&out)
 	case New_Script_Opened:
 		delete(out.newScript.name)
 		out.newScript = {open = true, name = strings.clone("")}
@@ -90,8 +93,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			node.script = strings.clone(name)
 		}
 		path, line := Script_Location(&out, name)
-		Script_OpenInEditor(&out, path, line)
-		return out, scriptsBuild(&out)
+		return out, skald.cmd_batch(Script_OpenInEditor(&out, path, line), scriptsBuild(&out))
 
 	case Confirm_Chosen, New_Project_Name_Changed, New_Project_Location_Changed, New_Project_Browse,
 	     New_Project_Location_Chosen, New_Project_Created, New_Project_Cancelled, Open_Project_Chosen:
@@ -613,7 +615,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 			break
 		}
 		path, line := Script_Location(&out, node.script)
-		Script_OpenInEditor(&out, path, line)
+		return out, Script_OpenInEditor(&out, path, line)
 	case .Open_Settings:
 		SettingsDialog_Open(&out)
 	case .Export, .About:

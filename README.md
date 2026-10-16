@@ -156,8 +156,10 @@ register_Player :: proc "contextless" () {
 }
 ```
 
-The code editor is set in Settings > Editor (`zed {file}:{line}` by default; `{file}` and `{line}`
-are replaced). Play builds unoptimized (about 4 s); turn on Optimized Play for speed tests. Scripts
+The code editor is set in Settings > Editor: the program (a path, Browse..., or a name found in
+PATH; `zed` by default) and its arguments (`{file}:{line}` by default; `{file}` and `{line}` are
+replaced). It runs in the project's scripts folder with the editor's environment; if it exits with
+an error, the Console says so. Play builds unoptimized (about 4 s); turn on Optimized Play for speed tests. Scripts
 don't run in the viewport. One script per node for now.
 
 ## Selecting and editing

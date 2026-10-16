@@ -111,17 +111,18 @@ expect settings_dialog open
 key escape
 expect settings_dialog closed
 
-# Editor tab: the code editor command shows and edits as text (it once showed garbage, and
-# editing it saved garbage). The test settings set it to "true {file}"
+# Editor tab: the code editor's arguments show and edit as text (the field once showed garbage,
+# and editing it saved garbage). The test settings set them to "{file}:{line}"
 key ctrl+comma
 click_widget settings-tab-Editor
-scroll_into_view settings-editor-scroll settings-code-editor
-click_widget settings-code-editor
+scroll_into_view settings-editor-scroll settings-code-editor-args
+click_widget settings-code-editor-args
 key END
 type --x
 click_widget settings-save
 # (type trims the leading space)
-expect settings_file_contains code_editor = true {file}--x
+expect settings_file_contains code_editor_args = {file}:{line}--x
+expect settings_file_contains code_editor_path = true
 
 # Appearance: Reset to Defaults on that tab, then Apply keeps the dialog open
 key ctrl+comma

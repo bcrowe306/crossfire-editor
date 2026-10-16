@@ -7,6 +7,8 @@ import "core:path/filepath"
 import "core:slice"
 import "core:strings"
 import "core:unicode"
+import "gui:skald"
+import "core:time"
 import e "engine:."
 
 /*
@@ -21,8 +23,8 @@ so names, exported fields, their types, defaults and ranges are exactly what the
 Until the first build after opening a project the catalog is empty; nodes keep their script and
 values anyway, and the inspector shows the values it has.
 
-Scripts are edited outside the editor, in the program set by `code_editor` in the settings
-(`zed {file}:{line}` by default). A built-in editor using the Odin language server is planned
+Scripts are edited outside the editor, in the program set in the settings (`code_editor_path`,
+`zed` by default, and `code_editor_args`, `{file}:{line}`). A built-in editor using the Odin language server is planned
 much later.
 */
 
@@ -247,66 +249,158 @@ register_`, name, ` :: proc "contextless" () {
 }
 
 /*
-Opens a file in the configured code editor (`settings.codeEditor`): `{file}` and `{line}` in the
-command are replaced. The editor process isn't waited for.
+Opens a file in the configured code editor, without waiting for it.
+
+The process is described in full (`os.Process_Desc`):
+- command: the program (`settings.codeEditorPath`: a path, or a name found in PATH), then its
+  arguments (`settings.codeEditorArgs` with {file} and {line} replaced: `Script_EditorCommand`)
+- env: this process's environment (`os.environ`), so the editor sees the same DISPLAY,
+  WAYLAND_DISPLAY, PATH, HOME... as the editor that launched it
+- working_dir: the project's scripts folder (the project folder if it doesn't exist yet)
+- stdout, stderr: the editor's own, so messages from the program show where the editor's do
+  (passing none would close them, and some programs fail without them)
+
+A program that exits with an error is reported in the Console by `Editor_Process_Check`.
 
 Inputs:
-- state: The editor state (for the command, and to log problems)
+- state: The editor state (settings, project, and to log)
 - file: Absolute path
 - line: Line to open at (1 if unknown)
 
 Returns:
-- Whether it started
+- The command that checks on the process afterwards
 */
-Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> bool {
-	args := Script_EditorCommand(FixedText_String(&state.settings.codeEditor), file, line)
-	process, err := os.process_start({command = args})
-	if err != nil {
-		logLine(state, .Error, fmt.aprintf("Couldn't start '%s': %v. Set the code editor in Settings > Editor", args[0], err))
-		return false
+Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> skald.Command(Msg) {
+	program, found := Script_FindEditorProgram(FixedText_String(&state.settings.codeEditorPath))
+	if !found {
+		logLine(state, .Error, fmt.aprintf("Couldn't find the code editor '%s'. Set its path in Settings > Editor", program))
+		return {}
 	}
-	append(&editorProcesses, process)
-	reapEditors()
-	logLine(state, .Info, fmt.aprintf("Opened %s:%d in %s", filepath.base(file), max(line, 1), args[0]))
-	return true
+	command := Script_EditorCommand(program, FixedText_String(&state.settings.codeEditorArgs), file, line)
+	env, envErr := os.environ(context.temp_allocator)
+	if envErr != nil do env = nil // nil also means "this process's environment"
+	process, err := os.process_start({
+		command = command,
+		env = env,
+		working_dir = scriptsWorkingDir(&state.project),
+		stdout = os.stdout,
+		stderr = os.stderr,
+	})
+	if err != nil {
+		logLine(state, .Error, fmt.aprintf("Couldn't start %s: %v. Check Settings > Editor", program, err))
+		return {}
+	}
+	append(&editorProcesses, EditorProcess{process = process, program = strings.clone(filepath.base(program)), started = time.tick_now()})
+	logLine(state, .Info, fmt.aprintf("Opened %s:%d in %s", filepath.base(file), max(line, 1), filepath.base(program)))
+	return skald.cmd_delay(EDITOR_CHECK_SECONDS, Msg(Editor_Process_Check{}))
 }
 
-DEFAULT_CODE_EDITOR :: "zed {file}:{line}"
+DEFAULT_CODE_EDITOR_PATH :: "zed"
+DEFAULT_CODE_EDITOR_ARGS :: "{file}:{line}"
 
 /*
-The command line that opens a file: the `code_editor` setting split on spaces, with `{file}` and
-`{line}` replaced. A command without `{file}` gets the file added at the end; an empty one is the
-default.
+The command line that opens a file: the program, then the arguments template split on spaces with
+`{file}` and `{line}` replaced. Arguments without `{file}` get the file added at the end.
+
+Inputs:
+- program: The executable (as found by `Script_FindEditorProgram`)
+- args: The arguments template ("" for the default)
+- file, line: What to open
 
 Returns:
 - The program and its arguments (temp allocated)
 */
-Script_EditorCommand :: proc(command, file: string, line: int) -> []string {
-	command := strings.trim_space(command)
-	if command == "" do command = DEFAULT_CODE_EDITOR
-	args := make([dynamic]string, context.temp_allocator)
-	hasFile := strings.contains(command, "{file}")
-	for part in strings.fields(command, context.temp_allocator) {
+Script_EditorCommand :: proc(program, args, file: string, line: int) -> []string {
+	template := strings.trim_space(args)
+	if template == "" do template = DEFAULT_CODE_EDITOR_ARGS
+	command := make([dynamic]string, context.temp_allocator)
+	append(&command, program)
+	for part in strings.fields(template, context.temp_allocator) {
 		part, _ := strings.replace_all(part, "{file}", file, context.temp_allocator)
 		part, _ = strings.replace_all(part, "{line}", fmt.tprint(max(line, 1)), context.temp_allocator)
-		append(&args, part)
+		append(&command, part)
 	}
-	if !hasFile do append(&args, file)
-	return args[:]
+	if !strings.contains(template, "{file}") do append(&command, file)
+	return command[:]
 }
 
-// Code editor processes started by Script_OpenInEditor. Most exit right away (they hand the file
-// to a running editor); waiting on them frees them. Package state: it's about OS processes
-@(private="file")
-editorProcesses: [dynamic]os.Process
+/*
+Where the code editor program is: the setting itself if it's a path (absolute, or relative to
+the editor's folder), or the first match in PATH for a bare name. Empty means the default.
 
+Returns:
+- The path (temp allocated), and whether it exists
+*/
+Script_FindEditorProgram :: proc(setting: string) -> (string, bool) {
+	program := strings.trim_space(setting)
+	if program == "" do program = DEFAULT_CODE_EDITOR_PATH
+	// "~/..." is a shell shorthand; expand it, since nothing else will
+	if strings.has_prefix(program, "~/") {
+		if home := os.get_env("HOME", context.temp_allocator); home != "" {
+			program, _ = filepath.join({home, program[2:]}, context.temp_allocator)
+		}
+	}
+	if strings.contains_rune(program, '/') do return program, os.exists(program)
+	path := os.get_env("PATH", context.temp_allocator)
+	for dir in strings.split(path, ":", context.temp_allocator) {
+		if dir == "" do continue
+		candidate, _ := filepath.join({dir, program}, context.temp_allocator)
+		if os.exists(candidate) && !os.is_dir(candidate) do return candidate, true
+	}
+	return program, false
+}
+
+// The folder the code editor runs in: the project's scripts folder, absolute
 @(private="file")
-reapEditors :: proc() {
+scriptsWorkingDir :: proc(project: ^Project) -> string {
+	dir, _ := filepath.join({project.rootPath, SCRIPTS_FOLDER}, context.temp_allocator)
+	if !os.is_dir(dir) do dir = project.rootPath
+	absolute, err := os.get_absolute_path(dir, context.temp_allocator)
+	return err == nil ? absolute : dir
+}
+
+/*
+Checks the code editor processes Open started: ones that exited are freed, and ones that exited
+with an error are reported. Rechecks while some are still running, for up to EDITOR_WATCH_SECONDS
+each (an editor that stays open, rather than handing the file to a running one, isn't watched
+for its whole life).
+
+Returns:
+- The next check, or nothing when no process needs watching
+*/
+Editor_CheckProcesses :: proc(state: ^State) -> skald.Command(Msg) {
 	for i := len(editorProcesses) - 1; i >= 0; i -= 1 {
-		status, err := os.process_wait(editorProcesses[i], 0)
-		if err == nil && status.exited do unordered_remove(&editorProcesses, i)
+		p := editorProcesses[i]
+		status, err := os.process_wait(p.process, 0)
+		exited := err == nil && status.exited
+		if exited && status.exit_code != 0 {
+			logLine(state, .Error, fmt.aprintf("%s exited with code %d without opening the script. Check Settings > Editor (its messages are in the terminal the editor runs from)", p.program, status.exit_code))
+		}
+		watched := time.duration_seconds(time.tick_since(p.started)) >= EDITOR_WATCH_SECONDS
+		if exited || watched {
+			delete(p.program)
+			unordered_remove(&editorProcesses, i)
+		}
 	}
+	if len(editorProcesses) == 0 do return {}
+	return skald.cmd_delay(EDITOR_CHECK_SECONDS, Msg(Editor_Process_Check{}))
 }
+
+EDITOR_CHECK_SECONDS :: 0.5
+EDITOR_WATCH_SECONDS :: 10
+
+// A code editor process started by Open. Package state: it's about OS processes, which the
+// editor's state can't copy
+@(private="file")
+EditorProcess :: struct {
+	process: os.Process,
+	// Owned
+	program: string,
+	started: time.Tick,
+}
+
+@(private="file")
+editorProcesses: [dynamic]EditorProcess
 
 /*
 A node's value for a script field: what's stored on the node, or the field's default.

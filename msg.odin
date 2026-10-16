@@ -221,6 +221,8 @@ Script_Open_File :: struct {
 	file: string,
 	line: int,
 }
+// Checks on code editor processes started by Open (logs one that failed)
+Editor_Process_Check :: struct {}
 New_Script_Opened :: struct {}
 New_Script_Name_Changed :: distinct string
 New_Script_Created :: struct {}
@@ -298,7 +300,11 @@ Settings_Value_Changed :: struct {
 	value: f64,
 }
 Settings_Search_Changed :: distinct string
-Settings_Code_Editor_Changed :: distinct string
+Settings_Code_Editor_Path_Changed :: distinct string
+Settings_Code_Editor_Args_Changed :: distinct string
+// Browse... for the code editor program, and the file dialog's answer
+Settings_Code_Editor_Browse :: struct {}
+Settings_Code_Editor_Picked :: distinct skald.File_Dialog_Result
 Settings_Optimized_Play_Changed :: distinct bool
 // Clicked a shortcut: the next key press binds that slot
 Settings_Capture_Started :: struct {
@@ -370,6 +376,7 @@ Msg :: union {
 	Node_Script_Changed,
 	Script_Prop_Changed,
 	Script_Open_File,
+	Editor_Process_Check,
 	New_Script_Opened,
 	New_Script_Name_Changed,
 	New_Script_Created,
@@ -391,7 +398,10 @@ Msg :: union {
 	Settings_Theme_Changed,
 	Settings_Value_Changed,
 	Settings_Search_Changed,
-	Settings_Code_Editor_Changed,
+	Settings_Code_Editor_Path_Changed,
+	Settings_Code_Editor_Args_Changed,
+	Settings_Code_Editor_Browse,
+	Settings_Code_Editor_Picked,
 	Settings_Optimized_Play_Changed,
 	Settings_Capture_Started,
 	Settings_Key_Captured,

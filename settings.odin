@@ -50,8 +50,10 @@ Settings :: struct {
 	undoLimit: int,
 	// Viewport grid spacing, world units
 	gridSize: int,
-	// The command that opens a script: {file} and {line} are replaced ("zed {file}:{line}")
-	codeEditor: FixedText,
+	// The program that opens scripts: a path to its executable, or a name looked up in PATH
+	codeEditorPath: FixedText,
+	// Its arguments, split on spaces: {file} and {line} are replaced ("{file}:{line}")
+	codeEditorArgs: FixedText,
 	// Build players for Play with -o:speed (about 50 s instead of 4 s per build)
 	optimizedPlay: bool,
 
@@ -142,8 +144,17 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 			case "undo_group_max_ms": target, limits = &settings.undoGroupMaxMs, SETTINGS_UNDO_MS_RANGE
 			case "undo_limit":        target, limits = &settings.undoLimit, SETTINGS_UNDO_LIMIT_RANGE
 			case "grid_size":         target, limits = &settings.gridSize, SETTINGS_GRID_SIZE_RANGE
+			case "code_editor_path":
+				settings.codeEditorPath = FixedText_Make(value)
+				continue
+			case "code_editor_args":
+				settings.codeEditorArgs = FixedText_Make(value)
+				continue
 			case "code_editor":
-				settings.codeEditor = FixedText_Make(value)
+				// Older files: one command line, "zed {file}:{line}". The first word is the program
+				program, _, args := strings.partition(strings.trim_space(value), " ")
+				settings.codeEditorPath = FixedText_Make(program)
+				settings.codeEditorArgs = FixedText_Make(strings.trim_space(args))
 				continue
 			case "optimized_play":
 				switch strings.to_lower(value, context.temp_allocator) {
@@ -210,9 +221,9 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ngrid_size = %d\ncode_editor = %s\noptimized_play = %v\n\n",
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ngrid_size = %d\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\n\n",
 		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit, settings.gridSize,
-		FixedText_String(&settings.codeEditor), settings.optimizedPlay)
+		FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay)
 	strings.write_string(&b, "[keymap]\n")
 	for chords, action in settings.keymap {
 		fmt.sbprintf(&b, "%v = %s\n", action, Keymap_FormatChords(chords))

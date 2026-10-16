@@ -141,12 +141,22 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		hint(ctx, "Spacing of the viewport grid, in world units. G shows it; Shift+G snaps moves to it (and rotation to 15°, scale to 0.1)."),
 		skald.spacer(th.spacing.sm),
 		skald.text("Scripts", th.color.fg, th.font.size_md),
-		// A copy: the draft is inside this frame's copy of the state, which is gone by the time
-		// Skald draws the field (it showed garbage, and editing it saved garbage)
-		settingRow(ctx, "Code editor", skald.text_input(ctx, strings.clone(FixedText_String(&draft.codeEditor), context.temp_allocator),
-			proc(v: string) -> Msg { return Settings_Code_Editor_Changed(v) },
-			id = skald.hash_id("settings-code-editor"), width = 300)),
-		hint(ctx, "The command that opens a script: {file} and {line} are replaced, e.g. zed {file}:{line} or code --goto {file}:{line}."),
+		// Copies: the draft is inside this frame's copy of the state, which is gone by the time
+		// Skald draws the fields (they showed garbage, and editing saved garbage)
+		settingRow(ctx, "Editor program", skald.row(
+			skald.text_input(ctx, strings.clone(FixedText_String(&draft.codeEditorPath), context.temp_allocator),
+				proc(v: string) -> Msg { return Settings_Code_Editor_Path_Changed(v) },
+				id = skald.hash_id("settings-code-editor-path"), width = 230, placeholder = "zed"),
+			skald.button(ctx, "Browse...", Msg(Settings_Code_Editor_Browse{}), id = skald.hash_id("settings-code-editor-browse"),
+				bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm, padding = {th.spacing.sm, 2}),
+			spacing = th.spacing.xs,
+			cross_align = .Center,
+		)),
+		editorProgramStatus(ctx, FixedText_String(&draft.codeEditorPath)),
+		settingRow(ctx, "Arguments", skald.text_input(ctx, strings.clone(FixedText_String(&draft.codeEditorArgs), context.temp_allocator),
+			proc(v: string) -> Msg { return Settings_Code_Editor_Args_Changed(v) },
+			id = skald.hash_id("settings-code-editor-args"), width = 300, placeholder = "{file}:{line}")),
+		hint(ctx, "{file} and {line} are replaced; without {file}, the file is added at the end. Zed: {file}:{line}. VS Code: --goto {file}:{line}. It runs in the project's scripts folder, with the editor's environment."),
 		settingRow(ctx, "Optimized Play", skald.checkbox(ctx, draft.optimizedPlay, "Build with -o:speed",
 			proc(v: bool) -> Msg { return Settings_Optimized_Play_Changed(v) },
 			id = skald.hash_id("settings-optimized-play"))),
@@ -254,4 +264,15 @@ numberSetting :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: SettingsField, val
 hint :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
 	th := ctx.theme
 	return skald.text(text, th.color.fg_muted, th.font.size_xs, max_width = 560)
+}
+
+// Under the program field: where it resolves to, or that it can't be found
+@(private="file")
+editorProgramStatus :: proc(ctx: ^skald.Ctx(Msg), program: string) -> skald.View {
+	th := ctx.theme
+	resolved, found := Script_FindEditorProgram(program)
+	if !found {
+		return skald.text(fmt.tprintf("Not found: %s", program == "" ? DEFAULT_CODE_EDITOR_PATH : program), th.color.warning, th.font.size_xs, max_width = 560)
+	}
+	return skald.text(fmt.tprintf("Runs %s", resolved), th.color.fg_muted, th.font.size_xs, max_width = 560)
 }
