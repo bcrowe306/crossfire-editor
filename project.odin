@@ -111,6 +111,9 @@ Project :: struct {
 	startScene: string,
 	scenes: [dynamic]SceneDef,
 	assets: [dynamic]AssetDef,
+	// Scene files the editor loaded or saved (relative paths), so Save can delete the files of
+	// scenes that were renamed or removed, and nothing else (project_scenes.odin)
+	sceneFiles: [dynamic]string,
 }
 
 // Path of a scene's file inside the project folder
@@ -314,6 +317,8 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.name)
 	delete(project.rootPath)
 	delete(project.startScene)
+	for f in project.sceneFiles do delete(f)
+	delete(project.sceneFiles)
 	project^ = {}
 }
 
@@ -394,6 +399,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string) {
 		}
 		e.SceneData_Destroy(&sceneData)
 		append(&project.scenes, scene)
+		append(&project.sceneFiles, strings.clone(ref.path))
 	}
 	return project, ""
 }

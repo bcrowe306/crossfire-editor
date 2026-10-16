@@ -81,6 +81,8 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 
 	ghost := browserDrag(s, ctx, items)
+	browserMouse(s, ctx, items)
+	renameField := browserRename(s, ctx, items)
 
 	rows := make([]ColoredTreeRow, len(items), context.temp_allocator)
 	for item, i in items {
@@ -103,10 +105,11 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			row.icon = ICON_FILE_CODE
 		case .Scene:
 			row.depth = 1
-			row.label = s.project.scenes[item.index].name
+			name := s.project.scenes[item.index].name
+			row.label = name == s.project.startScene ? fmt.tprintf("%s  (start)", name) : name
 			row.icon = ICON_SITEMAP
-			// Highlight the scene open in the viewport
-			row.selected = item.index == s.currentScene
+			// The selected scene, or else the one open in the viewport
+			row.selected = item == s.browserSelection || (s.browserSelection.kind != .Scene && item.index == s.currentScene)
 		case .Asset:
 			asset := s.project.assets[item.index]
 			row.depth = 1
@@ -116,20 +119,161 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	}
 
+	tree := skald.scroll(ctx, {0, 0},
+		coloredTree(ctx, rows,
+			on_toggle = proc(row: int) -> Msg { return Browser_Toggled(row) },
+			on_select = proc(row: int) -> Msg { return Browser_Selected(row) },
+			id = skald.hash_id("browser-tree"),
+			row_height = s.settings.rowHeight,
+		),
+		id = skald.hash_id("browser-scroll"),
+	)
+	// The right-click menu: what it offers depends on the row (set by browserMenuItems)
+	labels := browserMenuItems(s)
+	menu := skald.context_menu(ctx, tree, labels,
+		proc(i: int) -> Msg { return i < len(browserMenuMsgs) ? browserMenuMsgs[i] : nil },
+		id = skald.hash_id("browser-menu"),
+		width = 240,
+	)
+
 	// flex: a scroll in a content-sized column gets no height
 	return skald.col(
-		skald.flex(1, skald.scroll(ctx, {0, 0},
-			coloredTree(ctx, rows,
-				on_toggle = proc(row: int) -> Msg { return Browser_Toggled(row) },
-				on_select = proc(row: int) -> Msg { return Browser_Selected(row) },
-				id = skald.hash_id("browser-tree"),
-				row_height = s.settings.rowHeight,
-			),
-			id = skald.hash_id("browser-scroll"),
-		)),
+		skald.flex(1, menu),
 		ghost,
+		renameField,
 		cross_align = .Stretch,
 	)
+}
+
+/*
+The browser's context menu for the selected row, as labels; the message for each is put in
+`browserMenuMsgs` (the menu's callback can't capture, so it reads them from there).
+
+	scene          Open, Play Scene, Rename, Duplicate, Copy, Cut, Paste, Delete, Set as Start Scene, New Scene
+	Scenes, none   New Scene, Paste
+	asset          Remove from Project
+	script         Open in Editor
+*/
+@(private="file")
+browserMenuItems :: proc(s: ^State) -> []string {
+	labels := make([dynamic]string, context.temp_allocator)
+	clear(&browserMenuMsgs)
+	add :: proc(labels: ^[dynamic]string, label: string, msg: Msg) {
+		append(labels, label)
+		append(&browserMenuMsgs, msg)
+	}
+	shortcut :: proc(s: ^State, label: string, action: Action) -> string {
+		chord := skald.shortcut_format(Keymap_Shortcut(&s.settings.keymap, action))
+		return chord == "" ? label : fmt.tprintf("%s   (%s)", label, chord)
+	}
+	selection := s.browserSelection
+	switch selection.kind {
+	case .Scene:
+		i := selection.index
+		add(&labels, "Open", Msg(Scene_Action{.Open, i}))
+		add(&labels, "Play Scene", Msg(Scene_Action{.Play, i}))
+		add(&labels, shortcut(s, "Rename", .Rename_Node), Msg(Scene_Action{.Rename, i}))
+		add(&labels, shortcut(s, "Duplicate", .Duplicate_Node), Msg(Scene_Action{.Duplicate, i}))
+		add(&labels, shortcut(s, "Copy", .Copy_Node), Msg(Scene_Action{.Copy, i}))
+		add(&labels, shortcut(s, "Cut", .Cut_Node), Msg(Scene_Action{.Cut, i}))
+		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste", .Paste_Node), Msg(Scene_Action{.Paste, i}))
+		add(&labels, shortcut(s, "Delete", .Delete_Node), Msg(Scene_Action{.Delete, i}))
+		if s.project.scenes[i].name != s.project.startScene do add(&labels, "Set as Start Scene", Msg(Scene_Action{.Set_Start, i}))
+		add(&labels, "New Scene", Msg(Scene_Action{.New, i}))
+	case .Asset:
+		add(&labels, "Remove from Project...", Msg(Action.Remove_Asset))
+	case .Script:
+		if selection.index < len(s.scriptFiles) {
+			path, _ := filepath.join({s.project.rootPath, s.scriptFiles[selection.index]}, context.temp_allocator)
+			absolute, err := os.get_absolute_path(path, context.temp_allocator)
+			add(&labels, "Open in Editor", Msg(Script_Open_File{file = err == nil ? absolute : path, line = 1}))
+		}
+	case .Folder, .None:
+		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
+		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste Scene", .Paste_Node), Msg(Scene_Action{.Paste, -1}))
+	}
+	return labels[:]
+}
+
+// The messages of the browser menu's items, in order (see browserMenuItems). Package state: the
+// menu's callback can't capture
+@(private="file")
+browserMenuMsgs: [dynamic]Msg
+
+/*
+Browser mouse and focus handling the tree widget doesn't do: a right-click selects the row under
+the cursor (so the context menu acts on it), a double-click on a scene renames it, and the state
+is told when the browser gains or loses keyboard focus (its keys act on scenes then).
+*/
+@(private="file")
+browserMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) {
+	treeId := skald.hash_id("browser-tree")
+	if s.refocus == .Browser {
+		skald.widget_focus(ctx, treeId)
+		skald.send(ctx, Msg(Refocus_Done{}))
+	}
+	focused := skald.widget_has_focus(ctx, treeId)
+	if focused != s.browserFocused do skald.send(ctx, Msg(Browser_Focus_Changed(focused)))
+
+	treeState, drawn := ctx.widgets.states[treeId]
+	areaState, _ := ctx.widgets.states[skald.hash_id("browser-scroll")]
+	if !drawn do return
+	mouse := ctx.input.mouse_pos
+	area := areaState.last_rect
+	over := mouse.x >= area.x && mouse.x < area.x + area.w && mouse.y >= area.y && mouse.y < area.y + area.h &&
+		!skald.mouse_over_overlay(ctx) && ctx.widgets.modal_rect_prev.w == 0
+	if !over do return
+	row := int(math.floor((mouse.y - treeState.last_rect.y) / s.settings.rowHeight))
+	onRow := row >= 0 && row < len(items)
+	if ctx.input.mouse_pressed[.Right] {
+		skald.send(ctx, Msg(Browser_Right_Clicked(onRow ? row : -1)))
+		// Keys then act on the browser, like after a left click
+		skald.widget_focus(ctx, treeId)
+	}
+	if ctx.input.mouse_pressed[.Left] && onRow && ctx.input.mouse_click_count[.Left] >= 2 && items[row].kind == .Scene {
+		skald.send(ctx, Msg(Scene_Action{.Rename, items[row].index}))
+	}
+}
+
+/*
+The text field for renaming a scene in place: an overlay over its row. Enter or clicking elsewhere
+keeps the name (if it's valid), Escape cancels.
+*/
+@(private="file")
+browserRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> skald.View {
+	th := ctx.theme
+	none := skald.View(skald.View_Spacer{size = 0})
+	if !s.rename.active || s.rename.target != .Scene do return none
+	row := -1
+	for item, i in items do if item.kind == .Scene && item.index == s.rename.node do row = i
+	treeState, drawn := ctx.widgets.states[skald.hash_id("browser-tree")]
+	if row < 0 || !drawn {
+		skald.send(ctx, Msg(Rename_Cancelled{}))
+		return none
+	}
+	id := skald.hash_id("browser-rename")
+	skald.shortcut(ctx, {.Enter, {}}, Msg(Rename_Committed{byKey = true}))
+	skald.shortcut(ctx, {.Escape, {}}, Msg(Rename_Cancelled{}))
+	if !s.rename.focused {
+		skald.widget_focus(ctx, id)
+		skald.send(ctx, Msg(Rename_Focused{}))
+	} else if !skald.widget_has_focus(ctx, id) {
+		skald.send(ctx, Msg(Rename_Committed{}))
+	}
+	tree := treeState.last_rect
+	rowHeight := s.settings.rowHeight
+	// After the indent (depth 1), the chevron space and the icon, as coloredTree lays rows out
+	x := tree.x + th.spacing.sm + th.spacing.lg + 16 + th.font.size_md + th.spacing.xs
+	y := tree.y + f32(row) * rowHeight
+	area := treeState.clip_rect.w > 0 ? treeState.clip_rect : tree
+	if y < area.y || y + rowHeight > area.y + area.h do return none
+	problem := SceneNameProblem(&s.project, strings.trim_space(s.rename.text), s.rename.node)
+	return skald.overlay({x, y, 0, 0},
+		skald.text_input(ctx, s.rename.text,
+			proc(v: string) -> Msg { return Rename_Text_Changed(v) },
+			id = id, width = max(tree.x + tree.w - x - th.spacing.xs, 80), height = rowHeight, font_size = th.font.size_sm,
+			invalid = problem != "", error = problem),
+		no_shadow = true, pin = true)
 }
 
 /*

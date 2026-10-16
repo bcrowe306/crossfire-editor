@@ -21,6 +21,9 @@ Action :: enum {
 	Cut_Node,
 	Paste_Node,
 	Rename_Node,
+	// Play from the scene open in the viewport instead of the start scene
+	Play_Scene,
+	Open_Project_Settings,
 	Select_All,
 	Toggle_Grid,
 	Toggle_Snap,
@@ -117,12 +120,63 @@ Tree_Drag_Dropped :: struct {
 // Released anywhere else
 Tree_Drag_Cancelled :: struct {}
 
+// Scene management in the project browser (project_scenes.odin)
+SceneOp :: enum {
+	New,
+	Open,
+	Play,
+	Rename,
+	Duplicate,
+	Copy,
+	Cut,
+	Paste,
+	Delete,
+	Set_Start,
+}
+Scene_Action :: struct {
+	op: SceneOp,
+	// The scene, or -1 (New and Paste then add at the end)
+	scene: int,
+}
+// The browser gained or lost keyboard focus
+Browser_Focus_Changed :: distinct bool
+// A right-click on a browser row (before its context menu opens): row index, -1 below the rows
+Browser_Right_Clicked :: distinct int
+
+RefocusTarget :: enum {
+	None,
+	Browser,
+	Scene_Tree,
+}
+Refocus_Done :: struct {}
+
+// What an inline rename is for
+RenameTarget :: enum {
+	Node,
+	Scene,
+}
+
+// Project Settings dialog (view_project_settings.odin)
+Project_Settings_Name_Changed :: distinct string
+Project_Settings_Scale_Changed :: distinct string
+Project_Settings_Background_Changed :: distinct skald.Color
+Project_Settings_Start_Changed :: distinct string
+Project_Settings_Size_Changed :: struct {
+	axis: int,
+	value: f64,
+}
+Project_Settings_Applied :: struct {}
+Project_Settings_Cancelled :: struct {}
+
 // Renaming a node in the scene tree
 Rename_Started :: distinct int
 Rename_Text_Changed :: distinct string
 Rename_Focused :: struct {}
 // Enter, or the field lost focus
-Rename_Committed :: struct {}
+Rename_Committed :: struct {
+	// Enter (focus goes back to the tree), rather than the field losing focus to a click elsewhere
+	byKey: bool,
+}
 // Escape
 Rename_Cancelled :: struct {}
 // Keeps frames coming (auto-scrolling while the mouse is held still)
@@ -384,6 +438,17 @@ Msg :: union {
 	Inspector_Link_Toggled,
 	Number_Text_Changed,
 	Number_Edit_Ended,
+	Refocus_Done,
+	Scene_Action,
+	Browser_Focus_Changed,
+	Browser_Right_Clicked,
+	Project_Settings_Name_Changed,
+	Project_Settings_Scale_Changed,
+	Project_Settings_Background_Changed,
+	Project_Settings_Start_Changed,
+	Project_Settings_Size_Changed,
+	Project_Settings_Applied,
+	Project_Settings_Cancelled,
 	Rename_Started,
 	Rename_Text_Changed,
 	Rename_Focused,

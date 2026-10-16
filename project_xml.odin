@@ -41,6 +41,8 @@ Project_Save :: proc(project: ^Project) -> string {
 			return fmt.tprintf("Couldn't write %s: %v", path, err)
 		}
 	}
+	// Scenes renamed or removed since the last save: delete their old files
+	Project_CleanSceneFiles(project)
 	return ""
 }
 

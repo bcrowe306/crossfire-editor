@@ -168,6 +168,20 @@ folder as the editor's workspace, which is where OLS looks for the file. To keep
 to ols.json, delete its `_generated_by` line. Play builds unoptimized (about 4 s); turn on Optimized Play for speed tests. Scripts
 don't run in the viewport. One script per node for now.
 
+## Scenes
+
+Scenes are managed in the project browser's **Scenes** folder:
+
+- **Right-click** a scene for Open, Play Scene, Rename, Duplicate, Copy, Cut, Paste, Delete, Set as
+  Start Scene and New Scene. Right-click the folder (or below the rows) for New Scene and Paste.
+- With the browser focused, the node keys act on the selected scene: **F2** rename, **Ctrl+D**
+  duplicate, **Ctrl+C / Ctrl+X / Ctrl+V**, **Delete**. Double-click a scene to rename it.
+- Renaming a scene updates what refers to it: the start scene, menu buttons that switch to it, and
+  script fields that name it. Old scene files are removed on Save. Everything can be undone.
+- **Play** (F5) starts at the project's start scene, marked "(start)" and set in **File > Project
+  Settings** (with the game's name, resolution, scaling and background) or with Set as Start
+  Scene. **Play Scene** (Ctrl+F5) starts at the scene open in the viewport.
+
 ## Selecting and editing
 
 - **Multi-select:** Ctrl+click toggles a node (viewport or scene tree), Shift+click adds (a range

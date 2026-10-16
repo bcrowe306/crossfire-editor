@@ -45,6 +45,7 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	drag_to_viewport <browser row> <dx> <dy>
 	                                 Drag a browser row into the viewport, to (dx, dy) window
 	                                 pixels from its center
+	action <Action>                  Send an action, as its menu item would (e.g. Open_Project_Settings)
 	open_project <folder>            Open a project, as if picked in the folder dialog (no
 	                                 unsaved-changes prompt)
 	drag_node <name> <dx> <dy>       Press on a node, move by (dx, dy) window pixels, release
@@ -83,6 +84,9 @@ Checks:
 	row <n> <name>               Node shown in row n of the scene tree
 	clipboard <count>            Nodes copied (a subtree)
 	selection <count>            Selected nodes
+	scenes <A,B,C>               The project's scenes, in order
+	start_scene <name>           The scene the game starts in
+	project_settings <open | closed>   The Project Settings dialog
 	script <name | none>         The selected node's script
 	scripts <Unknown | Building | Ready | Failed>   The script catalog (the last build)
 	prop <name> <value>          A script value stored on the selected node ("(default)" if none)
@@ -112,7 +116,7 @@ next check.
 INPUT_SETTLE_FRAMES :: 3
 // Context menus the driver lets finish fading out before the next command
 @(private="file")
-FADING_MENUS := [?]string{"scene-tree-menu"}
+FADING_MENUS := [?]string{"scene-tree-menu", "browser-menu"}
 DEFAULT_WAIT_TIMEOUT :: 10 * time.Second
 // A script that hasn't finished after this long fails
 SCRIPT_TIMEOUT :: 300 * time.Second
@@ -147,7 +151,7 @@ Driver :: struct {
 
 // A new window may still be resized (tiled) right after it opens; the script starts once its
 // size has stayed the same this long, so clicks aren't aimed at a layout that then moves
-WINDOW_SETTLE_TIME :: 500 * time.Millisecond
+WINDOW_SETTLE_TIME :: 1500 * time.Millisecond
 
 @(private="file")
 driver: Driver
@@ -488,6 +492,18 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "action":
+		// Menu bar entries without a shortcut (menus can't be clicked by key): send the action
+		action, known := reflect.enum_from_name(Action, rest)
+		if !known {
+			fail(fmt.tprintf("%s: unknown action", line))
+			return true
+		}
+		skald.send(ctx, Msg(action))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "open_project":
 		// Kept: the message may be handled after this frame's temp memory is freed (test-only, tiny)
 		skald.send(ctx, Msg(Open_Project_Chosen{path = strings.clone(rest)}))
@@ -639,6 +655,14 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(len(s.clipboard))
 	case "selection":
 		found = fmt.tprint(len(s.selection))
+	case "scenes":
+		names := make([dynamic]string, context.temp_allocator)
+		for scene in s.project.scenes do append(&names, scene.name)
+		found = strings.join(names[:], ",", context.temp_allocator)
+	case "start_scene":
+		found = s.project.startScene
+	case "project_settings":
+		found = s.projectSettings.open ? "open" : "closed"
 	case "script":
 		if selected == nil do return false, "nothing selected"
 		found = selected.script == "" ? "none" : selected.script

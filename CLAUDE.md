@@ -119,6 +119,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
+| `project_scenes.odin` | Scene list operations: add, copy, rename (updating references), remove, start scene, names; deleting old scene files on save |
+| `scene_actions.odin` | The browser's scene actions (`Scene_DoAction`), key routing while the browser has focus, scene rename, Project Settings state |
+| `view_project_settings.odin` | The Project Settings dialog (name, resolution, scaling, background, start scene) |
 | `selection.odin` | Multi-selection: `Selection_Set/Toggle/Normalize/Roots` |
 | `project_session.odin` | Unsaved changes, New/Open Project, the save prompt, the window title |
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
@@ -315,6 +318,35 @@ shows up here with no editor change (it still needs inspector fields).
   over the row (`sceneTreeRename`). Enter or losing focus commits (`Rename_Committed`, undoable),
   Escape cancels. The double-click's click count is hidden from the tree, which would otherwise
   expand or collapse the row.
+
+### Scenes (implemented, `project_scenes.odin`, `scene_actions.odin`)
+
+- **Browser context menu** (`browser-menu`, built by `browserMenuItems`; the messages for its items
+  are in `browserMenuMsgs` because the callback can't capture): on a scene Open, Play Scene, Rename,
+  Duplicate, Copy, Cut, Paste, Delete, Set as Start Scene, New Scene; on the Scenes folder or empty
+  space New Scene and Paste; Remove for assets, Open in Editor for scripts. A right-click selects
+  the row first (`Browser_Right_Clicked`) without opening it, and focuses the browser.
+- **Keys:** while the browser tree has focus (`State.browserFocused`, reported by the view with
+  `Browser_Focus_Changed`), `Browser_RouteAction` turns Delete, Ctrl+D/C/X/V and F2 into scene
+  operations on the selected scene; otherwise they act on nodes. `History_Classify` uses the same
+  routing.
+- **Rename** in place (F2, double-click, menu): `State.rename` with `target = .Scene`; the overlay
+  is `browserRename` and shows why a name is refused (`SceneNameProblem`: empty, not a file name,
+  taken). `Project_RenameScene` updates the start scene, Menu `scene:<Name>` actions and scene-kind
+  script fields. After Enter or Escape, focus returns to the tree (`State.refocus`); a commit from
+  clicking elsewhere leaves focus where the click put it.
+- New scenes get a World node and are named straight away. The last scene can't be deleted;
+  deleting the start scene makes the first remaining one the start; deleting the open scene opens
+  the one before it. Dangling menu references are reported, not changed.
+- **Files:** `Project.sceneFiles` lists the scene files the editor loaded or saved;
+  `Project_CleanSceneFiles` (end of `Project_Save`) deletes those no scene uses any more. Other
+  files in `scenes/` are never touched.
+- **Undo:** scene operations and Project Settings are `.Project` edits: the undo step holds a
+  `ProjectSnapshot` (every scene, the start scene, name, size, scaling, background, open scene).
+- **Play Scene** (Ctrl+F5, the toolbar's second play button, Scene menu, a scene's menu) runs
+  `player <project> --scene <name>` (the engine's `Player_ParseArgs`); Play (F5) uses the start
+  scene. The start scene is chosen in **Project Settings** (File menu, `Open_Project_Settings`) or
+  with Set as Start Scene, and shows as "(start)" in the browser.
 
 ### Multi-selection (implemented, `selection.odin`)
 
@@ -635,9 +667,10 @@ Highlights:
   workspace that isn't visible, the compositor may throttle it, and the run takes minutes instead
   of seconds.
 - Add a script, or extend one, for each new interactive feature.
-- The driver waits until the window size has been stable for `WINDOW_SETTLE_TIME` before the
-  first command: a tiling window manager resizes a new window right after it opens, and a click
-  aimed at the old layout misses.
+- The driver waits until the window size has been stable for `WINDOW_SETTLE_TIME` (1.5 s) before
+  the first command: a tiling window manager resizes a new window after it opens, sometimes more
+  than 0.5 s later, and a click aimed at the old layout misses (the first script of a run failed).
+- `action <Action>` sends an action, for menu-bar entries without a shortcut.
 - **UI tests never start a real code editor:** `tests/ui/settings.ini` (copied to the scratch
   settings file) sets `code_editor_path = true`. Unit tests that create scripts set it too.
 - `scripts.script` really builds a project player (a few seconds unoptimized, longer when the engine

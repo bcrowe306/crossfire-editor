@@ -18,8 +18,10 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Before anything else registers shortcuts (see keymap.odin)
 	// Dialogs and the open context menu take Escape (and every other key) themselves
 	menu, drawn := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
+	browserMenu, browserMenuDrawn := ctx.widgets.states[skald.hash_id("browser-menu")]
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open ||
-		state.session.confirm.open || state.session.newProject.open || state.newScript.open || (drawn && menu.open)
+		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.projectSettings.open ||
+		(drawn && menu.open) || (browserMenuDrawn && browserMenu.open)
 	// A project with scripts is built once in the background when it opens, so the inspector
 	// knows their fields
 	if len(state.scriptFiles) > 0 && !state.scriptsAutoBuilt && state.play.stage == .None {
@@ -41,6 +43,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingsDialogView(&state, ctx),
 		newProjectDialogView(&state, ctx),
 		newScriptDialogView(&state, ctx),
+		projectSettingsDialogView(&state, ctx),
 		confirmDialogView(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
@@ -69,6 +72,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Save", .Save_Project, keys),
 			{separator = true},
 			item("Import Asset...", .Import_Asset, keys),
+			item("Project Settings...", .Open_Project_Settings, keys),
 			{separator = true},
 			item("Export...", .Export, keys),
 			{separator = true},
@@ -112,6 +116,8 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 		}},
 		{"Scene", []skald.Menu_Item(Msg){
 			item("Play", .Play, keys),
+			item("Play This Scene", .Play_Scene, keys),
+			{label = "New Scene", msg = Msg(Scene_Action{.New, -1})},
 			item("Pause", .Pause, keys),
 			item("Stop", .Stop, keys),
 		}},
@@ -148,6 +154,7 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		// Play controls sit in the middle of the toolbar
 		skald.flex(1, skald.spacer(0)),
 		toolButton(ctx, "play", ICON_PLAY, playTip, Action.Play, active = running),
+		toolButton(ctx, "play-scene", ICON_PLAY_SCENE, actionTip(s, fmt.tprintf("Play %s (this scene)", s.project.scenes[s.currentScene].name), .Play_Scene), Action.Play_Scene, disabled = running),
 		toolButton(ctx, "pause", ICON_PAUSE, actionTip(s, "Pause", .Pause), Action.Pause, active = s.playState == .Paused, disabled = s.playState != .Playing),
 		toolButton(ctx, "stop", ICON_STOP, actionTip(s, "Stop", .Stop), Action.Stop, disabled = s.playState == .Stopped),
 		skald.flex(1, skald.spacer(0)),

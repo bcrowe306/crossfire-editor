@@ -1675,3 +1675,179 @@ ols_config_for_code_completion :: proc(t: ^testing.T) {
 	testing.expect_value(t, string(kept), `{"collections": []}`)
 	free_all(context.temp_allocator)
 }
+
+@(private="file")
+sceneNames :: proc(state: ^State) -> []string {
+	names := make([]string, len(state.project.scenes), context.temp_allocator)
+	for scene, i in state.project.scenes do names[i] = scene.name
+	return names
+}
+
+@(private="file")
+countActions :: proc(state: ^State, action: string) -> int {
+	n := 0
+	for &scene in state.project.scenes do for &node in scene.nodes do for item in node.items do if item.action == action do n += 1
+	return n
+}
+
+@(test)
+scene_operations_and_undo :: proc(t: ^testing.T) {
+	// The refused rename below is logged as an error, which the runner would count as failing
+	context.logger = log.nil_logger()
+	state := testState()
+	defer State_Destroy(&state)
+	// Scenes: 0 MenuScene (start), 1 PlayScene (open), 2 OptionsScene
+	testing.expect_value(t, len(state.project.scenes), 3)
+
+	// New, after PlayScene: the open scene moves to it
+	send(&state, Scene_Action{.New, 1})
+	testing.expect_value(t, sceneNames(&state)[2], "Scene")
+	testing.expect_value(t, state.currentScene, 2)
+	testing.expect(t, state.rename.active && state.rename.target == .Scene)
+	send(&state, Rename_Text_Changed("Level2"))
+	send(&state, Rename_Committed{})
+	testing.expect_value(t, sceneNames(&state)[2], "Level2")
+
+	// Duplicate goes after it, numbered from it
+	send(&state, Scene_Action{.Duplicate, 2})
+	testing.expect_value(t, sceneNames(&state)[3], "Level3")
+	testing.expect_value(t, len(state.project.scenes[3].nodes), len(state.project.scenes[2].nodes))
+
+	// Copy MenuScene, paste at the end
+	send(&state, Scene_Action{.Copy, 0})
+	send(&state, Scene_Action{.Paste, -1})
+	testing.expect_value(t, sceneNames(&state)[5], "MenuScene2")
+
+	// Renaming MenuScene updates the start scene and the menu buttons that go back to it
+	testing.expect_value(t, countActions(&state, "scene:MenuScene"), 2 + 0)
+	send(&state, Rename_Started(0))
+	delete(state.rename.text)
+	state.rename = {active = true, target = .Scene, node = 0, text = strings.clone("Title")}
+	send(&state, Rename_Committed{})
+	testing.expect_value(t, state.project.startScene, "Title")
+	testing.expect_value(t, countActions(&state, "scene:Title"), 2)
+	testing.expect_value(t, countActions(&state, "scene:MenuScene"), 0)
+	// A name that's taken is refused
+	state.rename = {active = true, target = .Scene, node = 0, text = strings.clone("PlayScene")}
+	send(&state, Rename_Committed{})
+	testing.expect_value(t, sceneNames(&state)[0], "Title")
+
+	// Deleting the start scene makes the first remaining one the start
+	send(&state, Scene_Action{.Delete, 0})
+	testing.expect_value(t, len(state.project.scenes), 5)
+	testing.expect_value(t, state.project.startScene, "PlayScene")
+	// Set another start scene
+	send(&state, Scene_Action{.Set_Start, 1})
+	testing.expect_value(t, state.project.startScene, "Level2")
+
+	// Undo all the way back, one scene step at a time
+	for len(state.history.undo) > 0 do send(&state, Action.Undo)
+	testing.expect_value(t, len(state.project.scenes), 3)
+	testing.expect_value(t, sceneNames(&state)[0], "MenuScene")
+	testing.expect_value(t, state.project.startScene, "MenuScene")
+	testing.expect_value(t, countActions(&state, "scene:MenuScene"), 2)
+	// And redo all of it
+	for len(state.history.redo) > 0 do send(&state, Action.Redo)
+	testing.expect_value(t, state.project.startScene, "Level2")
+	testing.expect_value(t, len(state.project.scenes), 5)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+the_last_scene_stays :: proc(t: ^testing.T) {
+	context.logger = log.nil_logger()
+	state := testState()
+	defer State_Destroy(&state)
+	send(&state, Scene_Action{.Delete, 2})
+	send(&state, Scene_Action{.Delete, 1})
+	testing.expect_value(t, state.currentScene, 0)
+	send(&state, Scene_Action{.Delete, 0})
+	testing.expect_value(t, len(state.project.scenes), 1)
+	testing.expect_value(t, SceneNameProblem(&state.project, "a/b"), "the name can't contain / \\ : * ? \" < > |")
+	testing.expect(t, SceneNameProblem(&state.project, "menuscene") != "")
+	testing.expect_value(t, SceneNameProblem(&state.project, "Fresh"), "")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+browser_keys_act_on_scenes :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	nodes := len(scene.nodes)
+	// Browser focused, PlayScene selected: Ctrl+D duplicates the scene, not a node
+	send(&state, Browser_Focus_Changed(true))
+	state.browserSelection = {kind = .Scene, folder = .Scenes, index = 1}
+	send(&state, Action.Duplicate_Node)
+	testing.expect_value(t, len(state.project.scenes), 4)
+	testing.expect_value(t, len(playScene(&state).nodes), nodes)
+	testing.expect_value(t, History_NextLabel(&state.history, false), "Duplicate scene PlayScene")
+	// Delete deletes the selected scene
+	state.browserSelection = {kind = .Scene, folder = .Scenes, index = 2}
+	send(&state, Action.Delete_Node)
+	testing.expect_value(t, len(state.project.scenes), 3)
+	// Focus back on the scene tree: keys act on nodes again
+	send(&state, Browser_Focus_Changed(false))
+	state.selectedNode = nodeNamed(playScene(&state), "Spaceship")
+	send(&state, Action.Duplicate_Node)
+	testing.expect_value(t, len(state.project.scenes), 3)
+	testing.expect_value(t, len(playScene(&state).nodes), nodes + 2)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+save_removes_files_of_renamed_and_deleted_scenes :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	os.make_directory("build")
+	dir := "build/test_scene_files"
+	os.remove_all(dir)
+	defer os.remove_all(dir)
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone(dir)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	testing.expect(t, os.exists("build/test_scene_files/scenes/OptionsScene.scene.xml"))
+	// A file of the user's in the folder isn't the editor's to delete
+	_ = os.write_entire_file("build/test_scene_files/scenes/notes.txt", transmute([]byte)string("mine"))
+
+	state.rename = {active = true, target = .Scene, node = 2, text = strings.clone("Settings")}
+	send(&state, Rename_Committed{})
+	send(&state, Scene_Action{.Delete, 1})
+	testing.expect_value(t, Project_Save(&state.project), "")
+	testing.expect(t, !os.exists("build/test_scene_files/scenes/OptionsScene.scene.xml"))
+	testing.expect(t, !os.exists("build/test_scene_files/scenes/PlayScene.scene.xml"))
+	testing.expect(t, os.exists("build/test_scene_files/scenes/Settings.scene.xml"))
+	testing.expect(t, os.exists("build/test_scene_files/scenes/notes.txt"))
+	// The saved project loads back with the new list
+	loaded, message := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect_value(t, len(loaded.scenes), 2)
+	testing.expect_value(t, loaded.scenes[1].name, "Settings")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+project_settings_dialog :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	send(&state, Action.Open_Project_Settings)
+	testing.expect(t, state.projectSettings.open)
+	send(&state, Project_Settings_Name_Changed("Space Game"))
+	send(&state, Project_Settings_Size_Changed{0, 640})
+	send(&state, Project_Settings_Scale_Changed("IntegerScale"))
+	send(&state, Project_Settings_Start_Changed("OptionsScene"))
+	// Nothing changes until Apply
+	testing.expect_value(t, state.project.startScene, "MenuScene")
+	send(&state, Project_Settings_Applied{})
+	testing.expect(t, !state.projectSettings.open)
+	testing.expect_value(t, state.project.name, "Space Game")
+	testing.expect_value(t, state.project.gameSize.x, 640)
+	testing.expect_value(t, state.project.scaleMode, e.ScaleMode.IntegerScale)
+	testing.expect_value(t, state.project.startScene, "OptionsScene")
+	testing.expect(t, Project_IsModified(&state))
+	send(&state, Action.Undo)
+	testing.expect_value(t, state.project.name, "Asteroids Demo")
+	testing.expect_value(t, state.project.startScene, "MenuScene")
+	free_all(context.temp_allocator)
+}

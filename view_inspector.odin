@@ -58,6 +58,10 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	}
 
+	if s.refocus == .Scene_Tree {
+		skald.widget_focus(ctx, skald.hash_id("scene-tree"))
+		skald.send(ctx, Msg(Refocus_Done{}))
+	}
 	// Before the tree and menu are built: they act on this frame's presses too
 	indicator := sceneTreeMouse(s, ctx, visible)
 	renameField := sceneTreeRename(s, ctx, visible)
@@ -431,7 +435,8 @@ keeps the new name, Escape cancels.
 sceneTreeRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald.View {
 	th := ctx.theme
 	none := skald.View(skald.View_Spacer{size = 0})
-	if !s.rename.active do return none
+	// Scenes are renamed in the browser
+	if !s.rename.active || s.rename.target != .Node do return none
 	scene := &s.project.scenes[s.currentScene]
 	row := -1
 	for node, i in visible do if node == s.rename.node do row = i
@@ -443,7 +448,7 @@ sceneTreeRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skal
 
 	id := skald.hash_id("scene-tree-rename")
 	// Before the field is built, so it doesn't see these keys
-	skald.shortcut(ctx, {.Enter, {}}, Msg(Rename_Committed{}))
+	skald.shortcut(ctx, {.Enter, {}}, Msg(Rename_Committed{byKey = true}))
 	skald.shortcut(ctx, {.Escape, {}}, Msg(Rename_Cancelled{}))
 	if !s.rename.focused {
 		skald.widget_focus(ctx, id)

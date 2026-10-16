@@ -167,12 +167,24 @@ State :: struct {
 	// Renaming a node in place in the scene tree (F2, double-click)
 	rename: struct {
 		active: bool,
+		// What's renamed: a node of the open scene, or a scene (in the browser)
+		target: RenameTarget,
+		// The node's or scene's index
 		node: int,
 		// The edited name (owned)
 		text: string,
 		// The text field has been given focus; losing it afterwards commits
 		focused: bool,
 	},
+	// After an inline rename, keyboard focus goes back to the tree it happened in (the view does
+	// it, then sends Refocus_Done)
+	refocus: RefocusTarget,
+	// The project browser has keyboard focus: Delete, Ctrl+D/C/X/V and F2 act on its selected scene
+	browserFocused: bool,
+	// A copied scene (Copy, Cut), pasted with Paste in the browser
+	sceneClipboard: SceneDef,
+	hasSceneClipboard: bool,
+	projectSettings: ProjectSettingsDialog,
 	// A press on an image in the project browser, which becomes a drag into the viewport
 	assetDrag: struct {
 		pressed: bool,
@@ -264,6 +276,10 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.addNode.search)
 	Subtree_Destroy(&state.clipboard)
 	delete(state.rename.text)
+	if state.hasSceneClipboard do SceneDef_Destroy(&state.sceneClipboard)
+	delete(state.projectSettings.name)
+	delete(state.projectSettings.startScene)
+	Editor_ForgetProcesses()
 	delete(state.numberEdit.text)
 	delete(state.session.newProject.name)
 	delete(state.session.newProject.location)

@@ -25,7 +25,7 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out, command := applyMsg(state, m)
 	// A structural edit renumbers nodes: the old multi-selection is meaningless unless the edit
 	// chose a new one. Then make the selection agree with selectedNode (selection.odin)
-	if info.scope == .Scene && !out.selectionSet do clear(&out.selection)
+	if (info.scope == .Scene || info.scope == .Project) && !out.selectionSet do clear(&out.selection)
 	Selection_Normalize(&out)
 	if info.scope != .None do History_Commit(&out, snap, time.tick_now())
 	return out, command
@@ -36,6 +36,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
 	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
 	if command, handled := Session_Update(&out, m); handled do return out, command
+	if ProjectSettings_Update(&out, m) do return out, {}
 	layout := &out.layout
 
 	switch v in m {
@@ -95,6 +96,17 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		path, line := Script_Location(&out, name)
 		return out, skald.cmd_batch(Script_OpenInEditor(&out, path, line), scriptsBuild(&out))
 
+	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Background_Changed,
+	     Project_Settings_Start_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled:
+		// Handled by ProjectSettings_Update above
+	case Scene_Action:
+		return out, Scene_DoAction(&out, v)
+	case Browser_Focus_Changed:
+		out.browserFocused = bool(v)
+	case Browser_Right_Clicked:
+		// Select the row (without opening a scene), so the context menu acts on it
+		rows := BrowserRows(&out)
+		out.browserSelection = int(v) >= 0 && int(v) < len(rows) ? rows[v] : BrowserItem{kind = .None}
 	case Confirm_Chosen, New_Project_Name_Changed, New_Project_Location_Changed, New_Project_Browse,
 	     New_Project_Location_Chosen, New_Project_Created, New_Project_Cancelled, Open_Project_Chosen:
 		// Handled by Session_Update above
@@ -160,6 +172,14 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Rename_Focused:
 		out.rename.focused = true
 	case Rename_Committed:
+		// After Enter, keys go back to the tree the rename was in (not after a click elsewhere)
+		if v.byKey do out.refocus = out.rename.target == .Scene ? .Browser : .Scene_Tree
+		if out.rename.active && out.rename.target == .Scene {
+			Scene_CommitRename(&out)
+			delete(out.rename.text)
+			out.rename = {}
+			break
+		}
 		scene := &out.project.scenes[out.currentScene]
 		index, text := out.rename.node, strings.trim_space(out.rename.text)
 		if out.rename.active && index >= 0 && index < len(scene.nodes) && text != "" && text != scene.nodes[index].name {
@@ -170,8 +190,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		delete(out.rename.text)
 		out.rename = {}
 	case Rename_Cancelled:
+		out.refocus = out.rename.target == .Scene ? .Browser : .Scene_Tree
 		delete(out.rename.text)
 		out.rename = {}
+	case Refocus_Done:
+		out.refocus = .None
 	case Number_Text_Changed:
 		// Applies when the text is a number, through the field's own message
 		if apply := NumberEdit_Update(&out, v); apply != nil do return applyMsg(out, apply)
@@ -440,6 +463,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 @(private="file")
 handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	out := s
+	// With the browser focused, Delete, Ctrl+D/C/X/V and F2 act on its selected scene
+	if sceneAction, routed := Browser_RouteAction(&out, action); routed {
+		return out, Scene_DoAction(&out, sceneAction)
+	}
 	switch action {
 	case .Quit:
 		return out, Session_Request(&out, .Quit)
@@ -453,6 +480,10 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .Play:
 		cmd := playStart(&out)
 		return out, cmd
+	case .Play_Scene:
+		return out, playStart(&out, out.project.scenes[out.currentScene].name)
+	case .Open_Project_Settings:
+		ProjectSettings_Open(&out)
 	case .Pause:
 		playPause(&out)
 	case .Stop:

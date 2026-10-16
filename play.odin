@@ -73,7 +73,7 @@ Play_Tick :: struct {}
 
 // Play: start (save, build if needed, run), or resume when paused
 @(private="package")
-playStart :: proc(state: ^State) -> skald.Command(Msg) {
+playStart :: proc(state: ^State, scene := "") -> skald.Command(Msg) {
 	switch state.playState {
 	case .Paused:
 		if signalGame(state, .Resume) {
@@ -93,8 +93,16 @@ playStart :: proc(state: ^State) -> skald.Command(Msg) {
 	Session_MarkSaved(state)
 
 	clearOutput(state)
+	// Which scene to start in: "" for the project's start scene. Kept until the game runs
+	delete(playScene)
+	playScene = strings.clone(scene)
 	return buildPlayer(state, .Play)
 }
+
+// The scene Play Scene asked for, "" for the start scene. Package state: endSession clears the
+// session between the build and the run
+@(private="file")
+playScene: string
 
 /*
 Build Scripts: builds the project's player if needed and reads its scripts, without playing.
@@ -245,9 +253,15 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 @(private="file")
 startGame :: proc(state: ^State) -> skald.Command(Msg) {
 	projectDir := absolutePath(state.project.rootPath)
-	command := []string{playerTarget(state).binary, projectDir}
-	logLine(state, .Info, fmt.aprintf("Playing %s", projectDir))
-	if !startProcess(state, command, projectDir) {
+	command := make([dynamic]string, context.temp_allocator)
+	append(&command, playerTarget(state).binary, projectDir)
+	if playScene != "" {
+		append(&command, "--scene", playScene)
+		logLine(state, .Info, fmt.aprintf("Playing %s from scene %s", projectDir, playScene))
+	} else {
+		logLine(state, .Info, fmt.aprintf("Playing %s", projectDir))
+	}
+	if !startProcess(state, command[:], projectDir) {
 		return {}
 	}
 	state.play.stage = .Running

@@ -416,7 +416,8 @@ EditorProcess :: struct {
 	started: time.Tick,
 }
 
-@(private="file")
+// Thread-local: the editor has one thread, but unit tests run on several, each with its own
+@(private="file", thread_local)
 editorProcesses: [dynamic]EditorProcess
 
 /*
@@ -573,4 +574,11 @@ Scripts_OLSConfig :: proc(project: ^Project) -> string {
 	"enable_inlay_hints_params": true
 }}
 `, OLS_GENERATED_KEY, quoted(absolute(ENGINE_DIR)), quoted(absolute(project.rootPath)))
+}
+
+// Stops tracking launched code editors (at shutdown; they keep running)
+Editor_ForgetProcesses :: proc() {
+	for p in editorProcesses do delete(p.program)
+	delete(editorProcesses)
+	editorProcesses = {}
 }

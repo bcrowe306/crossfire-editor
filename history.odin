@@ -5,6 +5,8 @@ import "core:hash"
 import "core:slice"
 import "core:strings"
 import "core:time"
+import sdl "vendor:sdl3"
+import e "engine:."
 
 /*
 Undo and redo, as a history of commands.
@@ -59,6 +61,25 @@ UndoCommand :: struct {
 UndoChange :: union {
 	NodeChange,
 	SceneChange,
+	ProjectChange,
+}
+
+// The project's scene list and settings: adding, removing, renaming scenes, Project Settings
+ProjectChange :: struct {
+	before: ProjectSnapshot,
+	after: ProjectSnapshot,
+}
+
+// Everything a `.Project` edit can change (owned)
+ProjectSnapshot :: struct {
+	name: string,
+	startScene: string,
+	gameSize: [2]f32,
+	scaleMode: e.ScaleMode,
+	background: sdl.Color,
+	scenes: [dynamic]SceneDef,
+	// The scene open at the time, shown again on undo/redo
+	currentScene: int,
 }
 
 // One node's properties
@@ -81,6 +102,8 @@ EditScope :: enum {
 	Node,
 	// Changes the scene's node list
 	Scene,
+	// Changes the scene list or the project's settings
+	Project,
 }
 
 // What a message edits, from `History_Classify`
@@ -100,6 +123,7 @@ EditSnapshot :: struct {
 	selection: int,
 	node: NodeDef,
 	nodes: [dynamic]NodeDef,
+	project: ProjectSnapshot,
 }
 
 /*
@@ -125,7 +149,17 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	}
 
 	#partial switch v in m {
+	case Scene_Action:
+		if SceneOp_EditsProject(v.op) do return {scope = .Project, label = sceneOpLabel(s, v)}
+		return {}
+	case Project_Settings_Applied:
+		return {scope = .Project, label = "Change project settings"}
 	case Rename_Committed:
+		if s.rename.active && s.rename.target == .Scene {
+			index := s.rename.node
+			label := index >= 0 && index < len(s.project.scenes) ? fmt.tprintf("Rename scene %s", s.project.scenes[index].name) : "Rename scene"
+			return {scope = .Project, label = label}
+		}
 		index := s.rename.node
 		if s.rename.active && index >= 0 && index < len(scene.nodes) {
 			return node(index, fmt.tprintf("Rename %s", scene.nodes[index].name))
@@ -174,6 +208,11 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			return {scope = .Scene, label = fmt.tprintf("Move %s", scene.nodes[s.treeDrag.node].name)}
 		}
 	case Action:
+		// Node shortcuts that the browser takes for its selected scene
+		if routed, ok := Browser_RouteAction(s, v); ok {
+			if SceneOp_EditsProject(routed.op) do return {scope = .Project, label = sceneOpLabel(s, routed)}
+			return {}
+		}
 		#partial switch v {
 		case .Nudge_Left, .Nudge_Right, .Nudge_Up, .Nudge_Down,
 		     .Nudge_Left_Large, .Nudge_Right_Large, .Nudge_Up_Large, .Nudge_Down_Large:
@@ -189,6 +228,22 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		}
 	}
 	return {}
+}
+
+// "Delete scene Level2"
+@(private="file")
+sceneOpLabel :: proc(s: ^State, action: Scene_Action) -> string {
+	name := action.scene >= 0 && action.scene < len(s.project.scenes) ? s.project.scenes[action.scene].name : ""
+	switch action.op {
+	case .New:       return "Add scene"
+	case .Duplicate: return fmt.tprintf("Duplicate scene %s", name)
+	case .Cut:       return fmt.tprintf("Cut scene %s", name)
+	case .Paste:     return "Paste scene"
+	case .Delete:    return fmt.tprintf("Delete scene %s", name)
+	case .Set_Start: return fmt.tprintf("Make %s the start scene", name)
+	case .Open, .Play, .Rename, .Copy:
+	}
+	return "Scene change"
 }
 
 // The node's name, or "3 nodes" for a multi-selection
@@ -229,6 +284,8 @@ History_Snapshot :: proc(s: ^State, info: EditInfo) -> EditSnapshot {
 		if info.node >= 0 && info.node < len(scene.nodes) do snap.node = NodeDef_Clone(scene.nodes[info.node])
 	case .Scene:
 		snap.nodes = cloneNodes(scene.nodes[:])
+	case .Project:
+		snap.project = takeProjectSnapshot(s)
 	}
 	return snap
 }
@@ -254,12 +311,13 @@ History_Commit :: proc(s: ^State, snap: EditSnapshot, now: time.Tick) {
 		started = now,
 		last = now,
 	}
-	// An edit can't switch scenes, but be safe: compare against the scene it started in
-	if snap.scene >= len(s.project.scenes) {
+	// A node or scene edit can't switch scenes, but be safe: compare against the scene it started
+	// in (a project edit may have removed it, so it doesn't need it)
+	if snap.info.scope != .Project && snap.scene >= len(s.project.scenes) {
 		discardSnapshot(&snap)
 		return
 	}
-	scene := &s.project.scenes[snap.scene]
+	scene := &s.project.scenes[min(snap.scene, len(s.project.scenes) - 1)]
 	switch snap.info.scope {
 	case .None:
 		discardSnapshot(&snap)
@@ -277,6 +335,14 @@ History_Commit :: proc(s: ^State, snap: EditSnapshot, now: time.Tick) {
 			return
 		}
 		command.change = SceneChange{snap.nodes, cloneNodes(scene.nodes[:])}
+	case .Project:
+		after := takeProjectSnapshot(s)
+		if projectSnapshotsEqual(&snap.project, &after) {
+			destroyProjectSnapshot(&after)
+			discardSnapshot(&snap)
+			return
+		}
+		command.change = ProjectChange{snap.project, after}
 	}
 	History_Push(&s.history, command, &s.settings, now)
 }
@@ -301,6 +367,11 @@ History_Push :: proc(h: ^History, command: UndoCommand, settings: ^Settings, now
 			new := command.change.(SceneChange)
 			change.after = new.after
 			destroyNodes(&new.before)
+		case ProjectChange:
+			destroyProjectSnapshot(&change.after)
+			new := command.change.(ProjectChange)
+			change.after = new.after
+			destroyProjectSnapshot(&new.before)
 		}
 		top.last = now
 		top.selectionAfter = command.selectionAfter
@@ -358,6 +429,19 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	if len(from) == 0 do return "", false
 	command := pop(from)
 	s.history.version += 1
+	// The scene list itself: restore it whole, then show the scene that was open
+	if change, isProject := command.change.(ProjectChange); isProject {
+		snapshot := undo ? &change.before : &change.after
+		restoreProjectSnapshot(s, snapshot)
+		s.currentScene = clamp(snapshot.currentScene, 0, len(s.project.scenes) - 1)
+		s.selectedNode = -1
+		clear(&s.selection)
+		s.viewport.drag = {}
+		s.treeDrag = {}
+		command.mergeKey = 0
+		append(to, command)
+		return command.label, true
+	}
 	if command.scene >= len(s.project.scenes) {
 		destroyCommand(&command)
 		return "", false
@@ -377,6 +461,8 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	case SceneChange:
 		destroyNodes(&scene.nodes)
 		scene.nodes = cloneNodes((undo ? change.before : change.after)[:])
+	case ProjectChange:
+		// Handled above
 	}
 	s.selectedNode = undo ? command.selectionBefore : command.selectionAfter
 	if s.selectedNode >= len(scene.nodes) do s.selectedNode = -1
@@ -453,6 +539,9 @@ destroyCommand :: proc(command: ^UndoCommand) {
 	case SceneChange:
 		destroyNodes(&change.before)
 		destroyNodes(&change.after)
+	case ProjectChange:
+		destroyProjectSnapshot(&change.before)
+		destroyProjectSnapshot(&change.after)
 	}
 }
 
@@ -467,4 +556,54 @@ discardSnapshot :: proc(snap: ^EditSnapshot) {
 	delete(snap.info.label)
 	if snap.info.scope == .Node do NodeDef_Destroy(&snap.node)
 	if snap.info.scope == .Scene do destroyNodes(&snap.nodes)
+	if snap.info.scope == .Project do destroyProjectSnapshot(&snap.project)
+}
+
+@(private="file")
+takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
+	p := &s.project
+	snapshot := ProjectSnapshot{
+		name = strings.clone(p.name),
+		startScene = strings.clone(p.startScene),
+		gameSize = p.gameSize,
+		scaleMode = p.scaleMode,
+		background = p.background,
+		currentScene = s.currentScene,
+	}
+	for scene in p.scenes do append(&snapshot.scenes, SceneDef_Clone(scene))
+	return snapshot
+}
+
+@(private="file")
+restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
+	p := &s.project
+	delete(p.name)
+	delete(p.startScene)
+	for &scene in p.scenes do SceneDef_Destroy(&scene)
+	clear(&p.scenes)
+	p.name = strings.clone(snapshot.name)
+	p.startScene = strings.clone(snapshot.startScene)
+	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
+	for scene in snapshot.scenes do append(&p.scenes, SceneDef_Clone(scene))
+}
+
+@(private="file")
+destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
+	delete(snapshot.name)
+	delete(snapshot.startScene)
+	for &scene in snapshot.scenes do SceneDef_Destroy(&scene)
+	delete(snapshot.scenes)
+	snapshot^ = {}
+}
+
+@(private="file")
+projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
+	if a.name != b.name || a.startScene != b.startScene || a.gameSize != b.gameSize || a.scaleMode != b.scaleMode ||
+	   a.background != b.background || len(a.scenes) != len(b.scenes) {
+		return false
+	}
+	for scene, i in a.scenes {
+		if scene.name != b.scenes[i].name || !nodesEqual(scene.nodes[:], b.scenes[i].nodes[:]) do return false
+	}
+	return true
 }

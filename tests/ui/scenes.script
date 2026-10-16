@@ -1,0 +1,81 @@
+# Scenes in the project browser: the context menu, keys while the browser has focus, renaming in
+# place, undo, Project Settings (start scene, name), and Play Scene.
+# Run with: task test:ui
+#
+# Browser rows: 0 Scenes, 1 MenuScene (start), 2 PlayScene, 3 OptionsScene, 4 Images...
+# A scene's menu (nothing copied yet): 0 Open, 1 Play Scene, 2 Rename, 3 Duplicate, 4 Copy,
+# 5 Cut, 6 Delete, 7 Set as Start Scene, 8 New Scene (9 items; the start scene has no Set as Start)
+
+wait 5
+expect scenes MenuScene,PlayScene,OptionsScene
+expect start_scene MenuScene
+
+# Right-click PlayScene: Duplicate
+right_click_row browser-tree 2
+expect menu browser-menu open
+click_menu_item browser-menu 3 9
+expect scenes MenuScene,PlayScene,PlayScene2,OptionsScene
+
+# F2 renames the selected scene in place (the browser has focus after the click)
+click_row browser-tree 3
+expect scene PlayScene2
+key F2
+expect renaming true
+key ctrl+a
+type Level
+key RETURN
+expect renaming false
+expect scenes MenuScene,PlayScene,Level,OptionsScene
+expect scene Level
+
+# Keys act on the selected scene while the browser has focus: Ctrl+D, then Delete
+key ctrl+d
+expect scenes MenuScene,PlayScene,Level,Level2,OptionsScene
+key DELETE
+expect scenes MenuScene,PlayScene,Level,OptionsScene
+
+# Copy Level, paste it at the end (right-click below the rows: New Scene, Paste Scene)
+click_row browser-tree 3
+key ctrl+c
+right_click_row browser-tree 9
+expect menu browser-menu open
+click_menu_item browser-menu 1 2
+expect scenes MenuScene,PlayScene,Level,OptionsScene,Level2
+
+# Set Level as the start scene from its menu; undo takes it back
+right_click_row browser-tree 3
+click_menu_item browser-menu 8 10
+expect start_scene Level
+key ctrl+z
+expect start_scene MenuScene
+key ctrl+shift+z
+expect start_scene Level
+
+# Renaming the start scene keeps it the start scene
+click_row browser-tree 3
+key F2
+key ctrl+a
+type Arena
+key RETURN
+expect start_scene Arena
+
+# Project Settings: the name
+action Open_Project_Settings
+expect project_settings open
+click_widget project-settings-name
+key ctrl+a
+type Space Game
+click_widget project-settings-apply
+expect project_settings closed
+expect project Space Game
+
+# Play Scene starts in the open scene (Arena), not the start scene
+click_row browser-tree 2
+expect scene PlayScene
+key ctrl+F5
+wait_until play Playing timeout=120
+wait_until console_contains from scene PlayScene timeout=10
+key shift+F5
+wait_until play Stopped
+
+quit

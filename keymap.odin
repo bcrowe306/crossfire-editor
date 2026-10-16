@@ -80,7 +80,7 @@ ACTION_LABELS := [Action]string{
 	.Import_Asset = "Import asset", .Remove_Asset = "Remove asset",
 	.Toggle_Preview_Panel = "Toggle preview panel", .Play_Audio_Preview = "Play sound preview",
 	.Stop_Audio_Preview = "Stop sound preview",
-	.Open_Settings = "Settings", .Build_Scripts = "Build scripts", .Open_Script = "Open script in code editor",
+	.Open_Settings = "Settings", .Play_Scene = "Play the open scene", .Open_Project_Settings = "Project settings", .Build_Scripts = "Build scripts", .Open_Script = "Open script in code editor",
 }
 
 /*
