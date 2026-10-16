@@ -1,6 +1,7 @@
 package editor
 
 import "core:fmt"
+import "core:math"
 import "core:path/filepath"
 import "gui:skald"
 
@@ -15,11 +16,11 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Before anything else registers shortcuts (see keymap.odin)
 	// Dialogs and the open context menu take Escape (and every other key) themselves
 	menu, drawn := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
-	keysTaken := state.addNode.open || state.removeConfirm.open || (drawn && menu.open)
-	KeymapDispatch(ctx, ViewportHovered(ctx), dialogOpen = keysTaken)
+	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || (drawn && menu.open)
+	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
 
 	return skald.col(
-		menuBarView(ctx, keysTaken),
+		menuBarView(&state, ctx, keysTaken),
 		toolbarView(&state, ctx),
 		skald.divider(ctx),
 		// The workspace needs its own size to place the panels, so it's built once layout knows it
@@ -28,6 +29,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		statusBarView(&state, ctx),
 		removeAssetDialog(&state, ctx),
 		addNodeDialog(&state, ctx),
+		settingsDialogView(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
@@ -38,13 +40,16 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // `keysTaken` (a dialog or context menu is open) drops the shortcuts, since the menu bar would
 // otherwise fire them itself (Escape would deselect instead of closing the dialog)
 @(private="file")
-menuBarView :: proc(ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
-	Keys :: struct { typing, taken: bool }
-	keys := Keys{IsTyping(ctx), keysTaken}
+menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
+	Keys :: struct { keymap: ^Keymap, typing, taken: bool }
+	keys := Keys{&s.settings.keymap, IsTyping(ctx), keysTaken}
 	item :: proc(label: string, action: Action, keys: Keys) -> skald.Menu_Item(Msg) {
 		if keys.taken do return {label = label, msg = action}
-		return {label = label, shortcut = Keymap_Shortcut(action, keys.typing), msg = action}
+		return {label = label, shortcut = Keymap_Shortcut(keys.keymap, action, keys.typing), msg = action}
 	}
+	// "Undo Rename Spaceship"
+	undoLabel := History_NextLabel(&s.history, false)
+	redoLabel := History_NextLabel(&s.history, true)
 	return skald.menu_bar(ctx, []skald.Menu_Entry(Msg){
 		{"File", []skald.Menu_Item(Msg){
 			item("New Project", .New_Project, keys),
@@ -58,8 +63,8 @@ menuBarView :: proc(ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
 			item("Quit", .Quit, keys),
 		}},
 		{"Edit", []skald.Menu_Item(Msg){
-			item("Undo", .Undo, keys),
-			item("Redo", .Redo, keys),
+			item(undoLabel == "" ? "Undo" : fmt.tprintf("Undo %s", undoLabel), .Undo, keys),
+			item(redoLabel == "" ? "Redo" : fmt.tprintf("Redo %s", redoLabel), .Redo, keys),
 			{separator = true},
 			item("Add Node...", .Add_Node, keys),
 			item("Duplicate Node", .Duplicate_Node, keys),
@@ -68,6 +73,8 @@ menuBarView :: proc(ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
 			item("Paste Node", .Paste_Node, keys),
 			item("Delete Node", .Delete_Node, keys),
 			item("Deselect", .Deselect, keys),
+			{separator = true},
+			item("Settings...", .Open_Settings, keys),
 		}},
 		{"View", []skald.Menu_Item(Msg){
 			item("Select Tool", .Tool_Select, keys),
@@ -101,33 +108,33 @@ menuBarView :: proc(ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
 toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	running := s.playState == .Playing || s.playState == .Building
-	playTip := "Play (F5)"
+	playTip := actionTip(s, "Play", .Play)
 	switch s.playState {
 	case .Building: playTip = "Building the player..."
-	case .Paused:   playTip = "Resume (F5)"
+	case .Paused:   playTip = actionTip(s, "Resume", .Play)
 	case .Playing, .Stopped:
 	}
 	return skald.row(
-		toolButton(ctx, "new", ICON_FILE, "New project (Ctrl+N)", Action.New_Project),
-		toolButton(ctx, "open", ICON_FOLDER_OPEN, "Open project (Ctrl+O)", Action.Open_Project),
-		toolButton(ctx, "save", ICON_SAVE, "Save (Ctrl+S)", Action.Save_Project),
+		toolButton(ctx, "new", ICON_FILE, actionTip(s, "New project", .New_Project), Action.New_Project),
+		toolButton(ctx, "open", ICON_FOLDER_OPEN, actionTip(s, "Open project", .Open_Project), Action.Open_Project),
+		toolButton(ctx, "save", ICON_SAVE, actionTip(s, "Save", .Save_Project), Action.Save_Project),
 		toolbarSeparator(ctx),
-		toolButton(ctx, "undo", ICON_UNDO, "Undo (Ctrl+Z)", Action.Undo),
-		toolButton(ctx, "redo", ICON_REDO, "Redo (Ctrl+Shift+Z)", Action.Redo),
+		toolButton(ctx, "undo", ICON_UNDO, actionTip(s, "Undo", .Undo), Action.Undo),
+		toolButton(ctx, "redo", ICON_REDO, actionTip(s, "Redo", .Redo), Action.Redo),
 		toolbarSeparator(ctx),
-		toolButton(ctx, "select", ICON_POINTER, "Select (Q)", Action.Tool_Select, active = s.tool == .Select),
-		toolButton(ctx, "move", ICON_MOVE, "Move (W)", Action.Tool_Move, active = s.tool == .Move),
-		toolButton(ctx, "rotate", ICON_ROTATE, "Rotate (E)", Action.Tool_Rotate, active = s.tool == .Rotate),
-		toolButton(ctx, "scale", ICON_SCALE, "Scale (R)", Action.Tool_Scale, active = s.tool == .Scale),
+		toolButton(ctx, "select", ICON_POINTER, actionTip(s, "Select", .Tool_Select), Action.Tool_Select, active = s.tool == .Select),
+		toolButton(ctx, "move", ICON_MOVE, actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
+		toolButton(ctx, "rotate", ICON_ROTATE, actionTip(s, "Rotate", .Tool_Rotate), Action.Tool_Rotate, active = s.tool == .Rotate),
+		toolButton(ctx, "scale", ICON_SCALE, actionTip(s, "Scale", .Tool_Scale), Action.Tool_Scale, active = s.tool == .Scale),
 
 		// Play controls sit in the middle of the toolbar
 		skald.flex(1, skald.spacer(0)),
 		toolButton(ctx, "play", ICON_PLAY, playTip, Action.Play, active = running),
-		toolButton(ctx, "pause", ICON_PAUSE, "Pause (F6)", Action.Pause, active = s.playState == .Paused, disabled = s.playState != .Playing),
-		toolButton(ctx, "stop", ICON_STOP, "Stop (Shift+F5)", Action.Stop, disabled = s.playState == .Stopped),
+		toolButton(ctx, "pause", ICON_PAUSE, actionTip(s, "Pause", .Pause), Action.Pause, active = s.playState == .Paused, disabled = s.playState != .Playing),
+		toolButton(ctx, "stop", ICON_STOP, actionTip(s, "Stop", .Stop), Action.Stop, disabled = s.playState == .Stopped),
 		skald.flex(1, skald.spacer(0)),
 
-		toolButton(ctx, "export", ICON_EXPORT, "Export (Ctrl+Shift+E)", Action.Export),
+		toolButton(ctx, "export", ICON_EXPORT, actionTip(s, "Export", .Export), Action.Export),
 		spacing = th.spacing.xs,
 		padding = th.spacing.sm,
 		cross_align = .Center,
@@ -145,13 +152,13 @@ toolButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, activ
 	fg := active ? th.color.on_primary : th.color.fg
 	button := skald.button(ctx, icon, msg,
 		id = skald.hash_id(fmt.tprintf("toolbar-%s", key)),
-		bg = bg, fg = fg, width = 34, padding = {0, 6}, disabled = disabled)
+		bg = bg, fg = fg, width = math.round(th.font.size_md * 2.4), padding = {0, th.spacing.xs + 2}, disabled = disabled)
 	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("toolbar-tip-%s", key)))
 }
 
 @(private="file")
 toolbarSeparator :: proc(ctx: ^skald.Ctx(Msg)) -> skald.View {
-	return skald.row(skald.divider(ctx, vertical = true), height = 22, padding = ctx.theme.spacing.xs)
+	return skald.row(skald.divider(ctx, vertical = true), height = math.round(ctx.theme.font.size_md * 1.6), padding = ctx.theme.spacing.xs)
 }
 
 /*
@@ -262,6 +269,16 @@ panelHeader :: proc(ctx: ^skald.Ctx(Msg), icon, title: string, actions: ..skald.
 }
 
 /*
+A tooltip naming an action and its shortcut from the keymap: "Undo (Ctrl+Z)", or just "Undo"
+when it has none.
+*/
+actionTip :: proc(s: ^State, label: string, action: Action) -> string {
+	chord := Keymap_Shortcut(&s.settings.keymap, action)
+	if chord == {} do return label
+	return fmt.tprintf("%s (%s)", label, skald.shortcut_format(chord))
+}
+
+/*
 Small icon button for panel headers. `key` must be unique among panel buttons.
 */
 panelButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, disabled := false) -> skald.View {
@@ -269,7 +286,7 @@ panelButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, disa
 	button := skald.button(ctx, icon, msg,
 		id = skald.hash_id(fmt.tprintf("panel-%s", key)),
 		bg = th.color.surface, fg = th.color.fg_muted,
-		width = 26, padding = {0, 3}, font_size = th.font.size_sm, disabled = disabled)
+		width = math.round(th.font.size_md * 1.9), padding = {0, 3}, font_size = th.font.size_sm, disabled = disabled)
 	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("panel-tip-%s", key)))
 }
 

@@ -3,9 +3,9 @@
 A game editor for [odin_sdl_engine](../odin_sdl_engine), written in [Odin](https://odin-lang.org)
 with the [Skald](https://github.com/bcrowe306/Skald) GUI framework.
 
-**Status:** early. Projects load from and save to XML. You can edit scenes in the node tree and
-inspector, and **Play** runs the project in the engine. The scene view is still a placeholder
-(not engine-rendered), and export and undo aren't implemented yet.
+**Status:** early. Projects load from and save to XML. You can edit scenes in the engine-rendered
+viewport, the node tree and the inspector, undo and redo edits, and **Play** runs the project in
+the engine. Export isn't implemented yet.
 
 ## Requirements
 
@@ -44,7 +44,7 @@ Run `task` to list them all.
 | `task check` | Type-check the editor, with vet |
 | `task test` | Run the unit tests |
 | `task verify` | `check` + `test` |
-| `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input (opens the editor window) |
+| `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input (opens the editor window). They use a copy of `tests/fixtures/ui_project` and default settings |
 | `task build` | Debug build into `build/odin_sdl_editor` |
 | `task build:release` | Optimized build into `build/release/odin_sdl_editor` |
 | `task run` | Build and run (debug). Program arguments go after `--` |
@@ -96,6 +96,18 @@ Imported and removed assets are saved to project.xml on Save (Ctrl+S) or Play.
 supports. Type to search by name or description, use Up/Down and Enter or click a type to add it,
 and Escape to cancel. The new node is added as a child of the selected node, or at the top level
 when nothing is selected.
+
+## Undo and settings
+
+- **Undo / redo:** Ctrl+Z, and Ctrl+Shift+Z or Ctrl+Y (also the toolbar and Edit menu, which
+  names the step). Every scene edit is undoable. Quick edits to the same thing (typing a name,
+  dragging a number, nudging) undo as one step; a viewport drag is always one step.
+- **Settings** (Edit > Settings, Ctrl+,):
+  - Appearance: dark or light theme, text size, spacing, row height
+  - Editor: how undo merges edits, and how many steps it keeps
+  - Keyboard: every shortcut, two per command. Click one and press the new keys
+- Settings are saved to `editor.ini` next to the editor's executable. The defaults are in
+  [`settings.default.ini`](settings.default.ini). Use `--settings <file>` to keep them elsewhere.
 
 ## Viewport and keyboard
 

@@ -4,14 +4,30 @@ import "core:fmt"
 import "core:path/filepath"
 import "core:reflect"
 import "core:strings"
+import "core:time"
 import e "engine:."
 import "gui:skald"
 
 /*
 Applies a message to the editor state. The only place State changes.
+
+Edits to the project are recorded for undo here: `History_Classify` says what a message edits,
+which is copied before the message is applied and compared after (see history.odin).
 */
 update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
+	state := s
+	info := History_Classify(&state, m)
+	if info.scope == .None do return applyMsg(s, m)
+	snap := History_Snapshot(&state, info)
+	out, command := applyMsg(s, m)
+	History_Commit(&out, snap, time.tick_now())
+	return out, command
+}
+
+@(private="file")
+applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
+	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
 	layout := &out.layout
 
 	switch v in m {
@@ -20,6 +36,10 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Play_Tick:
 		cmd := playTick(&out)
 		return out, cmd
+	case Settings_Tab_Changed, Settings_Theme_Changed, Settings_Value_Changed, Settings_Search_Changed,
+	     Settings_Capture_Started, Settings_Key_Captured, Settings_Capture_Cancelled, Settings_Key_Cleared,
+	     Settings_Key_Reset, Settings_Tab_Reset, Settings_Applied, Settings_Cancelled:
+		// Handled by SettingsDialog_Update above
 	case Script_Tick, Viewport_Tick, Preview_Tick:
 		// Only keep frames coming (test script, viewport animations, audio progress)
 
@@ -79,6 +99,8 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		Viewport_ZoomAt(&out.viewport, v.factor, v.anchor)
 
 	case Viewport_Drag_Begin:
+		// A new gesture: it won't merge with the previous drag's undo step
+		out.history.gesture += 1
 		drag := ViewportDrag{mode = v.mode, node = v.node, startMouse = v.mouse}
 		if v.mode != .Pan {
 			scene := &out.project.scenes[out.currentScene]
@@ -367,13 +389,27 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .Stop_Audio_Preview:
 		AudioPreview_Stop()
 
-	case .New_Project, .Open_Project, .Export, .Undo, .Redo, .About:
+	case .Undo:
+		if label, ok := History_Undo(&out); ok {
+			logLine(&out, .Info, fmt.aprintf("Undo: %s", label))
+		} else {
+			logLine(&out, .Info, strings.clone("Nothing to undo"))
+		}
+	case .Redo:
+		if label, ok := History_Redo(&out); ok {
+			logLine(&out, .Info, fmt.aprintf("Redo: %s", label))
+		} else {
+			logLine(&out, .Info, strings.clone("Nothing to redo"))
+		}
+	case .Open_Settings:
+		SettingsDialog_Open(&out)
+	case .New_Project, .Open_Project, .Export, .About:
 		logLine(&out, .Warning, fmt.aprintf("%v is not implemented yet", action))
 	}
 	return out, {}
 }
 
-@(private="file")
+// Shows another scene in the viewport, clearing the selection
 openScene :: proc(state: ^State, index: int) {
 	if index < 0 || index >= len(state.project.scenes) || index == state.currentScene do return
 	state.currentScene = index

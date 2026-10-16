@@ -1,0 +1,123 @@
+# Undo/redo from the keyboard and toolbar, and the Settings dialog: rebinding a shortcut, saving
+# it, and the new shortcut working. Runs on a scratch copy of the demo project, with a scratch
+# settings file (task test:ui passes --settings build/ui_settings.ini).
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect undo 0
+key ctrl+1
+expect zoom 100
+
+# A viewport drag is one step, however many moves it takes
+click_node Spaceship
+expect selected Spaceship
+drag_node Spaceship 40 0
+expect field x 680
+expect undo 1
+
+# A nudge. (Quick nudges merge into one step; unit tests check that, since timing here depends
+# on how fast the compositor lets the window draw)
+key right
+expect field x 681
+expect undo 2
+
+# A structural edit
+key ctrl+d
+expect selected Spaceship2
+expect nodes 13
+expect undo 3
+
+# Undo all three with Ctrl+Z; the selection comes back too
+key ctrl+z
+expect nodes 11
+expect selected Spaceship
+key ctrl+z
+expect field x 680
+key ctrl+z
+expect field x 640
+expect undo 0
+expect redo 3
+key ctrl+z
+expect field x 640
+
+# Redo with Ctrl+Shift+Z, Ctrl+Y and the toolbar
+key ctrl+shift+z
+expect field x 680
+key ctrl+y
+expect field x 681
+click_widget toolbar-redo
+expect nodes 13
+expect redo 0
+click_widget toolbar-undo
+expect nodes 11
+
+# Ctrl+Z in a text field undoes typing there, not the project
+click_widget inspector-name-2
+expect typing true
+key ctrl+z
+expect undo 2
+expect nodes 11
+key escape
+
+# Settings: opens with Ctrl+, and the keymap stands down while it's open
+key ctrl+comma
+expect settings_dialog open
+key ctrl+z
+expect undo 2
+
+# Rebind Duplicate's second shortcut to Ctrl+K
+click_widget settings-tab-Keyboard
+click_widget settings-search
+type duplicate
+click_widget settings-key-Duplicate_Node-1
+expect capture on
+key ctrl+k
+expect capture off
+# Cancel throws it away
+click_widget settings-cancel
+expect settings_dialog closed
+expect chord Duplicate_Node Ctrl+D
+
+# Again, and Save: it applies and goes into the settings file
+key ctrl+comma
+click_widget settings-tab-Keyboard
+click_widget settings-search
+type duplicate
+click_widget settings-key-Duplicate_Node-1
+key ctrl+k
+click_widget settings-save
+expect settings_dialog closed
+expect chord Duplicate_Node Ctrl+D | Ctrl+K
+expect settings_file_contains Duplicate_Node = Ctrl+D | Ctrl+K
+
+# The new shortcut works
+click_row scene-tree 1
+expect selected Camera
+key ctrl+k
+expect selected Camera2
+
+# Escape while waiting for a key cancels the capture, not the dialog
+key ctrl+comma
+click_widget settings-tab-Keyboard
+click_widget settings-search
+type play
+click_widget settings-key-Play-1
+expect capture on
+key escape
+expect capture off
+expect settings_dialog open
+key escape
+expect settings_dialog closed
+
+# Appearance: Reset to Defaults on that tab, then Apply keeps the dialog open
+key ctrl+comma
+click_widget settings-tab-Appearance
+click_widget settings-reset-tab
+click_widget settings-apply
+expect settings_dialog open
+expect setting font_size 13
+click_widget settings-cancel
+
+quit

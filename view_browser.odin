@@ -21,7 +21,7 @@ browserView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	selectedAsset := s.browserSelection.kind == .Asset
 
 	header := panelHeader(ctx, ICON_FOLDER, fmt.tprintf("Project: %s", s.project.name),
-		panelButton(ctx, "import-asset", ICON_PLUS, "Import asset (Ctrl+I)", Action.Import_Asset),
+		panelButton(ctx, "import-asset", ICON_PLUS, actionTip(s, "Import asset", .Import_Asset), Action.Import_Asset),
 		panelButton(ctx, "remove-asset", ICON_TRASH, "Remove asset", Action.Remove_Asset, disabled = !selectedAsset),
 	)
 	// flex: a text input in a row has no width of its own
@@ -110,7 +110,7 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			on_toggle = proc(row: int) -> Msg { return Browser_Toggled(row) },
 			on_select = proc(row: int) -> Msg { return Browser_Selected(row) },
 			id = skald.hash_id("browser-tree"),
-			row_height = TREE_ROW_HEIGHT,
+			row_height = s.settings.rowHeight,
 		),
 		id = skald.hash_id("browser-scroll"),
 	)

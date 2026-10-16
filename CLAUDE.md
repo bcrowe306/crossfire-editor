@@ -11,10 +11,12 @@ consoles and handhelds).
   - Projects load from and save to disk as XML (`examples/demo_project` opens by default).
   - The project browser searches, previews images and sounds, and imports/removes assets.
   - The inspector edits node properties. **Play** runs the project in the engine's player.
+  - The scene tree has a context menu, copy/paste/duplicate, and drag to reorder and reparent.
+  - Undo/redo covers every scene edit. Settings (appearance, undo, keymap) are edited in a dialog
+    and saved to editor.ini next to the executable.
 - **Not yet:**
-  - Export, Undo, New and Open only log "not implemented yet". To open a project, pass its folder
-    on the command line.
-  - No drag-to-reparent in the scene tree.
+  - Export, New and Open only log "not implemented yet". To open a project, pass its folder on
+    the command line.
 
 Sections marked "planned" describe where it's going. Update this file as they become real.
 
@@ -103,6 +105,11 @@ Skald is not immediate-mode and not a retained widget tree:
 | `viewport_math.odin` | Viewport pan/zoom math and drag (move/rotate/scale) math |
 | `add_node.odin` | Add Node dialog logic: `AddNode_Kinds` (search over the engine's `SCENE_NODE_KINDS`), `AddNode_Create` (parent, unique name) |
 | `node_edit.odin` | Subtree copy/paste/duplicate, `Scene_MoveNode` (reorder and reparent keeping the world transform), unique names |
+| `history.odin` | Undo/redo: command history, automatic recording (`History_Classify`), merging |
+| `settings.odin` | `Settings`, loading/saving editor.ini over `settings.default.ini`, chord text, the Skald theme |
+| `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
+| `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard tabs |
+| `settings.default.ini` | Default settings, built into the editor |
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Keys tabs, collapsible |
@@ -186,20 +193,25 @@ sprites, animations, text and menus look as they do in the game. Future engine f
 - Wheel zooms around the cursor. Middle or right drag, or Space + left drag, pans.
 - Messages: `Viewport_Drag_Begin/Move/End`, `Viewport_Panned`, `Viewport_Zoomed`, `Viewport_Measured`.
 
-**Keyboard** (`keymap.odin`): `DEFAULT_KEYMAP` is the single table of shortcuts.
+**Keyboard** (`keymap.odin`): the chords are in `Settings.keymap` (two per action), with defaults
+in the `[keymap]` section of `settings.default.ini`. `ACTION_KEY_RULES` says how each action's keys
+behave (`viewportOnly`, `textChord`).
 - Defaults:
   - Q W E R tools, F frame selected
   - Ctrl+0 fit, Ctrl+1 100%, Ctrl+=/- zoom, P animations
   - arrows nudge (Shift ×10), Esc deselect, Delete
   - Ctrl+D duplicate, Ctrl+C/X/V copy/cut/paste nodes (not while typing)
-  - F5/F6/Shift+F5 play controls, Ctrl+I import
+  - Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (not while typing: the text field undoes typing)
+  - F5/F6/Shift+F5 play controls, Ctrl+I import, Ctrl+, settings
 - `KeymapDispatch` runs at the start of `view`, before the menu bar, so each shortcut fires once.
 - **Plain keys are ignored while a text or number field has focus** (`IsTyping`), and are hidden
   from menu hints then.
 - `viewportOnly` bindings (nudges) need the mouse over the viewport.
-- The Keys tab (Help > Keyboard Shortcuts) lists the table.
-- **Add new shortcuts to the table, not as ad-hoc `skald.shortcut` calls.** User-editable keymaps
-  (loaded from a file) are planned.
+- The Keys tab (Help > Keyboard Shortcuts) lists the keymap; Settings > Keyboard edits it.
+- **A new Action needs a line in `settings.default.ini`'s `[keymap]`** (a test checks), and an
+  `ACTION_LABELS` entry. Don't add ad-hoc `skald.shortcut` calls.
+- Tooltips and menu hints read the keymap (`actionTip`, `Keymap_Shortcut`); never hard-code a
+  shortcut in a label.
 
 ### Project browser (implemented)
 
@@ -272,11 +284,40 @@ Both are child processes (`core:os` `process_start` with a pipe). A `Play_Tick` 
 threads. **Stop** kills the child. **Pause/Resume** send SIGSTOP/SIGCONT; they aren't supported on
 Windows yet. Quitting the editor stops the game.
 
-### Undo / redo (planned)
+### Undo / redo (implemented, `history.odin`)
 
-Every edit to the project model is a `Msg` that the undo system will record, so the undo history
-belongs in editor `State`. Build it before editing features multiply further; retrofitting it gets
-harder with every new edit message.
+A command history in `State.history`: each `UndoCommand` holds what changed (one node:
+`NodeChange`, or a scene's node list: `SceneChange`) before and after, the selection before and
+after, and its scene. Undo switches to that scene and restores "before"; redo restores "after".
+- **Recording is automatic.** `update` wraps `applyMsg`: `History_Classify` says what a message
+  edits (`.Node`, `.Scene` or `.None`), `History_Snapshot` copies it, and `History_Commit`
+  compares after the message and pushes a command if anything changed. **A new edit message needs
+  a case in `History_Classify`**, or it won't be undoable.
+- **Merging:** commands with the same `mergeKey` (the same field of the same node) fold together
+  when they come within `undoMergeMs` of each other (debounce), until the run is `undoGroupMaxMs`
+  long (throttle; 0 = never cut). Viewport drags are `sticky`: one step from press to release,
+  keyed by `history.gesture`, which `Viewport_Drag_Begin` bumps.
+- Not undoable: selection, layout and other view state, the tree's expanded flags, and asset
+  import/remove (they copy and delete files).
+- Undo/Redo are `textChord` actions: in a text field, Ctrl+Z is the field's own undo.
+
+### Settings (implemented, `settings.odin`, `settings_dialog.odin`, `view_settings.odin`)
+
+- `settings.default.ini` (in git) holds every default and is built in with `#load`;
+  `Settings_Default` parses it, so the file and the code can't disagree.
+- The user's settings are `editor.ini` next to the executable (`Settings_DefaultPath`, so
+  `build/editor.ini` for `task run`). Loading parses the defaults, then that file over them;
+  unknown or bad lines are reported in the Console and skipped. Saving writes every setting.
+- `--settings <file>` picks another file. Test scripts (`--script`) use the defaults and never
+  save unless `--settings` is given; `task test:ui` passes a scratch `build/ui_settings.ini`.
+- `Settings` is a plain value (no allocations). The dialog edits `settingsDialog.draft`; Apply/Save
+  copy it to `state.settings`, write the file and return `skald.cmd_set_theme`.
+- Appearance: `Settings_Theme` builds the Skald theme: dark/light colors, text sizes scaled from
+  `fontSize` (default 13, Skald's is 14), spacing as a percentage of Skald's scale (default 75%).
+  Tree rows use `settings.rowHeight` (26). Toolbar and panel button sizes follow the text size.
+- Keyboard tab: clicking a shortcut starts a capture; the next key press (with modifiers) binds
+  it, Escape cancels, Clear unbinds. `captureKey` empties that frame's key input so nothing else
+  sees it. Conflicts are shown, not blocked (the first action in `Action` order wins).
 
 ## Project format (XML)
 
@@ -435,6 +476,13 @@ Highlights:
   - dialog buttons `dialog-<name>`, the viewport `viewport-canvas`
   - Add Node dialog: `add-node-search`, rows `add-node-<Kind>` (e.g. `add-node-Sprite`), `add-node-cancel`
   - the scene tree's context menu `scene-tree-menu` (`right_click_row`, `click_menu_item`)
+  - Settings dialog: `settings-tab-<Tab>`, `settings-search`, `settings-key-<Action>-<slot>`,
+    `settings-save` / `settings-apply` / `settings-cancel` (see view_settings.odin)
+- **UI tests run on `tests/fixtures/ui_project`**, not `examples/demo_project`: the demo is what
+  `task run` opens, so it changes when you use the editor. Update the fixture on purpose when a
+  test needs different content.
+- **Don't assert timing-dependent results** (undo merging) in UI scripts: when the editor window
+  isn't visible, the compositor may throttle its frames. Unit tests cover timing with fake clocks.
 - **Rows must be in view.** `click_row`, `right_click_row` and `drag_row` fail on a row scrolled
   out of the tree's visible area. The scene tree pane is short; collapse nodes to keep rows in view.
 - **Tree rows** are clicked by row index using `TREE_ROW_HEIGHT`; keep trees on that row height.

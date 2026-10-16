@@ -3,11 +3,16 @@ package editor
 import "gui:skald"
 
 /*
-Keyboard shortcuts: every command's default key, in one table.
+Keyboard shortcuts: which keys trigger which `Action`.
+
+The chords live in the settings (`Settings.keymap`), so users can change them in the Settings
+dialog; the defaults are the `[keymap]` section of `settings.default.ini`. What stays in code is
+how each action behaves (`ACTION_KEY_RULES`): whether it only works over the viewport, and
+whether text fields keep its chord while typing.
 
 `KeymapDispatch` turns key presses into `Action` messages each frame, before the menu bar is
 built, so a binding fires once even when a menu item shows the same shortcut (Skald's
-`shortcut` consumes the key). The menu bar and the Keys tab read their hints from this table.
+`shortcut` consumes the key). The menu bar and the Keys tab read their hints from the keymap.
 
 Defaults follow common editor conventions (Unity/Godot): Q W E R for tools, F to frame the
 selection, arrows to nudge, Ctrl+0 to fit the view.
@@ -16,66 +21,42 @@ Rules:
 - Bindings without Ctrl/Alt/Super ("plain" keys, including Delete, arrows and Escape) are
   ignored while a text or number field has keyboard focus, so typing never triggers them.
 - Nothing fires while a modal dialog is open; the dialog handles its own keys.
-- `textChord` bindings (Ctrl+C/X/V/D) also stand down while typing, so text fields keep them.
-- `viewportOnly` bindings need the mouse over the viewport (arrow-key nudges, so arrows still
+- `textChord` actions (Ctrl+Z, Ctrl+C/X/V/D) also stand down while typing, so text fields keep
+  those chords (a text field's Ctrl+Z undoes typing).
+- `viewportOnly` actions need the mouse over the viewport (arrow-key nudges, so arrows still
   work in lists and fields elsewhere).
-
-Making the keymap user-editable (loading it from a file) is planned; keep every shortcut in this
-table so that stays possible.
+- Backspace on its own can't be bound: Skald uses it as the "no shortcut" value.
 */
 
-KeyBinding :: struct {
-	action: Action,
-	chord: skald.Shortcut,
+// Chords per action: a main one (shown in menus) and an alternative (Redo: Ctrl+Shift+Z or Ctrl+Y)
+KEYMAP_SLOTS :: 2
+
+// Every action's chords. An empty `skald.Shortcut{}` means unbound
+Keymap :: [Action][KEYMAP_SLOTS]skald.Shortcut
+
+// How an action's shortcut behaves
+ActionKeyRule :: struct {
+	// Only while the mouse is over the viewport
 	viewportOnly: bool,
-	// Not dispatched while typing: text fields use the same chord (Ctrl+C copies text)
+	// Not while typing: text fields use the same chord
 	textChord: bool,
 }
 
-DEFAULT_KEYMAP := [?]KeyBinding{
-	// File
-	{action = .New_Project,  chord = {.N, {.Ctrl}}},
-	{action = .Open_Project, chord = {.O, {.Ctrl}}},
-	{action = .Save_Project, chord = {.S, {.Ctrl}}},
-	{action = .Export,       chord = {.E, {.Ctrl, .Shift}}},
-	{action = .Import_Asset, chord = {.I, {.Ctrl}}},
-	{action = .Quit,         chord = {.Q, {.Ctrl}}},
-	// Edit
-	{action = .Undo,         chord = {.Z, {.Ctrl}}},
-	{action = .Redo,         chord = {.Z, {.Ctrl, .Shift}}},
-	{action = .Add_Node,     chord = {.A, {.Ctrl, .Shift}}},
-	{action = .Delete_Node,  chord = {.Delete, {}}},
-	{action = .Duplicate_Node, chord = {.D, {.Ctrl}}, textChord = true},
-	{action = .Copy_Node,    chord = {.C, {.Ctrl}}, textChord = true},
-	{action = .Cut_Node,     chord = {.X, {.Ctrl}}, textChord = true},
-	{action = .Paste_Node,   chord = {.V, {.Ctrl}}, textChord = true},
-	{action = .Deselect,     chord = {.Escape, {}}},
-	// Tools
-	{action = .Tool_Select,  chord = {.Q, {}}},
-	{action = .Tool_Move,    chord = {.W, {}}},
-	{action = .Tool_Rotate,  chord = {.E, {}}},
-	{action = .Tool_Scale,   chord = {.R, {}}},
-	// View
-	{action = .Frame_Selected,   chord = {.F, {}}},
-	{action = .View_Fit,         chord = {.N0, {.Ctrl}}},
-	{action = .Zoom_100,         chord = {.N1, {.Ctrl}}},
-	{action = .Zoom_In,          chord = {.Equals, {.Ctrl}}},
-	{action = .Zoom_Out,         chord = {.Minus, {.Ctrl}}},
-	{action = .Toggle_Animation, chord = {.P, {}}},
-	{action = .Toggle_Bottom_Panel, chord = {.J, {.Ctrl}}},
-	// Scene
-	{action = .Play,  chord = {.F5, {}}},
-	{action = .Pause, chord = {.F6, {}}},
-	{action = .Stop,  chord = {.F5, {.Shift}}},
-	// Nudge the selected node
-	{action = .Nudge_Left,        chord = {.Left,  {}},        viewportOnly = true},
-	{action = .Nudge_Right,       chord = {.Right, {}},        viewportOnly = true},
-	{action = .Nudge_Up,          chord = {.Up,    {}},        viewportOnly = true},
-	{action = .Nudge_Down,        chord = {.Down,  {}},        viewportOnly = true},
-	{action = .Nudge_Left_Large,  chord = {.Left,  {.Shift}},  viewportOnly = true},
-	{action = .Nudge_Right_Large, chord = {.Right, {.Shift}},  viewportOnly = true},
-	{action = .Nudge_Up_Large,    chord = {.Up,    {.Shift}},  viewportOnly = true},
-	{action = .Nudge_Down_Large,  chord = {.Down,  {.Shift}},  viewportOnly = true},
+ACTION_KEY_RULES := #partial [Action]ActionKeyRule{
+	.Undo = {textChord = true},
+	.Redo = {textChord = true},
+	.Duplicate_Node = {textChord = true},
+	.Copy_Node = {textChord = true},
+	.Cut_Node = {textChord = true},
+	.Paste_Node = {textChord = true},
+	.Nudge_Left = {viewportOnly = true},
+	.Nudge_Right = {viewportOnly = true},
+	.Nudge_Up = {viewportOnly = true},
+	.Nudge_Down = {viewportOnly = true},
+	.Nudge_Left_Large = {viewportOnly = true},
+	.Nudge_Right_Large = {viewportOnly = true},
+	.Nudge_Up_Large = {viewportOnly = true},
+	.Nudge_Down_Large = {viewportOnly = true},
 }
 
 // Readable names for the Keys tab and menus
@@ -97,27 +78,45 @@ ACTION_LABELS := [Action]string{
 	.Import_Asset = "Import asset", .Remove_Asset = "Remove asset",
 	.Toggle_Preview_Panel = "Toggle preview panel", .Play_Audio_Preview = "Play sound preview",
 	.Stop_Audio_Preview = "Stop sound preview",
+	.Open_Settings = "Settings",
 }
 
 /*
-The shortcut bound to an action, or an empty one. Used by the menu bar for its hints.
+The main shortcut bound to an action, or an empty one. Used by the menu bar and context menus
+for their hints.
 
 Inputs:
+- keymap: The keymap (`state.settings.keymap`)
 - action: The action
-- typing: Whether a text field has focus. Plain-key shortcuts are left out then, because the
-  menu bar would otherwise fire them while typing
+- typing: Whether a text field has focus. Shortcuts that typing keeps are left out then,
+  because the menu bar would otherwise fire them while typing
 
 Returns:
 - The chord (empty if unbound or suppressed)
 */
-Keymap_Shortcut :: proc(action: Action, typing := false) -> skald.Shortcut {
-	for binding in DEFAULT_KEYMAP {
-		if binding.action == action {
-			if typing && (isPlainKey(binding.chord) || binding.textChord) do return {}
-			return binding.chord
-		}
+Keymap_Shortcut :: proc(keymap: ^Keymap, action: Action, typing := false) -> skald.Shortcut {
+	for chord in keymap[action] {
+		if chord == {} do continue
+		if typing && (isPlainKey(chord) || ACTION_KEY_RULES[action].textChord) do return {}
+		return chord
 	}
 	return {}
+}
+
+/*
+The action using a chord, other than `except`. The Settings dialog warns about such conflicts;
+at runtime the first action in `Action` order wins.
+
+Returns:
+- The action, and whether there is one
+*/
+Keymap_FindChord :: proc(keymap: ^Keymap, chord: skald.Shortcut, except: Action) -> (Action, bool) {
+	if chord == {} do return {}, false
+	for chords, action in keymap {
+		if action == except do continue
+		for c in chords do if c == chord do return action, true
+	}
+	return {}, false
 }
 
 /*
@@ -126,16 +125,22 @@ anything else registers shortcuts.
 
 Inputs:
 - ctx: The frame context
+- keymap: The keymap
 - overViewport: Whether the mouse is over the viewport
+- dialogOpen: A modal dialog or popup menu is open; nothing is dispatched
 */
-KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), overViewport: bool, dialogOpen := false) {
+KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), keymap: ^Keymap, overViewport: bool, dialogOpen := false) {
 	// A modal dialog handles its own keys (Escape closes it)
 	if dialogOpen do return
 	typing := IsTyping(ctx)
-	for binding in DEFAULT_KEYMAP {
-		if typing && (isPlainKey(binding.chord) || binding.textChord) do continue
-		if binding.viewportOnly && !overViewport do continue
-		skald.shortcut(ctx, binding.chord, Msg(binding.action))
+	for chords, action in keymap {
+		rule := ACTION_KEY_RULES[action]
+		if rule.viewportOnly && !overViewport do continue
+		for chord in chords {
+			if chord == {} do continue
+			if typing && (isPlainKey(chord) || rule.textChord) do continue
+			skald.shortcut(ctx, chord, Msg(action))
+		}
 	}
 }
 

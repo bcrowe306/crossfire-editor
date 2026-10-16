@@ -56,6 +56,8 @@ Action :: enum {
 	Toggle_Preview_Panel,
 	Play_Audio_Preview,
 	Stop_Audio_Preview,
+
+	Open_Settings,
 }
 
 // Panel resizing. Each carries the new size of a split's first pane
@@ -186,6 +188,36 @@ Browser_Body_Measured :: distinct f32
 // Sent every frame while a sound plays in the preview, so its progress keeps updating
 Preview_Tick :: struct {}
 
+// Settings dialog (settings_dialog.odin)
+Settings_Tab_Changed :: distinct int
+// "Dark" or "Light"
+Settings_Theme_Changed :: distinct string
+Settings_Value_Changed :: struct {
+	field: SettingsField,
+	value: f64,
+}
+Settings_Search_Changed :: distinct string
+// Clicked a shortcut: the next key press binds that slot
+Settings_Capture_Started :: struct {
+	action: Action,
+	slot: int,
+}
+Settings_Key_Captured :: distinct skald.Shortcut
+Settings_Capture_Cancelled :: struct {}
+Settings_Key_Cleared :: struct {
+	action: Action,
+	slot: int,
+}
+// Back to the action's default chords
+Settings_Key_Reset :: distinct Action
+// Back to the defaults for the open tab
+Settings_Tab_Reset :: struct {}
+// Apply (and save) the draft; Save also closes the dialog
+Settings_Applied :: struct {
+	close: bool,
+}
+Settings_Cancelled :: struct {}
+
 // Add Node dialog
 Add_Node_Search_Changed :: distinct string
 // Move the highlight up (-1) or down (+1)
@@ -217,6 +249,18 @@ Msg :: union {
 	Tree_Drag_Started,
 	Tree_Drag_Dropped,
 	Tree_Drag_Cancelled,
+	Settings_Tab_Changed,
+	Settings_Theme_Changed,
+	Settings_Value_Changed,
+	Settings_Search_Changed,
+	Settings_Capture_Started,
+	Settings_Key_Captured,
+	Settings_Capture_Cancelled,
+	Settings_Key_Cleared,
+	Settings_Key_Reset,
+	Settings_Tab_Reset,
+	Settings_Applied,
+	Settings_Cancelled,
 	Add_Node_Search_Changed,
 	Add_Node_Highlight_Moved,
 	Add_Node_Confirmed,

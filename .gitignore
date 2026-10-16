@@ -6,3 +6,6 @@
 
 # Per-user editor state for opened projects
 .editor/
+
+# User settings, saved next to the executable
+editor.ini

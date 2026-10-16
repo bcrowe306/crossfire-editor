@@ -3,13 +3,11 @@ package editor
 import "core:fmt"
 import "core:log"
 import "core:os"
+import "core:strings"
 import "gui:skald"
 
 // Space taken by a split pane divider (Skald's default thickness)
 DIVIDER :: 6
-
-// Row height of the browser and scene trees. Explicit so test scripts can click rows
-TREE_ROW_HEIGHT :: 30
 
 MIN_SIDEBAR_WIDTH  :: 180
 MIN_CENTER_WIDTH   :: 200
@@ -139,6 +137,11 @@ State :: struct {
 		asset: int,
 	},
 	addNode: AddNodeDialog,
+	// The active settings (see settings.odin), and the file they're saved to ("" = don't save)
+	settings: Settings,
+	settingsPath: string,
+	settingsDialog: SettingsDialog,
+	history: History,
 	// Copied or cut nodes: one subtree, parents relative to the list (see node_edit.odin)
 	clipboard: [dynamic]NodeDef,
 	// A press on a scene tree row, which becomes a drag once the mouse moves
@@ -182,6 +185,10 @@ init :: proc() -> State {
 		},
 	}
 	args := parseArgs()
+	settings, problems := Settings_Load(args.settings)
+	state.settings = settings
+	state.settingsPath = args.settings
+	for problem in problems do logLine(&state, .Warning, fmt.aprintf("Settings: %s", problem))
 	root := args.project
 	project, message := Project_Load(root)
 	if message == "" {
@@ -218,6 +225,9 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.browserSearch)
 	delete(state.addNode.search)
 	Subtree_Destroy(&state.clipboard)
+	History_Destroy(&state.history)
+	delete(state.settingsPath)
+	delete(state.settingsDialog.search)
 	delete(state.play.partial)
 }
 
@@ -233,24 +243,33 @@ logLine :: proc(state: ^State, level: LogLevel, text: string, echo := true) {
 	}
 }
 
-// Command line: odin_sdl_editor [project folder] [--script <file>]
+// Command line: odin_sdl_editor [project folder] [--script <file>] [--settings <file.ini>]
 @(private="file")
 Args :: struct {
 	project: string,
 	script: string,
+	// The settings file: editor.ini next to the executable by default. Test scripts get "" (the
+	// defaults, never saved) unless --settings names one, so they don't use or change yours
+	settings: string,
 }
 
 @(private="file")
 parseArgs :: proc() -> Args {
 	args := Args{project = DEMO_PROJECT}
+	settingsGiven := false
 	for i := 1; i < len(os.args); i += 1 {
 		if os.args[i] == "--script" && i + 1 < len(os.args) {
 			args.script = os.args[i + 1]
+			i += 1
+		} else if os.args[i] == "--settings" && i + 1 < len(os.args) {
+			args.settings = strings.clone(os.args[i + 1])
+			settingsGiven = true
 			i += 1
 		} else {
 			args.project = os.args[i]
 		}
 	}
+	if !settingsGiven && args.script == "" do args.settings = Settings_DefaultPath()
 	return args
 }
 
@@ -266,10 +285,15 @@ main :: proc() {
 		if !ScriptDriver_Load(script) do os.exit(1)
 	}
 
+	// The theme comes from the settings; init loads them again for the state (and reports problems)
+	args := parseArgs()
+	settings, _ := Settings_Load(args.settings)
+	delete(args.settings)
+
 	skald.run(skald.App(State, Msg){
 		title  = "Odin SDL Editor",
 		size   = {1440, 900},
-		theme  = skald.theme_dark(),
+		theme  = Settings_Theme(&settings),
 		init   = init,
 		update = update,
 		view   = view,

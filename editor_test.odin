@@ -1,9 +1,11 @@
 package editor
 
+import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:testing"
+import "core:time"
 import e "engine:."
 import "gui:skald"
 import sdl "vendor:sdl3"
@@ -21,6 +23,7 @@ testState :: proc() -> State {
 		selectedNode = -1,
 		browserOpen = {.Scenes = true, .Images = true, .Audio = false, .Fonts = false},
 		layout = {bottomOpen = true},
+		settings = Settings_Default(),
 	}
 	state.selectedNode = nodeIndex(&state.project.scenes[1], "Spaceship")
 	return state
@@ -469,20 +472,24 @@ nudge_moves_in_world_units_inside_rotated_parents :: proc(t: ^testing.T) {
 
 @(test)
 keymap_rules :: proc(t: ^testing.T) {
-	// No two bindings share a chord
-	for a, i in DEFAULT_KEYMAP {
-		for b in DEFAULT_KEYMAP[i + 1:] {
-			testing.expectf(t, a.chord != b.chord, "%v and %v share a shortcut", a.action, b.action)
+	settings := Settings_Default()
+	keymap := &settings.keymap
+	// No two default bindings share a chord
+	for chords, action in keymap {
+		for chord in chords {
+			other, used := Keymap_FindChord(keymap, chord, action)
+			testing.expectf(t, !used, "%v and %v share %s", action, other, skald.shortcut_format(chord))
 		}
 	}
 	// Plain keys are hidden from menus while typing; modified ones stay
-	testing.expect_value(t, Keymap_Shortcut(.Delete_Node, typing = true), skald.Shortcut{})
-	testing.expect_value(t, Keymap_Shortcut(.Delete_Node), skald.Shortcut{.Delete, {}})
-	testing.expect_value(t, Keymap_Shortcut(.Save_Project, typing = true), skald.Shortcut{.S, {.Ctrl}})
+	testing.expect_value(t, Keymap_Shortcut(keymap, .Delete_Node, typing = true), skald.Shortcut{})
+	testing.expect_value(t, Keymap_Shortcut(keymap, .Delete_Node), skald.Shortcut{.Delete, {}})
+	testing.expect_value(t, Keymap_Shortcut(keymap, .Save_Project, typing = true), skald.Shortcut{.S, {.Ctrl}})
 	// Every tool has a key
 	for action in ([]Action{.Tool_Select, .Tool_Move, .Tool_Rotate, .Tool_Scale}) {
-		testing.expectf(t, Keymap_Shortcut(action) != {}, "%v has no shortcut", action)
+		testing.expectf(t, Keymap_Shortcut(keymap, action) != {}, "%v has no shortcut", action)
 	}
+	free_all(context.temp_allocator)
 }
 
 @(test)
@@ -858,7 +865,269 @@ unique_names_and_text_chords :: proc(t: ^testing.T) {
 	testing.expect_value(t, Scene_UniqueNodeName(scene, "WarningLight2"), "WarningLight3")
 
 	// Ctrl+C belongs to text fields while typing
-	testing.expect(t, Keymap_Shortcut(.Copy_Node, typing = true) == {})
-	testing.expect(t, Keymap_Shortcut(.Copy_Node) == skald.Shortcut{.C, {.Ctrl}})
+	testing.expect(t, Keymap_Shortcut(&state.settings.keymap, .Copy_Node, typing = true) == {})
+	testing.expect(t, Keymap_Shortcut(&state.settings.keymap, .Copy_Node) == skald.Shortcut{.C, {.Ctrl}})
+	free_all(context.temp_allocator)
+}
+
+@(test)
+default_settings_come_from_the_ini :: proc(t: ^testing.T) {
+	settings := Settings_Default()
+	testing.expect_value(t, settings.theme, ThemeChoice.Dark)
+	testing.expect_value(t, settings.fontSize, 13)
+	testing.expect_value(t, settings.spacing, 75)
+	testing.expect_value(t, settings.rowHeight, 26)
+	testing.expect_value(t, settings.undoMergeMs, 500)
+	testing.expect_value(t, settings.undoGroupMaxMs, 3000)
+	testing.expect_value(t, settings.undoLimit, 200)
+	testing.expect_value(t, settings.keymap[.Redo], [KEYMAP_SLOTS]skald.Shortcut{{.Z, {.Ctrl, .Shift}}, {.Y, {.Ctrl}}})
+	testing.expect_value(t, settings.keymap[.Zoom_In][0], skald.Shortcut{.Equals, {.Ctrl}})
+	testing.expect_value(t, settings.keymap[.Open_Settings][0], skald.Shortcut{.Comma, {.Ctrl}})
+	// The default file has no problems, and lists every action
+	parsed: Settings
+	testing.expect_value(t, len(Settings_Parse(&parsed, SETTINGS_DEFAULT_INI)), 0)
+	for action in Action {
+		testing.expectf(t, strings.contains(SETTINGS_DEFAULT_INI, fmt.tprintf("\n%v =", action)), "settings.default.ini has no [keymap] entry for %v", action)
+	}
+	free_all(context.temp_allocator)
+}
+
+@(test)
+settings_round_trip_and_overlay :: proc(t: ^testing.T) {
+	settings := Settings_Default()
+	settings.theme = .Light
+	settings.fontSize = 15
+	settings.undoLimit = 50
+	settings.keymap[.Save_Project] = {{.S, {.Ctrl, .Alt}}, {}}
+	settings.keymap[.Delete_Node] = {}
+
+	parsed := Settings_Default()
+	problems := Settings_Parse(&parsed, Settings_ToINI(&settings))
+	testing.expect_value(t, len(problems), 0)
+	testing.expect_value(t, parsed, settings)
+
+	// A partial file only changes what it names; bad lines are reported and skipped
+	partial := Settings_Default()
+	problems = Settings_Parse(&partial, "[appearance]\nfont_size = 99\nspacing = lots\n[keymap]\nPlay = Ctrl+P\nNot_An_Action = F1\nStop = Hyper+K\n[nope]\nx = 1\n")
+	testing.expect_value(t, partial.fontSize, SETTINGS_FONT_SIZE_RANGE[1])
+	testing.expect_value(t, partial.spacing, 75)
+	testing.expect_value(t, partial.keymap[.Play][0], skald.Shortcut{.P, {.Ctrl}})
+	testing.expect_value(t, partial.keymap[.Stop], Settings_Default().keymap[.Stop])
+	testing.expect_value(t, len(problems), 4)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+shortcut_text_round_trips :: proc(t: ^testing.T) {
+	for key in skald.Key {
+		for mods in ([]skald.Modifiers{{}, {.Ctrl}, {.Ctrl, .Shift}, {.Alt, .Super}}) {
+			chord := skald.Shortcut{key, mods}
+			if chord == {} do continue
+			parsed, ok := Shortcut_Parse(skald.shortcut_format(chord))
+			testing.expectf(t, ok && parsed == chord, "%v didn't round trip (%s)", chord, skald.shortcut_format(chord))
+		}
+	}
+	_, ok := Shortcut_Parse("Backspace")
+	testing.expect(t, !ok)
+	parsed, _ := Shortcut_Parse("ctrl+delete")
+	testing.expect_value(t, parsed, skald.Shortcut{.Delete, {.Ctrl}})
+	free_all(context.temp_allocator)
+}
+
+@(test)
+settings_theme_scales_text_and_spacing :: proc(t: ^testing.T) {
+	settings := Settings_Default()
+	theme := Settings_Theme(&settings)
+	testing.expect_value(t, theme.font.size_md, 13)
+	testing.expect_value(t, theme.font.size_sm, 12)
+	testing.expect_value(t, theme.spacing.sm, 6)
+	testing.expect_value(t, theme.spacing.lg, 12)
+	settings.fontSize, settings.spacing, settings.theme = 14, 100, .Light
+	theme = Settings_Theme(&settings)
+	testing.expect_value(t, theme.font, skald.theme_light().font)
+	testing.expect_value(t, theme.spacing, skald.theme_light().spacing)
+	testing.expect_value(t, theme.color, skald.theme_light().color)
+}
+
+@(test)
+settings_dialog_edits_a_draft :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	os.make_directory("build")
+	state.settingsPath = strings.clone("build/test_settings.ini")
+
+	send(&state, Action.Open_Settings)
+	testing.expect(t, state.settingsDialog.open)
+	send(&state, Settings_Value_Changed{.Font_Size, 16})
+	send(&state, Settings_Capture_Started{.Play, 1})
+	send(&state, Settings_Key_Captured(skald.Shortcut{.R, {.Ctrl}}))
+	testing.expect_value(t, state.settingsDialog.draft.keymap[.Play][1], skald.Shortcut{.R, {.Ctrl}})
+	testing.expect(t, !state.settingsDialog.capture.active)
+	// Not applied yet
+	testing.expect_value(t, state.settings.fontSize, 13)
+
+	// Cancel drops the draft
+	send(&state, Settings_Cancelled{})
+	testing.expect(t, !state.settingsDialog.open)
+	testing.expect_value(t, state.settings.keymap[.Play][1], skald.Shortcut{})
+
+	// Save applies and writes it
+	send(&state, Action.Open_Settings)
+	send(&state, Settings_Value_Changed{.Font_Size, 16})
+	send(&state, Settings_Value_Changed{.Undo_Limit, -5})
+	send(&state, Settings_Key_Cleared{.Delete_Node, 0})
+	send(&state, Settings_Applied{close = true})
+	testing.expect(t, !state.settingsDialog.open)
+	testing.expect_value(t, state.settings.fontSize, 16)
+	testing.expect_value(t, state.settings.undoLimit, 1)
+	testing.expect_value(t, state.settings.keymap[.Delete_Node][0], skald.Shortcut{})
+	loaded, problems := Settings_Load(state.settingsPath)
+	testing.expect_value(t, len(problems), 0)
+	testing.expect_value(t, loaded, state.settings)
+
+	// Reset the open tab
+	send(&state, Action.Open_Settings)
+	send(&state, Settings_Tab_Changed(int(SettingsTab.Keyboard)))
+	send(&state, Settings_Tab_Reset{})
+	testing.expect_value(t, state.settingsDialog.draft.keymap, Settings_Default().keymap)
+	testing.expect_value(t, state.settingsDialog.draft.fontSize, 16)
+	os.remove(state.settingsPath)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+undo_and_redo_edits :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := state.selectedNode
+	before := len(scene.nodes)
+	original := scene.nodes[ship].position
+
+	// A property edit, then a structural one
+	send(&state, Node_Field_Changed{.Position_X, 100})
+	send(&state, Action.Duplicate_Node)
+	testing.expect_value(t, len(state.history.undo), 2)
+	testing.expect_value(t, History_NextLabel(&state.history, false), "Duplicate Spaceship")
+
+	send(&state, Action.Undo)
+	testing.expect_value(t, len(scene.nodes), before)
+	testing.expect_value(t, state.selectedNode, ship)
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[ship].position, original)
+	testing.expect_value(t, len(state.history.redo), 2)
+	// Nothing left: no change
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[ship].position, original)
+
+	send(&state, Action.Redo)
+	testing.expect_value(t, scene.nodes[ship].position.x, 100)
+	send(&state, Action.Redo)
+	testing.expect_value(t, len(scene.nodes), before + 2)
+	testing.expect_value(t, scene.nodes[state.selectedNode].name, "Spaceship2")
+
+	// A new edit clears the redo stack
+	send(&state, Action.Undo)
+	send(&state, Node_Renamed("Ship"))
+	testing.expect_value(t, len(state.history.redo), 0)
+
+	// Selecting and expanding aren't edits
+	count := len(state.history.undo)
+	send(&state, Node_Picked(0))
+	send(&state, Node_Toggled(0))
+	testing.expect_value(t, len(state.history.undo), count)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+undo_merges_edits_to_the_same_thing :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := state.selectedNode
+
+	// Typing a name quickly is one step
+	send(&state, Node_Renamed("S"))
+	send(&state, Node_Renamed("Sh"))
+	send(&state, Node_Renamed("Shi"))
+	testing.expect_value(t, len(state.history.undo), 1)
+	// A different field starts a new step
+	send(&state, Node_Field_Changed{.Rotation, 10})
+	send(&state, Node_Field_Changed{.Rotation, 20})
+	testing.expect_value(t, len(state.history.undo), 2)
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[ship].rotation, 0)
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[ship].name, "Spaceship")
+
+	// No merging when the window is 0
+	History_Destroy(&state.history)
+	state.settings.undoMergeMs = 0
+	send(&state, Node_Renamed("A"))
+	send(&state, Node_Renamed("AB"))
+	testing.expect_value(t, len(state.history.undo), 2)
+
+	// The limit drops the oldest steps
+	state.settings.undoLimit = 3
+	for i in 0..<5 do send(&state, Node_Field_Changed{.Layer, f64(i + 1)})
+	testing.expect_value(t, len(state.history.undo), 3)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+undo_merge_timing :: proc(t: ^testing.T) {
+	// History_Push with made-up times: debounce at 500 ms, throttle at 3000 ms
+	settings := Settings_Default()
+	h: History
+	defer History_Destroy(&h)
+	node := NodeDef_Make("N", .Node2D, -1)
+	defer NodeDef_Destroy(&node)
+	push :: proc(h: ^History, settings: ^Settings, node: NodeDef, ms: i64, sticky := false) {
+		command := UndoCommand{
+			label = strings.clone("Edit"), mergeKey = 7, sticky = sticky,
+			change = NodeChange{0, NodeDef_Clone(node), NodeDef_Clone(node)},
+		}
+		now := time.Tick{ms * i64(time.Millisecond)}
+		command.started, command.last = now, now
+		History_Push(h, command, settings, now)
+	}
+	push(&h, &settings, node, 0)
+	push(&h, &settings, node, 400)
+	push(&h, &settings, node, 800)
+	testing.expect_value(t, len(h.undo), 1)
+	// A pause longer than the merge window
+	push(&h, &settings, node, 1400)
+	testing.expect_value(t, len(h.undo), 2)
+	// Steady edits every 400 ms: cut after 3000 ms
+	for ms := i64(1800); ms <= 4600; ms += 400 do push(&h, &settings, node, ms)
+	testing.expect_value(t, len(h.undo), 3)
+	// Sticky (a drag) merges however long it takes
+	push(&h, &settings, node, 20000, sticky = true)
+	push(&h, &settings, node, 60000, sticky = true)
+	testing.expect_value(t, len(h.undo), 4)
+}
+
+@(test)
+viewport_drag_is_one_undo_step :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := state.selectedNode
+	start := scene.nodes[ship].position
+
+	send(&state, Viewport_Drag_Begin{mode = .Move, node = ship, mouse = {100, 100}})
+	send(&state, Viewport_Drag_Move{mouse = {120, 100}})
+	send(&state, Viewport_Drag_Move{mouse = {160, 130}})
+	send(&state, Viewport_Drag_End{})
+	testing.expect_value(t, len(state.history.undo), 1)
+	testing.expect(t, scene.nodes[ship].position != start)
+	// A second drag is its own step
+	send(&state, Viewport_Drag_Begin{mode = .Move, node = ship, mouse = {100, 100}})
+	send(&state, Viewport_Drag_Move{mouse = {90, 100}})
+	send(&state, Viewport_Drag_End{})
+	testing.expect_value(t, len(state.history.undo), 2)
+	send(&state, Action.Undo)
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[ship].position, start)
 	free_all(context.temp_allocator)
 }

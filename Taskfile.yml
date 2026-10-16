@@ -11,6 +11,8 @@ vars:
   # Override with: task run ENGINE_DIR=/path/to/odin_sdl_engine
   ENGINE_DIR: '{{.ENGINE_DIR | default "../odin_sdl_engine"}}'
   DEMO_PROJECT: examples/demo_project
+  # UI tests run on a copy of this fixed project, not the demo (which `task run` opens and you edit)
+  UI_PROJECT: tests/fixtures/ui_project
   # Skald is imported as "gui:skald", the engine as "engine:."
   COLLECTIONS: -collection:gui=Skald -collection:engine={{.ENGINE_DIR}} -define:ENGINE_DIR={{.ENGINE_DIR}}
   # Vet only the editor's own package: Skald itself doesn't pass -vet
@@ -59,12 +61,13 @@ tasks:
       - task: test
 
   test:ui:
-    desc: Run the UI test scripts in tests/ui (opens the editor window; uses a copy of the demo project)
+    desc: Run the UI test scripts in tests/ui (opens the editor window; uses a copy of tests/fixtures/ui_project)
     deps: [build]
     cmds:
-      - rm -rf {{.BUILD_DIR}}/ui_project && cp -r {{.DEMO_PROJECT}} {{.BUILD_DIR}}/ui_project
+      - rm -rf {{.BUILD_DIR}}/ui_project && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project
+      # Each script starts from the default settings, in a scratch file (never your editor.ini)
       - for: { var: UI_SCRIPTS }
-        cmd: '{{.BUILD_DIR}}/{{.NAME}} {{.BUILD_DIR}}/ui_project --script {{.ITEM}}'
+        cmd: 'rm -f {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}} {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
     vars:
       UI_SCRIPTS:
         sh: ls tests/ui/*.script

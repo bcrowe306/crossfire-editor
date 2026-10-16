@@ -86,7 +86,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.flex(1, skald.spacer(0)),
 		panelButton(ctx, "viewport-animate", s.viewport.animate ? ICON_PAUSE : ICON_PLAY,
 			s.viewport.animate ? "Pause viewport animations (P)" : "Play viewport animations (P)", Action.Toggle_Animation),
-		panelButton(ctx, "viewport-fit", ICON_SCALE, "Fit game area (Ctrl+0)", Action.View_Fit),
+		panelButton(ctx, "viewport-fit", ICON_SCALE, actionTip(s, "Fit game area", .View_Fit), Action.View_Fit),
 		skald.button(ctx, fmt.tprintf("%.0f%%", s.viewport.zoom * 100), Msg(Action.Zoom_100),
 			id = skald.hash_id("viewport-zoom"), bg = th.color.surface, fg = th.color.fg_muted,
 			font_size = th.font.size_sm, width = 64, padding = {0, 3}),

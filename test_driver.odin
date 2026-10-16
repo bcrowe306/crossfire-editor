@@ -69,6 +69,15 @@ Checks:
 	menu <key> <open | closed>   A context menu, e.g. scene-tree-menu
 	row <n> <name>               Node shown in row n of the scene tree
 	clipboard <count>            Nodes copied (a subtree)
+	settings_dialog <open | closed>
+	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit> <value>
+	                             An active (applied) setting
+	chord <Action> <text>        An action's shortcuts as the settings file writes them, e.g.
+	                             chord Redo Ctrl+Shift+Z | Ctrl+Y ("-" for none)
+	capture <on | off>           The Settings dialog is waiting for a key to bind
+	settings_file_contains <text>   The saved settings file contains the text
+	undo <count>                 Steps on the undo stack
+	redo <count>                 Steps on the redo stack
 	console_contains <text>      A console line contains the text
 	output_contains <text>       An Output line contains the text
 
@@ -244,7 +253,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// Rows are laid out from the tree's real top edge, which may be scrolled out of view
 		top := ctx.widgets.states[skald.hash_id(args[0])].last_rect.y
 		row := atoi(args, 1, 0)
-		y := top + (f32(row) + 0.5) * TREE_ROW_HEIGHT
+		y := top + (f32(row) + 0.5) * s.settings.rowHeight
 		if !rowVisible(ctx, args[0], y) {
 			fail(fmt.tprintf("%s: row %d is scrolled out of view", line, row))
 			return true
@@ -265,7 +274,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		}
 		top := ctx.widgets.states[skald.hash_id(args[0])].last_rect.y
 		x := rect.x + rect.w * 0.5
-		from := [2]f32{x, top + (f32(atoi(args, 1, 0)) + 0.5) * TREE_ROW_HEIGHT}
+		from := [2]f32{x, top + (f32(atoi(args, 1, 0)) + 0.5) * s.settings.rowHeight}
 		if !rowVisible(ctx, args[0], from.y) {
 			fail(fmt.tprintf("%s: row %s is scrolled out of view", line, args[1]))
 			return true
@@ -287,7 +296,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			fail(fmt.tprintf("%s: expected before, inside or after", line))
 			return true
 		}
-		to := [2]f32{x, top + (f32(atoi(args, 2, 0)) + fraction) * TREE_ROW_HEIGHT}
+		to := [2]f32{x, top + (f32(atoi(args, 2, 0)) + fraction) * s.settings.rowHeight}
 		if !rowVisible(ctx, args[0], to.y) {
 			fail(fmt.tprintf("%s: row %s is scrolled out of view", line, args[2]))
 			return true
@@ -466,6 +475,37 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return found == strings.trim_space(expected), found
 	case "clipboard":
 		found = fmt.tprint(len(s.clipboard))
+	case "settings_dialog":
+		found = s.settingsDialog.open ? "open" : "closed"
+	case "setting":
+		setting, _, expected := strings.partition(value, " ")
+		switch setting {
+		case "font_size":     found = fmt.tprint(s.settings.fontSize)
+		case "spacing":       found = fmt.tprint(s.settings.spacing)
+		case "row_height":    found = fmt.tprint(s.settings.rowHeight)
+		case "theme":         found = fmt.tprint(s.settings.theme)
+		case "undo_merge_ms": found = fmt.tprint(s.settings.undoMergeMs)
+		case "undo_limit":    found = fmt.tprint(s.settings.undoLimit)
+		case: return false, fmt.tprintf("unknown setting '%s'", setting)
+		}
+		return found == strings.trim_space(expected), found
+	case "chord":
+		action_name, _, expected := strings.partition(value, " ")
+		action, known := reflect.enum_from_name(Action, action_name)
+		if !known do return false, fmt.tprintf("unknown action '%s'", action_name)
+		found = Keymap_FormatChords(s.settings.keymap[action])
+		if found == "" do found = "-"
+		return found == strings.trim_space(expected), found
+	case "capture":
+		found = s.settingsDialog.capture.active ? "on" : "off"
+	case "settings_file_contains":
+		data, err := os.read_entire_file(s.settingsPath, context.temp_allocator)
+		if err != nil do return false, fmt.tprintf("can't read '%s'", s.settingsPath)
+		return strings.contains(string(data), value), "not found"
+	case "undo":
+		found = fmt.tprint(len(s.history.undo))
+	case "redo":
+		found = fmt.tprint(len(s.history.redo))
 	case "field":
 		field, _, expected := strings.partition(value, " ")
 		if selected == nil do return false, "nothing selected"

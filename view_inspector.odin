@@ -58,7 +58,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			on_toggle = proc(row: int) -> Msg { return Node_Toggled(row) },
 			on_select = proc(row: int) -> Msg { return Node_Selected(row) },
 			id = skald.hash_id("scene-tree"),
-			row_height = TREE_ROW_HEIGHT,
+			row_height = s.settings.rowHeight,
 		),
 		id = skald.hash_id("scene-tree-scroll"),
 	)
@@ -66,7 +66,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	labels := make([]string, len(SCENE_TREE_MENU), context.temp_allocator)
 	for action, i in SCENE_TREE_MENU {
 		label := action == .Add_Node ? "Add Node..." : ACTION_LABELS[action]
-		shortcut := skald.shortcut_format(Keymap_Shortcut(action))
+		shortcut := skald.shortcut_format(Keymap_Shortcut(&s.settings.keymap, action))
 		labels[i] = shortcut == "" ? label : fmt.tprintf("%s   (%s)", label, shortcut)
 	}
 	menu := skald.context_menu(ctx, tree, labels,
@@ -77,8 +77,8 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	return skald.col(
 		panelHeader(ctx, ICON_SITEMAP, scene.name,
-			panelButton(ctx, "add-node", ICON_PLUS, "Add node (Ctrl+Shift+A)", Action.Add_Node),
-			panelButton(ctx, "delete-node", ICON_TRASH, "Delete node (Delete)", Action.Delete_Node, disabled = s.selectedNode < 0),
+			panelButton(ctx, "add-node", ICON_PLUS, actionTip(s, "Add node", .Add_Node), Action.Add_Node),
+			panelButton(ctx, "delete-node", ICON_TRASH, actionTip(s, "Delete node", .Delete_Node), Action.Delete_Node, disabled = s.selectedNode < 0),
 		),
 		skald.divider(ctx),
 		skald.flex(1, menu),
@@ -114,7 +114,8 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 	tree := treeState.last_rect
 	mouse := ctx.input.mouse_pos
 	overArea := pointIn(area, mouse) && !skald.mouse_over_overlay(ctx) && ctx.widgets.modal_rect_prev.w == 0
-	row := int(math.floor((mouse.y - tree.y) / TREE_ROW_HEIGHT))
+	rowHeight := s.settings.rowHeight
+	row := int(math.floor((mouse.y - tree.y) / rowHeight))
 	onRow := row >= 0 && row < len(visible)
 
 	if ctx.input.mouse_pressed[.Right] && overArea {
@@ -127,7 +128,7 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 	if !s.treeDrag.pressed do return none
 
 	scene := &s.project.scenes[s.currentScene]
-	target, position, valid := sceneTreeDropTarget(scene, visible, s.treeDrag.node, tree, mouse)
+	target, position, valid := sceneTreeDropTarget(scene, visible, s.treeDrag.node, tree, mouse, rowHeight)
 	valid = valid && overArea
 	if !ctx.input.mouse_buttons[.Left] {
 		if s.treeDrag.active && valid {
@@ -152,16 +153,16 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 	rect: skald.Rect
 	switch {
 	case target < 0:
-		rect = {tree.x, tree.y + f32(len(visible)) * TREE_ROW_HEIGHT - 1, tree.w, 2}
+		rect = {tree.x, tree.y + f32(len(visible)) * rowHeight - 1, tree.w, 2}
 	case position == .Inside:
 		at := rowOf(visible, target)
-		rect = {tree.x, tree.y + f32(at) * TREE_ROW_HEIGHT, tree.w, TREE_ROW_HEIGHT}
+		rect = {tree.x, tree.y + f32(at) * rowHeight, tree.w, rowHeight}
 		marker.box = true
 	case:
 		at := rowOf(visible, target)
 		if position == .After do at += 1 + visibleDescendants(scene, visible, at)
 		indent := th.spacing.sm + f32(Scene_NodeDepth(scene, target)) * th.spacing.lg
-		rect = {tree.x + indent, tree.y + f32(at) * TREE_ROW_HEIGHT - 1, tree.w - indent, 2}
+		rect = {tree.x + indent, tree.y + f32(at) * rowHeight - 1, tree.w - indent, 2}
 	}
 	// The tree may be scrolled: don't draw outside its visible area
 	if rect.y + rect.h < area.y || rect.y > area.y + area.h do return none
@@ -192,8 +193,8 @@ Returns:
 - valid: Whether the node can go there (not into its own subtree)
 */
 @(private="file")
-sceneTreeDropTarget :: proc(scene: ^SceneDef, visible: []int, dragged: int, tree: skald.Rect, mouse: [2]f32) -> (target: int, position: DropPosition, valid: bool) {
-	rel := (mouse.y - tree.y) / TREE_ROW_HEIGHT
+sceneTreeDropTarget :: proc(scene: ^SceneDef, visible: []int, dragged: int, tree: skald.Rect, mouse: [2]f32, rowHeight: f32) -> (target: int, position: DropPosition, valid: bool) {
+	rel := (mouse.y - tree.y) / rowHeight
 	if rel >= f32(len(visible)) {
 		return -1, .Inside, Scene_CanMoveNode(scene, dragged, -1, .Inside)
 	}
