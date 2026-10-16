@@ -15,6 +15,10 @@ vars:
   UI_PROJECT: tests/fixtures/ui_project
   # Skald is imported as "gui:skald", the engine as "engine:."
   COLLECTIONS: -collection:gui=Skald -collection:engine={{.ENGINE_DIR}} -define:ENGINE_DIR={{.ENGINE_DIR}}
+  # Emscripten, for web exports: the third_party/emsdk submodule is pinned to this release tag,
+  # and `task emsdk` installs that version (keep them in step when updating)
+  EMSDK_DIR: third_party/emsdk
+  EMSDK_VERSION: 6.0.12
   # Vet only the editor's own package: Skald itself doesn't pass -vet
   VET: -vet-unused -vet-packages:editor
 
@@ -32,9 +36,17 @@ tasks:
       - task: stb
 
   submodules:
-    desc: Fetch or update git submodules (Skald)
+    desc: Fetch or update git submodules (Skald, emsdk)
     cmds:
       - git submodule update --init --recursive
+
+  emsdk:
+    desc: Install the Emscripten toolchain for web exports (about 1 GB into third_party/emsdk; once per machine)
+    status:
+      - test -x {{.EMSDK_DIR}}/upstream/emscripten/emcc
+    cmds:
+      - git submodule update --init {{.EMSDK_DIR}}
+      - cd {{.EMSDK_DIR}} && ./emsdk install {{.EMSDK_VERSION}} && ./emsdk activate {{.EMSDK_VERSION}}
 
   stb:
     desc: Build Odin's STB libraries (once per Odin install; Linux and macOS)

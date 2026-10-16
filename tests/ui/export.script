@@ -1,0 +1,46 @@
+# Exporting: the Export tab of Project Settings, a target that isn't implemented, and real
+# Linux x86_64 and Web exports of the fixture (unoptimized, to keep the builds short).
+# Run with: task test:ui (the Web export needs Emscripten: task emsdk)
+
+wait 5
+action Open_Project_Settings
+wait_until project_settings open
+click_widget project-settings-tab-Export
+
+# Check Linux and Web, without optimizing
+click_widget export-enable-Linux_x64
+click_widget export-target-Linux_x64
+click_widget export-field-Optimize
+click_widget export-enable-Web
+click_widget export-target-Web
+click_widget export-field-Optimize
+
+# A target that isn't implemented says so
+click_widget export-target-Windows_x64
+click_widget export-run
+wait_until console_contains Windows x86_64 export isn't implemented yet
+expect export idle
+
+# Exporting from the dialog applied it (one undo step)
+expect export_enabled Linux_x64 true
+expect export_enabled Web true
+click_widget project-settings-cancel
+wait_until project_settings closed
+
+# File > Export: every checked target
+action Export
+wait_until export running
+wait_until export idle timeout=600
+expect console_contains Exported Linux x86_64
+expect console_contains Exported Web
+expect output_contains Export finished: 2 succeeded, 0 failed
+expect project_file export/linux_x64/Asteroids_Demo
+expect project_file export/linux_x64/data/project.xml
+expect project_file export/linux_x64/data/scenes/PlayScene.scene.xml
+expect project_file export/linux_x64/data/assets/ship.png
+expect project_file export/linux_x64/lib/libSDL3.so.0
+expect project_file export/web/index.html
+expect project_file export/web/index.wasm
+expect project_file export/web/index.data
+expect project_file export.ini
+expect modified false

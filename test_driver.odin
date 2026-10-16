@@ -108,6 +108,9 @@ Checks:
 	redo <count>                 Steps on the redo stack
 	console_contains <text>      A console line contains the text
 	output_contains <text>       An Output line contains the text
+	export <idle | running>      Whether exports are running
+	export_enabled <Target> <true | false>   An export target is checked (the project's settings)
+	project_file <path>          A file exists, relative to the project folder (an export's output)
 
 Every input command waits INPUT_SETTLE_FRAMES afterwards, so its effects are visible to the
 next check.
@@ -744,6 +747,17 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case:            return false, fmt.tprintf("unknown field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
+	case "export":
+		found = Export_Busy(s) ? "running" : "idle"
+	case "export_enabled":
+		target_name, _, expected := strings.partition(value, " ")
+		target, known := reflect.enum_from_name(ExportTarget, target_name)
+		if !known do return false, fmt.tprintf("unknown export target '%s'", target_name)
+		found = fmt.tprint(s.project.exports.targets[target].enabled)
+		return found == strings.trim_space(expected), found
+	case "project_file":
+		path := joinPath(s.project.rootPath, value, allocator = context.temp_allocator)
+		return os.exists(path), fmt.tprintf("%s doesn't exist", path)
 	case "console_contains", "output_contains":
 		lines := name == "console_contains" ? s.console[:] : s.output[:]
 		for line in lines do if strings.contains(line.text, value) do return true, "found"

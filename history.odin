@@ -78,6 +78,7 @@ ProjectSnapshot :: struct {
 	scaleMode: e.ScaleMode,
 	background: sdl.Color,
 	scenes: [dynamic]SceneDef,
+	exports: ExportSettings,
 	// The scene open at the time, shown again on undo/redo
 	currentScene: int,
 }
@@ -153,6 +154,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if SceneOp_EditsProject(v.op) do return {scope = .Project, label = sceneOpLabel(s, v)}
 		return {}
 	case Project_Settings_Applied:
+		return {scope = .Project, label = "Change project settings"}
+	case Export_Target_Run:
+		// Exporting applies the dialog first
 		return {scope = .Project, label = "Change project settings"}
 	case Rename_Committed:
 		if s.rename.active && s.rename.target == .Scene {
@@ -568,6 +572,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
 		background = p.background,
+		exports = p.exports,
 		currentScene = s.currentScene,
 	}
 	for scene in p.scenes do append(&snapshot.scenes, SceneDef_Clone(scene))
@@ -584,6 +589,7 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.name = strings.clone(snapshot.name)
 	p.startScene = strings.clone(snapshot.startScene)
 	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
+	p.exports = snapshot.exports
 	for scene in snapshot.scenes do append(&p.scenes, SceneDef_Clone(scene))
 }
 
@@ -599,7 +605,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 @(private="file")
 projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if a.name != b.name || a.startScene != b.startScene || a.gameSize != b.gameSize || a.scaleMode != b.scaleMode ||
-	   a.background != b.background || len(a.scenes) != len(b.scenes) {
+	   a.background != b.background || a.exports != b.exports || len(a.scenes) != len(b.scenes) {
 		return false
 	}
 	for scene, i in a.scenes {

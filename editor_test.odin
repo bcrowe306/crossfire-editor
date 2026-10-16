@@ -286,7 +286,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	original.scenes[1].nodes[2].rotation = 45
 
 	testing.expect_value(t, Project_Save(&original), "")
-	loaded, message := Project_Load(dir)
+	loaded, message, _ := Project_Load(dir)
 	defer Project_Destroy(&loaded)
 	testing.expect_value(t, message, "")
 
@@ -1819,7 +1819,7 @@ save_removes_files_of_renamed_and_deleted_scenes :: proc(t: ^testing.T) {
 	testing.expect(t, os.exists("build/test_scene_files/scenes/Settings.scene.xml"))
 	testing.expect(t, os.exists("build/test_scene_files/scenes/notes.txt"))
 	// The saved project loads back with the new list
-	loaded, message := Project_Load(dir)
+	loaded, message, _ := Project_Load(dir)
 	defer Project_Destroy(&loaded)
 	testing.expect_value(t, message, "")
 	testing.expect_value(t, len(loaded.scenes), 2)
@@ -1849,5 +1849,253 @@ project_settings_dialog :: proc(t: ^testing.T) {
 	send(&state, Action.Undo)
 	testing.expect_value(t, state.project.name, "Asteroids Demo")
 	testing.expect_value(t, state.project.startScene, "MenuScene")
+	free_all(context.temp_allocator)
+}
+
+// An export input for a project at /games/Space, with made-up tool paths
+@(private="file")
+exportTestInput :: proc(target: ExportTarget) -> ExportInput {
+	files := make([]string, 3, context.temp_allocator)
+	files[0], files[1], files[2] = "project.xml", "scenes/Main.scene.xml", "assets/ship.png"
+	return {
+		target = target,
+		settings = ExportSettings_Default().targets[target],
+		projectDir = "/games/Space",
+		projectName = "Space Game",
+		files = files,
+		engineDir = "/src/engine",
+		emsdkDir = "/src/emsdk",
+		workDir = "/src/editor/build/exports/Space-1",
+	}
+}
+
+@(private="file")
+hasArg :: proc(command: []string, arg: string) -> bool {
+	for a in command do if a == arg do return true
+	return false
+}
+
+@(test)
+export_settings_ini :: proc(t: ^testing.T) {
+	settings := ExportSettings_Default()
+	// Untouched settings write nothing
+	testing.expect_value(t, ExportSettings_ToINI(&settings, context.temp_allocator), "")
+
+	settings.targets[.Linux_x64].enabled = true
+	settings.targets[.Linux_x64].name = FixedText_Make("space")
+	settings.targets[.Linux_x64].archive = true
+	settings.targets[.Web].enabled = true
+	settings.targets[.Web].optimize = false
+	settings.targets[.Web].name = FixedText_Make("Space <Game> & Co")
+	settings.targets[.Steam].identifier = FixedText_Make("480")
+	text := ExportSettings_ToINI(&settings, context.temp_allocator)
+	testing.expect(t, strings.contains(text, "[Linux_x64]\nenabled = true\n"))
+	testing.expect(t, strings.contains(text, "executable_name = space\n"))
+	testing.expect(t, strings.contains(text, "page_title = Space <Game> & Co\n"))
+	testing.expect(t, !strings.contains(text, "[Windows_x64]"))
+
+	loaded := ExportSettings_Default()
+	problems := ExportSettings_Parse(&loaded, text)
+	testing.expect_value(t, len(problems), 0)
+	testing.expect(t, loaded == settings)
+	// The same text again: deterministic
+	testing.expect_value(t, ExportSettings_ToINI(&loaded, context.temp_allocator), text)
+
+	// Bad lines are reported and skipped
+	bad := ExportSettings_Default()
+	problems = ExportSettings_Parse(&bad, "[Amiga]\nenabled = true\n[Web]\nexecutable_name = x\nenabled = maybe\npage_title = Ok\n")
+	testing.expect_value(t, len(problems), 3)
+	testing.expect_value(t, FixedText_String(&bad.targets[.Web].name), "Ok")
+	testing.expect(t, !bad.targets[.Web].enabled)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+export_plan_linux :: proc(t: ^testing.T) {
+	when ODIN_OS == .Linux && ODIN_ARCH == .amd64 {
+		input := exportTestInput(.Linux_x64)
+		plan, problem := Export_Plan(input, context.temp_allocator)
+		testing.expect_value(t, problem, "")
+		testing.expect_value(t, plan.outputDir, "/games/Space/export/linux_x64")
+		testing.expect_value(t, plan.archive, "")
+		kinds := make([dynamic]ExportStepKind, context.temp_allocator)
+		for step in plan.steps do append(&kinds, step.kind)
+		testing.expect(t, len(kinds) == 5 && kinds[0] == .Make_Folder && kinds[1] == .Command && kinds[2] == .Copy_Files &&
+			kinds[3] == .Command && kinds[4] == .Bundle_Libraries)
+		testing.expect_value(t, plan.steps[0].path, plan.outputDir)
+
+		build := plan.steps[1].command
+		testing.expect_value(t, build[2], "/src/engine/player")
+		testing.expect(t, hasArg(build, "-collection:engine=/src/engine"))
+		testing.expect(t, hasArg(build, "-o:speed"))
+		testing.expect(t, hasArg(build, "-out:/games/Space/export/linux_x64/Space_Game"))
+		testing.expect(t, hasArg(build, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib"))
+		testing.expect_value(t, plan.steps[2].path, "/games/Space/export/linux_x64/data")
+		testing.expect_value(t, len(plan.steps[2].files), 3)
+		testing.expect(t, plan.steps[3].capture && plan.steps[3].command[0] == "ldd")
+		testing.expect_value(t, plan.steps[4].path, "/games/Space/export/linux_x64/lib")
+
+		// Scripts: a generated main that links them; no bundling; an archive; a name of its own
+		input.hasScripts = true
+		input.settings.bundleLibraries = false
+		input.settings.optimize = false
+		input.settings.archive = true
+		input.settings.name = FixedText_Make("space")
+		plan, problem = Export_Plan(input, context.temp_allocator)
+		testing.expect_value(t, problem, "")
+		testing.expect_value(t, plan.steps[1].kind, ExportStepKind.Write_File)
+		testing.expect_value(t, plan.steps[1].path, "/src/editor/build/exports/Space-1/main/main.odin")
+		testing.expect(t, strings.contains(plan.steps[1].content, `import scripts "project:scripts"`))
+		build = plan.steps[2].command
+		testing.expect_value(t, build[2], "/src/editor/build/exports/Space-1/main")
+		testing.expect(t, hasArg(build, "-collection:project=/games/Space"))
+		testing.expect(t, !hasArg(build, "-o:speed"))
+		testing.expect(t, hasArg(build, "-out:/games/Space/export/linux_x64/space"))
+		testing.expect(t, !hasArg(build, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib"))
+		last := plan.steps[len(plan.steps) - 1].command
+		testing.expect_value(t, plan.archive, "/games/Space/export/linux_x64.tar.gz")
+		testing.expect(t, len(last) == 6 && last[0] == "tar" && last[2] == plan.archive && last[4] == "/games/Space/export" && last[5] == "linux_x64")
+	}
+	free_all(context.temp_allocator)
+}
+
+@(test)
+export_plan_web :: proc(t: ^testing.T) {
+	input := exportTestInput(.Web)
+	input.settings.outputFolder = FixedText_Make("/srv/www/space")
+	input.settings.archive = true
+	plan, problem := Export_Plan(input, context.temp_allocator)
+	testing.expect_value(t, problem, "")
+	testing.expect_value(t, plan.outputDir, "/srv/www/space")
+	testing.expect(t, plan.steps[0].kind == .Make_Folder && plan.steps[0].path == "/srv/www/space")
+	testing.expect(t, plan.steps[1].kind == .Make_Folder && plan.steps[1].path == "/src/editor/build/exports/Space-1/web")
+	plan.steps = plan.steps[2:]
+	build := plan.steps[0].command
+	testing.expect(t, hasArg(build, "-target:js_wasm32") && hasArg(build, "-build-mode:obj"))
+	testing.expect(t, hasArg(build, "-out:/src/editor/build/exports/Space-1/web/game.wasm.o"))
+	testing.expect_value(t, plan.steps[1].kind, ExportStepKind.Remove_Folder)
+	testing.expect_value(t, plan.steps[1].path, "/src/editor/build/exports/Space-1/web/data")
+	testing.expect_value(t, plan.steps[2].kind, ExportStepKind.Copy_Files)
+	testing.expect_value(t, plan.steps[3].kind, ExportStepKind.Write_File)
+	testing.expect(t, strings.contains(plan.steps[3].content, "<title>Space Game</title>"))
+	testing.expect(t, strings.contains(plan.steps[3].content, "{{{ SCRIPT }}}"))
+	link := plan.steps[4].command
+	testing.expect_value(t, link[0], "/src/emsdk/upstream/emscripten/emcc")
+	testing.expect_value(t, link[1], "/src/engine/web/main.c")
+	testing.expect(t, hasArg(link, "/srv/www/space/index.html"))
+	testing.expect(t, hasArg(link, "-sUSE_SDL=3") && hasArg(link, "-sUSE_SDL_TTF=3") && hasArg(link, "-O2"))
+	testing.expect(t, hasArg(link, "--preload-file=/src/editor/build/exports/Space-1/web/data@/data"))
+	testing.expect(t, hasArg(link, "/src/engine/web/odin_env.js") && hasArg(link, "/src/engine/web/odin_env_pre.js"))
+	zip := plan.steps[5]
+	testing.expect_value(t, plan.archive, "/srv/www/space.zip")
+	testing.expect(t, zip.command[0] == "python3" && zip.workingDir == "/srv/www/space" && hasArg(zip.command, "index.wasm"))
+	// The title is escaped for HTML
+	testing.expect(t, strings.contains(Export_WebShell("A <b> & C", context.temp_allocator), "<title>A &lt;b&gt; &amp; C</title>"))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+export_plan_refusals :: proc(t: ^testing.T) {
+	// Targets that aren't done yet say so
+	for target in ([]ExportTarget{.Windows_x64, .macOS_ARM64, .Steam, .PlayStation_5, .Xbox_Series, .Nintendo_Switch, .Linux_ARM64}) {
+		_, problem := Export_Plan(exportTestInput(target), context.temp_allocator)
+		testing.expectf(t, problem != "", "%v should be refused", target)
+		testing.expect(t, !Export_Implemented(target))
+	}
+	testing.expect(t, Export_Implemented(.Web))
+	// Output folders that would copy the project into itself, or into its own folders
+	for folder in ([]string{".", "/games", "/games/Space", "assets/out", "scenes", "scripts/x"}) {
+		input := exportTestInput(.Web)
+		input.settings.outputFolder = FixedText_Make(folder)
+		_, problem := Export_Plan(input, context.temp_allocator)
+		testing.expectf(t, problem != "", "output folder %s should be refused", folder)
+	}
+	for folder in ([]string{"export/web", "/games/Space-web", "../Space-builds"}) {
+		input := exportTestInput(.Web)
+		input.settings.outputFolder = FixedText_Make(folder)
+		_, problem := Export_Plan(input, context.temp_allocator)
+		testing.expectf(t, problem == "", "output folder %s should be fine, got: %s", folder, problem)
+	}
+	when ODIN_OS == .Linux && ODIN_ARCH == .amd64 {
+		input := exportTestInput(.Linux_x64)
+		input.settings.name = FixedText_Make("bin/game")
+		_, problem := Export_Plan(input, context.temp_allocator)
+		testing.expect(t, strings.contains(problem, "slash"))
+	}
+	free_all(context.temp_allocator)
+}
+
+@(test)
+export_parse_ldd :: proc(t: ^testing.T) {
+	text := "\tlinux-vdso.so.1 (0x00007ffd)\n" +
+		"\tlibSDL3.so.0 => /usr/lib/libSDL3.so.0 (0x00007f01)\n" +
+		"\tlibSDL3_ttf.so.0 => /usr/local/lib/libSDL3_ttf.so.0 (0x00007f02)\n" +
+		"\tlibSDL3_mixer.so.0 => not found\n" +
+		"\tlibc.so.6 => /usr/lib/libc.so.6 (0x00007f03)\n"
+	libraries := Export_ParseLdd(text, context.temp_allocator)
+	testing.expect_value(t, len(libraries), 2)
+	testing.expect_value(t, libraries[0], "/usr/lib/libSDL3.so.0")
+	testing.expect_value(t, libraries[1], "/usr/local/lib/libSDL3_ttf.so.0")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+export_settings_saved_with_project :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_export_settings")
+	defer os.remove_all(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	testing.expect_value(t, Project_Save(&project), "")
+	file, _ := filepath.join({dir, EXPORT_SETTINGS_FILE}, context.temp_allocator)
+	// Default settings don't need a file
+	testing.expect(t, !os.exists(file))
+
+	project.exports.targets[.Web].enabled = true
+	project.exports.targets[.Web].name = FixedText_Make("Play Space")
+	testing.expect_value(t, Project_Save(&project), "")
+	testing.expect(t, os.exists(file))
+	loaded, message, warnings := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect_value(t, len(warnings), 0)
+	testing.expect(t, loaded.exports == project.exports)
+
+	// Back to the defaults: the file stays, with nothing in it
+	project.exports = ExportSettings_Default()
+	testing.expect_value(t, Project_Save(&project), "")
+	data, _ := os.read_entire_file(file, context.temp_allocator)
+	testing.expect_value(t, string(data), "")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+export_settings_dialog :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	// Export with nothing enabled opens the Export tab
+	send(&state, Action.Export)
+	testing.expect(t, state.projectSettings.open)
+	testing.expect_value(t, state.projectSettings.tab, ProjectSettingsTab.Export)
+	testing.expect(t, !Export_Busy(&state))
+
+	send(&state, Export_Target_Selected(.Web))
+	send(&state, Export_Target_Enabled{.Web, true})
+	send(&state, Export_Text_Changed{.Web, .Page_Title, "Space"})
+	send(&state, Export_Flag_Changed{.Web, .Archive, true})
+	// Nothing changes until Apply
+	testing.expect(t, !state.project.exports.targets[.Web].enabled)
+	send(&state, Project_Settings_Applied{})
+	web := state.project.exports.targets[.Web]
+	testing.expect(t, web.enabled && web.archive)
+	testing.expect_value(t, FixedText_String(&web.name), "Space")
+	// Reopening keeps the shown target
+	send(&state, Action.Open_Project_Settings)
+	testing.expect_value(t, state.projectSettings.exportTarget, ExportTarget.Web)
+	testing.expect_value(t, state.projectSettings.tab, ProjectSettingsTab.General)
+	send(&state, Project_Settings_Cancelled{})
+	send(&state, Action.Undo)
+	testing.expect(t, !state.project.exports.targets[.Web].enabled)
+	send(&state, Action.Redo)
+	testing.expect(t, state.project.exports.targets[.Web].enabled)
 	free_all(context.temp_allocator)
 }

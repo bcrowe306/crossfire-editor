@@ -9,3 +9,7 @@
 
 # User settings, saved next to the executable
 editor.ini
+
+# Export output inside projects (Project Settings > Export; the default output folder)
+examples/*/export/
+tests/fixtures/*/export/

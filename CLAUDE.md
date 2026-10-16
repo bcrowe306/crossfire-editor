@@ -20,8 +20,9 @@ consoles and handhelds).
   - Multi-select (Ctrl/Shift+click, box select, Ctrl+A), a viewport grid with snapping, inline
     rename, dragging images from the browser into the viewport, New/Open Project with an
     unsaved-changes prompt.
-- **Not yet:**
-  - Export only logs "not implemented yet".
+  - **Export** to Linux x86_64 and the web (WebAssembly, through Emscripten). Every other target
+    is listed with its settings and reports "not implemented yet".
+- **Not yet:** the other export targets, audio and non-PNG images on the web, CI.
 
 Sections marked "planned" describe where it's going. Update this file as they become real.
 
@@ -43,7 +44,8 @@ add it as a task and to the README's command table.
 | Command | What it does |
 |---|---|
 | `task setup` | One-time setup: `submodules` + `stb` |
-| `task submodules` | `git submodule update --init --recursive` (Skald) |
+| `task submodules` | `git submodule update --init --recursive` (Skald, emsdk) |
+| `task emsdk` | Install Emscripten into the `third_party/emsdk` submodule (`EMSDK_VERSION`, ~1 GB, once per machine). Web exports need it |
 | `task stb` | Build Odin's STB libraries Skald needs (`build_stb.sh`). Skipped when already built for the active Odin install |
 | `task check` | Type-check with `-vet-unused -vet-packages:editor` (Skald itself doesn't pass vet) |
 | `task test` | Unit tests (`editor_test.odin`) |
@@ -121,7 +123,10 @@ Skald is not immediate-mode and not a retained widget tree:
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
 | `project_scenes.odin` | Scene list operations: add, copy, rename (updating references), remove, start scene, names; deleting old scene files on save |
 | `scene_actions.odin` | The browser's scene actions (`Scene_DoAction`), key routing while the browser has focus, scene rename, Project Settings state |
-| `view_project_settings.odin` | The Project Settings dialog (name, resolution, scaling, background, start scene) |
+| `view_project_settings.odin` | The Project Settings dialog: General (name, resolution, scaling, background, start scene) and Export (targets and their settings) tabs |
+| `export.odin` | Export targets (`ExportTarget`, `EXPORT_TARGETS`), per-target settings and export.ini, `Export_Plan` (the steps, pure and unit-tested), ldd parsing, the web page template |
+| `export_run.odin` | Running exports: one job per target, commands as child processes (`Export_Tick`), file steps in `update`; `EMSDK_DIR` |
+| `third_party/emsdk` | Emscripten SDK submodule, pinned to a release tag (`task emsdk` installs it) |
 | `selection.odin` | Multi-selection: `Selection_Set/Toggle/Normalize/Roots` |
 | `project_session.odin` | Unsaved changes, New/Open Project, the save prompt, the window title |
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
@@ -505,8 +510,9 @@ MyGame/
   project.xml              name, resolution, scale mode, background, start scene, scene list, asset list
   scenes/<Name>.scene.xml  one per scene; <node> nesting is the hierarchy
   assets/                  images, audio, fonts, referenced by relative path
+  export.ini               export targets and their settings (only once changed)
+  export/<target>/         export output (the default folder; gitignored in this repo's examples)
   .editor/                 per-user editor state (gitignored; not used yet)
-  build/                   export output (gitignored; not used yet)
 ```
 
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
@@ -525,40 +531,73 @@ MyGame/
   - The editor only imports assets one at a time and doesn't scan `assets/` for files added
     outside the editor.
 
-## Export (planned)
+## Export (implemented, `export.odin`, `export_run.odin`)
 
-Pipeline:
-1. Validate the project.
-2. Build the engine's player (`<engine>/player`) for the target with `odin build`, as Play does for
-   the host. Once users can write game code, their packages get compiled into the player.
-3. Copy the project's files (project.xml, scenes/, assets/) and the runtime libraries next to it.
-   Release builds should make the player find the project relative to itself rather than taking
-   it on the command line.
-4. Package the result into `build/<preset>/`.
+**Settings:** Project Settings > Export lists every `ExportTarget` (desktop: Linux, Windows and
+macOS on x86_64 and ARM64; Web; Steam; PlayStation 5, Xbox Series, Switch, generic until console
+generations matter). Each target has a checkbox (`enabled`) and its own fields
+(`EXPORT_TARGETS[t].fields`, described by `EXPORT_FIELDS`). They're `Project.exports`, a plain value
+(`FixedText`), part of the `.Project` undo snapshot, saved as `export.ini` next to project.xml (only
+targets that differ from the defaults; the file isn't created for untouched projects).
+- File > Export (Ctrl+Shift+E) exports every checked target; with none checked it opens the Export
+  tab. The tab's Export button applies the dialog, then exports the shown target
+  (`Export_Target_Run` is the undo step, `Export_Requested` follows it with `cmd_now`, so the save
+  happens after the step and the project isn't left "modified").
+- Unimplemented targets fail with `Export_NotImplementedReason`. Desktop targets only build for the
+  host (`Export_Implemented`); today that means Linux x86_64.
 
-Run the build as a child process and stream its output to the Output tab, the way `play.odin` does.
+**Running:** `Export_Start` saves the project, then turns each target into a job: its
+`Export_Plan` (in the job's own arena). Steps are child-process commands (output to the Output tab,
+polled by `Export_Tick` like Play) or quick file steps done in `update` (`Make_Folder`, `Write_File`,
+`Copy_Files`, `Bundle_Libraries`, `Remove_Folder`, which refuses anything outside
+`build/exports/`). A failing step fails its target; the next one runs. Exports run beside Play.
+Intermediate files go to `build/exports/<project>-<hash>/` in the editor's folder.
+- The player is the engine's `player/` package, or (projects with scripts) the same generated main
+  as Play (`playerMainSource`, which calls `e.Player_Main` so it builds for both targets).
+- Output goes to `<project>/export/<target>` unless an output folder is set. `checkOutputDir` refuses
+  folders that contain the project or sit in its scenes/, assets/ or scripts/.
 
-| Target | Odin target | Ships with it | Notes |
-|---|---|---|---|
-| Linux | `linux_amd64` (+ `linux_arm64`) | `libSDL3*.so` next to the binary, rpath `$ORIGIN` | AppImage later |
-| Windows | `windows_amd64` | `SDL3.dll`, `SDL3_image.dll`, `SDL3_ttf.dll`, `SDL3_mixer.dll` | `-subsystem:windows` for release |
-| macOS | `darwin_arm64`, `darwin_amd64` | `.app` bundle, dylibs in `Contents/Frameworks` | Code signing and notarization needed to distribute |
-| Web | `js_wasm32` | `index.html`, `.wasm`, `.js`, preloaded assets | Odin's `vendor:sdl3` links an Emscripten-built SDL object on wasm (`SDL3_WASM_LIB`, default `env.o`), so this needs Emscripten (`emcc`) |
-| Steam (later) | desktop targets | Steamworks SDK, depots via `steamcmd` | Steam Deck = Linux build plus controller support |
-| Consoles / handhelds (later) | platform SDKs | NDA toolchains | Out of scope until the desktop and web targets are solid |
+**Linux x86_64:** `odin build <player> -o:speed -out:<out>/<exe>
+-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib`, the project's files (project.xml, each scene's file,
+each asset) copied to `<out>/data/`, then `ldd` on the game and the `libSDL3*` libraries it names
+copied to `<out>/lib/` under their sonames. The engine's player finds `data/project.xml` next to the
+executable when it gets no folder argument. Other libraries (libc, GPU drivers, the libraries SDL3
+itself links) come from the player's system. Archive: `tar -czf <out>.tar.gz`.
+Verified: the export copied elsewhere runs from another folder with the bundled libraries (ldd),
+with and without scripts.
 
-Things to know before promising any target:
-- **Cross-compiling:** Odin can target other OSes, but linking needs that platform's toolchain and
-  SDKs. Export for the **host OS** from the editor first. Other desktop targets build on CI (a GitHub
-  Actions matrix with one runner per OS). Don't promise one-machine cross-export until it's
-  demonstrated.
-- **Engine changes needed before export works** (they belong in the engine repo):
-  - `app.odin` hard-codes the `"opengl"` renderer. Web needs WebGL/GLES and macOS should use Metal,
-    so pass `nil` (SDL picks the best available) or choose per platform.
-  - `Application_Run` is a blocking `for` loop. The browser needs a callback-driven frame loop (SDL3's
-    main-callbacks API, or Emscripten's main loop).
-  - On the web, SDL3_image, SDL3_ttf and SDL3_mixer must also be built for Emscripten. Verify they're
-    available before committing to the web target.
+**Web:** `odin build <player> -target:js_wasm32 -build-mode:obj` into `build/exports/.../web/`, the
+project's files staged in `web/data/`, a page template (`Export_WebShell`: title, canvas scaled to
+the window keeping its shape), then Emscripten's `emcc` (from `third_party/emsdk`, found without any
+environment setup) links `<engine>/web/main.c`, the object, `-sUSE_SDL=3 -sUSE_SDL_TTF=3
+-sALLOW_MEMORY_GROWTH`, the engine's `web/odin_env.js` and `odin_env_pre.js`, and
+`--preload-file data@/data` into `<out>/index.{html,js,wasm,data}` (`-O2` when optimizing). Archive:
+a .zip made with `python3 -m zipfile` (Emscripten needs Python anyway). The engine side (platform
+layer, frame loop, why each flag) is in the engine's CLAUDE.md, "Web build".
+- Limits: no SDL3_image or SDL3_mixer Emscripten ports exist, so web games load PNG and BMP only,
+  and have no audio.
+- Verified in headless Chromium (served over HTTP, real time, console read; colors sampled from the
+  canvas inside the page, never screenshots): scenes render at 60 fps, a click through the scaled
+  canvas presses a menu button, a script runs, optimized and unoptimized.
+- Missing Emscripten is reported with the fix: `task emsdk`.
+
+**Tests:** `export_*` unit tests (ini round trip, plans' command lines, refusals, ldd parsing,
+saving, the dialog and undo) and `tests/ui/export.script`, which really exports the fixture to both
+targets (unoptimized; about 10 s once emsdk's port cache is warm).
+
+**Future work (decided, not built):**
+- **Download and build Emscripten for the user.** Today `task emsdk` must be run once by hand; the
+  editor should fetch and activate the pinned emsdk itself (with progress in the Output tab) the first
+  time a web export needs it, so users never think about the toolchain.
+- **CI/CD on GitHub Actions:** build the editor and engine on every desktop platform (a runner per
+  OS and architecture), run the unit and UI tests, show build statuses, and publish development
+  binaries as releases. The other desktop export targets get built there too.
+- The remaining targets: Windows (`-subsystem:windows` for Hide console, DLLs next to the exe),
+  macOS (`.app` bundle, dylibs in `Contents/Frameworks`, signing and notarization), Linux ARM64,
+  Steam (Steamworks SDK, depots via `steamcmd`; Steam Deck = the Linux build), consoles (licensed
+  SDKs).
+- Web audio and other image formats need SDL3_mixer and SDL3_image built for Emscripten (no ports
+  exist yet).
 
 ## Documentation (required)
 
@@ -650,6 +689,8 @@ Highlights:
   - the scene tree's context menu `scene-tree-menu` (`right_click_row`, `click_menu_item`)
   - Settings dialog: `settings-tab-<Tab>`, `settings-search`, `settings-key-<Action>-<slot>`,
     `settings-save` / `settings-apply` / `settings-cancel` (see view_settings.odin)
+  - Project Settings: `project-settings-tab-<Tab>`; Export tab `export-enable-<Target>`,
+    `export-target-<Target>`, `export-field-<Field>`, `export-run`, `export-cancel`
 - **UI tests run on `tests/fixtures/ui_project`**, not `examples/demo_project`: the demo is what
   `task run` opens, so it changes when you use the editor. Update the fixture on purpose when a
   test needs different content.
@@ -701,6 +742,9 @@ Highlights:
 
 ## Decisions made
 
+- **Emscripten is a pinned git submodule** (`third_party/emsdk`, 2026-10-16): reproducible web
+  builds with a known version; installing it (`task emsdk`, ~1 GB) is a separate step, to be
+  automated (see Export, future work).
 - **The editor gets the engine through a workspace path.** The `engine` collection is set from
   `ENGINE_DIR` in the Taskfile, not a submodule.
 - **Scenes load at runtime from XML.** An engine-side loader and a generic player read them; no
@@ -727,6 +771,4 @@ Highlights:
 
 ## Open decisions (confirm with the user before building on them)
 
-- How exports package a project's player (the same generated main, built `-o:speed`, plus the
-  project folder) and where it looks for assets.
 - Minimum supported OS versions and CPU architectures for each export target.

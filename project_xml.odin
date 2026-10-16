@@ -43,6 +43,15 @@ Project_Save :: proc(project: ^Project) -> string {
 	}
 	// Scenes renamed or removed since the last save: delete their old files
 	Project_CleanSceneFiles(project)
+
+	// Export settings: only once they differ from the defaults (or the file exists)
+	exportsFile, _ := filepath.join({project.rootPath, EXPORT_SETTINGS_FILE}, context.temp_allocator)
+	exports := ExportSettings_ToINI(&project.exports, context.temp_allocator)
+	if exports != "" || os.exists(exportsFile) {
+		if err := os.write_entire_file(exportsFile, exports); err != nil {
+			return fmt.tprintf("Couldn't write %s: %v", exportsFile, err)
+		}
+	}
 	return ""
 }
 

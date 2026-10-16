@@ -5,7 +5,8 @@ with the [Skald](https://github.com/bcrowe306/Skald) GUI framework.
 
 **Status:** early. Projects load from and save to XML. You can edit scenes in the engine-rendered
 viewport, the node tree and the inspector, undo and redo edits, and **Play** runs the project in
-the engine. Export isn't implemented yet.
+the engine. **Export** builds the game for Linux x86_64 and the web (other targets are listed, but
+not implemented yet).
 
 ## Requirements
 
@@ -13,6 +14,8 @@ the engine. Export isn't implemented yet.
 - [Task](https://taskfile.dev) to run the build commands
 - SDL3 (plus SDL3_image, SDL3_ttf, SDL3_mixer for the engine) and a Vulkan loader. Per-platform
   setup is in `Skald/PLATFORMS.md`.
+- For web exports only: Python 3 and `task emsdk` (Emscripten, about 1 GB, installed into the
+  `third_party/emsdk` submodule).
 - A checkout of [odin_sdl_engine](../odin_sdl_engine). By default it's expected next to this repo
   (`../odin_sdl_engine`); set `ENGINE_DIR` to use another location.
 
@@ -39,7 +42,8 @@ Run `task` to list them all.
 | Command | What it does |
 |---|---|
 | `task setup` | One-time setup: `task submodules` + `task stb` |
-| `task submodules` | Fetch or update the Skald submodule |
+| `task submodules` | Fetch or update the submodules (Skald, emsdk) |
+| `task emsdk` | Install the Emscripten toolchain web exports need (about 1 GB into `third_party/emsdk`, once per machine) |
 | `task stb` | Build Odin's STB libraries, which Skald needs. Skipped if already built |
 | `task check` | Type-check the editor, with vet |
 | `task test` | Run the unit tests |
@@ -181,6 +185,25 @@ Scenes are managed in the project browser's **Scenes** folder:
 - **Play** (F5) starts at the project's start scene, marked "(start)" and set in **File > Project
   Settings** (with the game's name, resolution, scaling and background) or with Set as Start
   Scene. **Play Scene** (Ctrl+F5) starts at the scene open in the viewport.
+
+## Exporting
+
+**File > Project Settings > Export** lists every target. Check the ones you want, set each one's
+options, then **File > Export** (Ctrl+Shift+E) exports all checked targets; the Export button in the
+tab exports the target shown. Exporting saves the project first; progress is in the **Output** tab.
+Settings are saved in the project's `export.ini`, and output goes to `export/<target>` in the
+project folder unless you choose another folder.
+
+| Target | Status | What you get |
+|---|---|---|
+| Linux x86_64 | Works (on Linux x86_64) | The game, `data/` (project files) and `lib/` (the SDL3 libraries); optional `.tar.gz`. Runs from anywhere: no arguments needed |
+| Web (WebAssembly) | Works | `index.html`, `.js`, `.wasm`, `.data`: serve the folder over HTTP (`python3 -m http.server`); optional `.zip` for itch.io. No audio yet; images must be PNG or BMP. Needs `task emsdk` |
+| Linux ARM64, Windows, macOS | Not implemented | Planned: built on CI, one runner per OS |
+| Steam | Not implemented | Planned: uploads desktop builds |
+| PlayStation 5, Xbox Series, Switch | Not implemented | Need the platforms' licensed SDKs |
+
+Options per target include the executable name or page title, optimization (on by default),
+bundling libraries and the archive.
 
 ## Selecting and editing
 

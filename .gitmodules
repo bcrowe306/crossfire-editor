@@ -1,3 +1,6 @@
 [submodule "Skald"]
 	path = Skald
 	url = https://github.com/bcrowe306/Skald.git
+[submodule "third_party/emsdk"]
+	path = third_party/emsdk
+	url = https://github.com/emscripten-core/emsdk

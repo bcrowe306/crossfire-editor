@@ -36,7 +36,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
 	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
 	if command, handled := Session_Update(&out, m); handled do return out, command
-	if ProjectSettings_Update(&out, m) do return out, {}
+	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	layout := &out.layout
 
 	switch v in m {
@@ -45,6 +45,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Play_Tick:
 		cmd := playTick(&out)
 		return out, cmd
+	case Export_Tick:
+		return out, exportTick(&out)
+	case Export_Requested:
+		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
 	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed:
 		// Handled by SettingsDialog_Update above
@@ -97,7 +101,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		return out, skald.cmd_batch(Script_OpenInEditor(&out, path, line), scriptsBuild(&out))
 
 	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Background_Changed,
-	     Project_Settings_Start_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled:
+	     Project_Settings_Start_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
+	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
+	     Export_Target_Run, Export_Cancel_Requested:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)
@@ -206,6 +212,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Frame_Requested:
 	case Quit_Without_Asking:
 		playStop(&out)
+		Export_Cancel(&out)
 		return out, skald.cmd_quit(Msg)
 
 	case Asset_Drag_Pressed:
@@ -649,7 +656,11 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		return out, Script_OpenInEditor(&out, path, line)
 	case .Open_Settings:
 		SettingsDialog_Open(&out)
-	case .Export, .About:
+	case .Export:
+		enabled: bit_set[ExportTarget]
+		for t, target in out.project.exports.targets do if t.enabled do enabled += {target}
+		return out, Export_Start(&out, enabled)
+	case .About:
 		logLine(&out, .Warning, fmt.aprintf("%v is not implemented yet", action))
 	}
 	return out, {}

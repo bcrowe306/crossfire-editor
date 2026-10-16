@@ -1,6 +1,7 @@
 package editor
 
 import "core:fmt"
+import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import e "engine:."
@@ -114,6 +115,8 @@ Project :: struct {
 	// Scene files the editor loaded or saved (relative paths), so Save can delete the files of
 	// scenes that were renamed or removed, and nothing else (project_scenes.odin)
 	sceneFiles: [dynamic]string,
+	// Export targets and their settings, saved in export.ini (export.odin)
+	exports: ExportSettings,
 }
 
 // Path of a scene's file inside the project folder
@@ -332,11 +335,11 @@ Returns:
 - The project, and an error message ("" on success; temp allocated). On error the returned
   project is empty
 */
-Project_Load :: proc(rootPath: string) -> (project: Project, message: string) {
+Project_Load :: proc(rootPath: string) -> (project: Project, message: string, warnings: []string) {
 	projectFile, _ := filepath.join({rootPath, "project.xml"}, context.temp_allocator)
 	data, err := e.LoadProjectFile(projectFile)
 	if err != .None {
-		return {}, fmt.tprintf("Couldn't load %s: %v", projectFile, err)
+		return {}, fmt.tprintf("Couldn't load %s: %v", projectFile, err), nil
 	}
 	defer e.ProjectData_Destroy(&data)
 
@@ -347,6 +350,15 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string) {
 		scaleMode = data.scaleMode,
 		background = data.background,
 		startScene = strings.clone(data.startScene),
+		exports = ExportSettings_Default(),
+	}
+	// Export settings: optional, and a bad line only loses that setting
+	exportsFile, _ := filepath.join({rootPath, EXPORT_SETTINGS_FILE}, context.temp_allocator)
+	if text, readErr := os.read_entire_file(exportsFile, context.temp_allocator); readErr == nil {
+		problems := ExportSettings_Parse(&project.exports, string(text))
+		list := make([]string, len(problems), context.temp_allocator)
+		for problem, i in problems do list[i] = fmt.tprintf("%s: %s", EXPORT_SETTINGS_FILE, problem)
+		warnings = list
 	}
 	for asset in data.assets {
 		kind := AssetKind.Image
@@ -362,7 +374,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string) {
 		sceneData, sceneErr := e.LoadSceneFile(sceneFile)
 		if sceneErr != .None {
 			Project_Destroy(&project)
-			return {}, fmt.tprintf("Couldn't load scene %s: %v", sceneFile, sceneErr)
+			return {}, fmt.tprintf("Couldn't load scene %s: %v", sceneFile, sceneErr), nil
 		}
 		scene := SceneDef{name = strings.clone(ref.name)}
 		for node in sceneData.nodes {
@@ -401,7 +413,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string) {
 		append(&project.scenes, scene)
 		append(&project.sceneFiles, strings.clone(ref.path))
 	}
-	return project, ""
+	return project, "", warnings
 }
 
 /*
@@ -422,6 +434,7 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 		scaleMode = .Letterbox,
 		background = {15, 18, 30, 255},
 		startScene = strings.clone("MenuScene"),
+		exports = ExportSettings_Default(),
 	}
 	TITLE_COLOR :: sdl.Color{235, 240, 255, 255}
 	TEXT_COLOR :: sdl.Color{150, 160, 185, 255}

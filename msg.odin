@@ -167,6 +167,28 @@ Project_Settings_Size_Changed :: struct {
 }
 Project_Settings_Applied :: struct {}
 Project_Settings_Cancelled :: struct {}
+Project_Settings_Tab_Changed :: distinct ProjectSettingsTab
+// Export tab: the target whose settings are shown
+Export_Target_Selected :: distinct ExportTarget
+Export_Target_Enabled :: struct {
+	target: ExportTarget,
+	value: bool,
+}
+Export_Text_Changed :: struct {
+	target: ExportTarget,
+	field: ExportField,
+	text: string,
+}
+Export_Flag_Changed :: struct {
+	target: ExportTarget,
+	field: ExportField,
+	value: bool,
+}
+// The Export tab's Export button: apply the dialog, then export this target
+Export_Target_Run :: distinct ExportTarget
+Export_Cancel_Requested :: struct {}
+// Export these targets (sent after Export_Target_Run's undo step, so the save comes after it)
+Export_Requested :: distinct bit_set[ExportTarget]
 
 // Renaming a node in the scene tree
 Rename_Started :: distinct int
@@ -449,6 +471,15 @@ Msg :: union {
 	Project_Settings_Size_Changed,
 	Project_Settings_Applied,
 	Project_Settings_Cancelled,
+	Project_Settings_Tab_Changed,
+	Export_Target_Selected,
+	Export_Target_Enabled,
+	Export_Text_Changed,
+	Export_Flag_Changed,
+	Export_Target_Run,
+	Export_Cancel_Requested,
+	Export_Requested,
+	Export_Tick,
 	Rename_Started,
 	Rename_Text_Changed,
 	Rename_Focused,

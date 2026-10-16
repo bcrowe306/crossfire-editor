@@ -15,9 +15,19 @@ scene instead: Delete, Ctrl+D (duplicate), Ctrl+C / Ctrl+X / Ctrl+V, F2 (rename)
 `Browser_RouteAction`.
 */
 
+// The Project Settings dialog's tabs
+ProjectSettingsTab :: enum {
+	General,
+	Export,
+}
+
 // The Project Settings dialog edits a copy of these; Apply sets them as one undoable step
 ProjectSettingsDialog :: struct {
 	open: bool,
+	tab: ProjectSettingsTab,
+	// The Export tab's target
+	exportTarget: ExportTarget,
+	exports: ExportSettings,
 	// Owned
 	name: string,
 	gameSize: [2]f32,
@@ -158,9 +168,10 @@ Scene_CommitRename :: proc(state: ^State) {
 	logLine(state, .Info, references > 0 ? fmt.aprintf("Renamed %s to %s (%d reference%s updated)", old, text, references, references == 1 ? "" : "s") : fmt.aprintf("Renamed %s to %s", old, text))
 }
 
-// Opens the Project Settings dialog on the project's current values
-ProjectSettings_Open :: proc(state: ^State) {
+// Opens the Project Settings dialog on the project's current values, at a tab
+ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 	dialog := &state.projectSettings
+	exportTarget := dialog.exportTarget
 	delete(dialog.name)
 	delete(dialog.startScene)
 	p := &state.project
@@ -172,6 +183,9 @@ ProjectSettings_Open :: proc(state: ^State) {
 		scaleMode = p.scaleMode,
 		background = skald.rgb(u32(c.r) << 16 | u32(c.g) << 8 | u32(c.b)),
 		startScene = strings.clone(p.startScene),
+		tab = tab,
+		exportTarget = exportTarget,
+		exports = p.exports,
 	}
 }
 
@@ -179,11 +193,26 @@ ProjectSettings_Open :: proc(state: ^State) {
 Handles a Project Settings dialog message.
 
 Returns:
-- Whether `m` was one
+- A command to run (an export), and whether `m` was one
 */
-ProjectSettings_Update :: proc(state: ^State, m: Msg) -> bool {
+ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	dialog := &state.projectSettings
 	#partial switch v in m {
+	case Project_Settings_Tab_Changed:
+		dialog.tab = ProjectSettingsTab(v)
+	case Export_Target_Selected:
+		dialog.exportTarget = ExportTarget(v)
+	case Export_Target_Enabled:
+		dialog.exports.targets[v.target].enabled = v.value
+	case Export_Text_Changed:
+		if text := ExportField_Text(&dialog.exports.targets[v.target], v.field); text != nil do text^ = FixedText_Make(v.text)
+	case Export_Flag_Changed:
+		if flag := ExportField_Bool(&dialog.exports.targets[v.target], v.field); flag != nil do flag^ = v.value
+	case Export_Target_Run:
+		applyProjectSettings(state)
+		return skald.cmd_now(Msg(Export_Requested{ExportTarget(v)})), true
+	case Export_Cancel_Requested:
+		Export_Cancel(state)
 	case Project_Settings_Name_Changed:
 		delete(dialog.name)
 		dialog.name = strings.clone(string(v))
@@ -197,27 +226,35 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> bool {
 		delete(dialog.startScene)
 		dialog.startScene = strings.clone(string(v))
 	case Project_Settings_Applied:
-		p := &state.project
-		name := strings.trim_space(dialog.name)
-		if name != "" && name != p.name {
-			delete(p.name)
-			p.name = strings.clone(name)
-		}
-		p.gameSize = dialog.gameSize
-		p.scaleMode = dialog.scaleMode
-		if color, ok := e.ParseColor(fmt.tprintf("#%s", skald.color_to_hex(dialog.background))); ok do p.background = color
-		if Project_FindScene(p, dialog.startScene) >= 0 && dialog.startScene != p.startScene {
-			delete(p.startScene)
-			p.startScene = strings.clone(dialog.startScene)
-		}
+		applyProjectSettings(state)
 		dialog.open = false
 		logLine(state, .Info, strings.clone("Project settings changed"))
 	case Project_Settings_Cancelled:
 		dialog.open = false
 	case:
-		return false
+		return {}, false
 	}
-	return true
+	return {}, true
+}
+
+// Sets the project's settings to the dialog's (one undoable step: History_Classify)
+@(private="file")
+applyProjectSettings :: proc(state: ^State) {
+	dialog := &state.projectSettings
+	p := &state.project
+	name := strings.trim_space(dialog.name)
+	if name != "" && name != p.name {
+		delete(p.name)
+		p.name = strings.clone(name)
+	}
+	p.gameSize = dialog.gameSize
+	p.scaleMode = dialog.scaleMode
+	if color, ok := e.ParseColor(fmt.tprintf("#%s", skald.color_to_hex(dialog.background))); ok do p.background = color
+	if Project_FindScene(p, dialog.startScene) >= 0 && dialog.startScene != p.startScene {
+		delete(p.startScene)
+		p.startScene = strings.clone(dialog.startScene)
+	}
+	p.exports = dialog.exports
 }
 
 // After a scene was inserted at `index`: the open scene's index moves if it was at or after it

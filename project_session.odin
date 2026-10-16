@@ -150,13 +150,14 @@ Opens the project in a folder, replacing the current one (without asking: caller
 unsaved changes first). On failure the current project stays open and the error is logged.
 */
 Session_OpenProject :: proc(state: ^State, root: string) {
-	project, message := Project_Load(root)
+	project, message, warnings := Project_Load(root)
 	if message != "" {
 		logLine(state, .Error, fmt.aprintf("Open project: %s", message))
 		return
 	}
 	switchProject(state, project)
 	logLine(state, .Info, fmt.aprintf("Opened '%s' from %s", project.name, root))
+	for warning in warnings do logLine(state, .Warning, strings.clone(warning))
 }
 
 /*
@@ -177,6 +178,7 @@ Project_CreateEmpty :: proc(root, name: string) -> Project {
 		scaleMode = .Letterbox,
 		background = {18, 20, 28, 255},
 		startScene = strings.clone("Main"),
+		exports = ExportSettings_Default(),
 	}
 	scene := SceneDef{name = strings.clone("Main")}
 	Scene_InsertNode(&scene, "World", .Node2D, -1)
@@ -200,8 +202,9 @@ runPending :: proc(state: ^State, action: PendingAction) -> skald.Command(Msg) {
 	switch action {
 	case .None:
 	case .Quit:
-		// Don't leave a game running after the editor closes
+		// Don't leave a game or an export running after the editor closes
 		playStop(state)
+		Export_Cancel(state)
 		return skald.cmd_quit(Msg)
 	case .New_Project:
 		newProject := &state.session.newProject

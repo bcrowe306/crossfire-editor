@@ -160,7 +160,7 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Optimized Play", skald.checkbox(ctx, draft.optimizedPlay, "Build with -o:speed",
 			proc(v: bool) -> Msg { return Settings_Optimized_Play_Changed(v) },
 			id = skald.hash_id("settings-optimized-play"))),
-		hint(ctx, "Faster games, but each build takes about 50 s instead of 4. Exports are always optimized."),
+		hint(ctx, "Faster games, but each build takes about 50 s instead of 4. Exports have their own Optimize setting (Project Settings > Export)."),
 		spacing = th.spacing.sm,
 		padding = th.spacing.sm,
 		cross_align = .Stretch,

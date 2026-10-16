@@ -209,6 +209,7 @@ State :: struct {
 	// Output tab: build output
 	output: [dynamic]LogLine,
 	play: PlaySession,
+	exporting: ExportSession,
 }
 
 // Project opened when no folder is given on the command line
@@ -238,10 +239,11 @@ init :: proc() -> State {
 	state.settingsPath = args.settings
 	for problem in problems do logLine(&state, .Warning, fmt.aprintf("Settings: %s", problem))
 	root := args.project
-	project, message := Project_Load(root)
+	project, message, warnings := Project_Load(root)
 	if message == "" {
 		state.project = project
 		logLine(&state, .Info, fmt.aprintf("Opened '%s' from %s", project.name, root))
+		for warning in warnings do logLine(&state, .Warning, strings.clone(warning))
 	} else if root == DEMO_PROJECT {
 		// First run: write the demo project so it can be played and edited
 		state.project = Project_CreateDemo(root)
@@ -292,6 +294,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.settingsPath)
 	delete(state.settingsDialog.search)
 	delete(state.play.partial)
+	ExportSession_Destroy(state)
 }
 
 // Appends a line to the console. text must be heap-allocated; the console owns it.
