@@ -16,6 +16,8 @@ expect browser_rows 10
 # Rows: 0 Scenes, 1-3 scenes, 4 Images, 5 ship, 6 balloons, 7 light
 click_row browser-tree 6
 expect preview image
+wait 2
+expect preview_visible true
 
 # Import a sound (the dialog is bypassed), preview it, play it to the end
 import tests/fixtures/beep.wav

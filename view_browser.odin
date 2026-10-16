@@ -125,10 +125,17 @@ previewHeader :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 }
 
+/*
+Space the image preview was given by the last layout pass, {0, 0} when no image is previewed.
+Lets UI tests check the preview is actually visible (`expect preview_visible true`).
+*/
+previewImageArea: [2]f32
+
 // The selected asset: an image fitted to the panel, or a player for a sound
 @(private="file")
 previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
+	previewImageArea = {}
 	content: skald.View
 	if s.browserSelection.kind != .Asset || s.browserSelection.index >= len(s.project.assets) {
 		content = skald.text("Select an image or sound to preview it.", th.color.fg_muted, th.font.size_sm)
@@ -150,7 +157,9 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.col(
 		previewHeader(s, ctx),
 		skald.divider(ctx),
-		skald.flex(1, skald.col(content, padding = th.spacing.sm, cross_align = .Stretch)),
+		// flex on the content too: the image preview flexes inside it, and a flex child of a
+		// content-sized column gets no height (the image was drawn at 1x1 before this)
+		skald.flex(1, skald.col(skald.flex(1, content), padding = th.spacing.sm, cross_align = .Stretch)),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
@@ -173,6 +182,7 @@ imagePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 	Data :: struct { path: string }
 	data := Data{path}
 	image := skald.sized(ctx, &data, proc(ctx: ^skald.Ctx(Msg), data: ^Data, size: [2]f32) -> skald.View {
+		previewImageArea = size
 		return skald.image(ctx, data.path, width = max(size.x, 1), height = max(size.y, 1), fit = .Contain)
 	})
 	return skald.col(

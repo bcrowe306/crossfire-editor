@@ -56,6 +56,7 @@ Checks:
 	assets <count>               Assets in the project
 	browser_rows <count>         Rows the project browser shows (after search filtering)
 	preview <image | audio | font | none>   What the browser's preview panel shows
+	preview_visible <true | false>   The image preview got usable space (at least 32 x 32)
 	audio <playing | stopped>    Sound preview playback
 	dialog <open | closed>       The remove-asset dialog
 	console_contains <text>      A console line contains the text
@@ -368,6 +369,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		if s.browserSelection.kind == .Asset && s.browserSelection.index < len(s.project.assets) {
 			found = strings.to_lower(fmt.tprint(s.project.assets[s.browserSelection.index].kind), context.temp_allocator)
 		}
+	case "preview_visible":
+		found = fmt.tprint(previewImageArea.x >= 32 && previewImageArea.y >= 32)
 	case "audio":
 		found = AudioPreview_IsPlaying() ? "playing" : "stopped"
 	case "dialog":
