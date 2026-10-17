@@ -767,6 +767,9 @@ Match the engine's style:
 - **Memory:** the per-frame temp allocator is for anything that dies within the frame
   (`fmt.tprintf`). Long-lived data belongs to an explicit owner (project, scene, panel) and is freed
   with it. Strings in a `Msg` only live for the frame: clone them in `update` before storing.
+- **Delete folders with `removeAll`** (export_run.odin), never `os.remove_all`: on Windows that
+  goes through the shell (SHFileOperationW), whose COM copy hooks crashed the tests running on
+  several threads.
 
 ## UI tests (input injection)
 

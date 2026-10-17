@@ -259,7 +259,7 @@ runFileStep :: proc(state: ^State, step: ExportStep) -> string {
 		// Only the editor's own build folder, whatever the plan says
 		if !strings.contains(step.path, "/build/exports/") do return fmt.tprintf("refusing to delete %s", step.path)
 		if os.exists(step.path) {
-			if err := os.remove_all(step.path); err != nil do return fmt.tprintf("couldn't delete %s: %v", step.path, err)
+			if err := removeAll(step.path); err != nil do return fmt.tprintf("couldn't delete %s: %v", step.path, err)
 		}
 	}
 	return ""
@@ -359,4 +359,22 @@ exportLine :: proc(state: ^State, line: string, capture: bool) {
 	}
 	text, level := parseLogLine(strings.trim_right(line, "\r"))
 	outputLine(state, level, strings.clone(text))
+}
+
+/*
+Deletes a file or a folder with everything in it (nothing to do if it doesn't exist). Use it
+instead of `os.remove_all`, which on Windows goes through the shell (SHFileOperationW): that
+loads shell extensions' copy hooks over COM and crashed when called from several threads (the
+tests). Symlinks are removed, not followed.
+*/
+removeAll :: proc(path: string) -> os.Error {
+	if path == "" do return nil
+	info, err := os.lstat(path, context.temp_allocator)
+	if err == .Not_Exist do return nil
+	if err != nil do return err
+	if info.type == .Directory {
+		entries := os.read_all_directory_by_path(path, context.temp_allocator) or_return
+		for entry in entries do removeAll(entry.fullpath) or_return
+	}
+	return os.remove(path)
 }

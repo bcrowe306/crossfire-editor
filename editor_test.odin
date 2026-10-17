@@ -52,7 +52,7 @@ send :: proc(state: ^State, msg: Msg) {
 tempDir :: proc(name: string) -> string {
 	base, _ := os.temp_directory(context.temp_allocator)
 	dir, _ := filepath.join({base, name}, context.temp_allocator)
-	_ = os.remove_all(dir)
+	_ = removeAll(dir)
 	_ = os.make_directory_all(dir)
 	return dir
 }
@@ -272,7 +272,7 @@ escape_xml_covers_special_characters :: proc(t: ^testing.T) {
 @(test)
 project_round_trips_through_xml :: proc(t: ^testing.T) {
 	dir := tempDir("odin_sdl_editor_round_trip")
-	defer os.remove_all(dir)
+	defer removeAll(dir)
 
 	original := Project_CreateDemo(dir)
 	defer Project_Destroy(&original)
@@ -565,7 +565,7 @@ asset_kinds_from_extensions :: proc(t: ^testing.T) {
 @(test)
 importing_copies_files_into_assets :: proc(t: ^testing.T) {
 	project := tempProject("odin_sdl_editor_import")
-	defer { os.remove_all(project.rootPath); Project_Destroy(&project) }
+	defer { removeAll(project.rootPath); Project_Destroy(&project) }
 	before := len(project.assets)
 
 	index, message := Project_ImportAsset(&project, "tests/fixtures/beep.wav")
@@ -595,7 +595,7 @@ importing_copies_files_into_assets :: proc(t: ^testing.T) {
 @(test)
 removing_assets :: proc(t: ^testing.T) {
 	project := tempProject("odin_sdl_editor_remove")
-	defer { os.remove_all(project.rootPath); Project_Destroy(&project) }
+	defer { removeAll(project.rootPath); Project_Destroy(&project) }
 	index, _ := Project_ImportAsset(&project, "tests/fixtures/beep.wav")
 	file := strings.clone(AssetFilePath(&project, project.assets[index]), context.temp_allocator)
 
@@ -639,7 +639,7 @@ browser_search_filters_rows :: proc(t: ^testing.T) {
 @(test)
 import_and_remove_through_messages :: proc(t: ^testing.T) {
 	state := State{project = tempProject("odin_sdl_editor_import_msgs"), browserSelection = {kind = .None}}
-	defer { os.remove_all(state.project.rootPath); State_Destroy(&state) }
+	defer { removeAll(state.project.rootPath); State_Destroy(&state) }
 	before := len(state.project.assets)
 
 	send(&state, Asset_Import_Result{path = "tests/fixtures/beep.wav"})
@@ -1339,9 +1339,9 @@ unsaved_changes_new_and_open_project :: proc(t: ^testing.T) {
 	defer State_Destroy(&state)
 	os.make_directory("build")
 	dir := "build/test_projects"
-	os.remove_all(dir)
+	removeAll(dir)
 	os.make_directory(dir)
-	defer os.remove_all(dir)
+	defer removeAll(dir)
 	delete(state.project.rootPath)
 	state.project.rootPath = strings.clone("build/test_projects/Demo")
 
@@ -1556,8 +1556,8 @@ new_script_files :: proc(t: ^testing.T) {
 	state.settings.codeEditorPath = FixedText_Make("true")
 	os.make_directory("build")
 	dir := "build/test_script_project"
-	os.remove_all(dir)
-	defer os.remove_all(dir)
+	removeAll(dir)
+	defer removeAll(dir)
 	delete(state.project.rootPath)
 	state.project.rootPath = strings.clone(dir)
 	os.make_directory(dir)
@@ -1622,8 +1622,8 @@ zed_app_binary_is_swapped_for_its_cli :: proc(t: ^testing.T) {
 	// symlink to the app like ~/.local/bin/zed
 	os.make_directory("build")
 	dir := "build/test_zed"
-	os.remove_all(dir)
-	defer os.remove_all(dir)
+	removeAll(dir)
+	defer removeAll(dir)
 	os.make_directory_all("build/test_zed/libexec")
 	os.make_directory_all("build/test_zed/bin")
 	os.make_directory_all("build/test_zed/links")
@@ -1647,8 +1647,8 @@ zed_app_binary_is_swapped_for_its_cli :: proc(t: ^testing.T) {
 ols_config_for_code_completion :: proc(t: ^testing.T) {
 	os.make_directory("build")
 	dir := "build/test_ols_project"
-	os.remove_all(dir)
-	defer os.remove_all(dir)
+	removeAll(dir)
+	defer removeAll(dir)
 	project := Project_CreateEmpty(dir, "OLS")
 	defer Project_Destroy(&project)
 	config := "build/test_ols_project/scripts/ols.json"
@@ -1805,8 +1805,8 @@ save_removes_files_of_renamed_and_deleted_scenes :: proc(t: ^testing.T) {
 	defer State_Destroy(&state)
 	os.make_directory("build")
 	dir := "build/test_scene_files"
-	os.remove_all(dir)
-	defer os.remove_all(dir)
+	removeAll(dir)
+	defer removeAll(dir)
 	delete(state.project.rootPath)
 	state.project.rootPath = strings.clone(dir)
 	testing.expect_value(t, Project_Save(&state.project), "")
@@ -2081,7 +2081,7 @@ export_parse_ldd :: proc(t: ^testing.T) {
 @(test)
 export_settings_saved_with_project :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_export_settings")
-	defer os.remove_all(dir)
+	defer removeAll(dir)
 	project := Project_CreateDemo(dir)
 	defer Project_Destroy(&project)
 	testing.expect_value(t, Project_Save(&project), "")
@@ -2142,7 +2142,7 @@ export_settings_dialog :: proc(t: ^testing.T) {
 @(test)
 physics_nodes_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_physics")
-	defer os.remove_all(dir)
+	defer removeAll(dir)
 	project := Project_CreateDemo(dir)
 	defer Project_Destroy(&project)
 	project.physics = {pixelsPerMeter = 64, gravity = {5, 600}, debugDraw = true}
@@ -2275,7 +2275,7 @@ physics_project_settings :: proc(t: ^testing.T) {
 @(test)
 physics_joints_in_editor :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_joints")
-	defer os.remove_all(dir)
+	defer removeAll(dir)
 	project := Project_CreateDemo(dir)
 	defer Project_Destroy(&project)
 	project.physics.smoothing = false
@@ -2365,7 +2365,7 @@ physics_joint_edits_and_renames :: proc(t: ^testing.T) {
 @(test)
 globals_and_data_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_globals_data")
-	defer os.remove_all(dir)
+	defer removeAll(dir)
 	project := Project_CreateDemo(dir)
 	defer Project_Destroy(&project)
 	g := GlobalDef{script = strings.clone("GameState")}
@@ -2419,7 +2419,7 @@ globals_and_data_round_trip :: proc(t: ^testing.T) {
 @(test)
 generated_asset_constants :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_assets_file")
-	defer os.remove_all(dir)
+	defer removeAll(dir)
 	project := Project_CreateDemo(dir)
 	defer Project_Destroy(&project)
 	append(&project.assets, AssetDef{strings.clone("assets/laser.wav"), .Audio}, AssetDef{strings.clone("other/ship.png"), .Image}, AssetDef{strings.clone("fonts/title font.ttf"), .Font})
