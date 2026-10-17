@@ -692,7 +692,7 @@ targets (unoptimized; about 10 s once emsdk's port cache is warm).
 ## CI and releases (`.github/workflows/build.yml`)
 
 Pushing a `v*` tag builds and tests on Linux x86_64 (ubuntu-24.04), Windows x86_64 (windows-2022)
-and macOS x86_64 (macos-15-intel), then publishes a GitHub release of the three archives if all
+and macOS arm64 (macos-15), then publishes a GitHub release of the three archives if all
 pass (tags with a `-`, like `v0.1.0-dev.1`, make pre-releases). The README's badge shows the
 latest run. The workspace's `ci-fix` skill (`.claude/skills/ci-fix/`) watches a run, finds why it
 failed, fixes it and builds again with the next tag.

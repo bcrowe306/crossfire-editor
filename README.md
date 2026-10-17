@@ -289,7 +289,7 @@ sprites and animations, and an options screen. Its images were generated for thi
 ## Releases
 
 Pushing a version tag (`v0.2.0`, or `v0.2.0-dev.1` for a pre-release) builds and tests the editor
-with the engine on Linux x86_64, Windows x86_64 and macOS x86_64 (`.github/workflows/build.yml`)
+with the engine on Linux x86_64, Windows x86_64 and macOS arm64 (`.github/workflows/build.yml`)
 and, when all three pass, publishes them as a [release](https://github.com/bcrowe306/odin_sdl_editor/releases):
 one archive per platform with the editor, its libraries, the demo and the engine. The badges
 above show the latest build. Play and Export in a release still need Odin (`dev-2026-10`).

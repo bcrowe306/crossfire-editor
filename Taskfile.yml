@@ -84,7 +84,8 @@ tasks:
       - cd "$(odin root)/vendor/stb/src" && sh build_stb.sh
     status:
       # Already built for this Odin install
-      - test -f "$(odin root)/vendor/stb/lib/stb_image.a" || test -f "$(odin root)/vendor/stb/lib/darwin/stb_image.a"
+      # (for this OS: Odin's Linux release carries the macOS libraries in lib/darwin/, not its own)
+      - 'if [ "$(uname -s)" = Darwin ]; then test -f "$(odin root)/vendor/stb/lib/darwin/stb_truetype.a"; else test -f "$(odin root)/vendor/stb/lib/stb_truetype.a"; fi'
 
   check:
     desc: Type-check the editor with vet
