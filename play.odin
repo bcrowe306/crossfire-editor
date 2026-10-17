@@ -5,7 +5,6 @@ import "core:hash"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
-import "core:sys/posix"
 import "core:time"
 import "gui:skald"
 
@@ -351,22 +350,11 @@ endSession :: proc(state: ^State) {
 	state.playState = .Stopped
 }
 
-@(private="file")
+// Pause / Resume for the running game: signalGame is per platform (play_signal_*.odin)
+@(private="package")
 GameSignal :: enum {
 	Pause,
 	Resume,
-}
-
-@(private="file")
-signalGame :: proc(state: ^State, signal: GameSignal) -> bool {
-	when ODIN_OS == .Linux || ODIN_OS == .Darwin || ODIN_OS == .FreeBSD {
-		if state.play.stage != .Running do return false
-		posixSignal := signal == .Pause ? posix.Signal.SIGSTOP : posix.Signal.SIGCONT
-		return posix.kill(posix.pid_t(state.play.process.pid), posixSignal) == .OK
-	} else {
-		logLine(state, .Warning, fmt.aprintf("Pausing the game isn't supported on this platform yet"))
-		return false
-	}
 }
 
 // What to build for the open project, and where (paths absolute, temp allocated)
