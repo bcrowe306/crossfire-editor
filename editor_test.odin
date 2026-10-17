@@ -1579,6 +1579,8 @@ new_script_files :: proc(t: ^testing.T) {
 
 @(test)
 code_editor_command :: proc(t: ^testing.T) {
+	// Looks programs up in a POSIX PATH (sh, true) and expects / paths
+	if ODIN_OS == .Windows do return
 	expect :: proc(t: ^testing.T, got: []string, want: []string, loc := #caller_location) {
 		testing.expect_value(t, len(got), len(want), loc = loc)
 		for w, i in want do if i < len(got) do testing.expect_value(t, got[i], w, loc = loc)
@@ -1614,6 +1616,8 @@ code_editor_command :: proc(t: ^testing.T) {
 
 @(test)
 zed_app_binary_is_swapped_for_its_cli :: proc(t: ^testing.T) {
+	// Symlinks (Windows needs extra rights to make them) and Zed's Linux layout
+	if ODIN_OS == .Windows do return
 	// A fake Zed install: <dir>/libexec/zed-editor (the app), <dir>/bin/zed (the CLI), and a
 	// symlink to the app like ~/.local/bin/zed
 	os.make_directory("build")
@@ -1969,6 +1973,8 @@ export_plan_linux :: proc(t: ^testing.T) {
 
 @(test)
 export_plan_web :: proc(t: ^testing.T) {
+	// The expected paths are POSIX paths (Windows joins with \ and has no root like /src)
+	if ODIN_OS == .Windows do return
 	input := exportTestInput(.Web)
 	input.settings.outputFolder = FixedText_Make("/srv/www/space")
 	input.settings.archive = true
@@ -2027,14 +2033,23 @@ export_plan_refusals :: proc(t: ^testing.T) {
 		testing.expect(t, !Export_Implemented(target))
 	}
 	testing.expect(t, Export_Implemented(.Web))
-	// Output folders that would copy the project into itself, or into its own folders
-	for folder in ([]string{".", "/games", "/games/Space", "assets/out", "scenes", "scripts/x"}) {
+	// Output folders that would copy the project into itself, or into its own folders (relative
+	// ones on every OS: Windows paths use \; the absolute ones are POSIX paths)
+	refused := make([dynamic]string, context.temp_allocator)
+	fine := make([dynamic]string, context.temp_allocator)
+	append(&refused, ".", "assets/out", "scenes", "scripts/x")
+	append(&fine, "export/web", "../Space-builds")
+	if ODIN_OS != .Windows {
+		append(&refused, "/games", "/games/Space")
+		append(&fine, "/games/Space-web")
+	}
+	for folder in refused {
 		input := exportTestInput(.Web)
 		input.settings.outputFolder = FixedText_Make(folder)
 		_, problem := Export_Plan(input, context.temp_allocator)
 		testing.expectf(t, problem != "", "output folder %s should be refused", folder)
 	}
-	for folder in ([]string{"export/web", "/games/Space-web", "../Space-builds"}) {
+	for folder in fine {
 		input := exportTestInput(.Web)
 		input.settings.outputFolder = FixedText_Make(folder)
 		_, problem := Export_Plan(input, context.temp_allocator)

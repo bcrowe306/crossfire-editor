@@ -602,7 +602,10 @@ checkOutputDir :: proc(projectDir, outputDir: string) -> string {
 // Whether `path` is inside `folder` (both clean)
 @(private="file")
 isInside :: proc(path, folder: string) -> bool {
-	return strings.has_prefix(path, folder) && len(path) > len(folder) && (path[len(folder)] == '/' || folder == "/")
+	if !strings.has_prefix(path, folder) || len(path) <= len(folder) do return false
+	// Either separator: Windows paths use \ (a folder ending in one is a root, like C:\)
+	next, last := path[len(folder)], folder[len(folder) - 1]
+	return next == '/' || next == '\\' || last == '/' || last == '\\'
 }
 
 // filepath.join, for paths that can't fail to allocate
