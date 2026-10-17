@@ -173,6 +173,9 @@ Skald is not immediate-mode and not a retained widget tree:
 - `skald.tree` can't color rows and `skald.number_input`'s stepper buttons can't be restyled, so the
   editor has its own `coloredTree` and `numberField`. Keep their widget ids (`browser-tree`,
   `scene-tree`, `inspector-<Field>-<node>`, `-dec` / `-inc` for the buttons): tests click them.
+- **A widget inside a scroll must hit-test against its `clip_rect` too**, not just `last_rect`:
+  the rect of content taller than the scroll runs on past it, over whatever is below (the scene
+  tree's rows took clicks meant for the inspector under it and selected hidden rows).
 - A custom widget that stores state under an id (`widget_get`) must not also wrap itself in
   `skald.zone` with that id: the zone claims the slot as another widget kind and Skald resets the
   state every frame. Return a bare `skald.View_Zone{id, child}` (as `coloredTree` does).

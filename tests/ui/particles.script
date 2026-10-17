@@ -73,6 +73,15 @@ key ctrl+z
 expect particle amount 1
 expect particle size 100,100
 
+# A click in the inspector stays there: the scene tree's rows (12 now, taller than its pane) run
+# on under it, and used to take the click and select the hidden row there (the last one)
+click_row scene-tree 1
+expect selected Camera
+scroll_into_view inspector-scroll inspector-name-1
+click_widget inspector-name-1
+expect selected Camera
+expect typing true
+
 key ctrl+s
 wait_until modified false
 expect project_file_contains scenes/PlayScene.scene.xml kind="ParticleEmitter" name="ParticleEmitter"

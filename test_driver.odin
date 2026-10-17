@@ -474,8 +474,10 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		scroll := &ctx.widgets.states[skald.hash_id(args[0])]
 		area := scroll.last_rect
 		// A widget out of view keeps the rect from when it was last laid out, so only trust what's
-		// visible now: start from the top and page down until it is
-		if _, visible := widgetRect(ctx, args[1]); visible {
+		// visible now: start from the top and page down until it is, clear of the edges. A widget
+		// at an edge scrolls when clicked (the scroll reveals the newly focused widget), so the
+		// release lands somewhere else and a checkbox doesn't toggle
+		if _, visible := widgetRect(ctx, args[1]); visible && clearOfEdges(ctx.widgets.states[skald.hash_id(args[1])].last_rect, area, scroll.scroll_y <= 0) {
 			driver.scrollAttempts = 0
 			report(true, line)
 			return true
@@ -901,6 +903,14 @@ widgetRect :: proc(ctx: ^skald.Ctx(Msg), key: string) -> (skald.Rect, bool) {
 	}
 	if rect.w <= 0 || rect.h <= 0 do return {}, false
 	return rect, true
+}
+
+// Whether a widget is wholly inside a scroll area, a margin from its top and bottom (when the area
+// has room; at the top of the content, nothing can scroll it further down)
+@(private="file")
+clearOfEdges :: proc(widget, area: skald.Rect, atTop: bool) -> bool {
+	margin := min(f32(24), max((area.h - widget.h) * 0.5, 0))
+	return (atTop ? widget.y >= area.y : widget.y >= area.y + margin) && widget.y + widget.h <= area.y + area.h - margin
 }
 
 @(private="file")

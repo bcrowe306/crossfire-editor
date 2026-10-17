@@ -56,7 +56,12 @@ coloredTree :: proc(
 	mouse := ctx.input.mouse_pos
 	// Not through a dialog or a popup (a dialog's button over the tree would also select a row)
 	blocked := ctx.widgets.modal_rect_prev.w > 0 || skald.mouse_over_overlay(ctx)
-	if ctx.input.mouse_pressed[.Left] && !blocked && rect.w > 0 && mouse.x >= rect.x && mouse.x < rect.x + rect.w && mouse.y >= rect.y && mouse.y < rect.y + rect.h {
+	// The rows' rect runs past the scroll view around the tree when it's scrolled or taller than
+	// it: only the visible part takes clicks (otherwise a click on the inspector under the scene
+	// tree selected the hidden row "behind" it)
+	visible := st.clip_rect.w > 0 ? st.clip_rect : rect
+	inside :: proc(r: skald.Rect, p: [2]f32) -> bool { return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h }
+	if ctx.input.mouse_pressed[.Left] && !blocked && rect.w > 0 && inside(rect, mouse) && inside(visible, mouse) {
 		i := int((mouse.y - rect.y) / rh)
 		if i >= 0 && i < len(rows) {
 			r := rows[i]
