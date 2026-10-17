@@ -1,5 +1,8 @@
 # Odin SDL Editor
 
+[![Build](https://github.com/bcrowe306/odin_sdl_editor/actions/workflows/build.yml/badge.svg)](https://github.com/bcrowe306/odin_sdl_editor/actions/workflows/build.yml)
+[![Engine build](https://github.com/bcrowe306/odin_sdl_engine/actions/workflows/build.yml/badge.svg)](https://github.com/bcrowe306/odin_sdl_engine/actions/workflows/build.yml)
+
 A game editor for [odin_sdl_engine](../odin_sdl_engine), written in [Odin](https://odin-lang.org)
 with the [Skald](https://github.com/bcrowe306/Skald) GUI framework.
 
@@ -282,6 +285,14 @@ A project is a folder with `project.xml`, a `scenes/` folder with one XML file p
 `assets/`. The format is specified in the engine's `project_format.odin`.
 [`examples/demo_project`](examples/demo_project) is a small example with a menu, a play scene with
 sprites and animations, and an options screen. Its images were generated for this repo.
+
+## Releases
+
+Pushing a version tag (`v0.2.0`, or `v0.2.0-dev.1` for a pre-release) builds and tests the editor
+with the engine on Linux x86_64, Windows x86_64 and macOS x86_64 (`.github/workflows/build.yml`)
+and, when all three pass, publishes them as a [release](https://github.com/bcrowe306/odin_sdl_editor/releases):
+one archive per platform with the editor, its libraries, the demo and the engine. The badges
+above show the latest build. Play and Export in a release still need Odin (`dev-2026-10`).
 
 ## Documentation
 

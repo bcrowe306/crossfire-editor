@@ -19,3 +19,6 @@ examples/*/scripts/ols.json
 
 # Task's cache (sources/generates checks)
 .task/
+
+# CI packages (tools/ci/package_editor.sh)
+/dist/

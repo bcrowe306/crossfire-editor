@@ -1,0 +1,99 @@
+# Builds and tests the editor on Linux, Windows and macOS (x86_64) when a version tag is pushed
+# (v1.2.3, v0.1.0-dev.4), and makes a GitHub release of it for each, if all pass. Tags with a "-"
+# make pre-releases. Can also be run by hand (Actions > Build).
+#
+# The engine is checked out next to the editor (odin_sdl_engine, its main branch), as in a local
+# workspace; its tools/ci/setup.sh installs Odin and SDL3.
+name: Build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      engine_ref:
+        description: Engine branch, tag or commit to build with
+        default: main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, platform: linux-x64 }
+          - { os: windows-2022, platform: windows-x64 }
+          - { os: macos-15-intel, platform: macos-x64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: odin_sdl_editor
+    env:
+      SDL_VIDEO_DRIVER: dummy
+      SDL_AUDIO_DRIVER: dummy
+      COLLECTIONS: -collection:gui=Skald -collection:engine=../odin_sdl_engine -define:ENGINE_DIR=../odin_sdl_engine
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: odin_sdl_editor
+      - name: Submodules (Skald, SDL_mixer; not the 1 GB emsdk)
+        run: git submodule update --init --depth 1 Skald third_party/SDL_mixer
+
+      - uses: actions/checkout@v4
+        with:
+          repository: bcrowe306/odin_sdl_engine
+          ref: ${{ inputs.engine_ref || 'main' }}
+          path: odin_sdl_engine
+          submodules: true
+
+      - name: Cache SDL3 (Linux builds it from source)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: ~/sdl3
+          key: sdl3-${{ runner.os }}-3.4.16-3.4.6-3.2.2-3.2.4
+
+      - name: Set up Odin and SDL3
+        run: ../odin_sdl_engine/tools/ci/setup.sh
+
+      - name: Build Box2D
+        run: ../odin_sdl_engine/tools/build_box2d.sh
+
+      - name: Check
+        run: odin check . $COLLECTIONS -vet-unused -vet-packages:editor
+
+      - name: Test
+        run: odin test . $COLLECTIONS -vet-unused -vet-packages:editor $ODIN_LINK_FLAGS
+
+      - name: Package the editor
+        run: tools/ci/package_editor.sh ${{ matrix.platform }} ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: editor-${{ matrix.platform }}
+          path: odin_sdl_editor/dist/*
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          flags=(--title "odin_sdl_editor $TAG" --generate-notes)
+          [[ "$TAG" == *-* ]] && flags+=(--prerelease)
+          gh release create "$TAG" dist/* "${flags[@]}" -R "$GITHUB_REPOSITORY"

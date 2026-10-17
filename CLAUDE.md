@@ -689,6 +689,19 @@ targets (unoptimized; about 10 s once emsdk's port cache is warm).
   libpng/libjpeg ports, which Emscripten has).
 - Fold the SDL3_mixer build into the automatic toolchain setup above.
 
+## CI and releases (`.github/workflows/build.yml`)
+
+Pushing a `v*` tag builds and tests on Linux x86_64 (ubuntu-24.04), Windows x86_64 (windows-2022)
+and macOS x86_64 (macos-15-intel), then publishes a GitHub release of the three archives if all
+pass (tags with a `-`, like `v0.1.0-dev.1`, make pre-releases). The README's badge shows the
+latest run. The workspace's `ci-fix` skill (`.claude/skills/ci-fix/`) watches a run, finds why it
+failed, fixes it and builds again with the next tag.
+- The engine's `main` is checked out next to the editor (`odin_sdl_engine/`), and its
+  `tools/ci/setup.sh` and `tools/build_box2d.sh` set things up. The emsdk submodule isn't
+  fetched (desktop builds don't need it).
+- `tools/ci/package_editor.sh` packs the editor (with its SDL3 libraries, the demo) next to the
+  engine (Play builds players from it). Releases are development builds: Play needs Odin.
+
 ## Documentation (required)
 
 All public code in this repo and the engine has **Odin-style doc comments**, and the docs are
