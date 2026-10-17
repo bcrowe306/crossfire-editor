@@ -1,0 +1,80 @@
+# Particle emitters: add one, edit its settings through the inspector's real widgets (checkbox,
+# sliders, a linked pair, the color ramp's bar, markers and buttons), reset, undo, save.
+# Run with: task test:ui
+#
+# PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+expect selected none
+
+key ctrl+shift+a
+type ParticleEmitter
+key RETURN
+expect selected ParticleEmitter
+expect nodes 12
+expect particle amount 50
+
+# A checkbox
+scroll_into_view inspector-scroll inspector-particle-continuous-11
+click_widget inspector-particle-continuous-11
+expect particle continuous false
+
+# A slider, dragged past its left end: the minimum
+scroll_into_view inspector-scroll inspector-particle-amount-11
+drag_widget inspector-particle-amount-11 0.5 0.5 -0.5 0.5
+expect particle amount 1
+
+# A linked pair: dragging X to its maximum takes Y along
+scroll_into_view inspector-scroll inspector-particle-link-size
+click_widget inspector-particle-link-size
+expect particle_linked size true
+drag_widget inspector-particle-size-x-11 0.5 0.5 1.5 0.5
+expect particle size 100,100
+
+# The color ramp: clicking the bar adds a stop there and selects it
+scroll_into_view inspector-scroll inspector-ramp-11
+expect ramp_stops 3
+click_at inspector-ramp-11 0.25 0.3
+expect ramp_stops 4
+expect ramp_stop 1
+# Dragging its marker past the middle stop moves it (and keeps it selected)
+drag_widget inspector-ramp-11 0.25 0.8 0.9 0.8
+expect ramp_stop 2
+expect ramp_stops 4
+scroll_into_view inspector-scroll inspector-ramp-remove-11
+click_widget inspector-ramp-remove-11
+expect ramp_stops 3
+
+# The selected stop's alpha: the first stop, made transparent
+click_at inspector-ramp-11 0.0 0.3
+expect ramp_stop 0
+scroll_into_view inspector-scroll inspector-ramp-alpha-11
+drag_widget inspector-ramp-alpha-11 0.5 0.5 -0.5 0.5
+expect particle colorRamp 0:#ffe66400 0.5:#e63228 1:#28282800
+
+# Without the ramp: start and end colors, with their own alpha
+scroll_into_view inspector-scroll inspector-particle-useColorRamp-11
+click_widget inspector-particle-useColorRamp-11
+expect particle useColorRamp false
+scroll_into_view inspector-scroll inspector-particle-particleColor-alpha-11
+drag_widget inspector-particle-particleColor-alpha-11 0.5 0.5 -0.5 0.5
+expect particle particleColor #ffffff00
+
+# Reset puts everything back, in one undoable step
+scroll_into_view inspector-scroll inspector-particles-reset-11
+click_widget inspector-particles-reset-11
+expect particle amount 50
+expect particle continuous true
+expect particle size 5,5
+key ctrl+z
+expect particle amount 1
+expect particle size 100,100
+
+key ctrl+s
+wait_until modified false
+expect project_file_contains scenes/PlayScene.scene.xml kind="ParticleEmitter" name="ParticleEmitter"
+expect project_file_contains scenes/PlayScene.scene.xml <particles continuous="false" amount="1"
+quit

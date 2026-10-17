@@ -211,6 +211,14 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("text", v.field, s.currentScene, selected))
 	case Node_Flag_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.flag, name))
+	case Particle_Field_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", particleLabel(v.name), name), key("particle", v.name, s.currentScene, selected))
+	case Particle_Axis_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", particleLabel(v.name), name), key("particle", v.name, s.currentScene, selected))
+	case Ramp_Edited:
+		if hasSelection do return node(selected, fmt.tprintf("Change the color ramp of %s", name), key("particle", "colorRamp", s.currentScene, selected))
+	case Particles_Reset:
+		if hasSelection do return node(selected, fmt.tprintf("Reset the particles of %s", name))
 	case Node_Layer_Toggled:
 		if hasSelection do return node(selected, fmt.tprintf("Change collision %s of %s", v.mask ? "mask" : "layers", name))
 	case Node_Points_Changed:
@@ -279,6 +287,13 @@ sceneOpLabel :: proc(s: ^State, action: Scene_Action) -> string {
 @(private="file")
 many :: proc(s: ^State, name: string) -> string {
 	return len(s.selection) > 1 ? fmt.tprintf("%d nodes", len(s.selection)) : name
+}
+
+// A particle setting's label, lowercase, for undo step names
+@(private="file")
+particleLabel :: proc(name: string) -> string {
+	for field in e.ParticleSettings_Fields() do if field.name == name do return strings.to_lower(field.label, context.temp_allocator)
+	return name
 }
 
 @(private="file")
@@ -557,7 +572,8 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.jointKind != b.jointKind || a.bodyA != b.bodyA || a.bodyB != b.bodyB || a.jointOffset != b.jointOffset ||
 	   a.enableLimit != b.enableLimit || a.lower != b.lower || a.upper != b.upper || a.enableMotor != b.enableMotor ||
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
-	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected {
+	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
+	   a.particles != b.particles {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false

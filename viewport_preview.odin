@@ -19,7 +19,8 @@ in `State`:
 - The engine scene is rebuilt only when the scene's structure changes (node kinds, textures, text,
   animation settings...), detected with `sceneSignature`.
 - Transforms, visibility and layers are copied to the engine nodes every frame, so dragging is
-  cheap and animations don't restart.
+  cheap and animations don't restart. So are particle settings: an emitter keeps its particles
+  while its settings are edited, and one that emits once replays when its particles are gone.
 - The surface only grows, so resizing the panel doesn't reload textures each time.
 */
 
@@ -192,10 +193,10 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	clear(&preview.nodes)
 	append(&preview.nodes, ..created)
 	preview.animated = false
-	for node in scene.nodes do if node.kind == .AnimatedSprite do preview.animated = true
+	for node in scene.nodes do if node.kind == .AnimatedSprite || node.kind == .ParticleEmitter do preview.animated = true
 }
 
-// Copies what changes while editing (transforms, visibility, layers) to the engine nodes
+// Copies what changes while editing (transforms, visibility, layers, particle settings) to the engine nodes
 @(private="file")
 syncTransforms :: proc(scene: ^SceneDef) {
 	for &def, i in scene.nodes {
@@ -206,6 +207,16 @@ syncTransforms :: proc(scene: ^SceneDef) {
 		node.scale = def.scale
 		node.visible = def.visible
 		node.layer = e.RenderLayer(clamp(def.layer, 0, len(e.RenderLayer) - 1))
+		if def.kind == .ParticleEmitter && e.Node_Is(node, e.ParticleEmitter) {
+			emitter := cast(^e.ParticleEmitter)node
+			emitter.settings = def.particles
+			// Emitting follows the checkbox; a one-shot emitter plays again once its particles are gone
+			if !def.particles.emitting && emitter.emitting {
+				e.ParticleEmitter_Stop(emitter)
+			} else if def.particles.emitting && !emitter.emitting && e.ParticleEmitter_AliveCount(emitter) == 0 {
+				e.ParticleEmitter_Start(emitter)
+			}
+		}
 	}
 }
 
@@ -233,6 +244,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			enableLimit = node.enableLimit, lower = node.lower, upper = node.upper, enableMotor = node.enableMotor,
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
+				particles = node.particles,
 		})
 	}
 	return data

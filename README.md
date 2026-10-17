@@ -219,6 +219,26 @@ Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, a
 `e.PhysicsBody_IsInArea(body, area)`, `e.PhysicsBody_GetAreas(body)`,
 `e.PhysicsBody_IsTouching(a, b)`.
 
+## Particles
+
+A **ParticleEmitter** node (Ctrl+Shift+A) emits particles that move, spin, grow or shrink and
+change color over their life: sparks, smoke, fire, rain, exhaust. Its inspector has every
+setting, in groups (Emission, Shape, Rotation, Color, Motion, Forces, Collision):
+
+- Numbers are sliders over their useful range. X/Y pairs (size, scale, spread, gravity, wind) have
+  a link button: linked, dragging one axis takes the other along in proportion.
+- Colors are a color picker and an alpha slider. With **Color ramp** on, a gradient editor sets the
+  colors over a particle's life: click the bar to add a stop, drag a stop's marker to move it,
+  select one to change its color, alpha or position, **Remove** deletes it.
+- Shapes: circle, ellipse, rectangle, pixel, line, a texture (pick the image under the shape), or
+  drawn by your script (Custom: `emitter.customDraw`).
+- **Reset to defaults** puts every setting back (undoable, like every change).
+
+The viewport plays emitters live (P pauses viewport animations), and picks up changes as you drag a
+slider. In code: `e.ParticleEmitter_Start(emitter)` fires a one-shot emitter (emitting and
+continuous off, burst 1), `e.ParticleEmitter_Stop`, and `emitter.settings` changes any setting.
+The demo's ship exhaust and pickup sparks show both.
+
 ## Game state, data and assets in code
 
 - **Global scripts** run once for the whole game, across scenes: game state, settings, a HUD.

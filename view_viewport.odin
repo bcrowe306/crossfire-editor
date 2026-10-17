@@ -725,6 +725,7 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .CollisionShape: return skald.rgb(0x4fd1c5)
 	case .RayCast:        return skald.rgb(0xff6b6b)
 	case .Joint:          return skald.rgb(0xffdc78)
+	case .ParticleEmitter: return skald.rgb(0xff9d5c)
 	}
 	return skald.rgb(0xffffff)
 }

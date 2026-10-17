@@ -3,6 +3,7 @@ package editor
 import "core:fmt"
 import "core:path/filepath"
 import "core:reflect"
+import "core:strconv"
 import "core:strings"
 import "core:time"
 import e "engine:."
@@ -472,6 +473,28 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if node := selectedNode(&out); node != nil do node.visible = bool(v)
 	case Inspector_Link_Toggled:
 		out.inspectorLinks[LinkedPair(v)] = !out.inspectorLinks[LinkedPair(v)]
+	case Particle_Field_Changed:
+		if node := selectedNode(&out); node != nil && node.kind == .ParticleEmitter do e.ParticleSettings_Set(&node.particles, v.name, v.value)
+	case Particle_Axis_Changed:
+		node := selectedNode(&out)
+		if node == nil || node.kind != .ParticleEmitter || v.axis < 0 || v.axis > 1 do break
+		ParticleSettings_SetAxis(&node.particles, v.name, v.axis, v.value, ParticleField_Index(v.name) in out.particleLinks)
+	case Particle_Link_Toggled:
+		if int(v) >= 0 && int(v) < 64 do out.particleLinks ~= {int(v)}
+	case Particles_Reset:
+		node := selectedNode(&out)
+		if node == nil || node.kind != .ParticleEmitter do break
+		node.particles = e.DEFAULT_PARTICLE_SETTINGS
+		delete(node.texture)
+		node.texture = strings.clone("")
+	case Ramp_Edited:
+		node := selectedNode(&out)
+		if node == nil || node.kind != .ParticleEmitter do break
+		if e.ParticleSettings_Set(&node.particles, "colorRamp", v.text) do out.rampStop = v.selected
+	case Ramp_Stop_Selected:
+		out.rampStop = int(v)
+	case Ramp_Drag_Changed:
+		out.rampDragging = bool(v)
 	case Node_Field_Changed:
 		node := selectedNode(&out)
 		if node == nil do break
@@ -903,6 +926,29 @@ boxSelect :: proc(state: ^State, drag: ViewportDrag) {
 The other axis of a linked X/Y pair after one axis changed from `old` to `new`: scaled by the same
 ratio, so 2 x 1 becomes 4 x 2. When either is 0 there's no ratio, so it moves by the same amount.
 */
+/*
+Sets one axis of an [2]f32 particle setting; with `linked`, the other axis follows in proportion
+(`LinkedAxis`).
+*/
+ParticleSettings_SetAxis :: proc(settings: ^e.ParticleSettings, name: string, axis: int, value: f32, linked: bool) {
+	text, found := e.ParticleSettings_Get(settings^, name)
+	if !found do return
+	xs, _, ys := strings.partition(text, ",")
+	x, okX := strconv.parse_f32(strings.trim_space(xs))
+	y, okY := strconv.parse_f32(strings.trim_space(ys))
+	if !okX || !okY do return
+	pair := [2]f32{x, y}
+	if linked do pair[1 - axis] = LinkedAxis(pair[axis], value, pair[1 - axis])
+	pair[axis] = value
+	e.ParticleSettings_Set(settings, name, fmt.tprintf("%v,%v", pair.x, pair.y))
+}
+
+// A particle setting's index in e.ParticleSettings_Fields (-1 if there's none by that name)
+ParticleField_Index :: proc(name: string) -> int {
+	for field, i in e.ParticleSettings_Fields() do if field.name == name do return i
+	return -1
+}
+
 LinkedAxis :: proc(old, new, other: f32) -> f32 {
 	if abs(old) < 1e-6 || abs(other) < 1e-6 do return other + (new - old)
 	return other * (new / old)

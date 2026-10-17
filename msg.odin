@@ -356,6 +356,32 @@ Node_Field_Changed :: struct {
 	value: f64,
 }
 
+// ParticleEmitter settings of the selected node (view_inspector_particles.odin). Strings are only
+// valid while handling the message
+// A setting, as text (`e.ParticleSettings_Set`'s format)
+Particle_Field_Changed :: struct {
+	name: string,
+	value: string,
+}
+// One axis of an [2]f32 setting; the other follows when the pair is linked
+Particle_Axis_Changed :: struct {
+	name: string,
+	axis: int,
+	value: f32,
+}
+// Links or unlinks an [2]f32 setting's axes (its index in `e.ParticleSettings_Fields`)
+Particle_Link_Toggled :: distinct int
+// Every setting back to the defaults
+Particles_Reset :: struct {}
+// The color ramp changed (`text`), and the stop to select after it
+Ramp_Edited :: struct {
+	text: string,
+	selected: int,
+}
+Ramp_Stop_Selected :: distinct int
+// A ramp stop's marker was pressed (true) or released (false)
+Ramp_Drag_Changed :: distinct bool
+
 // Scripts (scripts.odin)
 // The view noticed a project with scripts that hasn't been built: build it once in the background
 Scripts_Auto_Build :: struct {}
@@ -623,4 +649,11 @@ Msg :: union {
 	Node_Flag_Changed,
 	Node_Layer_Toggled,
 	Node_Points_Changed,
+	Particle_Field_Changed,
+	Particle_Axis_Changed,
+	Particle_Link_Toggled,
+	Particles_Reset,
+	Ramp_Edited,
+	Ramp_Stop_Selected,
+	Ramp_Drag_Changed,
 }

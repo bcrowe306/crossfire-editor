@@ -2499,3 +2499,128 @@ globals_dialog_and_data_edits :: proc(t: ^testing.T) {
 	testing.expect(t, ok && len(dataTypes) == 1 && len(dataTypes[0].fields) == 2 && dataTypes[0].fields[1].type == .Texture)
 	free_all(context.temp_allocator)
 }
+
+@(test)
+particle_emitter_round_trip :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_particles")
+	defer removeAll(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	scene := &project.scenes[1]
+	plain := Scene_InsertNode(scene, "Plain", .ParticleEmitter, -1)
+	sparks := Scene_InsertNode(scene, "Sparks", .ParticleEmitter, -1)
+	p := &scene.nodes[sparks].particles
+	p.amount, p.burst, p.size, p.shape, p.continuous, p.localSpace = 120, 0.25, {3, 4.5}, .Texture, false, true
+	p.particleColor, p.colorEnd = {1, 2, 3, 4}, {250, 251, 252, 0}
+	p.gravityDirection, p.wind = {-0.5, 1}, {20, -3}
+	e.ColorRamp_AddStop(&p.colorRamp, 0.75, {9, 8, 7, 6})
+	delete(scene.nodes[sparks].texture)
+	scene.nodes[sparks].texture = strings.clone(project.assets[0].path)
+
+	testing.expect_value(t, Project_Save(&project), "")
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	got := &loaded.scenes[1]
+	testing.expect(t, NodeDef_Equal(scene.nodes[plain], got.nodes[plain]), "default emitter")
+	testing.expect(t, NodeDef_Equal(scene.nodes[sparks], got.nodes[sparks]), "emitter with settings")
+	testing.expect_value(t, got.nodes[sparks].particles, scene.nodes[sparks].particles)
+
+	file, _ := filepath.join({dir, "scenes", "PlayScene.scene.xml"}, context.temp_allocator)
+	text, _ := os.read_entire_file(file, context.temp_allocator)
+	// Only what differs from the defaults; a default emitter has no <particles>
+	testing.expect(t, strings.contains(string(text), `<particles continuous="false" amount="120"`))
+	testing.expect_value(t, strings.count(string(text), "<particles"), 1)
+	testing.expect(t, strings.contains(string(text), `formatVersion="6"`))
+}
+
+@(test)
+particle_inspector_edits :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	send(&state, Add_Node_Kind_Chosen(.ParticleEmitter))
+	index := nodeIndex(scene, "ParticleEmitter")
+	testing.expect(t, index >= 0, "added")
+	state.selectedNode = index
+	node := &scene.nodes[index]
+	testing.expect_value(t, node.particles, e.DEFAULT_PARTICLE_SETTINGS)
+
+	send(&state, Particle_Field_Changed{"amount", "80"})
+	send(&state, Particle_Field_Changed{"shape", "Rectangle"})
+	send(&state, Particle_Field_Changed{"useColorRamp", "false"})
+	send(&state, Particle_Field_Changed{"amount", "lots"}) // Not a number: ignored
+	testing.expect_value(t, node.particles.amount, 80)
+	testing.expect_value(t, node.particles.shape, e.ParticleShape.Rectangle)
+	testing.expect(t, !node.particles.useColorRamp)
+
+	// Unlinked, one axis; linked, the other follows in proportion
+	send(&state, Particle_Axis_Changed{"size", 0, 10})
+	testing.expect_value(t, node.particles.size, [2]f32{10, 5})
+	sizeIndex := ParticleField_Index("size")
+	send(&state, Particle_Link_Toggled(sizeIndex))
+	testing.expect(t, sizeIndex in state.particleLinks)
+	send(&state, Particle_Axis_Changed{"size", 0, 20})
+	testing.expect_value(t, node.particles.size, [2]f32{20, 10})
+
+	// The ramp: edits select the stop they leave selected
+	ramp := node.particles.colorRamp
+	at := e.ColorRamp_AddStop(&ramp, 0.25, {0, 0, 255, 128})
+	send(&state, Ramp_Edited{FormatRampText(ramp), at})
+	testing.expect_value(t, node.particles.colorRamp.count, 4)
+	testing.expect_value(t, state.rampStop, 1)
+
+	// Each change is an undo step; Reset is one more
+	undoBefore := len(state.history.undo)
+	send(&state, Particles_Reset{})
+	testing.expect_value(t, node.particles, e.DEFAULT_PARTICLE_SETTINGS)
+	testing.expect_value(t, len(state.history.undo), undoBefore + 1)
+	send(&state, Action.Undo)
+	node = &scene.nodes[index]
+	testing.expect_value(t, node.particles.amount, 80)
+	testing.expect_value(t, node.particles.colorRamp.count, 4)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+viewport_shows_particles :: proc(t: ^testing.T) {
+	// A project without images (the preview would try to load them)
+	state := testState()
+	defer State_Destroy(&state)
+	Project_Destroy(&state.project)
+	state.project = Project_CreateEmpty("unused", "Particles")
+	state.currentScene = 0
+	scene := &state.project.scenes[0]
+	index := Scene_InsertNode(scene, "Sparks", .ParticleEmitter, -1)
+	emitter := &scene.nodes[index]
+	emitter.position = {50, 50}
+	emitter.particles.burst = 1
+	emitter.particles.size = {12, 12}
+	emitter.particles.velocity = 0
+	emitter.particles.gravityVelocity = 0
+	emitter.particles.useColorRamp = false
+	emitter.particles.particleColor = {255, 0, 255, 255}
+	emitter.particles.colorEnd = {255, 0, 255, 255}
+	state.viewport = {center = {50, 50}, zoom = 1, size = {100, 100}, animate = true}
+
+	magenta :: proc(pixels: []u8) -> int {
+		count := 0
+		for i := 0; i + 3 < len(pixels); i += 4 do if pixels[i] > 240 && pixels[i + 1] < 20 && pixels[i + 2] > 240 do count += 1
+		return count
+	}
+	// The first render builds the scene; the next ones run it (particles move in real time)
+	_, ok := Preview_Render(&state, {100, 100}, 1)
+	testing.expect(t, ok, "rendered")
+	time.sleep(20 * time.Millisecond)
+	pixels, _ := Preview_Render(&state, {100, 100}, 1)
+	testing.expectf(t, magenta(pixels) > 300, "particles drawn: %d px", magenta(pixels))
+	// A setting edited in the inspector shows without rebuilding: smaller particles
+	emitter.particles.size = {3, 3}
+	time.sleep(20 * time.Millisecond)
+	pixels, _ = Preview_Render(&state, {100, 100}, 1)
+	testing.expect(t, Preview_IsAnimated(), "keeps frames coming")
+	smaller := magenta(pixels)
+	// Old particles keep their size; new ones are smaller (one burst: the next cycle hasn't come)
+	testing.expectf(t, smaller > 0, "still drawn: %d px", smaller)
+	free_all(context.temp_allocator)
+}

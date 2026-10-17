@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scene formatVersion="5" name="PlayScene">
+<scene formatVersion="6" name="PlayScene">
 	<node kind="Node2D" name="World" x="0" y="0">
 		<node kind="Camera" name="Camera" x="640" y="360"/>
 		<node kind="Sprite" name="Spaceship" x="640" y="430" texture="assets/ship.png"/>
@@ -31,6 +31,9 @@
 		</script>
 		<node kind="Sprite" name="Sprite" x="0" y="0" texture="assets/ship.png"/>
 		<node kind="CollisionShape" name="Hull" x="0" y="0" shape="Capsule" radius="20" height="56"/>
+		<node kind="ParticleEmitter" name="Exhaust" x="0" y="30">
+			<particles amount="40" lifetime="0.6" size="4,4" scaleEnd="0,0" angle="90" angleVariance="1" angleSpread="20" velocity="120" velocityVariance="1" velocitySpread="40" gravityVelocity="0"/>
+		</node>
 	</node>
 	<node kind="Area" name="Star1" x="300" y="200">
 		<script name="Pickup">
@@ -67,5 +70,8 @@
 		<script name="Rock"/>
 		<node kind="AnimatedSprite" name="Look" x="0" y="0" texture="assets/balloons.png" columns="4" rows="1" fps="3" loop="true"/>
 		<node kind="CollisionShape" name="Body" x="0" y="0" shape="Circle" radius="28"/>
+	</node>
+	<node kind="ParticleEmitter" name="Sparks" x="0" y="0">
+		<particles emitting="false" continuous="false" amount="30" lifetime="0.6" burst="1" size="3,3" scaleEnd="0.2,0.2" colorRamp="0:#fff8c8 0.4:#ffd23c 1:#ff8c0000" angleVariance="1" angleSpread="180" velocity="180" velocityVariance="1" velocitySpread="80" gravityVelocity="0"/>
 	</node>
 </scene>

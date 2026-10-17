@@ -51,6 +51,7 @@ ICON_RAY         :: "\uf178"
 ICON_JOINT       :: "\uf0c1"
 ICON_DATABASE    :: "\uf1c0"
 ICON_GLOBE       :: "\uf0ac"
+ICON_FIRE        :: "\uf06d"
 
 @(private="file")
 iconFontRegistered: bool
@@ -79,6 +80,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .CollisionShape: return ICON_POLYGON
 	case .RayCast:        return ICON_RAY
 	case .Joint:          return ICON_JOINT
+	case .ParticleEmitter: return ICON_FIRE
 	}
 	return ICON_CUBE
 }

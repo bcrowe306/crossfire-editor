@@ -144,11 +144,18 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		}
 		writeNode(&w, &node)
 		hasChildren := Scene_HasChildren(scene, i)
-		if len(node.items) == 0 && node.script == "" && !hasChildren {
+		// A ParticleEmitter's settings that aren't the defaults
+		particles := node.kind == .ParticleEmitter ? e.FormatParticleSettings(node.particles) : nil
+		if len(node.items) == 0 && node.script == "" && len(particles) == 0 && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
 		endOpen(&w)
+		if len(particles) > 0 {
+			open(&w, "particles")
+			for pair in particles do attr(&w, pair.name, pair.value)
+			closeEmpty(&w)
+		}
 		for item in node.items {
 			open(&w, "item")
 			attr(&w, "label", item.label)
@@ -345,6 +352,8 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.hertz != 0 do attr(w, "hertz", node.hertz)
 		if node.dampingRatio != defaults.dampingRatio do attr(w, "damping", node.dampingRatio)
 		if node.collideConnected do attr(w, "collideConnected", true)
+	case .ParticleEmitter:
+		if node.texture != "" do attr(w, "texture", node.texture)
 	case .Node2D, .Menu:
 	}
 }

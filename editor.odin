@@ -142,6 +142,11 @@ State :: struct {
 	addNode: AddNodeDialog,
 	// Inspector X/Y pairs whose axes change together
 	inspectorLinks: [LinkedPair]bool,
+	// The same for ParticleEmitter [2]f32 settings, by index in e.ParticleSettings_Fields
+	particleLinks: bit_set[0 ..< 64],
+	// The color ramp editor's selected stop, and whether its marker is being dragged
+	rampStop: int,
+	rampDragging: bool,
 	// Text typed into the focused number field
 	numberEdit: NumberEdit,
 	// Every selected node of the open scene, sorted; `selectedNode` is the primary one (selection.odin)

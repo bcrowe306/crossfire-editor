@@ -8,6 +8,7 @@ import "core:reflect"
 import "core:strconv"
 import "core:strings"
 import "core:time"
+import e "engine:."
 import "gui:skald"
 import sdl "vendor:sdl3"
 
@@ -28,6 +29,10 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	wait_until <check> [timeout=<s>] Wait (default 10 s) until a check passes; fails on timeout
 	expect <check>                   Fail unless the check passes now
 	click_widget <key>               Click the center of a widget's visible part, e.g. toolbar-play
+	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
+	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
+	drag_widget <key> <fx0> <fy0> <fx1> <fy1>
+	                                 Press at one point of a widget (fractions), move to another, release
 	click_row <tree key> <row> [ctrl | shift]
 	                                 Click a row of a tree: browser-tree, scene-tree; optionally
 	                                 holding Ctrl or Shift
@@ -118,6 +123,11 @@ Checks:
 	project_file <path>          A file exists, relative to the project folder (an export's output)
 	project_file_contains <path> <text>   A project file contains the text (after saving)
 	shapes <on | off>            The viewport outlines collision shapes, rays and joints
+	particle <setting> <value>   A ParticleEmitter setting of the selected node, as scene files
+	                             store it (e.g. particle amount 50, particle size 5,5)
+	particle_linked <setting> <true | false>   A particle [2]f32 setting's axes are linked
+	ramp_stops <count>           Stops in the selected emitter's color ramp
+	ramp_stop <index>            The color ramp editor's selected stop
 	globals <A,B | none>         The project's global scripts, in order
 	draft_globals <A,B | none>   The Project Settings dialog's globals
 	data_count <n>               The project's data resources
@@ -313,6 +323,37 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return true
 		}
 		click({rect.x + rect.w * 0.5, rect.y + rect.h * 0.5})
+		report(true, line)
+		return false
+
+	case "click_at", "drag_widget":
+		count := command == "click_at" ? 3 : 5
+		if len(args) < count {
+			fail(fmt.tprintf("%s: expected a widget key and %d fractions", line, count - 1))
+			return true
+		}
+		rect, ok := widgetRect(ctx, args[0])
+		if !ok {
+			fail(fmt.tprintf("%s: no widget with key '%s' was drawn last frame", line, args[0]))
+			return true
+		}
+		at :: proc(rect: skald.Rect, args: []string, i: int) -> [2]f32 {
+			fx, _ := strconv.parse_f32(args[i])
+			fy, _ := strconv.parse_f32(args[i + 1])
+			return {rect.x + rect.w * fx, rect.y + rect.h * fy}
+		}
+		start := at(rect, args, 1)
+		if command == "click_at" {
+			click(start)
+		} else {
+			end := at(rect, args, 3)
+			pushMouse(.MOUSE_MOTION, start)
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, start))
+			STEPS :: 4
+			for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, start + (end - start) * f32(i) / STEPS))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, end))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+		}
 		report(true, line)
 		return false
 
@@ -716,6 +757,22 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return found == strings.trim_space(expected), found
 	case "new_script_dialog":
 		found = s.newScript.open ? "open" : "closed"
+	case "particle", "particle_linked":
+		if selected == nil || selected.kind != .ParticleEmitter do return false, "no ParticleEmitter selected"
+		setting, _, expected := strings.partition(value, " ")
+		if name == "particle_linked" {
+			found = fmt.tprint(ParticleField_Index(setting) in s.particleLinks)
+		} else {
+			known: bool
+			found, known = e.ParticleSettings_Get(selected.particles, setting)
+			if !known do return false, fmt.tprintf("no particle setting '%s'", setting)
+		}
+		return found == strings.trim_space(expected), found
+	case "ramp_stops":
+		if selected == nil || selected.kind != .ParticleEmitter do return false, "no ParticleEmitter selected"
+		found = fmt.tprint(selected.particles.colorRamp.count)
+	case "ramp_stop":
+		found = fmt.tprint(s.rampStop)
 	case "linked":
 		pairName, _, expected := strings.partition(value, " ")
 		pair, known := reflect.enum_from_name(LinkedPair, pairName)

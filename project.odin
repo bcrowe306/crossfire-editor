@@ -45,7 +45,7 @@ NodeDef :: struct {
 	// Editor-only: whether its children are shown in the scene tree
 	expanded: bool,
 
-	// Sprite, AnimatedSprite: image path relative to the project folder
+	// Sprite, AnimatedSprite, ParticleEmitter (Texture shape): image path relative to the project folder
 	texture: string,
 	// Label
 	text: string,
@@ -109,6 +109,8 @@ NodeDef :: struct {
 	hertz: f32,
 	dampingRatio: f32,
 	collideConnected: bool,
+	// ParticleEmitter: every setting (a plain value; `texture` is its Texture shape's image)
+	particles: e.ParticleSettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -223,6 +225,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		bodyB = strings.clone(""),
 		jointOffset = defaults.jointOffset,
 		dampingRatio = defaults.dampingRatio,
+		particles = defaults.particles,
 	}
 	if kind == .Menu {
 		append(&node.items, MenuItemDef{strings.clone("Button"), strings.clone("quit")})
@@ -524,6 +527,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				hertz = node.hertz,
 				dampingRatio = node.dampingRatio,
 				collideConnected = node.collideConnected,
+				particles = node.particles,
 			}
 			append(&def.points, ..node.points[:])
 			for item in node.items {

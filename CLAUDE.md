@@ -22,6 +22,8 @@ consoles and handhelds).
     unsaved-changes prompt.
   - **Physics** (the engine's Box2D integration): body, shape, Area and RayCast nodes edited in the
     inspector, shapes and rays outlined in the viewport, physics settings in Project Settings.
+  - **Particles**: ParticleEmitter nodes, every setting edited in the inspector (sliders, linked
+    pairs, color pickers with alpha, a color ramp editor, reset), played live in the viewport.
   - **Export** to Linux x86_64 and the web (WebAssembly, through Emscripten). Every other target
     is listed with its settings and reports "not implemented yet".
 - **Not yet:** the other export targets, non-PNG/BMP images on the web, CI.
@@ -140,6 +142,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
 | `project_data.odin` | Global scripts (`GlobalDef`) and data resources (`DataDef`) in the project; prop editing for any owner (`PropTarget`); creating, loading and saving data files; the generated `scripts/assets.odin` (`Scripts_AssetsSource` / `Scripts_WriteAssetsFile`) |
 | `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
+| `view_inspector_particles.odin` | The inspector's ParticleEmitter settings, built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`, Reset) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Keys tabs, collapsible |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
@@ -527,9 +530,11 @@ MyGame/
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
   (world positions) are migrated when parsed.
 - **Version 4:** physics node kinds and attributes, and the project's physics settings.
+- **Version 6:** ParticleEmitter nodes; their settings are a `<particles>` child element (the
+  engine's `e.FormatParticleSettings`: only what differs from the defaults).
 - **Node kinds** are the engine's `SceneNodeKind` (the editor's `NodeKind` is an alias):
   Node2D, Sprite, AnimatedSprite, Camera, Label, Menu, StaticBody, DynamicBody, CharacterMover,
-  Area, CollisionShape, RayCast.
+  Area, CollisionShape, RayCast, ParticleEmitter (its settings in a `<particles>` element).
   - Menu buttons carry an action: `scene:<Name>` or `quit`.
   - Hidden nodes and their children aren't drawn at runtime.
 - **Writer rules:** attributes are written in a fixed order, and only the ones that apply to the
@@ -613,6 +618,35 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   not the defaults.
 - Play and exports need nothing more: the player is the engine's. Box2D is static (the native
   `.a` through the engine's binding; on the web, `box2d_web.o` on the emcc line).
+
+## Particles (implemented; the engine's particles.odin)
+
+- **Model:** `NodeDef.particles` is the engine's `e.ParticleSettings`, a plain value (no
+  allocations), so cloning, equality (`==`) and the undo snapshot need nothing per field; the
+  Texture shape's image is `NodeDef.texture`. Written by `SceneToXML` as `<particles>`.
+- **Inspector** (`view_inspector_particles.odin`): one loop over `e.ParticleSettings_Fields()`
+  (names, types, the `min`/`max`/`label`/`group` tags), so **a setting added in the engine shows
+  up here with no editor change** (a new field type needs a case in `particleControl`). Ranged
+  numbers are sliders, rounded to about a thousandth of their range (`sliderStep`) so scene files
+  get short numbers; `[2]f32` is two sliders and a link button (`State.particleLinks`, by field
+  index; `ParticleSettings_SetAxis` applies `LinkedAxis`); colors are Skald's picker (no alpha) plus
+  an alpha slider. The ramp hides the start/end colors when on, and vice versa.
+- **Color ramp editor** (`colorRampEditor`): a canvas (checkerboard, the gradient in 2 px slices,
+  a marker per stop). Its mouse handling runs before it's built, from last frame's rect (like the
+  scene tree's): a press near a marker grabs it, elsewhere on the bar adds a stop in the ramp's
+  color there; while `State.rampDragging`, moving re-sorts the ramp and follows the stop
+  (`e.ColorRamp_Sort` tracks it). `State.rampStop` is the selected stop.
+- **Messages:** `Particle_Field_Changed` (a setting as text, `e.ParticleSettings_Set`),
+  `Particle_Axis_Changed`, `Ramp_Edited` (the whole ramp as text plus the stop to select),
+  `Particles_Reset` (also clears the texture). All `.Node` undo steps merged per setting;
+  `Particle_Link_Toggled`, `Ramp_Stop_Selected`, `Ramp_Drag_Changed` are view state.
+- **Viewport:** emitters make the preview animated; `syncTransforms` copies their settings every
+  frame (so a slider drag shows at once without losing the particles), stops an emitter whose
+  Emitting is off, and replays a one-shot one once its particles are gone.
+- Tests: `particle_emitter_round_trip`, `particle_inspector_edits`, `viewport_shows_particles`
+  (pixels from `Preview_Render`), and `tests/ui/particles.script` (real slider drags, the link
+  button, ramp clicks and drags, alpha, reset, undo). The driver's `click_at` / `drag_widget`
+  press at fractions of a widget; checks `particle`, `particle_linked`, `ramp_stops`, `ramp_stop`.
 
 ## Export (implemented, `export.odin`, `export_run.odin`)
 
@@ -798,6 +832,9 @@ Highlights:
     `settings-save` / `settings-apply` / `settings-cancel` (see view_settings.odin)
   - Project Settings: `project-settings-tab-<Tab>`; Export tab `export-enable-<Target>`,
     `export-target-<Target>`, `export-field-<Field>`, `export-run`, `export-cancel`
+  - ParticleEmitter inspector: `inspector-particle-<setting>-<node>` (`-x` / `-y` for pairs,
+    `-alpha` for colors), `inspector-particle-link-<setting>`, `inspector-particles-reset-<node>`,
+    `inspector-ramp-<node>` and its `-add-`, `-remove-`, `-position-`, `-color-`, `-alpha-` controls
 - **UI tests run on `tests/fixtures/ui_project`**, not `examples/demo_project`: the demo is what
   `task run` opens, so it changes when you use the editor. Update the fixture on purpose when a
   test needs different content.
