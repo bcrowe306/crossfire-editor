@@ -68,6 +68,8 @@ jobs:
         run: odin check . $COLLECTIONS -vet-unused -vet-packages:editor
 
       - name: Test
+        # The tests take seconds: a hang (a crashed test thread on Windows) shouldn't hold the runner
+        timeout-minutes: 10
         run: odin test . $COLLECTIONS -vet-unused -vet-packages:editor $ODIN_LINK_FLAGS
 
       - name: Package the editor
