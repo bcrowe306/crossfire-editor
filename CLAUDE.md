@@ -699,8 +699,9 @@ failed, fixes it and builds again with the next tag.
 - The engine's `main` is checked out next to the editor (`odin_sdl_engine/`), and its
   `tools/ci/setup.sh` and `tools/build_box2d.sh` set things up. The emsdk submodule isn't
   fetched (desktop builds don't need it).
-- `tools/ci/package_editor.sh` packs the editor (with its SDL3 libraries, the demo) next to the
-  engine (Play builds players from it). Releases are development builds: Play needs Odin.
+- `tools/ci/package_editor.sh` packs only the built editor and its SDL3 libraries (settings and
+  fonts are built in; the demo is recreated when missing). Releases are development builds: Play
+  and Export need Odin and the engine's sources at `../odin_sdl_engine`.
 
 ## Documentation (required)
 
