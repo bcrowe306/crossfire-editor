@@ -2,6 +2,7 @@ package editor
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:math"
 import "core:log"
 import "core:os"
 import "core:path/filepath"
@@ -3134,4 +3135,27 @@ mixer_edits :: proc(t: ^testing.T) {
 	testing.expect(t, node.audio.loop, "loops")
 	send(&state, Node_Text_Changed{.Bus, e.MASTER_BUS})
 	testing.expect_value(t, playScene(&state).nodes[index].bus, "")
+}
+
+@(test)
+fader_scale_in_decibels :: proc(t: ^testing.T) {
+	// The ends: silence and +6 dB (a gain of 2); unity snaps
+	testing.expect_value(t, Fader_GainToPosition(0), 0)
+	testing.expect_value(t, Fader_GainToPosition(2), 1)
+	testing.expect_value(t, Fader_PositionToGain(0), 0)
+	testing.expect(t, abs(Fader_PositionToGain(1) - 2) < 0.01, "top is +6 dB")
+	unity := Fader_GainToPosition(1)
+	testing.expect_value(t, Fader_PositionToGain(unity), 1)
+	testing.expect_value(t, Fader_PositionToGain(unity + 0.002), 1)
+	// Round trips within a tenth of a dB
+	for gain in ([]f32{0.01, 0.1, 0.5, 0.708, 1.5}) {
+		back := Fader_PositionToGain(Fader_GainToPosition(gain))
+		testing.expect(t, abs(20 * math.log10(back / gain)) <= 0.06, fmt.tprint(gain))
+	}
+	testing.expect_value(t, Fader_Text(0), "-inf")
+	testing.expect_value(t, Fader_Text(1), "0.0 dB")
+	testing.expect_value(t, Fader_Text(0.5), "-6.0 dB")
+	testing.expect_value(t, Pan_Text(0), "C")
+	testing.expect_value(t, Pan_Text(-0.4), "L40")
+	testing.expect_value(t, Pan_Text(0.25), "R25")
 }

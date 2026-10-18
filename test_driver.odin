@@ -47,6 +47,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 Click a row of a tree: browser-tree, scene-tree; optionally
 	                                 holding Ctrl or Shift
 	double_click_row <tree key> <row>   Double-click a row
+	double_click_widget <key>        Double-click the center of a widget's visible part
+	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
 	scroll_into_view <scroll key> <widget key>
 	                                 Scroll so the widget is in view, e.g.
 	                                 scroll_into_view inspector-scroll inspector-new-script
@@ -147,6 +149,8 @@ Checks:
 	input_bindings <action> <a, b, ...>   An action's bindings, described (e.Input_BindingDescribe)
 	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
 	buses <count>                The project's mix buses (Master counts)
+	widget_visible <key> <true | false>   Some of the widget was drawn last frame, not clipped away
+	meter <key> <sounding | silent>   A level meter shows more than -50 dB, or nothing
 	bus <index> <name | volume | pan | mute | nodes> <value>   A bus (numbers with two decimals)
 	sound <sound | bus | volume | pitch | pan | loop | autostart | range> <value>
 	                             The selected sound node's settings ("none" for no sound; bus "Master")
@@ -612,6 +616,41 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		return false
 
+	case "double_click_widget":
+		rect, ok := widgetRect(ctx, rest)
+		if !ok {
+			fail(fmt.tprintf("%s: no widget with key '%s' was drawn last frame", line, rest))
+			return true
+		}
+		at := [2]f32{rect.x + rect.w * 0.5, rect.y + rect.h * 0.5}
+		pushMouse(.MOUSE_MOTION, at)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, at))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at))
+		second := mouseEvent(.MOUSE_BUTTON_DOWN, at)
+		second.button.clicks = 2
+		queueBatch(second)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "wheel_widget":
+		rect, ok := widgetRect(ctx, args[0] if len(args) > 0 else "")
+		if !ok || len(args) < 2 {
+			fail(fmt.tprintf("%s: expected a drawn widget and wheel steps", line))
+			return true
+		}
+		at := [2]f32{rect.x + rect.w * 0.5, rect.y + rect.h * 0.5}
+		pushMouse(.MOUSE_MOTION, at)
+		event: sdl.Event
+		event.type = .MOUSE_WHEEL
+		event.wheel.y = f32(atoi(args, 1, 1))
+		event.wheel.mouse_x, event.wheel.mouse_y = at.x, at.y
+		queueBatch(event)
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "double_click_row":
 		rect, ok := widgetRect(ctx, args[0] if len(args) > 0 else "")
 		if !ok || len(args) < 2 {
@@ -943,6 +982,15 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(selected.particles.colorRamp.count)
 	case "buses":
 		found = fmt.tprint(len(s.project.buses))
+	case "meter":
+		key, _, expected := strings.partition(value, " ")
+		found = levelMeter_Shown(key) > -50 ? "sounding" : "silent"
+		return found == strings.trim_space(expected), found
+	case "widget_visible":
+		key, _, expected := strings.partition(value, " ")
+		_, visible := widgetRect(ctx, key)
+		found = fmt.tprint(visible)
+		return found == strings.trim_space(expected), found
 	case "bus":
 		parts := strings.fields(value, context.temp_allocator)
 		if len(parts) < 3 do return false, "expected an index, a field and a value"

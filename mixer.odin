@@ -69,6 +69,29 @@ Bus_NodeCount :: proc(project: ^Project, name: string) -> int {
 	return count
 }
 
+/*
+Sends the editor's preview through a bus (and Master) as the project's mixer sets them, so what
+Preview plays sounds like the game and the Mixer's meters move. An unknown bus is Master.
+*/
+Mixer_RoutePreview :: proc(project: ^Project, bus: string) {
+	stage :: proc(b: BusDef) -> (gain, left, right: f32) {
+		gain = b.mute ? 0 : max(b.volume, 0)
+		p := clamp(b.pan, -1, 1)
+		return gain, min(1, 1 - p), min(1, 1 + p)
+	}
+	master := len(project.buses) > 0 ? project.buses[0] : BusDef{volume = 1}
+	mg, ml, mr := stage(master)
+	name := ""
+	bg, bl, br: f32 = 1, 1, 1
+	for b, i in project.buses {
+		if i > 0 && b.name == bus {
+			name = b.name
+			bg, bl, br = stage(b)
+		}
+	}
+	AudioPreview_SetRouting(name, bg, bl, br, mg, ml, mr)
+}
+
 isSoundKind :: proc(kind: NodeKind) -> bool {
 	return kind == .AudioPlayer || kind == .AudioPlayer2D || kind == .MusicPlayer
 }
@@ -86,11 +109,15 @@ Mixer_Update :: proc(state: ^State, m: Msg) -> bool {
 	bus :: proc(p: ^Project, i: int) -> ^BusDef {
 		return i >= 0 && i < len(p.buses) ? &p.buses[i] : nil
 	}
+	// The bus the preview plays on, applied again after the change
+	route := strings.clone(AudioPreview_Bus(), context.temp_allocator)
 	#partial switch v in m {
 	case Bus_Added:
 		name := "Bus"
 		for n := 2; BusNameProblem(p, -1, name) != ""; n += 1 do name = fmt.tprintf("Bus %d", n)
 		append(&p.buses, BusDef{strings.clone(name), 1, 0, false})
+		// The new strip comes into view
+		hScroll_ScrollToEnd("mixer-buses")
 		delete(state.busEdit.text)
 		state.busEdit = {}
 	case Bus_Removed:
@@ -125,6 +152,7 @@ Mixer_Update :: proc(state: ^State, m: Msg) -> bool {
 				}
 			}
 		}
+		if route == b.name do route = v.name
 		delete(b.name)
 		b.name = strings.clone(v.name)
 	case Bus_Volume_Changed:
@@ -136,5 +164,6 @@ Mixer_Update :: proc(state: ^State, m: Msg) -> bool {
 	case:
 		return false
 	}
+	Mixer_RoutePreview(p, route)
 	return true
 }

@@ -152,7 +152,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Mixer tabs, collapsible |
 | `mixer.odin` | Mix buses: `BusDef`, `Buses_FromData` (Master first), names (`BusNameProblem`), `Bus_NodeCount`, `isSoundKind`, the Mixer's messages (`Mixer_Update`) |
-| `view_mixer.odin` | The Mixer tab (`MixerPanel`): a strip per bus (name, volume and pan sliders, mute, remove, node count) and Add Bus |
+| `view_mixer.odin` | The Mixer tab (`MixerPanel`, built in `skald.sized`), like a DAW's: a channel strip per bus (node count, remove, pan, fader beside its level meter, dB, mute, name at the bottom), scrolling sideways; Master pinned on the right, + beside it |
+| `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
 | `view_inspector_audio.odin` | The inspector's sound node settings (`audioInspectorRows`): sound or music, bus, Open Mixer, volume / pitch / pan sliders, loop, autostart, a 2D player's range and falloff, music's fades, Preview |
 | `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with, frames, FPS, loop, mode, the sheet's image and grid; groups in a `wrap_row`) over the preview and the sheet's frame thumbnails (`frameStrip`, cells drawn from the sheet uploaded once with stb_image); one scroll for all |
 | `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimationDef_FrameAt` (the frame at a time, as the engine plays it), `AnimationDef_Range`, unique names |
@@ -747,14 +748,26 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   `Node_Text_Changed` (`.Sound`, `.Bus`; choosing Master stores ""). A bus name that no bus has
   is warned about (the engine plays it on Master). **Preview** plays the node's sound through the
   browser's audio preview with its volume, pitch and pan (`AudioPreview_SetSettings`; not its bus).
-- **Mixer tab** (`MixerPanel`, `Mixer_Update`): Add Bus ("Bus", "Bus 2", ...); rename (typed text
-  kept in `State.busEdit` until valid: not empty, no edge spaces, unused ignoring case; nodes on
-  it follow the name); volume 0-2, pan -1 to 1, mute; remove (Master can't be; its nodes go to
-  Master). Each is a `.Project` undo step, merged while a slider drags.
+- **Mixer tab** (`MixerPanel`, `Mixer_Update`), laid out like a DAW's mixer: channel strips for
+  the buses in an `hScroll` (wheel or bar), Master pinned on the far right with + (Add Bus,
+  "Bus", "Bus 2", ...; the new strip is scrolled into view: `hScroll_ScrollToEnd`) beside it.
+  A strip: node count and remove (not Master; its nodes go to Master), pan (`panControl`), the
+  fader (`fader`: -inf to +6 dB, unity snaps, Shift fine, double-click or Ctrl+click resets)
+  beside its meter on the same scale, the level in dB, mute, the name (typed text kept in
+  `State.busEdit` until valid: not empty, no edge spaces, unused ignoring case; nodes on it
+  follow the name). Each edit is a `.Project` undo step, merged while a fader drags.
+- **Meters show the editor's own playback**: Preview plays the node's sound through its bus
+  (`Mixer_RoutePreview`, applied again after every Mixer edit, so a fader changes what you hear),
+  the browser's previews through Master. The preview's track carries sound × bus gains, its group
+  meters the bus, the mixer's post-mix applies and meters Master (the engine's AudioMeter, as in
+  the game). A game run with Play is another process: its levels aren't shown (later: send them
+  back over the player's output).
 - **Viewport:** a selected AudioPlayer2D shows its range as a ring (`maxDistance`, world units).
   The viewport never plays sounds: `Scene_Build` without scripts doesn't load them.
-- Tests: `sound_nodes_and_buses_round_trip`, `mixer_edits`, `tests/ui/mixer.script` (driver checks
-  `buses`, `bus <i> <field>`, `sound <field>`).
+- Tests: `sound_nodes_and_buses_round_trip`, `mixer_edits`, `fader_scale_in_decibels`,
+  `tests/ui/mixer.script` (real fader, pan, mute and scroll-bar drags, the wheel, a preview moving
+  the meters; driver: `double_click_widget`, `wheel_widget`, checks `buses`, `bus <i> <field>`,
+  `sound <field>`, `meter <key>`, `widget_visible <key>`).
 - **Later:** bus effects (each engine bus has a `mix.Group` for them).
 
 ## Particles (implemented; the engine's particles.odin)

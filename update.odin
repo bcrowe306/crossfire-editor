@@ -107,6 +107,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			}
 		}
 		AudioPreview_SetSettings(node.audio.volume, node.audio.pitch, node.audio.pan)
+		Mixer_RoutePreview(&out.project, node.bus)
 		AudioPreview_Play()
 	case Asset_Kind_Changed:
 		if v.index < 0 || v.index >= len(out.project.assets) do break
@@ -922,6 +923,8 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .Toggle_Preview_Panel:
 		out.layout.previewOpen = !out.layout.previewOpen
 	case .Play_Audio_Preview:
+		// The browser's previews go to Master
+		Mixer_RoutePreview(&out.project, "")
 		AudioPreview_Play()
 	case .Stop_Audio_Preview:
 		AudioPreview_Stop()
@@ -1006,7 +1009,7 @@ importAsset :: proc(state: ^State, path: string) {
 selectAsset :: proc(state: ^State, index: int) {
 	asset := state.project.assets[index]
 	state.browserSelection = {kind = .Asset, folder = AssetFolder(asset.kind), index = index}
-	if asset.kind == .Audio {
+	if asset.kind == .Audio || asset.kind == .Music {
 		if message := AudioPreview_Load(AssetFilePath(&state.project, asset)); message != "" {
 			logLine(state, .Warning, fmt.aprintf("Audio preview: %s", message))
 		}

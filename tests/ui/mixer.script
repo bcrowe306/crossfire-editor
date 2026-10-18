@@ -1,6 +1,6 @@
 # Sound: import a sound, use it as music and back, add sound nodes, pick their sound and bus,
 # set volume, pitch, pan and range with the sliders, preview; the Mixer tab: add buses, rename,
-# volume, pan, mute, remove (its nodes go to Master); undo; save.
+# fader, pan, mute, remove, scrolling (its nodes go to Master); undo; save.
 # Run with: task test:ui
 #
 # PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
@@ -56,17 +56,15 @@ expect sound loop true
 scroll_into_view inspector-scroll inspector-audio-preview-11
 click_widget inspector-audio-preview-11
 
-# The Mixer: Master, then a new bus, renamed, its volume, pan and mute
+# The Mixer: channel strips, Master on the right; a new bus, renamed (a taken name waits)
 scroll_into_view inspector-scroll inspector-open-mixer-11
 click_widget inspector-open-mixer-11
 expect tab Mixer
 expect buses 1
 expect bus 0 name Master
-scroll_into_view mixer-scroll mixer-add
 click_widget mixer-add
 expect buses 2
 expect bus 1 name Bus
-scroll_into_view mixer-scroll mixer-name-1
 click_widget mixer-name-1
 key ctrl+a
 type Master
@@ -74,16 +72,34 @@ expect bus 1 name Bus
 key ctrl+a
 type SFX
 expect bus 1 name SFX
-scroll_into_view mixer-scroll mixer-volume-1
-drag_widget mixer-volume-1 0.5 0.5 -0.5 0.5
+key escape
+
+# The fader: dragged to the bottom is silence, up past the top +6 dB (a gain of 2), a
+# double-click puts it back at 0 dB
+drag_widget mixer-fader-1 0.5 0.5 0.5 1.5
 expect bus 1 volume 0.00
-scroll_into_view mixer-scroll mixer-pan-1
+drag_widget mixer-fader-1 0.5 0.9 0.5 -2
+expect bus 1 volume 2.00
+double_click_widget mixer-fader-1
+expect bus 1 volume 1.00
+drag_widget mixer-fader-0 0.5 0.5 0.5 1.5
+expect bus 0 volume 0.00
+double_click_widget mixer-fader-0
+expect bus 0 volume 1.00
+
+# Pan: dragged right is R100; a double-click centers it
 drag_widget mixer-pan-1 0.5 0.5 1.5 0.5
 expect bus 1 pan 1.00
-scroll_into_view mixer-scroll mixer-mute-1
+double_click_widget mixer-pan-1
+expect bus 1 pan 0.00
+drag_widget mixer-pan-1 0.5 0.5 1.5 0.5
+expect bus 1 pan 1.00
+drag_widget mixer-fader-1 0.5 0.5 0.5 1.5
+expect bus 1 volume 0.00
+
+# Mute
 click_widget mixer-mute-1
 expect bus 1 mute true
-scroll_into_view mixer-scroll mixer-mute-0
 click_widget mixer-mute-0
 expect bus 0 mute true
 click_widget mixer-mute-0
@@ -97,6 +113,19 @@ expect sound bus SFX
 expect bus 1 nodes 1
 expect bus 0 nodes 0
 
+# Meters: Preview plays through the node's bus; at 0 dB, unmuted, its meter and Master's move
+expect meter mixer-meter-1 silent
+click_widget mixer-mute-1
+double_click_widget mixer-fader-1
+expect bus 1 volume 1.00
+scroll_into_view inspector-scroll inspector-audio-preview-11
+click_widget inspector-audio-preview-11
+wait_until meter mixer-meter-1 sounding timeout=3
+wait_until meter mixer-meter-0 sounding timeout=3
+click_widget mixer-mute-1
+drag_widget mixer-fader-1 0.5 0.5 0.5 1.5
+expect bus 1 volume 0.00
+
 # A 2D sound node: its range slider
 key escape
 key ctrl+shift+a
@@ -108,7 +137,6 @@ drag_widget inspector-audio-Max_Distance-12 0.5 0.5 -0.5 0.5
 expect sound range 1
 
 # Removing the bus sends its node to Master; undo brings both back
-scroll_into_view mixer-scroll mixer-remove-1
 click_widget mixer-remove-1
 expect buses 1
 expect bus 0 nodes 2
@@ -116,6 +144,41 @@ key ctrl+z
 expect buses 2
 expect bus 1 name SFX
 expect bus 1 nodes 1
+
+# More buses than fit: they scroll sideways (the wheel, or the bar), Master stays in view; a new
+# bus scrolls into view
+click_widget mixer-add
+click_widget mixer-add
+click_widget mixer-add
+click_widget mixer-add
+click_widget mixer-add
+click_widget mixer-add
+click_widget mixer-add
+click_widget mixer-add
+click_widget mixer-add
+click_widget mixer-add
+expect buses 12
+expect widget_visible mixer-fader-11 true
+expect widget_visible mixer-fader-0 true
+expect widget_visible mixer-fader-1 false
+drag_widget mixer-buses-bar 0.98 0.5 -1 0.5
+expect widget_visible mixer-fader-1 true
+expect widget_visible mixer-fader-11 false
+wheel_widget mixer-buses -30
+expect widget_visible mixer-fader-11 true
+expect widget_visible mixer-fader-1 false
+click_widget mixer-remove-11
+click_widget mixer-remove-10
+click_widget mixer-remove-9
+click_widget mixer-remove-8
+click_widget mixer-remove-7
+click_widget mixer-remove-6
+click_widget mixer-remove-5
+click_widget mixer-remove-4
+click_widget mixer-remove-3
+click_widget mixer-remove-2
+expect buses 2
+expect widget_visible mixer-fader-1 true
 
 key ctrl+s
 expect project_file_contains project.xml <bus name="SFX" volume="0" pan="1" mute="true"/>

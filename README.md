@@ -309,9 +309,13 @@ Three sound nodes (Ctrl+Shift+A):
 - **MusicPlayer** streams music, with speed, fade in and fade out. Music is an asset of its own:
   import the file, then right-click it in the browser > **Use as Music (streamed)**.
 
-**Preview** in the inspector plays the node's sound as set. Every sound node goes to a **bus**
-(Master by default). The bottom panel's **Mixer** tab lists them: Master, then any you add, each
-with volume, pan and mute; removing a bus sends its nodes to Master. Bus effects come later.
+**Preview** in the inspector plays the node's sound as set, through its bus. Every sound node goes
+to a **bus** (Master by default). The bottom panel's **Mixer** tab is laid out like a DAW's mixer:
+a channel strip per bus, scrolling sideways when they don't fit, and Master always on the right
+(+ beside it adds a bus). Each strip has pan, a volume fader in dB (double-click resets it to
+0 dB, Shift drags finely) with a level meter beside it, mute, and the bus's name at the bottom
+(type to rename). The meters show what the editor plays; removing a bus sends its nodes to
+Master. Bus effects come later.
 
 In code: `e.AudioPlayer_Play(player)`, `e.AudioPlayer_Stop`, `e.MusicPlayer_FadeOut(music, 2)`,
 `e.MusicPlayer_Seek`, `e.Audio_SetBusVolume("Music", 0.5)`, `e.Audio_SetBusMute("SFX", true)`.

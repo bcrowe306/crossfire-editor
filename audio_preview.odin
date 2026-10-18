@@ -5,6 +5,7 @@ import "core:log"
 import "core:strings"
 import sdl "vendor:sdl3"
 import mix "vendor:sdl3/mixer"
+import e "engine:."
 
 /*
 Audio playback for the browser's preview panel, through SDL3_mixer (the engine's audio library,
@@ -12,6 +13,11 @@ so whatever the game can play, the preview can play).
 
 Holds SDL resources, so it lives here as package state rather than in `State`. The audio device
 opens on first use; if there's no device, the preview reports it and stays silent.
+
+It plays through a bus like the game (the engine's audio_meter.odin): the track carries the
+sound's own gains and its bus's, a group meters it (the bus's level), and Master's gains go on
+the final mix, which a second meter reads. The Mixer tab shows both and changes them as it's
+edited (`AudioPreview_SetRouting`). The browser's previews go to Master.
 */
 
 @(private="file")
@@ -23,6 +29,12 @@ AudioPreview :: struct {
 	// File the loaded audio came from
 	path: string,
 	durationMS: i64,
+	// The sound's own volume and pan, and the bus it plays on ("" = Master; owned)
+	volume, pan: f32,
+	bus: string,
+	busGain, busLeft, busRight: f32,
+	group: ^mix.Group,
+	busMeter, masterMeter: e.AudioMeter,
 }
 
 @(private="file")
@@ -49,6 +61,7 @@ AudioPreview_Load :: proc(path: string) -> string {
 	preview.path = strings.clone(path)
 	preview.durationMS = i64(mix.AudioFramesToMS(preview.audio, mix.GetAudioDuration(preview.audio)))
 	AudioPreview_SetSettings(1, 1, 0)
+	AudioPreview_SetRouting("", 1, 1, 1, 1, 1, 1)
 	return ""
 }
 
@@ -76,11 +89,44 @@ How the preview sounds: a sound node's volume, pitch (speed) and pan (balance), 
 inspector's Preview plays it as the game will (its bus isn't applied). Loading a sound resets it.
 */
 AudioPreview_SetSettings :: proc(volume, pitch, pan: f32) {
+	preview.volume, preview.pan = max(volume, 0), clamp(pan, -1, 1)
 	if preview.track == nil do return
-	_ = mix.SetTrackGain(preview.track, max(volume, 0))
 	_ = mix.SetTrackFrequencyRatio(preview.track, clamp(pitch, 0.01, 100))
-	p := clamp(pan, -1, 1)
-	gains := mix.StereoGains{min(1, 1 - p), min(1, 1 + p)}
+	applyTrackOutput()
+}
+
+/*
+Where the preview plays: its bus ("" = Master) with that bus's gain and stereo gains (from its
+volume, pan and mute), and Master's, which go on the final mix.
+*/
+AudioPreview_SetRouting :: proc(bus: string, busGain, busLeft, busRight, masterGain, masterLeft, masterRight: f32) {
+	if preview.bus != bus {
+		delete(preview.bus)
+		preview.bus = strings.clone(bus)
+	}
+	preview.busGain, preview.busLeft, preview.busRight = busGain, busLeft, busRight
+	e.AudioMeter_SetGains(&preview.masterMeter, masterGain * masterLeft, masterGain * masterRight)
+	applyTrackOutput()
+}
+
+// The bus the preview plays on ("" = Master)
+AudioPreview_Bus :: proc() -> string {
+	return preview.bus
+}
+
+// The levels since the last call: the bus's (after its fader) and the final mix's (0 to 1)
+AudioPreview_Levels :: proc() -> (bus, master: [2]f32) {
+	bus.x, bus.y = e.AudioMeter_Read(&preview.busMeter)
+	master.x, master.y = e.AudioMeter_Read(&preview.masterMeter)
+	return
+}
+
+@(private="file")
+applyTrackOutput :: proc() {
+	if preview.track == nil do return
+	_ = mix.SetTrackGain(preview.track, preview.volume * preview.busGain)
+	p := preview.pan
+	gains := mix.StereoGains{min(1, 1 - p) * preview.busLeft, min(1, 1 + p) * preview.busRight}
 	_ = mix.SetTrackStereo(preview.track, &gains)
 }
 
@@ -128,5 +174,9 @@ ensureMixer :: proc() -> bool {
 		preview.failed = true
 		return false
 	}
+	preview.group = mix.CreateGroup(preview.mixer)
+	_ = mix.SetTrackGroup(preview.track, preview.group)
+	e.AudioMeter_AttachGroup(&preview.busMeter, preview.group)
+	e.AudioMeter_AttachMixer(&preview.masterMeter, preview.mixer)
 	return true
 }
