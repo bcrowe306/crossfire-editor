@@ -51,9 +51,7 @@ valueSlider :: proc(
 		rect := state.last_rect
 		mouse := ctx.input.mouse_pos
 		fine := .Shift in ctx.input.modifiers
-		// While a popup is open, a press outside it only closes it. (Skald's select can also open
-		// somewhere other than where it reports its popup, so a press on one of its choices could
-		// otherwise land on a slider under it)
+		// While a popup is open, a press outside it only closes it
 		popupOpen := len(ctx.widgets.overlay_rects_prev) > 0
 		if ctx.input.mouse_pressed[.Left] && !popupOpen && skald.widget_hovered(ctx, trackId) {
 			v := value

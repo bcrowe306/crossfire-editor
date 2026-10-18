@@ -173,11 +173,11 @@ Skald is not immediate-mode and not a retained widget tree:
   Heap strings in State are fine (the copy shares them), but text stored inline (`FixedText`, the
   code editor setting) must be cloned to `context.temp_allocator` first. The Code editor field
   showed garbage until it was (only in the optimized build, and tests can't see drawing).
-- **Skald's `select` can open its list somewhere other than where it reports it** (it predicts
-  the list's height with taller rows than it draws, so near the bottom of the window it thinks the
-  list flips above while it actually opens below). A press on a choice then counts as outside: the
-  list closes without choosing, and a widget under it can take the press. Skald needs the fix;
-  `valueSlider` and the ramp editor ignore presses while any popup is open.
+- **Widgets with their own mouse handling ignore presses while a popup is open**
+  (`len(ctx.widgets.overlay_rects_prev) > 0`): a click outside a dropdown only closes it.
+  `valueSlider`, the ramp editor and the frame strip do. (Skald's `select` once reported its list
+  above the trigger while drawing it below, so a choice clicked over a slider changed the slider;
+  fixed in Skald's 8f51fe5.)
 - `skald.tree` can't color rows and `skald.number_input`'s stepper buttons can't be restyled, so the
   editor has its own `coloredTree` and `numberField`. Keep their widget ids (`browser-tree`,
   `scene-tree`, `inspector-<Field>-<node>`, `-dec` / `-inc` for the buttons): tests click them.
@@ -645,9 +645,9 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   animation's cells lit), and a preview playing it (`Anim_Tick` at ANIMATION_PREVIEW_FPS while it
   plays and the panel shows). The viewport plays the panel's animation on the sprite too
   (`Preview_Render`).
-- **Thumbnails:** Skald can't draw part of an image, so `drawCell` draws the whole sheet scaled
-  and offset under a clip of the cell's box. The sheet is uploaded once per file
-  (`image_load_pixels`).
+- **Thumbnails:** the sheet is uploaded once per file (`image_load_pixels`); `drawCell` draws a
+  cell with Skald's `draw_image_region` (a pixel rect of an image, inset half a texel so
+  neighbouring cells don't bleed in).
 - **Undo:** every edit is a `.Node` step (History_Classify); the selection, preview and typed
   name are panel state (`State.animEditor`).
 - Tests: `animation_frames_over_time`, `animation_panel_edits`, `animations_round_trip`,

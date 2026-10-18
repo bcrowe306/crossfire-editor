@@ -341,10 +341,7 @@ AnimationPanel_SheetLoaded :: proc(s: ^State, texture: string) -> bool {
 	return known && image.name != ""
 }
 
-/*
-Draws one cell of a sheet into `box`, keeping its shape: the whole sheet is drawn scaled and
-offset so the cell lands in the box, clipped to it.
-*/
+// Draws one cell of a sheet into `box`, keeping its shape (centered)
 @(private="file")
 drawCell :: proc(r: ^skald.Renderer, sheet: SheetImage, grid: SheetGrid, frame: int, box: skald.Rect, tint: skald.Color) {
 	if sheet.name == "" do return
@@ -352,9 +349,7 @@ drawCell :: proc(r: ^skald.Renderer, sheet: SheetImage, grid: SheetGrid, frame: 
 	if cell.w <= 0 || cell.h <= 0 do return
 	scale := min(box.w / cell.w, box.h / cell.h)
 	shown := skald.Rect{box.x + (box.w - cell.w * scale) * 0.5, box.y + (box.h - cell.h * scale) * 0.5, cell.w * scale, cell.h * scale}
-	skald.push_clip(r, shown)
-	skald.draw_image(r, sheet.name, {shown.x - cell.x * scale, shown.y - cell.y * scale, sheet.size.x * scale, sheet.size.y * scale}, .Fill, tint)
-	skald.pop_clip(r)
+	skald.draw_image_region(r, sheet.name, shown, {cell.x, cell.y, cell.w, cell.h}, tint)
 }
 
 @(private="file")
