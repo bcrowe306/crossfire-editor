@@ -54,6 +54,7 @@ Run `task` to list them all.
 | `task check` | Type-check the editor, with vet |
 | `task test` | Run the unit tests |
 | `task verify` | `check` + `test` |
+| `task test:ui:fullscreen` | The same in a fullscreen editor, so wide layouts are tested too (`SCRIPT=tests/ui/animation.script` runs one) |
 | `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input (opens the editor window). They use a copy of `tests/fixtures/ui_project` and default settings |
 | `task build` | Debug build into `build/odin_sdl_editor` |
 | `task build:release` | Optimized build into `build/release/odin_sdl_editor` |

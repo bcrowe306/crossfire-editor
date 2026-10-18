@@ -58,6 +58,7 @@ add it as a task and to the README's command table.
 | `task test` | Unit tests (`editor_test.odin`) |
 | `task verify` | `check` + `test` |
 | `task test:ui` | UI test scripts (`tests/ui/*.script`) driving the real editor with injected input |
+| `task test:ui:fullscreen` | The same with a fullscreen editor (`SCRIPT=<file>` for one) |
 | `task build` / `task build:release` | Debug build into `build/`, optimized build into `build/release/` |
 | `task run` | Build optimized (`build/release/`) and run; program arguments after `--` |
 | `task run:debug` | Build with `-debug` and run (unoptimized: the viewport ran at ~14 fps vs 60) |
@@ -918,7 +919,9 @@ Highlights:
   this package (`-vet-packages:editor`) because Skald itself has unused imports.
 - Logic (the serializer, model, undo, export command lines) gets `odin test` tests. Pay particular
   attention to XML round trips.
-- Interaction: add or extend a `tests/ui` script and run `task test:ui`.
+- Interaction: add or extend a `tests/ui` script and run `task test:ui` **and**
+  `task test:ui:fullscreen`. On a tiling window manager the normal window can be tiny (here about
+  640x660, a bottom panel 200 px wide), so wide layouts only get exercised fullscreen (1280x720).
 - Layout: run the editor and look at it yourself (or ask the user). A type check proves nothing
   about layout, and automated checks must not capture the screen.
 - Exports: build the exported game and launch it. Report each target honestly as verified, untested,
