@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scene formatVersion="8" name="PlayScene">
+<scene formatVersion="9" name="PlayScene">
 	<node kind="Node2D" name="World" x="0" y="0">
 		<node kind="Camera" name="Camera" x="640" y="360"/>
 		<node kind="Node2D" name="Props" x="640" y="360">
@@ -39,33 +39,9 @@
 		<node kind="Sprite" name="Sprite" x="0" y="0" texture="assets/ship.png"/>
 		<node kind="CollisionShape" name="Hull" x="0" y="0" shape="Capsule" radius="20" height="56"/>
 	</node>
-	<node kind="Area" name="Star1" x="300" y="200">
-		<script name="Pickup">
-			<prop name="sound" value="assets/pickup.wav"/>
-		</script>
-		<node kind="AnimatedSprite" name="Glow" x="0" y="0" scaleX="0.5" scaleY="0.5" texture="assets/light.png" columns="2" rows="1">
-			<animation name="default" start="0" end="-1" fps="4" loop="true"/>
-		</node>
-		<node kind="CollisionShape" name="Reach" x="0" y="0" shape="Circle" radius="24"/>
-	</node>
-	<node kind="Area" name="Star2" x="980" y="180">
-		<script name="Pickup">
-			<prop name="sound" value="assets/pickup.wav"/>
-		</script>
-		<node kind="AnimatedSprite" name="Glow" x="0" y="0" scaleX="0.5" scaleY="0.5" texture="assets/light.png" columns="2" rows="1">
-			<animation name="default" start="0" end="-1" fps="4" loop="true"/>
-		</node>
-		<node kind="CollisionShape" name="Reach" x="0" y="0" shape="Circle" radius="24"/>
-	</node>
-	<node kind="Area" name="Star3" x="820" y="470">
-		<script name="Pickup">
-			<prop name="sound" value="assets/pickup.wav"/>
-		</script>
-		<node kind="AnimatedSprite" name="Glow" x="0" y="0" scaleX="0.5" scaleY="0.5" texture="assets/light.png" columns="2" rows="1">
-			<animation name="default" start="0" end="-1" fps="4" loop="true"/>
-		</node>
-		<node kind="CollisionShape" name="Reach" x="0" y="0" shape="Circle" radius="24"/>
-	</node>
+	<node kind="Component" name="Star1" x="300" y="200" component="components/star.component.xml"/>
+	<node kind="Component" name="Star2" x="980" y="180" component="components/star.component.xml"/>
+	<node kind="Component" name="Star3" x="820" y="470" component="components/star.component.xml"/>
 	<node kind="DynamicBody" name="Rock1" x="200" y="450" friction="0" restitution="1">
 		<script name="Rock"/>
 		<node kind="AnimatedSprite" name="Look" x="0" y="0" texture="assets/balloons.png" columns="4" rows="1">
