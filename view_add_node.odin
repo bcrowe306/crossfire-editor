@@ -15,6 +15,8 @@ Keys: Up / Down move the highlight, Enter adds the highlighted kind, Escape clos
 Widget keys for UI tests: `add-node-dialog`, `add-node-search`, `add-node-<Kind>`.
 */
 addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.addNode.open do return closedDialog(ctx, "add-node-dialog")
 	th := ctx.theme
 	if s.addNode.open {
 		// Before the search box, so it doesn't see these keys

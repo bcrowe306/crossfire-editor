@@ -16,6 +16,8 @@ Widget keys for UI tests: `confirm-save`, `confirm-discard`, `confirm-cancel`, `
 `new-project-location`, `new-project-browse`, `new-project-create`, `new-project-cancel`.
 */
 confirmDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.session.confirm.open do return closedDialog(ctx, "confirm-dialog")
 	th := ctx.theme
 	what := "continuing"
 	#partial switch s.session.confirm.pending {
@@ -50,6 +52,8 @@ confirmDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.session.newProject.open do return closedDialog(ctx, "new-project-dialog")
 	th := ctx.theme
 	np := &s.session.newProject
 	label :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
@@ -113,6 +117,8 @@ kindLabels := [ScriptKind]string{
 }
 
 newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.newScript.open do return closedDialog(ctx, "new-script-dialog")
 	th := ctx.theme
 	name := s.newScript.name
 	problem := ScriptNameProblem(name)
@@ -175,6 +181,8 @@ writes data/<name>.data.json with every field at its default, lists it as an ass
 in the inspector. Keys: `new-data-name`, `new-data-type`, `new-data-create`, `new-data-cancel`.
 */
 newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.newData.open do return closedDialog(ctx, "new-data-dialog")
 	th := ctx.theme
 	name := s.newData.name
 	problem := DataNameProblem(&s.project, name)

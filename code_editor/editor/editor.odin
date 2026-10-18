@@ -68,6 +68,8 @@ Editor :: struct {
 	scroll_line: int,
 	scroll_col:  int,
 	tab_width:   int,
+	// Tab indents with a tab character (Odin's style, odinfmt's) instead of spaces
+	indent_with_tabs: bool,
 	visible_rows: int,
 	visible_cols: int,
 

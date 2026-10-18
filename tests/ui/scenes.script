@@ -71,6 +71,33 @@ click_widget project-settings-apply
 expect project_settings closed
 expect project Space Game
 
+# Scene tabs close (the scene stays in the project) and come back when the scene is opened; the
+# tab that shows closing shows its neighbour; the last tab has no close button. (Tabs: 0
+# MenuScene, 1 PlayScene, 2 Arena, 3 OptionsScene, 4 Level2; the strip scrolls in a narrow window)
+expect scene Arena
+expect scene_tabs MenuScene,PlayScene,Arena,OptionsScene,Level2
+wheel_widget center-tabs 30
+click_widget scene-tab-close-0
+expect scene_tabs PlayScene,Arena,OptionsScene,Level2
+expect scene Arena
+wheel_widget center-tabs 30
+click_widget scene-tab-close-1
+expect scene OptionsScene
+expect scene_tabs PlayScene,OptionsScene,Level2
+expect scenes MenuScene,PlayScene,Arena,OptionsScene,Level2
+click_row browser-tree 1
+expect scene MenuScene
+expect scene_tabs MenuScene,PlayScene,OptionsScene,Level2
+wheel_widget center-tabs 30
+click_widget scene-tab-close-1
+click_widget scene-tab-close-1
+click_widget scene-tab-close-1
+expect scene_tabs MenuScene
+expect widget_visible scene-tab-close-0 false
+click_row browser-tree 3
+expect scene Arena
+expect scene_tabs MenuScene,Arena
+
 # Play Scene starts in the open scene (Arena), not the start scene
 click_row browser-tree 2
 expect scene PlayScene

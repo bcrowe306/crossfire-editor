@@ -1,0 +1,389 @@
+# Every command of the built-in code editor's keymap (its VSCode/Zed-style defaults, Linux and
+# Windows chords), pressed for real inside the engine editor, and its effect checked in the code
+# editor's state. The script runs on keys.odin, written below (lines numbered from 1):
+#
+#   1 package scripts        6 	beta := 1           11 delta :: proc() {
+#   2                        7 	gamma := beta + 1   12 	alpha()
+#   3 import e "engine:."    8 	_ = gamma           13 	alpha()
+#   4                        9 }                     14 }
+#   5 alpha :: proc() {     10                       15
+#
+# The language server steps need an ols (see code_editor.script). The clipboard is the system's:
+# the driver puts back what was on it.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+click_row scene-tree 2
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Keys
+click_widget new-script-create
+wait_until code_focused true timeout=5
+write_project_file scripts/keys.odin package scripts\n\nimport e "engine:."\n\nalpha :: proc() {\n\tbeta := 1\n\tgamma := beta + 1\n\t_ = gamma\n}\n\ndelta :: proc() {\n\talpha()\n\talpha()\n}\n
+wait_until code_contains true gamma := beta timeout=5
+expect code_state line_count 15
+
+# --- Moving: arrows, words, line start/end, document, pages
+key ctrl+HOME
+expect code_caret 1 1
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+expect code_caret 5 1
+key END
+expect code_caret 5 18
+key HOME
+expect code_caret 5 1
+key ctrl+RIGHT
+expect code_caret 5 6
+key RIGHT
+expect code_caret 5 7
+key LEFT
+expect code_caret 5 6
+key ctrl+LEFT
+expect code_caret 5 1
+key UP
+expect code_caret 4 1
+key ctrl+END
+expect code_caret 15 1
+key PAGEUP
+expect code_caret 1 1
+key PAGEDOWN
+expect code_caret 15 1
+
+# --- Selecting
+key ctrl+HOME
+key shift+END
+expect code_state selected_text package scripts
+key ctrl+HOME
+key shift+RIGHT
+key shift+RIGHT
+expect code_state selected_text pa
+key shift+LEFT
+expect code_state selected_text p
+key ctrl+HOME
+key ctrl+shift+RIGHT
+expect code_state selected_text package
+key shift+DOWN
+expect code_state selected_text package scripts\n
+key ctrl+HOME
+key shift+PAGEDOWN
+expect code_caret 15 1
+expect code_state selection true
+key shift+PAGEUP
+expect code_caret 1 1
+key ctrl+shift+END
+expect code_caret 15 1
+expect code_state selection true
+key ctrl+shift+HOME
+expect code_caret 1 1
+key shift+HOME
+key ctrl+a
+expect code_state selection true
+expect code_caret 15 1
+key ESCAPE
+key ctrl+HOME
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key shift+END
+key shift+HOME
+expect code_state selection true
+key ctrl+l
+expect code_state selected_text \tbeta := 1\n
+key ESCAPE
+
+# --- More cursors: next occurrence (Ctrl+D), all occurrences (Ctrl+Shift+L), above / below
+key ctrl+END
+key UP
+key UP
+key HOME
+key RIGHT
+key ctrl+d
+expect code_state selected_text alpha
+expect code_state cursors 1
+key ctrl+d
+expect code_state cursors 2
+key ctrl+shift+l
+expect code_state cursors 3
+key ESCAPE
+expect code_state cursors 1
+key ctrl+alt+DOWN
+expect code_state cursors 2
+key ESCAPE
+key ctrl+alt+UP
+expect code_state cursors 2
+key ESCAPE
+expect code_state cursors 1
+
+# --- Editing: backspace, delete, words, newline, indent, outdent
+key ctrl+HOME
+key END
+key BACKSPACE
+expect code_state current_line package script
+key ctrl+BACKSPACE
+expect code_state current_line "package "
+key ctrl+z
+key ctrl+z
+expect code_state current_line package scripts
+key HOME
+key DELETE
+expect code_state current_line ackage scripts
+key ctrl+DELETE
+expect code_state current_line " scripts"
+key ctrl+z
+key ctrl+z
+expect code_state current_line package scripts
+key END
+key RETURN
+expect code_state line_count 16
+key ctrl+z
+expect code_state line_count 15
+key HOME
+key TAB
+expect code_contains true \tpackage scripts
+key shift+TAB
+expect code_state current_line package scripts
+
+# --- Lines: move, duplicate, comment, delete, insert below / above
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+expect code_caret 6 1
+key alt+DOWN
+expect code_caret 7 1
+expect code_state current_line \tbeta := 1
+key alt+UP
+expect code_caret 6 1
+expect code_state current_line \tbeta := 1
+key alt+shift+DOWN
+expect code_state line_count 16
+expect code_caret 7 1
+key ctrl+z
+key alt+shift+UP
+expect code_state line_count 16
+expect code_state current_line \tbeta := 1
+key ctrl+z
+expect code_state line_count 15
+key HOME
+key HOME
+expect code_caret 6 1
+key ctrl+slash
+expect code_contains true // beta := 1
+key ctrl+slash
+expect code_contains false // beta := 1
+key ctrl+shift+k
+expect code_state line_count 14
+expect code_contains false beta := 1\n
+key ctrl+z
+expect code_state line_count 15
+key ctrl+RETURN
+expect code_state line_count 16
+expect code_state current_line \t
+key ctrl+z
+key ctrl+shift+RETURN
+expect code_state line_count 16
+expect code_state current_line \t
+key ctrl+z
+expect code_state line_count 15
+
+# --- Clipboard and undo / redo
+key ctrl+HOME
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key ctrl+l
+key ctrl+c
+key ctrl+END
+key ctrl+v
+expect code_state line_count 16
+expect code_state current_line ""
+key UP
+expect code_state current_line \tbeta := 1
+key ctrl+z
+expect code_state line_count 15
+key ctrl+shift+z
+expect code_state line_count 16
+key ctrl+z
+key ctrl+y
+expect code_state line_count 16
+key ctrl+z
+expect code_state line_count 15
+key ctrl+HOME
+key ctrl+l
+key ctrl+x
+expect code_state line_count 14
+key ctrl+v
+expect code_state line_count 15
+expect code_contains true package scripts\n\nimport
+
+# --- Find and replace
+key ctrl+f
+expect code_state find.open true
+type alpha
+expect code_state find.matches 3
+expect code_state find.current 0
+key F3
+expect code_state find.current 1
+key shift+F3
+expect code_state find.current 0
+key ctrl+g
+expect code_state find.current 1
+key ctrl+shift+g
+expect code_state find.current 0
+key ESCAPE
+expect code_state find.open false
+key ctrl+h
+expect code_state find.open true
+expect code_state find.replace_mode true
+key ESCAPE
+expect code_state find.open false
+
+# --- Zoom (every tab), the command palette and its windows
+key ctrl+EQUALS
+expect code_state font_size 15
+key ctrl+MINUS
+key ctrl+MINUS
+expect code_state font_size 13
+key ctrl+0
+expect code_state font_size 14
+key ctrl+p
+expect code_state palette.open true
+key ESCAPE
+expect code_state palette.open false
+key ctrl+shift+p
+expect code_state palette.open true
+key ESCAPE
+key F1
+expect code_state palette.open true
+type keymap editor
+key RETURN
+expect code_state window keymap
+key ESCAPE
+expect code_state window text
+key ctrl+p
+type theme editor
+key RETURN
+expect code_state window theme
+key ESCAPE
+expect code_state window text
+key ctrl+p
+type utilities
+key RETURN
+expect code_state window utilities
+key ESCAPE
+expect code_state window text
+
+# --- The language server: completion, signature help, definitions, references, diagnostics
+wait_until code_lsp Running timeout=30
+key ctrl+END
+key UP
+key UP
+key END
+key LEFT
+key LEFT
+key ctrl+SPACE
+wait_until code_completion true timeout=20
+key ESCAPE
+expect code_completion false
+key RIGHT
+key ctrl+shift+SPACE
+wait_until code_state signature.visible true timeout=20
+key ESCAPE
+key HOME
+key RIGHT
+key F12
+wait_until code_caret 5 1 timeout=20
+key alt+LEFT
+expect code_caret 13 3
+key alt+RIGHT
+expect code_caret 5 1
+key alt+LEFT
+key alt+F12
+wait_until code_state peek_open true timeout=20
+key ESCAPE
+expect code_state peek_open false
+key shift+F12
+wait_until code_state refs_open true timeout=20
+expect code_state refs 3
+key F4
+key shift+F4
+key ESCAPE
+# A parse error: F8 goes to it, Shift+F8 back; quick fixes and the problems panel
+key ctrl+END
+type x := := 1
+wait_until code_state diagnostic_counts.errors 1 timeout=20
+key ctrl+HOME
+key F8
+expect code_caret 15 1
+key shift+F8
+expect code_caret 15 1
+key ctrl+period
+wait_until code_state code_actions.active true timeout=10
+key ESCAPE
+key ctrl+shift+m
+expect code_state problems.open true
+key ctrl+shift+m
+expect code_state problems.open false
+key ctrl+shift+HOME
+key ctrl+END
+key shift+HOME
+key DELETE
+expect code_contains false x := := 1
+
+# --- Key bindings imported from Zed and VS Code (the palette's commands; fixtures, not yours)
+code_import_path zed code_editor/example/assets/keymaps/zed_keymap.json
+key ctrl+p
+type import keybindings from zed
+key RETURN
+expect code_state status Imported from Zed: 3 bound
+key ctrl+HOME
+key ctrl+alt+k
+expect code_state line_count 14
+key ctrl+z
+key ctrl+alt+d
+expect code_state line_count 16
+key ctrl+z
+expect code_state line_count 15
+code_import_path vscode code_editor/example/assets/keymaps/vscode_keybindings.json
+key ctrl+p
+type import keybindings from vscode
+key RETURN
+expect code_state status Imported from VSCode: 2 bound
+key ctrl+alt+u
+expect code_state line_count 16
+key ctrl+z
+key ctrl+HOME
+key ctrl+alt+m
+expect code_caret 2 1
+key ctrl+z
+expect code_state line_count 15
+
+# --- Save (the editor's Save: the project too), Save As and Open (their file dialogs)
+key ctrl+s
+expect code_dirty false
+key ctrl+shift+s
+expect code_state dialog Save_As
+code_dialog_pick scripts/keys_copy.odin
+expect code_tab keys_copy.odin
+expect project_file scripts/keys_copy.odin
+key ctrl+o
+expect code_state dialog Open
+code_dialog_pick scripts/keys_copy.odin
+expect code_tabs 1
+key ctrl+o
+code_dialog_pick scripts/assets.odin
+expect code_tabs 2
+expect code_tab assets.odin
+# A tab opened later has the imported bindings too (they're saved in the config folder)
+key ctrl+HOME
+key ctrl+alt+k
+expect code_dirty true

@@ -330,6 +330,8 @@ panelButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, disa
 // Confirmation before removing an asset: remove it from the project, or also delete its file
 @(private="file")
 removeAssetDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.removeConfirm.open do return closedDialog(ctx, "remove-asset-dialog")
 	th := ctx.theme
 	name, usage := "", 0
 	if index := s.removeConfirm.asset; s.removeConfirm.open && index >= 0 && index < len(s.project.assets) {
@@ -397,4 +399,15 @@ FrameStats_Begin :: proc() {
 // "30 fps · viewport 1.2 ms"
 FrameStats_Text :: proc() -> string {
 	return fmt.tprintf("%d fps · viewport %.1f ms", frameStats.fps, frameStats.viewportMs)
+}
+
+/*
+A closed dialog, with no content. Dialogs build their content before skald.dialog decides not to
+show it, and Skald hit-tests a widget by its rect from the last frame it was *built* in, not
+drawn: a closed dialog's buttons and rows stayed clickable where they had been (a click in the
+viewport where the Add Node dialog's "Sprite" row had been added a Sprite). Called with the
+dialog's id, so it still hands focus back when it closes.
+*/
+closedDialog :: proc(ctx: ^skald.Ctx(Msg), key: string) -> skald.View {
+	return skald.dialog(ctx, open = false, on_dismiss = proc() -> Msg { return nil }, content = skald.spacer(0), id = skald.hash_id(key))
 }

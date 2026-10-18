@@ -44,10 +44,10 @@ key RETURN
 key TAB
 type // tabbed
 expect code_focused true
-expect code_contains true     // tabbed
+expect code_contains true \t// tabbed
 # Ctrl+Z undoes in the code, not the scene
 key ctrl+z
-expect code_contains false     // tabbed
+expect code_contains false \t// tabbed
 expect code_contains true // a note
 
 # The language server completes after a "." inside a procedure
@@ -92,7 +92,7 @@ expect code_dirty false
 # The scene tab shows the scene again; the code tab comes back with its text
 # (in a narrow window the tab strip scrolls: back to its start first)
 wheel_widget center-tabs 30
-click_tab scene-tabs 1
+click_widget scene-tab-1
 expect code_tab none
 expect code_focused false
 wheel_widget center-tabs -30

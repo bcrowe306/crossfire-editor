@@ -89,6 +89,8 @@ Workspace_Measured :: distinct [2]f32
 
 Bottom_Tab_Changed :: distinct int
 Scene_Tab_Changed  :: distinct int
+// A scene tab's × (by tab index, as Scene_Tab_Changed): the tab hides, the scene stays
+Scene_Tab_Closed :: distinct int
 Tool_Selected      :: distinct Tool
 
 // Project browser: row index in the browser tree
@@ -266,6 +268,14 @@ Code_Tick_Requested :: struct {
 Code_Reloaded :: struct {
 	path: string,
 }
+// The code editor asked for a file dialog (Ctrl+O, Ctrl+Shift+S), and its answer
+CodeDialog :: enum {
+	None,
+	Open,
+	Save_As,
+}
+Code_Dialog_Requested :: distinct CodeDialog
+Code_Dialog_Picked :: distinct skald.File_Dialog_Result
 // The bar's answer when the file changed on disk under unsaved changes: true reloads it
 Code_Disk_Chosen :: distinct bool
 Code_Tick :: struct {}
@@ -716,6 +726,8 @@ Msg :: union {
 	Code_Tick_Requested,
 	Code_Reloaded,
 	Code_Disk_Chosen,
+	Code_Dialog_Requested,
+	Code_Dialog_Picked,
 	Code_Tick,
 	Code_Focused,
 	New_Project_Name_Changed,
@@ -815,6 +827,7 @@ Msg :: union {
 	Workspace_Measured,
 	Bottom_Tab_Changed,
 	Scene_Tab_Changed,
+	Scene_Tab_Closed,
 	Tool_Selected,
 	Browser_Toggled,
 	Browser_Selected,

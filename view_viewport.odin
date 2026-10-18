@@ -133,16 +133,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 	// The tabs get what the buttons leave, scrolling sideways when there are more: many scenes,
 	// scripts or a narrow window must not push the buttons out of view
-	tabs := centerTabs(s, ctx, tabsRoom(s, ctx, buttons))
-	header := skald.row(
-		tabs,
-		skald.flex(1, skald.spacer(0)),
-		buttons,
-		spacing = th.spacing.xs,
-		padding = th.spacing.xs,
-		cross_align = .Center,
-		bg = th.color.surface,
-	)
+	header := centerHeader(s, ctx, buttons)
 
 	// The canvas draws after view returns, so its data must outlive this call
 	data := new(ViewportData, context.temp_allocator)
@@ -168,27 +159,63 @@ always has one), then the code tabs. The scene tab is lit only while the scene s
 @(private="file")
 centerTabs :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width: f32) -> skald.View {
 	tabScenes := ViewportTabScenes(s)
-	labels := make([]string, len(tabScenes), context.temp_allocator)
+	views := make([dynamic]skald.View, context.temp_allocator)
 	active := -1
+	// The last tab can't close: the viewport always shows a scene
+	closable := len(tabScenes) > 1
 	for index, i in tabScenes {
 		scene := &s.project.scenes[index]
-		labels[i] = Scene_IsComponent(scene) ? fmt.tprintf("%s %s", ICON_CUBES, scene.name) : scene.name
-		if index == s.currentScene && CodeTabs_Active(s) == "" do active = i
+		label := Scene_IsComponent(scene) ? fmt.tprintf("%s %s", ICON_CUBES, scene.name) : scene.name
+		shown := index == s.currentScene && CodeTabs_Active(s) == ""
+		if shown do active = i
+		append(&views, editorTab(ctx, label, Scene_IsComponent(scene) ? scene.component : fmt.tprintf("Scene %s", scene.name), shown,
+			Msg(Scene_Tab_Changed(i)), Msg(Scene_Tab_Closed(i)), fmt.tprintf("scene-tab-%d", i), closable))
 	}
-	views := make([dynamic]skald.View, context.temp_allocator)
-	append(&views, skald.tabs(ctx, labels, active,
-		proc(tab: int) -> Msg { return Scene_Tab_Changed(tab) },
-		id = skald.hash_id("scene-tabs")))
 	append(&views, ..CodeTabs_View(s, ctx))
 	strip := skald.row(..views[:], spacing = ctx.theme.spacing.xs, cross_align = .End)
 	// More tabs than fit scroll sideways (the wheel, or the bar under them); the tab that shows
-	// is scrolled into view when it changes
-	shown := s.codeTab > 0 ? skald.hash_id(fmt.tprintf("code-tab-close-%d", s.codeTab - 1)) : skald.widget_make_sub_id(skald.hash_id("scene-tabs"), u64(max(active, 0) + 1))
+	// is scrolled into view when it changes (its close button, its right end)
+	shownKey := s.codeTab > 0 ? fmt.tprintf("code-tab-%d", s.codeTab - 1) : fmt.tprintf("scene-tab-%d", max(active, 0))
+	shown := skald.hash_id(closable || s.codeTab > 0 ? tabCloseKey(shownKey) : shownKey)
 	hScroll_Reveal(ctx, "center-tabs", shown)
 	// The bar is a thin line over the tabs' bottom: the header keeps its height either way
 	height := ctx.renderer != nil ? skald.view_size(ctx.renderer, strip).y : 30
 	return hScroll(ctx, "center-tabs", strip, max(width, 40), height, thin = true)
 }
+
+/*
+The center panel's header: the tabs and, at the right, the view's buttons. When the buttons would
+leave the tabs less than `CENTER_TABS_MIN_WIDTH` (a narrow window), the tabs get a row of their
+own above the buttons.
+*/
+@(private="file")
+centerHeader :: proc(s: ^State, ctx: ^skald.Ctx(Msg), buttons: skald.View) -> skald.View {
+	th := ctx.theme
+	room := tabsRoom(s, ctx, buttons)
+	if room >= CENTER_TABS_MIN_WIDTH {
+		return skald.row(
+			centerTabs(s, ctx, room),
+			skald.flex(1, skald.spacer(0)),
+			buttons,
+			spacing = th.spacing.xs,
+			padding = th.spacing.xs,
+			cross_align = .Center,
+			bg = th.color.surface,
+		)
+	}
+	left, right := FittedSidebarWidths(&s.layout)
+	full := s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.xs * 2
+	return skald.col(
+		centerTabs(s, ctx, full),
+		skald.row(skald.flex(1, skald.spacer(0)), buttons, spacing = th.spacing.xs, cross_align = .Center),
+		spacing = th.spacing.xs,
+		padding = th.spacing.xs,
+		bg = th.color.surface,
+	)
+}
+
+// Below this the tabs get their own row in the header
+CENTER_TABS_MIN_WIDTH :: f32(200)
 
 // What the tab strip has room for: the center panel's width less the header's buttons
 @(private="file")
@@ -204,21 +231,12 @@ tabsRoom :: proc(s: ^State, ctx: ^skald.Ctx(Msg), buttons: skald.View) -> f32 {
 codeCenterView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.View {
 	th := ctx.theme
 	buttons := CodeTabs_HeaderButtons(s, ctx, path)
-	tabs := centerTabs(s, ctx, tabsRoom(s, ctx, buttons))
 	// A tab just opened or picked takes the keyboard
 	if s.codeFocusPending {
 		skald.widget_focus(ctx, skald.hash_id(CODE_EDITOR_KEY))
 		skald.send(ctx, Msg(Code_Focused{}))
 	}
-	header := skald.row(
-		tabs,
-		skald.flex(1, skald.spacer(0)),
-		buttons,
-		spacing = th.spacing.xs,
-		padding = th.spacing.xs,
-		cross_align = .Center,
-		bg = th.color.surface,
-	)
+	header := centerHeader(s, ctx, buttons)
 	return skald.col(
 		header,
 		CodeTabs_DiskBar(s, ctx, path),
@@ -515,7 +533,7 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 		a := toWindow(p.bounds, v, {0, 0})
 		b := toWindow(p.bounds, v, s.project.gameSize)
 		skald.draw_rect_outline(r, {a.x, a.y, b.x - a.x, b.y - a.y}, 1, th.color.border)
-		skald.draw_text(r, fmt.tprintf("%.0f x %.0f", s.project.gameSize.x, s.project.gameSize.y), a.x, a.y - 16, th.color.fg_muted, th.font.size_xs)
+		drawTextTop(r, fmt.tprintf("%.0f x %.0f", s.project.gameSize.x, s.project.gameSize.y), a.x, a.y - 16, th.color.fg_muted, th.font.size_xs)
 
 		for &node, i in scene.nodes {
 			shape := data.shapes[i]
@@ -538,11 +556,11 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				skald.draw_polyline(r, {origin, end}, 1.5, color, aa = true)
 				skald.draw_circle(r, end, 3, color, aa = true)
 				skald.draw_circle(r, origin, MARKER_RADIUS, color, aa = true)
-				skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case node.kind == .Camera:
 				drawCameraFrame(r, p.bounds, v, shape, node.zoom, s.project.gameSize, kindColor(.Camera))
 				skald.draw_circle(r, origin, MARKER_RADIUS, kindColor(.Camera), aa = true)
-				skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case node.kind == .AudioPlayer2D && i == s.selectedNode && node.audio.maxDistance > 0:
 				// Where it can be heard (the range is in world units)
 				color := kindColor(.AudioPlayer2D)
@@ -550,11 +568,11 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				faint[3] = 0.5
 				skald.draw_ring(r, origin, node.audio.maxDistance * v.zoom, 1, faint, aa = true)
 				skald.draw_circle(r, origin, MARKER_RADIUS, color, aa = true)
-				skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case !shape.hasBounds:
 				// Nodes that draw nothing get a marker so they can be seen and picked
 				skald.draw_circle(r, origin, MARKER_RADIUS, kindColor(node.kind), aa = true)
-				skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			}
 		}
 
@@ -583,10 +601,10 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 	// Zoom indicator and mouse position
 	zoomText := fmt.tprintf("%.0f%%", v.zoom * 100)
 	skald.draw_rect(r, {viewRect.x + viewRect.w - 70, viewRect.y + viewRect.h - 26, 62, 20}, {0, 0, 0, 0.55}, 4)
-	skald.draw_text(r, zoomText, viewRect.x + viewRect.w - 62, viewRect.y + viewRect.h - 23, th.color.fg, th.font.size_xs)
+	drawTextTop(r, zoomText, viewRect.x + viewRect.w - 62, viewRect.y + viewRect.h - 23, th.color.fg, th.font.size_xs)
 	if inRect(viewRect, data.mouse) && v.zoom > 0 {
 		world := Viewport_ViewToWorld(v, data.mouse - {viewRect.x, viewRect.y})
-		skald.draw_text(r, fmt.tprintf("%.0f, %.0f", world.x, world.y), viewRect.x + 8, viewRect.y + viewRect.h - 23, th.color.fg_muted, th.font.size_xs)
+		drawTextTop(r, fmt.tprintf("%.0f, %.0f", world.x, world.y), viewRect.x + 8, viewRect.y + viewRect.h - 23, th.color.fg_muted, th.font.size_xs)
 	}
 }
 
@@ -716,7 +734,7 @@ drawJoint :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, sce
 	ring := b >= 0 ? color : skald.rgb(0xff5050)
 	skald.draw_circle(r, anchor, MARKER_RADIUS + 2, ring, aa = true)
 	skald.draw_circle(r, anchor, MARKER_RADIUS - 1, skald.rgb(0x101218), aa = true)
-	skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(.Joint), node.name), anchor.x + 8, anchor.y - 8, th.color.fg_muted, th.font.size_xs)
+	drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(.Joint), node.name), anchor.x + 8, anchor.y - 8, th.color.fg_muted, th.font.size_xs)
 }
 
 // A CollisionShape's outline, in the node's space mapped through its world transform
@@ -781,7 +799,7 @@ drawRulers :: proc(r: ^skald.Renderer, canvas, viewRect: skald.Rect, v: ^Viewpor
 		major := isMultiple(x, step)
 		height: f32 = major ? RULER_SIZE * 0.6 : RULER_SIZE * 0.25
 		skald.draw_rect(r, {px, canvas.y + RULER_SIZE - height, 1, height}, tick)
-		if major do skald.draw_text(r, fmt.tprintf("%.0f", x), px + 3, canvas.y + 1, tick, th.font.size_xs)
+		if major do drawTextTop(r, fmt.tprintf("%.0f", x), px + 3, canvas.y + 1, tick, th.font.size_xs)
 	}
 	if inRect(viewRect, mouse) do skald.draw_rect(r, {mouse.x, canvas.y, 1, RULER_SIZE}, th.color.primary)
 	skald.pop_clip(r)
@@ -792,16 +810,24 @@ drawRulers :: proc(r: ^skald.Renderer, canvas, viewRect: skald.Rect, v: ^Viewpor
 		major := isMultiple(y, step)
 		width: f32 = major ? RULER_SIZE * 0.6 : RULER_SIZE * 0.25
 		skald.draw_rect(r, {canvas.x + RULER_SIZE - width, py, width, 1}, tick)
-		if major do skald.draw_text(r, fmt.tprintf("%.0f", y), canvas.x + 2, py + 2, tick, th.font.size_xs)
+		if major do drawTextTop(r, fmt.tprintf("%.0f", y), canvas.x + 2, py + 2, tick, th.font.size_xs)
 	}
 	if inRect(viewRect, mouse) do skald.draw_rect(r, {canvas.x, mouse.y, RULER_SIZE, 1}, th.color.primary)
 	skald.pop_clip(r)
 }
 
+/*
+Draws text with its top at `y`. Skald's draw_text takes the baseline: given a top, the text sat
+above where it was meant to (the top ruler's numbers were cut off but for their bottoms).
+*/
+drawTextTop :: proc(r: ^skald.Renderer, text: string, x, y: f32, color: skald.Color, size: f32) {
+	skald.draw_text(r, text, x, y + skald.text_ascent(r, size), color, size)
+}
+
 // The scenes the viewport's tabs show, in order: every scene, then the open components (indices into project.scenes; temp allocated)
 ViewportTabScenes :: proc(s: ^State) -> []int {
 	list := make([dynamic]int, context.temp_allocator)
-	for &scene, i in s.project.scenes do if !Scene_IsComponent(&scene) do append(&list, i)
+	for &scene, i in s.project.scenes do if !Scene_IsComponent(&scene) && (!scene.tabClosed || i == s.currentScene) do append(&list, i)
 	for &scene, i in s.project.scenes do if Scene_IsComponent(&scene) && (scene.opened || i == s.currentScene) do append(&list, i)
 	return list[:]
 }

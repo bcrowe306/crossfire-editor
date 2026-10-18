@@ -244,7 +244,7 @@ frameStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, animation: A
 			if frame == st.start && frame == st.end do caption = fmt.tprintf("%d  start·end", frame)
 			else if frame == st.start do caption = fmt.tprintf("%d  start", frame)
 			else if frame == st.end do caption = fmt.tprintf("%d  end", frame)
-			skald.draw_text(p.r, caption, x, y + THUMB_SIZE + 1, inRange ? st.text : st.muted, st.font)
+			drawTextTop(p.r, caption, x, y + THUMB_SIZE + 1, inRange ? st.text : st.muted, st.font)
 		}
 	}, id = id, width = width, height = height, cursor = .Pointer)
 }

@@ -18,6 +18,8 @@ shortcut buttons `settings-key-<Action>-<slot>` (slot 0 or 1), `settings-reset-<
 `settings-reset-tab`, `settings-cancel`, `settings-apply`, `settings-save`.
 */
 settingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.settingsDialog.open do return closedDialog(ctx, "settings-dialog")
 	th := ctx.theme
 	dialog := &s.settingsDialog
 	if dialog.open && dialog.capture.active do captureKey(ctx)

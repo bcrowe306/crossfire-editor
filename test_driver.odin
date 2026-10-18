@@ -1,5 +1,6 @@
 package editor
 
+import "core:encoding/json"
 import "core:fmt"
 import "core:log"
 import "core:math"
@@ -48,9 +49,13 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 Click a row of a tree: browser-tree, scene-tree; optionally
 	                                 holding Ctrl or Shift
 	double_click_row <tree key> <row>   Double-click a row
-	click_tab <tabs key> <index>     Click a tab of a tab strip, e.g. click_tab scene-tabs 1
+	click_tab <tabs key> <index>     Click a tab of a skald.tabs strip (the center panel's tabs are
+	                                 widgets: scene-tab-<i>, scene-tab-close-<i>, code-tab-<i>, ...)
 	touch_project_file <path> <text> Append a line to a project file, as another program would
 	save_code_render <file.png>      Save the shown code tab's render (its own pixels, not the screen)
+	write_project_file <path> <text> Write a project file ("\n", "\t"), as another program would
+	code_dialog_pick <path>          Answer the code editor's Open / Save As dialog with a project path
+	code_import_path <zed | vscode> <file>   Where the shown code tab imports key bindings from
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
 	scroll_into_view <scroll key> <widget key>
@@ -153,13 +158,18 @@ Checks:
 	input_bindings <action> <a, b, ...>   An action's bindings, described (e.Input_BindingDescribe)
 	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
 	buses <count>                The project's mix buses (Master counts)
+	scene_tabs <a,b,...>         The scene and component tabs, by name, in order
 	code_tabs <count>            Open code tabs
 	code_close_dialog <open | closed>   The "save changes?" prompt for closing a code tab
 	code_disk_conflict <true | false>   The shown file changed on disk under unsaved changes (the bar)
+	code_state <field> <value>   The code editor's state: a dotted path in its control JSON
+	                             (cursors, selected_text, current_line, find.open, palette.open,
+	                             problems.open, window, font_size, ...; arrays compare by length),
+	                             or peek_open, refs_open, refs, status (contains), dialog
 	code_servers <n> running, <m> started   Language servers (every tab shares one)
 	code_tab <file name | none>  The code tab that shows (none: the scene)
 	code_focused <true | false>  The code editor has the keyboard
-	code_contains <true | false> <text>   The shown code tab's text contains the text (\t for a tab)
+	code_contains <true | false> <text>   The shown code tab's text contains the text (\t, \n)
 	code_dirty <true | false>    The shown code tab has unsaved changes
 	code_caret <line> <column>   The shown code tab's caret (1-based)
 	code_rendered <true | false> The shown code tab drew text (pixels unlike its background) and
@@ -259,6 +269,32 @@ ScriptDriver_Load :: proc(path: string) -> bool {
 	return true
 }
 
+// The user's clipboard, kept while a script runs (the code editor's Copy and Cut use it) and put back
+@(private="file")
+savedClipboard: struct {
+	saved: bool,
+	text: string,
+}
+
+@(private="file")
+saveClipboard :: proc() {
+	if savedClipboard.saved do return
+	savedClipboard.saved = true
+	if sdl.HasClipboardText() {
+		text := sdl.GetClipboardText()
+		savedClipboard.text = strings.clone(string(cstring(text)))
+		sdl.free(text)
+	}
+}
+
+@(private="file")
+restoreClipboard :: proc() {
+	if !savedClipboard.saved do return
+	_ = sdl.SetClipboardText(strings.clone_to_cstring(savedClipboard.text, context.temp_allocator))
+	delete(savedClipboard.text)
+	savedClipboard = {}
+}
+
 // Whether a script is driving the editor
 ScriptDriver_Active :: proc() -> bool {
 	return driver.active
@@ -275,6 +311,7 @@ widget rectangles from the last frame and the current state.
 */
 ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 	if !driver.active do return
+	saveClipboard()
 	// Keep frames coming while the script runs
 	skald.send(ctx, Msg(Script_Tick{}))
 
@@ -663,6 +700,42 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "write_project_file":
+		// A project file's whole text, as another program would write it ("\n" for line breaks,
+		// "\t" for tabs); its modification time a second ahead, so the change always shows
+		file, _, text := strings.partition(rest, " ")
+		text, _ = strings.replace_all(text, "\\n", "\n", context.temp_allocator)
+		text, _ = strings.replace_all(text, "\\t", "\t", context.temp_allocator)
+		path := joinPath(s.project.rootPath, file, allocator = context.temp_allocator)
+		if os.write_entire_file(path, transmute([]byte)text) != nil {
+			fail(fmt.tprintf("%s: can't write %s", line, path))
+			return true
+		}
+		later := time.time_add(time.now(), time.Second)
+		_ = os.change_times(path, later, later)
+		report(true, line)
+		return false
+
+	case "code_import_path":
+		// Where the shown code tab's "Import Keybindings from Zed / VSCode" reads (a fixture)
+		source, _, file := strings.partition(rest, " ")
+		CodeEditor_SetImportPath(CodeTabs_Active(s), source == "zed", codeAbsolutePath(file))
+		report(true, line)
+		return false
+
+	case "code_dialog_pick":
+		// Answers the file dialog the code editor asked for (Open, Save As): a project path
+		if s.codeDialog == .None {
+			fail(fmt.tprintf("%s: no dialog was asked for", line))
+			return true
+		}
+		// Absolute, as dialogs answer
+		path := codeAbsolutePath(joinPath(s.project.rootPath, rest, allocator = context.temp_allocator))
+		skald.send(ctx, Msg(Code_Dialog_Picked{path = strings.clone(path), cancelled = false}))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "touch_project_file":
 		// Another program changes a project file: appends a line, with a modification time a
 		// second ahead (so a change in the same second as the last write still shows)
@@ -1048,6 +1121,45 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(selected.particles.colorRamp.count)
 	case "buses":
 		found = fmt.tprint(len(s.project.buses))
+	case "code_state":
+		// A field of the code editor's state (its control package's JSON, by dotted path, e.g.
+		// find.open, cursors, selected_text), or peek_open, refs_open, refs, status, dialog
+		field, _, expected := strings.partition(value, " ")
+		expected = strings.trim_space(expected)
+		// "..." keeps leading and trailing spaces
+		if len(expected) >= 2 && expected[0] == '"' && expected[len(expected) - 1] == '"' do expected = expected[1:len(expected) - 1]
+		path := CodeTabs_Active(s)
+		peek, refsOpen, refs := CodeEditor_Navigation(path)
+		switch field {
+		case "peek_open": found = fmt.tprint(peek)
+		case "refs_open": found = fmt.tprint(refsOpen)
+		case "refs":      found = fmt.tprint(refs)
+		case "status":
+			found = CodeEditor_StatusText(path)
+			return strings.contains(found, expected), found
+		case "dialog":    found = fmt.tprint(s.codeDialog)
+		case:
+			parsed, err := json.parse_string(CodeEditor_StateJSON(path), allocator = context.temp_allocator)
+			if err != nil do return false, "no state"
+			v := parsed
+			for part in strings.split(field, ".", context.temp_allocator) {
+				object, ok := v.(json.Object)
+				if !ok do return false, fmt.tprintf("no field %s", field)
+				v = object[part]
+			}
+			#partial switch x in v {
+			case json.String:  found = string(x)
+			case json.Boolean: found = fmt.tprint(bool(x))
+			case json.Integer: found = fmt.tprint(i64(x))
+			case json.Float:   found = fmt.tprintf("%g", f64(x))
+			case json.Array:   found = fmt.tprint(len(x))
+			case:              found = fmt.tprint(v)
+			}
+			// Text compares with \n and \t spelled out
+			expected, _ = strings.replace_all(expected, "\\n", "\n", context.temp_allocator)
+			expected, _ = strings.replace_all(expected, "\\t", "\t", context.temp_allocator)
+		}
+		return found == expected, found
 	case "code_disk_conflict":
 		found = fmt.tprint(CodeEditor_HasDiskConflict(CodeTabs_Active(s)))
 	case "code_servers":
@@ -1055,8 +1167,14 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprintf("%d running, %d started", running, started)
 	case "code_close_dialog":
 		found = s.codeClose.open ? "open" : "closed"
+	case "scene_tabs":
+		// The scene tabs' names, in order ("MenuScene,PlayScene")
+		names := make([dynamic]string, context.temp_allocator)
+		for index in ViewportTabScenes(s) do append(&names, s.project.scenes[index].name)
+		found = strings.join(names[:], ",", context.temp_allocator)
 	case "code_tabs":
 		found = fmt.tprint(len(s.codeTabs))
+		return found == value, fmt.tprintf("%s: %v", found, s.codeTabs[:])
 	case "code_tab":
 		active := CodeTabs_Active(s)
 		found = active == "" ? "none" : filepath.base(active)
@@ -1065,6 +1183,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "code_contains":
 		want, _, text := strings.partition(value, " ")
 		text, _ = strings.replace_all(text, "\\t", "\t", context.temp_allocator)
+		text, _ = strings.replace_all(text, "\\n", "\n", context.temp_allocator)
 		has := strings.contains(CodeEditor_Text(CodeTabs_Active(s)), text)
 		found = fmt.tprint(has)
 		return found == want, found
@@ -1115,8 +1234,11 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "widget_visible":
 		key, _, expected := strings.partition(value, " ")
 		_, visible := widgetRect(ctx, key)
+		st := ctx.widgets.states[skald.hash_id(key)]
+		// Drawn last frame: a widget that's gone keeps its state for a while
+		visible = visible && st.last_frame + 1 >= ctx.widgets.frame
 		found = fmt.tprint(visible)
-		return found == strings.trim_space(expected), found
+		return found == strings.trim_space(expected), fmt.tprintf("%s; rect %v, clip %v", found, st.last_rect, st.clip_rect)
 	case "bus":
 		parts := strings.fields(value, context.temp_allocator)
 		if len(parts) < 3 do return false, "expected an index, a field and a value"
@@ -1424,7 +1546,7 @@ pressKey :: proc(combo: string) -> bool {
 	event.type = .KEY_DOWN
 	event.key.scancode = scancode
 	// The key code too, as real key events have (the code editor reads those, Skald scancodes)
-	event.key.key = sdl.GetKeyFromScancode(scancode, mods, false)
+	event.key.key = sdl.GetKeyFromScancode(scancode, mods, true)
 	event.key.mod = mods
 	event.key.down = true
 	_ = sdl.PushEvent(&event)
@@ -1462,6 +1584,7 @@ finish :: proc(ctx: ^skald.Ctx(Msg)) {
 	if driver.finished do return
 	driver.finished = true
 	driver.active = false
+	restoreClipboard()
 	fmt.printfln("[script] %s: %s (%d failed)", driver.path, driver.failures == 0 ? "PASSED" : "FAILED", driver.failures)
 	// Not Action.Quit: that would ask about unsaved changes
 	skald.send(ctx, Msg(Quit_Without_Asking{}))

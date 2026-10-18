@@ -141,6 +141,8 @@ SceneDef :: struct {
 	component: string,
 	// Editor-only, components: open in a viewport tab
 	opened: bool,
+	// Editor-only, scenes: its viewport tab was closed (they start open; opening it shows it again)
+	tabClosed: bool,
 }
 
 AssetKind :: enum {

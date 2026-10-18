@@ -31,8 +31,11 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	}
 	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.dataSelection = -1
 	if out.dataSelection >= len(out.project.data) do out.dataSelection = -1
-	// Anything that opens another scene shows it, not a code tab
-	if out.currentScene != state.currentScene do out.codeTab = 0
+	// Anything that opens another scene shows it (not a code tab), in its tab
+	if out.currentScene != state.currentScene {
+		out.codeTab = 0
+		if out.currentScene >= 0 && out.currentScene < len(out.project.scenes) do out.project.scenes[out.currentScene].tabClosed = false
+	}
 	// A structural edit renumbers nodes: the old multi-selection is meaningless unless the edit
 	// chose a new one. Then make the selection agree with selectedNode (selection.odin)
 	if (info.scope == .Scene || info.scope == .Project) && !out.selectionSet do clear(&out.selection)
@@ -75,7 +78,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Input_Capture_Started, Input_Capture_Cancelled, Input_Device_Changed:
 		// Handled by ProjectSettings_Update above
 	case Code_Tab_Selected, Code_Tab_Close_Requested, Code_Close_Chosen, Code_Open_Requested, Code_Save_Requested,
-	     Code_Tick_Requested, Code_Tick, Code_Focused, Code_Reloaded, Code_Disk_Chosen:
+	     Code_Tick_Requested, Code_Tick, Code_Focused, Code_Reloaded, Code_Disk_Chosen,
+	     Code_Dialog_Requested, Code_Dialog_Picked:
 		// Handled by CodeTabs_Update above
 	case Bus_Added, Bus_Removed, Bus_Renamed, Bus_Volume_Changed, Bus_Pan_Changed, Bus_Mute_Toggled:
 		// Handled by Mixer_Update above
@@ -461,6 +465,19 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.codeTab = 0
 		tabs := ViewportTabScenes(&out)
 		if int(v) >= 0 && int(v) < len(tabs) do openScene(&out, tabs[v])
+	case Scene_Tab_Closed:
+		tabs := ViewportTabScenes(&out)
+		if int(v) < 0 || int(v) >= len(tabs) || len(tabs) < 2 do break
+		index := tabs[v]
+		scene := &out.project.scenes[index]
+		if Scene_IsComponent(scene) do scene.opened = false
+		else do scene.tabClosed = true
+		// The tab that shows closes: its neighbour shows instead
+		if index == out.currentScene {
+			next := int(v) + 1 < len(tabs) ? tabs[v + 1] : tabs[v - 1]
+			out.codeTab = 0
+			openScene(&out, next)
+		}
 	case Component_Opened:
 		if int(v) < 0 || int(v) >= len(out.project.scenes) || !Scene_IsComponent(&out.project.scenes[v]) do break
 		out.project.scenes[v].opened = true

@@ -180,7 +180,14 @@ scene tabs show the scene again. **Save** (Ctrl+S), Play and Export save open sc
 project, and a save builds the scripts in the background so the inspector shows new fields.
 
 While the code editor has the keyboard, keys go to it, except Save, Play, Pause, Stop, Build
-Scripts, Export, Settings, the bottom panel and Quit.
+Scripts, Export, Settings, the bottom panel and Quit. Its key bindings are VS Code's and Zed's
+(Ctrl+D next occurrence, Alt+Up/Down move lines, Ctrl+/ comment, F12 definition, Ctrl+P
+palette, ...): the palette (Ctrl+P) lists every command with its keys, and its Keymap Editor
+changes them. Ctrl+O and Ctrl+Shift+S open and save as through file dialogs. Tab indents with a
+tab, as Odin code does.
+
+Scene tabs close with their × too (the scene stays in the project; opening it brings its tab
+back).
 
 A script changed by another program (or git) while it's open is read again; if you have unsaved
 changes to it, a bar asks whether to reload it or keep yours. The code editor's own key bindings

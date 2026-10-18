@@ -71,7 +71,7 @@ editor_apply_action :: proc(ed: ^Editor, action: km.Action) -> bool {
 		buf.buffer_newline(b)
 		return true
 	case .IndentOrTab:
-		buf.buffer_indent(b)
+		buf.buffer_indent(b, ed.indent_with_tabs)
 		return true
 	case .DuplicateLineUp, .DuplicateLineDown:
 		buf.buffer_duplicate_lines(b, down = action == .DuplicateLineDown)

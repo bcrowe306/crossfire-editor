@@ -42,7 +42,7 @@ Script_Open :: proc(state: ^State, path: string, line: int) -> skald.Command(Msg
 CodeTabs_Open :: proc(state: ^State, path: string, line: int) {
 	absolute := path
 	if !filepath.is_abs(path) do absolute = joinPath(state.project.rootPath, path, allocator = context.temp_allocator)
-	if full, err := os.get_absolute_path(absolute, context.temp_allocator); err == nil do absolute = full
+	absolute = codeAbsolutePath(absolute)
 	// The language server reads the scripts folder's ols.json (the engine and project collections)
 	if message := Scripts_WriteOLSConfig(&state.project); message != "" do logLine(state, .Warning, fmt.aprintf("ols.json: %s", message))
 	scriptsDir := joinPath(state.project.rootPath, SCRIPTS_FOLDER, allocator = context.temp_allocator)
@@ -72,6 +72,19 @@ CodeTabs_Open :: proc(state: ^State, path: string, line: int) {
 	state.codeTab = index + 1
 	state.codeFocusPending = true
 	if line > 0 do CodeEditor_GotoLine(absolute, line)
+}
+
+/*
+A path made absolute, existing or not (temp allocated). `os.get_absolute_path` resolves through
+the file, so it fails for one that doesn't exist yet (a Save As target): the tabs would hold two
+spellings of one file.
+*/
+codeAbsolutePath :: proc(path: string) -> string {
+	if full, err := os.get_absolute_path(path, context.temp_allocator); err == nil do return full
+	if filepath.is_abs(path) do return path
+	cwd, err := os.get_working_directory(context.temp_allocator)
+	if err != nil do return path
+	return joinPath(cwd, path, allocator = context.temp_allocator)
 }
 
 // The file the shown code tab has open ("" when the scene shows)
@@ -173,6 +186,38 @@ CodeTabs_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		state.codeTickPending = false
 	case Code_Focused:
 		state.codeFocusPending = false
+	case Code_Dialog_Requested:
+		if CodeTabs_Active(state) == "" do break
+		state.codeDialog = CodeDialog(v)
+		// Test scripts answer it themselves (code_dialog_pick): a native dialog would block them
+		if ScriptDriver_Active() do break
+		filters := []skald.File_Filter{{name = "Odin", pattern = "odin"}}
+		folder := joinPath(state.project.rootPath, SCRIPTS_FOLDER, allocator = context.temp_allocator)
+		on :: proc(r: skald.File_Dialog_Result) -> Msg { return Code_Dialog_Picked(r) }
+		if v == .Open do return skald.cmd_open_file_dialog(filters, on, folder), true
+		return skald.cmd_save_file_dialog(filters, on, CodeTabs_Active(state)), true
+	case Code_Dialog_Picked:
+		dialog := state.codeDialog
+		state.codeDialog = .None
+		if v.cancelled || v.path == "" do break
+		switch dialog {
+		case .None:
+		case .Open:
+			CodeTabs_Open(state, v.path, 0)
+		case .Save_As:
+			i := state.codeTab - 1
+			if i < 0 || i >= len(state.codeTabs) do break
+			newPath := codeAbsolutePath(v.path)
+			if problem := CodeEditor_SaveAs(state.codeTabs[i], newPath); problem != "" {
+				logLine(state, .Error, strings.clone(problem))
+				break
+			}
+			delete(state.codeTabs[i])
+			state.codeTabs[i] = strings.clone(newPath)
+			logLine(state, .Info, fmt.aprintf("Saved as %s", newPath))
+			Scripts_Refresh(state)
+			return scriptsBuildQuietly(state), true
+		}
 	case:
 		return {}, false
 	}
@@ -215,36 +260,58 @@ scriptsBuildQuietly :: proc(state: ^State) -> skald.Command(Msg) {
 
 // The tab strip's code tabs: name (● when unsaved) and ×; a middle click closes too
 CodeTabs_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
-	th := ctx.theme
 	views := make([dynamic]skald.View, context.temp_allocator)
 	for path, i in s.codeTabs {
-		active := s.codeTab == i + 1
-		dirty := CodeEditor_IsDirty(path)
-		tabId := skald.hash_id(fmt.tprintf("code-tab-%d", i))
-		// A middle click on the tab closes it, as in browsers and code editors
+		label := fmt.tprintf("%s  %s%s", ICON_FILE_CODE, filepath.base(path), CodeEditor_IsDirty(path) ? " ●" : "")
+		append(&views, editorTab(ctx, label, path, s.codeTab == i + 1, Msg(Code_Tab_Selected(i)), Msg(Code_Tab_Close_Requested(i)),
+			fmt.tprintf("code-tab-%d", i)))
+	}
+	return views[:]
+}
+
+/*
+One tab of the center panel's strip (scenes, components, scripts), styled as skald.tabs styles
+its tabs (view.odin's _tabs: the fill, text colors, padding, font and underline) with a close
+button inside the tile; a middle click closes it too. `closable` false leaves the × out.
+
+Widget keys: the tab is `key`, its close button `key` with "-close" before the number
+(`scene-tab-close-1`).
+*/
+editorTab :: proc(ctx: ^skald.Ctx(Msg), label, tip: string, active: bool, selectMsg, closeMsg: Msg, key: string, closable := true) -> skald.View {
+	th := ctx.theme
+	tabId := skald.hash_id(key)
+	if closable {
 		if state, drawn := ctx.widgets.states[tabId]; drawn && ctx.input.mouse_pressed[.Middle] {
 			r := state.last_rect
 			p := ctx.input.mouse_pos
-			if p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h do skald.send(ctx, Msg(Code_Tab_Close_Requested(i)))
+			if p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h do skald.send(ctx, closeMsg)
 		}
-		// Styled as skald.tabs styles the scene tabs (view.odin's _tabs): the same fill, text,
-		// padding, font and underline, with the × inside the tile
-		bg := active ? skald.color_mix(th.color.primary, th.color.surface, 0.94) : th.color.surface
-		fg := active ? th.color.fg : th.color.fg_muted
-		label := fmt.tprintf("%s  %s%s", ICON_FILE_CODE, filepath.base(path), dirty ? " ●" : "")
-		tab := skald.button(ctx, label, Msg(Code_Tab_Selected(i)), id = tabId,
-			bg = bg, fg = fg, radius = th.radius.sm, padding = {th.spacing.md, th.spacing.sm}, font_size = th.font.size_md)
-		close := skald.button(ctx, ICON_XMARK, Msg(Code_Tab_Close_Requested(i)), id = skald.hash_id(fmt.tprintf("code-tab-close-%d", i)),
-			bg = bg, fg = th.color.fg_muted, radius = th.radius.sm, padding = {th.spacing.sm, th.spacing.sm}, font_size = th.font.size_xs)
-		underline := active ? skald.rect({0, 2}, th.color.primary) : skald.rect({0, 1}, th.color.border)
-		append(&views, skald.tooltip(ctx, skald.col(
-			skald.row(tab, close, spacing = 0, cross_align = .Center, bg = bg, radius = th.radius.sm),
-			underline,
-			spacing = 2,
-			cross_align = .Stretch,
-		), path, id = skald.hash_id(fmt.tprintf("code-tab-tip-%d", i))))
 	}
-	return views[:]
+	bg := active ? skald.color_mix(th.color.primary, th.color.surface, 0.94) : th.color.surface
+	fg := active ? th.color.fg : th.color.fg_muted
+	tab := skald.button(ctx, label, selectMsg, id = tabId,
+		bg = bg, fg = fg, radius = th.radius.sm, padding = {th.spacing.md, th.spacing.sm}, font_size = th.font.size_md)
+	parts := make([dynamic]skald.View, context.temp_allocator)
+	append(&parts, tab)
+	if closable {
+		closeKey := tabCloseKey(key)
+		append(&parts, skald.button(ctx, ICON_XMARK, closeMsg, id = skald.hash_id(closeKey),
+			bg = bg, fg = th.color.fg_muted, radius = th.radius.sm, padding = {th.spacing.sm, th.spacing.sm}, font_size = th.font.size_xs))
+	}
+	underline := active ? skald.rect({0, 2}, th.color.primary) : skald.rect({0, 1}, th.color.border)
+	return skald.tooltip(ctx, skald.col(
+		skald.row(..parts[:], spacing = 0, cross_align = .Center, bg = bg, radius = th.radius.sm),
+		underline,
+		spacing = 2,
+		cross_align = .Stretch,
+	), tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
+}
+
+// "scene-tab-3" -> "scene-tab-close-3"
+tabCloseKey :: proc(key: string) -> string {
+	i := strings.last_index_byte(key, '-')
+	if i < 0 do return fmt.tprintf("%s-close", key)
+	return fmt.tprintf("%s-close%s", key[:i], key[i:])
 }
 
 // The code view's header button: Save (the tabs get the rest of the header)
@@ -288,8 +355,11 @@ CodeTabs_StatusLine :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> sk
 	line, column := CodeEditor_Caret(path)
 	server := CodeEditor_LspStatus(path)
 	if server == "" do server = "off (no ols)"
+	// The code editor's own messages (its header is hidden: the tab names the file)
+	message := CodeEditor_StatusText(path)
+	if message == "" do message = fmt.tprintf("%s%s", filepath.base(path), CodeEditor_IsDirty(path) ? " (unsaved)" : "")
 	return skald.row(
-		skald.text(fmt.tprintf("%s%s", filepath.base(path), CodeEditor_IsDirty(path) ? " (unsaved)" : ""), th.color.fg_muted, th.font.size_xs),
+		skald.text(message, th.color.fg_muted, th.font.size_xs),
 		skald.flex(1, skald.spacer(0)),
 		skald.text(fmt.tprintf("Ln %d, Col %d", line, column), th.color.fg_muted, th.font.size_xs),
 		skald.text(fmt.tprintf("Language server: %s", server), th.color.fg_muted, th.font.size_xs),
@@ -302,6 +372,8 @@ CodeTabs_StatusLine :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> sk
 
 // "Save changes to mover.odin?" before closing a tab with unsaved changes
 codeCloseDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.codeClose.open do return closedDialog(ctx, "code-close-dialog")
 	th := ctx.theme
 	name := ""
 	if s.codeClose.index >= 0 && s.codeClose.index < len(s.codeTabs) do name = filepath.base(s.codeTabs[s.codeClose.index])

@@ -3314,3 +3314,42 @@ code_editor_settings_persist_and_disk_changes :: proc(t: ^testing.T) {
 	CodeEditor_Close(file)
 	free_all(context.temp_allocator)
 }
+
+
+@(test)
+scene_tabs_close_and_come_back :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	names :: proc(s: ^State) -> string {
+		list := make([dynamic]string, context.temp_allocator)
+		for i in ViewportTabScenes(s) do append(&list, s.project.scenes[i].name)
+		return strings.join(list[:], ",", context.temp_allocator)
+	}
+	all := names(&state)
+	count := len(ViewportTabScenes(&state))
+	testing.expect(t, count >= 3, "the demo's scenes")
+	current := state.currentScene
+
+	// Another tab closes; the scene stays in the project
+	other := ViewportTabScenes(&state)[0] == current ? 1 : 0
+	send(&state, Scene_Tab_Closed(other))
+	testing.expect_value(t, len(ViewportTabScenes(&state)), count - 1)
+	testing.expect_value(t, state.currentScene, current)
+	// The tab that shows closes: a neighbour shows
+	for index, i in ViewportTabScenes(&state) do if index == current {
+		send(&state, Scene_Tab_Closed(i))
+		break
+	}
+	testing.expect(t, state.currentScene != current, "another scene shows")
+	testing.expect_value(t, len(ViewportTabScenes(&state)), count - 2)
+	// Opening a scene brings its tab back
+	send(&state, Scene_Action{.Open, current})
+	testing.expect_value(t, state.currentScene, current)
+	testing.expect_value(t, len(ViewportTabScenes(&state)), count - 1)
+	// The last tab stays
+	for len(ViewportTabScenes(&state)) > 1 do send(&state, Scene_Tab_Closed(0))
+	send(&state, Scene_Tab_Closed(0))
+	testing.expect_value(t, len(ViewportTabScenes(&state)), 1)
+	_ = all
+	free_all(context.temp_allocator)
+}

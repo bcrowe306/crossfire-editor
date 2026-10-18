@@ -27,6 +27,8 @@ Widget keys for UI tests: `project-settings-tab-<Tab>`, `project-settings-name`,
 `input-add-gamepad`, `input-add-axis`, `input-device`.
 */
 projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
+	if !s.projectSettings.open do return closedDialog(ctx, "project-settings-dialog")
 	th := ctx.theme
 	d := &s.projectSettings
 	content: skald.View = skald.View_Spacer{size = 0}

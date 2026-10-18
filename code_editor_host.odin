@@ -13,6 +13,7 @@ import stbi "vendor:stb/image"
 import ce "code_editor/editor"
 import km "code_editor/keymap"
 import lspc "code_editor/lsp"
+import "code_editor/control"
 
 /*
 The built-in code editor: `code_editor/` (an Odin code editor on SDL3, with Odin highlighting and
@@ -80,6 +81,8 @@ CodeEditor :: struct {
 	diskChanged: bool,
 	// The server process its document was opened in (0: none yet)
 	openedIn: int,
+	// The font size (pixels) its cell size was measured at
+	cellsFor: f32,
 }
 
 // What a file did on disk since it was read (`CodeEditor_DiskChange`)
@@ -134,6 +137,10 @@ CodeEditor_Open :: proc(path, scriptsDir: string, olsPath: string, configDir := 
 	c.ed = ce.editor_init(platform)
 	// The tab shows the file name
 	c.ed.show_header = false
+	// Odin is indented with tabs (odinfmt's style, and the engine's)
+	c.ed.indent_with_tabs = strings.has_suffix(path, ".odin")
+	// Its zoom (Ctrl +/-) starts from, and Ctrl+0 goes back to, the code font's size
+	ce.editor_set_font_size(&c.ed, CODE_FONT_SIZE)
 	if !ce.editor_load_file(&c.ed, path) {
 		ce.editor_destroy(&c.ed)
 		delete(c.path)
@@ -361,6 +368,52 @@ CodeEditor_Servers :: proc() -> (running, started: int) {
 	return running, host.serversStarted
 }
 
+// Where a file's editor imports Zed or VS Code key bindings from (tests: a fixture, never yours)
+CodeEditor_SetImportPath :: proc(path: string, zed: bool, file: string) {
+	if c := CodeEditor_Find(path); c != nil do ce.editor_set_import_path(&c.ed, zed ? .Zed : .VSCode, file)
+}
+
+// The code editor's own transient message (a theme chosen, a keymap imported, ...; "" when none)
+CodeEditor_StatusText :: proc(path: string) -> string {
+	c := CodeEditor_Find(path)
+	return c != nil ? ce.editor_status_text(&c.ed) : ""
+}
+
+// What its navigation panels show (tests): the peek window, the references panel and its rows
+CodeEditor_Navigation :: proc(path: string) -> (peekOpen, refsOpen: bool, refs: int) {
+	c := CodeEditor_Find(path)
+	if c == nil do return
+	return c.ed.nav.peek.open, c.ed.nav.refs.open, len(c.ed.nav.refs.items)
+}
+
+// The code editor's state as JSON (its control package's snapshot: tests read fields from it)
+CodeEditor_StateJSON :: proc(path: string) -> string {
+	c := CodeEditor_Find(path)
+	return c != nil ? control.state_json(&c.ed, 0) : ""
+}
+
+/*
+Saves a file's buffer under another name and makes the editor that file's (its document moves
+with it on the language server).
+
+Returns:
+- "" or why it couldn't (temp allocated)
+*/
+CodeEditor_SaveAs :: proc(path, newPath: string) -> string {
+	c := CodeEditor_Find(path)
+	if c == nil do return "not open"
+	if CodeEditor_Find(newPath) != nil do return fmt.tprintf("%s is open in another tab", filepath.base(newPath))
+	if !ce.editor_save_file_as(&c.ed, newPath) do return fmt.tprintf("Couldn't save %s", newPath)
+	cursor := ce.editor_primary_cursor(&c.ed).pos
+	delete(c.path)
+	c.path = strings.clone(newPath)
+	_ = ce.editor_load_file(&c.ed, newPath)
+	ce.editor_goto_lsp_position(&c.ed, cursor.line, cursor.col)
+	c.diskTime = modificationTime(newPath)
+	c.diskChanged = false
+	return ""
+}
+
 // The language server's status for the status line ("" when there's none)
 CodeEditor_LspStatus :: proc(path: string) -> string {
 	c := CodeEditor_Find(path)
@@ -430,7 +483,14 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		#partial switch e.type {
 		case .KEY_DOWN, .KEY_UP:
 			if !focused || isPassthrough(e.key, passthrough) do continue
-			_ = ce.editor_handle_event(&c.ed, e)
+			if ce.editor_handle_event(&c.ed, e) || e.type != .KEY_DOWN do continue
+			// What the code editor leaves to its host: Open and Save As need file dialogs
+			if action, bound := km.keymap_resolve(&c.ed.keymap, ce.sdl_event_to_chord(e.key)); bound {
+				#partial switch action {
+				case .Open:   skald.send(ctx, Msg(Code_Dialog_Requested(.Open)))
+				case .SaveAs: skald.send(ctx, Msg(Code_Dialog_Requested(.Save_As)))
+				}
+			}
 		case .TEXT_INPUT, .TEXT_EDITING:
 			if focused do _ = ce.editor_handle_event(&c.ed, e)
 		case .MOUSE_MOTION:
@@ -461,6 +521,12 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	}
 	// Language server replies arrive between inputs, and the file may change on disk
 	if !s.codeTickPending && EditorFocused() do skald.send(ctx, Msg(Code_Tick_Requested{c.ed.lsp_enabled ? CODE_TICK_SECONDS : 1}))
+	// A tab coming to the front takes the key bindings and theme another tab may have changed
+	// (Keymap Editor, an import, Theme Editor: they're saved in the config folder)
+	if host.lastShown != c && host.lastShown != nil && c.ed.config.dir != "" {
+		_ = ce.editor_load_keymap(&c.ed)
+		ce.editor_load_theme(&c.ed)
+	}
 	#partial switch CodeEditor_DiskChange(path, now = host.lastShown != c) {
 	case .Reloaded: skald.send(ctx, Msg(Code_Reloaded{strings.clone(path, context.temp_allocator)}))
 	}
@@ -627,9 +693,14 @@ applyFont :: proc(c: ^CodeEditor, scale: f32 = 0) {
 	}
 	w, h: i32
 	if ttf.GetStringSize(host.font, raw_data(string("M")), 1, &w, &h) {
-		if c.ed.char_w != f32(w) || c.ed.char_h == 0 do ce.editor_set_font(&c.ed, f32(w), f32(h))
+		// Measured again when the font's size changed since this editor's cells were
+		if c.cellsFor != host.fontPixels {
+			ce.editor_set_font(&c.ed, f32(w), f32(h))
+			c.cellsFor = host.fontPixels
+		}
 	}
-	ce.editor_set_font_size(&c.ed, host.zoom)
+	// The zoom is the same in every tab (setting the size, not the base Ctrl+0 returns to)
+	c.ed.font_size = host.zoom
 }
 
 @(private="file")

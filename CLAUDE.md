@@ -219,6 +219,13 @@ Skald is not immediate-mode and not a retained widget tree:
   **Every inspector row must fit `controlWidth`**: it happened twice (the link button, then the
   script Open button beside a dropdown held at its minimum width). Put extra buttons on their own
   row, and check a new button with a UI click in a narrow window.
+- **A closed dialog must build no content** (`closedDialog`, at the top of every dialog view):
+  Skald hit-tests a widget by its rect from the last frame it was *built* in, not drawn, so a
+  closed dialog's buttons stayed clickable where they had been (a viewport click where the Add
+  Node dialog's "Sprite" row had been added a Sprite; smoke.script caught it once the header's
+  layout moved a node there). Skald itself should check the widget was drawn last frame.
+- **Skald's `draw_text` takes the baseline**, not the top: `drawTextTop` (view_viewport.odin)
+  adds `text_ascent`. Drawn from the top, the top ruler's numbers showed only their bottoms.
 - Type colors: node kinds use `kindColor` (scene tree rows and viewport markers); the browser uses
   `BrowserItemColor` (scenes blue, images like sprites, audio pink, fonts amber). Icons get the
   full color, labels `TintLabel` (the text color pulled 45% toward it); hidden nodes are muted.
@@ -513,9 +520,28 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   (keymap.json, theme.json: the code editor's Keymap Editor, Theme Editor, "Color Theme"). Test
   runs without `--settings` keep none. A light editor theme starts the code on Ayu Light until a
   theme is saved.
-- **Tabs** look like `skald.tabs`' (its fill, text colors, padding, font, underline; copied from
-  view.odin's `_tabs`, with the × inside the tile): they're our buttons because Skald's tabs have
-  no close button.
+- **Tabs** (scenes, components and scripts: `editorTab`) look like `skald.tabs`' (its fill, text
+  colors, padding, font, underline; copied from view.odin's `_tabs`, with the × inside the tile):
+  they're our buttons because Skald's tabs have no close button. Keys `scene-tab-<i>`,
+  `scene-tab-close-<i>`, `code-tab-<i>`, `code-tab-close-<i>`. **Scene tabs close**
+  (`Scene_Tab_Closed`): a scene's `SceneDef.tabClosed` (zero = open, so every scene starts with a
+  tab; components keep `opened`), the scene stays; closing the one that shows shows its
+  neighbour; the last tab has no ×; anything that changes `currentScene` opens its tab again
+  (`update`). When the view's buttons leave the tabs under `CENTER_TABS_MIN_WIDTH` (200 px: the
+  tiled window's center is about 300), the tabs get a header row of their own (`centerHeader`).
+- **Every keymap command is tested** (`tests/ui/code_keys.script`): moving, selecting, cursors,
+  editing, lines, clipboard (the driver puts the user's clipboard back), undo/redo, find/replace,
+  zoom, the palette and its windows, completion, signature help, definitions, peek, references,
+  navigation, diagnostics, quick fixes, problems, Save / Save As / Open, and the palette's Zed
+  and VS Code keymap imports (fixtures in `code_editor/example/assets/keymaps`). Found and fixed
+  doing it: the find bar swallowed F3/Shift+F3 (code_editor's find.odin), Tab indented with
+  spaces (`Editor.indent_with_tabs`, on for .odin), Ctrl+0 didn't reset the zoom (the host reset
+  the base size every frame), Save As and Open did nothing (the host now answers them with file
+  dialogs: `Code_Dialog_Requested`; `code_dialog_pick` in tests), the code editor's status
+  messages were hidden with its header (now in the status line), and a tab coming to the front
+  now reloads the keymap and theme another tab changed. Driver: key events' key codes are the
+  unshifted ones (`GetKeyFromScancode(..., true)`, as real events: Ctrl+Shift+letter chords
+  failed), `code_state <json path>` reads the code editor's control-package snapshot.
 - **The test driver** had to send what real input sends: `type` is one TEXT_INPUT per character
   (the code editor completes after a typed "."), and key events carry the key code
   (`GetKeyFromScancode`: the code editor reads key codes, Skald scancodes). `click_tab` clicks a

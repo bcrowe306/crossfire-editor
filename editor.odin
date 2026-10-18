@@ -138,6 +138,8 @@ State :: struct {
 	codeTickPending: bool,
 	// The code editor should take the keyboard (a tab was opened or picked)
 	codeFocusPending: bool,
+	// The file dialog the code editor asked for, until it answers
+	codeDialog: CodeDialog,
 	// Closing a tab with unsaved changes: the prompt
 	codeClose: struct {
 		open: bool,
