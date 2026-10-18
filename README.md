@@ -298,6 +298,24 @@ slider. In code: `e.ParticleEmitter_Start(emitter)` fires a one-shot emitter (em
 continuous off, burst 1), `e.ParticleEmitter_Stop`, and `emitter.settings` changes any setting.
 The demo's ship exhaust and pickup sparks show both.
 
+## Sound
+
+Three sound nodes (Ctrl+Shift+A):
+- **AudioPlayer** plays a sound: volume, pitch, pan, loop, and Autostart (plays when its scene
+  starts).
+- **AudioPlayer2D** is a sound in the world: panned by where it is relative to the camera, and
+  quieter with distance, silent past its **Range** (the ring in the viewport); **Falloff** shapes
+  the fade.
+- **MusicPlayer** streams music, with speed, fade in and fade out. Music is an asset of its own:
+  import the file, then right-click it in the browser > **Use as Music (streamed)**.
+
+**Preview** in the inspector plays the node's sound as set. Every sound node goes to a **bus**
+(Master by default). The bottom panel's **Mixer** tab lists them: Master, then any you add, each
+with volume, pan and mute; removing a bus sends its nodes to Master. Bus effects come later.
+
+In code: `e.AudioPlayer_Play(player)`, `e.AudioPlayer_Stop`, `e.MusicPlayer_FadeOut(music, 2)`,
+`e.MusicPlayer_Seek`, `e.Audio_SetBusVolume("Music", 0.5)`, `e.Audio_SetBusMute("SFX", true)`.
+
 ## Game state, data and assets in code
 
 - **Global scripts** run once for the whole game, across scenes: game state, settings, a HUD.

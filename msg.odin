@@ -317,6 +317,9 @@ NodeTextField :: enum {
 	Autoplay,
 	// A Component node's component (its file; TEXTURE_NONE for none)
 	Component,
+	// A sound node's sound or music asset (TEXTURE_NONE for none), and its bus (a name; Master is "")
+	Sound,
+	Bus,
 	// A CollisionShape's kind, by name
 	Shape,
 	// A Joint's kind, and its bodies (names; "" for body A's default)
@@ -414,6 +417,52 @@ New_Script_Opened :: struct {}
 New_Script_Name_Changed :: distinct string
 New_Script_Created :: struct {}
 New_Script_Cancelled :: struct {}
+
+// Sound nodes and the Mixer tab (mixer.odin, view_mixer.odin)
+AudioField :: enum {
+	Volume,
+	Pitch,
+	Pan,
+	Max_Distance,
+	Attenuation,
+	Fade_In,
+	Fade_Out,
+}
+Audio_Field_Changed :: struct {
+	field: AudioField,
+	value: f32,
+}
+AudioFlag :: enum {
+	Loop,
+	Autostart,
+}
+Audio_Flag_Changed :: struct {
+	flag: AudioFlag,
+	value: bool,
+}
+// Plays the selected sound node's sound in the editor (the browser's sound preview); false stops it
+Audio_Preview_Requested :: distinct bool
+// An audio asset becomes music (streamed by MusicPlayers) or a sound again
+Asset_Kind_Changed :: struct {
+	index: int,
+	kind: AssetKind,
+}
+Bus_Added :: struct {}
+Bus_Removed :: distinct int
+// Typing a bus's name (applies once it's valid and unused)
+Bus_Renamed :: struct {
+	index: int,
+	name: string,
+}
+Bus_Volume_Changed :: struct {
+	index: int,
+	value: f32,
+}
+Bus_Pan_Changed :: struct {
+	index: int,
+	value: f32,
+}
+Bus_Mute_Toggled :: distinct int
 
 // Components (component_edit.odin)
 // Opens a component (its index in project.scenes) in a viewport tab
@@ -737,6 +786,16 @@ Msg :: union {
 	Node_Points_Changed,
 	Open_Keyboard_Settings,
 	Component_Opened,
+	Audio_Field_Changed,
+	Audio_Flag_Changed,
+	Audio_Preview_Requested,
+	Asset_Kind_Changed,
+	Bus_Added,
+	Bus_Removed,
+	Bus_Renamed,
+	Bus_Volume_Changed,
+	Bus_Pan_Changed,
+	Bus_Mute_Toggled,
 	Component_Instance_Added,
 	Component_New,
 	Component_Rename_Started,

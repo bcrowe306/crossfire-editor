@@ -46,6 +46,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := Session_Update(&out, m); handled do return out, command
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
+	if Mixer_Update(&out, m) do return out, {}
 	layout := &out.layout
 
 	switch v in m {
@@ -70,6 +71,53 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Input_Action_Moved, Input_Action_Renamed, Input_Deadzone_Changed, Input_Binding_Added, Input_Binding_Removed,
 	     Input_Capture_Started, Input_Capture_Cancelled, Input_Device_Changed:
 		// Handled by ProjectSettings_Update above
+	case Bus_Added, Bus_Removed, Bus_Renamed, Bus_Volume_Changed, Bus_Pan_Changed, Bus_Mute_Toggled:
+		// Handled by Mixer_Update above
+	case Audio_Field_Changed:
+		node := selectedNode(&out)
+		if node == nil || !isSoundKind(node.kind) do break
+		a := &node.audio
+		switch v.field {
+		case .Volume:       a.volume = clamp(v.value, 0, 2)
+		case .Pitch:        a.pitch = clamp(v.value, 0.1, 4)
+		case .Pan:          a.pan = clamp(v.value, -1, 1)
+		case .Max_Distance: a.maxDistance = max(v.value, 1)
+		case .Attenuation:  a.attenuation = clamp(v.value, 0.1, 8)
+		case .Fade_In:      a.fadeIn = max(v.value, 0)
+		case .Fade_Out:     a.fadeOut = max(v.value, 0)
+		}
+	case Audio_Flag_Changed:
+		node := selectedNode(&out)
+		if node == nil || !isSoundKind(node.kind) do break
+		switch v.flag {
+		case .Loop:      node.audio.loop = v.value
+		case .Autostart: node.audio.autostart = v.value
+		}
+	case Audio_Preview_Requested:
+		node := selectedNode(&out)
+		if !bool(v) || node == nil || node.sound == "" {
+			AudioPreview_Stop()
+			break
+		}
+		path := joinPath(out.project.rootPath, node.sound, allocator = context.temp_allocator)
+		if !AudioPreview_IsLoaded(path) {
+			if message := AudioPreview_Load(path); message != "" {
+				logLine(&out, .Warning, fmt.aprintf("Preview: %s", message))
+				break
+			}
+		}
+		AudioPreview_SetSettings(node.audio.volume, node.audio.pitch, node.audio.pan)
+		AudioPreview_Play()
+	case Asset_Kind_Changed:
+		if v.index < 0 || v.index >= len(out.project.assets) do break
+		asset := &out.project.assets[v.index]
+		if (asset.kind != .Audio && asset.kind != .Music) || (v.kind != .Audio && v.kind != .Music) do break
+		asset.kind = v.kind
+		out.session.assetsChanged = true
+		out.browserSelection = {kind = .Asset, folder = AssetFolder(v.kind), index = v.index}
+		out.browserOpen[AssetFolder(v.kind)] = true
+		logLine(&out, .Info, fmt.aprintf("%s is %s now", filepath.base(asset.path), v.kind == .Music ? "music (streamed)" : "a sound"))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
 	case Open_Keyboard_Settings:
 		SettingsDialog_Open(&out)
 		out.settingsDialog.tab = .Keyboard
@@ -632,6 +680,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			node.texture = strings.clone(v.value == TEXTURE_NONE ? "" : v.value)
 		case .Color:
 			if color, ok := e.ParseColor(v.value); ok do node.color = color
+		case .Sound:
+			delete(node.sound)
+			node.sound = strings.clone(v.value == TEXTURE_NONE ? "" : v.value)
+		case .Bus:
+			delete(node.bus)
+			node.bus = strings.clone(v.value == e.MASTER_BUS ? "" : v.value)
 		case .Component:
 			path := v.value == TEXTURE_NONE ? "" : v.value
 			current := &out.project.scenes[out.currentScene]

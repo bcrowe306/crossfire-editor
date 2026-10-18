@@ -38,6 +38,8 @@ BottomTab :: enum {
 	Console,
 	Output,
 	Animation,
+	// Mix buses (view_mixer.odin)
+	Mixer,
 }
 
 LogLevel :: enum {
@@ -58,6 +60,8 @@ BrowserFolder :: enum {
 	Scripts,
 	Images,
 	Audio,
+	// Music assets (streamed by MusicPlayers)
+	Music,
 	Fonts,
 	// Data resources (project_data.odin)
 	Data,
@@ -143,6 +147,11 @@ State :: struct {
 	addNode: AddNodeDialog,
 	// The Animation panel (view_animation.odin)
 	animEditor: AnimEditor,
+	// The Mixer tab: a bus name being typed (its index, the text; owned), kept until it's valid
+	busEdit: struct {
+		index: int,
+		text: string,
+	},
 	// Inspector X/Y pairs whose axes change together
 	inspectorLinks: [LinkedPair]bool,
 	// The same for ParticleEmitter [2]f32 settings, by index in e.ParticleSettings_Fields
@@ -240,7 +249,7 @@ init :: proc() -> State {
 		currentScene = 0,
 		selectedNode = -1,
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false, .Data = true, .Components = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},

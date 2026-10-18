@@ -146,6 +146,10 @@ Checks:
 	input_actions <count>        The project's input actions; draft_input_actions: Project Settings' draft
 	input_bindings <action> <a, b, ...>   An action's bindings, described (e.Input_BindingDescribe)
 	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
+	buses <count>                The project's mix buses (Master counts)
+	bus <index> <name | volume | pan | mute | nodes> <value>   A bus (numbers with two decimals)
+	sound <sound | bus | volume | pitch | pan | loop | autostart | range> <value>
+	                             The selected sound node's settings ("none" for no sound; bus "Master")
 	animations <count>           Animations of the selected AnimatedSprite
 	animation <name | start | end | fps | loop | mode> <value>
 	                             The Animation panel's selected animation (start and end resolved)
@@ -937,6 +941,39 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "ramp_stops":
 		if selected == nil || selected.kind != .ParticleEmitter do return false, "no ParticleEmitter selected"
 		found = fmt.tprint(selected.particles.colorRamp.count)
+	case "buses":
+		found = fmt.tprint(len(s.project.buses))
+	case "bus":
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 3 do return false, "expected an index, a field and a value"
+		i, _ := strconv.parse_int(parts[0])
+		if i < 0 || i >= len(s.project.buses) do return false, fmt.tprintf("no bus %d", i)
+		b := s.project.buses[i]
+		switch parts[1] {
+		case "name":   found = b.name
+		case "volume": found = fmt.tprintf("%.2f", b.volume)
+		case "pan":    found = fmt.tprintf("%.2f", b.pan)
+		case "mute":   found = fmt.tprint(b.mute)
+		case "nodes":  found = fmt.tprint(Bus_NodeCount(&s.project, i == 0 ? "" : b.name))
+		case: return false, fmt.tprintf("unknown bus field '%s'", parts[1])
+		}
+		return found == strings.join(parts[2:], " ", context.temp_allocator), found
+	case "sound":
+		if selected == nil || !isSoundKind(selected.kind) do return false, "no sound node selected"
+		field, _, expected := strings.partition(value, " ")
+		a := selected.audio
+		switch field {
+		case "sound":     found = selected.sound == "" ? "none" : selected.sound
+		case "bus":       found = selected.bus == "" ? e.MASTER_BUS : selected.bus
+		case "volume":    found = fmt.tprintf("%.2f", a.volume)
+		case "pitch":     found = fmt.tprintf("%.2f", a.pitch)
+		case "pan":       found = fmt.tprintf("%.2f", a.pan)
+		case "loop":      found = fmt.tprint(a.loop)
+		case "autostart": found = fmt.tprint(a.autostart)
+		case "range":     found = fmt.tprintf("%.0f", a.maxDistance)
+		case: return false, fmt.tprintf("unknown sound field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
 	case "animations":
 		if selected == nil || selected.kind != .AnimatedSprite do return false, "no AnimatedSprite selected"
 		found = fmt.tprint(len(selected.animations))

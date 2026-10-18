@@ -24,6 +24,8 @@ consoles and handhelds).
     inspector, shapes and rays outlined in the viewport, physics settings in Project Settings.
   - **Particles**: ParticleEmitter nodes, every setting edited in the inspector (sliders, linked
     pairs, color pickers with alpha, a color ramp editor, reset), played live in the viewport.
+  - **Sound**: AudioPlayer, AudioPlayer2D (positional) and MusicPlayer (streamed) nodes edited
+    in the inspector (sound, bus, sliders, Preview); mix buses in the bottom panel's Mixer tab.
   - **Export** to Linux x86_64 and the web (WebAssembly, through Emscripten). Every other target
     is listed with its settings and reports "not implemented yet".
 - **Not yet:** the other export targets, non-PNG/BMP images on the web, CI.
@@ -148,7 +150,10 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
 | `view_inspector_particles.odin` | The inspector's ParticleEmitter settings, built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`, Reset) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
-| `view_bottom.odin` | Bottom panel: Console / Output / Animation tabs, collapsible |
+| `view_bottom.odin` | Bottom panel: Console / Output / Animation / Mixer tabs, collapsible |
+| `mixer.odin` | Mix buses: `BusDef`, `Buses_FromData` (Master first), names (`BusNameProblem`), `Bus_NodeCount`, `isSoundKind`, the Mixer's messages (`Mixer_Update`) |
+| `view_mixer.odin` | The Mixer tab (`MixerPanel`): a strip per bus (name, volume and pan sliders, mute, remove, node count) and Add Bus |
+| `view_inspector_audio.odin` | The inspector's sound node settings (`audioInspectorRows`): sound or music, bus, Open Mixer, volume / pitch / pan sliders, loop, autostart, a 2D player's range and falloff, music's fades, Preview |
 | `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with, frames, FPS, loop, mode, the sheet's image and grid; groups in a `wrap_row`) over the preview and the sheet's frame thumbnails (`frameStrip`, cells drawn from the sheet uploaded once with stb_image); one scroll for all |
 | `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimationDef_FrameAt` (the frame at a time, as the engine plays it), `AnimationDef_Range`, unique names |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
@@ -544,6 +549,7 @@ MyGame/
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
   (world positions) are migrated when parsed.
 - **Version 4:** physics node kinds and attributes, and the project's physics settings.
+- **Version 10:** sound nodes, `<bus>` elements in project.xml, asset kind Music.
 - **Version 9:** components (`.component.xml` files, asset kind Component) and Component nodes.
 - **Version 8:** input actions in project.xml.
 - **Version 7:** AnimatedSprite `<animation>` children, `margin`, `spacing`, `autoplay`.
@@ -723,6 +729,33 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## Sound and the Mixer (implemented; the engine's audio_nodes.odin)
+
+- **Model:** `NodeDef.sound` (an asset path), `bus` ("" = Master) and `audio` (the engine's
+  `e.AudioSettings`, a plain value: compared with `==`, cloned by copy). Written by `writeNode`
+  only when not the defaults (loop only for the sound kinds). `Project.buses` (`BusDef`, Master
+  always first) is in project.xml as `<bus>` (Master only when changed) and in the `.Project`
+  undo snapshot.
+- **Assets:** a sound file is a Sound (`.Audio`, loaded whole: `SOUND_X` constants) or Music
+  (`.Music`, streamed by MusicPlayers: `MUSIC_X`, its own browser folder). Imports are sounds;
+  the browser's menu switches one (`Asset_Kind_Changed`, "Use as Music (streamed)" / "Use as a
+  Sound"); it's an asset change, like imports, not undoable. Script fields of type
+  `e.MusicAsset` get a picker.
+- **Inspector** (`view_inspector_audio.odin`): sliders are `valueSlider`s (`Audio_Field_Changed`,
+  clamped in `update`), checkboxes `Audio_Flag_Changed`, the sound and bus through
+  `Node_Text_Changed` (`.Sound`, `.Bus`; choosing Master stores ""). A bus name that no bus has
+  is warned about (the engine plays it on Master). **Preview** plays the node's sound through the
+  browser's audio preview with its volume, pitch and pan (`AudioPreview_SetSettings`; not its bus).
+- **Mixer tab** (`MixerPanel`, `Mixer_Update`): Add Bus ("Bus", "Bus 2", ...); rename (typed text
+  kept in `State.busEdit` until valid: not empty, no edge spaces, unused ignoring case; nodes on
+  it follow the name); volume 0-2, pan -1 to 1, mute; remove (Master can't be; its nodes go to
+  Master). Each is a `.Project` undo step, merged while a slider drags.
+- **Viewport:** a selected AudioPlayer2D shows its range as a ring (`maxDistance`, world units).
+  The viewport never plays sounds: `Scene_Build` without scripts doesn't load them.
+- Tests: `sound_nodes_and_buses_round_trip`, `mixer_edits`, `tests/ui/mixer.script` (driver checks
+  `buses`, `bus <i> <field>`, `sound <field>`).
+- **Later:** bus effects (each engine bus has a `mix.Group` for them).
 
 ## Particles (implemented; the engine's particles.odin)
 

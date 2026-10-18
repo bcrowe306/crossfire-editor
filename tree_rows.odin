@@ -85,6 +85,7 @@ AssetFolder :: proc(kind: AssetKind) -> BrowserFolder {
 	switch kind {
 	case .Image: return .Images
 	case .Audio: return .Audio
+	case .Music: return .Music
 	case .Font:  return .Fonts
 	case .Data:  return .Data
 	case .Component: return .Components

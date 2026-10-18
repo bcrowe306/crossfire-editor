@@ -25,7 +25,7 @@ testState :: proc() -> State {
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false, .Data = true, .Components = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
@@ -3019,4 +3019,119 @@ components_rename_and_make_unique :: proc(t: ^testing.T) {
 	send(&state, Action.Undo)
 	testing.expect_value(t, playScene(&state).nodes[second].component, "components/Scenery.component.xml")
 	free_all(context.temp_allocator)
+}
+
+@(test)
+sound_nodes_and_buses_round_trip :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_sound")
+	defer removeAll(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	testing.expect_value(t, len(project.buses), 1)
+	testing.expect_value(t, project.buses[0].name, e.MASTER_BUS)
+	project.buses[0].volume = 0.8
+	append(&project.buses, BusDef{strings.clone("SFX"), 0.5, -0.25, true}, BusDef{strings.clone("Music"), 1, 0, false})
+	append(&project.assets, AssetDef{strings.clone("assets/theme.ogg"), .Music})
+
+	scene := &project.scenes[1]
+	sound := NodeDef_Make("Laser", .AudioPlayer, -1)
+	delete(sound.sound)
+	sound.sound = strings.clone("assets/laser.wav")
+	delete(sound.bus)
+	sound.bus = strings.clone("SFX")
+	sound.audio.volume, sound.audio.pitch, sound.audio.pan = 0.7, 1.5, -0.5
+	sound.audio.loop, sound.audio.autostart = true, true
+	append(&scene.nodes, sound)
+	spatial := NodeDef_Make("Engine", .AudioPlayer2D, -1)
+	spatial.audio.maxDistance, spatial.audio.attenuation = 400, 2
+	append(&scene.nodes, spatial)
+	music := NodeDef_Make("Theme", .MusicPlayer, -1)
+	delete(music.sound)
+	music.sound = strings.clone("assets/theme.ogg")
+	delete(music.bus)
+	music.bus = strings.clone("Music")
+	music.audio.fadeIn, music.audio.fadeOut = 1.5, 2
+	append(&scene.nodes, music)
+
+	testing.expect_value(t, Project_Save(&project), "")
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect(t, busesEqual(project.buses[:], loaded.buses[:]), "buses survive saving")
+	found := 0
+	for asset in loaded.assets do if asset.path == "assets/theme.ogg" && asset.kind == .Music do found += 1
+	testing.expect_value(t, found, 1)
+	for &node in scene.nodes {
+		if !isSoundKind(node.kind) do continue
+		other := &loaded.scenes[1].nodes[nodeIndex(&loaded.scenes[1], node.name)]
+		testing.expect(t, NodeDef_Equal(node, other^), node.name)
+		testing.expect_value(t, other.audio, node.audio)
+	}
+	testing.expect_value(t, Bus_NodeCount(&loaded, "SFX"), 1)
+	testing.expect_value(t, Bus_NodeCount(&loaded, e.MASTER_BUS), 1)
+
+	// Scripts get a constant per music asset
+	source := Scripts_AssetsSource(&project)
+	testing.expect(t, strings.contains(source, "MUSIC_THEME"), "music constant")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+mixer_edits :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	send(&state, Add_Node_Kind_Chosen(.AudioPlayer))
+	index := nodeIndex(scene, "AudioPlayer")
+	testing.expect(t, index >= 0, "added")
+	state.selectedNode = index
+	testing.expect_value(t, scene.nodes[index].audio, e.DEFAULT_AUDIO_SETTINGS)
+
+	// Buses: unique names, Master stays first and can't be removed or renamed
+	send(&state, Bus_Added{})
+	send(&state, Bus_Added{})
+	buses := &state.project.buses
+	testing.expect_value(t, len(buses), 3)
+	testing.expect_value(t, buses[1].name, "Bus")
+	testing.expect_value(t, buses[2].name, "Bus 2")
+	send(&state, Bus_Removed(0))
+	send(&state, Bus_Renamed{0, "Main"})
+	testing.expect_value(t, buses[0].name, e.MASTER_BUS)
+
+	// The node goes to a bus, which it follows through a rename; a taken name waits
+	send(&state, Node_Text_Changed{.Bus, "Bus"})
+	testing.expect_value(t, scene.nodes[index].bus, "Bus")
+	send(&state, Bus_Renamed{1, "bus 2"})
+	testing.expect_value(t, buses[1].name, "Bus")
+	send(&state, Bus_Renamed{1, "SFX"})
+	testing.expect_value(t, buses[1].name, "SFX")
+	testing.expect_value(t, scene.nodes[index].bus, "SFX")
+
+	send(&state, Bus_Volume_Changed{1, 5})
+	send(&state, Bus_Pan_Changed{1, -0.5})
+	send(&state, Bus_Mute_Toggled(1))
+	testing.expect_value(t, buses[1].volume, 2)
+	testing.expect_value(t, buses[1].pan, -0.5)
+	testing.expect(t, buses[1].mute, "muted")
+
+	// Removing a bus sends its nodes to Master
+	send(&state, Bus_Removed(1))
+	testing.expect_value(t, len(buses), 2)
+	testing.expect_value(t, scene.nodes[index].bus, "")
+	send(&state, Action.Undo)
+	testing.expect_value(t, len(state.project.buses), 3)
+	testing.expect_value(t, state.project.buses[1].name, "SFX")
+	testing.expect_value(t, playScene(&state).nodes[index].bus, "SFX")
+
+	// The node's settings, clamped
+	state.selectedNode = index
+	send(&state, Audio_Field_Changed{.Volume, 3})
+	send(&state, Audio_Field_Changed{.Pitch, 0})
+	send(&state, Audio_Flag_Changed{.Loop, true})
+	node := &playScene(&state).nodes[index]
+	testing.expect_value(t, node.audio.volume, 2)
+	testing.expect_value(t, node.audio.pitch, 0.1)
+	testing.expect(t, node.audio.loop, "loops")
+	send(&state, Node_Text_Changed{.Bus, e.MASTER_BUS})
+	testing.expect_value(t, playScene(&state).nodes[index].bus, "")
 }

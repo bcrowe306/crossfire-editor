@@ -48,6 +48,7 @@ AudioPreview_Load :: proc(path: string) -> string {
 	}
 	preview.path = strings.clone(path)
 	preview.durationMS = i64(mix.AudioFramesToMS(preview.audio, mix.GetAudioDuration(preview.audio)))
+	AudioPreview_SetSettings(1, 1, 0)
 	return ""
 }
 
@@ -68,6 +69,19 @@ AudioPreview_Play :: proc() {
 	if !mix.PlayTrack(preview.track, 0) {
 		log.warnf("Audio preview: couldn't play: %s", sdl.GetError())
 	}
+}
+
+/*
+How the preview sounds: a sound node's volume, pitch (speed) and pan (balance), so its
+inspector's Preview plays it as the game will (its bus isn't applied). Loading a sound resets it.
+*/
+AudioPreview_SetSettings :: proc(volume, pitch, pan: f32) {
+	if preview.track == nil do return
+	_ = mix.SetTrackGain(preview.track, max(volume, 0))
+	_ = mix.SetTrackFrequencyRatio(preview.track, clamp(pitch, 0.01, 100))
+	p := clamp(pan, -1, 1)
+	gains := mix.StereoGains{min(1, 1 - p), min(1, 1 + p)}
+	_ = mix.SetTrackStereo(preview.track, &gains)
 }
 
 AudioPreview_Stop :: proc() {

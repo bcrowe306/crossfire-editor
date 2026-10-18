@@ -221,6 +221,7 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		switch asset.kind {
 		case .Image: prefix, type = "TEXTURE", "TextureAsset"
 		case .Audio: prefix, type = "SOUND", "SoundAsset"
+		case .Music: prefix, type = "MUSIC", "MusicAsset"
 		case .Font:  prefix, type = "FONT", "FontAsset"
 		case .Data:  prefix, type = "DATA", "DataAsset"
 		case .Component: prefix, type = "COMPONENT", "ComponentAsset"

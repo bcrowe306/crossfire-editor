@@ -80,6 +80,7 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 		return skald.select(ctx, value, field.enumNames[:], payload, onText, id = skald.hash_id(id(field, key)), width = controlWidth)
 	case .Texture: return choices(ctx, value, assetsOf(s, .Image), payload, id(field, key), controlWidth)
 	case .Sound:   return choices(ctx, value, assetsOf(s, .Audio), payload, id(field, key), controlWidth)
+	case .Music:   return choices(ctx, value, assetsOf(s, .Music), payload, id(field, key), controlWidth)
 	case .Font:    return choices(ctx, value, assetsOf(s, .Font), payload, id(field, key), controlWidth)
 	case .Data:    return choices(ctx, value, Project_DataOfType(&s.project, field.hint), payload, id(field, key), controlWidth)
 	case .Component: return choices(ctx, value, assetsOf(s, .Component), payload, id(field, key), controlWidth)

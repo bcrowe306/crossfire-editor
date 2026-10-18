@@ -36,6 +36,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Console:   content = logView(ctx, s.console[:], "Console is empty.", "console-scroll")
 	case .Output:    content = logView(ctx, s.output[:], "Build output appears here when you press Play.", "output-scroll")
 	case .Animation: content = AnimationPanel(s, ctx)
+	case .Mixer:     content = MixerPanel(s, ctx)
 	}
 
 	return skald.col(

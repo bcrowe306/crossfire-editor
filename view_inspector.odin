@@ -406,6 +406,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..physicsInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .ParticleEmitter:
 		append(&rows, ..particleInspectorRows(ctx, s, node, key, controlWidth))
+	case .AudioPlayer, .AudioPlayer2D, .MusicPlayer:
+		append(&rows, ..audioInspectorRows(ctx, s, node, key, controlWidth))
 	case .Component:
 		// The component it's an instance of; its own fields are the component's (Open edits them)
 		choices := make([dynamic]string, context.temp_allocator)

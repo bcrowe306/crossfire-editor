@@ -488,6 +488,14 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				drawCameraFrame(r, p.bounds, v, shape, node.zoom, s.project.gameSize, kindColor(.Camera))
 				skald.draw_circle(r, origin, MARKER_RADIUS, kindColor(.Camera), aa = true)
 				skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+			case node.kind == .AudioPlayer2D && i == s.selectedNode && node.audio.maxDistance > 0:
+				// Where it can be heard (the range is in world units)
+				color := kindColor(.AudioPlayer2D)
+				faint := color
+				faint[3] = 0.5
+				skald.draw_ring(r, origin, node.audio.maxDistance * v.zoom, 1, faint, aa = true)
+				skald.draw_circle(r, origin, MARKER_RADIUS, color, aa = true)
+				skald.draw_text(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case !shape.hasBounds:
 				// Nodes that draw nothing get a marker so they can be seen and picked
 				skald.draw_circle(r, origin, MARKER_RADIUS, kindColor(node.kind), aa = true)
@@ -762,6 +770,8 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .Joint:          return skald.rgb(0xffdc78)
 	case .ParticleEmitter: return skald.rgb(0xff9d5c)
 	case .Component:      return COMPONENT_COLOR
+	// Sound: the browser's audio pink
+	case .AudioPlayer, .AudioPlayer2D, .MusicPlayer: return skald.rgb(0xf08fd8)
 	}
 	return skald.rgb(0xffffff)
 }

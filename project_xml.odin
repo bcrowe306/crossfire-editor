@@ -119,6 +119,16 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 		}
 		close(&w, "global")
 	}
+	// Buses: Master only when it's not the default
+	for bus, i in project.buses {
+		if i == 0 && bus.volume == 1 && bus.pan == 0 && !bus.mute do continue
+		open(&w, "bus")
+		attr(&w, "name", bus.name)
+		if bus.volume != 1 do attr(&w, "volume", bus.volume)
+		if bus.pan != 0 do attr(&w, "pan", bus.pan)
+		if bus.mute do attr(&w, "mute", true)
+		closeEmpty(&w)
+	}
 	for action in project.actions {
 		open(&w, "action")
 		attr(&w, "name", action.name)
@@ -392,6 +402,23 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.texture != "" do attr(w, "texture", node.texture)
 	case .Component:
 		attr(w, "component", node.component)
+	case .AudioPlayer, .AudioPlayer2D, .MusicPlayer:
+		a, d := node.audio, e.DEFAULT_AUDIO_SETTINGS
+		if node.sound != "" do attr(w, "sound", node.sound)
+		if node.bus != "" do attr(w, "bus", node.bus)
+		if a.volume != d.volume do attr(w, "volume", a.volume)
+		if a.pitch != d.pitch do attr(w, "pitch", a.pitch)
+		if a.pan != d.pan do attr(w, "pan", a.pan)
+		if a.loop do attr(w, "loop", true)
+		if a.autostart do attr(w, "autostart", true)
+		if node.kind == .AudioPlayer2D {
+			if a.maxDistance != d.maxDistance do attr(w, "maxDistance", a.maxDistance)
+			if a.attenuation != d.attenuation do attr(w, "attenuation", a.attenuation)
+		}
+		if node.kind == .MusicPlayer {
+			if a.fadeIn != 0 do attr(w, "fadeIn", a.fadeIn)
+			if a.fadeOut != 0 do attr(w, "fadeOut", a.fadeOut)
+		}
 	case .Node2D, .Menu:
 	}
 }

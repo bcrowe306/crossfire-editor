@@ -189,6 +189,14 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			add(&labels, "Rename", Msg(Component_Rename_Started(selection.index)))
 			add(&labels, "New Component", Msg(Component_New{}))
 		}
+		// Sounds load whole; music streams: the same files, used one way or the other
+		if selection.index < len(s.project.assets) {
+			switch s.project.assets[selection.index].kind {
+			case .Audio: add(&labels, "Use as Music (streamed)", Msg(Asset_Kind_Changed{selection.index, .Music}))
+			case .Music: add(&labels, "Use as a Sound", Msg(Asset_Kind_Changed{selection.index, .Audio}))
+			case .Image, .Font, .Data, .Component:
+			}
+		}
 		add(&labels, "Remove from Project...", Msg(Action.Remove_Asset))
 	case .Script:
 		if selection.index < len(s.scriptFiles) {
@@ -398,7 +406,7 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		path := AssetFilePath(&s.project, asset)
 		switch asset.kind {
 		case .Image: content = imagePreview(s, ctx, asset, path)
-		case .Audio: content = audioPreview(s, ctx, asset, path)
+		case .Audio, .Music: content = audioPreview(s, ctx, asset, path)
 		case .Font:
 			content = skald.col(
 				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm),
@@ -572,7 +580,8 @@ fileInfo :: proc(path, dimensions: string) -> string {
 assetIcon :: proc(kind: AssetKind) -> string {
 	switch kind {
 	case .Image: return ICON_IMAGE
-	case .Audio: return ICON_MUSIC
+	case .Audio: return ICON_VOLUME
+	case .Music: return ICON_MUSIC
 	case .Font:  return ICON_FONT_GLYPH
 	case .Data:  return ICON_DATABASE
 	case .Component: return ICON_CUBES

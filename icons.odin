@@ -54,6 +54,10 @@ ICON_GLOBE       :: "\uf0ac"
 ICON_FIRE        :: "\uf06d"
 ICON_STAR        :: "\uf005"
 ICON_CUBES       :: "\uf1b3"
+ICON_VOLUME      :: "\uf028"
+ICON_VOLUME_MUTE :: "\uf6a9"
+ICON_LOCATION    :: "\uf3c5"
+ICON_SLIDERS     :: "\uf1de"
 ICON_COPY        :: "\uf0c5"
 ICON_ARROW_UP    :: "\uf062"
 ICON_ARROW_DOWN  :: "\uf063"
@@ -87,6 +91,9 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .Joint:          return ICON_JOINT
 	case .ParticleEmitter: return ICON_FIRE
 	case .Component:      return ICON_CUBES
+	case .AudioPlayer:    return ICON_VOLUME
+	case .AudioPlayer2D:  return ICON_LOCATION
+	case .MusicPlayer:    return ICON_MUSIC
 	}
 	return ICON_CUBE
 }

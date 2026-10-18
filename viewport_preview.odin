@@ -373,6 +373,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
+				sound = node.sound, bus = node.bus, audio = node.audio,
 		})
 	}
 	return data

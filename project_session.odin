@@ -187,6 +187,7 @@ Project_CreateEmpty :: proc(root, name: string) -> Project {
 	append(&project.scenes, scene)
 	// Like Godot: ui_left / right / up / down, ui_accept, ui_cancel
 	project.actions = DefaultActions()
+	project.buses = Buses_FromData(nil)
 	return project
 }
 

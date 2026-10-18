@@ -116,6 +116,11 @@ NodeDef :: struct {
 	particles: e.ParticleSettings,
 	// Component: the component it's an instance of (its file, relative to the project)
 	component: string,
+	// AudioPlayer, AudioPlayer2D, MusicPlayer (mixer.odin): the sound or music asset, the bus
+	// ("" for Master), and the rest (a plain value)
+	sound: string,
+	bus: string,
+	audio: e.AudioSettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -144,6 +149,9 @@ AssetKind :: enum {
 	Font,
 	// A data resource (`.data.json`, project_data.odin)
 	Data,
+	// Music: a sound file a MusicPlayer streams (Audio's are sounds, loaded whole); the browser's
+	// menu switches between the two
+	Music,
 	// A component: a saved node tree (`.component.xml`, component_edit.odin)
 	Component,
 }
@@ -184,6 +192,8 @@ Project :: struct {
 	data: [dynamic]DataDef,
 	// Input actions, in order (input_actions.odin)
 	actions: [dynamic]ActionDef,
+	// Mix buses (mixer.odin): Master first, always
+	buses: [dynamic]BusDef,
 }
 
 // Path of a scene's file inside the project folder
@@ -221,6 +231,9 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		rows = defaults.rows,
 		autoplay = strings.clone(""),
 		component = strings.clone(""),
+		sound = strings.clone(""),
+		bus = strings.clone(""),
+		audio = defaults.audio,
 		script = strings.clone(""),
 		collisionLayer = defaults.collisionLayer,
 		collisionMask = defaults.collisionMask,
@@ -284,6 +297,8 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.animations)
 	delete(node.autoplay)
 	delete(node.component)
+	delete(node.sound)
+	delete(node.bus)
 }
 
 /*
@@ -437,6 +452,8 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.globals)
 	for &a in project.actions do ActionDef_Destroy(&a)
 	delete(project.actions)
+	for b in project.buses do delete(b.name)
+	delete(project.buses)
 	for &d in project.data do DataDef_Destroy(&d)
 	delete(project.data)
 	project^ = {}
@@ -482,6 +499,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		kind := AssetKind.Image
 		switch asset.kind {
 		case "Audio": kind = .Audio
+		case "Music": kind = .Music
 		case "Font":  kind = .Font
 		case "Data":  kind = .Data
 		case "Component": kind = .Component
@@ -500,6 +518,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 			append(&project.data, def)
 		}
 	}
+	project.buses = Buses_FromData(data.buses[:])
 	for a in data.actions {
 		action := ActionDef{name = strings.clone(a.name), deadzone = a.deadzone}
 		append(&action.bindings, ..a.bindings[:])
@@ -610,6 +629,9 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 			append(&def.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
 		}
 	def.component = strings.clone(node.component)
+	def.sound = strings.clone(node.sound)
+	def.bus = strings.clone(node.bus)
+	def.audio = node.audio
 	return def
 }
 
@@ -676,6 +698,7 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 	for path in ([]string{"assets/ship.png", "assets/balloons.png", "assets/light.png"}) {
 		append(&project.assets, AssetDef{strings.clone(path), .Image})
 	}
+	project.buses = Buses_FromData(nil)
 	project.actions = DefaultActions()
 	return project
 }

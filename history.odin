@@ -83,6 +83,7 @@ ProjectSnapshot :: struct {
 	globals: [dynamic]GlobalDef,
 	data: [dynamic]DataDef,
 	actions: [dynamic]ActionDef,
+	buses: [dynamic]BusDef,
 	// The scene open at the time, shown again on undo/redo
 	currentScene: int,
 }
@@ -259,6 +260,22 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			info.label = fmt.tprintf("%v %d nodes", drag.mode, len(s.selection))
 		}
 		return info
+	case Audio_Field_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("audio", v.field, s.currentScene, selected))
+	case Audio_Flag_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.flag, name))
+	case Bus_Added:
+		return {scope = .Project, label = "Add a bus"}
+	case Bus_Removed:
+		return {scope = .Project, label = "Remove a bus"}
+	case Bus_Renamed:
+		return {scope = .Project, label = "Rename a bus", mergeKey = key("bus-name", v.index)}
+	case Bus_Volume_Changed:
+		return {scope = .Project, label = "Change a bus's volume", mergeKey = key("bus-volume", v.index)}
+	case Bus_Pan_Changed:
+		return {scope = .Project, label = "Change a bus's pan", mergeKey = key("bus-pan", v.index)}
+	case Bus_Mute_Toggled:
+		return {scope = .Project, label = "Mute or unmute a bus"}
 	case Component_Made_Unique:
 		if hasSelection do return node(selected, fmt.tprintf("Make %s unique", name))
 	case Component_Instance_Added:
@@ -605,7 +622,8 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.enableLimit != b.enableLimit || a.lower != b.lower || a.upper != b.upper || a.enableMotor != b.enableMotor ||
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
-	   a.particles != b.particles || a.component != b.component {
+	   a.particles != b.particles || a.component != b.component ||
+	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
@@ -690,6 +708,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for g in p.globals do append(&snapshot.globals, GlobalDef_Clone(g))
 	for d in p.data do append(&snapshot.data, DataDef_Clone(d))
 	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
+	for b in p.buses do append(&snapshot.buses, BusDef{strings.clone(b.name), b.volume, b.pan, b.mute})
 	return snapshot
 }
 
@@ -716,6 +735,9 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	for &a in p.actions do ActionDef_Destroy(&a)
 	clear(&p.actions)
 	for a in snapshot.actions do append(&p.actions, ActionDef_Clone(a))
+	for b in p.buses do delete(b.name)
+	clear(&p.buses)
+	for b in snapshot.buses do append(&p.buses, BusDef{strings.clone(b.name), b.volume, b.pan, b.mute})
 	// Data values by file: resources made or removed since (files, not undoable) stay as they are
 	for d in snapshot.data {
 		i := Project_FindData(p, d.path)
@@ -759,6 +781,8 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.data)
 	for &a in snapshot.actions do ActionDef_Destroy(&a)
 	delete(snapshot.actions)
+	for b in snapshot.buses do delete(b.name)
+	delete(snapshot.buses)
 	snapshot^ = {}
 }
 
@@ -771,7 +795,7 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	for scene, i in a.scenes {
 		if scene.name != b.scenes[i].name || !nodesEqual(scene.nodes[:], b.scenes[i].nodes[:]) do return false
 	}
-	if len(a.globals) != len(b.globals) || len(a.data) != len(b.data) || !actionsEqual(a.actions[:], b.actions[:]) do return false
+	if len(a.globals) != len(b.globals) || len(a.data) != len(b.data) || !actionsEqual(a.actions[:], b.actions[:]) || !busesEqual(a.buses[:], b.buses[:]) do return false
 	for g, i in a.globals do if g.script != b.globals[i].script || !propsEqual(g.props[:], b.globals[i].props[:]) do return false
 	for d, i in a.data do if d.path != b.data[i].path || d.type != b.data[i].type || !propsEqual(d.values[:], b.data[i].values[:]) do return false
 	return true
