@@ -1,0 +1,27 @@
+# Command palette: open with the platform shortcut, fuzzy filter, run with
+# Enter and by clicking; recently used commands float to the top.
+wait frames 2
+key @commandpalette
+expect palette-open true
+screenshot $SHOTS/01_palette_all_commands.png
+type zin
+expect palette-selected View: Zoom In
+screenshot $SHOTS/02_palette_fuzzy_filter.png
+key enter
+expect palette-open false
+expect font-size 17
+key @commandpalette
+expect palette-selected View: Zoom In
+key backspace
+type prob pan
+click @palette:0
+expect problems-open true
+key @commandpalette
+type sel occ
+key down
+key up
+expect palette-selected Select All Occurrences
+screenshot $SHOTS/03_palette_select_occurrences.png
+key escape
+expect palette-open false
+key @zoomreset

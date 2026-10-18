@@ -81,6 +81,7 @@ ACTION_LABELS := [Action]string{
 	.Toggle_Preview_Panel = "Toggle preview panel", .Play_Audio_Preview = "Play sound preview",
 	.Stop_Audio_Preview = "Stop sound preview",
 	.Open_Settings = "Settings", .Play_Scene = "Play the open scene", .Open_Project_Settings = "Project settings", .Build_Scripts = "Build scripts", .Open_Script = "Open script in code editor",
+	.Close_Code_Tab = "Close code tab",
 }
 
 /*
@@ -135,12 +136,15 @@ KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), keymap: ^Keymap, overViewport: bool
 	// A modal dialog handles its own keys (Escape closes it)
 	if dialogOpen do return
 	typing := IsTyping(ctx)
+	// The code editor gets every key but a few of the editor's (save, play, build, ...)
+	coding := CodeEditor_Focused(ctx)
 	for chords, action in keymap {
+		if coding && action not_in CODE_EDITOR_PASSTHROUGH do continue
 		rule := ACTION_KEY_RULES[action]
 		if rule.viewportOnly && !overViewport do continue
 		for chord in chords {
 			if chord == {} do continue
-			if typing && (isPlainKey(chord) || rule.textChord) do continue
+			if typing && !coding && (isPlainKey(chord) || rule.textChord) do continue
 			skald.shortcut(ctx, chord, Msg(action))
 		}
 	}
@@ -150,7 +154,7 @@ KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), keymap: ^Keymap, overViewport: bool
 Whether a text or number field has keyboard focus.
 */
 IsTyping :: proc(ctx: ^skald.Ctx(Msg)) -> bool {
-	if skald.is_typing(ctx) do return true
+	if skald.is_typing(ctx) || CodeEditor_Focused(ctx) do return true
 	focused := ctx.widgets.focused_id
 	return focused != 0 && ctx.widgets.states[focused].kind == .Number_Input
 }

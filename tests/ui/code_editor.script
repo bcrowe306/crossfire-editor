@@ -1,0 +1,127 @@
+# The built-in code editor: New Script opens the script in a code tab next to the scenes, with the
+# keyboard; typing, Tab, Delete and Ctrl+Z go to the code (not the scene); OLS completes after a
+# "."; Ctrl+S saves it; scene tabs and code tabs switch; a second script gets its own tab; closing
+# a tab with unsaved changes asks; Settings switches back to the external program.
+# Run with: task test:ui (needs an ols for the completion step: PATH, code_editor/third_party/ols
+# or Zed's Odin extension)
+#
+# PlayScene's rows: World, Camera, Spaceship (2), ShipLight (3), ...
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+expect code_tabs 0
+expect code_tab none
+
+# New Script opens it in a tab (at its start: the script isn't built yet), with the keyboard
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Mover
+click_widget new-script-create
+expect script Mover
+expect code_tabs 1
+expect code_tab mover.odin
+wait_until code_focused true timeout=5
+expect code_caret 1 1
+expect code_rendered true
+expect code_dirty false
+
+# Typing goes to the code; the editor's own keys don't fire (Delete would delete the node)
+expect nodes 11
+key ctrl+END
+key RETURN
+type // a note
+key DELETE
+expect nodes 11
+expect code_contains true // a note
+expect code_dirty true
+expect modified true
+# Tab indents (four spaces; Skald would move the focus to the next field)
+key RETURN
+key TAB
+type // tabbed
+expect code_focused true
+expect code_contains true     // tabbed
+# Ctrl+Z undoes in the code, not the scene
+key ctrl+z
+expect code_contains false     // tabbed
+expect code_contains true // a note
+
+# The language server completes after a "." inside a procedure
+wait_until code_lsp Running timeout=30
+key ctrl+END
+key RETURN
+type probe :: proc() {
+key RETURN
+type e.
+wait_until code_completion true timeout=20
+key ESCAPE
+expect code_completion false
+
+# Ctrl+S saves the script (and the project)
+key ctrl+s
+expect code_dirty false
+expect modified false
+expect project_file_contains scripts/mover.odin // a note
+
+# The scene tab shows the scene again; the code tab comes back with its text
+# (in a narrow window the tab strip scrolls: back to its start first)
+wheel_widget center-tabs 30
+click_tab scene-tabs 1
+expect code_tab none
+expect code_focused false
+wheel_widget center-tabs -30
+click_widget code-tab-0
+expect code_tab mover.odin
+expect code_contains true // a note
+
+# Another script: its own tab
+click_row scene-tree 3
+expect selected ShipLight
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Blinker
+click_widget new-script-create
+expect script Blinker
+expect code_tabs 2
+expect code_tab blinker.odin
+# Opening the first one again shows its tab, not a third
+click_row scene-tree 2
+scroll_into_view inspector-scroll inspector-open-script
+click_widget inspector-open-script
+expect code_tabs 2
+expect code_tab mover.odin
+
+# Closing a tab with unsaved changes asks: Cancel keeps it, Don't Save closes it
+click_widget code-tab-1
+expect code_tab blinker.odin
+wait_until code_focused true timeout=5
+type // unsaved
+expect code_dirty true
+click_widget code-tab-close-1
+expect code_close_dialog open
+click_widget code-close-cancel
+expect code_tabs 2
+click_widget code-tab-close-1
+click_widget code-close-discard
+expect code_close_dialog closed
+expect code_tabs 1
+expect code_tab mover.odin
+expect project_file_contains scripts/blinker.odin Script_Register
+# A tab without changes closes at once; then the scene shows
+click_widget code-tab-close-0
+expect code_tabs 0
+expect code_tab none
+
+# Off in Settings: scripts open in the external program again (the test settings' is `true`)
+key ctrl+comma
+click_widget settings-tab-Editor
+scroll_into_view settings-editor-scroll settings-builtin-editor
+click_widget settings-builtin-editor
+click_widget settings-save
+scroll_into_view inspector-scroll inspector-open-script
+click_widget inspector-open-script
+expect console_contains Opened mover.odin:20 in true
+expect code_tabs 0

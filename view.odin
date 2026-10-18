@@ -19,7 +19,9 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Dialogs and the open context menu take Escape (and every other key) themselves
 	menu, drawn := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
 	browserMenu, browserMenuDrawn := ctx.widgets.states[skald.hash_id("browser-menu")]
-	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open ||
+	// Tab gives the keyboard back to the code editor that had it (code_editor_host.odin)
+	coding := CodeEditor_Frame(ctx, CodeTabs_Active(&state) != "")
+	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
 		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.newData.open || state.projectSettings.open ||
 		(drawn && menu.open) || (browserMenuDrawn && browserMenu.open)
 	// A project with scripts is built once in the background when it opens, so the inspector
@@ -31,7 +33,9 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
 
 	return skald.col(
-		menuBarView(&state, ctx, keysTaken),
+		// The menu bar's shortcuts are off while the code editor has the keyboard (the keymap's few
+		// that still work fire through KeymapDispatch)
+		menuBarView(&state, ctx, keysTaken || coding),
 		toolbarView(&state, ctx),
 		skald.divider(ctx),
 		// The workspace needs its own size to place the panels, so it's built once layout knows it
@@ -46,6 +50,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		newDataDialogView(&state, ctx),
 		projectSettingsDialogView(&state, ctx),
 		confirmDialogView(&state, ctx),
+		codeCloseDialogView(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
@@ -98,6 +103,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			{label = "New Script...", msg = Msg(New_Script_Opened{})},
 			item("Open Script", .Open_Script, keys),
 			item("Build Scripts", .Build_Scripts, keys),
+			item("Close Code Tab", .Close_Code_Tab, keys),
 		}},
 		{"View", []skald.Menu_Item(Msg){
 			item("Select Tool", .Tool_Select, keys),

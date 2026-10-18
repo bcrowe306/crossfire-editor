@@ -1,0 +1,74 @@
+# Remote-control smoke test (run by tools/lsp_smoke.sh / `task test:remote`).
+# Drives a running editor_demo through the control hook -- every keystroke
+# below is a real SDL event pushed into the app's event queue -- and checks
+# OLS-backed completion and signature help end to end. Each `expect`/`wait`
+# fails the run if the condition doesn't hold.
+
+wait lsp-ready 15000
+cursor 9 0
+text \t
+
+# --- completion: '.' trigger, filtering, keyboard selection, accept -------
+type fmt.
+wait completion 5000
+expect completion-has println
+screenshot $SHOTS/01_completion_on_dot.png
+type pri
+wait frames 2
+expect completion-selected print
+screenshot $SHOTS/02_completion_filtered_as_you_type.png
+key down 3
+expect completion-selected println
+screenshot $SHOTS/03_completion_keyboard_selection.png
+key up
+expect completion-selected printfln
+key down
+key enter
+wait no-completion 2000
+expect line \tfmt.println()
+screenshot $SHOTS/04_completion_accepted.png
+
+# --- signature help: opened by the procedure snippet; close past ')' ------
+wait signature 5000
+expect signature fmt.println :: proc(
+expect signature-param args: ..any
+screenshot $SHOTS/05_signature_help_after_accept.png
+type "hi"
+key right
+wait no-signature 3000
+expect line \tfmt.println("hi")
+
+# --- signature help on a user proc: parameter tracking across ',' --------
+key enter
+type x := add(
+wait signature 5000
+expect signature add :: proc(a: int, b: int) -> int
+expect signature-param a: int
+type 1, 
+wait lsp-idle 3000
+wait frames 3
+expect signature-param b: int
+screenshot $SHOTS/06_signature_active_parameter.png
+type 2)
+wait no-signature 3000
+
+# --- Escape dismisses, manual triggers re-open ---------------------------
+key enter
+type fmt.
+wait completion 5000
+key esc
+wait no-completion 1000
+key primary+space
+wait completion 5000
+expect completion-has println
+key esc
+wait no-completion 1000
+cursor 10 10
+key primary+shift+space
+wait signature 5000
+expect signature-param a: int
+key esc
+wait no-signature 1000
+
+expect text-contains fmt.println("hi")
+expect text-contains x := add(1, 2)

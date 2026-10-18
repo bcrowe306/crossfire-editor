@@ -1,0 +1,67 @@
+# Line commands (duplicate / move / comment), the Keymap Editor window
+# (opened from the palette: filter, record a new chord, it works in the
+# text and persists) and importing key bindings from Zed / VSCode
+# (fixture keymaps, see run_smoke.sh).
+wait frames 2
+
+# --- line commands -------------------------------------------------------
+cursor 6 2
+key @duplicatelinedown
+expect cursor 7 2
+key @movelinedown
+expect cursor 8 2
+key @togglelinecomment
+expect line 	// fmt.println(greeting)
+screenshot $SHOTS/01_duplicate_move_comment.png
+
+# --- keymap editor -------------------------------------------------------
+key @commandpalette
+type keymap
+expect palette-selected Keymap Editor
+screenshot $SHOTS/02_palette_lists_windows.png
+key enter
+expect window keymap
+screenshot $SHOTS/03_keymap_editor.png
+type line comment
+expect keymap-selected Toggle Line Comment
+key enter
+expect keymap-capturing true
+screenshot $SHOTS/04_recording_a_chord.png
+key primary+shift+j
+expect keymap-capturing false
+screenshot $SHOTS/05_rebound.png
+key esc
+key esc
+expect window text
+key primary+shift+j
+expect line 	fmt.println(greeting)
+
+# --- import from Zed / VSCode -------------------------------------------
+key @commandpalette
+type import zed
+key enter
+expect last-import Imported from Zed: 3 bound, 1 unsupported (editor::ToggleFocus), 1 key sequence skipped, 1 other-context binding skipped
+expect binding DuplicateLineUp=ctrl+alt+d
+expect binding SelectAll=ctrl+alt+l
+screenshot $SHOTS/06_imported_from_zed.png
+key ctrl+alt+d
+expect cursor 8 2
+expect line 	fmt.println(greeting)
+key @commandpalette
+type import vscode
+key enter
+expect last-import Imported from VSCode: 2 bound, 1 key sequence skipped, 1 other-context binding skipped
+expect binding MoveLineDown=ctrl+alt+m
+
+# Filter by key: everything bound with ctrl+alt.
+key @commandpalette
+type keymap ed
+key enter
+type ctrl+alt
+screenshot $SHOTS/07_filter_by_key_imported.png
+click @keymap:1
+key delete
+screenshot $SHOTS/08_removed_binding.png
+key esc
+key esc
+expect window text

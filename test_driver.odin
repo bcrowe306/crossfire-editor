@@ -3,6 +3,7 @@ package editor
 import "core:fmt"
 import "core:log"
 import "core:math"
+import "core:path/filepath"
 import "core:os"
 import "core:reflect"
 import "core:slice"
@@ -47,6 +48,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 Click a row of a tree: browser-tree, scene-tree; optionally
 	                                 holding Ctrl or Shift
 	double_click_row <tree key> <row>   Double-click a row
+	click_tab <tabs key> <index>     Click a tab of a tab strip, e.g. click_tab scene-tabs 1
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
 	scroll_into_view <scroll key> <widget key>
@@ -149,6 +151,17 @@ Checks:
 	input_bindings <action> <a, b, ...>   An action's bindings, described (e.Input_BindingDescribe)
 	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
 	buses <count>                The project's mix buses (Master counts)
+	code_tabs <count>            Open code tabs
+	code_close_dialog <open | closed>   The "save changes?" prompt for closing a code tab
+	code_tab <file name | none>  The code tab that shows (none: the scene)
+	code_focused <true | false>  The code editor has the keyboard
+	code_contains <true | false> <text>   The shown code tab's text contains the text (\t for a tab)
+	code_dirty <true | false>    The shown code tab has unsaved changes
+	code_caret <line> <column>   The shown code tab's caret (1-based)
+	code_rendered <true | false> The shown code tab drew text (pixels unlike its background) and
+	                             that render is the image on screen
+	code_lsp <Off | Starting | Running | Failed>   The shown code tab's language server
+	code_completion <true | false>   The completion list shows
 	widget_visible <key> <true | false>   Some of the widget was drawn last frame, not clipped away
 	scrolled <scroll key> <true | false>  A scroll container is scrolled down from its top
 	widget_bottom_near <key> <other key> <px>   The two widgets' bottoms are within px (one fills the other)
@@ -619,6 +632,24 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		return false
 
+	case "click_tab":
+		// A tab of a skald.tabs strip: its buttons' ids derive from the strip's
+		if len(args) < 2 {
+			fail(fmt.tprintf("%s: expected a tabs key and a tab index", line))
+			return true
+		}
+		id := skald.widget_make_sub_id(skald.hash_id(args[0]), u64(atoi(args, 1, 0) + 1))
+		state, drawn := ctx.widgets.states[id]
+		r := state.last_rect
+		if state.clip_rect.w > 0 do r = intersect(r, state.clip_rect)
+		if !drawn || r.w <= 0 || r.h <= 0 {
+			fail(fmt.tprintf("%s: that tab isn't in view", line))
+			return true
+		}
+		click({r.x + r.w * 0.5, r.y + r.h * 0.5})
+		report(true, line)
+		return false
+
 	case "double_click_widget":
 		rect, ok := widgetRect(ctx, rest)
 		if !ok {
@@ -809,10 +840,13 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		return false
 
 	case "type":
-		event: sdl.Event
-		event.type = .TEXT_INPUT
-		event.text.text = strings.clone_to_cstring(rest) // Read by Skald next frame; tiny, kept
-		_ = sdl.PushEvent(&event)
+		// One event per character, as a keyboard types (the code editor completes after a ".")
+		for r in rest {
+			event: sdl.Event
+			event.type = .TEXT_INPUT
+			event.text.text = strings.clone_to_cstring(fmt.tprint(r)) // Read by Skald next frame; tiny, kept
+			_ = sdl.PushEvent(&event)
+		}
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
@@ -985,6 +1019,37 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(selected.particles.colorRamp.count)
 	case "buses":
 		found = fmt.tprint(len(s.project.buses))
+	case "code_close_dialog":
+		found = s.codeClose.open ? "open" : "closed"
+	case "code_tabs":
+		found = fmt.tprint(len(s.codeTabs))
+	case "code_tab":
+		active := CodeTabs_Active(s)
+		found = active == "" ? "none" : filepath.base(active)
+	case "code_focused":
+		found = fmt.tprint(CodeEditor_Focused(ctx))
+	case "code_contains":
+		want, _, text := strings.partition(value, " ")
+		text, _ = strings.replace_all(text, "\\t", "\t", context.temp_allocator)
+		has := strings.contains(CodeEditor_Text(CodeTabs_Active(s)), text)
+		found = fmt.tprint(has)
+		return found == want, found
+	case "code_dirty":
+		found = fmt.tprint(CodeEditor_IsDirty(CodeTabs_Active(s)))
+	case "code_rendered":
+		inked, uploaded := CodeEditor_RenderStats(CodeTabs_Active(s))
+		found = fmt.tprint(inked > 500 && uploaded)
+	case "code_lsp":
+		found = CodeEditor_LspStatus(CodeTabs_Active(s))
+		if found == "" do found = "Off"
+	case "code_completion":
+		visible, items := CodeEditor_CompletionVisible(CodeTabs_Active(s))
+		found = fmt.tprint(visible)
+		text := CodeEditor_Text(CodeTabs_Active(s))
+		return found == value, fmt.tprintf("%v; %d items from the server; ends %q", visible, items, text[max(len(text) - 80, 0):])
+	case "code_caret":
+		line, column := CodeEditor_Caret(CodeTabs_Active(s))
+		found = fmt.tprintf("%d %d", line, column)
 	case "meter":
 		key, _, expected := strings.partition(value, " ")
 		found = levelMeter_Shown(key) > -50 ? "sounding" : "silent"
@@ -1263,6 +1328,7 @@ pushKey :: proc(type: sdl.EventType, mods: sdl.Keymod) {
 	event: sdl.Event
 	event.type = type
 	event.key.scancode = .LCTRL in mods ? .LCTRL : .LSHIFT
+	event.key.key = sdl.GetKeyFromScancode(event.key.scancode, {}, false)
 	event.key.mod = mods
 	event.key.down = type == .KEY_DOWN
 	_ = sdl.PushEvent(&event)
@@ -1323,6 +1389,8 @@ pressKey :: proc(combo: string) -> bool {
 	event: sdl.Event
 	event.type = .KEY_DOWN
 	event.key.scancode = scancode
+	// The key code too, as real key events have (the code editor reads those, Skald scancodes)
+	event.key.key = sdl.GetKeyFromScancode(scancode, mods, false)
 	event.key.mod = mods
 	event.key.down = true
 	_ = sdl.PushEvent(&event)

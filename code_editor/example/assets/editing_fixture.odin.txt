@@ -1,0 +1,7 @@
+package editing_fixture
+
+main :: proc() {
+	tabbed_value := 1
+	// x
+    spaced_value := 2
+}

@@ -1,0 +1,27 @@
+# OLS crash recovery: kill the language server mid-session and check the
+# editor stays alive, restarts it, re-opens the document, and completion
+# works again.
+
+wait lsp-ready 15000
+expect lsp-status running
+cursor 9 0
+text \t
+type x := 1
+lsp-kill
+wait lsp-down 3000
+
+# The editor keeps editing while the server is down.
+type 0
+expect line \tx := 10
+screenshot $SHOTS/01_editing_while_server_down.png
+key enter
+
+wait lsp-ready 10000
+expect lsp-status running
+type fmt.
+wait completion 5000
+expect completion-has println
+screenshot $SHOTS/02_completion_after_restart.png
+key esc
+wait no-completion 1000
+expect text-contains x := 10

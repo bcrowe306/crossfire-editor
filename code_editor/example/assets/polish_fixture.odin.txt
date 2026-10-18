@@ -1,0 +1,13 @@
+package polish_fixture
+
+import "core:fmt"
+
+// Area of a circle of radius r.
+area_circle :: proc(r: f32) -> f32 { return 3.14 * r * r }
+// Area of a w x h rectangle.
+area_rect :: proc(w: f32, h: f32) -> f32 { return w * h }
+area :: proc{area_circle, area_rect}
+
+main :: proc() {
+
+}

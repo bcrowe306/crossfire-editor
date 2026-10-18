@@ -53,6 +53,8 @@ Run `task` to list them all.
 | `task stb` | Build Odin's STB libraries, which Skald needs. Skipped if already built |
 | `task check` | Type-check the editor, with vet |
 | `task test` | Run the unit tests |
+| `task test:code-editor` | Unit tests of the built-in code editor's packages (`code_editor/`) |
+| `task ols` | Build the Odin language server for the built-in code editor (clones OLS; not needed if `ols` is in PATH) |
 | `task verify` | `check` + `test` |
 | `task test:ui:fullscreen` | The same in a fullscreen editor, so wide layouts are tested too (`SCRIPT=tests/ui/animation.script` runs one) |
 | `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input (opens the editor window). They use a copy of `tests/fixtures/ui_project` and default settings |
@@ -145,7 +147,7 @@ Game code is Odin, in the project's `scripts/` folder, and attaches to nodes:
 
 1. Select a node, and in the inspector's **Script** section click **+** (or Scripts > New Script).
    Name it (`PlayerController`); the editor writes `scripts/player_controller.odin`, attaches it,
-   and opens it in your code editor.
+   and opens it in the built-in code editor.
 2. Write the struct's fields and its `ready` / `update` procedures. Fields tagged `export:""`
    (options: `default=`, `min=`, `max=`, `kind=scene`) appear in the inspector after a build.
 3. **Build Scripts** (Ctrl+B) compiles them, which also happens when you Play and when a project
@@ -167,8 +169,27 @@ register_Player :: proc "contextless" () {
 }
 ```
 
-The code editor is set in Settings > Editor: the program (a path, Browse..., or a name found in
-PATH; `zed` by default) and its arguments (`{file}:{line}` by default; `{file}` and `{line}` are
+### The built-in code editor
+
+Scripts open in a **tab next to the scene tabs**, in an Odin code editor (`code_editor/`): Odin
+highlighting, multiple cursors, find and replace, a command palette (Ctrl+P), and with the Odin
+language server, completion, signature help, diagnostics and Go to Definition (which opens the
+other file in its own tab). Each script gets its own tab; opening one that's open shows its tab.
+Close a tab with its × (or a middle click, or Ctrl+W); one with unsaved changes asks first. The
+scene tabs show the scene again. **Save** (Ctrl+S), Play and Export save open scripts with the
+project, and a save builds the scripts in the background so the inspector shows new fields.
+
+While the code editor has the keyboard, keys go to it, except Save, Play, Pause, Stop, Build
+Scripts, Export, Settings, the bottom panel and Quit.
+
+The language server is `ols`: the one in Settings > Editor > Language server, else `ols` in PATH,
+else one built with `task ols` (into `code_editor/third_party/ols`), else Zed's Odin extension's.
+Without one the editor still works, without completion and diagnostics.
+
+### An external code editor
+
+Turn off **Settings > Editor > Use the built-in code editor** to open scripts in another program
+instead: the program (a path, Browse..., or a name found in PATH; `zed` by default) and its arguments (`{file}:{line}` by default; `{file}` and `{line}` are
 replaced; `{folder}` is the scripts folder). It runs in the project's scripts folder with the
 editor's environment; if it exits with an error, the Console says so.
 

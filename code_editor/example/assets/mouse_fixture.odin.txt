@@ -1,0 +1,11 @@
+package mouse_fixture
+
+import "core:fmt"
+
+main :: proc() {
+	greeting := "hello world"
+	fmt.println(greeting)
+	if len(greeting) > 0 {
+		fmt.println("a long line that runs well past the right edge of the window so horizontal scrolling has somewhere to go")
+	}
+}

@@ -46,7 +46,7 @@ SessionState :: struct {
 
 // Whether the project has changes that aren't saved
 Project_IsModified :: proc(state: ^State) -> bool {
-	return state.history.version != state.session.savedVersion || state.session.assetsChanged
+	return state.history.version != state.session.savedVersion || state.session.assetsChanged || CodeEditor_AnyDirty()
 }
 
 // Records a successful save
@@ -62,6 +62,7 @@ Returns:
 - Whether it saved
 */
 Session_Save :: proc(state: ^State) -> bool {
+	if !CodeTabs_SaveAll(state) do return false
 	if message := Project_Save(&state.project); message != "" {
 		logLine(state, .Error, fmt.aprintf("Save failed: %s", message))
 		return false
@@ -228,6 +229,8 @@ runPending :: proc(state: ^State, action: PendingAction) -> skald.Command(Msg) {
 @(private="file")
 switchProject :: proc(state: ^State, project: Project) {
 	playStop(state)
+	// The save prompt came first: what's still unsaved is dropped
+	CodeTabs_CloseAll(state)
 	AudioPreview_Unload()
 	Project_Destroy(&state.project)
 	state.project = project

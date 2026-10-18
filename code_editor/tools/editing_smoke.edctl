@@ -1,0 +1,31 @@
+# Editing behaviour: sticky visual column for Up/Down across tab- and
+# space-indented lines, and word-sized undo steps for typing.
+wait frames 2
+
+# --- Up/Down keep the visual column -----------------------------------------
+cursor 3 9
+screenshot $SHOTS/01_caret_on_tab_indented_line.png
+key down
+expect cursor 4 5
+key down
+expect cursor 5 12
+screenshot $SHOTS/02_down_keeps_visual_column.png
+key up 2
+expect cursor 3 9
+
+# --- typing undoes a word at a time -----------------------------------------
+cursor 5 21
+type  // hello world
+key esc
+expect line     spaced_value := 2 // hello world
+screenshot $SHOTS/03_typed_comment.png
+key primary+z
+expect line     spaced_value := 2 // hello 
+expect cursor 5 31
+screenshot $SHOTS/04_undo_removes_last_word.png
+key primary+z
+key primary+z
+key primary+z
+expect line     spaced_value := 2
+key primary+shift+z
+expect line     spaced_value := 2 

@@ -131,6 +131,19 @@ The whole editor state. Only `update` changes it.
 */
 State :: struct {
 	project: Project,
+	// Files open in the built-in code editor (absolute; owned), and the tab that shows: 1-based,
+	// 0 = the scene (code_tabs.odin)
+	codeTabs: [dynamic]string,
+	codeTab: int,
+	codeTickPending: bool,
+	// The code editor should take the keyboard (a tab was opened or picked)
+	codeFocusPending: bool,
+	// Closing a tab with unsaved changes: the prompt
+	codeClose: struct {
+		open: bool,
+		index: int,
+	},
+	codeNoOLSLogged: bool,
 	// Index of the scene open in the viewport
 	currentScene: int,
 	// Selected node in the current scene, -1 for none
@@ -299,6 +312,8 @@ Inputs:
 - state: The state to free
 */
 State_Destroy :: proc(state: ^State) {
+	CodeTabs_CloseAll(state)
+	delete(state.codeTabs)
 	Project_Destroy(&state.project)
 	for line in state.console do delete(line.text)
 	delete(state.console)

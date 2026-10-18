@@ -1,0 +1,5 @@
+package nav_fixture
+
+scale :: proc(p: Point, k: int) -> Point {
+	return {p.x * k, p.y * k}
+}

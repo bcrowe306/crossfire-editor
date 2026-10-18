@@ -1,0 +1,8 @@
+package fonts_fixture
+
+main :: proc() {
+	emoji := "😀🎉 done"
+	cjk := "漢字テスト"
+	symbols := "→ ✓ λ ∑ ≠"
+	after := 1
+}

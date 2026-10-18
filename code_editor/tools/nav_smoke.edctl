@@ -1,0 +1,42 @@
+# Go to Definition / Peek / Find References / Back against live OLS on a
+# two-file package (main.odin calls scale() from util.odin).
+wait lsp-ready 15000
+wait frames 20
+
+# --- F12 jumps to the definition; Back returns ------------------------------
+cursor 13 8
+key f12
+wait frames 20
+expect cursor 8 0
+screenshot $SHOTS/01_goto_definition.png
+key @navigateback
+expect cursor 13 8
+
+# --- Alt+F12 peeks without moving -------------------------------------------
+key alt+f12
+wait peek 5000
+expect cursor 13 8
+screenshot $SHOTS/02_peek_definition.png
+key escape
+expect peek-open false
+
+# --- Shift+F12 lists references; F4 steps through them ----------------------
+key shift+f12
+wait references 5000
+expect refs-count 3
+screenshot $SHOTS/03_find_references.png
+key f4
+key f4
+expect cursor 14 6
+key escape
+
+# --- Cmd/Ctrl+click into another file, then Back ----------------------------
+click @15:15 mods=primary
+wait frames 30
+expect text-contains scale :: proc(p: Point, k: int) -> Point
+expect cursor 2 0
+screenshot $SHOTS/04_ctrl_click_other_file.png
+key @navigateback
+wait frames 30
+expect text-contains add_points :: proc
+expect cursor 15 15

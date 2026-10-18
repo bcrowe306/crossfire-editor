@@ -99,6 +99,20 @@ tasks:
     cmds:
       - odin test . {{.COLLECTIONS}} {{.VET}}
 
+  test:code-editor:
+    desc: Unit tests of the built-in code editor's own packages (code_editor/, its Taskfile)
+    dir: code_editor
+    cmds:
+      - task test
+
+  ols:
+    desc: Build the Odin language server the built-in code editor uses, into code_editor/third_party/ols (clones OLS at a pinned commit); not needed when ols is in PATH or Zed has one
+    dir: code_editor
+    status:
+      - test -x third_party/ols/ols
+    cmds:
+      - task ols:build
+
   verify:
     desc: Check and test (run before saying a change works)
     cmds:

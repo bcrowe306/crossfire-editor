@@ -31,6 +31,8 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	}
 	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.dataSelection = -1
 	if out.dataSelection >= len(out.project.data) do out.dataSelection = -1
+	// Anything that opens another scene shows it, not a code tab
+	if out.currentScene != state.currentScene do out.codeTab = 0
 	// A structural edit renumbers nodes: the old multi-selection is meaningless unless the edit
 	// chose a new one. Then make the selection agree with selectedNode (selection.odin)
 	if (info.scope == .Scene || info.scope == .Project) && !out.selectionSet do clear(&out.selection)
@@ -46,6 +48,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := Session_Update(&out, m); handled do return out, command
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
+	if command, handled := CodeTabs_Update(&out, m); handled do return out, command
 	if Mixer_Update(&out, m) do return out, {}
 	layout := &out.layout
 
@@ -60,7 +63,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed:
 		// Handled by SettingsDialog_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
@@ -71,6 +74,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Input_Action_Moved, Input_Action_Renamed, Input_Deadzone_Changed, Input_Binding_Added, Input_Binding_Removed,
 	     Input_Capture_Started, Input_Capture_Cancelled, Input_Device_Changed:
 		// Handled by ProjectSettings_Update above
+	case Code_Tab_Selected, Code_Tab_Close_Requested, Code_Close_Chosen, Code_Open_Requested, Code_Save_Requested,
+	     Code_Tick_Requested, Code_Tick, Code_Focused:
+		// Handled by CodeTabs_Update above
 	case Bus_Added, Bus_Removed, Bus_Renamed, Bus_Volume_Changed, Bus_Pan_Changed, Bus_Mute_Toggled:
 		// Handled by Mixer_Update above
 	case Audio_Field_Changed:
@@ -177,7 +183,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			if int(t) >= 0 && int(t) < len(out.project.data) do Props_Set(&out.project.data[t].values, v.name, v.value, v.defaultValue)
 		}
 	case Script_Open_File:
-		return out, Script_OpenInEditor(&out, v.file, v.line)
+		return out, Script_Open(&out, v.file, v.line)
 	case Editor_Process_Check:
 		return out, Editor_CheckProcesses(&out)
 	case New_Script_Opened:
@@ -212,7 +218,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Data:
 		}
 		path, line := Script_Location(&out, name)
-		return out, skald.cmd_batch(Script_OpenInEditor(&out, path, line), scriptsBuild(&out))
+		return out, skald.cmd_batch(Script_Open(&out, path, line), scriptsBuild(&out))
 
 	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Renderer_Changed, Project_Settings_Background_Changed,
 	     Project_Settings_Start_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
@@ -452,6 +458,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.bottomTab = BottomTab(int(v))
 		layout.bottomOpen = true
 	case Scene_Tab_Changed:
+		out.codeTab = 0
 		tabs := ViewportTabScenes(&out)
 		if int(v) >= 0 && int(v) < len(tabs) do openScene(&out, tabs[v])
 	case Component_Opened:
@@ -759,7 +766,9 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		return out, Session_Request(&out, .Open_Project)
 
 	case .Save_Project:
-		Session_Save(&out)
+		// Saved scripts are built again in the background: the inspector learns new fields
+		scripts := CodeEditor_AnyDirty()
+		if Session_Save(&out) && scripts do return out, scriptsBuildQuietly(&out)
 	case .Play:
 		cmd := playStart(&out)
 		return out, cmd
@@ -953,7 +962,9 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 			break
 		}
 		path, line := Script_Location(&out, node.script)
-		return out, Script_OpenInEditor(&out, path, line)
+		return out, Script_Open(&out, path, line)
+	case .Close_Code_Tab:
+		if out.codeTab > 0 do return out, skald.cmd_now(Msg(Code_Tab_Close_Requested(out.codeTab - 1)))
 	case .Open_Settings:
 		SettingsDialog_Open(&out)
 	case .Export:

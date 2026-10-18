@@ -1,0 +1,174 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  OLS_DIR: third_party/ols
+  OLS_REPO: https://github.com/DanielGavin/ols.git
+  # OLS tracks Odin's bleeding-edge main branch closely, so a given OLS
+  # commit only builds against a narrow range of Odin compiler versions.
+  # This commit is confirmed to build cleanly against the Odin version
+  # this project targets (see README.md "Odin Language Server" section).
+  # Override with `task ols:build OLS_REF=<sha>` to try a different pin.
+  OLS_REF: ad264df0f2292bd988ce00135eaf3c95f030e3f8
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list-all
+
+  check:
+    desc: Type-check every package (no codegen)
+    cmds:
+      - odin check buffer -no-entry-point
+      - odin check keymap -no-entry-point
+      - odin check syntax -no-entry-point
+      - odin check lsp -no-entry-point
+      - odin check editor -no-entry-point
+      - odin check control -no-entry-point
+      - odin check example
+      - odin check tools/edctl
+      - odin check tools/contact_sheet
+
+  test:
+    desc: >-
+      Run unit tests for every package (packages in parallel, tests
+      multithreaded; a 60s guard kills a wedged test runner)
+    deps: [test:buffer, test:keymap, test:syntax, test:lsp, test:editor, test:control]
+
+  test:buffer:
+    desc: Run unit tests for the buffer package only
+    cmds:
+      - perl -e 'alarm 60; exec @ARGV' odin test buffer
+
+  test:keymap:
+    desc: Run unit tests for the keymap package only
+    cmds:
+      - perl -e 'alarm 60; exec @ARGV' odin test keymap
+
+  test:syntax:
+    desc: Run unit tests for the syntax package only
+    cmds:
+      - perl -e 'alarm 60; exec @ARGV' odin test syntax
+
+  test:lsp:
+    desc: Run unit tests for the lsp package only
+    cmds:
+      - perl -e 'alarm 60; exec @ARGV' odin test lsp
+
+  test:editor:
+    desc: Run unit tests for the editor package only
+    cmds:
+      - perl -e 'alarm 60; exec @ARGV' odin test editor
+
+  test:control:
+    desc: Run unit tests for the control (remote hook) package only
+    cmds:
+      - perl -e 'alarm 60; exec @ARGV' odin test control
+
+  test:visual:
+    desc: >-
+      SUITE=<name> runs a single script (e.g. task test:visual SUITE=find_smoke).
+      Visual UI tests: launch the demo with the remote-control hook
+      (--control-only) and replay every tools/*.edctl script against a
+      scratch fixture -- completion + signature help, OLS crash recovery,
+      mouse/cursor, diagnostics. Real SDL events in, editor state verified
+      out, screenshots + index.md gallery in test_output/visual/. Run after
+      every feature. Needs `task ols:build` first.
+    deps: [build, build:edctl, build:contact-sheet]
+    cmds:
+      - SUITE={{.SUITE}} ./tools/visual_tests.sh
+
+  test:all:
+    desc: Everything, as run before merging to main (check, unit, e2e, full visual suite)
+    cmds:
+      - task: check
+      - task: test
+      - task: test:e2e
+      - task: test:visual
+
+  test:remote:
+    desc: Alias for test:visual
+    cmds:
+      - task: test:visual
+
+  build:contact-sheet:
+    desc: Build the screenshot contact-sheet tool (tools/contact_sheet)
+    cmds:
+      - odin build tools/contact_sheet -out:tools/contact_sheet/contact_sheet
+
+  build:edctl:
+    desc: Build the remote-control CLI client (tools/edctl/edctl)
+    cmds:
+      - odin build tools/edctl -out:tools/edctl/edctl
+
+  build:
+    desc: Build the standalone demo application
+    cmds:
+      - odin build example -out:example/editor_demo
+
+  run:
+    desc: Build & run the standalone demo application
+    cmds:
+      - odin run example -out:example/editor_demo
+
+  test:e2e:
+    desc: >-
+      Build the demo app and run the full automated end-to-end suite via the
+      SDL event-injection hook (opens a real window/renderer; use
+      `task ols:build` first to also exercise the live-LSP checks).
+    cmds:
+      - odin build example -out:example/editor_demo
+      - ./example/editor_demo --e2e
+
+  fmt:
+    desc: Format all Odin source files in this folder
+    cmds:
+      - odinfmt -w buffer keymap syntax lsp editor control example tools
+    ignore_error: true
+
+  ols:fetch:
+    desc: Clone (or update) OLS, check out the pinned commit, apply patches/ols
+    cmds:
+      - |
+        if [ -d "{{.OLS_DIR}}/.git" ]; then
+          git -C {{.OLS_DIR}} fetch --quiet origin
+        else
+          git clone --quiet {{.OLS_REPO}} {{.OLS_DIR}}
+        fi
+        git -C {{.OLS_DIR}} checkout --quiet --force {{.OLS_REF}}
+        # Local fixes for upstream bugs we depend on (see patches/ols/*.patch
+        # headers); reapplied on a clean checkout every time.
+        for p in patches/ols/*.patch; do
+          [ -e "$p" ] || continue
+          git -C {{.OLS_DIR}} apply "$PWD/$p"
+        done
+
+  ols:build:
+    desc: Build the OLS binary from the vendored source
+    deps: [ols:fetch]
+    cmds:
+      - |
+        odin build {{.OLS_DIR}}/src -collection:src={{.OLS_DIR}}/src -out:{{.OLS_DIR}}/ols || {
+          echo "OLS ${OLS_REF:-{{.OLS_REF}}} does not build with $(odin version) -- run 'task ols:repin' to find a compatible commit" >&2
+          exit 1
+        }
+
+  ols:check:
+    desc: Check that OLS_REF still builds with the installed Odin and takes patches/ols
+    cmds:
+      - ./tools/ols_repin.sh --check
+
+  ols:repin:
+    desc: >-
+      Re-pin OLS_REF to a commit that builds with the installed Odin compiler
+      (and applies patches/ols); NEWEST=1 moves to the newest compatible commit
+    cmds:
+      - ./tools/ols_repin.sh {{if .NEWEST}}--newest{{end}}
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -f example/editor_demo tools/edctl/edctl tools/contact_sheet/contact_sheet
+      - rm -rf test_output
+      - rm -rf example/editor_demo.dSYM

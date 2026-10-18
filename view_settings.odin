@@ -141,9 +141,17 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		hint(ctx, "Spacing of the viewport grid, in world units. G shows it; Shift+G snaps moves to it (and rotation to 15°, scale to 0.1)."),
 		skald.spacer(th.spacing.sm),
 		skald.text("Scripts", th.color.fg, th.font.size_md),
+		settingRow(ctx, "Code editor", skald.checkbox(ctx, draft.builtInCodeEditor, "Use the built-in code editor",
+			proc(v: bool) -> Msg { return Settings_Builtin_Editor_Changed(v) },
+			id = skald.hash_id("settings-builtin-editor"))),
+		hint(ctx, "Scripts open in a tab next to the scenes, with Odin highlighting and, with the Odin language server, completion and diagnostics. Off: they open in the program below."),
+		settingRow(ctx, "Language server", skald.text_input(ctx, strings.clone(FixedText_String(&draft.olsPath), context.temp_allocator),
+			proc(v: string) -> Msg { return Settings_OLS_Path_Changed(v) },
+			id = skald.hash_id("settings-ols-path"), width = 300, placeholder = "found automatically")),
+		hint(ctx, olsStatus(FixedText_String(&draft.olsPath))),
 		// Copies: the draft is inside this frame's copy of the state, which is gone by the time
 		// Skald draws the fields (they showed garbage, and editing saved garbage)
-		settingRow(ctx, "Editor program", skald.row(
+		settingRow(ctx, "External program", skald.row(
 			skald.text_input(ctx, strings.clone(FixedText_String(&draft.codeEditorPath), context.temp_allocator),
 				proc(v: string) -> Msg { return Settings_Code_Editor_Path_Changed(v) },
 				id = skald.hash_id("settings-code-editor-path"), width = 230, placeholder = "zed"),
@@ -280,4 +288,12 @@ editorProgramStatus :: proc(ctx: ^skald.Ctx(Msg), program: string) -> skald.View
 		return skald.text(message, th.color.warning, th.font.size_xs, max_width = 560)
 	}
 	return skald.text(fmt.tprintf("Runs %s", resolved), th.color.fg_muted, th.font.size_xs, max_width = 560)
+}
+
+// Which language server the built-in code editor will use
+@(private="file")
+olsStatus :: proc(setting: string) -> string {
+	found := Code_FindOLS(setting)
+	if found == "" do return setting == "" ? "No ols found (in PATH, code_editor/third_party/ols or Zed's Odin extension): the editor works without completion and diagnostics." : fmt.tprintf("%s wasn't found.", setting)
+	return fmt.tprintf("Uses %s", found)
 }

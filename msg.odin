@@ -75,6 +75,8 @@ Action :: enum {
 	Build_Scripts,
 	// Open the selected node's script in the code editor
 	Open_Script,
+	// Close the code tab that shows (code_tabs.odin)
+	Close_Code_Tab,
 }
 
 // Panel resizing. Each carries the new size of a split's first pane
@@ -244,6 +246,23 @@ ConfirmChoice :: enum {
 }
 // The "save changes?" prompt's answer
 Confirm_Chosen :: distinct ConfirmChoice
+
+// Code tabs (code_tabs.odin): show / close a tab (by index), the unsaved-changes answer
+Code_Tab_Selected :: distinct int
+Code_Tab_Close_Requested :: distinct int
+Code_Close_Chosen :: distinct ConfirmChoice
+// The open file asks for another (Go to Definition): 0-based line and character (owned by the frame)
+Code_Open_Requested :: struct {
+	path: string,
+	line, character: int,
+}
+// Save the script that shows
+Code_Save_Requested :: struct {}
+// Keep frames coming while a language server may answer
+Code_Tick_Requested :: struct {}
+Code_Tick :: struct {}
+// The code editor took the keyboard focus a tab asked for
+Code_Focused :: struct {}
 New_Project_Name_Changed :: distinct string
 New_Project_Location_Changed :: distinct string
 New_Project_Browse :: struct {}
@@ -621,6 +640,8 @@ Settings_Code_Editor_Args_Changed :: distinct string
 Settings_Code_Editor_Browse :: struct {}
 Settings_Code_Editor_Picked :: distinct skald.File_Dialog_Result
 Settings_Optimized_Play_Changed :: distinct bool
+Settings_Builtin_Editor_Changed :: distinct bool
+Settings_OLS_Path_Changed :: distinct string
 // Clicked a shortcut: the next key press binds that slot
 Settings_Capture_Started :: struct {
 	action: Action,
@@ -679,6 +700,14 @@ Msg :: union {
 	Tree_Drag_Dropped,
 	Tree_Drag_Cancelled,
 	Confirm_Chosen,
+	Code_Tab_Selected,
+	Code_Tab_Close_Requested,
+	Code_Close_Chosen,
+	Code_Open_Requested,
+	Code_Save_Requested,
+	Code_Tick_Requested,
+	Code_Tick,
+	Code_Focused,
 	New_Project_Name_Changed,
 	New_Project_Location_Changed,
 	New_Project_Browse,
@@ -752,6 +781,8 @@ Msg :: union {
 	Settings_Code_Editor_Browse,
 	Settings_Code_Editor_Picked,
 	Settings_Optimized_Play_Changed,
+	Settings_Builtin_Editor_Changed,
+	Settings_OLS_Path_Changed,
 	Settings_Capture_Started,
 	Settings_Key_Captured,
 	Settings_Capture_Cancelled,

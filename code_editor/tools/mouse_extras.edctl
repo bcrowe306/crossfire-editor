@@ -1,0 +1,37 @@
+# Mouse extras against live OLS: hover info, right-click context menu,
+# drag-and-drop move and copy of selected text.
+wait lsp-ready 15000
+cursor 9 0
+text \tresult := add(1, 2)
+key esc
+
+# --- hover info (textDocument/hover) after resting on code ------------------
+move @9:12
+wait hover 5000
+expect hover add :: proc(a: int, b: int) -> int
+screenshot $SHOTS/01_hover_info.png
+move @9:2
+wait frames 2
+expect hover none
+
+# --- right-click context menu ----------------------------------------------
+click @9:3 button=right
+expect menu-open true
+expect cursor 9 3
+screenshot $SHOTS/02_context_menu.png
+click @menu:8
+expect menu-open false
+expect selection 0 0 11 0
+
+# --- drag-and-drop: move, then copy (Alt/Ctrl held while dragging) ----------
+click @9:2 clicks=2
+expect selected-text result
+drag @9:3 @9:20
+expect line \t := add(1, 2)result
+screenshot $SHOTS/03_drag_move.png
+key primary+z
+expect line \tresult := add(1, 2)
+click @9:2 clicks=2
+drag @9:3 @9:20 mods=alt
+expect line \tresult := add(1, 2)result
+screenshot $SHOTS/04_drag_copy.png

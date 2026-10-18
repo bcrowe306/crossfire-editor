@@ -1,0 +1,17 @@
+# OLS is fetched/built on demand via `task ols:fetch` / `task ols:build`
+# (see Taskfile.yml + README.md). It is a separate upstream project with
+# its own large git history, so it is not vendored into this repo.
+third_party/ols/
+
+# Visual test screenshots (task test:visual)
+test_output/
+
+# Build outputs
+example/editor_demo
+tools/edctl/edctl
+tools/contact_sheet/contact_sheet
+example/example
+example/example.bin
+bin/
+*.bin
+*.dSYM/

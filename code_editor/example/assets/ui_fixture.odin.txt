@@ -1,0 +1,83 @@
+package ui_fixture
+
+import "core:fmt"
+import "core:math"
+
+MAX_ENEMIES :: 32
+GRAVITY :: 9.81
+
+Vec2 :: [2]f32
+
+Entity_Kind :: enum {
+	Player,
+	Enemy,
+}
+
+Entity :: struct {
+	kind:     Entity_Kind,
+	pos, vel: Vec2,
+	health:   int,
+	name:     string,
+}
+
+@(private)
+spawn :: proc(kind: Entity_Kind, pos: Vec2, name := "unnamed") -> Entity {
+	return Entity{kind = kind, pos = pos, health = 100, name = name}
+}
+
+update :: proc(e: ^Entity, dt: f32) {
+	e.vel.y -= GRAVITY * dt
+	e.pos += e.vel * dt
+	if e.pos.y < 0 {
+		e.pos.y = 0
+		e.vel.y = 0
+	}
+	#partial switch e.kind {
+	case .Enemy:
+		e.health = max(e.health - 1, 0)
+	}
+}
+
+main :: proc() {
+	entities := make([dynamic]Entity, 0, MAX_ENEMIES)
+	defer delete(entities)
+	append(&entities, spawn(.Player, {0, 10}, "hero"))
+	for i in 0 ..< 4 {
+		append(&entities, spawn(.Enemy, {f32(i) * 2, 5}))
+	}
+	for &e in entities {
+		update(&e, 1.0 / 60)
+		fmt.printfln("%s at %v (hp %d, speed %.2f) -- a deliberately long line so the horizontal scrollbar appears", e.name, e.pos, e.health, math.sqrt(e.vel.x * e.vel.x + e.vel.y * e.vel.y))
+	}
+}
+
+// filler line 0 keeps the file taller than the window
+// filler line 1 keeps the file taller than the window
+// filler line 2 keeps the file taller than the window
+// filler line 3 keeps the file taller than the window
+// filler line 4 keeps the file taller than the window
+// filler line 5 keeps the file taller than the window
+// filler line 6 keeps the file taller than the window
+// filler line 7 keeps the file taller than the window
+// filler line 8 keeps the file taller than the window
+// filler line 9 keeps the file taller than the window
+// filler line 10 keeps the file taller than the window
+// filler line 11 keeps the file taller than the window
+// filler line 12 keeps the file taller than the window
+// filler line 13 keeps the file taller than the window
+// filler line 14 keeps the file taller than the window
+// filler line 15 keeps the file taller than the window
+// filler line 16 keeps the file taller than the window
+// filler line 17 keeps the file taller than the window
+// filler line 18 keeps the file taller than the window
+// filler line 19 keeps the file taller than the window
+// filler line 20 keeps the file taller than the window
+// filler line 21 keeps the file taller than the window
+// filler line 22 keeps the file taller than the window
+// filler line 23 keeps the file taller than the window
+// filler line 24 keeps the file taller than the window
+// filler line 25 keeps the file taller than the window
+// filler line 26 keeps the file taller than the window
+// filler line 27 keeps the file taller than the window
+// filler line 28 keeps the file taller than the window
+// filler line 29 keeps the file taller than the window

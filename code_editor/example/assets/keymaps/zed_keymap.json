@@ -1,0 +1,19 @@
+// Fixture for the visual tests' "Import Keybindings from Zed" (the real
+// ~/.config/zed/keymap.json is never read by tests). Zed keymaps are JSON
+// with comments and trailing commas.
+[
+  {
+    "context": "Editor",
+    "bindings": {
+      "ctrl-alt-d": "editor::DuplicateLineUp",
+      "ctrl-alt-k": "editor::DeleteLine",
+      "ctrl-alt-l": ["editor::SelectAll", {}],
+      "ctrl-alt-t": "editor::ToggleFocus",
+      "ctrl-k ctrl-c": "editor::ToggleComments",
+    },
+  },
+  {
+    "context": "Terminal",
+    "bindings": { "ctrl-alt-c": "terminal::Copy" },
+  },
+]

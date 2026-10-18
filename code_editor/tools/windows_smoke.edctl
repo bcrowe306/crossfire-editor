@@ -1,0 +1,56 @@
+# The command palette switches between windows (editor, find, keymap
+# editor, theme editor, utilities); the Utilities window shows the
+# language server's state and stops / starts / restarts it (live OLS).
+wait lsp-ready 15000
+key @commandpalette
+expect palette-open true
+screenshot $SHOTS/01_palette_lists_windows_first.png
+type utilities
+key enter
+expect window utilities
+screenshot $SHOTS/02_utilities_server_running.png
+
+# Stop, then start again from the window.
+click @utility:1
+expect lsp-status off
+screenshot $SHOTS/03_server_stopped.png
+click @utility:1
+wait lsp-ready 15000
+expect lsp-status running
+key down
+key enter
+expect status Document resynced
+wait lsp-ready 5000
+screenshot $SHOTS/04_server_started_and_resynced.png
+
+# Palette from a tool window: theme editor, keymap editor, find, editor.
+key @commandpalette
+type theme editor
+key enter
+expect window theme
+key @commandpalette
+type keymap editor
+key enter
+expect window keymap
+key @commandpalette
+type find / replace
+key enter
+expect window text
+expect find-open true
+screenshot $SHOTS/05_find_from_palette.png
+key esc
+
+# Restart is also a palette command.
+key @commandpalette
+type language server: restart
+screenshot $SHOTS/06_palette_utility_command.png
+key enter
+expect status Language server restarted
+wait lsp-ready 15000
+cursor 9 0
+text \t
+type fmt.
+wait completion 5000
+expect completion-has println
+screenshot $SHOTS/07_completion_after_restart.png
+key esc

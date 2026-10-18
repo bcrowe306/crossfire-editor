@@ -906,12 +906,15 @@ default_settings_come_from_the_ini :: proc(t: ^testing.T) {
 
 @(test)
 settings_round_trip_and_overlay :: proc(t: ^testing.T) {
+	testing.expect(t, Settings_Default().builtInCodeEditor, "the built-in code editor is the default")
 	settings := Settings_Default()
 	settings.theme = .Light
 	settings.fontSize = 15
 	settings.undoLimit = 50
 	settings.keymap[.Save_Project] = {{.S, {.Ctrl, .Alt}}, {}}
 	settings.keymap[.Delete_Node] = {}
+	settings.builtInCodeEditor = false
+	settings.olsPath = FixedText_Make("/opt/ols/ols")
 
 	parsed := Settings_Default()
 	problems := Settings_Parse(&parsed, Settings_ToINI(&settings))
@@ -3183,5 +3186,74 @@ renderer_setting_round_trip_and_undo :: proc(t: ^testing.T) {
 	testing.expect_value(t, data.renderer, e.RenderBackend.Vulkan)
 	state.project.renderer = .Auto
 	testing.expect(t, !strings.contains(ProjectToXML(&state.project, context.temp_allocator), "renderer="), "Auto isn't written")
+	free_all(context.temp_allocator)
+}
+
+
+@(test)
+code_tabs_open_switch_close :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_code_tabs")
+	defer removeAll(dir)
+	state := testState()
+	defer State_Destroy(&state)
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone(dir)
+	_ = os.make_directory(joinPath(dir, SCRIPTS_FOLDER, allocator = context.temp_allocator))
+	a := joinPath(dir, "scripts/a.odin", allocator = context.temp_allocator)
+	b := joinPath(dir, "scripts/b.odin", allocator = context.temp_allocator)
+	_ = os.write_entire_file(a, transmute([]byte)string("package scripts\n\n// a\nx := 1\n"))
+	_ = os.write_entire_file(b, transmute([]byte)string("package scripts\n// b\n"))
+	// No language server here: tests mustn't start one
+	state.settings.olsPath = FixedText_Make("/nonexistent/ols")
+
+	// Opening shows the file at a line; opening it again shows the same tab
+	testing.expect_value(t, CodeTabs_Active(&state), "")
+	_ = Script_Open(&state, a, 4)
+	testing.expect_value(t, len(state.codeTabs), 1)
+	testing.expect_value(t, filepath.base(CodeTabs_Active(&state)), "a.odin")
+	line, _ := CodeEditor_Caret(CodeTabs_Active(&state))
+	testing.expect_value(t, line, 4)
+	testing.expect(t, state.codeFocusPending, "an opened tab takes the keyboard")
+	_ = Script_Open(&state, "scripts/b.odin", 0)
+	_ = Script_Open(&state, a, 0)
+	testing.expect_value(t, len(state.codeTabs), 2)
+	testing.expect_value(t, state.codeTab, 1)
+
+	// A scene tab (or another scene) shows the scene
+	send(&state, Scene_Tab_Changed(0))
+	testing.expect_value(t, CodeTabs_Active(&state), "")
+	send(&state, Code_Tab_Selected(1))
+	testing.expect_value(t, filepath.base(CodeTabs_Active(&state)), "b.odin")
+
+	// Unsaved changes count for the project, and Save writes them
+	c := CodeEditor_Find(state.codeTabs[1])
+	testing.expect(t, c != nil, "open")
+	c.ed.buf.dirty = true
+	testing.expect(t, Project_IsModified(&state), "an unsaved script is an unsaved change")
+	testing.expect(t, CodeTabs_SaveAll(&state), "saved")
+	testing.expect(t, !CodeEditor_AnyDirty(), "nothing unsaved")
+
+	// Closing an unsaved tab asks; Cancel keeps it, Don't Save closes it and shows a neighbour
+	c.ed.buf.dirty = true
+	send(&state, Code_Tab_Close_Requested(1))
+	testing.expect(t, state.codeClose.open, "asks")
+	send(&state, Code_Close_Chosen(.Cancel))
+	testing.expect_value(t, len(state.codeTabs), 2)
+	send(&state, Code_Tab_Close_Requested(1))
+	send(&state, Code_Close_Chosen(.Discard))
+	testing.expect_value(t, len(state.codeTabs), 1)
+	testing.expect_value(t, filepath.base(CodeTabs_Active(&state)), "a.odin")
+	testing.expect(t, CodeEditor_Find(b) == nil, "its editor is gone")
+	// Ctrl+W closes the one that shows; with none left the scene shows
+	send(&state, Action.Close_Code_Tab)
+	send(&state, Code_Tab_Close_Requested(0))
+	testing.expect_value(t, len(state.codeTabs), 0)
+	testing.expect_value(t, state.codeTab, 0)
+
+	// Off in Settings: the external program instead (the test command `true`)
+	state.settings.builtInCodeEditor = false
+	state.settings.codeEditorPath = FixedText_Make("true")
+	_ = Script_Open(&state, a, 1)
+	testing.expect_value(t, len(state.codeTabs), 0)
 	free_all(context.temp_allocator)
 }

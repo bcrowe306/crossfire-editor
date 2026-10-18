@@ -1,0 +1,78 @@
+# Find / replace and occurrence selection against mouse_fixture
+# ("greeting" appears on lines 5, 6 and 7).
+wait frames 2
+
+# --- incremental find from the caret, highlights, navigation ----------------
+cursor 5 0
+key @find
+expect find-open true
+type greeting
+expect find-status 1 of 3
+expect selection 5 1 5 9
+screenshot $SHOTS/01_find_highlights_all_matches.png
+key enter
+expect find-status 2 of 3
+key enter
+key enter
+expect find-status 1 of 3
+key shift+enter
+expect find-status 3 of 3
+
+# --- options: whole word (click W) and case (Alt+C) -------------------------
+key backspace 8
+type print
+expect find-status 1 of 2
+click @find:word
+expect find-status No results
+click @find:word
+key alt+c
+type LN
+expect find-status No results
+screenshot $SHOTS/02_find_no_results_case_sensitive.png
+key alt+c
+expect find-status 1 of 2
+
+# --- regex ------------------------------------------------------------------
+key backspace 7
+key alt+r
+type gr[a-z]+ing\)
+expect find-status 1 of 2
+screenshot $SHOTS/03_find_regex.png
+key alt+r
+key escape
+expect find-open false
+
+# --- replace one, then replace all (one undo step each) ---------------------
+cursor 0 0
+key @replace
+key backspace 20
+type greeting
+expect find-status 1 of 3
+key tab
+type message
+key enter
+expect text-contains message := "hello world"
+expect find-status 1 of 2
+screenshot $SHOTS/04_replace_one.png
+key primary+alt+enter
+expect text-contains fmt.println(message)\n\tif len(message) > 0
+screenshot $SHOTS/05_replace_all.png
+key escape
+key primary+z
+key primary+z
+expect text-contains greeting := "hello world"\n\tfmt.println(greeting)\n\tif len(greeting) > 0
+
+# --- Ctrl/Cmd+D: add next occurrence; Ctrl/Cmd+Shift+L: all ---------------
+cursor 6 15
+key primary+d
+key primary+d
+key primary+d
+expect cursors 3
+screenshot $SHOTS/06_select_next_occurrence.png
+key escape
+cursor 5 3
+key primary+shift+l
+expect cursors 3
+text name
+expect text-contains name := "hello world"\n\tfmt.println(name)\n\tif len(name) > 0
+screenshot $SHOTS/07_select_all_occurrences_edit.png

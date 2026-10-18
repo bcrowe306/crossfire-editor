@@ -1,0 +1,41 @@
+OLS: give queued check requests their own copy of the document URI.
+
+notification_did_save builds the Check_Request uri with context.temp_allocator
+and queues it to the check thread; the request loop then free_all()s its
+temp allocator, so check() reads a dangling uri.path. The path then never
+matches in clear_check_diagnostics_for_paths, and errors fixed since the
+last save are republished forever. Found via odin_editor's control-hook
+diagnostics test (tools/diagnostics_smoke.edctl).
+
+Applied by `task ols:fetch` on top of OLS_REF; drop once upstream fixes it.
+---
+diff --git a/src/server/check.odin b/src/server/check.odin
+index d0576d80..90faaac1 100644
+--- a/src/server/check.odin
++++ b/src/server/check.odin
+@@ -50,7 +50,13 @@ Check_Request :: struct {
+ check_send: chan.Chan(Check_Request, .Send)
+ 
+ queue_check_request :: proc(mode: Check_Mode, uri: common.Uri, config: ^common.Config, writer: ^Writer) {
+-	ok := chan.send(check_send, Check_Request{check_mode = mode, uri = uri, config = config, writer = writer})
++	// The request runs later on the check thread, after the caller's temp
++	// allocator has been reset: give it its own heap copy of the uri.
++	owned: common.Uri
++	if uri.path != "" {
++		owned = common.create_uri(uri.path, runtime.heap_allocator())
++	}
++	ok := chan.send(check_send, Check_Request{check_mode = mode, uri = owned, config = config, writer = writer})
+ 	if !ok {
+ 		log.errorf("Failed to queue check request for uri %q", uri.uri)
+ 	}
+@@ -81,6 +87,10 @@ run_check_consumer :: proc(c: Consumer) {
+ 		}
+ 		check(request.check_mode, request.uri, request.config)
+ 		push_diagnostics(request.writer)
++		if request.uri.path != "" {
++			context.allocator = runtime.heap_allocator()
++			common.delete_uri(request.uri)
++		}
+ 		free_all(context.temp_allocator)
+ 	}
+ }

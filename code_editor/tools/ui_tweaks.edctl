@@ -1,0 +1,33 @@
+# UI: Ayu Dark syntax colours (procedures, types, constants, fields,
+# directives, attributes), vertical + horizontal scrollbars, and zoom.
+wait lsp-ready 15000
+wait frames 3
+screenshot $SHOTS/01_syntax_colors.png
+
+# --- vertical scrollbar: drag the thumb, click the track --------------------
+drag @vthumb @vtrack:100
+expect scroll 83 0
+screenshot $SHOTS/02_scrollbar_dragged_to_end.png
+click @vtrack:0
+expect scroll 0 0
+wheel -5 at=@5:0
+expect scroll 15 0
+click @vtrack:0
+
+# --- horizontal scrollbar (the long printfln line) --------------------------
+cursor 49 0
+drag @hthumb @htrack:100
+screenshot $SHOTS/03_horizontal_scrollbar.png
+click @htrack:0
+cursor 0 0
+
+# --- zoom with Ctrl/Cmd + / - / 0 -------------------------------------------
+key @zoomin 3
+expect font-size 19
+screenshot $SHOTS/04_zoomed_in.png
+key @zoomreset
+expect font-size 16
+key @zoomout 2
+expect font-size 14
+screenshot $SHOTS/05_zoomed_out.png
+key @zoomreset

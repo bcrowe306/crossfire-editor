@@ -85,6 +85,7 @@ playStart :: proc(state: ^State, scene := "") -> skald.Command(Msg) {
 	case .Stopped:
 	}
 
+	if !CodeTabs_SaveAll(state) do return {}
 	if message := Project_Save(&state.project); message != "" {
 		logLine(state, .Error, fmt.aprintf("Play: couldn't save the project: %s", message))
 		return {}

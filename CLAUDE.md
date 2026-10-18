@@ -14,8 +14,8 @@ consoles and handhelds).
   - The scene tree has a context menu, copy/paste/duplicate, and drag to reorder and reparent.
   - Undo/redo covers every scene edit. Settings (appearance, undo, keymap) are edited in a dialog
     and saved to editor.ini next to the executable.
-  - **Scripts**: Odin code attached to nodes, created from the inspector, edited in an external
-    editor (Zed by default), exported fields edited in the inspector, built into a per-project
+  - **Scripts**: Odin code attached to nodes, created from the inspector, edited in the built-in
+    code editor's tabs (`code_editor/`, with OLS completion) or an external editor (Zed by default), exported fields edited in the inspector, built into a per-project
     player for Play.
   - Multi-select (Ctrl/Shift+click, box select, Ctrl+A), a viewport grid with snapping, inline
     rename, dragging images from the browser into the viewport, New/Open Project with an
@@ -38,6 +38,7 @@ Sections marked "planned" describe where it's going. Update this file as they be
 |---|---|---|
 | Language | Odin (`dev-2026-10` nightly) | `odin version` |
 | UI | **Skald**: Elm-architecture GUI, Vulkan renderer, SDL3 windowing | `Skald/` git submodule (github.com/bcrowe306/Skald) |
+| Code editor | **code_editor**: an Odin code editor on SDL3 with an OLS client, hosted in code tabs | `code_editor/` (in this repo) |
 | Engine | **odin_sdl_engine**: SDL3 renderer, scenes/nodes with transforms, camera, animation, UI menus, project loader, player | Separate repo; found through `ENGINE_DIR` (default `../odin_sdl_engine`) |
 | Project files | XML | Written by this repo (`project_xml.odin`), read by the engine's parser (see "Project format") |
 
@@ -58,6 +59,8 @@ add it as a task and to the README's command table.
 | `task stb` | Build Odin's STB libraries Skald needs (`build_stb.sh`). Skipped when already built for the active Odin install |
 | `task check` | Type-check with `-vet-unused -vet-packages:editor` (Skald itself doesn't pass vet) |
 | `task test` | Unit tests (`editor_test.odin`) |
+| `task test:code-editor` | The built-in code editor's own unit tests (`code_editor/`, its Taskfile) |
+| `task ols` | Build OLS into `code_editor/third_party/ols` (its `ols:build`; skipped when built) |
 | `task verify` | `check` + `test` |
 | `task test:ui` | UI test scripts (`tests/ui/*.script`) driving the real editor with injected input (`SCRIPT=<file>` for one) |
 | `task test:ui:fullscreen` | The same with a fullscreen editor (`SCRIPT=<file>` for one) |
@@ -131,6 +134,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors; `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
+| `code_editor/` | **The built-in code editor**: an Odin code editor on SDL3 (buffer, keymap, syntax, LSP client, `editor` = package `code_editor`, its own README, tests and Taskfile). Changed here: its `editor` package renamed `code_editor` (Odin package names must be unique: ours is `editor`), and SDL_ttf calls taking `[^]u8` for this Odin |
+| `code_editor_host.odin` | Hosting it in Skald: `CodeEditor` per open file (a `ce.Editor`, a software renderer and surface, uploaded as `CODE_IMAGE` when the pixels change), the SDL event watch feeding it input, focus (`CodeEditor_Frame`, `CODE_EDITOR_PASSTHROUGH`), the bundled font (Liberation Mono), `Code_FindOLS` |
+| `code_tabs.odin` | Code tabs: `Script_Open` (built-in or external), `CodeTabs_Open` / `Close` / `SaveAll`, their messages (`CodeTabs_Update`), the tabs' view, the status line, the close prompt |
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
 | `project_scenes.odin` | Scene list operations: add, copy, rename (updating references), remove, start scene, names; deleting old scene files on save |
 | `scene_actions.odin` | The browser's scene actions (`Scene_DoAction`), key routing while the browser has focus, scene rename, Project Settings state |
@@ -469,6 +475,45 @@ runtime exports will ship.
 **Build Scripts** (Ctrl+B, and once in the background when a project with scripts opens) does steps
 2-3 only. `PlaySession.purpose` says which; `.Describe` is its zero value on purpose, and it must be
 carried across `endSession` between steps (losing it once made describing start the game).
+
+### Built-in code editor (implemented, `code_editor/`, `code_editor_host.odin`, `code_tabs.odin`)
+
+Scripts open in code tabs after the scene tabs (`State.codeTabs`, absolute paths; `codeTab` is
+1-based, 0 = the scene shows). `Script_Open` is the one way to open a script: a tab with
+`settings.builtInCodeEditor` (Settings > Editor, `code_editor_builtin`, on by default), else the
+external program (`Script_OpenInEditor`). Picking a scene tab, or anything that changes
+`currentScene` (`update` resets `codeTab`), shows the scene.
+- **Rendering:** the code editor draws with an SDL renderer; Skald draws with Vulkan. Each open
+  file has an SDL software renderer on a surface; the active one is rendered every frame it
+  shows and uploaded into one Skald image only when its pixels' hash changed. It's drawn at the
+  display's pixel scale (font size × `ctx.renderer.scale`).
+- **Input:** Skald has no raw-event hook and folds a frame's keys into a set, so an SDL event
+  watch (`sdl.AddEventWatch`) copies every key, text and mouse event as SDL queues it; the code
+  view hands them on (keys and text with focus, the mouse over it in its pixel coordinates, a
+  drag's end). Focus is Skald's (`focused_id == hash_id("code-editor")`); Skald's Tab traversal
+  takes it before `view`, so `CodeEditor_Frame` gives it back; `IsTyping` counts it, and
+  `KeymapDispatch` runs only `CODE_EDITOR_PASSTHROUGH` then (their chords don't reach the code
+  editor); the menu bar drops its shortcuts.
+- **Unsaved scripts** count in `Project_IsModified`; `Session_Save`, Play and Export call
+  `CodeTabs_SaveAll` first; Save starts a background script build when a script was saved.
+- **Language server:** `Code_FindOLS` (the setting `ols_path`, PATH, `code_editor/third_party/ols`
+  from `task ols`, Zed's extension). One OLS per open file, rooted at the scripts folder (its
+  ols.json). `Code_Tick` (every 0.1 s while one is attached and the window is focused) keeps
+  frames coming for its replies.
+- **The test driver** had to send what real input sends: `type` is one TEXT_INPUT per character
+  (the code editor completes after a typed "."), and key events carry the key code
+  (`GetKeyFromScancode`: the code editor reads key codes, Skald scancodes). `click_tab` clicks a
+  `skald.tabs` tab (sub-ids of the strip).
+- The center panel's tab strip scrolls sideways (`hScroll`, key `center-tabs`) and scrolls the
+  tab that shows into view when it changes (`hScroll_Reveal`); the caret and the language server
+  are in the status line under the code, so the header keeps its room for tabs.
+- Tests: `code_tabs_open_switch_close` (no OLS: `olsPath` set to a missing file),
+  `tests/ui/code_editor.script` (typing, Tab, Delete and Ctrl+Z staying in the code, OLS
+  completion, saving, tabs, the close prompt, the external fallback; driver checks `code_tabs`,
+  `code_tab`, `code_focused`, `code_contains`, `code_dirty`, `code_caret`, `code_rendered`
+  (pixels unlike the background, uploaded), `code_lsp`, `code_completion`, `code_close_dialog`).
+- Not yet: one OLS shared by all tabs; reloading a file changed on disk; the code editor's
+  keymap/theme settings saved for the user (no config dir is set).
 
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 

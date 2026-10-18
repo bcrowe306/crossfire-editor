@@ -71,6 +71,9 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	canvasId := skald.hash_id("viewport-canvas")
 	scene := &s.project.scenes[s.currentScene]
+	// A code tab shows the built-in code editor instead (code_tabs.odin)
+	if codePath := CodeTabs_Active(s); codePath != "" do return codeCenterView(s, ctx, codePath)
+	CodeEditor_DrainEvents()
 
 	// The view area is the canvas minus the rulers, from last frame's layout
 	canvasRect := lastRect(ctx, canvasId)
@@ -115,18 +118,6 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	}
 
-	// A tab per scene, then per open component (the one being edited always has one)
-	tabScenes := ViewportTabScenes(s)
-	labels := make([]string, len(tabScenes), context.temp_allocator)
-	active := 0
-	for index, i in tabScenes {
-		scene := &s.project.scenes[index]
-		labels[i] = Scene_IsComponent(scene) ? fmt.tprintf("%s %s", ICON_CUBES, scene.name) : scene.name
-		if index == s.currentScene do active = i
-	}
-	tabs := skald.tabs(ctx, labels, active,
-		proc(tab: int) -> Msg { return Scene_Tab_Changed(tab) },
-		id = skald.hash_id("scene-tabs"))
 	buttons := skald.row(
 		panelButton(ctx, "viewport-animate", s.viewport.animate ? ICON_PAUSE : ICON_PLAY,
 			s.viewport.animate ? "Pause viewport animations (P)" : "Play viewport animations (P)", Action.Toggle_Animation),
@@ -140,13 +131,9 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		spacing = th.spacing.xs,
 		cross_align = .Center,
 	)
-	// The tabs get what the buttons leave (last frame's viewport width), clipped: many scenes
-	// or a narrow window must not push the buttons out of view
-	if ctx.renderer != nil && s.viewport.size.x > 0 {
-		tabsSize := skald.view_size(ctx.renderer, tabs)
-		room := s.viewport.size.x + RULER_SIZE - skald.view_size(ctx.renderer, buttons).x - th.spacing.xs * 3
-		if tabsSize.x > room do tabs = skald.clip({max(room, 40), tabsSize.y}, tabs)
-	}
+	// The tabs get what the buttons leave, scrolling sideways when there are more: many scenes,
+	// scripts or a narrow window must not push the buttons out of view
+	tabs := centerTabs(s, ctx, tabsRoom(s, ctx, buttons))
 	header := skald.row(
 		tabs,
 		skald.flex(1, skald.spacer(0)),
@@ -169,6 +156,73 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.col(
 		header,
 		skald.flex(1, skald.canvas(ctx, data, drawViewport, id = canvasId, cursor = .Crosshair)),
+		cross_align = .Stretch,
+		bg = th.color.bg,
+	)
+}
+
+/*
+The center panel's tab strip: a tab per scene, then per open component (the one being edited
+always has one), then the code tabs. The scene tab is lit only while the scene shows.
+*/
+@(private="file")
+centerTabs :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width: f32) -> skald.View {
+	tabScenes := ViewportTabScenes(s)
+	labels := make([]string, len(tabScenes), context.temp_allocator)
+	active := -1
+	for index, i in tabScenes {
+		scene := &s.project.scenes[index]
+		labels[i] = Scene_IsComponent(scene) ? fmt.tprintf("%s %s", ICON_CUBES, scene.name) : scene.name
+		if index == s.currentScene && CodeTabs_Active(s) == "" do active = i
+	}
+	views := make([dynamic]skald.View, context.temp_allocator)
+	append(&views, skald.tabs(ctx, labels, active,
+		proc(tab: int) -> Msg { return Scene_Tab_Changed(tab) },
+		id = skald.hash_id("scene-tabs")))
+	append(&views, ..CodeTabs_View(s, ctx))
+	strip := skald.row(..views[:], spacing = ctx.theme.spacing.xs, cross_align = .End)
+	// More tabs than fit scroll sideways (the wheel, or the bar under them); the tab that shows
+	// is scrolled into view when it changes
+	shown := s.codeTab > 0 ? skald.hash_id(fmt.tprintf("code-tab-close-%d", s.codeTab - 1)) : skald.widget_make_sub_id(skald.hash_id("scene-tabs"), u64(max(active, 0) + 1))
+	hScroll_Reveal(ctx, "center-tabs", shown)
+	// The bar is a thin line over the tabs' bottom: the header keeps its height either way
+	height := ctx.renderer != nil ? skald.view_size(ctx.renderer, strip).y : 30
+	return hScroll(ctx, "center-tabs", strip, max(width, 40), height, thin = true)
+}
+
+// What the tab strip has room for: the center panel's width less the header's buttons
+@(private="file")
+tabsRoom :: proc(s: ^State, ctx: ^skald.Ctx(Msg), buttons: skald.View) -> f32 {
+	left, right := FittedSidebarWidths(&s.layout)
+	center := s.layout.workspace.x - left - right - DIVIDER * 2
+	buttonsWidth := ctx.renderer != nil ? skald.view_size(ctx.renderer, buttons).x : 0
+	return center - buttonsWidth - ctx.theme.spacing.xs * 4
+}
+
+// The center panel while a code tab shows: the tabs, the file's header, the code editor
+@(private="file")
+codeCenterView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.View {
+	th := ctx.theme
+	buttons := CodeTabs_HeaderButtons(s, ctx, path)
+	tabs := centerTabs(s, ctx, tabsRoom(s, ctx, buttons))
+	// A tab just opened or picked takes the keyboard
+	if s.codeFocusPending {
+		skald.widget_focus(ctx, skald.hash_id(CODE_EDITOR_KEY))
+		skald.send(ctx, Msg(Code_Focused{}))
+	}
+	header := skald.row(
+		tabs,
+		skald.flex(1, skald.spacer(0)),
+		buttons,
+		spacing = th.spacing.xs,
+		padding = th.spacing.xs,
+		cross_align = .Center,
+		bg = th.color.surface,
+	)
+	return skald.col(
+		header,
+		skald.flex(1, CodeEditor_View(s, ctx, path)),
+		CodeTabs_StatusLine(s, ctx, path),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)

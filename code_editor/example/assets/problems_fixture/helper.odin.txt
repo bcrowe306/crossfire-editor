@@ -1,0 +1,5 @@
+package problems_fixture
+
+helper :: proc() -> int {
+	return "not an int"
+}

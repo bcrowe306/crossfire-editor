@@ -1,0 +1,83 @@
+OLS: report `odin check` diagnostic columns in UTF-16 code units.
+
+The compiler's -json-errors columns count code points; OLS passed them
+through as LSP characters, which must be UTF-16 code units. For a line with
+an astral character (emoji) before the error, every squiggle landed one cell
+early per such character. Convert using the file's text (read once per check
+run). Found via odin_editor's diagnostics visual test.
+
+Applied by `task ols:fetch` after 0001; drop once upstream fixes it.
+---
+diff --git a/src/server/check.odin b/src/server/check.odin
+index 90faaac1..2cab4028 100644
+--- a/src/server/check.odin
++++ b/src/server/check.odin
+@@ -304,6 +304,7 @@ check :: proc(mode: Check_Mode, uri: common.Uri, config: ^common.Config) {
+ 	}
+ 
+ 	diagnostics := make(map[DiagnosticKey]struct{}, context.temp_allocator)
++	file_texts := make(map[string]string, context.temp_allocator)
+ 	for e in errors {
+ 		for error in e.errors {
+ 			if len(error.msgs) == 0 {
+@@ -341,6 +342,19 @@ check :: proc(mode: Check_Mode, uri: common.Uri, config: ^common.Config) {
+ 
+ 			uri := common.create_uri(path, context.temp_allocator)
+ 
++			// The compiler reports 1-based code-point columns; LSP wants
++			// UTF-16 code units (they differ for astral characters, e.g.
++			// emoji, earlier on the line).
++			line0 := max(error.pos.line - 1, 0)
++			text, have_text := file_texts[path]
++			if !have_text {
++				data, read_err := os.read_entire_file(path, context.temp_allocator)
++				text = string(data) if read_err == nil else ""
++				file_texts[path] = text
++			}
++			start_char := code_point_col_to_utf16(text, line0, max(error.pos.column - 1, 0))
++			end_char := code_point_col_to_utf16(text, line0, max(error.pos.end_column - 1, 0))
++
+ 			add_diagnostics(
+ 				.Check,
+ 				uri.uri,
+@@ -349,8 +363,8 @@ check :: proc(mode: Check_Mode, uri: common.Uri, config: ^common.Config) {
+ 					severity = map_diagnostic_severity(error.type),
+ 					range = {
+ 						// odin will sometimes report errors on column 0, so we ensure we don't provide a negative column/line to the client
+-						start = {character = max(error.pos.column - 1, 0), line = max(error.pos.line - 1, 0)},
+-						end = {character = max(error.pos.end_column - 1, 0), line = max(error.pos.line - 1, 0)},
++						start = {character = start_char, line = line0},
++						end = {character = end_char, line = line0},
+ 					},
+ 					message = message,
+ 				},
+@@ -420,3 +434,29 @@ map_diagnostic_severity :: proc(type: string) -> DiagnosticSeverity {
+ 
+ 	return .Error
+ }
++
++// code_point_col_to_utf16 converts a 0-based code-point column on line
++// `line` of `text` to UTF-16 code units (unchanged if the text is missing).
++@(private = "file")
++code_point_col_to_utf16 :: proc(text: string, line: int, col: int) -> int {
++	if len(text) == 0 {
++		return col
++	}
++	start := 0
++	for l := 0; l < line; l += 1 {
++		nl := strings.index_byte(text[start:], '\n')
++		if nl < 0 {
++			return col
++		}
++		start += nl + 1
++	}
++	units, points := 0, 0
++	for r in text[start:] {
++		if points >= col || r == '\n' {
++			break
++		}
++		units += 2 if r > 0xFFFF else 1
++		points += 1
++	}
++	return units + max(0, col - points)
++}

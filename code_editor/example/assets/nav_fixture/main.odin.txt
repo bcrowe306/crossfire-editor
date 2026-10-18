@@ -1,0 +1,17 @@
+package nav_fixture
+
+import "core:fmt"
+
+Point :: struct {
+	x, y: int,
+}
+
+add_points :: proc(a, b: Point) -> Point {
+	return {a.x + b.x, a.y + b.y}
+}
+
+main :: proc() {
+	p := add_points({1, 2}, {3, 4})
+	q := add_points(p, p)
+	fmt.println(scale(q, 2))
+}

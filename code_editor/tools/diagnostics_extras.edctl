@@ -1,0 +1,51 @@
+# Diagnostics leftovers against example/assets/problems_fixture/ (main.odin
+# with an unused import + helper.odin with a type error): tag rendering
+# (faded unused import), quick fixes (codeAction), squiggles following
+# edits between publishes, and the problems panel across files.
+
+wait lsp-ready 15000
+
+# --- unused import: hint tagged Unnecessary -> faded text ------------------
+key primary+s
+wait diagnostics 15000
+wait frames 30
+expect diagnostics-has unused import
+screenshot $SHOTS/01_unused_import_faded.png
+
+# --- quick fix menu (Ctrl/Cmd+.) and apply ----------------------------------
+cursor 3 3
+key primary+.
+wait code-actions 5000
+expect actions-has remove unused imports
+screenshot $SHOTS/02_quick_fix_menu.png
+key enter
+wait frames 3
+expect text-contains import "core:fmt"\n\nmain
+key primary+s
+wait frames 30
+screenshot $SHOTS/03_quick_fix_applied.png
+
+# --- squiggles follow edits until the server recomputes ---------------------
+cursor 6 19
+key enter
+text n: int = "s"
+key primary+s
+wait diagnostics 15000
+wait frames 10
+expect diag-range 7 10 7 13
+cursor 7 1
+type zz
+wait frames 20
+expect diag-range 7 12 7 15
+screenshot $SHOTS/04_squiggle_follows_edit.png
+
+# --- problems panel: every file's problems; click to jump -------------------
+key primary+shift+m
+expect problems-open true
+expect problems-has helper.odin:4:9 error
+screenshot $SHOTS/05_problems_panel.png
+click @problem:1
+wait frames 5
+expect text-contains return "not an int"
+expect cursor 3 8
+screenshot $SHOTS/06_problem_opens_other_file.png

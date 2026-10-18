@@ -1,0 +1,87 @@
+# Diagnostics smoke test against example/assets/diag_fixture.odin.txt
+# (whose strings contain non-ASCII text): parse errors while typing, type
+# errors from `odin check` on save, gutter severity, hover and F8
+# tooltips, UTF-16 column mapping, and clearing after a fix.
+
+wait lsp-ready 15000
+wait frames 10
+expect errors 0
+expect line-severity 6 none
+
+# --- parse errors appear while typing (no save needed) ----------------------
+cursor 6 22
+key enter
+type fmt.println("oops"
+wait diagnostics 5000
+expect diagnostics-has expected ')'
+expect line-severity 8 error
+screenshot $SHOTS/01_parse_error_squiggles.png
+key primary+l
+key backspace
+wait no-diagnostics 5000
+
+# --- type errors from `odin check` on save; columns honor UTF-16 -----------
+cursor 6 22
+key enter
+text s := "é"; n: int = s
+# (typing the identifier opened completion; tooltips stay hidden under it)
+key esc
+wait no-completion 2000
+key primary+s
+wait diagnostics 15000
+expect errors 1
+expect diagnostics-has Cannot assign value 's'
+expect line-severity 7 error
+screenshot $SHOTS/02_type_error_after_save.png
+
+# Hovering the squiggled character opens the tooltip after the dwell; it
+# has to be exactly `s` (byte 21; the server said UTF-16 column 20).
+move @7:21
+wait tooltip 3000
+expect tooltip error: Cannot assign
+screenshot $SHOTS/03_hover_tooltip.png
+move @7:2
+wait frames 2
+expect tooltip none
+
+# Hovering the gutter marker shows the line's problems.
+move @gutter:7
+wait tooltip 3000
+expect tooltip Cannot assign
+screenshot $SHOTS/04_gutter_hover_tooltip.png
+move @6:3
+
+# F8 jumps to the problem and shows it; Escape dismisses.
+cursor 0 0
+key f8
+expect cursor 7 21
+screenshot $SHOTS/05_f8_next_problem.png
+expect tooltip Cannot assign
+key esc
+expect tooltip none
+
+# --- fixing it and saving clears it (relies on patches/ols) -----------------
+key primary+l
+key backspace
+key primary+s
+wait no-diagnostics 8000
+expect errors 0
+screenshot $SHOTS/06_cleared_after_fix.png
+
+# --- astral characters: columns exact after an emoji (patches/ols/0002) -----
+cursor 6 22
+key enter
+text s2 := "😀"; m: int = s2
+key esc
+key primary+s
+wait diagnostics 15000
+wait frames 10
+expect diag-range 7 24 7 26
+move @7:24
+wait tooltip 3000
+expect tooltip Cannot assign value 's2'
+screenshot $SHOTS/07_emoji_column_exact.png
+key primary+l
+key backspace
+key primary+s
+wait no-diagnostics 8000

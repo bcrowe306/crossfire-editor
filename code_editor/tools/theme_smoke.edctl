@@ -1,0 +1,43 @@
+# Theme editor window (from the palette): pick a colour, edit it by hex and
+# with the channel sliders, see the live preview and the text view change;
+# switch presets from the palette and with P / Shift+P.
+wait frames 2
+screenshot $SHOTS/01_ayu_dark_text.png
+key @commandpalette
+type theme editor
+expect palette-selected Theme Editor
+key enter
+expect window theme
+expect theme-base Ayu Dark
+screenshot $SHOTS/02_theme_editor.png
+click @theme:6
+expect theme-selected text_keyword
+key enter
+key backspace 8
+type 39bae6
+key enter
+expect theme-color text_keyword=#39bae6
+click @slider-a:60
+screenshot $SHOTS/03_keyword_recoloured_with_sliders.png
+key enter
+key backspace 8
+type 59c2ff
+key enter
+expect theme-color text_keyword=#59c2ff
+key esc
+expect window text
+screenshot $SHOTS/04_text_with_blue_keywords.png
+key @commandpalette
+type color theme ayu light
+key enter
+expect theme-base Ayu Light
+screenshot $SHOTS/05_ayu_light_text.png
+key @commandpalette
+type theme editor
+key enter
+click @theme:0
+screenshot $SHOTS/06_ayu_light_theme_editor.png
+key shift+p
+expect theme-base Ayu Dark
+key esc
+expect window text

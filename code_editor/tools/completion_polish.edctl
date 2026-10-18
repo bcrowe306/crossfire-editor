@@ -1,0 +1,56 @@
+# Completion polish against live OLS: docs panel, snippets (with tab-stop
+# navigation), parameter hints after a procedure snippet, overload cycling.
+wait lsp-ready 15000
+cursor 11 0
+text \t
+
+# --- documentation panel beside the list --------------------------------------
+type area_c
+wait completion 5000
+expect completion-selected area_circle
+expect completion-doc Area of a circle
+screenshot $SHOTS/01_docs_panel.png
+
+# --- procedure snippet inserts name() and opens parameter hints -------------
+key enter
+wait signature 5000
+expect line \tarea_circle()
+expect cursor 11 13
+screenshot $SHOTS/02_proc_snippet_parameter_hints.png
+key escape
+key end
+key enter
+
+# --- overloads (proc group): Up/Down cycles the signatures ------------------
+type area(
+wait signature 5000
+expect signature area_circle :: proc(r: f32)
+screenshot $SHOTS/03_overload_1_of_2.png
+key down
+expect signature area_rect :: proc(w: f32, h: f32)
+screenshot $SHOTS/04_overload_2_of_2.png
+key escape
+key primary+l
+key backspace
+key up
+key end
+key enter
+
+# --- snippet session: forr -> range, then elem, then the body ---------------
+type forr
+wait completion 5000
+expect completion-selected forr
+key enter
+expect snippet-active true
+expect snippet-stop 1
+expect selected-text range
+screenshot $SHOTS/05_snippet_first_stop.png
+text items
+key tab
+expect snippet-stop 2
+expect selected-text elem
+text item
+key tab
+expect snippet-active false
+expect text-contains \tfor item in items {\n\t\t\n\t}\n}
+screenshot $SHOTS/06_snippet_completed.png

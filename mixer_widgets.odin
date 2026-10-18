@@ -28,6 +28,7 @@ METER_FALL_DB :: f32(24)
 METER_HOLD :: 1500 * time.Millisecond
 METER_CLIP_HOLD :: 2 * time.Second
 H_SCROLL_BAR :: f32(10)
+H_SCROLL_THIN :: f32(3)
 
 /*
 Where a gain sits on a fader (0 bottom, 1 top), in decibels: the same scale as the meter.
@@ -70,9 +71,13 @@ Pan_Text :: proc(pan: f32) -> string {
 A box `width` x `height` showing `content` scrolled sideways, with a scroll bar under it when the
 content is wider (the bar's height is part of `height`). The wheel over it scrolls it.
 
+With `thin`, the bar is a thin line under the content, and its row is there (empty) even when
+nothing overflows: the whole is always `height` + H_SCROLL_THIN tall (a header that grew when its
+tabs overflowed would move what's under it).
+
 Widget keys: the box is `key`, the bar `key-bar`.
 */
-hScroll :: proc(ctx: ^skald.Ctx($Msg), key: string, content: skald.View, width, height: f32) -> skald.View {
+hScroll :: proc(ctx: ^skald.Ctx($Msg), key: string, content: skald.View, width, height: f32, thin := false) -> skald.View {
 	th := ctx.theme
 	id := skald.hash_id(key)
 	barId := skald.hash_id(fmt.tprintf("%s-bar", key))
@@ -112,12 +117,12 @@ hScroll :: proc(ctx: ^skald.Ctx($Msg), key: string, content: skald.View, width, 
 	}
 	hScrollOffsets[id] = offset
 
-	boxHeight := maxOffset > 0 ? height - H_SCROLL_BAR - 2 : height
+	boxHeight := maxOffset > 0 && !thin ? height - H_SCROLL_BAR - 2 : height
 	shifted := skald.row(skald.spacer(-offset), content, spacing = 0)
 	inner := new(skald.View, context.temp_allocator)
 	inner^ = skald.clip({width, max(boxHeight, 0)}, shifted)
 	box: skald.View = skald.View_Zone{id = id, child = inner}
-	if maxOffset == 0 do return box
+	if maxOffset == 0 do return thin ? skald.col(box, skald.spacer(H_SCROLL_THIN), spacing = 0) : box
 
 	Bar :: struct { fraction, thumb: f32, rail, fill: skald.Color }
 	bar := new_clone(Bar{offset / maxOffset, thumbWidth, th.color.surface, th.color.fg_muted}, context.temp_allocator)
@@ -126,8 +131,8 @@ hScroll :: proc(ctx: ^skald.Ctx($Msg), key: string, content: skald.View, width, 
 		skald.draw_rect(p.r, r, b.rail, r.h * 0.5)
 		x := r.x + b.fraction * (r.w - b.thumb)
 		skald.draw_rect(p.r, {x, r.y + 1, b.thumb, r.h - 2}, b.fill, (r.h - 2) * 0.5)
-	}, id = barId, width = width, height = H_SCROLL_BAR)
-	return skald.col(box, canvas, spacing = 2)
+	}, id = barId, width = width, height = thin ? H_SCROLL_THIN : H_SCROLL_BAR)
+	return skald.col(box, canvas, spacing = thin ? 0 : 2)
 }
 
 /*
@@ -322,6 +327,30 @@ rectHas :: proc(r: skald.Rect, p: [2]f32, emptyIsAll := false) -> bool {
 	if emptyIsAll && r.w <= 0 && r.h <= 0 do return true
 	return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h
 }
+
+/*
+Scrolls an hScroll just enough to show a widget inside it (from last frame's layout), when that
+widget changed since the last call: a newly chosen tab comes into view, and scrolling away from it
+afterwards stays put. Call it before building the hScroll.
+*/
+hScroll_Reveal :: proc(ctx: ^skald.Ctx($Msg), key: string, widget: skald.Widget_ID) {
+	id := skald.hash_id(key)
+	if hScrollRevealed[id] == widget do return
+	box, boxDrawn := ctx.widgets.states[id]
+	target, drawn := ctx.widgets.states[widget]
+	if !boxDrawn || !drawn || box.last_rect.w <= 0 || target.last_rect.w <= 0 do return
+	hScrollRevealed[id] = widget
+	b, t := box.last_rect, target.last_rect
+	switch {
+	case t.x < b.x:                 hScrollOffsets[id] -= b.x - t.x
+	case t.x + t.w > b.x + b.w:     hScrollOffsets[id] += t.x + t.w - (b.x + b.w)
+	case:                           return
+	}
+	hScrollOffsets[id] = max(hScrollOffsets[id], 0)
+}
+
+@(private="file")
+hScrollRevealed: map[skald.Widget_ID]skald.Widget_ID
 
 // Scrolls an hScroll to its end the next time it's built (to show what was just added there)
 hScroll_ScrollToEnd :: proc(key: string) {

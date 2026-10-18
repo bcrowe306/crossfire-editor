@@ -1,0 +1,22 @@
+package sample
+
+import "core:fmt"
+
+// A tiny sample file used to exercise the odin_editor demo app:
+// syntax highlighting, navigation, editing, and (if `ols` is on PATH)
+// language-server completion/signature-help/diagnostics.
+Vec2 :: struct {
+	x, y: f32,
+}
+
+vec2_add :: proc(a, b: Vec2) -> Vec2 {
+	return Vec2{a.x + b.x, a.y + b.y}
+}
+
+main :: proc() {
+	a := Vec2{1, 2}
+	b := Vec2{3, 4}
+	c := vec2_add(a, b)
+	fmt.println("sum:", c)
+}
+

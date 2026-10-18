@@ -1,0 +1,18 @@
+# Font fallback + wide-character grid: emoji and CJK take two cells, symbols
+# render from fallback fonts, and clicks/selections line up with them.
+wait frames 3
+screenshot $SHOTS/01_emoji_cjk_symbols.png
+
+# Caret placement after wide characters
+cursor 3 0
+key end
+expect cursor 3 25
+click @4:15
+expect cursor 4 15
+drag @4:9 @4:24
+expect selected-text 漢字テスト
+screenshot $SHOTS/02_select_cjk_text.png
+click @3:15
+key shift+end
+expect selected-text 🎉 done"
+screenshot $SHOTS/03_select_from_emoji.png

@@ -1,0 +1,7 @@
+// Fixture for the visual tests' "Import Keybindings from VSCode".
+[
+  { "key": "ctrl+alt+u", "command": "editor.action.copyLinesUpAction", "when": "editorTextFocus" },
+  { "key": "ctrl+alt+m", "command": "editor.action.moveLinesDownAction" },
+  { "key": "ctrl+k ctrl+u", "command": "editor.action.removeCommentLine" },
+  { "key": "ctrl+alt+x", "command": "workbench.action.terminal.focus", "when": "terminalFocus" },
+]
