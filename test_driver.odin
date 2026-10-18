@@ -138,6 +138,9 @@ Checks:
 	particle_linked <setting> <true | false>   A particle [2]f32 setting's axes are linked
 	ramp_stops <count>           Stops in the selected emitter's color ramp
 	ramp_stop <index>            The color ramp editor's selected stop
+	input_actions <count>        The project's input actions; draft_input_actions: Project Settings' draft
+	input_bindings <action> <a, b, ...>   An action's bindings, described (e.Input_BindingDescribe)
+	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
 	animations <count>           Animations of the selected AnimatedSprite
 	animation <name | start | end | fps | loop | mode> <value>
 	                             The Animation panel's selected animation (start and end resolved)
@@ -386,8 +389,14 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		items := make([dynamic]skald.Rect, context.temp_allocator)
 		newest: u64
 		for _, st in ctx.widgets.states do if st.kind == .Button do newest = max(newest, st.last_overlay_frame)
+		// Inside the popup: the last overlay drawn (a dialog's own buttons are on an overlay too)
+		popup: skald.Rect
+		if n := len(ctx.widgets.overlay_rects_prev); n > 0 do popup = ctx.widgets.overlay_rects_prev[n - 1]
+		inside :: proc(r, area: skald.Rect) -> bool {
+			return area.w <= 0 || (r.x >= area.x - 1 && r.y >= area.y - 1 && r.x + r.w <= area.x + area.w + 1 && r.y + r.h <= area.y + area.h + 1)
+		}
 		for _, st in ctx.widgets.states {
-			if st.kind == .Button && newest > 0 && st.last_overlay_frame == newest && st.last_rect.w > 0 do append(&items, st.last_rect)
+			if st.kind == .Button && newest > 0 && st.last_overlay_frame == newest && st.last_rect.w > 0 && inside(st.last_rect, popup) do append(&items, st.last_rect)
 		}
 		slice.sort_by(items[:], proc(a, b: skald.Rect) -> bool { return a.y < b.y })
 		index := atoi(args, 0, 0)
@@ -899,6 +908,25 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = selected.autoplay == "" ? "none" : selected.autoplay
 	case "sheet_loaded":
 		found = selected != nil ? fmt.tprint(AnimationPanel_SheetLoaded(s, selected.texture)) : "false"
+	case "input_actions":
+		found = fmt.tprint(len(s.project.actions))
+	case "draft_input_actions":
+		found = fmt.tprint(len(s.projectSettings.actions))
+	case "input_bindings", "draft_input_bindings":
+		action: ^ActionDef
+		expected := value
+		if name == "input_bindings" {
+			actionName, _, rest := strings.partition(value, " ")
+			expected = rest
+			for &a in s.project.actions do if a.name == actionName do action = &a
+		} else if d := &s.projectSettings; d.selectedAction >= 0 && d.selectedAction < len(d.actions) {
+			action = &d.actions[d.selectedAction]
+		}
+		if action == nil do return false, "no such action"
+		parts := make([dynamic]string, context.temp_allocator)
+		for b in action.bindings do append(&parts, e.InputBinding_Describe(b))
+		found = strings.join(parts[:], ", ", context.temp_allocator)
+		return found == strings.trim_space(expected), found
 	case "ramp_stop":
 		found = fmt.tprint(s.rampStop)
 	case "linked":

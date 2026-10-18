@@ -185,6 +185,8 @@ Project_CreateEmpty :: proc(root, name: string) -> Project {
 	scene := SceneDef{name = strings.clone("Main")}
 	Scene_InsertNode(&scene, "World", .Node2D, -1)
 	append(&project.scenes, scene)
+	// Like Godot: ui_left / right / up / down, ui_accept, ui_cancel
+	project.actions = DefaultActions()
 	return project
 }
 

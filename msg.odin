@@ -1,5 +1,6 @@
 package editor
 
+import e "engine:."
 import "gui:skald"
 
 /*
@@ -408,6 +409,29 @@ New_Script_Name_Changed :: distinct string
 New_Script_Created :: struct {}
 New_Script_Cancelled :: struct {}
 
+// Project Settings > Input (input_actions.odin): the draft's actions
+Input_New_Name_Changed :: distinct string
+Input_Action_Added :: struct {}
+// Adds the default ui_* actions it doesn't have
+Input_Defaults_Added :: struct {}
+Input_Action_Selected :: distinct int
+Input_Action_Removed :: distinct int
+Input_Action_Moved :: struct {
+	index, delta: int,
+}
+// Typing the shown action's name (applies when it's valid and unused)
+Input_Action_Renamed :: distinct string
+Input_Deadzone_Changed :: distinct f32
+Input_Binding_Added :: struct {
+	binding: e.InputBinding,
+}
+Input_Binding_Removed :: distinct int
+// "Press a key or button": the modifiers held when it started
+Input_Capture_Started :: distinct skald.Modifiers
+Input_Capture_Cancelled :: struct {}
+// The gamepad new gamepad bindings are for (-1 any)
+Input_Device_Changed :: distinct int
+
 // Help > Keyboard Shortcuts: the Settings dialog on its Keyboard tab
 Open_Keyboard_Settings :: struct {}
 
@@ -694,6 +718,19 @@ Msg :: union {
 	Node_Layer_Toggled,
 	Node_Points_Changed,
 	Open_Keyboard_Settings,
+	Input_New_Name_Changed,
+	Input_Action_Added,
+	Input_Defaults_Added,
+	Input_Action_Selected,
+	Input_Action_Removed,
+	Input_Action_Moved,
+	Input_Action_Renamed,
+	Input_Deadzone_Changed,
+	Input_Binding_Added,
+	Input_Binding_Removed,
+	Input_Capture_Started,
+	Input_Capture_Cancelled,
+	Input_Device_Changed,
 	Anim_Selected,
 	Anim_Added,
 	Anim_Duplicated,

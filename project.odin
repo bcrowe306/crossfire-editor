@@ -172,6 +172,8 @@ Project :: struct {
 	// Global scripts, in start order, and data resources (project_data.odin)
 	globals: [dynamic]GlobalDef,
 	data: [dynamic]DataDef,
+	// Input actions, in order (input_actions.odin)
+	actions: [dynamic]ActionDef,
 }
 
 // Path of a scene's file inside the project folder
@@ -421,6 +423,8 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.sceneFiles)
 	for &g in project.globals do GlobalDef_Destroy(&g)
 	delete(project.globals)
+	for &a in project.actions do ActionDef_Destroy(&a)
+	delete(project.actions)
 	for &d in project.data do DataDef_Destroy(&d)
 	delete(project.data)
 	project^ = {}
@@ -482,6 +486,11 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 			}
 			append(&project.data, def)
 		}
+	}
+	for a in data.actions {
+		action := ActionDef{name = strings.clone(a.name), deadzone = a.deadzone}
+		append(&action.bindings, ..a.bindings[:])
+		append(&project.actions, action)
 	}
 	for g in data.globals {
 		global := GlobalDef{script = strings.clone(g.script)}
@@ -638,6 +647,7 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 	for path in ([]string{"assets/ship.png", "assets/balloons.png", "assets/light.png"}) {
 		append(&project.assets, AssetDef{strings.clone(path), .Image})
 	}
+	project.actions = DefaultActions()
 	return project
 }
 

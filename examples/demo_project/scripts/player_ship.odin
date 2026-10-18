@@ -4,7 +4,8 @@ import e "engine:."
 import sdl "vendor:sdl3"
 
 /*
-PlayerShip: on the play scene's CharacterMover. Arrow keys or WASD fly it; walls stop it, and it
+PlayerShip: on the play scene's CharacterMover. The ui_* input actions (arrow keys, WASD, a
+gamepad's d-pad or left stick) fly it; walls stop it, and it
 pushes the rocks. Its look and speed come from the chosen ship's data resource (ShipStats), so
 picking another ship in Options changes it with no code change.
 */
@@ -32,12 +33,9 @@ register_PlayerShip :: proc "contextless" () {
 		},
 		update = proc(self: ^PlayerShip, _: []sdl.Event, dt: f64) {
 			mover := cast(^e.CharacterMover)self.node
-			keys := sdl.GetKeyboardState(nil)
-			direction: [2]f32
-			if keys[sdl.Scancode.LEFT] || keys[sdl.Scancode.A] do direction.x -= 1
-			if keys[sdl.Scancode.RIGHT] || keys[sdl.Scancode.D] do direction.x += 1
-			if keys[sdl.Scancode.UP] || keys[sdl.Scancode.W] do direction.y -= 1
-			if keys[sdl.Scancode.DOWN] || keys[sdl.Scancode.S] do direction.y += 1
+			// The project's input actions (Project Settings > Input): arrows, WASD, the d-pad or
+			// the left stick, at most 1 long so diagonals aren't faster
+			direction := e.Input_GetVector("ui_left", "ui_right", "ui_up", "ui_down")
 			speed := self.stats != nil ? self.stats.speed : 300
 			mover.velocity = direction * speed
 			e.CharacterMover_Move(mover, dt)

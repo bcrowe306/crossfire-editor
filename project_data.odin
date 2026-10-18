@@ -203,7 +203,8 @@ Project_SaveData :: proc(project: ^Project) -> string {
 
 /*
 The generated asset constants (scripts/assets.odin): a typed handle for every project asset,
-named by kind and file name, `TEXTURE_SHIP`, `SOUND_LASER`, `FONT_TITLE`, `DATA_FAST_SHIP`.
+named by kind and file name, `TEXTURE_SHIP`, `SOUND_LASER`, `FONT_TITLE`, `DATA_FAST_SHIP`, and
+every input action's name, `ACTION_JUMP :: "jump"` (written on Save, so new actions get one).
 Clashing names get a number. Deterministic.
 */
 Scripts_AssetsSource :: proc(project: ^Project) -> string {
@@ -236,6 +237,18 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 			if i := Project_FindData(project, asset.path); i >= 0 do comment = fmt.tprintf("  // %s", project.data[i].type)
 		}
 		fmt.sbprintf(&b, "%s :: e.%s{{%q}%s\n", name, type, asset.path, comment)
+	}
+	// The input actions' names (Project Settings > Input): e.Input_IsActionPressed(ACTION_JUMP)
+	if len(project.actions) > 0 do strings.write_string(&b, "\n")
+	for action in project.actions {
+		name := fmt.tprintf("ACTION_%s", strings.to_upper(sanitize(action.name), context.temp_allocator))
+		if n := used[name]; n > 0 {
+			used[name] = n + 1
+			name = fmt.tprintf("%s_%d", name, n + 1)
+		} else {
+			used[name] = 1
+		}
+		fmt.sbprintf(&b, "%s :: %q\n", name, action.name)
 	}
 	return strings.to_string(b)
 }

@@ -220,6 +220,28 @@ Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, a
 `e.PhysicsBody_IsInArea(body, area)`, `e.PhysicsBody_GetAreas(body)`,
 `e.PhysicsBody_IsTouching(a, b)`.
 
+## Input actions
+
+**File > Project Settings > Input** lists the game's actions: named inputs like `jump` or
+`ui_left` that keys, mouse buttons, the wheel, gamepad buttons and stick directions trigger (like
+Godot's input map). New projects start with `ui_left`, `ui_right`, `ui_up`, `ui_down`,
+`ui_accept` and `ui_cancel`. Add bindings by pressing them (**Press a key or button**) or from the
+dropdowns (every key, mouse buttons, gamepad buttons and sticks, for any gamepad or one); the
+deadzone says how far a stick must move.
+
+In scripts, without SDL:
+
+```odin
+move := e.Input_GetVector("ui_left", "ui_right", "ui_up", "ui_down")  // at most 1 long
+if e.Input_IsActionJustPressed(ACTION_JUMP) do jump()                  // constants in scripts/assets.odin
+if e.Input_IsKeyPressed(.Space) || e.Input_IsMouseButtonJustPressed(.Left) do fire()
+aim := e.Input_GetGamepadAxis(.RightX)
+```
+
+Also `e.Input_IsActionPressed` / `JustReleased`, `e.Input_GetActionStrength`, `e.Input_GetAxis`,
+`e.Input_GetMousePosition`, `e.Input_IsGamepadButtonPressed`. The SDL events passed to `update`
+still work for anything else.
+
 ## Animations
 
 Select an AnimatedSprite and open the bottom panel's **Animation** tab (or the inspector's **Edit

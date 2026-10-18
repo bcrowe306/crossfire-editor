@@ -18,6 +18,7 @@ scene instead: Delete, Ctrl+D (duplicate), Ctrl+C / Ctrl+X / Ctrl+V, F2 (rename)
 // The Project Settings dialog's tabs
 ProjectSettingsTab :: enum {
 	General,
+	Input,
 	Globals,
 	Export,
 }
@@ -40,6 +41,16 @@ ProjectSettingsDialog :: struct {
 	// Globals tab: a copy of the project's globals (owned), and the one shown
 	globals: [dynamic]GlobalDef,
 	selectedGlobal: int,
+	// Input tab: a copy of the project's actions (owned), the one shown, a new action's name
+	// (owned), a rename being typed (owned), and capturing a binding (the modifiers held when it
+	// started, so a modifier pressed on its own is noticed); the device new gamepad bindings get
+	actions: [dynamic]ActionDef,
+	selectedAction: int,
+	newActionName: string,
+	renameText: string,
+	capturing: bool,
+	captureModifiers: skald.Modifiers,
+	bindingDevice: int,
 }
 
 /*
@@ -181,6 +192,10 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 	delete(dialog.startScene)
 	for &g in dialog.globals do GlobalDef_Destroy(&g)
 	delete(dialog.globals)
+	for &a in dialog.actions do ActionDef_Destroy(&a)
+	delete(dialog.actions)
+	delete(dialog.newActionName)
+	delete(dialog.renameText)
 	p := &state.project
 	c := p.background
 	dialog^ = {
@@ -196,6 +211,10 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		physics = p.physics,
 	}
 	for g in p.globals do append(&dialog.globals, GlobalDef_Clone(g))
+	for a in p.actions do append(&dialog.actions, ActionDef_Clone(a))
+	dialog.newActionName = strings.clone("")
+	dialog.renameText = strings.clone("")
+	dialog.bindingDevice = -1
 }
 
 /*
@@ -206,6 +225,7 @@ Returns:
 */
 ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	dialog := &state.projectSettings
+	if InputSettings_Update(state, m) do return {}, true
 	#partial switch v in m {
 	case Project_Settings_Tab_Changed:
 		dialog.tab = ProjectSettingsTab(v)
@@ -298,6 +318,9 @@ applyProjectSettings :: proc(state: ^State) {
 	for &g in p.globals do GlobalDef_Destroy(&g)
 	clear(&p.globals)
 	for g in dialog.globals do append(&p.globals, GlobalDef_Clone(g))
+	for &a in p.actions do ActionDef_Destroy(&a)
+	clear(&p.actions)
+	for a in dialog.actions do append(&p.actions, ActionDef_Clone(a))
 	p.physics = dialog.physics
 }
 

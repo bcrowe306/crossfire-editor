@@ -66,6 +66,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Anim_Loop_Changed, Anim_Mode_Changed, Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Playback_Toggled,
 	     Anim_Tick, Anim_Tick_Requested:
 		// Handled by AnimEdit_Update above
+	case Input_New_Name_Changed, Input_Action_Added, Input_Defaults_Added, Input_Action_Selected, Input_Action_Removed,
+	     Input_Action_Moved, Input_Action_Renamed, Input_Deadzone_Changed, Input_Binding_Added, Input_Binding_Removed,
+	     Input_Capture_Started, Input_Capture_Cancelled, Input_Device_Changed:
+		// Handled by ProjectSettings_Update above
 	case Open_Keyboard_Settings:
 		SettingsDialog_Open(&out)
 		out.settingsDialog.tab = .Keyboard

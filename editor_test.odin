@@ -2765,3 +2765,86 @@ animations_round_trip :: proc(t: ^testing.T) {
 	testing.expect_value(t, fan.animations[0], AnimationDef{"default", 0, -1, 6, false, .Reverse})
 	free_all(context.temp_allocator)
 }
+
+@(test)
+input_actions_round_trip :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_input")
+	defer removeAll(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	testing.expect_value(t, len(project.actions), 6) // The default ui_* actions
+	jump := ActionDef{name = strings.clone("jump"), deadzone = 0.25}
+	append(&jump.bindings, e.KeyBinding{.Space}, e.MouseBinding{.WheelUp}, e.GamepadButtonBinding{.South, 1}, e.GamepadAxisBinding{.RightTrigger, 1, -1})
+	append(&project.actions, jump)
+	append(&project.actions, ActionDef{name = strings.clone("empty"), deadzone = e.DEFAULT_ACTION_DEADZONE})
+
+	testing.expect_value(t, Project_Save(&project), "")
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect(t, actionsEqual(project.actions[:], loaded.actions[:]), "actions survive saving")
+
+	text, _ := os.read_entire_file(joinPath(dir, "project.xml", allocator = context.temp_allocator), context.temp_allocator)
+	testing.expect(t, strings.contains(string(text), `<action name="jump" deadzone="0.25">`))
+	testing.expect(t, strings.contains(string(text), `<gamepad button="South" device="1"/>`))
+	testing.expect(t, strings.contains(string(text), `<action name="empty"/>`))
+	// Scripts get a constant per action
+	source := Scripts_AssetsSource(&project)
+	testing.expect(t, strings.contains(source, `ACTION_JUMP :: "jump"`))
+	testing.expect(t, strings.contains(source, `ACTION_UI_LEFT :: "ui_left"`))
+	free_all(context.temp_allocator)
+}
+
+@(test)
+input_settings_edits :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	send(&state, Action.Open_Project_Settings)
+	send(&state, Project_Settings_Tab_Changed(.Input))
+	d := &state.projectSettings
+	count := len(d.actions)
+
+	send(&state, Input_New_Name_Changed("jump"))
+	send(&state, Input_Action_Added{})
+	testing.expect_value(t, len(d.actions), count + 1)
+	testing.expect_value(t, d.selectedAction, count)
+	send(&state, Input_New_Name_Changed("jump"))
+	send(&state, Input_Action_Added{}) // Taken
+	testing.expect_value(t, len(d.actions), count + 1)
+
+	send(&state, Input_Binding_Added{e.KeyBinding{.Space}})
+	send(&state, Input_Binding_Added{e.KeyBinding{.Space}}) // Already there
+	send(&state, Input_Device_Changed(0))
+	send(&state, Input_Binding_Added{e.GamepadButtonBinding{.South, 0}})
+	send(&state, Input_Deadzone_Changed(0.3))
+	jump := &d.actions[d.selectedAction]
+	testing.expect_value(t, len(jump.bindings), 2)
+	testing.expect_value(t, jump.deadzone, 0.3)
+	send(&state, Input_Binding_Removed(0))
+	testing.expect_value(t, jump.bindings[0], e.InputBinding(e.GamepadButtonBinding{.South, 0}))
+
+	// Renaming: a taken or empty name waits
+	send(&state, Input_Action_Renamed("ui_left"))
+	testing.expect_value(t, jump.name, "jump")
+	send(&state, Input_Action_Renamed("leap"))
+	testing.expect_value(t, jump.name, "leap")
+	send(&state, Input_Action_Moved{d.selectedAction, -1})
+	testing.expect_value(t, d.actions[count - 1].name, "leap")
+
+	// Nothing changes until Apply, which is one undo step
+	testing.expect_value(t, len(state.project.actions), count)
+	send(&state, Project_Settings_Applied{})
+	testing.expect_value(t, len(state.project.actions), count + 1)
+	testing.expect_value(t, state.project.actions[count - 1].name, "leap")
+	send(&state, Action.Undo)
+	testing.expect_value(t, len(state.project.actions), count)
+	send(&state, Action.Redo)
+	testing.expect_value(t, len(state.project.actions), count + 1)
+
+	// Skald's key names to the engine's
+	testing.expect_value(t, EngineKeyFor(.Page_Up), e.Key.PageUp)
+	testing.expect_value(t, EngineKeyFor(.N7), e.Key.Num7)
+	testing.expect_value(t, EngineKeyFor(.Left_Bracket), e.Key.LeftBracket)
+	for key in skald.Key do testing.expectf(t, EngineKeyFor(key) != .Unknown, "Skald's %v has an engine key", key)
+	free_all(context.temp_allocator)
+}

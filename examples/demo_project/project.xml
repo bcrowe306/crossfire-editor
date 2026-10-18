@@ -16,4 +16,37 @@
 		<prop name="ship" value="data/scout.data.json"/>
 	</global>
 	<global script="Hud"/>
+	<action name="ui_left">
+		<key key="Left"/>
+		<key key="A"/>
+		<gamepad button="DpadLeft"/>
+		<axis axis="LeftX" direction="-1"/>
+	</action>
+	<action name="ui_right">
+		<key key="Right"/>
+		<key key="D"/>
+		<gamepad button="DpadRight"/>
+		<axis axis="LeftX" direction="1"/>
+	</action>
+	<action name="ui_up">
+		<key key="Up"/>
+		<key key="W"/>
+		<gamepad button="DpadUp"/>
+		<axis axis="LeftY" direction="-1"/>
+	</action>
+	<action name="ui_down">
+		<key key="Down"/>
+		<key key="S"/>
+		<gamepad button="DpadDown"/>
+		<axis axis="LeftY" direction="1"/>
+	</action>
+	<action name="ui_accept">
+		<key key="Enter"/>
+		<key key="Space"/>
+		<gamepad button="South"/>
+	</action>
+	<action name="ui_cancel">
+		<key key="Escape"/>
+		<gamepad button="East"/>
+	</action>
 </project>

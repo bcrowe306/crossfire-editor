@@ -1,0 +1,53 @@
+# Project Settings > Input: add the default actions and a new one, bind it by pressing a key and
+# a mouse button and from the gamepad dropdown, remove a binding, apply, undo, save.
+# Run with: task test:ui (and task test:ui:fullscreen)
+#
+# The fixture project has no actions yet
+
+wait 5
+expect input_actions 0
+action Open_Project_Settings
+expect project_settings open
+click_widget project-settings-tab-Input
+click_widget input-defaults
+expect draft_input_actions 6
+
+click_widget input-new-name
+type jump
+click_widget input-add
+expect draft_input_actions 7
+
+# Press a key, then a mouse button, while capturing
+click_widget input-capture
+key SPACE
+expect draft_input_bindings Space
+click_widget input-capture
+click_widget input-fields-scroll
+expect draft_input_bindings Space, Mouse Left
+
+# The gamepad dropdown (any gamepad)
+scroll_into_view input-fields-scroll input-add-gamepad
+click_widget input-add-gamepad
+wait 3
+click_overlay_item 0
+expect draft_input_bindings Space, Mouse Left, Gamepad South
+wait 30
+scroll_into_view input-fields-scroll input-binding-remove-1
+click_widget input-binding-remove-1
+expect draft_input_bindings Space, Gamepad South
+
+click_widget project-settings-apply
+expect project_settings closed
+expect input_actions 7
+expect input_bindings jump Space, Gamepad South
+expect input_bindings ui_left Left, A, Gamepad DpadLeft, Gamepad LeftX −
+key ctrl+z
+expect input_actions 0
+key ctrl+shift+z
+expect input_actions 7
+
+key ctrl+s
+wait_until modified false
+expect project_file_contains project.xml <action name="jump">
+expect project_file_contains project.xml <key key="Space"/>
+quit

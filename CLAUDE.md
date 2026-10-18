@@ -132,6 +132,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
 | `project_scenes.odin` | Scene list operations: add, copy, rename (updating references), remove, start scene, names; deleting old scene files on save |
 | `scene_actions.odin` | The browser's scene actions (`Scene_DoAction`), key routing while the browser has focus, scene rename, Project Settings state |
+| `input_actions.odin` | The project's input actions (`ActionDef`), the default ui_* ones (`DefaultActions`), capturing a binding through Skald (`Input_CaptureBinding`, `EngineKeyFor`), the Input tab's messages (`InputSettings_Update`) |
 | `view_project_settings.odin` | The Project Settings dialog: General (name, resolution, scaling, background, start scene) and Export (targets and their settings) tabs |
 | `export.odin` | Export targets (`ExportTarget`, `EXPORT_TARGETS`), per-target settings and export.ini, `Export_Plan` (the steps, pure and unit-tested), ldd parsing, the web page template |
 | `export_run.odin` | Running exports: one job per target, commands as child processes (`Export_Tick`), file steps in `update`; `EMSDK_DIR` |
@@ -542,6 +543,7 @@ MyGame/
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
   (world positions) are migrated when parsed.
 - **Version 4:** physics node kinds and attributes, and the project's physics settings.
+- **Version 8:** input actions in project.xml.
 - **Version 7:** AnimatedSprite `<animation>` children, `margin`, `spacing`, `autoplay`.
 - **Version 6:** ParticleEmitter nodes; their settings are a `<particles>` child element (the
   engine's `e.FormatParticleSettings`: only what differs from the defaults).
@@ -631,6 +633,24 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   not the defaults.
 - Play and exports need nothing more: the player is the engine's. Box2D is static (the native
   `.a` through the engine's binding; on the web, `box2d_web.o` on the emcc line).
+
+## Input actions (implemented; engine: input.odin)
+
+- **Model:** `Project.actions` (`ActionDef`: name, deadzone, `[dynamic]e.InputBinding`; the
+  bindings are a plain union, compared with `==`), in project.xml as `<action>` (format 8, written
+  by `ProjectToXML` with `e.FormatInputBinding`), in the `.Project` undo snapshot. New projects
+  (and the demo) start with Godot's ui_left/right/up/down/accept/cancel (`DefaultActions`).
+- **Project Settings > Input** edits a draft (`ProjectSettingsDialog.actions`; Apply is the undo
+  step): the action list (select, reorder, remove, add by name, add the default ui_* ones), the
+  shown action's name (typed text kept until valid and unused), deadzone (`valueSlider`) and
+  bindings (remove; add by pressing: "Press a key or button" captures the next key, lone
+  modifier, mouse button or wheel through Skald's input, `Input_CaptureBinding`; or from
+  dropdowns: every engine key, mouse buttons, gamepad buttons and stick directions, for any
+  gamepad or one). Skald can't see gamepads, so gamepad bindings come from the dropdowns.
+- `scripts/assets.odin` gets a constant per action (`ACTION_JUMP :: "jump"`).
+- Tests: `input_actions_round_trip`, `input_settings_edits`, `tests/ui/input.script` (driver
+  checks `input_actions`, `draft_input_actions`, `input_bindings`, `draft_input_bindings`;
+  `click_overlay_item` picks the choices of the last popup, inside a dialog too).
 
 ## Animation editor (implemented, `view_animation.odin`, `animation_edit.odin`)
 

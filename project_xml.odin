@@ -114,6 +114,23 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 		}
 		close(&w, "global")
 	}
+	for action in project.actions {
+		open(&w, "action")
+		attr(&w, "name", action.name)
+		if action.deadzone != e.DEFAULT_ACTION_DEADZONE do attr(&w, "deadzone", action.deadzone)
+		if len(action.bindings) == 0 {
+			closeEmpty(&w)
+			continue
+		}
+		endOpen(&w)
+		for binding in action.bindings {
+			element, attributes := e.FormatInputBinding(binding)
+			open(&w, element)
+			for a in attributes do attr(&w, a.name, a.value)
+			closeEmpty(&w)
+		}
+		close(&w, "action")
+	}
 	close(&w, "project")
 	return strings.to_string(w.builder)
 }

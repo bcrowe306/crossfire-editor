@@ -2,6 +2,7 @@ package editor
 
 import "core:fmt"
 import "core:os"
+import "core:reflect"
 import "core:strings"
 import "gui:skald"
 import e "engine:."
@@ -10,6 +11,8 @@ import e "engine:."
 The Project Settings dialog (File > Project Settings), in two tabs:
 - General: the game's name, resolution, how it scales to the window, its background color, and
   the scene it starts in.
+- Input: the game's input actions and what triggers them (input_actions.odin).
+- Globals: the scripts that run for the whole game.
 - Export: every export target, each with a checkbox (File > Export exports the checked ones) and
   its own settings, plus an Export button for the shown target.
 Apply makes the changes one undoable step (scene_actions.odin); Export applies them first.
@@ -17,7 +20,11 @@ Apply makes the changes one undoable step (scene_actions.odin); Export applies t
 Widget keys for UI tests: `project-settings-tab-<Tab>`, `project-settings-name`,
 `project-settings-start`, `project-settings-apply`, `project-settings-cancel`; Export tab:
 `export-target-<Target>` (shows it), `export-enable-<Target>`, `export-field-<Field>`,
-`export-run`, `export-cancel`, the settings scroll `export-settings-scroll-<Target>`.
+`export-run`, `export-cancel`, the settings scroll `export-settings-scroll-<Target>`; Input tab:
+`input-action-<i>` (shows it), `input-up-<i>`, `input-down-<i>`, `input-remove-<i>`,
+`input-new-name`, `input-add`, `input-defaults`, `input-name`, `input-deadzone` (a valueSlider),
+`input-binding-remove-<i>`, `input-capture`, `input-add-key`, `input-add-mouse`,
+`input-add-gamepad`, `input-add-axis`, `input-device`.
 */
 projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
@@ -36,6 +43,7 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 		body: skald.View
 		switch d.tab {
 		case .General: body = generalTab(s, ctx)
+		case .Input:   body = inputTab(s, ctx)
 		case .Globals: body = globalsTab(s, ctx)
 		case .Export:  body = exportTab(s, ctx)
 		}
@@ -208,6 +216,142 @@ globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			width = 270, cross_align = .Stretch),
 		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..fields[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start),
 			id = skald.hash_id("globals-fields-scroll"))),
+		spacing = th.spacing.md,
+		cross_align = .Stretch,
+	)
+}
+
+/*
+Input: the actions on the left (select, reorder, remove, add by name, add the default ui_*
+ones), the shown action on the right: its name, deadzone and bindings. A binding is added by
+pressing it ("Press a key or button": a key, a modifier, a mouse button or the wheel) or from
+the dropdowns (every key; mouse buttons; gamepad buttons and stick directions, for any gamepad or
+one).
+*/
+@(private="file")
+inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	d := &s.projectSettings
+	if d.capturing {
+		if binding, captured, cancelled := Input_CaptureBinding(ctx, d.captureModifiers); captured {
+			skald.send(ctx, Msg(Input_Binding_Added{binding}))
+		} else if cancelled {
+			skald.send(ctx, Msg(Input_Capture_Cancelled{}))
+		}
+	}
+	small :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, disabled := false) -> skald.View {
+		th := ctx.theme
+		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg_muted,
+			font_size = th.font.size_xs, padding = {th.spacing.xs, 1}, radius = th.radius.sm, disabled = disabled)
+	}
+
+	list := make([dynamic]skald.View, context.temp_allocator)
+	for a, i in d.actions {
+		shown := i == d.selectedAction
+		append(&list, skald.row(
+			skald.button(ctx, fmt.tprintf("%s  (%d)", a.name, len(a.bindings)), Msg(Input_Action_Selected(i)), id = skald.hash_id(fmt.tprintf("input-action-%d", i)),
+				bg = shown ? th.color.primary : th.color.bg, fg = shown ? th.color.on_primary : th.color.fg,
+				font_size = th.font.size_sm, padding = {th.spacing.sm, 2}, width = 140, text_align = .Start),
+			small(ctx, fmt.tprintf("input-up-%d", i), ICON_CHEVRON_UP, Msg(Input_Action_Moved{i, -1}), i == 0),
+			small(ctx, fmt.tprintf("input-down-%d", i), ICON_CHEVRON_DOWN, Msg(Input_Action_Moved{i, 1}), i == len(d.actions) - 1),
+			small(ctx, fmt.tprintf("input-remove-%d", i), ICON_TRASH, Msg(Input_Action_Removed(i))),
+			spacing = th.spacing.xs,
+			cross_align = .Center,
+		))
+	}
+	if len(d.actions) == 0 do append(&list, skald.text("No actions yet.", th.color.fg_muted, th.font.size_sm))
+	newProblem := d.newActionName == "" ? "" : ActionNameProblem(d.actions[:], -1, d.newActionName)
+	append(&list,
+		skald.spacer(th.spacing.sm),
+		skald.text("New action:", th.color.fg_muted, th.font.size_xs),
+		skald.row(
+			skald.text_input(ctx, strings.clone(d.newActionName, context.temp_allocator), proc(v: string) -> Msg { return Input_New_Name_Changed(v) },
+				id = skald.hash_id("input-new-name"), width = 140, placeholder = "jump", invalid = newProblem != ""),
+			skald.button(ctx, fmt.tprintf("%s Add", ICON_PLUS), Msg(Input_Action_Added{}), id = skald.hash_id("input-add"),
+				font_size = th.font.size_sm, padding = {th.spacing.sm, 2}, disabled = d.newActionName == "" || newProblem != ""),
+			spacing = th.spacing.xs, cross_align = .Center,
+		),
+		skald.text(newProblem, th.color.danger, th.font.size_xs),
+		small(ctx, "input-defaults", "Add the default ui_ actions", Msg(Input_Defaults_Added{})),
+	)
+
+	fields := make([dynamic]skald.View, context.temp_allocator)
+	append(&fields, skald.text("Actions are named inputs that keys, mouse buttons and gamepads trigger. Scripts ask about them: e.Input_IsActionPressed(\"jump\"), e.Input_IsActionJustPressed, e.Input_GetVector(\"ui_left\", \"ui_right\", \"ui_up\", \"ui_down\").",
+		th.color.fg_muted, th.font.size_xs, max_width = 320))
+	if d.selectedAction >= 0 && d.selectedAction < len(d.actions) {
+		a := &d.actions[d.selectedAction]
+		nameId := skald.hash_id("input-name")
+		typing := skald.widget_has_focus(ctx, nameId) && d.renameText != "" && d.renameText != a.name
+		problem := typing ? ActionNameProblem(d.actions[:], d.selectedAction, d.renameText) : ""
+		append(&fields,
+			settingRow(ctx, "Name", skald.text_input(ctx, strings.clone(typing ? d.renameText : a.name, context.temp_allocator),
+				proc(v: string) -> Msg { return Input_Action_Renamed(v) }, id = nameId, width = 170, invalid = problem != "")),
+			skald.text(problem, th.color.danger, th.font.size_xs),
+			settingRow(ctx, "Deadzone", valueSlider(ctx, "input-deadzone", a.deadzone, struct {}{},
+				proc(_: struct {}, v: f32) -> Msg { return Input_Deadzone_Changed(v) }, 0, 0.99, step = 0.01, decimals = 2,
+				defaultValue = e.DEFAULT_ACTION_DEADZONE, width = 200)),
+			skald.text("How far a stick or trigger must move to count.", th.color.fg_muted, th.font.size_xs),
+			skald.spacer(th.spacing.xs),
+			skald.text("Triggered by", th.color.fg, th.font.size_sm),
+		)
+		for binding, i in a.bindings {
+			append(&fields, skald.row(
+				skald.col(skald.text(e.InputBinding_Describe(binding), th.color.fg, th.font.size_sm), width = 200),
+				small(ctx, fmt.tprintf("input-binding-remove-%d", i), ICON_TRASH, Msg(Input_Binding_Removed(i))),
+				spacing = th.spacing.sm, cross_align = .Center,
+			))
+		}
+		if len(a.bindings) == 0 do append(&fields, skald.text("Nothing yet: add a key or button below.", th.color.fg_muted, th.font.size_xs))
+
+		capture := d.capturing ? "Press a key, mouse button or wheel... (Escape cancels)" : fmt.tprintf("%s  Press a key or button", ICON_PLUS)
+		modifiers := ctx.input.modifiers
+		append(&fields,
+			skald.spacer(th.spacing.xs),
+			skald.button(ctx, capture, d.capturing ? Msg(Input_Capture_Cancelled{}) : Msg(Input_Capture_Started(modifiers)), id = skald.hash_id("input-capture"),
+				bg = d.capturing ? th.color.primary : th.color.surface, fg = d.capturing ? th.color.on_primary : th.color.fg,
+				font_size = th.font.size_sm, padding = {th.spacing.sm, 3}),
+		)
+		names :: proc($E: typeid) -> []string {
+			list := make([dynamic]string, context.temp_allocator)
+			for name in reflect.enum_field_names(E) do if name != "Unknown" do append(&list, name)
+			return list[:]
+		}
+		axes := make([dynamic]string, context.temp_allocator)
+		for name in reflect.enum_field_names(e.GamepadAxis) {
+			append(&axes, fmt.tprintf("%s −", name), fmt.tprintf("%s +", name))
+		}
+		devices := []string{"Any gamepad", "Gamepad 1", "Gamepad 2", "Gamepad 3", "Gamepad 4"}
+		append(&fields,
+			settingRow(ctx, "Key", skald.select(ctx, "", names(e.Key), proc(v: string) -> Msg {
+				k, _ := reflect.enum_from_name(e.Key, v)
+				return Input_Binding_Added{e.KeyBinding{k}}
+			}, id = skald.hash_id("input-add-key"), width = 170, placeholder = "Add a key")),
+			settingRow(ctx, "Mouse", skald.select(ctx, "", names(e.MouseButton), proc(v: string) -> Msg {
+				b, _ := reflect.enum_from_name(e.MouseButton, v)
+				return Input_Binding_Added{e.MouseBinding{b}}
+			}, id = skald.hash_id("input-add-mouse"), width = 170, placeholder = "Add a mouse button")),
+			settingRow(ctx, "Gamepad", skald.select(ctx, "", names(e.GamepadButton), d.bindingDevice, proc(device: int, v: string) -> Msg {
+				b, _ := reflect.enum_from_name(e.GamepadButton, v)
+				return Input_Binding_Added{e.GamepadButtonBinding{b, device}}
+			}, id = skald.hash_id("input-add-gamepad"), width = 170, placeholder = "Add a gamepad button")),
+			settingRow(ctx, "Stick, trigger", skald.select(ctx, "", axes[:], d.bindingDevice, proc(device: int, v: string) -> Msg {
+				name, _, sign := strings.partition(v, " ")
+				axis, _ := reflect.enum_from_name(e.GamepadAxis, name)
+				return Input_Binding_Added{e.GamepadAxisBinding{axis, sign == "−" ? -1 : 1, device}}
+			}, id = skald.hash_id("input-add-axis"), width = 170, placeholder = "Add a stick direction")),
+			settingRow(ctx, "For", skald.select(ctx, devices[clamp(d.bindingDevice + 1, 0, len(devices) - 1)], devices, proc(v: string) -> Msg {
+				for name, i in ([]string{"Any gamepad", "Gamepad 1", "Gamepad 2", "Gamepad 3", "Gamepad 4"}) do if name == v do return Input_Device_Changed(i - 1)
+				return {}
+			}, id = skald.hash_id("input-device"), width = 170)),
+			skald.text("The gamepad new gamepad bindings are for: Any (most games), or one, for local multiplayer. Sticks: − is left or up, + right or down.",
+				th.color.fg_muted, th.font.size_xs, max_width = 320),
+		)
+	}
+	return skald.row(
+		skald.col(skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..list[:], spacing = th.spacing.xs, cross_align = .Start), id = skald.hash_id("input-list-scroll"))),
+			width = 230, cross_align = .Stretch),
+		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..fields[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start),
+			id = skald.hash_id("input-fields-scroll"))),
 		spacing = th.spacing.md,
 		cross_align = .Stretch,
 	)

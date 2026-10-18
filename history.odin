@@ -82,6 +82,7 @@ ProjectSnapshot :: struct {
 	physics: e.PhysicsSettings,
 	globals: [dynamic]GlobalDef,
 	data: [dynamic]DataDef,
+	actions: [dynamic]ActionDef,
 	// The scene open at the time, shown again on undo/redo
 	currentScene: int,
 }
@@ -680,6 +681,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for scene in p.scenes do append(&snapshot.scenes, SceneDef_Clone(scene))
 	for g in p.globals do append(&snapshot.globals, GlobalDef_Clone(g))
 	for d in p.data do append(&snapshot.data, DataDef_Clone(d))
+	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
 	return snapshot
 }
 
@@ -698,6 +700,9 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	for &g in p.globals do GlobalDef_Destroy(&g)
 	clear(&p.globals)
 	for g in snapshot.globals do append(&p.globals, GlobalDef_Clone(g))
+	for &a in p.actions do ActionDef_Destroy(&a)
+	clear(&p.actions)
+	for a in snapshot.actions do append(&p.actions, ActionDef_Clone(a))
 	// Data values by file: resources made or removed since (files, not undoable) stay as they are
 	for d in snapshot.data {
 		i := Project_FindData(p, d.path)
@@ -718,6 +723,8 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.globals)
 	for &d in snapshot.data do DataDef_Destroy(&d)
 	delete(snapshot.data)
+	for &a in snapshot.actions do ActionDef_Destroy(&a)
+	delete(snapshot.actions)
 	snapshot^ = {}
 }
 
@@ -730,7 +737,7 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	for scene, i in a.scenes {
 		if scene.name != b.scenes[i].name || !nodesEqual(scene.nodes[:], b.scenes[i].nodes[:]) do return false
 	}
-	if len(a.globals) != len(b.globals) || len(a.data) != len(b.data) do return false
+	if len(a.globals) != len(b.globals) || len(a.data) != len(b.data) || !actionsEqual(a.actions[:], b.actions[:]) do return false
 	for g, i in a.globals do if g.script != b.globals[i].script || !propsEqual(g.props[:], b.globals[i].props[:]) do return false
 	for d, i in a.data do if d.path != b.data[i].path || d.type != b.data[i].type || !propsEqual(d.values[:], b.data[i].values[:]) do return false
 	return true
