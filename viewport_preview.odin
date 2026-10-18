@@ -1,5 +1,6 @@
 package editor
 
+import "core:fmt"
 import "core:hash"
 import "core:log"
 import "core:strings"
@@ -65,6 +66,15 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 		preview.signature = signature
 	}
 	syncTransforms(scene)
+	// The animation open in the Animation panel plays on its sprite
+	if s.bottomTab == .Animation && s.layout.bottomOpen {
+		if _, animation, _ := AnimEdit_Selection(s); animation != nil {
+			if node := Preview_Node(s.selectedNode); node != nil && e.Node_Is(node, e.AnimatedSprite) {
+				player := &(cast(^e.AnimatedSprite)node).animation
+				if e.AnimationPlayer_CurrentName(player) != animation.name do e.AnimationPlayer_Play(player, animation.name)
+			}
+		}
+	}
 
 	// Animations advance in real time while enabled
 	now := time.tick_now()
@@ -233,7 +243,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			layer = node.layer, visible = node.visible,
 			texture = node.texture, text = node.text, fontSize = node.fontSize, color = node.color,
 			centered = node.centered, zoom = node.zoom, columns = node.columns, rows = node.rows,
-			fps = node.fps, loop = node.loop, playMode = node.playMode, items = items,
+			margin = node.margin, spacing = node.spacing, animations = animationData(node.animations[:]), autoplay = node.autoplay, items = items,
 			collisionLayer = node.collisionLayer, collisionMask = node.collisionMask,
 			friction = node.friction, restitution = node.restitution, density = node.density,
 			gravityScale = node.gravityScale, linearDamping = node.linearDamping, angularDamping = node.angularDamping,
@@ -248,6 +258,14 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 		})
 	}
 	return data
+}
+
+// An AnimatedSprite's animations as engine data (names borrowed; temp allocated)
+@(private="file")
+animationData :: proc(animations: []AnimationDef) -> [dynamic]e.AnimationData {
+	list := make([dynamic]e.AnimationData, 0, len(animations), context.temp_allocator)
+	for a in animations do append(&list, e.AnimationData{a.name, a.start, a.end, a.fps, a.loop, a.playMode})
+	return list
 }
 
 // A hash of everything that needs a rebuild when it changes (not transforms)
@@ -268,9 +286,12 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_f32(&b, node.zoom, 'g')
 		strings.write_int(&b, node.columns)
 		strings.write_int(&b, node.rows)
-		strings.write_f32(&b, node.fps, 'g')
-		strings.write_byte(&b, node.loop ? 1 : 0)
-		strings.write_int(&b, int(node.playMode))
+		strings.write_f32(&b, node.margin, 'g')
+		strings.write_f32(&b, node.spacing, 'g')
+		strings.write_string(&b, node.autoplay)
+		for a in node.animations {
+			fmt.sbprintf(&b, "|%s %d %d %v %v %v", a.name, a.start, a.end, a.fps, a.loop, a.playMode)
+		}
 		for item in node.items {
 			strings.write_string(&b, item.label)
 			strings.write_string(&b, item.action)

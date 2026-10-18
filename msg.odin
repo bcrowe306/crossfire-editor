@@ -276,7 +276,9 @@ NodeField :: enum {
 	Zoom,
 	Columns,
 	Rows,
-	FPS,
+	// AnimatedSprite sheet: pixels around the grid and between cells
+	Margin,
+	Spacing,
 	// Physics
 	Friction,
 	Restitution,
@@ -306,7 +308,8 @@ NodeTextField :: enum {
 	Text,
 	Texture,
 	Color,
-	Play_Mode,
+	// The AnimatedSprite animation it starts with ("" or ANIMATION_FIRST: the first)
+	Autoplay,
 	// A CollisionShape's kind, by name
 	Shape,
 	// A Joint's kind, and its bodies (names; "" for body A's default)
@@ -321,7 +324,6 @@ Node_Text_Changed :: struct {
 }
 
 NodeFlag :: enum {
-	Loop,
 	Centered,
 	Fixed_Rotation,
 	Bullet,
@@ -405,6 +407,48 @@ New_Script_Opened :: struct {}
 New_Script_Name_Changed :: distinct string
 New_Script_Created :: struct {}
 New_Script_Cancelled :: struct {}
+
+// Help > Keyboard Shortcuts: the Settings dialog on its Keyboard tab
+Open_Keyboard_Settings :: struct {}
+
+// The Animation panel (view_animation.odin, animation_edit.odin): the selected AnimatedSprite's
+// animations. Strings are only valid while handling the message
+// Selects an animation by index
+Anim_Selected :: distinct int
+Anim_Added :: struct {}
+Anim_Duplicated :: struct {}
+Anim_Removed :: struct {}
+// Moves the selected animation up (-1) or down (+1) in the list
+Anim_Moved :: distinct int
+// Typing the selected animation's name (kept until it's a valid, unused one)
+Anim_Name_Typed :: struct {
+	id: skald.Widget_ID,
+	text: string,
+}
+// The selected animation's numbers (number fields: see NumberTarget)
+AnimField :: enum {
+	Start,
+	End,
+	FPS,
+}
+Anim_Field_Changed :: struct {
+	field: AnimField,
+	value: f64,
+}
+Anim_Loop_Changed :: distinct bool
+// A play mode, by name
+Anim_Mode_Changed :: distinct string
+// The selected animation becomes the one the sprite starts with
+Anim_Autoplay_Set :: struct {}
+// A click on a frame thumbnail: sets the start (or, `end`, the end) of the selected animation
+Anim_Frame_Clicked :: struct {
+	frame: int,
+	end: bool,
+}
+// The panel's preview: play / pause, and its frame timer
+Anim_Playback_Toggled :: struct {}
+Anim_Tick :: struct {}
+Anim_Tick_Requested :: struct {}
 
 // Inspector X/Y pairs that can be linked
 LinkedPair :: enum {
@@ -649,6 +693,21 @@ Msg :: union {
 	Node_Flag_Changed,
 	Node_Layer_Toggled,
 	Node_Points_Changed,
+	Open_Keyboard_Settings,
+	Anim_Selected,
+	Anim_Added,
+	Anim_Duplicated,
+	Anim_Removed,
+	Anim_Moved,
+	Anim_Name_Typed,
+	Anim_Field_Changed,
+	Anim_Loop_Changed,
+	Anim_Mode_Changed,
+	Anim_Autoplay_Set,
+	Anim_Frame_Clicked,
+	Anim_Playback_Toggled,
+	Anim_Tick,
+	Anim_Tick_Requested,
 	Particle_Field_Changed,
 	Particle_Axis_Changed,
 	Particle_Link_Toggled,

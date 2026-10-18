@@ -4,7 +4,8 @@ import "core:fmt"
 import "gui:skald"
 
 /*
-Bottom panel: Console, Output and Animation tabs. The chevron collapses it to just its header;
+Bottom panel: Console, Output and Animation tabs (the animation editor: view_animation.odin).
+Keyboard shortcuts are listed in Settings > Keyboard (Help > Keyboard Shortcuts opens it). The chevron collapses it to just its header;
 clicking a tab while collapsed opens it again.
 */
 bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
@@ -34,8 +35,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	switch s.bottomTab {
 	case .Console:   content = logView(ctx, s.console[:], "Console is empty.", "console-scroll")
 	case .Output:    content = logView(ctx, s.output[:], "Build output appears here when you press Play.", "output-scroll")
-	case .Animation: content = animationView(s, ctx)
-	case .Keys:      content = keysView(s, ctx)
+	case .Animation: content = AnimationPanel(s, ctx)
 	}
 
 	return skald.col(
@@ -78,39 +78,7 @@ logView :: proc(ctx: ^skald.Ctx(Msg), log: []LogLine, emptyText, scrollKey: stri
 		id = skald.hash_id(scrollKey))
 }
 
-// Every keyboard shortcut, from the keymap
-@(private="file")
-keysView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
-	th := ctx.theme
-	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows, skald.text("Change these in Edit > Settings > Keyboard.", th.color.fg_muted, th.font.size_sm))
-	for chords, action in s.settings.keymap {
-		if chords == {} do continue
-		label := ACTION_LABELS[action]
-		append(&rows, skald.row(
-			skald.col(skald.text(Keymap_FormatChords(chords), th.color.fg, th.font.size_sm), width = 160),
-			skald.text(ACTION_KEY_RULES[action].viewportOnly ? fmt.tprintf("%s (mouse over viewport)", label) : label,
-				th.color.fg_muted, th.font.size_sm),
-			spacing = th.spacing.sm,
-		))
-	}
-	append(&rows, skald.text("Viewport mouse: wheel zooms, middle/right drag or Space+drag pans, Shift constrains drags.",
-		th.color.fg_muted, th.font.size_sm))
-	return skald.scroll(ctx, {0, 0},
-		skald.col(..rows[:], spacing = 2, padding = th.spacing.sm),
-		id = skald.hash_id("keys-scroll"))
-}
-
-@(private="file")
-animationView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
-	scene := &s.project.scenes[s.currentScene]
-	if s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) && scene.nodes[s.selectedNode].kind == .AnimatedSprite {
-		return placeholder(ctx, fmt.tprintf("Animation editor for '%s' is not implemented yet.", scene.nodes[s.selectedNode].name))
-	}
-	return placeholder(ctx, "Select an AnimatedSprite node to edit its animations.")
-}
-
-@(private="file")
+@(private="package")
 placeholder :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
 	th := ctx.theme
 	return skald.col(

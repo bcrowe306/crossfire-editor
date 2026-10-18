@@ -146,11 +146,23 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		hasChildren := Scene_HasChildren(scene, i)
 		// A ParticleEmitter's settings that aren't the defaults
 		particles := node.kind == .ParticleEmitter ? e.FormatParticleSettings(node.particles) : nil
-		if len(node.items) == 0 && node.script == "" && len(particles) == 0 && !hasChildren {
+		animations := node.kind == .AnimatedSprite ? node.animations[:] : nil
+		if len(node.items) == 0 && node.script == "" && len(particles) == 0 && len(animations) == 0 && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
 		endOpen(&w)
+		// An AnimatedSprite's animations: `fps` always, the rest when not the default
+		for a in animations {
+			open(&w, "animation")
+			attr(&w, "name", a.name)
+			attr(&w, "start", a.start)
+			attr(&w, "end", a.end)
+			attr(&w, "fps", a.fps)
+			if a.loop do attr(&w, "loop", true)
+			if a.playMode != .Forward do attr(&w, "playMode", a.playMode)
+			closeEmpty(&w)
+		}
 		if len(particles) > 0 {
 			open(&w, "particles")
 			for pair in particles do attr(&w, pair.name, pair.value)
@@ -285,9 +297,9 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		attr(w, "texture", node.texture)
 		attr(w, "columns", node.columns)
 		attr(w, "rows", node.rows)
-		attr(w, "fps", node.fps)
-		attr(w, "loop", node.loop)
-		if node.playMode != defaults.playMode do attr(w, "playMode", node.playMode)
+		if node.margin != 0 do attr(w, "margin", node.margin)
+		if node.spacing != 0 do attr(w, "spacing", node.spacing)
+		if node.autoplay != "" do attr(w, "autoplay", node.autoplay)
 	case .Label:
 		attr(w, "text", node.text)
 		attr(w, "fontSize", node.fontSize)

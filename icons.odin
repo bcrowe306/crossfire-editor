@@ -52,6 +52,10 @@ ICON_JOINT       :: "\uf0c1"
 ICON_DATABASE    :: "\uf1c0"
 ICON_GLOBE       :: "\uf0ac"
 ICON_FIRE        :: "\uf06d"
+ICON_STAR        :: "\uf005"
+ICON_COPY        :: "\uf0c5"
+ICON_ARROW_UP    :: "\uf062"
+ICON_ARROW_DOWN  :: "\uf063"
 
 @(private="file")
 iconFontRegistered: bool

@@ -52,6 +52,13 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.bodyB = strings.clone(node.bodyB)
 	copy.points = make([dynamic][2]f32, 0, len(node.points))
 	append(&copy.points, ..node.points[:])
+	copy.animations = make([dynamic]AnimationDef, 0, len(node.animations))
+	for a in node.animations {
+		clone := a
+		clone.name = strings.clone(a.name)
+		append(&copy.animations, clone)
+	}
+	copy.autoplay = strings.clone(node.autoplay)
 	return copy
 }
 

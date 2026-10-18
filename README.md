@@ -219,6 +219,22 @@ Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, a
 `e.PhysicsBody_IsInArea(body, area)`, `e.PhysicsBody_GetAreas(body)`,
 `e.PhysicsBody_IsTouching(a, b)`.
 
+## Animations
+
+Select an AnimatedSprite and open the bottom panel's **Animation** tab (or the inspector's **Edit
+Animations**). A sprite's image is a sprite sheet (a grid of frames: columns, rows, margin and
+spacing); its animations are named runs of those frames, each with its own speed, looping and play
+mode (forward, reverse, ping-pong):
+
+- The list adds, duplicates, removes and reorders animations; the star marks the one the sprite
+  starts with (**Starts with this**, or the inspector's **Starts with**).
+- Every frame of the sheet is shown as a thumbnail: click one to start the animation there,
+  Shift+click to end it there (or type the numbers).
+- The preview plays the animation as the game will, and the viewport plays it on the sprite.
+
+In code: `e.AnimationPlayer_Play(&sprite.animation, "jump")` (with
+`sprite := cast(^e.AnimatedSprite)self.node`).
+
 ## Particles
 
 A **ParticleEmitter** node (Ctrl+Shift+A) emits particles that move, spin, grow or shrink and

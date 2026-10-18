@@ -45,6 +45,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
 	if command, handled := Session_Update(&out, m); handled do return out, command
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
+	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
 	layout := &out.layout
 
 	switch v in m {
@@ -60,6 +61,14 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
 	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed:
 		// Handled by SettingsDialog_Update above
+
+	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
+	     Anim_Loop_Changed, Anim_Mode_Changed, Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Playback_Toggled,
+	     Anim_Tick, Anim_Tick_Requested:
+		// Handled by AnimEdit_Update above
+	case Open_Keyboard_Settings:
+		SettingsDialog_Open(&out)
+		out.settingsDialog.tab = .Keyboard
 
 	case Scripts_Auto_Build:
 		if out.scriptsAutoBuilt do break
@@ -517,7 +526,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Zoom:       node.zoom = max(value, 0.05)
 		case .Columns:    node.columns = max(int(v.value), 1)
 		case .Rows:       node.rows = max(int(v.value), 1)
-		case .FPS:        node.fps = max(value, 0)
+		case .Margin:     node.margin = max(value, 0)
+		case .Spacing:    node.spacing = max(value, 0)
 		case .Friction:        node.friction = max(value, 0)
 		case .Restitution:     node.restitution = clamp(value, 0, 1)
 		case .Density:         node.density = max(value, 0)
@@ -552,8 +562,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			node.texture = strings.clone(v.value == TEXTURE_NONE ? "" : v.value)
 		case .Color:
 			if color, ok := e.ParseColor(v.value); ok do node.color = color
-		case .Play_Mode:
-			if mode, ok := reflect.enum_from_name(e.AnimationPlayMode, v.value); ok do node.playMode = mode
+		case .Autoplay:
+			delete(node.autoplay)
+			node.autoplay = strings.clone(v.value == ANIMATION_FIRST ? "" : v.value)
 		case .Shape:
 			if shape, ok := reflect.enum_from_name(e.CollisionShapeKind, v.value); ok do node.shape = shape
 		case .Joint_Kind:
@@ -569,7 +580,6 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		node := selectedNode(&out)
 		if node == nil do break
 		switch v.flag {
-		case .Loop:           node.loop = v.value
 		case .Centered:       node.centered = v.value
 		case .Fixed_Rotation: node.fixedRotation = v.value
 		case .Bullet:         node.bullet = v.value

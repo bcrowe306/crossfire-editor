@@ -38,7 +38,6 @@ BottomTab :: enum {
 	Console,
 	Output,
 	Animation,
-	Keys,
 }
 
 LogLevel :: enum {
@@ -140,6 +139,8 @@ State :: struct {
 		asset: int,
 	},
 	addNode: AddNodeDialog,
+	// The Animation panel (view_animation.odin)
+	animEditor: AnimEditor,
 	// Inspector X/Y pairs whose axes change together
 	inspectorLinks: [LinkedPair]bool,
 	// The same for ParticleEmitter [2]f32 settings, by index in e.ParticleSettings_Fields

@@ -33,6 +33,10 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
 	scroll_by <scroll key> <dy>      Scroll a scroll container by dy pixels (0 or less: to the top)
+	click_offset <key> <dx> <dy> [shift]
+	                                 Click dx, dy pixels from a widget's top left (e.g. a thumbnail
+	                                 of animation-frames), optionally holding Shift
+	click_frame <n> [shift]          Click thumbnail n of the Animation panel's frames
 	click_overlay_item <i>           Click button i (top to bottom) of the open popup, e.g. a
 	                                 dropdown's choices after click_widget opened it
 	drag_widget <key> <fx0> <fy0> <fx1> <fy1> [shift]
@@ -134,6 +138,11 @@ Checks:
 	particle_linked <setting> <true | false>   A particle [2]f32 setting's axes are linked
 	ramp_stops <count>           Stops in the selected emitter's color ramp
 	ramp_stop <index>            The color ramp editor's selected stop
+	animations <count>           Animations of the selected AnimatedSprite
+	animation <name | start | end | fps | loop | mode> <value>
+	                             The Animation panel's selected animation (start and end resolved)
+	autoplay <name | none>       The animation the selected sprite starts with
+	sheet_loaded <true | false>  The Animation panel uploaded the selected sprite's sheet (thumbnails)
 	globals <A,B | none>         The project's global scripts, in order
 	draft_globals <A,B | none>   The Project Settings dialog's globals
 	data_count <n>               The project's data resources
@@ -177,6 +186,8 @@ Driver :: struct {
 	windowSize: [2]f32,
 	// scroll_into_view: pages scrolled so far looking for the widget
 	scrollAttempts: int,
+	// The scroll offset scroll_into_view saw last time (to notice the end of the content)
+	lastScrollY: f32,
 	windowSettled: time.Tick,
 	ready: bool,
 }
@@ -341,6 +352,32 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		dy := f32(atoi(args, 1, 0))
 		scroll.scroll_y = dy <= 0 ? 0 : scroll.scroll_y + dy
 		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "click_offset":
+		if len(args) < 3 {
+			fail(fmt.tprintf("%s: expected a widget key and dx dy", line))
+			return true
+		}
+		state, ok := ctx.widgets.states[skald.hash_id(args[0])]
+		if !ok || state.last_rect.w <= 0 {
+			fail(fmt.tprintf("%s: no widget with key '%s' was drawn last frame", line, args[0]))
+			return true
+		}
+		point := [2]f32{state.last_rect.x + f32(atoi(args, 1, 0)), state.last_rect.y + f32(atoi(args, 2, 0))}
+		click(point, len(args) > 3 && args[3] == "shift" ? {.LSHIFT} : {})
+		report(true, line)
+		return false
+
+	case "click_frame":
+		state, ok := ctx.widgets.states[skald.hash_id("animation-frames")]
+		if !ok || state.last_rect.w <= 0 {
+			fail(fmt.tprintf("%s: the frames weren't drawn last frame", line))
+			return true
+		}
+		offset := AnimationPanel_FrameCenter(atoi(args, 0, 0))
+		click({state.last_rect.x + offset.x, state.last_rect.y + offset.y}, len(args) > 1 && args[1] == "shift" ? {.LSHIFT} : {})
 		report(true, line)
 		return false
 
@@ -513,6 +550,11 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return true
 		}
 		if skald.hash_id(args[0]) not_in ctx.widgets.states {
+			// A layout that changes with the window (the Animation panel) may not use the scroll
+			if _, visible := widgetRect(ctx, args[1]); visible {
+				report(true, line)
+				return true
+			}
 			fail(fmt.tprintf("%s: no scroll '%s' was drawn last frame", line, args[0]))
 			return true
 		}
@@ -522,13 +564,20 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// visible now: start from the top and page down until it is, clear of the edges. A widget
 		// at an edge scrolls when clicked (the scroll reveals the newly focused widget), so the
 		// release lands somewhere else and a checkbox doesn't toggle
-		if _, visible := widgetRect(ctx, args[1]); visible && clearOfEdges(ctx.widgets.states[skald.hash_id(args[1])].last_rect, area, scroll.scroll_y <= 0) {
+		// At the end of the content (paging no longer moves it), visible is as good as it gets
+		atEnd := driver.scrollAttempts > 1 && scroll.scroll_y == driver.lastScrollY
+		driver.lastScrollY = scroll.scroll_y
+		if _, visible := widgetRect(ctx, args[1]); visible && (atEnd || clearOfEdges(ctx.widgets.states[skald.hash_id(args[1])].last_rect, area, scroll.scroll_y <= 0)) {
 			driver.scrollAttempts = 0
 			report(true, line)
 			return true
 		}
+		widget := ctx.widgets.states[skald.hash_id(args[1])]
 		if driver.scrollAttempts == 0 {
 			scroll.scroll_y = 0
+		} else if widget.last_frame + 2 >= ctx.widgets.frame && widget.last_rect.h > 0 {
+			// Laid out (so its rect is current): center it
+			scroll.scroll_y = max(scroll.scroll_y + (widget.last_rect.y + widget.last_rect.h * 0.5) - (area.y + area.h * 0.5), 0)
 		} else {
 			scroll.scroll_y += max(area.h * 0.6, 40)
 		}
@@ -827,6 +876,29 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "ramp_stops":
 		if selected == nil || selected.kind != .ParticleEmitter do return false, "no ParticleEmitter selected"
 		found = fmt.tprint(selected.particles.colorRamp.count)
+	case "animations":
+		if selected == nil || selected.kind != .AnimatedSprite do return false, "no AnimatedSprite selected"
+		found = fmt.tprint(len(selected.animations))
+	case "animation":
+		node, animation, _ := AnimEdit_Selection(s)
+		if animation == nil do return false, "no animation selected"
+		field, _, expected := strings.partition(value, " ")
+		start, end := AnimationDef_Range(animation^, max(node.columns * node.rows, 1))
+		switch field {
+		case "name":  found = animation.name
+		case "start": found = fmt.tprint(start)
+		case "end":   found = fmt.tprint(end)
+		case "fps":   found = fmt.tprint(animation.fps)
+		case "loop":  found = fmt.tprint(animation.loop)
+		case "mode":  found = fmt.tprint(animation.playMode)
+		case: return false, fmt.tprintf("unknown animation field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "autoplay":
+		if selected == nil do return false, "nothing selected"
+		found = selected.autoplay == "" ? "none" : selected.autoplay
+	case "sheet_loaded":
+		found = selected != nil ? fmt.tprint(AnimationPanel_SheetLoaded(s, selected.texture)) : "false"
 	case "ramp_stop":
 		found = fmt.tprint(s.rampStop)
 	case "linked":

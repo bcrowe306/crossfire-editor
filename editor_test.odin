@@ -154,13 +154,17 @@ kind_property_edits :: proc(t: ^testing.T) {
 
 	state.selectedNode = nodeIndex(scene, "Balloon")
 	send(&state, Node_Field_Changed{.Columns, 0}) // Clamped to at least 1
-	send(&state, Node_Text_Changed{.Play_Mode, "Reverse"})
-	send(&state, Node_Text_Changed{.Play_Mode, "NotAMode"}) // Ignored
-	send(&state, Node_Flag_Changed{.Loop, false})
+	send(&state, Node_Field_Changed{.Spacing, -3}) // At least 0
+	send(&state, Node_Field_Changed{.Margin, 2})
+	send(&state, Anim_Mode_Changed("Reverse"))
+	send(&state, Anim_Mode_Changed("NotAMode")) // Ignored
+	send(&state, Anim_Loop_Changed(false))
 	balloon := scene.nodes[state.selectedNode]
 	testing.expect_value(t, balloon.columns, 1)
-	testing.expect_value(t, balloon.playMode, e.AnimationPlayMode.Reverse)
-	testing.expect_value(t, balloon.loop, false)
+	testing.expect_value(t, balloon.spacing, 0)
+	testing.expect_value(t, balloon.margin, 2)
+	testing.expect_value(t, balloon.animations[0].playMode, e.AnimationPlayMode.Reverse)
+	testing.expect_value(t, balloon.animations[0].loop, false)
 
 	label := &state.project.scenes[0].nodes[0] // MenuScene Title
 	state.currentScene = 0
@@ -307,7 +311,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 			testing.expectf(t, a.name == b.name && a.kind == b.kind && a.parent == b.parent, "%s/%s: identity", scene.name, a.name)
 			testing.expectf(t, a.position == b.position && a.rotation == b.rotation && a.scale == b.scale, "%s/%s: transform", scene.name, a.name)
 			testing.expectf(t, a.layer == b.layer && a.visible == b.visible, "%s/%s: layer/visible", scene.name, a.name)
-			testing.expectf(t, a.texture == b.texture && a.columns == b.columns && a.rows == b.rows && a.fps == b.fps && a.loop == b.loop && a.playMode == b.playMode, "%s/%s: sprite", scene.name, a.name)
+			testing.expectf(t, a.texture == b.texture && a.columns == b.columns && a.rows == b.rows && animationsEqual(a.animations[:], b.animations[:]) && a.autoplay == b.autoplay, "%s/%s: sprite", scene.name, a.name)
 			if a.kind == .Label {
 				testing.expectf(t, a.text == b.text && a.fontSize == b.fontSize && a.color == b.color && a.centered == b.centered, "%s/%s: label", scene.name, a.name)
 			}
@@ -339,8 +343,10 @@ scene_xml_nests_children :: proc(t: ^testing.T) {
 	text := SceneToXML(&project.scenes[1], context.temp_allocator)
 
 	// Every node with children has a matching close tag, and the file parses
-	// World, Spaceship, Props and HUD have children; BackMenu has button items
-	testing.expect_value(t, strings.count(text, "</node>"), 5)
+	// World, Spaceship, Props and HUD have children; BackMenu has button items; the five
+	// AnimatedSprites have <animation> elements
+	testing.expect_value(t, strings.count(text, "</node>"), 10)
+	testing.expect_value(t, strings.count(text, "<animation "), 5)
 	parsed, err := e.ParseScene(text)
 	defer e.SceneData_Destroy(&parsed)
 	testing.expect_value(t, err, e.ProjectError.None)
@@ -2531,7 +2537,7 @@ particle_emitter_round_trip :: proc(t: ^testing.T) {
 	// Only what differs from the defaults; a default emitter has no <particles>
 	testing.expect(t, strings.contains(string(text), `<particles continuous="false" amount="120"`))
 	testing.expect_value(t, strings.count(string(text), "<particles"), 1)
-	testing.expect(t, strings.contains(string(text), `formatVersion="6"`))
+	testing.expect(t, strings.contains(string(text), fmt.tprintf(`formatVersion="%d"`, e.PROJECT_FORMAT_VERSION)))
 }
 
 @(test)
@@ -2637,4 +2643,125 @@ slider_values_are_short_text :: proc(t: ^testing.T) {
 	ParticleSettings_SetAxis(&settings, "size", 0, 0.30000001, false)
 	text, _ := e.ParticleSettings_Get(settings, "size")
 	testing.expect_value(t, text, "0.3,5")
+}
+
+@(test)
+animation_frames_over_time :: proc(t: ^testing.T) {
+	walk := AnimationDef{"walk", 2, 5, 10, true, .Forward}
+	// 4 frames at 10 fps: a frame every 0.1 s, looping
+	testing.expect_value(t, AnimationDef_FrameAt(walk, 8, 0), 2)
+	testing.expect_value(t, AnimationDef_FrameAt(walk, 8, 0.25), 4)
+	testing.expect_value(t, AnimationDef_FrameAt(walk, 8, 0.45), 2)
+	once := walk
+	once.loop = false
+	testing.expect_value(t, AnimationDef_FrameAt(once, 8, 3), 5) // Holds the last
+	back := walk
+	back.playMode = .Reverse
+	testing.expect_value(t, AnimationDef_FrameAt(back, 8, 0), 5)
+	testing.expect_value(t, AnimationDef_FrameAt(back, 8, 0.15), 4)
+	ping := walk
+	ping.playMode = .PingPong
+	// 2 3 4 5 4 3 | 2 ...
+	frames: [8]int
+	for &f, i in frames do f = AnimationDef_FrameAt(ping, 8, f64(i) * 0.1 + 0.01)
+	testing.expect_value(t, frames, [8]int{2, 3, 4, 5, 4, 3, 2, 3})
+	// end -1: to the last cell; out of the sheet: kept inside it
+	start, end := AnimationDef_Range({"all", 0, -1, 8, true, .Forward}, 6)
+	testing.expect_value(t, [2]int{start, end}, [2]int{0, 5})
+	start, end = AnimationDef_Range({"far", 9, 20, 8, true, .Forward}, 6)
+	testing.expect_value(t, [2]int{start, end}, [2]int{5, 5})
+}
+
+@(test)
+animation_panel_edits :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	state.selectedNode = nodeIndex(scene, "Balloon") // 4x1 sheet, one "default" animation
+	node := &scene.nodes[state.selectedNode]
+	testing.expect_value(t, len(node.animations), 1)
+
+	send(&state, Anim_Added{})
+	send(&state, Anim_Name_Typed{1, "walk"})
+	send(&state, Anim_Frame_Clicked{1, false})
+	send(&state, Anim_Frame_Clicked{2, true})
+	send(&state, Anim_Field_Changed{.FPS, 12})
+	walk := node.animations[1]
+	testing.expect_value(t, walk.name, "walk")
+	testing.expect_value(t, [2]int{walk.start, walk.end}, [2]int{1, 2})
+	testing.expect_value(t, walk.fps, 12)
+
+	// A start past the end takes the end along; an end before the start, the start
+	send(&state, Anim_Field_Changed{.Start, 3})
+	testing.expect_value(t, [2]int{node.animations[1].start, node.animations[1].end}, [2]int{3, 3})
+	send(&state, Anim_Field_Changed{.End, 0})
+	testing.expect_value(t, [2]int{node.animations[1].start, node.animations[1].end}, [2]int{0, 0})
+
+	// Names: unique when duplicated; a taken or empty name waits
+	send(&state, Anim_Duplicated{})
+	testing.expect_value(t, node.animations[2].name, "walk2")
+	send(&state, Anim_Name_Typed{1, "default"})
+	send(&state, Anim_Name_Typed{1, ""})
+	testing.expect_value(t, node.animations[2].name, "walk2")
+	testing.expect_value(t, state.animEditor.nameText, "")
+
+	// Starts with: follows a rename, cleared when removed
+	send(&state, Anim_Autoplay_Set{})
+	testing.expect_value(t, node.autoplay, "walk2")
+	send(&state, Anim_Name_Typed{1, "run"})
+	testing.expect_value(t, node.autoplay, "run")
+	send(&state, Anim_Moved(-1))
+	testing.expect_value(t, node.animations[1].name, "run")
+	testing.expect_value(t, state.animEditor.selected, 1)
+	send(&state, Anim_Removed{})
+	testing.expect_value(t, node.autoplay, "")
+	testing.expect_value(t, len(node.animations), 2)
+	send(&state, Anim_Removed{})
+	send(&state, Anim_Removed{}) // Keeps one
+	testing.expect_value(t, len(node.animations), 1)
+
+	// All undoable
+	for _ in 0 ..< 30 do send(&state, Action.Undo)
+	node = &playScene(&state).nodes[state.selectedNode]
+	testing.expect_value(t, len(node.animations), 1)
+	testing.expect_value(t, node.animations[0].name, "default")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+animations_round_trip :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_animations")
+	defer removeAll(dir)
+	project := Project_CreateDemo(dir)
+	defer Project_Destroy(&project)
+	scene := &project.scenes[1]
+	hero := &scene.nodes[nodeIndex(scene, "Balloon")]
+	hero.margin, hero.spacing = 1, 2
+	append(&hero.animations, AnimationDef{strings.clone("pop"), 2, 3, 15, false, .PingPong})
+	delete(hero.autoplay)
+	hero.autoplay = strings.clone("pop")
+
+	testing.expect_value(t, Project_Save(&project), "")
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	for node, i in scene.nodes do testing.expectf(t, NodeDef_Equal(node, loaded.scenes[1].nodes[i]), "%s differs after loading", node.name)
+
+	// A file from before format 7: its one animation comes from the node's fps, loop and play mode
+	old := `<scene formatVersion="6" name="Old"><node kind="AnimatedSprite" name="Fan" texture="fan.png" columns="3" fps="6" loop="false" playMode="Reverse"/></scene>`
+	path := joinPath(dir, "scenes", "Old.scene.xml", allocator = context.temp_allocator)
+	_ = os.write_entire_file(path, old)
+	append(&loaded.scenes, SceneDef{name = strings.clone("Old")})
+	data, _ := e.LoadSceneFile(path)
+	defer e.SceneData_Destroy(&data)
+	testing.expect_value(t, len(data.nodes[0].animations), 0)
+	text := strings.concatenate({`<?xml version="1.0"?><project formatVersion="6" name="P"><scene name="Old" path="scenes/Old.scene.xml"/></project>`}, context.temp_allocator)
+	_ = os.write_entire_file(joinPath(dir, "project.xml", allocator = context.temp_allocator), text)
+	again, message2, _ := Project_Load(dir)
+	defer Project_Destroy(&again)
+	testing.expect_value(t, message2, "")
+	fan := again.scenes[0].nodes[0]
+	testing.expect_value(t, len(fan.animations), 1)
+	testing.expect_value(t, fan.animations[0], AnimationDef{"default", 0, -1, 6, false, .Reverse})
+	free_all(context.temp_allocator)
 }

@@ -2,7 +2,6 @@ package editor
 
 import "core:fmt"
 import "core:math"
-import e "engine:."
 import "gui:skald"
 import sdl "vendor:sdl3"
 
@@ -377,16 +376,22 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Sprite:
 		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth)))
 	case .AnimatedSprite:
-		modes := make([]string, len(e.AnimationPlayMode), context.temp_allocator)
-		for mode in e.AnimationPlayMode do modes[mode] = fmt.tprintf("%v", mode)
+		// The animations themselves are edited in the bottom panel's Animation tab
+		choices := make([dynamic]string, context.temp_allocator)
+		append(&choices, ANIMATION_FIRST)
+		for a in node.animations do append(&choices, a.name)
+		editButton := skald.button(ctx, fmt.tprintf("%s  Edit Animations", ICON_FILM), Msg(Bottom_Tab_Changed(int(BottomTab.Animation))),
+			id = skald.hash_id(fmt.tprintf("inspector-edit-animations-%d", key)),
+			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
 		append(&rows,
 			inspectorRow(ctx, "Sheet", textureSelect(ctx, s, key, node.texture, controlWidth)),
 			inspectorRow(ctx, "Columns", number(ctx, s, key, .Columns, f32(node.columns), 1, 0, numberWidth, 1, 64)),
 			inspectorRow(ctx, "Rows", number(ctx, s, key, .Rows, f32(node.rows), 1, 0, numberWidth, 1, 64)),
-			inspectorRow(ctx, "FPS", number(ctx, s, key, .FPS, node.fps, 1, 0, numberWidth, 0, 120)),
-			inspectorRow(ctx, "Loop", flag(ctx, key, .Loop, node.loop)),
-			inspectorRow(ctx, "Play mode", skald.select(ctx, fmt.tprintf("%v", node.playMode), modes, NodeTextField.Play_Mode, onText,
-				id = skald.hash_id(fmt.tprintf("inspector-mode-%d", key)), width = controlWidth)),
+			inspectorRow(ctx, "Margin", number(ctx, s, key, .Margin, node.margin, 1, 0, numberWidth, 0, 1000)),
+			inspectorRow(ctx, "Spacing", number(ctx, s, key, .Spacing, node.spacing, 1, 0, numberWidth, 0, 1000)),
+			inspectorRow(ctx, "Starts with", skald.select(ctx, node.autoplay == "" ? ANIMATION_FIRST : node.autoplay, choices[:], NodeTextField.Autoplay, onText,
+				id = skald.hash_id(fmt.tprintf("inspector-autoplay-%d", key)), width = controlWidth)),
+			inspectorRow(ctx, fmt.tprintf("%d animation%s", len(node.animations), len(node.animations) == 1 ? "" : "s"), editButton),
 		)
 	case .Label:
 		append(&rows,

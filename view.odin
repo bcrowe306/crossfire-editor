@@ -126,7 +126,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Stop", .Stop, keys),
 		}},
 		{"Help", []skald.Menu_Item(Msg){
-			{label = "Keyboard Shortcuts", msg = Bottom_Tab_Changed(int(BottomTab.Keys))},
+			{label = "Keyboard Shortcuts", msg = Msg(Open_Keyboard_Settings{})},
 			item("About", .About, keys),
 		}},
 	})

@@ -145,7 +145,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
 | `view_inspector_particles.odin` | The inspector's ParticleEmitter settings, built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`, Reset) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
-| `view_bottom.odin` | Bottom panel: Console / Output / Animation / Keys tabs, collapsible |
+| `view_bottom.odin` | Bottom panel: Console / Output / Animation tabs, collapsible |
+| `view_animation.odin` | The Animation panel (the animation editor): animation list, the selected animation's form, the sprite sheet's frame thumbnails (`frameStrip`, cells drawn from the sheet uploaded once with stb_image), the preview; side by side when wide, stacked in one scroll when narrow |
+| `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimationDef_FrameAt` (the frame at a time, as the engine plays it), `AnimationDef_Range`, unique names |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
 | `editor_test.odin` | Unit tests for the model, XML round trips, transforms, assets, search, viewport math, keymap and update |
@@ -280,7 +282,7 @@ behave (`viewportOnly`, `textChord`).
 - **Plain keys are ignored while a text or number field has focus** (`IsTyping`), and are hidden
   from menu hints then.
 - `viewportOnly` bindings (nudges) need the mouse over the viewport.
-- The Keys tab (Help > Keyboard Shortcuts) lists the keymap; Settings > Keyboard edits it.
+- Settings > Keyboard lists and edits the keymap (Help > Keyboard Shortcuts opens it there).
 - **A new Action needs a line in `settings.default.ini`'s `[keymap]`** (a test checks), and an
   `ACTION_LABELS` entry. Don't add ad-hoc `skald.shortcut` calls.
 - Tooltips and menu hints read the keymap (`actionTip`, `Keymap_Shortcut`); never hard-code a
@@ -539,6 +541,7 @@ MyGame/
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
   (world positions) are migrated when parsed.
 - **Version 4:** physics node kinds and attributes, and the project's physics settings.
+- **Version 7:** AnimatedSprite `<animation>` children, `margin`, `spacing`, `autoplay`.
 - **Version 6:** ParticleEmitter nodes; their settings are a `<particles>` child element (the
   engine's `e.FormatParticleSettings`: only what differs from the defaults).
 - **Node kinds** are the engine's `SceneNodeKind` (the editor's `NodeKind` is an alias):
@@ -627,6 +630,30 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   not the defaults.
 - Play and exports need nothing more: the player is the engine's. Box2D is static (the native
   `.a` through the engine's binding; on the web, `box2d_web.o` on the emcc line).
+
+## Animation editor (implemented, `view_animation.odin`, `animation_edit.odin`)
+
+- **Model:** an AnimatedSprite's sheet is `texture`, `columns` x `rows`, `margin`, `spacing`; its
+  `animations` (`AnimationDef`: name, start, end (-1 = last cell), fps, loop, play mode; at least
+  one) and `autoplay` (the one it starts with, "" = the first). Scene files: `<animation>` children
+  (format 7). Files before that get one "default" animation from the node's old fps/loop/playMode
+  when loaded (`Project_Load`), so NodeDef has no node-level fps/loop/playMode any more.
+- **Panel** (bottom panel, Animation tab; the inspector's Edit Animations opens it): the list (add,
+  duplicate with a unique name, remove (one stays), reorder, a star on the starting one), the form
+  (name, kept while typed until valid and unused; frames; FPS; loop; mode; Starts with this; the
+  sheet's image and grid), a thumbnail per sheet cell (click = start, Shift+click = end; the
+  animation's cells lit), and a preview playing it (`Anim_Tick` at ANIMATION_PREVIEW_FPS while it
+  plays and the panel shows). The viewport plays the panel's animation on the sprite too
+  (`Preview_Render`).
+- **Thumbnails:** Skald can't draw part of an image, so `drawCell` draws the whole sheet scaled
+  and offset under a clip of the cell's box. The sheet is uploaded once per file
+  (`image_load_pixels`).
+- **Undo:** every edit is a `.Node` step (History_Classify); the selection, preview and typed
+  name are panel state (`State.animEditor`).
+- Tests: `animation_frames_over_time`, `animation_panel_edits`, `animations_round_trip`,
+  `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
+  `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
+  scroll isn't drawn but the widget is visible (layouts that change with the window).
 
 ## Particles (implemented; the engine's particles.odin)
 

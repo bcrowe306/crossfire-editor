@@ -204,6 +204,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isNode := v.target.(NodeField); isNode && hasSelection {
 			return node(selected, fmt.tprintf("Change %s of %s", fieldLabel(field), name), key("field", field, s.currentScene, selected))
 		}
+		if field, isAnim := v.target.(AnimField); isAnim && hasSelection {
+			return node(selected, fmt.tprintf("Change an animation of %s", name), key("anim", field, s.currentScene, selected, s.animEditor.selected))
+		}
 		if prop, isProp := v.target.(ScriptPropTarget); isProp && hasSelection {
 			return node(selected, fmt.tprintf("Change %s of %s", prop.name, name), key("prop", prop.name, s.currentScene, selected))
 		}
@@ -211,6 +214,25 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("text", v.field, s.currentScene, selected))
 	case Node_Flag_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.flag, name))
+	// The Animation panel: the selected node's animations
+	case Anim_Added:
+		if hasSelection do return node(selected, fmt.tprintf("Add an animation to %s", name))
+	case Anim_Duplicated:
+		if hasSelection do return node(selected, fmt.tprintf("Duplicate an animation of %s", name))
+	case Anim_Removed:
+		if hasSelection do return node(selected, fmt.tprintf("Remove an animation of %s", name))
+	case Anim_Moved:
+		if hasSelection do return node(selected, fmt.tprintf("Reorder the animations of %s", name))
+	case Anim_Name_Typed:
+		if hasSelection do return node(selected, fmt.tprintf("Rename an animation of %s", name), key("anim-name", s.currentScene, selected, s.animEditor.selected))
+	case Anim_Field_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change an animation of %s", name), key("anim", v.field, s.currentScene, selected, s.animEditor.selected))
+	case Anim_Loop_Changed, Anim_Mode_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change an animation of %s", name))
+	case Anim_Frame_Clicked:
+		if hasSelection do return node(selected, fmt.tprintf("Change the frames of an animation of %s", name))
+	case Anim_Autoplay_Set:
+		if hasSelection do return node(selected, fmt.tprintf("Change the first animation of %s", name))
 	case Particle_Field_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", particleLabel(v.name), name), key("particle", v.name, s.currentScene, selected))
 	case Particle_Axis_Changed:
@@ -309,7 +331,8 @@ fieldLabel :: proc(field: NodeField) -> string {
 	case .Zoom:       return "zoom"
 	case .Columns:    return "columns"
 	case .Rows:       return "rows"
-	case .FPS:        return "FPS"
+	case .Margin:     return "sheet margin"
+	case .Spacing:    return "sheet spacing"
 	case .Friction:        return "friction"
 	case .Restitution:     return "bounce"
 	case .Density:         return "density"
@@ -561,7 +584,8 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.rotation != b.rotation || a.scale != b.scale || a.layer != b.layer || a.visible != b.visible ||
 	   a.texture != b.texture || a.text != b.text || a.fontSize != b.fontSize || a.color != b.color ||
 	   a.centered != b.centered || a.zoom != b.zoom || a.columns != b.columns || a.rows != b.rows ||
-	   a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || len(a.items) != len(b.items) ||
+	   a.margin != b.margin || a.spacing != b.spacing || a.autoplay != b.autoplay || !animationsEqual(a.animations[:], b.animations[:]) ||
+	   len(a.items) != len(b.items) ||
 	   a.script != b.script || len(a.props) != len(b.props) ||
 	   a.collisionLayer != b.collisionLayer || a.collisionMask != b.collisionMask || a.friction != b.friction ||
 	   a.restitution != b.restitution || a.density != b.density || a.gravityScale != b.gravityScale ||
@@ -579,6 +603,13 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	for p, i in a.points do if p != b.points[i] do return false
 	for item, i in a.items do if item != b.items[i] do return false
 	for prop, i in a.props do if prop != b.props[i] do return false
+	return true
+}
+
+// Whether two animation lists are the same
+animationsEqual :: proc(a, b: []AnimationDef) -> bool {
+	if len(a) != len(b) do return false
+	for x, i in a do if x != b[i] do return false
 	return true
 }
 

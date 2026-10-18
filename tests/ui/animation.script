@@ -1,0 +1,86 @@
+# The Animation panel: open it from the inspector, add an animation, set its frames by clicking
+# thumbnails, its speed and mode, make it the one the sprite starts with, preview it, undo, save.
+# Run with: task test:ui
+#
+# PlayScene's rows: World, Camera, Spaceship, ShipLight, Props, Balloon (node 5, a 4x1 sheet)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 5
+expect selected Balloon
+expect animations 1
+expect animation name default
+
+scroll_into_view inspector-scroll inspector-edit-animations-5
+click_widget inspector-edit-animations-5
+expect tab Animation
+wait_until sheet_loaded true
+expect animation end 3
+
+# A new animation: every frame; then frames 1 to 2 (click a thumbnail, Shift+click another)
+scroll_into_view animation-scroll animation-add
+click_widget animation-add
+expect animations 2
+expect animation name animation
+scroll_into_view animation-scroll animation-frames
+click_frame 1
+expect animation start 1
+scroll_into_view animation-scroll animation-frames
+click_frame 2 shift
+expect animation end 2
+expect animation start 1
+
+# Its name, speed, looping
+scroll_into_view animation-scroll animation-name-5
+click_widget animation-name-5
+key END
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+type pop
+expect animation name pop
+scroll_into_view animation-scroll animation-fps-5-inc
+click_widget animation-fps-5-inc
+expect animation fps 9
+scroll_into_view animation-scroll animation-loop-5
+click_widget animation-loop-5
+expect animation loop false
+
+# The sprite starts with it; the star marks it in the list
+scroll_into_view animation-scroll animation-autoplay
+click_widget animation-autoplay
+expect autoplay pop
+scroll_into_view animation-scroll animation-play
+click_widget animation-play
+scroll_into_view animation-scroll animation-list-0
+click_widget animation-list-0
+expect animation name default
+scroll_into_view animation-scroll animation-list-1
+click_widget animation-list-1
+expect animation name pop
+
+# Duplicate (a unique name), remove the copy, undo it
+scroll_into_view animation-scroll animation-duplicate
+click_widget animation-duplicate
+expect animations 3
+expect animation name pop2
+scroll_into_view animation-scroll animation-remove
+click_widget animation-remove
+expect animations 2
+key ctrl+z
+expect animations 3
+key ctrl+z
+expect animations 2
+
+key ctrl+s
+wait_until modified false
+expect project_file_contains scenes/PlayScene.scene.xml autoplay="pop"
+expect project_file_contains scenes/PlayScene.scene.xml <animation name="pop" start="1" end="2" fps="9"/>
+quit

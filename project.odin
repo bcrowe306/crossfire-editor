@@ -54,12 +54,15 @@ NodeDef :: struct {
 	centered: bool,
 	// Camera
 	zoom: f32,
-	// AnimatedSprite: the texture is a columns x rows grid of frames
+	// AnimatedSprite: the texture is a columns x rows grid of frames (margin pixels around it,
+	// spacing between cells); its animations are named ranges of them (at least one), and
+	// autoplay names the one it starts with ("" = the first). See the Animation panel
 	columns: int,
 	rows: int,
-	fps: f32,
-	loop: bool,
-	playMode: e.AnimationPlayMode,
+	margin: f32,
+	spacing: f32,
+	animations: [dynamic]AnimationDef,
+	autoplay: string,
 	// Menu
 	items: [dynamic]MenuItemDef,
 	// Any kind: the script attached to it ("" for none) and its exported field values, as text
@@ -204,9 +207,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		zoom = defaults.zoom,
 		columns = defaults.columns,
 		rows = defaults.rows,
-		fps = defaults.fps,
-		loop = defaults.loop,
-		playMode = defaults.playMode,
+		autoplay = strings.clone(""),
 		script = strings.clone(""),
 		collisionLayer = defaults.collisionLayer,
 		collisionMask = defaults.collisionMask,
@@ -227,10 +228,30 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		dampingRatio = defaults.dampingRatio,
 		particles = defaults.particles,
 	}
+	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
 		append(&node.items, MenuItemDef{strings.clone("Button"), strings.clone("quit")})
 	}
 	return node
+}
+
+/*
+An AnimatedSprite's animation: a named range of its sheet's cells (the engine's
+`e.AnimationData`; `end` -1 is the last cell).
+*/
+AnimationDef :: struct {
+	// Owned
+	name: string,
+	start: int,
+	end: int,
+	fps: f32,
+	loop: bool,
+	playMode: e.AnimationPlayMode,
+}
+
+// The animation a new AnimatedSprite gets: every cell, looping (name owned)
+AnimationDef_Default :: proc(name := "default") -> AnimationDef {
+	return {strings.clone(name), 0, -1, e.DEFAULT_SCENE_NODE.fps, true, .Forward}
 }
 
 // Frees a node's strings and lists
@@ -246,6 +267,9 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.points)
 	delete(node.bodyA)
 	delete(node.bodyB)
+	for a in node.animations do delete(a.name)
+	delete(node.animations)
+	delete(node.autoplay)
 }
 
 /*
@@ -492,9 +516,9 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				zoom = node.zoom,
 				columns = node.columns,
 				rows = node.rows,
-				fps = node.fps,
-				loop = node.loop,
-				playMode = node.playMode,
+				margin = node.margin,
+				spacing = node.spacing,
+				autoplay = strings.clone(node.autoplay),
 				collisionLayer = node.collisionLayer,
 				collisionMask = node.collisionMask,
 				friction = node.friction,
@@ -530,6 +554,11 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				particles = node.particles,
 			}
 			append(&def.points, ..node.points[:])
+			if node.kind == .AnimatedSprite {
+				for a in node.animations do append(&def.animations, AnimationDef{strings.clone(a.name), a.start, a.end, a.fps, a.loop, a.playMode})
+				// Files before format 7: one animation of every cell, at the node's speed
+				if len(def.animations) == 0 do append(&def.animations, AnimationDef{strings.clone("default"), 0, -1, node.fps, node.loop, node.playMode})
+			}
 			for item in node.items {
 				append(&def.items, MenuItemDef{strings.clone(item.label), strings.clone(item.action)})
 			}
@@ -650,9 +679,9 @@ setAnimation :: proc(scene: ^SceneDef, index: int, path: string, columns, rows: 
 	node := &scene.nodes[index]
 	node.columns = columns
 	node.rows = rows
-	node.fps = fps
-	node.loop = true
-	node.playMode = mode
+	node.animations[0].fps = fps
+	node.animations[0].loop = true
+	node.animations[0].playMode = mode
 }
 
 @(private="file")
