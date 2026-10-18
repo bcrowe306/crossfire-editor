@@ -8,28 +8,30 @@ import stbi "vendor:stb/image"
 
 /*
 The Animation panel (the bottom panel's Animation tab): the animation editor for the selected
-AnimatedSprite.
+AnimatedSprite. A toolbar on top, the frames below, using the panel's whole width:
 
-	+--------------+------------------------------------------------+-------------+
-	| Animations   | Name [walk]  Start [0]  End [3]  FPS [10]  ...  |   preview   |
-	|  * walk 0-3  | Sheet [hero.png]  Columns [4]  Rows [2]  ...    |   (plays)   |
-	|    jump 4-7  | [0][1][2][3]  frame thumbnails: the selected    |  > 2 / 4    |
-	| + dup - up dn|  [4][5][6][7] animation's frames lit           |             |
-	+--------------+------------------------------------------------+-------------+
+	+---------------------------------------------------------------------------------+
+	| [walk v] + dup - up dn   Name [walk]   * Starts with this   Frames [0] to [3]     |
+	| FPS [10]  [x] Loop  [Forward v]   Sheet [hero.png v]   Grid 4 x 2   Margin  Gap  |
+	+------------+--------------------------------------------------------------------+
+	|  preview   | [0][1][2][3][4][5][6][7]  a thumbnail of every cell of the sheet,  |
+	|  > 2 / 4   |  the selected animation's cells lit                                |
+	+------------+--------------------------------------------------------------------+
 
-- The list: select an animation; add, duplicate, remove, move up and down. The star marks the
-  one the sprite starts with (set it with the star button, or the inspector's Starts with).
-- The selected animation's name, first and last frame, speed, looping and play mode.
-- The sprite sheet: image and grid (the same as the inspector's), and a thumbnail of every cell.
-  Click a thumbnail to start the animation there, Shift+click to end it there.
+- The animation dropdown picks the animation; the buttons add, duplicate, remove and move it.
+  The star marks the one the sprite starts with (or the inspector's Starts with).
+- The selected animation's name, first and last frame, speed, looping and play mode, then the
+  sprite sheet's image and grid (the same as the inspector's). The toolbar's groups wrap onto as
+  many lines as the panel's width needs; the whole panel scrolls when it's short.
+- The frames: click a thumbnail to start the animation there, Shift+click to end it there.
 - The preview plays the animation as the game will (`AnimationDef_FrameAt`); the viewport plays
   it on the sprite too.
 
-Logic and messages: animation_edit.odin. Widget keys: `animation-list-<i>`, `animation-add`,
-`animation-duplicate`, `animation-remove`, `animation-up`, `animation-down`, `animation-name-<node>`,
-`animation-start-<node>`, `animation-end-<node>`, `animation-fps-<node>`, `animation-loop-<node>`,
-`animation-mode-<node>`, `animation-autoplay`, `animation-frames` (the thumbnails),
-`animation-preview`, `animation-play`.
+Logic and messages: animation_edit.odin. Widget keys: `animation-select` (the dropdown),
+`animation-add`, `animation-duplicate`, `animation-remove`, `animation-up`, `animation-down`,
+`animation-name-<node>`, `animation-start-<node>`, `animation-end-<node>`, `animation-fps-<node>`,
+`animation-loop-<node>`, `animation-mode-<node>`, `animation-autoplay`, `animation-sheet-<node>`,
+`animation-frames` (the thumbnails), `animation-preview`, `animation-play`.
 */
 
 // Thumbnail size and gap in the frame strip
@@ -38,9 +40,9 @@ THUMB_SIZE :: 56
 @(private="file")
 THUMB_GAP :: 6
 @(private="file")
-LIST_WIDTH :: 170
+PREVIEW_SIZE :: 120
 @(private="file")
-PREVIEW_WIDTH :: 150
+NUMBER_WIDTH :: 76
 
 AnimationPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
@@ -54,139 +56,136 @@ AnimationPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Keep the preview's frames coming while it plays
 	if s.animEditor.playing && !s.animEditor.tickPending && EditorFocused() do skald.send(ctx, Msg(Anim_Tick_Requested{}))
 
-	// Side by side when the center column has room; stacked in one scroll when it hasn't
 	left, right := FittedSidebarWidths(&s.layout)
-	centerWidth := s.layout.workspace.x - left - right - DIVIDER * 2
+	width := s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.sm * 2 - INSPECTOR_SCROLLBAR_WIDTH
 	gap := th.spacing.sm
-	wide := centerWidth >= LIST_WIDTH + FORM_WIDTH + PREVIEW_WIDTH + THUMB_SIZE * 3 + gap * 8
-	if wide {
-		stripWidth := centerWidth - LIST_WIDTH - FORM_WIDTH - PREVIEW_WIDTH - gap * 8
-		return skald.row(
-			animationList(ctx, s, node, index, true),
-			skald.scroll(ctx, {FORM_WIDTH, 0}, animationForm(ctx, s, node, animation^, index, key, cells), id = skald.hash_id("animation-form-scroll")),
-			skald.flex(1, skald.scroll(ctx, {0, 0}, frameStrip(ctx, s, node, animation^, sheet, cells, stripWidth), id = skald.hash_id("animation-frames-scroll"))),
+
+	// The toolbar's groups wrap onto more lines when the panel is narrow; everything scrolls
+	// together when the panel is short
+	toolbar := make([dynamic]skald.View, context.temp_allocator)
+	append(&toolbar, ..animationPicker(ctx, s, node, animation^, index, key))
+	append(&toolbar, ..animationDetails(ctx, s, node, animation^, key, cells))
+	append(&toolbar, ..sheetSettings(ctx, s, node, key, cells))
+	stripWidth := max(width - PREVIEW_SIZE - gap * 3, THUMB_SIZE)
+	return skald.scroll(ctx, {0, 0}, skald.col(
+		skald.wrap_row(..toolbar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = gap, width = width, bg = th.color.surface),
+		skald.divider(ctx),
+		skald.row(
 			animationPreview(ctx, s, node, animation^, sheet, cells),
+			frameStrip(ctx, s, node, animation^, sheet, cells, stripWidth),
 			spacing = gap,
 			padding = gap,
-			cross_align = .Stretch,
-		)
-	}
-	return skald.scroll(ctx, {0, 0}, skald.col(
-		animationList(ctx, s, node, index, false),
-		skald.divider(ctx),
-		animationForm(ctx, s, node, animation^, index, key, cells),
-		skald.divider(ctx),
-		frameStrip(ctx, s, node, animation^, sheet, cells, max(centerWidth - gap * 4 - INSPECTOR_SCROLLBAR_WIDTH, THUMB_SIZE)),
-		animationPreview(ctx, s, node, animation^, sheet, cells),
-		spacing = gap,
-		padding = gap,
+		),
+		width = width,
 	), id = skald.hash_id("animation-scroll"))
 }
 
-// The node's animations, with the list's buttons (`scrolls`: in its own scroll, side by side)
+// A label and its controls, kept together on one toolbar line
 @(private="file")
-animationList :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, selected: int, scrolls: bool) -> skald.View {
+group :: proc(ctx: ^skald.Ctx(Msg), label: string, controls: ..skald.View) -> skald.View {
+	views := make([dynamic]skald.View, context.temp_allocator)
+	if label != "" do append(&views, toolLabel(ctx, label))
+	append(&views, ..controls)
+	return skald.row(..views[:], spacing = ctx.theme.spacing.xs, cross_align = .Center)
+}
+
+// Toolbar, first row: which animation (a dropdown), the list's buttons, its name, "starts with"
+@(private="file")
+animationPicker :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, animation: AnimationDef, index, key: int) -> []skald.View {
 	th := ctx.theme
-	rows := make([dynamic]skald.View, context.temp_allocator)
+	count := len(node.animations)
+	// The dropdown lists the names; the starting one gets a star
+	labels := make([]string, count, context.temp_allocator)
 	for a, i in node.animations {
-		cells := max(node.columns * node.rows, 1)
-		start, end := AnimationDef_Range(a, cells)
 		first := node.autoplay == a.name || (node.autoplay == "" && i == 0)
-		label := fmt.tprintf("%s %s   %d–%d", first ? ICON_STAR : "  ", a.name, start, end)
-		on := i == selected
-		append(&rows, skald.button(ctx, label, Msg(Anim_Selected(i)), id = skald.hash_id(fmt.tprintf("animation-list-%d", i)),
-			bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_sm, radius = th.radius.sm, width = LIST_WIDTH - 12, text_align = .Start))
+		labels[i] = first ? fmt.tprintf("%s %s", a.name, ICON_STAR) : a.name
 	}
+	Choices :: struct { labels: []string }
+	picker := skald.select(ctx, labels[index], labels, Choices{labels}, proc(c: Choices, v: string) -> Msg {
+		for label, i in c.labels do if label == v do return Anim_Selected(i)
+		return {}
+	}, id = skald.hash_id("animation-select"), width = 150)
 	tool :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, disabled := false) -> skald.View {
 		th := ctx.theme
-		button := skald.button(ctx, icon, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg_muted,
+		button := skald.button(ctx, icon, msg, id = skald.hash_id(key), bg = th.color.bg, fg = th.color.fg_muted,
 			width = 26, padding = {0, 2}, font_size = th.font.size_sm, radius = th.radius.sm, disabled = disabled)
 		return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 	}
-	count := len(node.animations)
-	list := skald.col(..rows[:], spacing = 2)
-	return skald.col(
-		skald.text(fmt.tprintf("%s  Animations", ICON_FILM), th.color.fg, th.font.size_sm),
-		scrolls ? skald.flex(1, skald.scroll(ctx, {0, 0}, list, id = skald.hash_id("animation-list-scroll"))) : list,
-		skald.row(
-			tool(ctx, "animation-add", ICON_PLUS, "New animation (every frame)", Msg(Anim_Added{})),
-			tool(ctx, "animation-duplicate", ICON_COPY, "Duplicate the selected animation", Msg(Anim_Duplicated{})),
-			tool(ctx, "animation-remove", ICON_TRASH, "Remove the selected animation (a sprite keeps one)", Msg(Anim_Removed{}), disabled = count <= 1),
-			tool(ctx, "animation-up", ICON_ARROW_UP, "Move up", Msg(Anim_Moved(-1)), disabled = selected <= 0),
-			tool(ctx, "animation-down", ICON_ARROW_DOWN, "Move down", Msg(Anim_Moved(1)), disabled = selected >= count - 1),
-			spacing = 2,
-		),
-		spacing = th.spacing.xs,
-		width = LIST_WIDTH,
-	)
-}
 
-/*
-The selected animation's name, frames, speed, looping, play mode and "starts with", then the
-sprite sheet: image and grid (the inspector edits the same fields).
-*/
-@(private="file")
-animationForm :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, animation: AnimationDef, index, key, cells: int) -> skald.View {
-	th := ctx.theme
-	start, end := AnimationDef_Range(animation, cells)
-	field :: proc(ctx: ^skald.Ctx(Msg), label: string, controls: ..skald.View) -> skald.View {
-		th := ctx.theme
-		views := make([dynamic]skald.View, context.temp_allocator)
-		append(&views, skald.col(skald.text(label, th.color.fg_muted, th.font.size_sm), width = 58))
-		append(&views, ..controls)
-		return skald.row(..views[:], spacing = th.spacing.xs, cross_align = .Center)
-	}
-	small :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs)
-	}
-	NUMBER :: 76
 	// The name keeps what's typed until it's valid (not empty, not another animation's)
 	nameId := skald.hash_id(fmt.tprintf("animation-name-%d", key))
-	focused := skald.widget_has_focus(ctx, nameId)
-	typing := focused && s.animEditor.nameId == nameId && s.animEditor.nameText != animation.name
-	name := typing ? strings.clone(s.animEditor.nameText, context.temp_allocator) : strings.clone(animation.name, context.temp_allocator)
+	typing := skald.widget_has_focus(ctx, nameId) && s.animEditor.nameId == nameId && s.animEditor.nameText != animation.name
+	name := strings.clone(typing ? s.animEditor.nameText : animation.name, context.temp_allocator)
 	problem := typing ? AnimEdit_NameProblem(node, index, s.animEditor.nameText) : ""
 	nameField := skald.text_input(ctx, name, nameId, proc(id: skald.Widget_ID, v: string) -> Msg { return Anim_Name_Typed{id, v} },
-		id = nameId, width = FORM_WIDTH - 70, padding = InspectorFieldPadding(ctx), invalid = problem != "")
-	modes := make([]string, len(e.AnimationPlayMode), context.temp_allocator)
-	for mode in e.AnimationPlayMode do modes[mode] = fmt.tprintf("%v", mode)
+		id = nameId, width = 140, padding = InspectorFieldPadding(ctx), invalid = problem != "")
 	isFirst := node.autoplay == animation.name || (node.autoplay == "" && index == 0)
 	first := skald.button(ctx, fmt.tprintf("%s  Starts with this", ICON_STAR), Msg(Anim_Autoplay_Set{}), id = skald.hash_id("animation-autoplay"),
-		bg = isFirst ? th.color.primary : th.color.surface, fg = isFirst ? th.color.on_primary : th.color.fg,
+		bg = isFirst ? th.color.primary : th.color.bg, fg = isFirst ? th.color.on_primary : th.color.fg,
 		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = node.autoplay == animation.name)
+	groups := make([dynamic]skald.View, context.temp_allocator)
+	append(&groups,
+		group(ctx, "", skald.text(ICON_FILM, th.color.fg_muted, th.font.size_sm), picker),
+		group(ctx, "",
+			tool(ctx, "animation-add", ICON_PLUS, "New animation (every frame)", Msg(Anim_Added{})),
+			tool(ctx, "animation-duplicate", ICON_COPY, "Duplicate this animation", Msg(Anim_Duplicated{})),
+			tool(ctx, "animation-remove", ICON_TRASH, "Remove this animation (a sprite keeps one)", Msg(Anim_Removed{}), disabled = count <= 1),
+			tool(ctx, "animation-up", ICON_ARROW_UP, "Move it up the list", Msg(Anim_Moved(-1)), disabled = index <= 0),
+			tool(ctx, "animation-down", ICON_ARROW_DOWN, "Move it down the list", Msg(Anim_Moved(1)), disabled = index >= count - 1)),
+		group(ctx, "Name", nameField),
+		skald.tooltip(ctx, first, "The sprite plays this animation when the game starts", id = skald.hash_id("animation-autoplay-tip")),
+	)
+	if problem != "" do append(&groups, skald.text(problem, th.color.danger, th.font.size_xs))
+	return groups[:]
+}
+
+// Toolbar: the animation's frames, speed, looping and play mode
+@(private="file")
+animationDetails :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, animation: AnimationDef, key, cells: int) -> []skald.View {
+	start, end := AnimationDef_Range(animation, cells)
+	modes := make([]string, len(e.AnimationPlayMode), context.temp_allocator)
+	for mode in e.AnimationPlayMode do modes[mode] = fmt.tprintf("%v", mode)
+	groups := make([dynamic]skald.View, context.temp_allocator)
+	append(&groups,
+		group(ctx, "Frames",
+			numberField(ctx, s, fmt.tprintf("animation-start-%d", key), AnimField.Start, f64(start), 1, 0, NUMBER_WIDTH, 0, f64(cells - 1)),
+			toolLabel(ctx, "to"),
+			numberField(ctx, s, fmt.tprintf("animation-end-%d", key), AnimField.End, f64(end), 1, 0, NUMBER_WIDTH, 0, f64(cells - 1))),
+		group(ctx, "FPS", numberField(ctx, s, fmt.tprintf("animation-fps-%d", key), AnimField.FPS, f64(animation.fps), 1, 0, NUMBER_WIDTH, 0, 120)),
+		skald.checkbox(ctx, animation.loop, "Loop", proc(v: bool) -> Msg { return Anim_Loop_Changed(v) }, id = skald.hash_id(fmt.tprintf("animation-loop-%d", key))),
+		skald.select(ctx, fmt.tprintf("%v", animation.playMode), modes, proc(v: string) -> Msg { return Anim_Mode_Changed(v) },
+			id = skald.hash_id(fmt.tprintf("animation-mode-%d", key)), width = 110),
+	)
+	return groups[:]
+}
+
+// Toolbar: the sprite sheet's image and grid (the inspector edits the same fields)
+@(private="file")
+sheetSettings :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key, cells: int) -> []skald.View {
+	th := ctx.theme
 	images := make([dynamic]string, context.temp_allocator)
 	append(&images, TEXTURE_NONE)
 	for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)
-	sheetNumber :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: NodeField, value: f32, lo, hi: f64) -> skald.View {
-		return numberField(ctx, s, fmt.tprintf("animation-%v-%d", field, key), field, f64(value), 1, 0, NUMBER, lo, hi)
+	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: NodeField, value: f32, lo, hi: f64) -> skald.View {
+		return numberField(ctx, s, fmt.tprintf("animation-%v-%d", field, key), field, f64(value), 1, 0, NUMBER_WIDTH, lo, hi)
 	}
-	return skald.col(
-		field(ctx, "Name", nameField),
-		problem != "" ? skald.text(problem, th.color.danger, th.font.size_xs) : skald.View(skald.View_Spacer{size = 0}),
-		field(ctx, "Frames",
-			numberField(ctx, s, fmt.tprintf("animation-start-%d", key), AnimField.Start, f64(start), 1, 0, NUMBER, 0, f64(cells - 1)),
-			small(ctx, "to"),
-			numberField(ctx, s, fmt.tprintf("animation-end-%d", key), AnimField.End, f64(end), 1, 0, NUMBER, 0, f64(cells - 1))),
-		field(ctx, "FPS", numberField(ctx, s, fmt.tprintf("animation-fps-%d", key), AnimField.FPS, f64(animation.fps), 1, 0, NUMBER, 0, 120),
-			skald.checkbox(ctx, animation.loop, "Loop", proc(v: bool) -> Msg { return Anim_Loop_Changed(v) }, id = skald.hash_id(fmt.tprintf("animation-loop-%d", key)))),
-		field(ctx, "Mode", skald.select(ctx, fmt.tprintf("%v", animation.playMode), modes, proc(v: string) -> Msg { return Anim_Mode_Changed(v) },
-			id = skald.hash_id(fmt.tprintf("animation-mode-%d", key)), width = 120)),
-		field(ctx, "", skald.tooltip(ctx, first, "The sprite plays this animation when the game starts", id = skald.hash_id("animation-autoplay-tip"))),
-		skald.text("Sprite sheet", th.color.fg, th.font.size_xs),
-		field(ctx, "Image", skald.select(ctx, node.texture == "" ? TEXTURE_NONE : node.texture, images[:], NodeTextField.Texture,
+	groups := make([dynamic]skald.View, context.temp_allocator)
+	append(&groups,
+		group(ctx, "Sheet", skald.select(ctx, node.texture == "" ? TEXTURE_NONE : node.texture, images[:], NodeTextField.Texture,
 			proc(field: NodeTextField, v: string) -> Msg { return Node_Text_Changed{field, v} },
-			id = skald.hash_id(fmt.tprintf("animation-sheet-%d", key)), width = FORM_WIDTH - 70, placeholder = "Choose an image")),
-		field(ctx, "Grid", sheetNumber(ctx, s, key, .Columns, f32(node.columns), 1, 64), small(ctx, "×"), sheetNumber(ctx, s, key, .Rows, f32(node.rows), 1, 64)),
-		field(ctx, "Margin", sheetNumber(ctx, s, key, .Margin, node.margin, 0, 1000), small(ctx, "gap"), sheetNumber(ctx, s, key, .Spacing, node.spacing, 0, 1000)),
-		small(ctx, fmt.tprintf("%d frames. Click a frame to start there, Shift+click to end there.", cells)),
-		spacing = th.spacing.xs,
-		width = FORM_WIDTH,
+			id = skald.hash_id(fmt.tprintf("animation-sheet-%d", key)), width = 150, placeholder = "Choose an image")),
+		group(ctx, "Grid", number(ctx, s, key, .Columns, f32(node.columns), 1, 64), toolLabel(ctx, "×"), number(ctx, s, key, .Rows, f32(node.rows), 1, 64)),
+		group(ctx, "Margin", number(ctx, s, key, .Margin, node.margin, 0, 1000)),
+		group(ctx, "Gap", number(ctx, s, key, .Spacing, node.spacing, 0, 1000)),
+		skald.text(fmt.tprintf("%d frames", cells), th.color.fg_muted, th.font.size_xs),
 	)
+	return groups[:]
 }
 
 @(private="file")
-FORM_WIDTH :: 250
+toolLabel :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
+	return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_sm)
+}
 
 /*
 A thumbnail of every cell of the sheet, wrapped to `width`: the selected animation's cells lit,
@@ -250,7 +249,8 @@ frameStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, animation: A
 	}, id = id, width = width, height = height, cursor = .Pointer)
 }
 
-// The selected animation playing (or its first frame while paused), with play / pause
+// The selected animation playing (or its first frame while paused), with play / pause; the
+// hint about clicking frames sits under it
 @(private="file")
 animationPreview :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, animation: AnimationDef, sheet: SheetImage, cells: int) -> skald.View {
 	th := ctx.theme
@@ -258,24 +258,24 @@ animationPreview :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, animat
 	frame := s.animEditor.playing ? AnimationDef_FrameAt(animation, cells, s.animEditor.clock) : (animation.playMode == .Reverse ? end : start)
 	Preview :: struct { sheet: SheetImage, grid: SheetGrid, frame: int, bg, edge: skald.Color }
 	preview := new_clone(Preview{sheet, gridOf(node), frame, th.color.surface, th.color.border}, context.temp_allocator)
-	size := f32(PREVIEW_WIDTH - 10)
 	canvas := skald.canvas(ctx, preview, proc(pv: ^Preview, p: skald.Canvas_Painter) {
 		skald.draw_rect(p.r, p.bounds, pv.bg, 4)
 		drawCell(p.r, pv.sheet, pv.grid, pv.frame, {p.bounds.x + 4, p.bounds.y + 4, p.bounds.w - 8, p.bounds.h - 8}, {1, 1, 1, 1})
 		ring(p.r, p.bounds, pv.edge, 1)
-	}, id = skald.hash_id("animation-preview"), width = size, height = size)
+	}, id = skald.hash_id("animation-preview"), width = PREVIEW_SIZE, height = PREVIEW_SIZE)
 	playing := s.animEditor.playing
 	play := skald.button(ctx, playing ? ICON_PAUSE : ICON_PLAY, Msg(Anim_Playback_Toggled{}), id = skald.hash_id("animation-play"),
-		bg = th.color.surface, fg = th.color.fg, width = 30, padding = {0, 2}, font_size = th.font.size_sm, radius = th.radius.sm)
+		bg = th.color.surface, fg = th.color.fg, width = 28, padding = {0, 2}, font_size = th.font.size_sm, radius = th.radius.sm)
 	return skald.col(
 		canvas,
 		skald.row(
 			skald.tooltip(ctx, play, playing ? "Pause the preview" : "Play the preview", id = skald.hash_id("animation-play-tip")),
-			skald.text(fmt.tprintf("frame %d (%d of %d)", frame, frame - start + 1, end - start + 1), th.color.fg_muted, th.font.size_xs),
+			skald.text(fmt.tprintf("frame %d · %d of %d", frame, frame - start + 1, end - start + 1), th.color.fg_muted, th.font.size_xs),
 			spacing = th.spacing.xs, cross_align = .Center,
 		),
+		skald.text("Click a frame: start there. Shift+click: end there.", th.color.fg_muted, th.font.size_xs, max_width = PREVIEW_SIZE),
 		spacing = th.spacing.xs,
-		width = PREVIEW_WIDTH,
+		width = PREVIEW_SIZE,
 	)
 }
 

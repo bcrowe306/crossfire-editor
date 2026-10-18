@@ -146,7 +146,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_inspector_particles.odin` | The inspector's ParticleEmitter settings, built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`, Reset) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation tabs, collapsible |
-| `view_animation.odin` | The Animation panel (the animation editor): animation list, the selected animation's form, the sprite sheet's frame thumbnails (`frameStrip`, cells drawn from the sheet uploaded once with stb_image), the preview; side by side when wide, stacked in one scroll when narrow |
+| `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with, frames, FPS, loop, mode, the sheet's image and grid; groups in a `wrap_row`) over the preview and the sheet's frame thumbnails (`frameStrip`, cells drawn from the sheet uploaded once with stb_image); one scroll for all |
 | `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimationDef_FrameAt` (the frame at a time, as the engine plays it), `AnimationDef_Range`, unique names |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
@@ -638,12 +638,15 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   one) and `autoplay` (the one it starts with, "" = the first). Scene files: `<animation>` children
   (format 7). Files before that get one "default" animation from the node's old fps/loop/playMode
   when loaded (`Project_Load`), so NodeDef has no node-level fps/loop/playMode any more.
-- **Panel** (bottom panel, Animation tab; the inspector's Edit Animations opens it): the list (add,
-  duplicate with a unique name, remove (one stays), reorder, a star on the starting one), the form
-  (name, kept while typed until valid and unused; frames; FPS; loop; mode; Starts with this; the
-  sheet's image and grid), a thumbnail per sheet cell (click = start, Shift+click = end; the
-  animation's cells lit), and a preview playing it (`Anim_Tick` at ANIMATION_PREVIEW_FPS while it
-  plays and the panel shows). The viewport plays the panel's animation on the sprite too
+- **Panel** (bottom panel, Animation tab; the inspector's Edit Animations opens it): a toolbar on
+  top, the frames below, so it uses the panel's width. The toolbar: a dropdown picking the
+  animation (a star on the starting one), add / duplicate (unique name) / remove (one stays) / move
+  up and down, the name (kept while typed until valid and unused), Starts with this, frames, FPS,
+  loop, mode, the sheet's image and grid. Its controls are small groups in a `skald.wrap_row`, so
+  they wrap onto more lines in a narrow panel (a group wider than a line would spill into the
+  scrollbar strip: keep groups small). Below: a preview playing the animation and a thumbnail per
+  sheet cell (click = start, Shift+click = end; the animation's cells lit). The preview runs on `Anim_Tick` at ANIMATION_PREVIEW_FPS while it
+  plays and the panel shows. The viewport plays the panel's animation on the sprite too
   (`Preview_Render`).
 - **Thumbnails:** the sheet is uploaded once per file (`image_load_pixels`); `drawCell` draws a
   cell with Skald's `draw_image_region` (a pixel rect of an image, inset half a texel so

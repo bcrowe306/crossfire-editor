@@ -226,8 +226,10 @@ Animations**). A sprite's image is a sprite sheet (a grid of frames: columns, ro
 spacing); its animations are named runs of those frames, each with its own speed, looping and play
 mode (forward, reverse, ping-pong):
 
-- The list adds, duplicates, removes and reorders animations; the star marks the one the sprite
-  starts with (**Starts with this**, or the inspector's **Starts with**).
+- The toolbar along the top picks the animation (a dropdown) and adds, duplicates, removes and
+  reorders them; the star marks the one the sprite starts with (**Starts with this**, or the
+  inspector's **Starts with**). The selected animation's frames, speed, looping and mode, and the
+  sprite sheet's grid, are there too.
 - Every frame of the sheet is shown as a thumbnail: click one to start the animation there,
   Shift+click to end it there (or type the numbers).
 - The preview plays the animation as the game will, and the viewport plays it on the sprite.

@@ -1,4 +1,4 @@
-# The Animation panel: open it from the inspector, add an animation, set its frames by clicking
+# The Animation panel (a toolbar over the frames): open it from the inspector, add an animation, set its frames by clicking
 # thumbnails, its speed and mode, make it the one the sprite starts with, preview it, undo, save.
 # Run with: task test:ui
 #
@@ -53,18 +53,24 @@ scroll_into_view animation-scroll animation-loop-5
 click_widget animation-loop-5
 expect animation loop false
 
-# The sprite starts with it; the star marks it in the list
+# The sprite starts with it; the star marks it in the dropdown, which picks the animation
 scroll_into_view animation-scroll animation-autoplay
 click_widget animation-autoplay
 expect autoplay pop
 scroll_into_view animation-scroll animation-play
 click_widget animation-play
-scroll_into_view animation-scroll animation-list-0
-click_widget animation-list-0
+scroll_into_view animation-scroll animation-select
+click_widget animation-select
+wait 3
+click_overlay_item 0
 expect animation name default
-scroll_into_view animation-scroll animation-list-1
-click_widget animation-list-1
+wait 30
+scroll_into_view animation-scroll animation-select
+click_widget animation-select
+wait 3
+click_overlay_item 1
 expect animation name pop
+wait 30
 
 # Duplicate (a unique name), remove the copy, undo it
 scroll_into_view animation-scroll animation-duplicate
