@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project formatVersion="5" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
+<project formatVersion="8" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
 	<scene name="MenuScene" path="scenes/MenuScene.scene.xml"/>
 	<scene name="PlayScene" path="scenes/PlayScene.scene.xml"/>
 	<scene name="OptionsScene" path="scenes/OptionsScene.scene.xml"/>
