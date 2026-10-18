@@ -2624,3 +2624,17 @@ viewport_shows_particles :: proc(t: ^testing.T) {
 	testing.expectf(t, smaller > 0, "still drawn: %d px", smaller)
 	free_all(context.temp_allocator)
 }
+
+@(test)
+slider_values_are_short_text :: proc(t: ^testing.T) {
+	testing.expect_value(t, formatSliderValue(0.94600004, 3), "0.946")
+	testing.expect_value(t, formatSliderValue(100, 2), "100")
+	testing.expect_value(t, formatSliderValue(0.5, 4), "0.5")
+	testing.expect_value(t, formatSliderValue(-0.0001, 2), "0")
+	testing.expect_value(t, formatSliderValue(12.25, 0), "12")
+	// A linked pair keeps short numbers too
+	settings := e.DEFAULT_PARTICLE_SETTINGS
+	ParticleSettings_SetAxis(&settings, "size", 0, 0.30000001, false)
+	text, _ := e.ParticleSettings_Get(settings, "size")
+	testing.expect_value(t, text, "0.3,5")
+}

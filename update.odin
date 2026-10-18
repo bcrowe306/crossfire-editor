@@ -940,7 +940,7 @@ ParticleSettings_SetAxis :: proc(settings: ^e.ParticleSettings, name: string, ax
 	pair := [2]f32{x, y}
 	if linked do pair[1 - axis] = LinkedAxis(pair[axis], value, pair[1 - axis])
 	pair[axis] = value
-	e.ParticleSettings_Set(settings, name, fmt.tprintf("%v,%v", pair.x, pair.y))
+	e.ParticleSettings_Set(settings, name, fmt.tprintf("%s,%s", formatSliderValue(pair.x, 4), formatSliderValue(pair.y, 4)))
 }
 
 // A particle setting's index in e.ParticleSettings_Fields (-1 if there's none by that name)

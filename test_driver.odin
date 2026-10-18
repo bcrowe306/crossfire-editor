@@ -5,6 +5,7 @@ import "core:log"
 import "core:math"
 import "core:os"
 import "core:reflect"
+import "core:slice"
 import "core:strconv"
 import "core:strings"
 import "core:time"
@@ -31,8 +32,12 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	click_widget <key>               Click the center of a widget's visible part, e.g. toolbar-play
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
-	drag_widget <key> <fx0> <fy0> <fx1> <fy1>
-	                                 Press at one point of a widget (fractions), move to another, release
+	scroll_by <scroll key> <dy>      Scroll a scroll container by dy pixels (0 or less: to the top)
+	click_overlay_item <i>           Click button i (top to bottom) of the open popup, e.g. a
+	                                 dropdown's choices after click_widget opened it
+	drag_widget <key> <fx0> <fy0> <fx1> <fy1> [shift]
+	                                 Press at one point of a widget (fractions), move to another,
+	                                 release; optionally holding Shift
 	click_row <tree key> <row> [ctrl | shift]
 	                                 Click a row of a tree: browser-tree, scene-tree; optionally
 	                                 holding Ctrl or Shift
@@ -125,6 +130,7 @@ Checks:
 	shapes <on | off>            The viewport outlines collision shapes, rays and joints
 	particle <setting> <value>   A ParticleEmitter setting of the selected node, as scene files
 	                             store it (e.g. particle amount 50, particle size 5,5)
+	particle_near <setting> <value> <tolerance>   A numeric particle setting is within tolerance
 	particle_linked <setting> <true | false>   A particle [2]f32 setting's axes are linked
 	ramp_stops <count>           Stops in the selected emitter's color ramp
 	ramp_stop <index>            The color ramp editor's selected stop
@@ -326,6 +332,37 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "scroll_by":
+		if len(args) < 2 || skald.hash_id(args[0]) not_in ctx.widgets.states {
+			fail(fmt.tprintf("%s: expected a scroll that was drawn and a distance", line))
+			return true
+		}
+		scroll := &ctx.widgets.states[skald.hash_id(args[0])]
+		dy := f32(atoi(args, 1, 0))
+		scroll.scroll_y = dy <= 0 ? 0 : scroll.scroll_y + dy
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "click_overlay_item":
+		// The buttons drawn on an overlay layer last frame, top to bottom
+		items := make([dynamic]skald.Rect, context.temp_allocator)
+		newest: u64
+		for _, st in ctx.widgets.states do if st.kind == .Button do newest = max(newest, st.last_overlay_frame)
+		for _, st in ctx.widgets.states {
+			if st.kind == .Button && newest > 0 && st.last_overlay_frame == newest && st.last_rect.w > 0 do append(&items, st.last_rect)
+		}
+		slice.sort_by(items[:], proc(a, b: skald.Rect) -> bool { return a.y < b.y })
+		index := atoi(args, 0, 0)
+		if index < 0 || index >= len(items) {
+			fail(fmt.tprintf("%s: the popup has %d buttons", line, len(items)))
+			return true
+		}
+		r := items[index]
+		click({r.x + r.w * 0.5, r.y + r.h * 0.5})
+		report(true, line)
+		return false
+
 	case "click_at", "drag_widget":
 		count := command == "click_at" ? 3 : 5
 		if len(args) < count {
@@ -347,11 +384,19 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			click(start)
 		} else {
 			end := at(rect, args, 3)
+			shift := len(args) > 5 && args[5] == "shift"
 			pushMouse(.MOUSE_MOTION, start)
+			if shift do pushKey(.KEY_DOWN, {.LSHIFT})
 			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, start))
 			STEPS :: 4
 			for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, start + (end - start) * f32(i) / STEPS))
 			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, end))
+			if shift {
+				release: sdl.Event
+				release.type = .KEY_UP
+				release.key.scancode = .LSHIFT
+				queueBatch(release)
+			}
 			driver.waitFrames = INPUT_SETTLE_FRAMES
 		}
 		report(true, line)
@@ -770,6 +815,15 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			if !known do return false, fmt.tprintf("no particle setting '%s'", setting)
 		}
 		return found == strings.trim_space(expected), found
+	case "particle_near":
+		if selected == nil || selected.kind != .ParticleEmitter do return false, "no ParticleEmitter selected"
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 3 do return false, "expected a setting, a value and a tolerance"
+		text, _ := e.ParticleSettings_Get(selected.particles, parts[0])
+		got, _ := strconv.parse_f32(text)
+		want, _ := strconv.parse_f32(parts[1])
+		tolerance, _ := strconv.parse_f32(parts[2])
+		return abs(got - want) <= tolerance, text
 	case "ramp_stops":
 		if selected == nil || selected.kind != .ParticleEmitter do return false, "no ParticleEmitter selected"
 		found = fmt.tprint(selected.particles.colorRamp.count)

@@ -10,7 +10,8 @@ import sdl "vendor:sdl3"
 /*
 The inspector's ParticleEmitter properties: every field of the engine's `e.ParticleSettings`, by
 its type and tags (`e.ParticleSettings_Fields`), so a field added there shows up here:
-- numbers with a `min` / `max` range: sliders (with the value beside them)
+- numbers with a `min` / `max` range: `valueSlider`s (type a value, Shift for fine steps, reset
+  to the default)
 - `[2]f32`: a slider per axis, with a link toggle (linked, one axis drags the other in proportion)
 - `bool`: checkboxes; enums: dropdowns
 - colors: a color picker and an alpha slider
@@ -24,9 +25,6 @@ undoable, merged per field. Widget keys: `inspector-particle-<field>-<node>` (`-
 `inspector-ramp-position-<node>`, `inspector-ramp-color-<node>`, `inspector-ramp-alpha-<node>`.
 */
 
-// Width of the value shown beside a slider
-@(private="file")
-SLIDER_VALUE_WIDTH :: 40
 @(private="file")
 RAMP_BAR_HEIGHT :: 22
 @(private="file")
@@ -60,7 +58,17 @@ particleInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 			if settings.useColorRamp do continue
 		}
 		value, _ := e.ParticleSettings_Get(settings, field.name)
-		append(&rows, inspectorRow(ctx, field.label, particleControl(ctx, s, field, index, value, key, controlWidth)))
+		control := particleControl(ctx, s, field, index, value, key, controlWidth)
+		if field.type == [2]f32 {
+			// The link button goes with the label: beside the sliders it ran into the scrollbar
+			// strip in a narrow inspector (a click there paged the inspector instead)
+			th := ctx.theme
+			append(&rows, skald.row(
+				skald.col(skald.text(field.label, th.color.fg_muted, th.font.size_sm), linkButton(ctx, s, field, index), spacing = 2, width = INSPECTOR_LABEL_WIDTH),
+				control, spacing = th.spacing.sm, cross_align = .Center))
+		} else {
+			append(&rows, inspectorRow(ctx, field.label, control))
+		}
 		// The Texture shape's image, under the shape
 		if field.name == "shape" && settings.shape == .Texture {
 			images := make([dynamic]string, context.temp_allocator)
@@ -85,76 +93,91 @@ ParticlePayload :: struct {
 
 // The control for one setting, by its type
 @(private="file")
-particleControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int, value: string, key: int, width: f32) -> skald.View {
+particleControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int, value: string, node: int, width: f32) -> skald.View {
 	th := ctx.theme
-	id :: proc(field: e.ParticleFieldInfo, key: int, part := "") -> skald.Widget_ID {
-		return skald.hash_id(fmt.tprintf("inspector-particle-%s%s-%d", field.name, part, key))
+	key :: proc(field: e.ParticleFieldInfo, node: int, part := "") -> string {
+		return fmt.tprintf("inspector-particle-%s%s-%d", field.name, part, node)
+	}
+	id :: proc(field: e.ParticleFieldInfo, node: int, part := "") -> skald.Widget_ID {
+		return skald.hash_id(key(field, node, part))
 	}
 	payload := ParticlePayload{name = field.name, axis = -1, integer = field.type == int, step = sliderStep(field)}
+	// The default, to reset to
+	defaultText, _ := e.ParticleSettings_Get(e.DEFAULT_PARTICLE_SETTINGS, field.name)
 	onText :: proc(p: ParticlePayload, v: string) -> Msg { return Particle_Field_Changed{p.name, v} }
 
 	switch field.type {
 	case bool:
 		return skald.checkbox(ctx, value == "true", "", payload,
 			proc(p: ParticlePayload, v: bool) -> Msg { return Particle_Field_Changed{p.name, v ? "true" : "false"} },
-			id = id(field, key))
+			id = id(field, node))
 	case e.ParticleShape:
 		names := make([]string, len(e.ParticleShape), context.temp_allocator)
 		for shape in e.ParticleShape do names[shape] = fmt.tprintf("%v", shape)
-		return skald.select(ctx, value, names, payload, onText, id = id(field, key), width = width)
+		return skald.select(ctx, value, names, payload, onText, id = id(field, node), width = width)
 	case int, f32:
 		number, _ := strconv.parse_f32(value)
-		return slider(ctx, field, payload, number, id(field, key), width)
+		defaultNumber, _ := strconv.parse_f32(defaultText)
+		return slider(ctx, field, payload, number, defaultNumber, key(field, node), width)
 	case [2]f32:
 		axes: [2]f32
 		ok: bool
 		axes, ok = parsePair(value)
 		if !ok do return skald.text(value, th.color.fg_muted, th.font.size_sm)
-		linked := index in s.particleLinks
-		button := skald.button(ctx, linked ? ICON_LINK : ICON_LINK_SLASH, Msg(Particle_Link_Toggled(index)),
-			id = skald.hash_id(fmt.tprintf("inspector-particle-link-%s", field.name)),
-			bg = linked ? th.color.primary : th.color.surface, fg = linked ? th.color.on_primary : th.color.fg_muted,
-			width = LINK_WIDTH, padding = {0, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
-		tip := linked ? "Unlink: change X and Y separately" : "Link X and Y: changing one changes the other in proportion"
-		sliderWidth := width - LINK_WIDTH - th.spacing.xs - 12 - th.spacing.xs
-		axisRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control, after: skald.View) -> skald.View {
+		defaults, _ := parsePair(defaultText)
+		sliderWidth := width - AXIS_LABEL_WIDTH - th.spacing.xs
+		axisRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
 			th := ctx.theme
-			return skald.row(skald.col(skald.text(label, th.color.fg_muted, th.font.size_xs), width = 12), control, after, spacing = th.spacing.xs, cross_align = .Center)
+			return skald.row(skald.col(skald.text(label, th.color.fg_muted, th.font.size_xs), width = AXIS_LABEL_WIDTH), control, spacing = th.spacing.xs, cross_align = .Center)
 		}
 		px, py := payload, payload
 		px.axis, py.axis = 0, 1
 		return skald.col(
-			axisRow(ctx, "X", slider(ctx, field, px, axes.x, id(field, key, "-x"), sliderWidth),
-				skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("inspector-particle-link-tip-%s", field.name)))),
-			axisRow(ctx, "Y", slider(ctx, field, py, axes.y, id(field, key, "-y"), sliderWidth), skald.spacer(LINK_WIDTH)),
+			axisRow(ctx, "X", slider(ctx, field, px, axes.x, defaults.x, key(field, node, "-x"), sliderWidth)),
+			axisRow(ctx, "Y", slider(ctx, field, py, axes.y, defaults.y, key(field, node, "-y"), sliderWidth)),
 			spacing = 2,
 		)
 	case sdl.Color:
 		color, _ := e.ParseColor(value)
-		return colorWithAlpha(ctx, color, field.name, id(field, key), id(field, key, "-alpha"), width)
+		defaultColor, _ := e.ParseColor(defaultText)
+		return colorWithAlpha(ctx, color, defaultColor.a, field.name, id(field, node), key(field, node, "-alpha"), width)
 	}
 	return skald.text(value, th.color.fg_muted, th.font.size_sm)
 }
 
 @(private="file")
 LINK_WIDTH :: 20
-
-// A slider over the field's range, with its value beside it
 @(private="file")
-slider :: proc(ctx: ^skald.Ctx(Msg), field: e.ParticleFieldInfo, payload: ParticlePayload, value: f32, id: skald.Widget_ID, width: f32) -> skald.View {
+AXIS_LABEL_WIDTH :: 10
+
+// An [2]f32 setting's link toggle (linked, one axis drags the other in proportion)
+@(private="file")
+linkButton :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int) -> skald.View {
 	th := ctx.theme
+	linked := index in s.particleLinks
+	button := skald.button(ctx, linked ? ICON_LINK : ICON_LINK_SLASH, Msg(Particle_Link_Toggled(index)),
+		id = skald.hash_id(fmt.tprintf("inspector-particle-link-%s", field.name)),
+		bg = linked ? th.color.primary : th.color.surface, fg = linked ? th.color.on_primary : th.color.fg_muted,
+		width = LINK_WIDTH, padding = {0, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
+	tip := linked ? "Unlink: change X and Y separately" : "Link X and Y: changing one changes the other in proportion"
+	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("inspector-particle-link-tip-%s", field.name)))
+}
+
+// A slider over the field's range (valueSlider: type a value, Shift for fine steps, reset)
+@(private="file")
+slider :: proc(ctx: ^skald.Ctx(Msg), field: e.ParticleFieldInfo, payload: ParticlePayload, value, defaultValue: f32, key: string, width: f32) -> skald.View {
 	onSlide :: proc(p: ParticlePayload, v: f32) -> Msg {
-		v := p.step > 0 ? math.round(v / p.step) * p.step : v
 		if p.axis >= 0 do return Particle_Axis_Changed{p.name, p.axis, v}
-		return Particle_Field_Changed{p.name, p.integer ? fmt.tprintf("%d", int(v)) : fmt.tprintf("%v", v)}
+		return Particle_Field_Changed{p.name, p.integer ? fmt.tprintf("%d", int(math.round(v))) : formatSliderValue(v, stepDecimals(p.step) + 1)}
 	}
-	decimals := payload.integer ? 0 : clamp(int(math.ceil(-math.log10(payload.step))), 0, 3)
-	return skald.row(
-		skald.slider(ctx, value, payload, onSlide, id = id, min_value = field.min, max_value = field.max,
-			step = payload.integer ? 1 : 0, width = max(width - SLIDER_VALUE_WIDTH - th.spacing.xs, 40)),
-		skald.col(skald.text(fmt.tprintf("%.*f", decimals, value), th.color.fg_muted, th.font.size_xs), width = SLIDER_VALUE_WIDTH),
-		spacing = th.spacing.xs, cross_align = .Center,
-	)
+	return valueSlider(ctx, key, value, payload, onSlide, field.min, field.max, step = payload.step,
+		decimals = payload.integer ? 0 : stepDecimals(payload.step), defaultValue = defaultValue, width = width)
+}
+
+// Decimals that show a step (0.001: 3); the fine mode's tenth of a step gets one more where it's stored
+@(private="file")
+stepDecimals :: proc(step: f32) -> int {
+	return step > 0 ? clamp(int(math.ceil(-math.log10(step) - 0.0001)), 0, 4) : 2
 }
 
 /*
@@ -180,7 +203,7 @@ A color picker (Skald's has no alpha) and an alpha slider under it, editing the 
 as `#rrggbbaa` text.
 */
 @(private="file")
-colorWithAlpha :: proc(ctx: ^skald.Ctx(Msg), color: sdl.Color, name: string, pickerId, alphaId: skald.Widget_ID, width: f32) -> skald.View {
+colorWithAlpha :: proc(ctx: ^skald.Ctx(Msg), color: sdl.Color, defaultAlpha: u8, name: string, pickerId: skald.Widget_ID, alphaKey: string, width: f32) -> skald.View {
 	th := ctx.theme
 	Payload :: struct { name: string, color: sdl.Color }
 	payload := Payload{name, color}
@@ -193,12 +216,11 @@ colorWithAlpha :: proc(ctx: ^skald.Ctx(Msg), color: sdl.Color, name: string, pic
 		}, id = pickerId, width = width),
 		skald.row(
 			skald.col(skald.text("Alpha", th.color.fg_muted, th.font.size_xs), width = 34),
-			skald.slider(ctx, f32(color.a), payload, proc(p: Payload, v: f32) -> Msg {
+			valueSlider(ctx, alphaKey, f32(color.a), payload, proc(p: Payload, v: f32) -> Msg {
 				c := p.color
 				c.a = u8(math.clamp(math.round(v), 0, 255))
 				return Particle_Field_Changed{p.name, e.FormatColor(c, context.temp_allocator)}
-			}, id = alphaId, min_value = 0, max_value = 255, step = 1, width = max(width - 34 - SLIDER_VALUE_WIDTH - th.spacing.xs * 2, 40)),
-			skald.col(skald.text(fmt.tprintf("%d", color.a), th.color.fg_muted, th.font.size_xs), width = SLIDER_VALUE_WIDTH),
+			}, 0, 255, step = 1, decimals = 0, defaultValue = f32(defaultAlpha), width = width - 34 - th.spacing.xs),
 			spacing = th.spacing.xs, cross_align = .Center,
 		),
 		spacing = 2,
@@ -227,7 +249,7 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 		mouse := ctx.input.mouse_pos
 		area := state.clip_rect.w > 0 ? state.clip_rect : bar
 		t := math.clamp((mouse.x - bar.x) / bar.w, 0, 1)
-		over := pointInRect(bar, mouse) && pointInRect(area, mouse) && !skald.mouse_over_overlay(ctx) && ctx.widgets.modal_rect_prev.w == 0
+		over := pointInRect(bar, mouse) && pointInRect(area, mouse) && len(ctx.widgets.overlay_rects_prev) == 0 && ctx.widgets.modal_rect_prev.w == 0
 		if ctx.input.mouse_pressed[.Left] && over {
 			grabbed := -1
 			for i in 0 ..< ramp.count {
@@ -308,20 +330,15 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 	)))
 
 	// The selected stop's position, color and alpha
-	Stop :: struct { ramp: e.ColorRamp, index: int, step: f32 }
-	stopPayload := Stop{ramp, selected, 0.001}
-	append(&rows, inspectorRow(ctx, "Position", skald.row(
-		skald.slider(ctx, stop.position, stopPayload, proc(p: Stop, v: f32) -> Msg {
-			changed := p.ramp
-			index := p.index
-			changed.stops[index].position = math.round(v / p.step) * p.step
-			e.ColorRamp_Sort(&changed, &index)
-			return Ramp_Edited{FormatRampText(changed), index}
-		}, id = skald.hash_id(fmt.tprintf("inspector-ramp-position-%d", key)), min_value = 0, max_value = 1,
-			width = max(width - SLIDER_VALUE_WIDTH - th.spacing.xs, 40)),
-		skald.col(skald.text(fmt.tprintf("%.0f%%", stop.position * 100), th.color.fg_muted, th.font.size_xs), width = SLIDER_VALUE_WIDTH),
-		spacing = th.spacing.xs, cross_align = .Center,
-	)))
+	Stop :: struct { ramp: e.ColorRamp, index: int }
+	stopPayload := Stop{ramp, selected}
+	append(&rows, inspectorRow(ctx, "Position", valueSlider(ctx, fmt.tprintf("inspector-ramp-position-%d", key), stop.position, stopPayload, proc(p: Stop, v: f32) -> Msg {
+		changed := p.ramp
+		index := p.index
+		changed.stops[index].position = v
+		e.ColorRamp_Sort(&changed, &index)
+		return Ramp_Edited{FormatRampText(changed), index}
+	}, 0, 1, step = 0.001, decimals = 3, width = width)))
 	linear := skald.rgb(u32(stop.color.r) << 16 | u32(stop.color.g) << 8 | u32(stop.color.b))
 	append(&rows,
 		inspectorRow(ctx, "Color", skald.color_picker(ctx, linear, stopPayload, proc(p: Stop, c: skald.Color) -> Msg {
@@ -331,16 +348,11 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 			changed.stops[p.index].color = picked
 			return Ramp_Edited{FormatRampText(changed), p.index}
 		}, id = skald.hash_id(fmt.tprintf("inspector-ramp-color-%d", key)), width = width)),
-		inspectorRow(ctx, "Alpha", skald.row(
-			skald.slider(ctx, f32(stop.color.a), stopPayload, proc(p: Stop, v: f32) -> Msg {
-				changed := p.ramp
-				changed.stops[p.index].color.a = u8(math.clamp(math.round(v), 0, 255))
-				return Ramp_Edited{FormatRampText(changed), p.index}
-			}, id = skald.hash_id(fmt.tprintf("inspector-ramp-alpha-%d", key)), min_value = 0, max_value = 255, step = 1,
-				width = max(width - SLIDER_VALUE_WIDTH - th.spacing.xs, 40)),
-			skald.col(skald.text(fmt.tprintf("%d", stop.color.a), th.color.fg_muted, th.font.size_xs), width = SLIDER_VALUE_WIDTH),
-			spacing = th.spacing.xs, cross_align = .Center,
-		)),
+		inspectorRow(ctx, "Alpha", valueSlider(ctx, fmt.tprintf("inspector-ramp-alpha-%d", key), f32(stop.color.a), stopPayload, proc(p: Stop, v: f32) -> Msg {
+			changed := p.ramp
+			changed.stops[p.index].color.a = u8(math.clamp(math.round(v), 0, 255))
+			return Ramp_Edited{FormatRampText(changed), p.index}
+		}, 0, 255, step = 1, decimals = 0, width = width)),
 	)
 	return rows[:]
 }

@@ -126,6 +126,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard tabs |
 | `settings.default.ini` | Default settings, built into the editor |
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors |
+| `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
 | `project_scenes.odin` | Scene list operations: add, copy, rename (updating references), remove, start scene, names; deleting old scene files on save |
@@ -170,6 +171,11 @@ Skald is not immediate-mode and not a retained widget tree:
   Heap strings in State are fine (the copy shares them), but text stored inline (`FixedText`, the
   code editor setting) must be cloned to `context.temp_allocator` first. The Code editor field
   showed garbage until it was (only in the optimized build, and tests can't see drawing).
+- **Skald's `select` can open its list somewhere other than where it reports it** (it predicts
+  the list's height with taller rows than it draws, so near the bottom of the window it thinks the
+  list flips above while it actually opens below). A press on a choice then counts as outside: the
+  list closes without choosing, and a widget under it can take the press. Skald needs the fix;
+  `valueSlider` and the ramp editor ignore presses while any popup is open.
 - `skald.tree` can't color rows and `skald.number_input`'s stepper buttons can't be restyled, so the
   editor has its own `coloredTree` and `numberField`. Keep their widget ids (`browser-tree`,
   `scene-tree`, `inspector-<Field>-<node>`, `-dec` / `-inc` for the buttons): tests click them.
@@ -630,10 +636,11 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
 - **Inspector** (`view_inspector_particles.odin`): one loop over `e.ParticleSettings_Fields()`
   (names, types, the `min`/`max`/`label`/`group` tags), so **a setting added in the engine shows
   up here with no editor change** (a new field type needs a case in `particleControl`). Ranged
-  numbers are sliders, rounded to about a thousandth of their range (`sliderStep`) so scene files
-  get short numbers; `[2]f32` is two sliders and a link button (`State.particleLinks`, by field
-  index; `ParticleSettings_SetAxis` applies `LinkedAxis`); colors are Skald's picker (no alpha) plus
-  an alpha slider. The ramp hides the start/end colors when on, and vice versa.
+  numbers are `valueSlider`s (reset goes to `e.DEFAULT_PARTICLE_SETTINGS`), rounded to about a
+  thousandth of their range (`sliderStep`; a tenth of that with Shift) and written with
+  `formatSliderValue`, so scene files get short numbers; `[2]f32` is two sliders, with the link
+  button under the label (`State.particleLinks`, by field index; `ParticleSettings_SetAxis`
+  applies `LinkedAxis`); colors are Skald's picker (no alpha) plus an alpha slider. The ramp hides the start/end colors when on, and vice versa.
 - **Color ramp editor** (`colorRampEditor`): a canvas (checkerboard, the gradient in 2 px slices,
   a marker per stop). Its mouse handling runs before it's built, from last frame's rect (like the
   scene tree's): a press near a marker grabs it, elsewhere on the bar adds a stop in the ramp's
@@ -648,8 +655,10 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   Emitting is off, and replays a one-shot one once its particles are gone.
 - Tests: `particle_emitter_round_trip`, `particle_inspector_edits`, `viewport_shows_particles`
   (pixels from `Preview_Render`), and `tests/ui/particles.script` (real slider drags, the link
-  button, ramp clicks and drags, alpha, reset, undo). The driver's `click_at` / `drag_widget`
-  press at fractions of a widget; checks `particle`, `particle_linked`, `ramp_stops`, `ramp_stop`.
+  button, ramp clicks and drags, alpha, typing a value, Shift drags, reset, the shape dropdown,
+  undo). The driver's `click_at` / `drag_widget [shift]` press at fractions of a widget,
+  `click_overlay_item` clicks a popup's choice (a dropdown's), `scroll_by` scrolls; checks
+  `particle`, `particle_near`, `particle_linked`, `ramp_stops`, `ramp_stop`.
 
 ## Export (implemented, `export.odin`, `export_run.odin`)
 

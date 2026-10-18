@@ -27,6 +27,41 @@ scroll_into_view inspector-scroll inspector-particle-amount-11
 drag_widget inspector-particle-amount-11 0.5 0.5 -0.5 0.5
 expect particle amount 1
 
+# Typing a value into the box beside a slider (clamped to the range)
+scroll_into_view inspector-scroll inspector-particle-lifetime-11
+click_widget inspector-particle-lifetime-11-value
+key END
+key BACKSPACE
+type 3.5
+expect particle lifetime 3.5
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+type 9
+expect particle lifetime 5
+# Shift drags ten times finer, from where the value is (no jump to the pointer): half the
+# track is a twentieth of the range (0.01 to 5)
+click_widget inspector-particle-lifetime-11-reset
+expect particle lifetime 2
+drag_widget inspector-particle-lifetime-11 0.25 0.5 0.75 0.5 shift
+expect particle_near lifetime 2.25 0.03
+# Reset to the default
+click_widget inspector-particle-lifetime-11-reset
+expect particle lifetime 2
+
+# The shape dropdown: the choice shows
+scroll_into_view inspector-scroll inspector-particle-shape-11
+click_widget inspector-particle-shape-11
+wait 3
+click_overlay_item 2
+expect particle shape Rectangle
+click_widget inspector-particle-shape-11
+wait 3
+click_overlay_item 0
+expect particle shape Circle
+# The popup fades out (and blocks clicks) for a moment
+wait 30
+
 # A linked pair: dragging X to its maximum takes Y along
 scroll_into_view inspector-scroll inspector-particle-link-size
 click_widget inspector-particle-link-size
