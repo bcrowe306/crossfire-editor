@@ -1,7 +1,8 @@
 # The built-in code editor: New Script opens the script in a code tab next to the scenes, with the
 # keyboard; typing, Tab, Delete and Ctrl+Z go to the code (not the scene); OLS completes after a
 # "."; Ctrl+S saves it; scene tabs and code tabs switch; a second script gets its own tab; closing
-# a tab with unsaved changes asks; Settings switches back to the external program.
+# a tab with unsaved changes asks; a file changed on disk reloads (or asks); the tabs share one
+# language server; Settings switches back to the external program.
 # Run with: task test:ui (needs an ols for the completion step: PATH, code_editor/third_party/ols
 # or Zed's Odin extension)
 #
@@ -66,6 +67,28 @@ expect code_dirty false
 expect modified false
 expect project_file_contains scripts/mover.odin // a note
 
+# Another program changes the file: the unchanged buffer reloads
+touch_project_file scripts/mover.odin // from outside
+wait_until code_contains true // from outside timeout=5
+expect console_contains mover.odin changed on disk: reloaded
+expect code_dirty false
+# With unsaved changes it asks: Keep mine keeps the buffer, Reload takes the file's
+key ctrl+END
+type // mine
+touch_project_file scripts/mover.odin // outside again
+wait_until code_disk_conflict true timeout=5
+click_widget code-disk-keep
+expect code_disk_conflict false
+expect code_contains true // mine
+expect code_contains false // outside again
+touch_project_file scripts/mover.odin // third
+wait_until code_disk_conflict true timeout=5
+click_widget code-disk-reload
+expect code_disk_conflict false
+expect code_contains true // third
+expect code_contains false // mine
+expect code_dirty false
+
 # The scene tab shows the scene again; the code tab comes back with its text
 # (in a narrow window the tab strip scrolls: back to its start first)
 wheel_widget center-tabs 30
@@ -87,6 +110,17 @@ click_widget new-script-create
 expect script Blinker
 expect code_tabs 2
 expect code_tab blinker.odin
+# One language server for both tabs: it moved to this one, and completes here too
+expect code_servers 1 running, 1 started
+wait_until code_lsp Running timeout=30
+wait_until code_focused true timeout=5
+key ctrl+END
+key RETURN
+type probe2 :: proc() {
+key RETURN
+type e.
+wait_until code_completion true timeout=20
+key ESCAPE
 # Opening the first one again shows its tab, not a third
 click_row scene-tree 2
 scroll_into_view inspector-scroll inspector-open-script
@@ -108,12 +142,16 @@ click_widget code-tab-close-1
 click_widget code-close-discard
 expect code_close_dialog closed
 expect code_tabs 1
+# The server went on with the other tab
+expect code_servers 1 running, 1 started
 expect code_tab mover.odin
 expect project_file_contains scripts/blinker.odin Script_Register
 # A tab without changes closes at once; then the scene shows
 click_widget code-tab-close-0
 expect code_tabs 0
 expect code_tab none
+# The last tab stopped it
+expect code_servers 0 running, 1 started
 
 # Off in Settings: scripts open in the external program again (the test settings' is `true`)
 key ctrl+comma

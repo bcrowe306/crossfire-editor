@@ -497,9 +497,25 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - **Unsaved scripts** count in `Project_IsModified`; `Session_Save`, Play and Export call
   `CodeTabs_SaveAll` first; Save starts a background script build when a script was saved.
 - **Language server:** `Code_FindOLS` (the setting `ols_path`, PATH, `code_editor/third_party/ols`
-  from `task ols`, Zed's extension). One OLS per open file, rooted at the scripts folder (its
-  ols.json). `Code_Tick` (every 0.1 s while one is attached and the window is focused) keeps
-  frames coming for its replies.
+  from `task ols`, Zed's extension), rooted at the scripts folder (its ols.json). **One for all
+  tabs**: a `ce.Editor` owns its client by value, so the client (with its supervisor) moves to the
+  editor that shows (`takeServer`); hidden editors have it off and get no input, so they have
+  nothing to send. The receiver resends its whole text (`lsp_need_full`) and reopens its document
+  if the server process changed (`openedIn`, the pid it was opened in). Closing a tab sends
+  `didClose` (`releaseServer`); the last tab stops the server. `Code_Tick` (0.1 s with a server,
+  1 s without, while the window is focused) keeps frames coming for replies and the disk check.
+- **Files changed on disk:** the modification time is kept at open, save and reload; the shown
+  file is looked at once a second and as soon as its tab shows again (`CodeEditor_DiskChange`):
+  unchanged buffers reload (caret kept), dirty ones get the bar over the code (`CodeTabs_DiskBar`:
+  Reload / Keep mine, `Code_Disk_Chosen`). A hidden tab's reload keeps its document open on the
+  server (it resends the text when it shows).
+- **Its own settings persist:** `ce.editor_set_config_dir` with `code_editor/` next to editor.ini
+  (keymap.json, theme.json: the code editor's Keymap Editor, Theme Editor, "Color Theme"). Test
+  runs without `--settings` keep none. A light editor theme starts the code on Ayu Light until a
+  theme is saved.
+- **Tabs** look like `skald.tabs`' (its fill, text colors, padding, font, underline; copied from
+  view.odin's `_tabs`, with the × inside the tile): they're our buttons because Skald's tabs have
+  no close button.
 - **The test driver** had to send what real input sends: `type` is one TEXT_INPUT per character
   (the code editor completes after a typed "."), and key events carry the key code
   (`GetKeyFromScancode`: the code editor reads key codes, Skald scancodes). `click_tab` clicks a
@@ -512,8 +528,11 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   completion, saving, tabs, the close prompt, the external fallback; driver checks `code_tabs`,
   `code_tab`, `code_focused`, `code_contains`, `code_dirty`, `code_caret`, `code_rendered`
   (pixels unlike the background, uploaded), `code_lsp`, `code_completion`, `code_close_dialog`).
-- Not yet: one OLS shared by all tabs; reloading a file changed on disk; the code editor's
-  keymap/theme settings saved for the user (no config dir is set).
+- **Looking at it:** `save_code_render <file.png>` (driver) writes the code editor's own pixels
+  (its surface, not the screen). The rest of the UI can't be captured: Skald's offscreen renderer
+  (`render_view_to_pixels`) is private.
+- Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
+  (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 

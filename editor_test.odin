@@ -12,6 +12,7 @@ import "core:sync"
 import "core:testing"
 import "core:time"
 import e "engine:."
+import ce "code_editor/editor"
 import "gui:skald"
 import sdl "vendor:sdl3"
 
@@ -3255,5 +3256,51 @@ code_tabs_open_switch_close :: proc(t: ^testing.T) {
 	state.settings.codeEditorPath = FixedText_Make("true")
 	_ = Script_Open(&state, a, 1)
 	testing.expect_value(t, len(state.codeTabs), 0)
+	free_all(context.temp_allocator)
+}
+
+
+@(test)
+code_editor_settings_persist_and_disk_changes :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_code_config")
+	defer removeAll(dir)
+	file := joinPath(dir, "a.odin", allocator = context.temp_allocator)
+	config := joinPath(dir, "code_editor", allocator = context.temp_allocator)
+	_ = os.write_entire_file(file, transmute([]byte)string("package a\n// one\n"))
+
+	// The theme chosen in the code editor is there next time
+	c, problem := CodeEditor_Open(file, "", "", config)
+	testing.expect_value(t, problem, "")
+	ce.editor_apply_preset(&c.ed, .Dark_Plus)
+	CodeEditor_Close(file)
+	c, _ = CodeEditor_Open(file, "", "", config)
+	testing.expect(t, c.ed.theme == ce.preset_theme(.Dark_Plus), "theme kept")
+	testing.expect(t, os.exists(joinPath(config, "theme.json", allocator = context.temp_allocator)), "theme.json")
+	CodeEditor_Close(file)
+	// A light editor starts the code light, until a theme is chosen
+	removeAll(config)
+	c, _ = CodeEditor_Open(file, "", "", config, lightTheme = true)
+	testing.expect(t, c.ed.theme == ce.ayu_light_theme(), "light")
+
+	// Changed on disk: no unsaved changes reloads; unsaved changes ask
+	later := time.time_add(time.now(), 2 * time.Second)
+	_ = os.write_entire_file(file, transmute([]byte)string("package a\n// two\n"))
+	_ = os.change_times(file, later, later)
+	testing.expect_value(t, CodeEditor_DiskChange(file, now = true), CodeDiskChange.Reloaded)
+	testing.expect(t, strings.contains(CodeEditor_Text(file), "// two"), "reloaded")
+	testing.expect_value(t, CodeEditor_DiskChange(file, now = true), CodeDiskChange.None)
+	c.ed.buf.dirty = true
+	later = time.time_add(later, time.Second)
+	_ = os.write_entire_file(file, transmute([]byte)string("package a\n// three\n"))
+	_ = os.change_times(file, later, later)
+	testing.expect_value(t, CodeEditor_DiskChange(file, now = true), CodeDiskChange.Conflict)
+	testing.expect(t, CodeEditor_HasDiskConflict(file), "asks")
+	CodeEditor_ResolveDiskChange(file, reloadIt = false)
+	testing.expect(t, !strings.contains(CodeEditor_Text(file), "// three"), "kept mine")
+	testing.expect_value(t, CodeEditor_DiskChange(file, now = true), CodeDiskChange.None)
+	// Saving isn't a change on disk
+	testing.expect_value(t, CodeEditor_Save(file), "")
+	testing.expect_value(t, CodeEditor_DiskChange(file, now = true), CodeDiskChange.None)
+	CodeEditor_Close(file)
 	free_all(context.temp_allocator)
 }

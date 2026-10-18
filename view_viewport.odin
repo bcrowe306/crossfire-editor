@@ -221,6 +221,7 @@ codeCenterView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.V
 	)
 	return skald.col(
 		header,
+		CodeTabs_DiskBar(s, ctx, path),
 		skald.flex(1, CodeEditor_View(s, ctx, path)),
 		CodeTabs_StatusLine(s, ctx, path),
 		cross_align = .Stretch,

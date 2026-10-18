@@ -49,6 +49,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 holding Ctrl or Shift
 	double_click_row <tree key> <row>   Double-click a row
 	click_tab <tabs key> <index>     Click a tab of a tab strip, e.g. click_tab scene-tabs 1
+	touch_project_file <path> <text> Append a line to a project file, as another program would
+	save_code_render <file.png>      Save the shown code tab's render (its own pixels, not the screen)
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
 	scroll_into_view <scroll key> <widget key>
@@ -153,6 +155,8 @@ Checks:
 	buses <count>                The project's mix buses (Master counts)
 	code_tabs <count>            Open code tabs
 	code_close_dialog <open | closed>   The "save changes?" prompt for closing a code tab
+	code_disk_conflict <true | false>   The shown file changed on disk under unsaved changes (the bar)
+	code_servers <n> running, <m> started   Language servers (every tab shares one)
 	code_tab <file name | none>  The code tab that shows (none: the scene)
 	code_focused <true | false>  The code editor has the keyboard
 	code_contains <true | false> <text>   The shown code tab's text contains the text (\t for a tab)
@@ -650,6 +654,31 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "save_code_render":
+		// The shown code tab's own render (never the screen), to look at
+		if problem := CodeEditor_SaveRender(CodeTabs_Active(s), rest); problem != "" {
+			fail(fmt.tprintf("%s: %s", line, problem))
+			return true
+		}
+		report(true, line)
+		return false
+
+	case "touch_project_file":
+		// Another program changes a project file: appends a line, with a modification time a
+		// second ahead (so a change in the same second as the last write still shows)
+		file, _, text := strings.partition(rest, " ")
+		path := joinPath(s.project.rootPath, file, allocator = context.temp_allocator)
+		old, readErr := os.read_entire_file(path, context.temp_allocator)
+		if readErr != nil {
+			fail(fmt.tprintf("%s: can't read %s", line, path))
+			return true
+		}
+		_ = os.write_entire_file(path, transmute([]byte)strings.concatenate({string(old), text, "\n"}, context.temp_allocator))
+		later := time.time_add(time.now(), time.Second)
+		_ = os.change_times(path, later, later)
+		report(true, line)
+		return false
+
 	case "double_click_widget":
 		rect, ok := widgetRect(ctx, rest)
 		if !ok {
@@ -1019,6 +1048,11 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(selected.particles.colorRamp.count)
 	case "buses":
 		found = fmt.tprint(len(s.project.buses))
+	case "code_disk_conflict":
+		found = fmt.tprint(CodeEditor_HasDiskConflict(CodeTabs_Active(s)))
+	case "code_servers":
+		running, started := CodeEditor_Servers()
+		found = fmt.tprintf("%d running, %d started", running, started)
 	case "code_close_dialog":
 		found = s.codeClose.open ? "open" : "closed"
 	case "code_tabs":

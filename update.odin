@@ -75,7 +75,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Input_Capture_Started, Input_Capture_Cancelled, Input_Device_Changed:
 		// Handled by ProjectSettings_Update above
 	case Code_Tab_Selected, Code_Tab_Close_Requested, Code_Close_Chosen, Code_Open_Requested, Code_Save_Requested,
-	     Code_Tick_Requested, Code_Tick, Code_Focused:
+	     Code_Tick_Requested, Code_Tick, Code_Focused, Code_Reloaded, Code_Disk_Chosen:
 		// Handled by CodeTabs_Update above
 	case Bus_Added, Bus_Removed, Bus_Renamed, Bus_Volume_Changed, Bus_Pan_Changed, Bus_Mute_Toggled:
 		// Handled by Mixer_Update above

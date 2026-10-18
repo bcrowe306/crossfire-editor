@@ -182,6 +182,11 @@ project, and a save builds the scripts in the background so the inspector shows 
 While the code editor has the keyboard, keys go to it, except Save, Play, Pause, Stop, Build
 Scripts, Export, Settings, the bottom panel and Quit.
 
+A script changed by another program (or git) while it's open is read again; if you have unsaved
+changes to it, a bar asks whether to reload it or keep yours. The code editor's own key bindings
+and theme (its Keymap Editor and Theme Editor, in the command palette) are kept next to the
+editor's settings. All tabs share one language server.
+
 The language server is `ols`: the one in Settings > Editor > Language server, else `ols` in PATH,
 else one built with `task ols` (into `code_editor/third_party/ols`), else Zed's Odin extension's.
 Without one the editor still works, without completion and diagnostics.

@@ -56,7 +56,10 @@ CodeTabs_Open :: proc(state: ^State, path: string, line: int) {
 			state.codeNoOLSLogged = true
 		}
 	}
-	if _, problem := CodeEditor_Open(absolute, scriptsDir, ols); problem != "" {
+	// The code editor's keymap and theme edits live next to editor.ini (none in test runs without one)
+	configDir := ""
+	if state.settingsPath != "" do configDir = joinPath(filepath.dir(state.settingsPath), "code_editor", allocator = context.temp_allocator)
+	if _, problem := CodeEditor_Open(absolute, scriptsDir, ols, configDir, state.settings.theme == .Light); problem != "" {
 		logLine(state, .Warning, strings.clone(problem))
 		return
 	}
@@ -156,7 +159,13 @@ CodeTabs_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	case Code_Tick_Requested:
 		if state.codeTickPending do break
 		state.codeTickPending = true
-		return skald.cmd_delay(CODE_TICK_SECONDS, Msg(Code_Tick{})), true
+		return skald.cmd_delay(v.seconds > 0 ? v.seconds : CODE_TICK_SECONDS, Msg(Code_Tick{})), true
+	case Code_Reloaded:
+		logLine(state, .Info, fmt.aprintf("%s changed on disk: reloaded", filepath.base(v.path)))
+	case Code_Disk_Chosen:
+		path := CodeTabs_Active(state)
+		CodeEditor_ResolveDiskChange(path, bool(v))
+		if bool(v) do logLine(state, .Info, fmt.aprintf("%s reloaded from disk (your changes are gone)", filepath.base(path)))
 	case Code_Tick:
 		state.codeTickPending = false
 	case Code_Focused:
@@ -209,18 +218,20 @@ CodeTabs_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 			p := ctx.input.mouse_pos
 			if p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h do skald.send(ctx, Msg(Code_Tab_Close_Requested(i)))
 		}
-		label := fmt.tprintf("%s  %s%s", ICON_FILE_CODE, filepath.base(path), dirty ? " ●" : "")
-		bg := active ? th.color.bg : th.color.surface
+		// Styled as skald.tabs styles the scene tabs (view.odin's _tabs): the same fill, text,
+		// padding, font and underline, with the × inside the tile
+		bg := active ? skald.color_mix(th.color.primary, th.color.surface, 0.94) : th.color.surface
 		fg := active ? th.color.fg : th.color.fg_muted
+		label := fmt.tprintf("%s  %s%s", ICON_FILE_CODE, filepath.base(path), dirty ? " ●" : "")
 		tab := skald.button(ctx, label, Msg(Code_Tab_Selected(i)), id = tabId,
-			bg = bg, fg = fg, padding = {th.spacing.sm, 3}, font_size = th.font.size_sm, radius = 0)
+			bg = bg, fg = fg, radius = th.radius.sm, padding = {th.spacing.md, th.spacing.sm}, font_size = th.font.size_md)
 		close := skald.button(ctx, ICON_XMARK, Msg(Code_Tab_Close_Requested(i)), id = skald.hash_id(fmt.tprintf("code-tab-close-%d", i)),
-			bg = bg, fg = th.color.fg_muted, padding = {th.spacing.xs, 3}, font_size = th.font.size_xs, radius = 0)
-		underline := skald.rect({0, 2}, active ? th.color.primary : skald.Color{})
+			bg = bg, fg = th.color.fg_muted, radius = th.radius.sm, padding = {th.spacing.sm, th.spacing.sm}, font_size = th.font.size_xs)
+		underline := active ? skald.rect({0, 2}, th.color.primary) : skald.rect({0, 1}, th.color.border)
 		append(&views, skald.tooltip(ctx, skald.col(
-			skald.row(tab, close, spacing = 0, cross_align = .Center),
-			skald.flex(0, underline),
-			spacing = 0,
+			skald.row(tab, close, spacing = 0, cross_align = .Center, bg = bg, radius = th.radius.sm),
+			underline,
+			spacing = 2,
 			cross_align = .Stretch,
 		), path, id = skald.hash_id(fmt.tprintf("code-tab-tip-%d", i))))
 	}
@@ -234,6 +245,32 @@ CodeTabs_HeaderButtons :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) ->
 		disabled = !CodeEditor_IsDirty(path), bg = th.color.surface, fg = th.color.fg,
 		padding = {th.spacing.sm, 3}, font_size = th.font.size_sm, radius = th.radius.sm)
 	return skald.tooltip(ctx, save, actionTip(s, "Save the script (Save also saves the project)", .Save_Project), id = skald.hash_id("code-save-tip"))
+}
+
+// The bar over the code when its file changed on disk under unsaved changes ({} when it didn't)
+CodeTabs_DiskBar :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.View {
+	th := ctx.theme
+	if !CodeEditor_HasDiskConflict(path) do return skald.spacer(0)
+	small :: proc(ctx: ^skald.Ctx(Msg), label: string, msg: Msg, key: string) -> skald.View {
+		th := ctx.theme
+		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.bg, fg = th.color.fg,
+			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+	}
+	// The message wraps to the panel and the buttons go under it: in a narrow panel one line
+	// pushed the buttons past its edge
+	left, right := FittedSidebarWidths(&s.layout)
+	width := max(s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.xs * 2, 120)
+	return skald.col(
+		skald.text(fmt.tprintf("%s changed on disk, and you have unsaved changes.", filepath.base(path)), skald.rgb(0x1a1a1a), th.font.size_sm, max_width = width),
+		skald.row(
+			small(ctx, "Reload (lose mine)", Msg(Code_Disk_Chosen(true)), "code-disk-reload"),
+			small(ctx, "Keep mine", Msg(Code_Disk_Chosen(false)), "code-disk-keep"),
+			spacing = th.spacing.sm,
+		),
+		spacing = th.spacing.xs,
+		padding = th.spacing.xs,
+		bg = th.color.warning,
+	)
 }
 
 // The line under the code: the file, the caret, the language server

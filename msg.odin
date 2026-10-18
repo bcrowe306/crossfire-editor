@@ -258,8 +258,16 @@ Code_Open_Requested :: struct {
 }
 // Save the script that shows
 Code_Save_Requested :: struct {}
-// Keep frames coming while a language server may answer
-Code_Tick_Requested :: struct {}
+// Keep frames coming while a language server may answer (and to look at the file on disk)
+Code_Tick_Requested :: struct {
+	seconds: f32,
+}
+// The shown file changed on disk and was read again (path: the frame's)
+Code_Reloaded :: struct {
+	path: string,
+}
+// The bar's answer when the file changed on disk under unsaved changes: true reloads it
+Code_Disk_Chosen :: distinct bool
 Code_Tick :: struct {}
 // The code editor took the keyboard focus a tab asked for
 Code_Focused :: struct {}
@@ -706,6 +714,8 @@ Msg :: union {
 	Code_Open_Requested,
 	Code_Save_Requested,
 	Code_Tick_Requested,
+	Code_Reloaded,
+	Code_Disk_Chosen,
 	Code_Tick,
 	Code_Focused,
 	New_Project_Name_Changed,
