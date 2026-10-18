@@ -186,6 +186,7 @@ browserMenuItems :: proc(s: ^State) -> []string {
 		if selection.folder == .Components && selection.index < len(s.project.assets) {
 			if i := Project_FindComponent(&s.project, s.project.assets[selection.index].path); i >= 0 do add(&labels, "Open", Msg(Component_Opened(i)))
 			add(&labels, "Add to Scene", Msg(Component_Instance_Added(selection.index)))
+			add(&labels, "Rename", Msg(Component_Rename_Started(selection.index)))
 			add(&labels, "New Component", Msg(Component_New{}))
 		}
 		add(&labels, "Remove from Project...", Msg(Action.Remove_Asset))
@@ -264,9 +265,13 @@ keeps the name (if it's valid), Escape cancels.
 browserRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> skald.View {
 	th := ctx.theme
 	none := skald.View(skald.View_Spacer{size = 0})
-	if !s.rename.active || s.rename.target != .Scene do return none
+	if !s.rename.active || s.rename.target == .Node do return none
+	// A scene's row, or a component's (an asset row)
+	component := s.rename.target == .Component
 	row := -1
-	for item, i in items do if item.kind == .Scene && item.index == s.rename.node do row = i
+	for item, i in items {
+		if component ? (item.kind == .Asset && item.index == s.rename.node) : (item.kind == .Scene && item.index == s.rename.node) do row = i
+	}
 	treeState, drawn := ctx.widgets.states[skald.hash_id("browser-tree")]
 	if row < 0 || !drawn {
 		skald.send(ctx, Msg(Rename_Cancelled{}))
@@ -287,8 +292,15 @@ browserRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> 
 	x := tree.x + th.spacing.sm + th.spacing.lg + 16 + th.font.size_md + th.spacing.xs
 	y := tree.y + f32(row) * rowHeight
 	area := treeState.clip_rect.w > 0 ? treeState.clip_rect : tree
-	if y < area.y || y + rowHeight > area.y + area.h do return none
-	problem := SceneNameProblem(&s.project, strings.trim_space(s.rename.text), s.rename.node)
+	if y < area.y || y + rowHeight > area.y + area.h {
+		// Scrolled out of view (focusing the tree scrolls the browser back to its top): bring the
+		// row back, so the field can be shown and focused next frame
+		scroll := &ctx.widgets.states[skald.hash_id("browser-scroll")]
+		scroll.scroll_y = max(scroll.scroll_y + (y + rowHeight * 0.5) - (area.y + area.h * 0.5), 0)
+		skald.send(ctx, Msg(Frame_Requested{}))
+		return none
+	}
+	problem := component ? ComponentNameProblem(&s.project, s.rename.node, s.rename.text) : SceneNameProblem(&s.project, strings.trim_space(s.rename.text), s.rename.node)
 	return skald.overlay({x, y, 0, 0},
 		skald.text_input(ctx, s.rename.text,
 			proc(v: string) -> Msg { return Rename_Text_Changed(v) },

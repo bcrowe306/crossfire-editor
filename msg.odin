@@ -161,6 +161,8 @@ Refocus_Done :: struct {}
 RenameTarget :: enum {
 	Node,
 	Scene,
+	// A component, in the browser (`node` is its asset's index)
+	Component,
 }
 
 // Project Settings dialog (view_project_settings.odin)
@@ -420,6 +422,10 @@ Component_Opened :: distinct int
 Component_Instance_Added :: distinct int
 // Makes a new component (a Node2D to build on) and opens it
 Component_New :: struct {}
+// Starts renaming a component in the browser (its asset's index)
+Component_Rename_Started :: distinct int
+// Make Unique: the selected instance gets a copy of its component, its own from now on
+Component_Made_Unique :: struct {}
 
 // Project Settings > Input (input_actions.odin): the draft's actions
 Input_New_Name_Changed :: distinct string
@@ -733,6 +739,8 @@ Msg :: union {
 	Component_Opened,
 	Component_Instance_Added,
 	Component_New,
+	Component_Rename_Started,
+	Component_Made_Unique,
 	Input_New_Name_Changed,
 	Input_Action_Added,
 	Input_Defaults_Added,

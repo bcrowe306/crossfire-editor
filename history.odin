@@ -163,6 +163,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		// Exporting applies the dialog first
 		return {scope = .Project, label = "Change project settings"}
 	case Rename_Committed:
+		// Renaming a component moves its file: not undoable, like removing an asset
+		if s.rename.active && s.rename.target == .Component do return {}
 		if s.rename.active && s.rename.target == .Scene {
 			index := s.rename.node
 			label := index >= 0 && index < len(s.project.scenes) ? fmt.tprintf("Rename scene %s", s.project.scenes[index].name) : "Rename scene"
@@ -257,6 +259,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			info.label = fmt.tprintf("%v %d nodes", drag.mode, len(s.selection))
 		}
 		return info
+	case Component_Made_Unique:
+		if hasSelection do return node(selected, fmt.tprintf("Make %s unique", name))
 	case Component_Instance_Added:
 		return {scope = .Scene, label = "Add an instance"}
 	case Add_Node_Confirmed, Add_Node_Kind_Chosen:

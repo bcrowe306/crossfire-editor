@@ -24,7 +24,8 @@ reads the screen, so it's safe to run while using the machine (the editor window
 (`skald.hash_id(key)` in the view code), so scripts don't depend on window size or layout.
 The editor exits when the script ends: code 0 if every check passed, 1 otherwise.
 
-Script format: one command per line; blank lines and `#` comments are ignored.
+Script format: one command per line; blank lines and `#` comments are ignored. `{selected}` in a
+command is the selected node's index (inspector keys: `click_widget inspector-name-{selected}`).
 
 	wait <frames>                    Let frames pass
 	wait_until <check> [timeout=<s>] Wait (default 10 s) until a check passes; fails on timeout
@@ -74,6 +75,7 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	key <combo>                      Press a key: F5, DELETE, ctrl+s, shift+F5 (SDL scancode names)
 	type <text>                      Type text into the focused field
 	select_asset <path>              Select an asset in the browser (its folder opened), e.g. a component
+	right_click_asset <path>         Right-click an asset's browser row (its context menu: browser-menu)
 	import <path>                    Import a file as an asset, as if picked in the Import dialog
 	                                 (native file dialogs can't be scripted)
 	quit                             End the script
@@ -311,6 +313,8 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 // Runs one command. Returns false when the script must wait before the next one
 @(private="file")
 runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
+	// {selected} stands for the selected node's index (widget keys like inspector-name-{selected})
+	line, _ := strings.replace_all(line, "{selected}", fmt.tprint(s.selectedNode), context.temp_allocator)
 	command, _, rest := strings.partition(line, " ")
 	rest = strings.trim_space(rest)
 	args := strings.fields(rest, context.temp_allocator)
@@ -766,6 +770,32 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
+
+	case "right_click_asset":
+		// The asset's browser row (its folder opened), right-clicked: its context menu
+		for asset, i in s.project.assets {
+			if asset.path != rest do continue
+			s.browserOpen[AssetFolder(asset.kind)] = true
+			for row, r in BrowserRows(s) {
+				if row.kind != .Asset || row.index != i do continue
+				// Scroll the browser to it first
+				tree := ctx.widgets.states[skald.hash_id("browser-tree")]
+				y := tree.last_rect.y + (f32(r) + 0.5) * s.settings.rowHeight
+				if !rowVisible(ctx, "browser-tree", y) && driver.scrollAttempts < 5 {
+					scroll := &ctx.widgets.states[skald.hash_id("browser-scroll")]
+					area := scroll.last_rect
+					scroll.scroll_y = max(scroll.scroll_y + y - (area.y + area.h * 0.5), 0)
+					driver.scrollAttempts += 1
+					driver.line -= 1
+					driver.waitFrames = INPUT_SETTLE_FRAMES
+					return false
+				}
+				driver.scrollAttempts = 0
+				return runCommand(s, ctx, fmt.tprintf("right_click_row browser-tree %d", r))
+			}
+		}
+		fail(fmt.tprintf("%s: no asset %s", line, rest))
+		return true
 
 	case "select_asset":
 		// Selects an asset's browser row (its folder opened), as a click on it would

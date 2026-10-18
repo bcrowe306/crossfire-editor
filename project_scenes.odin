@@ -60,7 +60,7 @@ Project_UniqueSceneName :: proc(project: ^Project, name: string) -> string {
 
 // A deep copy of a scene: its name and nodes
 SceneDef_Clone :: proc(scene: SceneDef) -> SceneDef {
-	copy := SceneDef{name = strings.clone(scene.name)}
+	copy := SceneDef{name = strings.clone(scene.name), component = strings.clone(scene.component), opened = scene.opened}
 	for node in scene.nodes do append(&copy.nodes, NodeDef_Clone(node))
 	return copy
 }
@@ -71,6 +71,7 @@ SceneDef_Destroy :: proc(scene: ^SceneDef) {
 	delete(scene.nodes)
 	delete(scene.name)
 	scene^ = {}
+	delete(scene.component)
 }
 
 /*

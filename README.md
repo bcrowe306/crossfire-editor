@@ -231,6 +231,9 @@ becomes an *instance* of it. Then:
   more instances, in any scene. An instance has its own name, position, rotation, scale, layer and
   visibility; everything else comes from the component.
 - **Open** it (double-click) to edit it in its own tab: every instance follows.
+- **Rename** it (its menu in the browser): the file and every instance follow.
+- An instance's **Make Unique** (inspector) gives it its own copy of the component, to change it
+  without changing the others.
 - The browser's preview draws it. **New Component** starts an empty one.
 - In code, as many as needed: `e.Scene_Instantiate(self.scene, COMPONENT_SHIP, position = {100, 50})`
   (constants in `scripts/assets.odin`; exported `e.ComponentAsset` fields get a picker).

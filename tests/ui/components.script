@@ -1,5 +1,5 @@
 # Components: save a node tree as a component, add instances from the browser, open and edit the
-# component, save. Run with: task test:ui (and task test:ui:fullscreen)
+# component, make an instance unique, rename the component, save. Run with: task test:ui (and task test:ui:fullscreen)
 #
 # PlayScene's rows: World, Camera, Spaceship, ShipLight, Props (node 4, with 4 children)
 
@@ -14,7 +14,7 @@ expect selected Props
 # Save as Component (the scene tree's menu): Props is an instance of it now
 right_click_row scene-tree 4
 wait_until menu scene-tree-menu open
-click_menu_item scene-tree-menu 6
+click_menu_item scene-tree-menu 7
 expect components 1
 expect nodes 7
 expect kind Component
@@ -39,10 +39,32 @@ type Node2D
 key RETURN
 expect nodes 6
 
+# Make Unique: the instance Add to Scene made gets its own copy
+click_row browser-tree 2
+expect scene PlayScene
+click_node props
+expect kind Component
+scroll_into_view inspector-scroll inspector-make-unique-{selected}
+click_widget inspector-make-unique-{selected}
+expect components 2
+
+# Rename (the browser's menu): the file moves, the instances follow
+right_click_asset components/props.component.xml
+wait_until menu browser-menu open
+click_menu_item browser-menu 2 5
+expect renaming true
+wait_until typing true
+key END
+type _set
+key RETURN
+expect renaming false
+expect project_file components/props_set.component.xml
+
 key ctrl+s
 wait_until modified false
-expect project_file components/props.component.xml
-expect project_file_contains components/props.component.xml <component formatVersion=
-expect project_file_contains scenes/PlayScene.scene.xml kind="Component" name="Props"
+expect project_file components/props_set.component.xml
+expect project_file_contains components/props_set.component.xml <component formatVersion=
+expect project_file_contains scenes/PlayScene.scene.xml component="components/props_set.component.xml"
+expect project_file_contains scenes/PlayScene.scene.xml component="components/props_2.component.xml"
 expect project_file_contains project.xml kind="Component"
 quit

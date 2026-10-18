@@ -20,8 +20,8 @@ type Mover
 click_widget new-script-create
 expect new_script_dialog closed
 expect script Mover
-# Rows: Scenes + 3 scenes, Scripts + mover.odin + the generated assets.odin, Images + 3 images, Audio, Fonts, Data
-expect browser_rows 14
+# Rows: Scenes + 3 scenes, Scripts + mover.odin + the generated assets.odin, Images + 3 images, Audio, Fonts, Data, Components
+expect browser_rows 15
 wait_until scripts Ready timeout=240
 expect output_contains 1 script: Mover
 

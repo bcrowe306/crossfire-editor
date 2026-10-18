@@ -57,7 +57,7 @@ add it as a task and to the README's command table.
 | `task check` | Type-check with `-vet-unused -vet-packages:editor` (Skald itself doesn't pass vet) |
 | `task test` | Unit tests (`editor_test.odin`) |
 | `task verify` | `check` + `test` |
-| `task test:ui` | UI test scripts (`tests/ui/*.script`) driving the real editor with injected input |
+| `task test:ui` | UI test scripts (`tests/ui/*.script`) driving the real editor with injected input (`SCRIPT=<file>` for one) |
 | `task test:ui:fullscreen` | The same with a fullscreen editor (`SCRIPT=<file>` for one) |
 | `task build` / `task build:release` | Debug build into `build/`, optimized build into `build/release/` |
 | `task run` | Build optimized (`build/release/`) and run; program arguments after `--` |
@@ -662,12 +662,22 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   changes (`componentSignature`); an instance picks and outlines by its whole tree
   (`subtreeBounds`). The browser preview draws a component with its own engine renderer
   (`Preview_RenderComponent`, cached by content and size).
+- **Renaming** (the browser's menu, an inline rename with `RenameTarget.Component`): the file
+  moves now (`Project_RenameComponent`), its asset, SceneDef and every instance follow; not
+  undoable (it moves a file). Names are file names (`ComponentNameProblem`; compared ignoring
+  case, as on Windows and macOS).
+- **Make Unique** (an instance's inspector): a copy of its component as a new one
+  (`<name>_2`), which the instance then uses alone (`Scene_MakeInstanceUnique`; undo points the
+  instance back, the copy stays).
 - **Removing** its asset removes its SceneDef (`History_SceneRemoved` drops and re-indexes undo
   steps). `scripts/assets.odin` gets `COMPONENT_X` constants; script fields of type
   `e.ComponentAsset` get a picker.
 - Tests: `components_save_open_instance`, `components_render_in_instances_and_thumbnails` (the
   preview tests take turns: `previewTestLock`, and `Preview_Destroy` after), `tests/ui/components.script`
-  (driver: `select_asset`, checks `components`, `kind`, `preview component`).
+  (driver: `select_asset`, `right_click_asset`, `{selected}` in commands, checks `components`,
+  `kind`, `preview component`), `components_rename_and_make_unique`.
+- The browser's inline rename scrolls its row back into view when it's out of view (focusing the
+  tree scrolls the browser to its top, which hid the field and left the rename stuck).
 
 ## Input actions (implemented; engine: input.odin)
 

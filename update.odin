@@ -252,7 +252,22 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.rename.focused = true
 	case Rename_Committed:
 		// After Enter, keys go back to the tree the rename was in (not after a click elsewhere)
-		if v.byKey do out.refocus = out.rename.target == .Scene ? .Browser : .Scene_Tree
+		if v.byKey do out.refocus = out.rename.target != .Node ? .Browser : .Scene_Tree
+		if out.rename.active && out.rename.target == .Component {
+			old := ""
+			if out.rename.node >= 0 && out.rename.node < len(out.project.assets) do old = strings.clone(ComponentName(out.project.assets[out.rename.node].path), context.temp_allocator)
+			references, message := Project_RenameComponent(&out.project, out.rename.node, out.rename.text)
+			if message != "" {
+				logLine(&out, .Error, fmt.aprintf("Can't rename %s: %s", old, message))
+			} else if old != strings.trim_space(out.rename.text) {
+				out.session.assetsChanged = true
+				logLine(&out, .Info, fmt.aprintf("Renamed component %s to %s (%d instance%s updated)", old, strings.trim_space(out.rename.text), references, references == 1 ? "" : "s"))
+				if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+			}
+			delete(out.rename.text)
+			out.rename = {}
+			break
+		}
 		if out.rename.active && out.rename.target == .Scene {
 			Scene_CommitRename(&out)
 			delete(out.rename.text)
@@ -270,7 +285,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		delete(out.rename.text)
 		out.rename = {}
 	case Rename_Cancelled:
-		out.refocus = out.rename.target == .Scene ? .Browser : .Scene_Tree
+		out.refocus = out.rename.target != .Node ? .Browser : .Scene_Tree
 		delete(out.rename.text)
 		out.rename = {}
 	case Refocus_Done:
@@ -394,6 +409,23 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if int(v) < 0 || int(v) >= len(out.project.scenes) || !Scene_IsComponent(&out.project.scenes[v]) do break
 		out.project.scenes[v].opened = true
 		openScene(&out, int(v))
+	case Component_Rename_Started:
+		if int(v) < 0 || int(v) >= len(out.project.assets) || out.project.assets[v].kind != .Component do break
+		delete(out.rename.text)
+		out.rename = {active = true, target = .Component, node = int(v), text = strings.clone(ComponentName(out.project.assets[v].path))}
+		out.browserSelection = {kind = .Asset, folder = .Components, index = int(v)}
+		out.browserOpen[.Components] = true
+	case Component_Made_Unique:
+		old := ""
+		if node := selectedNode(&out); node != nil do old = strings.clone(ComponentName(node.component), context.temp_allocator)
+		path, message := Scene_MakeInstanceUnique(&out.project, out.currentScene, out.selectedNode)
+		if message != "" {
+			logLine(&out, .Error, fmt.aprintf("Can't make it unique: %s", message))
+			break
+		}
+		out.session.assetsChanged = true
+		logLine(&out, .Info, fmt.aprintf("This instance has its own copy of %s now: %s", old, path))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
 	case Component_New:
 		index, message := Project_NewComponent(&out.project, "Component")
 		if message != "" {

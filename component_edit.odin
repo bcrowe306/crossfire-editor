@@ -74,7 +74,8 @@ ComponentPathFor :: proc(project: ^Project, name: string) -> string {
 	base := strings.to_lower(sanitize(strings.trim_space(name)), context.temp_allocator)
 	if base == "" do base = "component"
 	taken :: proc(project: ^Project, path: string) -> bool {
-		for asset in project.assets do if asset.path == path do return true
+		// Case-insensitively: on Windows and macOS, Ship and ship are one file
+		for asset in project.assets do if strings.equal_fold(asset.path, path) do return true
 		return os.exists(joinPath(project.rootPath, path, allocator = context.temp_allocator))
 	}
 	path := fmt.tprintf("%s/%s%s", COMPONENT_FOLDER, base, COMPONENT_EXTENSION)
@@ -196,4 +197,84 @@ Component_InstanceCount :: proc(project: ^Project, path: string) -> int {
 	count := 0
 	for &scene in project.scenes do for node in scene.nodes do if node.kind == .Component && node.component == path do count += 1
 	return count
+}
+
+// Why a component can't be renamed to `name` ("" if it can): it becomes the file's name
+ComponentNameProblem :: proc(project: ^Project, assetIndex: int, name: string) -> string {
+	name := strings.trim_space(name)
+	if name == "" do return "Give it a name"
+	if sanitize(name) != name do return "Letters, digits and _ only"
+	path := fmt.tprintf("%s/%s%s", COMPONENT_FOLDER, name, COMPONENT_EXTENSION)
+	for asset, i in project.assets do if i != assetIndex && strings.equal_fold(asset.path, path) do return "There's already a component with that name"
+	return ""
+}
+
+/*
+Renames a component: its file (moved now, components/<name>.component.xml), its asset, and every
+instance's reference to it, in every scene and component. Not undoable (it moves a file, like
+removing an asset).
+
+Returns:
+- How many instances now point at the new name, and "" or what went wrong (nothing changes then)
+*/
+Project_RenameComponent :: proc(project: ^Project, assetIndex: int, name: string) -> (int, string) {
+	if assetIndex < 0 || assetIndex >= len(project.assets) || project.assets[assetIndex].kind != .Component do return 0, "no such component"
+	name := strings.trim_space(name)
+	if problem := ComponentNameProblem(project, assetIndex, name); problem != "" do return 0, problem
+	old := strings.clone(project.assets[assetIndex].path, context.temp_allocator)
+	path := fmt.tprintf("%s/%s%s", COMPONENT_FOLDER, name, COMPONENT_EXTENSION)
+	if path == old do return 0, ""
+	from := joinPath(project.rootPath, old, allocator = context.temp_allocator)
+	to := joinPath(project.rootPath, path, allocator = context.temp_allocator)
+	if os.exists(from) {
+		if err := os.rename(from, to); err != nil do return 0, fmt.tprintf("couldn't rename %s: %v", old, err)
+	}
+	delete(project.assets[assetIndex].path)
+	project.assets[assetIndex].path = strings.clone(path)
+	if i := Project_FindComponent(project, old); i >= 0 {
+		scene := &project.scenes[i]
+		delete(scene.component)
+		scene.component = strings.clone(path)
+		delete(scene.name)
+		scene.name = strings.clone(name)
+		// Without a file (it couldn't be moved), write one under the new name
+		if !os.exists(to) do Project_WriteComponent(project, scene)
+	}
+	references := 0
+	for &scene in project.scenes {
+		for &node in scene.nodes {
+			if node.kind != .Component || node.component != old do continue
+			delete(node.component)
+			node.component = strings.clone(path)
+			references += 1
+		}
+	}
+	return references, ""
+}
+
+/*
+Make Unique: a copy of an instance's component, as a new component (`<name>_2`...), for this
+instance alone; the instance points at it, so changing it leaves the other instances alone.
+
+Returns:
+- The new component's path (temp allocated), or "" and why not
+*/
+Scene_MakeInstanceUnique :: proc(project: ^Project, sceneIndex, index: int) -> (string, string) {
+	if sceneIndex < 0 || sceneIndex >= len(project.scenes) do return "", "no such scene"
+	scene := &project.scenes[sceneIndex]
+	if index < 0 || index >= len(scene.nodes) || scene.nodes[index].kind != .Component do return "", "select a component instance"
+	source := Project_FindComponent(project, scene.nodes[index].component)
+	if source < 0 do return "", fmt.tprintf("%s isn't in the project", scene.nodes[index].component)
+	copy := SceneDef_Clone(project.scenes[source])
+	path := ComponentPathFor(project, ComponentName(copy.component))
+	delete(copy.component)
+	copy.component = strings.clone(path)
+	delete(copy.name)
+	copy.name = strings.clone(ComponentName(path))
+	copy.opened = false
+	if _, message := addComponent(project, copy); message != "" do return "", message
+	node := &project.scenes[sceneIndex].nodes[index]
+	delete(node.component)
+	node.component = strings.clone(path)
+	return path, ""
 }

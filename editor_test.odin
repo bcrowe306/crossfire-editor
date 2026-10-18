@@ -2974,3 +2974,49 @@ components_render_in_instances_and_thumbnails :: proc(t: ^testing.T) {
 	testing.expect(t, again != key, "a new picture")
 	free_all(context.temp_allocator)
 }
+
+@(test)
+components_rename_and_make_unique :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_component_rename")
+	defer removeAll(dir)
+	state := testState()
+	defer State_Destroy(&state)
+	Project_Destroy(&state.project)
+	state.project = Project_CreateDemo(dir)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	scene := playScene(&state)
+	state.selectedNode = nodeIndex(scene, "Props")
+	send(&state, Action.Save_As_Component)
+	asset := -1
+	for a, i in state.project.assets do if a.kind == .Component do asset = i
+	send(&state, Component_Instance_Added(asset)) // A second instance
+	second := state.selectedNode
+
+	// Rename: the file moves, every instance follows
+	send(&state, Component_Rename_Started(asset))
+	testing.expect(t, state.rename.active && state.rename.target == .Component, "renaming")
+	testing.expect_value(t, ComponentNameProblem(&state.project, asset, "bad name"), "Letters, digits and _ only")
+	send(&state, Rename_Text_Changed("Scenery"))
+	send(&state, Rename_Committed{})
+	testing.expect_value(t, state.project.assets[asset].path, "components/Scenery.component.xml")
+	testing.expect(t, os.exists(joinPath(dir, "components/Scenery.component.xml", allocator = context.temp_allocator)), "moved")
+	testing.expect(t, !os.exists(joinPath(dir, "components/props.component.xml", allocator = context.temp_allocator)), "not left behind")
+	scene = playScene(&state)
+	for node in scene.nodes do if node.kind == .Component do testing.expect_value(t, node.component, "components/Scenery.component.xml")
+	component := Project_FindComponent(&state.project, "components/Scenery.component.xml")
+	testing.expect_value(t, state.project.scenes[component].name, "Scenery")
+
+	// Make Unique: the second instance gets its own copy
+	state.selectedNode = second
+	send(&state, Component_Made_Unique{})
+	scene = playScene(&state)
+	testing.expect_value(t, scene.nodes[second].component, "components/scenery_2.component.xml")
+	copy := Project_FindComponent(&state.project, "components/scenery_2.component.xml")
+	testing.expect(t, copy >= 0, "a new component")
+	testing.expect_value(t, len(state.project.scenes[copy].nodes), len(state.project.scenes[component].nodes))
+	testing.expect_value(t, Component_InstanceCount(&state.project, "components/Scenery.component.xml"), 1)
+	// Undo points the instance back (the copy stays, like any asset)
+	send(&state, Action.Undo)
+	testing.expect_value(t, playScene(&state).nodes[second].component, "components/Scenery.component.xml")
+	free_all(context.temp_allocator)
+}

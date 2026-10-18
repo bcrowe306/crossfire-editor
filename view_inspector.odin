@@ -105,7 +105,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 // The scene tree's right-click menu, in order
-SCENE_TREE_MENU := [?]Action{.Add_Node, .Rename_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Save_As_Component, .Delete_Node}
+SCENE_TREE_MENU := [?]Action{.Add_Node, .Rename_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Delete_Node, .Save_As_Component}
 
 // How far the mouse moves with the button down before a press on a row becomes a drag
 TREE_DRAG_THRESHOLD :: 5
@@ -417,7 +417,12 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			open := skald.button(ctx, fmt.tprintf("%s  Open %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
 				id = skald.hash_id(fmt.tprintf("inspector-open-component-%d", key)),
 				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			unique := skald.button(ctx, fmt.tprintf("%s  Make Unique", ICON_COPY), Msg(Component_Made_Unique{}),
+				id = skald.hash_id(fmt.tprintf("inspector-make-unique-%d", key)),
+				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
 			append(&rows, inspectorRow(ctx, "", open),
+				inspectorRow(ctx, "", skald.tooltip(ctx, unique, "Give this instance its own copy of the component, to change it without changing the others",
+					id = skald.hash_id(fmt.tprintf("inspector-make-unique-tip-%d", key)))),
 				skald.text("Its name, position, rotation, scale, layer and visibility are this instance's; the rest is the component's: open it to change every instance.",
 					th.color.fg_muted, th.font.size_xs, max_width = 260))
 		} else if node.component != "" {
