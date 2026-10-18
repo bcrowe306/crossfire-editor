@@ -36,8 +36,8 @@ SceneNameProblem :: proc(project: ^Project, name: string, except := -1) -> strin
 	if name != strings.trim_space(name) do return "the name can't start or end with spaces"
 	if strings.contains_any(name, "/\\:*?\"<>|") do return "the name can't contain / \\ : * ? \" < > |"
 	if name == "." || name == ".." do return "that name is reserved"
-	for scene, i in project.scenes {
-		if i != except && strings.equal_fold(scene.name, name) do return fmt.tprintf("there's already a scene named %s", scene.name)
+	for &scene, i in project.scenes {
+		if i != except && !Scene_IsComponent(&scene) && strings.equal_fold(scene.name, name) do return fmt.tprintf("there's already a scene named %s", scene.name)
 	}
 	return ""
 }
@@ -181,13 +181,14 @@ Returns:
 */
 Project_RemoveScene :: proc(project: ^Project, index: int) -> (danglingReferences: int, message: string) {
 	if index < 0 || index >= len(project.scenes) do return 0, "no such scene"
-	if len(project.scenes) == 1 do return 0, "a project needs at least one scene"
+	if Scene_IsComponent(&project.scenes[index]) do return 0, "that's a component: remove it in the browser's Components folder"
+	if Project_SceneCount(project) == 1 do return 0, "a project needs at least one scene"
 	name := strings.clone(project.scenes[index].name, context.temp_allocator)
 	SceneDef_Destroy(&project.scenes[index])
 	ordered_remove(&project.scenes, index)
 	if project.startScene == name {
 		delete(project.startScene)
-		project.startScene = strings.clone(project.scenes[0].name)
+		project.startScene = strings.clone(project.scenes[Project_FirstScene(project)].name)
 	}
 	action := fmt.tprintf("scene:%s", name)
 	for &scene in project.scenes do for &node in scene.nodes do for item in node.items do if item.action == action do danglingReferences += 1
@@ -201,10 +202,30 @@ Project_SetStartScene :: proc(project: ^Project, index: int) {
 	project.startScene = strings.clone(project.scenes[index].name)
 }
 
-// The index of the scene with a name, or -1
+// The index of the scene with a name, or -1 (components aren't scenes)
 Project_FindScene :: proc(project: ^Project, name: string) -> int {
-	for scene, i in project.scenes do if scene.name == name do return i
+	for &scene, i in project.scenes do if scene.name == name && !Scene_IsComponent(&scene) do return i
 	return -1
+}
+
+// How many scenes the project has (components not counted)
+Project_SceneCount :: proc(project: ^Project) -> int {
+	count := 0
+	for &scene in project.scenes do if !Scene_IsComponent(&scene) do count += 1
+	return count
+}
+
+// The first scene's index (components are after the scenes; 0 if there's none)
+Project_FirstScene :: proc(project: ^Project) -> int {
+	for &scene, i in project.scenes do if !Scene_IsComponent(&scene) do return i
+	return 0
+}
+
+// The scenes' names, in order (temp allocated; components left out)
+Project_SceneNames :: proc(project: ^Project) -> []string {
+	names := make([dynamic]string, context.temp_allocator)
+	for &scene in project.scenes do if !Scene_IsComponent(&scene) do append(&names, scene.name)
+	return names[:]
 }
 
 /*
@@ -214,7 +235,7 @@ in `project.sceneFiles` (the ones the editor loaded or saved) that no current sc
 */
 Project_CleanSceneFiles :: proc(project: ^Project) {
 	current := make([dynamic]string, context.temp_allocator)
-	for &scene in project.scenes do append(&current, SceneFilePath(&scene, context.temp_allocator))
+	for &scene in project.scenes do if !Scene_IsComponent(&scene) do append(&current, SceneFilePath(&scene, context.temp_allocator))
 	for file in project.sceneFiles {
 		if slice.contains(current[:], file) do continue
 		path, _ := filepath.join({project.rootPath, file}, context.temp_allocator)

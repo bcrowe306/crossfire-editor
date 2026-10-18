@@ -2,8 +2,8 @@
 # Run with: task test:ui
 
 wait 5
-# Demo browser rows: Scenes + 3 scenes, Images + 3 images, Audio, Fonts, Data
-expect browser_rows 11
+# Demo browser rows: Scenes + 3 scenes, Images + 3 images, Audio, Fonts, Data, Components
+expect browser_rows 12
 
 # Search filters scenes and assets; Escape clears it (and doesn't deselect while typing)
 click_widget browser-search
@@ -11,7 +11,7 @@ expect typing true
 type ball
 expect browser_rows 2
 key escape
-expect browser_rows 11
+expect browser_rows 12
 
 # Rows: 0 Scenes, 1-3 scenes, 4 Images, 5 ship, 6 balloons, 7 light
 click_row browser-tree 6

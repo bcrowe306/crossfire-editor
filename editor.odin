@@ -61,6 +61,8 @@ BrowserFolder :: enum {
 	Fonts,
 	// Data resources (project_data.odin)
 	Data,
+	// Saved node trees (component_edit.odin)
+	Components,
 }
 
 /*
@@ -238,7 +240,7 @@ init :: proc() -> State {
 		currentScene = 0,
 		selectedNode = -1,
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false, .Data = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false, .Data = true, .Components = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},

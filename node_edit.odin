@@ -59,6 +59,7 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 		append(&copy.animations, clone)
 	}
 	copy.autoplay = strings.clone(node.autoplay)
+	copy.component = strings.clone(node.component)
 	return copy
 }
 
@@ -390,7 +391,7 @@ flatten :: proc(children: [][dynamic]int, slot: int, order: ^[dynamic]int) {
 }
 
 // Rounds away float noise from recomputed transforms (639.99994 -> 640)
-@(private="file")
+@(private="package")
 tidy :: proc(v: f32) -> f32 {
 	return math.round(v * 1000) / 1000
 }

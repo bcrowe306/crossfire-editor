@@ -162,6 +162,7 @@ BrowserItemColor :: proc(state: ^State, item: BrowserItem) -> skald.Color {
 		case .Audio:  return assetKindColor(.Audio)
 		case .Fonts:  return assetKindColor(.Font)
 		case .Data:   return assetKindColor(.Data)
+		case .Components: return assetKindColor(.Component)
 		}
 	case .Scene: return SCENE_COLOR
 	case .Script: return SCRIPT_COLOR
@@ -172,6 +173,8 @@ BrowserItemColor :: proc(state: ^State, item: BrowserItem) -> skald.Color {
 }
 
 SCENE_COLOR :: skald.Color{0.36, 0.62, 1.0, 1}
+// Components (browser rows, instance nodes): a scene's blue toward violet
+COMPONENT_COLOR :: skald.Color{0.55, 0.5, 1.0, 1}
 SCRIPT_COLOR :: skald.Color{0.55, 0.85, 0.35, 1}
 
 @(private="file")
@@ -181,6 +184,7 @@ assetKindColor :: proc(kind: AssetKind) -> skald.Color {
 	case .Audio: return skald.rgb(0xf08fd8)
 	case .Font:  return skald.rgb(0xffbe46)
 	case .Data:  return skald.rgb(0x9ad1a8)
+	case .Component: return COMPONENT_COLOR
 	}
 	return {}
 }

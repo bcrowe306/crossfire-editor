@@ -226,6 +226,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if AudioPreview_IsLoaded(AssetFilePath(&out.project, asset)) do AudioPreview_Unload()
 		usage := AssetUsage(&out.project, asset.path)
 		out.session.assetsChanged = true
+		// A component's SceneDef goes too: the viewport and the undo steps leave it
+		if component := Project_FindComponent(&out.project, asset.path); component >= 0 {
+			if out.currentScene == component do openScene(&out, Project_FirstScene(&out.project))
+			if out.currentScene > component do out.currentScene -= 1
+			History_SceneRemoved(&out.history, component)
+		}
 		if message := Project_RemoveAsset(&out.project, index, v.deleteFile); message != "" {
 			logLine(&out, .Error, fmt.aprintf("%s", message))
 		} else {
@@ -292,6 +298,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Asset_Dropped:
 		asset := out.assetDrag.asset
 		out.assetDrag = {}
+		if asset >= 0 && asset < len(out.project.assets) && out.project.assets[asset].kind == .Component {
+			addInstance(&out, out.project.assets[asset].path, v.world)
+			break
+		}
 		if asset < 0 || asset >= len(out.project.assets) || out.project.assets[asset].kind != .Image do break
 		index := Scene_AddSpriteAt(&out.project.scenes[out.currentScene], out.project.assets[asset].path, out.selectedNode, v.world)
 		out.selectedNode = index
@@ -378,7 +388,31 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.bottomTab = BottomTab(int(v))
 		layout.bottomOpen = true
 	case Scene_Tab_Changed:
+		tabs := ViewportTabScenes(&out)
+		if int(v) >= 0 && int(v) < len(tabs) do openScene(&out, tabs[v])
+	case Component_Opened:
+		if int(v) < 0 || int(v) >= len(out.project.scenes) || !Scene_IsComponent(&out.project.scenes[v]) do break
+		out.project.scenes[v].opened = true
 		openScene(&out, int(v))
+	case Component_New:
+		index, message := Project_NewComponent(&out.project, "Component")
+		if message != "" {
+			logLine(&out, .Error, fmt.aprintf("Couldn't make a component: %s", message))
+			break
+		}
+		out.session.assetsChanged = true
+		out.project.scenes[index].opened = true
+		openScene(&out, index)
+		logLine(&out, .Info, fmt.aprintf("Made component %s (%s)", out.project.scenes[index].name, out.project.scenes[index].component))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+	case Component_Instance_Added:
+		if int(v) < 0 || int(v) >= len(out.project.assets) || out.project.assets[v].kind != .Component do break
+		// At the selected node's origin (inside it), else the middle of the view
+		world := out.viewport.center
+		if out.selectedNode >= 0 && out.selectedNode < len(out.project.scenes[out.currentScene].nodes) {
+			world = Scene_WorldTransforms(&out.project.scenes[out.currentScene])[out.selectedNode].origin
+		}
+		addInstance(&out, out.project.assets[v].path, world)
 	case Tool_Selected:
 		out.tool = Tool(v)
 
@@ -566,6 +600,15 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			node.texture = strings.clone(v.value == TEXTURE_NONE ? "" : v.value)
 		case .Color:
 			if color, ok := e.ParseColor(v.value); ok do node.color = color
+		case .Component:
+			path := v.value == TEXTURE_NONE ? "" : v.value
+			current := &out.project.scenes[out.currentScene]
+			if path != "" && Component_Contains(&out.project, path, current.component) {
+				logLine(&out, .Warning, fmt.aprintf("%s holds %s: an instance of it can't go inside it", ComponentName(path), current.name))
+				break
+			}
+			delete(node.component)
+			node.component = strings.clone(path)
 		case .Autoplay:
 			delete(node.autoplay)
 			node.autoplay = strings.clone(v.value == ANIMATION_FIRST ? "" : v.value)
@@ -634,7 +677,22 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		cmd := playStart(&out)
 		return out, cmd
 	case .Play_Scene:
+		if Scene_IsComponent(&out.project.scenes[out.currentScene]) {
+			logLine(&out, .Warning, strings.clone("A component can't play on its own: play a scene that has an instance of it"))
+			break
+		}
 		return out, playStart(&out, out.project.scenes[out.currentScene].name)
+	case .Save_As_Component:
+		name := out.selectedNode >= 0 && out.selectedNode < len(out.project.scenes[out.currentScene].nodes) ? strings.clone(out.project.scenes[out.currentScene].nodes[out.selectedNode].name, context.temp_allocator) : ""
+		index, message := Scene_SaveBranchAsComponent(&out.project, out.currentScene, out.selectedNode)
+		if message != "" {
+			logLine(&out, .Error, fmt.aprintf("Can't save as a component: %s", message))
+			break
+		}
+		out.session.assetsChanged = true
+		clear(&out.selection)
+		logLine(&out, .Info, fmt.aprintf("Saved %s as component %s; it's an instance of it now", name, out.project.scenes[index].component))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
 	case .Open_Project_Settings:
 		ProjectSettings_Open(&out)
 	case .Pause:
@@ -869,6 +927,19 @@ selectAsset :: proc(state: ^State, index: int) {
 	} else {
 		AudioPreview_Unload()
 	}
+}
+
+// Adds an instance of a component to the open scene at a world point, under the selection, and selects it
+@(private="file")
+addInstance :: proc(state: ^State, path: string, world: [2]f32) {
+	index, message := Scene_AddInstanceAt(&state.project, state.currentScene, path, state.selectedNode, world)
+	if message != "" {
+		logLine(state, .Warning, fmt.aprintf("Can't add it here: %s", message))
+		return
+	}
+	clear(&state.selection)
+	state.selectedNode = index
+	logLine(state, .Info, fmt.aprintf("Added %s", state.project.scenes[state.currentScene].nodes[index].name))
 }
 
 // Adds a node from the Add Node dialog and closes it

@@ -96,7 +96,7 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	d := &s.projectSettings
 	scenes := make([dynamic]string, context.temp_allocator)
-	for scene in s.project.scenes do append(&scenes, scene.name)
+	append(&scenes, ..Project_SceneNames(&s.project))
 	modes := make([dynamic]string, context.temp_allocator)
 	for mode in e.ScaleMode do append(&modes, fmt.tprint(mode))
 	return skald.col(

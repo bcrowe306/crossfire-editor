@@ -196,14 +196,132 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	preview.scene.game = preview.game
 
 	data := toSceneData(scene)
-	// Scripts don't run in the viewport
+	// Scripts don't run in the viewport. Instances are built from the components being edited
+	// (unsaved changes included), not their files
+	provideComponents(s, preview.game)
 	created := e.Scene_Build(preview.scene, &data, s.project.rootPath, attachScripts = false)
+	preview.game.components = nil
 	e.Scene_ProcessQueues(preview.scene)
 
 	clear(&preview.nodes)
 	append(&preview.nodes, ..created)
 	preview.animated = false
-	for node in scene.nodes do if node.kind == .AnimatedSprite || node.kind == .ParticleEmitter do preview.animated = true
+	for node in scene.nodes do if node.kind == .AnimatedSprite || node.kind == .ParticleEmitter || node.kind == .Component do preview.animated = true
+}
+
+// Gives a game the project's components as they are in the editor, for building instances (temp
+// allocated: unset it after building)
+@(private="file")
+provideComponents :: proc(s: ^State, game: ^e.Game) {
+	game.components = make(map[string]^e.SceneData, context.temp_allocator)
+	for &scene in s.project.scenes {
+		if !Scene_IsComponent(&scene) || len(scene.nodes) == 0 do continue
+		data := toSceneData(&scene)
+		game.components[scene.component] = new_clone(data, context.temp_allocator)
+	}
+}
+
+// The thumbnail renderer: its own surface, renderer and game (textures belong to one renderer)
+@(private="file")
+Thumbnail :: struct {
+	surface: ^sdl.Surface,
+	renderer: ^sdl.Renderer,
+	game: ^e.Game,
+	key: u64,
+	pixels: [dynamic]u8,
+}
+
+@(private="file")
+thumbnail: Thumbnail
+
+/*
+A picture of a component for the browser's preview: the engine draws it, fitted to `size`, on the
+viewport's background. Cached until the component (or a component in it) or the size changes.
+
+Returns:
+- RGBA8 pixels (`size.x * size.y * 4`, valid until the next call), a key that changes when the
+  picture does, and false if it couldn't render
+*/
+Preview_RenderComponent :: proc(s: ^State, sceneIndex: int, size: [2]int) -> (pixels: []u8, key: u64, ok: bool) {
+	if sceneIndex < 0 || sceneIndex >= len(s.project.scenes) || size.x <= 0 || size.y <= 0 do return nil, 0, false
+	component := &s.project.scenes[sceneIndex]
+	key = hash.fnv64a(transmute([]u8)componentSignature(s, component, 0))
+	sized := size
+	key = hash.fnv64a(([^]u8)(&sized)[:size_of(sized)], key)
+	if key == thumbnail.key && len(thumbnail.pixels) == size.x * size.y * 4 do return thumbnail.pixels[:], key, true
+
+	t := &thumbnail
+	if t.surface == nil || t.surface.w != i32(size.x) || t.surface.h != i32(size.y) {
+		if t.game != nil {
+			t.game.resourceManager->destroy()
+			free(t.game)
+			t.game = nil
+		}
+		if t.renderer != nil do sdl.DestroyRenderer(t.renderer)
+		if t.surface != nil do sdl.DestroySurface(t.surface)
+		t.renderer = nil
+		if ttf.WasInit() == 0 && !ttf.Init() do return nil, 0, false
+		t.surface = sdl.CreateSurface(i32(size.x), i32(size.y), .RGBA32)
+		if t.surface != nil do t.renderer = sdl.CreateSoftwareRenderer(t.surface)
+		if t.renderer == nil do return nil, 0, false
+		t.game = new(e.Game)
+		t.game.renderer = t.renderer
+		e.ResourceManager_Init(&t.game.resourceManager, t.renderer, nil)
+	}
+	t.game.size = s.project.gameSize
+	scene := new(e.Scene)
+	e.Scene_Init(scene)
+	scene.physicsPaused = true
+	scene.game = t.game
+	defer { e.Scene_Destroy(scene); free(scene) }
+	data := toSceneData(component)
+	provideComponents(s, t.game)
+	e.Scene_Build(scene, &data, s.project.rootPath, attachScripts = false)
+	t.game.components = nil
+	e.Scene_ProcessQueues(scene)
+
+	// Everything it draws, in its own space, fitted with a margin
+	lo, hi := [2]f32{max(f32), max(f32)}, [2]f32{min(f32), min(f32)}
+	for node in scene.nodes {
+		bounds, has := e.Node_GetLocalBounds(node)
+		if !has do continue
+		world := e.Node_GetWorldTransform(node)
+		for corner in ([4][2]f32{{bounds.x, bounds.y}, {bounds.x + bounds.w, bounds.y}, {bounds.x, bounds.y + bounds.h}, {bounds.x + bounds.w, bounds.y + bounds.h}}) {
+			p := e.Transform2D_Apply(world, corner)
+			lo, hi = {min(lo.x, p.x), min(lo.y, p.y)}, {max(hi.x, p.x), max(hi.y, p.y)}
+		}
+	}
+	if lo.x > hi.x do lo, hi = {-32, -32}, {32, 32}
+	extent := [2]f32{max(hi.x - lo.x, 1), max(hi.y - lo.y, 1)}
+	zoom := min(f32(size.x) / extent.x, f32(size.y) / extent.y) * 0.85
+	center := (lo + hi) * 0.5
+	view := e.Transform2D{x = {zoom, 0}, y = {0, zoom}, origin = [2]f32{f32(size.x), f32(size.y)} * 0.5 - center * zoom}
+
+	r := t.renderer
+	sdl.SetRenderDrawColor(r, 16, 18, 24, 255)
+	sdl.RenderClear(r)
+	e.Scene_DrawWithView(scene, r, view, screenLayersUseView = true, positionOnlyScale = zoom)
+	sdl.FlushRenderer(r)
+	resize(&t.pixels, size.x * size.y * 4)
+	src := ([^]u8)(t.surface.pixels)
+	row := size.x * 4
+	for y in 0 ..< size.y do copy(t.pixels[y * row:][:row], src[y * int(t.surface.pitch):][:row])
+	t.key = key
+	return t.pixels[:], key, true
+}
+
+// A component's content, and the content of the components it holds, as text (what its instances depend on)
+@(private="file")
+componentSignature :: proc(s: ^State, component: ^SceneDef, depth: int) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, SceneToXML(component, context.temp_allocator))
+	if depth < 8 {
+		for node in component.nodes {
+			if node.kind != .Component do continue
+			if i := Project_FindComponent(&s.project, node.component); i >= 0 do strings.write_string(&b, componentSignature(s, &s.project.scenes[i], depth + 1))
+		}
+	}
+	return strings.to_string(b)
 }
 
 // Copies what changes while editing (transforms, visibility, layers, particle settings) to the engine nodes
@@ -254,7 +372,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			enableLimit = node.enableLimit, lower = node.lower, upper = node.upper, enableMotor = node.enableMotor,
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
-				particles = node.particles,
+				particles = node.particles, component = node.component,
 		})
 	}
 	return data
@@ -278,6 +396,11 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_byte(&b, '|')
 		strings.write_int(&b, int(node.kind))
 		strings.write_int(&b, node.parent)
+		// An instance rebuilds when its component changes
+		if node.kind == .Component {
+			strings.write_string(&b, node.component)
+			if i := Project_FindComponent(&s.project, node.component); i >= 0 do strings.write_string(&b, componentSignature(s, &s.project.scenes[i], 0))
+		}
 		strings.write_string(&b, node.texture)
 		strings.write_string(&b, node.text)
 		strings.write_f32(&b, node.fontSize, 'g')
@@ -322,6 +445,23 @@ copyPixels :: proc(size: [2]int) -> []u8 {
 		copy(preview.pixels[y * row:][:row], src[int(y) * int(surface.pitch):][:row])
 	}
 	return preview.pixels[:]
+}
+
+// Frees the preview and the thumbnail renderer (tests: each test has its own allocator)
+Preview_Destroy :: proc() {
+	destroyAll()
+	delete(preview.pixels)
+	delete(preview.nodes)
+	preview = {}
+	t := &thumbnail
+	if t.game != nil {
+		t.game.resourceManager->destroy()
+		free(t.game)
+	}
+	if t.renderer != nil do sdl.DestroyRenderer(t.renderer)
+	if t.surface != nil do sdl.DestroySurface(t.surface)
+	delete(t.pixels)
+	thumbnail = {}
 }
 
 @(private="file")

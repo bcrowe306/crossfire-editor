@@ -220,6 +220,21 @@ Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, a
 `e.PhysicsBody_IsInArea(body, area)`, `e.PhysicsBody_GetAreas(body)`,
 `e.PhysicsBody_IsTouching(a, b)`.
 
+## Components
+
+A component is a node tree saved in the project's assets, to reuse: a ship with its sprite,
+exhaust and collision shape, a pickup, an enemy. Right-click a node in the scene tree > **Save as
+Component**: it and everything under it become `components/<name>.component.xml`, and the node
+becomes an *instance* of it. Then:
+
+- Drag it from the browser's **Components** folder into the viewport, or **Add to Scene**, to add
+  more instances, in any scene. An instance has its own name, position, rotation, scale, layer and
+  visibility; everything else comes from the component.
+- **Open** it (double-click) to edit it in its own tab: every instance follows.
+- The browser's preview draws it. **New Component** starts an empty one.
+- In code, as many as needed: `e.Scene_Instantiate(self.scene, COMPONENT_SHIP, position = {100, 50})`
+  (constants in `scripts/assets.odin`; exported `e.ComponentAsset` fields get a picker).
+
 ## Input actions
 
 **File > Project Settings > Input** lists the game's actions: named inputs like `jump` or

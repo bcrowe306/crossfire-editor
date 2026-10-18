@@ -53,6 +53,7 @@ ICON_DATABASE    :: "\uf1c0"
 ICON_GLOBE       :: "\uf0ac"
 ICON_FIRE        :: "\uf06d"
 ICON_STAR        :: "\uf005"
+ICON_CUBES       :: "\uf1b3"
 ICON_COPY        :: "\uf0c5"
 ICON_ARROW_UP    :: "\uf062"
 ICON_ARROW_DOWN  :: "\uf063"
@@ -85,6 +86,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .RayCast:        return ICON_RAY
 	case .Joint:          return ICON_JOINT
 	case .ParticleEmitter: return ICON_FIRE
+	case .Component:      return ICON_CUBES
 	}
 	return ICON_CUBE
 }

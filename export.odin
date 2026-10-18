@@ -492,7 +492,8 @@ project.xml is written instead (`Export_ProjectXML`); scripts are compiled in, n
 */
 Export_ProjectFiles :: proc(project: ^Project, allocator := context.allocator) -> []string {
 	files := make([dynamic]string, allocator)
-	for &scene in project.scenes do append(&files, SceneFilePath(&scene, allocator))
+	// Components' files are among the assets
+	for &scene in project.scenes do if !Scene_IsComponent(&scene) do append(&files, SceneFilePath(&scene, allocator))
 	for asset in project.assets do append(&files, strings.clone(asset.path, allocator))
 	return files[:]
 }

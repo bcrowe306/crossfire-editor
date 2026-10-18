@@ -257,6 +257,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			info.label = fmt.tprintf("%v %d nodes", drag.mode, len(s.selection))
 		}
 		return info
+	case Component_Instance_Added:
+		return {scope = .Scene, label = "Add an instance"}
 	case Add_Node_Confirmed, Add_Node_Kind_Chosen:
 		return {scope = .Scene, label = "Add node"}
 	case Asset_Dropped:
@@ -285,6 +287,7 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		case .Cut_Node: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Cut %s", many(s, name))}
 		case .Duplicate_Node: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Duplicate %s", many(s, name))}
 		case .Paste_Node: return {scope = .Scene, label = "Paste"}
+		case .Save_As_Component: if hasSelection do return {scope = .Scene, label = fmt.tprintf("Save %s as a component", name)}
 		}
 	}
 	return {}
@@ -598,7 +601,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.enableLimit != b.enableLimit || a.lower != b.lower || a.upper != b.upper || a.enableMotor != b.enableMotor ||
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
-	   a.particles != b.particles {
+	   a.particles != b.particles || a.component != b.component {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
@@ -678,7 +681,8 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		physics = p.physics,
 		currentScene = s.currentScene,
 	}
-	for scene in p.scenes do append(&snapshot.scenes, SceneDef_Clone(scene))
+	// Scenes only: components are assets (made and removed with their files, like data resources)
+	for &scene in p.scenes do if !Scene_IsComponent(&scene) do append(&snapshot.scenes, SceneDef_Clone(scene))
 	for g in p.globals do append(&snapshot.globals, GlobalDef_Clone(g))
 	for d in p.data do append(&snapshot.data, DataDef_Clone(d))
 	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
@@ -690,7 +694,12 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p := &s.project
 	delete(p.name)
 	delete(p.startScene)
-	for &scene in p.scenes do SceneDef_Destroy(&scene)
+	// The scenes come back; the components stay as they are, after them
+	components := make([dynamic]SceneDef, context.temp_allocator)
+	for &scene in p.scenes {
+		if Scene_IsComponent(&scene) do append(&components, scene)
+		else do SceneDef_Destroy(&scene)
+	}
 	clear(&p.scenes)
 	p.name = strings.clone(snapshot.name)
 	p.startScene = strings.clone(snapshot.startScene)
@@ -711,6 +720,27 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 		p.data[i] = DataDef_Clone(d)
 	}
 	for scene in snapshot.scenes do append(&p.scenes, SceneDef_Clone(scene))
+	append(&p.scenes, ..components[:])
+}
+
+/*
+A component's SceneDef was removed from the project's list (its asset removed): steps that edit
+it go, and steps for the documents after it follow their new index.
+*/
+History_SceneRemoved :: proc(h: ^History, index: int) {
+	fix :: proc(list: ^[dynamic]UndoCommand, index: int) {
+		#reverse for &command, i in list {
+			if _, isProject := command.change.(ProjectChange); isProject do continue
+			if command.scene == index {
+				destroyCommand(&command)
+				ordered_remove(list, i)
+			} else if command.scene > index {
+				command.scene -= 1
+			}
+		}
+	}
+	fix(&h.undo, index)
+	fix(&h.redo, index)
 }
 
 @(private="file")

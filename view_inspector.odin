@@ -105,7 +105,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 // The scene tree's right-click menu, in order
-SCENE_TREE_MENU := [?]Action{.Add_Node, .Rename_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Delete_Node}
+SCENE_TREE_MENU := [?]Action{.Add_Node, .Rename_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Save_As_Component, .Delete_Node}
 
 // How far the mouse moves with the button down before a press on a row becomes a drag
 TREE_DRAG_THRESHOLD :: 5
@@ -406,6 +406,23 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..physicsInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .ParticleEmitter:
 		append(&rows, ..particleInspectorRows(ctx, s, node, key, controlWidth))
+	case .Component:
+		// The component it's an instance of; its own fields are the component's (Open edits them)
+		choices := make([dynamic]string, context.temp_allocator)
+		append(&choices, TEXTURE_NONE)
+		for asset in s.project.assets do if asset.kind == .Component do append(&choices, asset.path)
+		append(&rows, inspectorRow(ctx, "Component", skald.select(ctx, node.component == "" ? TEXTURE_NONE : node.component, choices[:], NodeTextField.Component, onText,
+			id = skald.hash_id(fmt.tprintf("inspector-component-%d", key)), width = controlWidth, placeholder = "Choose a component")))
+		if i := Project_FindComponent(&s.project, node.component); i >= 0 {
+			open := skald.button(ctx, fmt.tprintf("%s  Open %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
+				id = skald.hash_id(fmt.tprintf("inspector-open-component-%d", key)),
+				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			append(&rows, inspectorRow(ctx, "", open),
+				skald.text("Its name, position, rotation, scale, layer and visibility are this instance's; the rest is the component's: open it to change every instance.",
+					th.color.fg_muted, th.font.size_xs, max_width = 260))
+		} else if node.component != "" {
+			append(&rows, skald.text(fmt.tprintf("%s isn't in the project.", node.component), th.color.warning, th.font.size_xs, max_width = 260))
+		}
 	case .Menu:
 		// Editing buttons comes later; show what the menu does
 		for item in node.items {

@@ -223,8 +223,9 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		case .Audio: prefix, type = "SOUND", "SoundAsset"
 		case .Font:  prefix, type = "FONT", "FontAsset"
 		case .Data:  prefix, type = "DATA", "DataAsset"
+		case .Component: prefix, type = "COMPONENT", "ComponentAsset"
 		}
-		stem := asset.kind == .Data ? DataName(asset.path) : filepath.stem(filepath.base(asset.path))
+		stem := asset.kind == .Data ? DataName(asset.path) : asset.kind == .Component ? ComponentName(asset.path) : filepath.stem(filepath.base(asset.path))
 		name := fmt.tprintf("%s_%s", prefix, strings.to_upper(sanitize(stem), context.temp_allocator))
 		if n := used[name]; n > 0 {
 			used[name] = n + 1

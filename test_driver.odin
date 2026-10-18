@@ -73,6 +73,7 @@ Script format: one command per line; blank lines and `#` comments are ignored.
 	move <x> <y>                     Move the mouse
 	key <combo>                      Press a key: F5, DELETE, ctrl+s, shift+F5 (SDL scancode names)
 	type <text>                      Type text into the focused field
+	select_asset <path>              Select an asset in the browser (its folder opened), e.g. a component
 	import <path>                    Import a file as an asset, as if picked in the Import dialog
 	                                 (native file dialogs can't be scripted)
 	quit                             End the script
@@ -93,7 +94,9 @@ Checks:
 	typing <true | false>        Whether a text or number field has keyboard focus
 	assets <count>               Assets in the project
 	browser_rows <count>         Rows the project browser shows (after search filtering)
-	preview <image | audio | font | none>   What the browser's preview panel shows
+	preview <image | audio | font | data | component | none>   What the browser's preview panel shows
+	components <count>           Components in the project
+	kind <NodeKind | none>       The selected node's kind
 	preview_visible <true | false>   The image preview got usable space (at least 32 x 32)
 	audio <playing | stopped>    Sound preview playback
 	dialog <open | closed>       The remove-asset dialog
@@ -764,6 +767,19 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "select_asset":
+		// Selects an asset's browser row (its folder opened), as a click on it would
+		for asset, i in s.project.assets {
+			if asset.path != rest do continue
+			s.browserOpen[AssetFolder(asset.kind)] = true
+			for row, r in BrowserRows(s) do if row.kind == .Asset && row.index == i do skald.send(ctx, Msg(Browser_Selected(r)))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+			report(true, line)
+			return false
+		}
+		fail(fmt.tprintf("%s: no asset %s", line, rest))
+		return true
+
 	case "import":
 		skald.send(ctx, Msg(Asset_Import_Result{path = strings.clone(rest)}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
@@ -818,6 +834,12 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		if s.browserSelection.kind == .Asset && s.browserSelection.index < len(s.project.assets) {
 			found = strings.to_lower(fmt.tprint(s.project.assets[s.browserSelection.index].kind), context.temp_allocator)
 		}
+	case "components":
+		count := 0
+		for &sc in s.project.scenes do if Scene_IsComponent(&sc) do count += 1
+		found = fmt.tprint(count)
+	case "kind":
+		found = selected != nil ? fmt.tprint(selected.kind) : "none"
 	case "preview_visible":
 		found = fmt.tprint(previewImageArea.x >= 32 && previewImageArea.y >= 32)
 	case "audio":
@@ -843,7 +865,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(len(s.selection))
 	case "scenes":
 		names := make([dynamic]string, context.temp_allocator)
-		for scene in s.project.scenes do append(&names, scene.name)
+		append(&names, ..Project_SceneNames(&s.project))
 		found = strings.join(names[:], ",", context.temp_allocator)
 	case "start_scene":
 		found = s.project.startScene

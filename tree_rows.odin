@@ -43,8 +43,9 @@ BrowserRows :: proc(state: ^State) -> []BrowserItem {
 	for folder in BrowserFolder {
 		contents := make([dynamic]BrowserItem, context.temp_allocator)
 		if folder == .Scenes {
-			for scene, i in state.project.scenes {
-				if matchesSearch(scene.name, search) do append(&contents, BrowserItem{kind = .Scene, folder = folder, index = i})
+			for &scene, i in state.project.scenes {
+				// Components are listed in their own folder, as assets
+				if !Scene_IsComponent(&scene) && matchesSearch(scene.name, search) do append(&contents, BrowserItem{kind = .Scene, folder = folder, index = i})
 			}
 		} else if folder == .Scripts {
 			// Shown only when the project has scripts
@@ -86,6 +87,7 @@ AssetFolder :: proc(kind: AssetKind) -> BrowserFolder {
 	case .Audio: return .Audio
 	case .Font:  return .Fonts
 	case .Data:  return .Data
+	case .Component: return .Components
 	}
 	return .Images
 }

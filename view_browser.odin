@@ -151,7 +151,8 @@ The browser's context menu for the selected row, as labels; the message for each
 
 	scene          Open, Play Scene, Rename, Duplicate, Copy, Cut, Paste, Delete, Set as Start Scene, New Scene
 	Scenes, none   New Scene, Paste
-	asset          Remove from Project
+	asset          Remove from Project (components: Open, Add to Scene, New Component too)
+	Components     New Component
 	script         Open in Editor
 */
 @(private="file")
@@ -182,6 +183,11 @@ browserMenuItems :: proc(s: ^State) -> []string {
 		add(&labels, "New Scene", Msg(Scene_Action{.New, i}))
 	case .Asset:
 		if selection.folder == .Data do add(&labels, "New Data Resource...", Msg(New_Data_Opened{}))
+		if selection.folder == .Components && selection.index < len(s.project.assets) {
+			if i := Project_FindComponent(&s.project, s.project.assets[selection.index].path); i >= 0 do add(&labels, "Open", Msg(Component_Opened(i)))
+			add(&labels, "Add to Scene", Msg(Component_Instance_Added(selection.index)))
+			add(&labels, "New Component", Msg(Component_New{}))
+		}
 		add(&labels, "Remove from Project...", Msg(Action.Remove_Asset))
 	case .Script:
 		if selection.index < len(s.scriptFiles) {
@@ -192,6 +198,10 @@ browserMenuItems :: proc(s: ^State) -> []string {
 	case .Folder, .None:
 		if selection.kind == .Folder && selection.folder == .Data {
 			add(&labels, "New Data Resource...", Msg(New_Data_Opened{}))
+			break
+		}
+		if selection.kind == .Folder && selection.folder == .Components {
+			add(&labels, "New Component", Msg(Component_New{}))
 			break
 		}
 		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
@@ -237,6 +247,12 @@ browserMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) {
 	}
 	if ctx.input.mouse_pressed[.Left] && onRow && ctx.input.mouse_click_count[.Left] >= 2 && items[row].kind == .Scene {
 		skald.send(ctx, Msg(Scene_Action{.Rename, items[row].index}))
+	}
+	// A double-click on a component opens it
+	if ctx.input.mouse_pressed[.Left] && onRow && ctx.input.mouse_click_count[.Left] >= 2 && items[row].kind == .Asset && items[row].index < len(s.project.assets) {
+		if asset := s.project.assets[items[row].index]; asset.kind == .Component {
+			if i := Project_FindComponent(&s.project, asset.path); i >= 0 do skald.send(ctx, Msg(Component_Opened(i)))
+		}
 	}
 }
 
@@ -300,7 +316,7 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 
 	if ctx.input.mouse_pressed[.Left] && overArea && !skald.mouse_over_overlay(ctx) && row >= 0 && row < len(items) {
 		item := items[row]
-		if item.kind == .Asset && s.project.assets[item.index].kind == .Image {
+		if item.kind == .Asset && (s.project.assets[item.index].kind == .Image || s.project.assets[item.index].kind == .Component) {
 			skald.send(ctx, Msg(Asset_Drag_Pressed{asset = item.index, start = mouse}))
 		}
 		return none
@@ -378,6 +394,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				skald.text("Font previews aren't supported yet.", th.color.fg_muted, th.font.size_xs),
 				spacing = th.spacing.xs,
 			)
+		case .Component:
+			content = componentPreview(s, ctx, asset)
 		case .Data:
 			i := Project_FindData(&s.project, asset.path)
 			type := i >= 0 ? s.project.data[i].type : "?"
@@ -423,6 +441,61 @@ imagePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 		skald.flex(1, image),
 		skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm),
 		skald.text(fileInfo(path, dimensions), th.color.fg_muted, th.font.size_xs),
+		spacing = th.spacing.xs,
+		cross_align = .Stretch,
+	)
+}
+
+// The image of the component's last thumbnail upload, and its key (so it uploads only on changes)
+@(private="file")
+COMPONENT_THUMBNAIL :: "component-thumbnail"
+@(private="file")
+thumbnailKey: u64
+@(private="file")
+thumbnailSize: [2]int
+
+/*
+A component: a picture of it (drawn by the engine, like the viewport), how many nodes it has and
+how many instances use it, and Open and Add to Scene.
+*/
+@(private="file")
+componentPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> skald.View {
+	th := ctx.theme
+	index := Project_FindComponent(&s.project, asset.path)
+	if index < 0 do return skald.text(fmt.tprintf("%s couldn't be read.", asset.path), th.color.danger, th.font.size_sm)
+	Data :: struct { s: ^State, index: int }
+	data := new_clone(Data{s, index}, context.temp_allocator)
+	picture := skald.sized(ctx, data, proc(ctx: ^skald.Ctx(Msg), data: ^Data, size: [2]f32) -> skald.View {
+		previewImageArea = size
+		pixelSize := [2]int{max(int(size.x), 1), max(int(size.y), 1)}
+		pixels, key, ok := Preview_RenderComponent(data.s, data.index, pixelSize)
+		if ok && ctx.renderer != nil && (key != thumbnailKey || pixelSize != thumbnailSize) {
+			if pixelSize == thumbnailSize do skald.image_update_pixels(ctx.renderer, COMPONENT_THUMBNAIL, u32(pixelSize.x), u32(pixelSize.y), pixels)
+			else do skald.image_load_pixels(ctx.renderer, COMPONENT_THUMBNAIL, u32(pixelSize.x), u32(pixelSize.y), pixels)
+			thumbnailKey, thumbnailSize = key, pixelSize
+		}
+		return skald.canvas(ctx, data, proc(d: ^Data, p: skald.Canvas_Painter) {
+			skald.draw_image(p.r, COMPONENT_THUMBNAIL, p.bounds, .Fill)
+		}, width = max(size.x, 1), height = max(size.y, 1))
+	})
+	component := &s.project.scenes[index]
+	instances := Component_InstanceCount(&s.project, asset.path)
+	root := len(component.nodes) > 0 ? fmt.tprintf("%v", component.nodes[0].kind) : "empty"
+	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg) -> skald.View {
+		th := ctx.theme
+		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
+			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+	}
+	return skald.col(
+		skald.flex(1, picture),
+		skald.text(fmt.tprintf("%s  %s", ICON_CUBES, component.name), th.color.fg, th.font.size_sm),
+		skald.text(fmt.tprintf("%d node%s (%s root) · %d instance%s", len(component.nodes), len(component.nodes) == 1 ? "" : "s", root,
+			instances, instances == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = 260),
+		skald.row(
+			button(ctx, "component-open", fmt.tprintf("%s  Open", ICON_FILE_CODE), Msg(Component_Opened(index))),
+			button(ctx, "component-add", fmt.tprintf("%s  Add to Scene", ICON_PLUS), Msg(Component_Instance_Added(s.browserSelection.index))),
+			spacing = th.spacing.xs,
+		),
 		spacing = th.spacing.xs,
 		cross_align = .Stretch,
 	)
@@ -490,6 +563,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Audio: return ICON_MUSIC
 	case .Font:  return ICON_FONT_GLYPH
 	case .Data:  return ICON_DATABASE
+	case .Component: return ICON_CUBES
 	}
 	return ICON_FILE
 }

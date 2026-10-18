@@ -5,7 +5,9 @@ import "core:fmt"
 import "core:log"
 import "core:os"
 import "core:path/filepath"
+import "core:slice"
 import "core:strings"
+import "core:sync"
 import "core:testing"
 import "core:time"
 import e "engine:."
@@ -23,7 +25,7 @@ testState :: proc() -> State {
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false, .Data = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Fonts = false, .Data = true, .Components = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
@@ -2588,8 +2590,15 @@ particle_inspector_edits :: proc(t: ^testing.T) {
 	free_all(context.temp_allocator)
 }
 
+// Tests that render through the viewport preview (package state, one SDL renderer) take turns
+@(private="file")
+previewTestLock: sync.Mutex
+
 @(test)
 viewport_shows_particles :: proc(t: ^testing.T) {
+	// The preview is package state: one test at a time uses it, and frees it (its memory is the test's)
+	sync.guard(&previewTestLock)
+	defer Preview_Destroy()
 	// A project without images (the preview would try to load them)
 	state := testState()
 	defer State_Destroy(&state)
@@ -2846,5 +2855,122 @@ input_settings_edits :: proc(t: ^testing.T) {
 	testing.expect_value(t, EngineKeyFor(.N7), e.Key.Num7)
 	testing.expect_value(t, EngineKeyFor(.Left_Bracket), e.Key.LeftBracket)
 	for key in skald.Key do testing.expectf(t, EngineKeyFor(key) != .Unknown, "Skald's %v has an engine key", key)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+components_save_open_instance :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_components")
+	defer removeAll(dir)
+	state := testState()
+	defer State_Destroy(&state)
+	Project_Destroy(&state.project)
+	state.project = Project_CreateDemo(dir)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	scene := playScene(&state)
+	props := nodeIndex(scene, "Props")
+	propsNode := scene.nodes[props]
+	children := Scene_DescendantCount(scene, props)
+	testing.expect(t, children > 0, "Props has children")
+	nodeCount := len(scene.nodes)
+
+	// Save as Component: the subtree becomes a component, the node an instance of it
+	state.selectedNode = props
+	send(&state, Action.Save_As_Component)
+	scene = playScene(&state)
+	instance := scene.nodes[props]
+	testing.expect_value(t, instance.kind, NodeKind.Component)
+	testing.expect_value(t, instance.component, "components/props.component.xml")
+	testing.expect_value(t, instance.position, propsNode.position)
+	testing.expect_value(t, len(scene.nodes), nodeCount - children)
+	component := Project_FindComponent(&state.project, "components/props.component.xml")
+	testing.expect(t, component >= 0, "a component")
+	testing.expect_value(t, len(state.project.scenes[component].nodes), children + 1)
+	testing.expect_value(t, state.project.scenes[component].nodes[0].position, [2]f32{0, 0}) // The instance has the transform
+	testing.expect(t, os.exists(joinPath(dir, "components/props.component.xml", allocator = context.temp_allocator)), "its file")
+	testing.expect_value(t, Project_SceneCount(&state.project), 3) // Not a scene
+	testing.expect(t, strings.contains(Scripts_AssetsSource(&state.project), `COMPONENT_PROPS :: e.ComponentAsset{"components/props.component.xml"}`), "a constant")
+
+	// Instances: more of it, at the view's middle under the selection
+	asset := -1
+	for a, i in state.project.assets do if a.kind == .Component do asset = i
+	state.selectedNode = -1
+	send(&state, Component_Instance_Added(asset))
+	testing.expect_value(t, playScene(&state).nodes[state.selectedNode].name, "props")
+
+	// Opened, it's edited like a scene; it can't hold itself
+	send(&state, Component_Opened(component))
+	testing.expect_value(t, state.currentScene, component)
+	testing.expect(t, slice.contains(ViewportTabScenes(&state), component), "a tab")
+	before := len(state.project.scenes[component].nodes)
+	send(&state, Component_Instance_Added(asset))
+	testing.expect_value(t, len(state.project.scenes[component].nodes), before)
+
+	// Saving and loading keep it all
+	testing.expect_value(t, Project_Save(&state.project), "")
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	loadedComponent := Project_FindComponent(&loaded, "components/props.component.xml")
+	testing.expect(t, loadedComponent >= 0, "loaded")
+	for node, i in state.project.scenes[component].nodes {
+		testing.expectf(t, NodeDef_Equal(node, loaded.scenes[loadedComponent].nodes[i]), "%s differs after loading", node.name)
+	}
+	project, _ := os.read_entire_file(joinPath(dir, "project.xml", allocator = context.temp_allocator), context.temp_allocator)
+	testing.expect(t, !strings.contains(string(project), `<scene name="props"`), "not in the scene list")
+	testing.expect(t, strings.contains(string(project), `kind="Component"`), "an asset")
+
+	// Undo brings the subtree back (the component stays, like other assets)
+	openScene(&state, 1)
+	for _ in 0 ..< 3 do send(&state, Action.Undo)
+	testing.expect_value(t, len(playScene(&state).nodes), nodeCount)
+	testing.expect(t, Project_FindComponent(&state.project, "components/props.component.xml") >= 0, "still an asset")
+
+	// Removing the asset removes it
+	state.removeConfirm = {open = true, asset = asset}
+	send(&state, Asset_Remove_Confirmed{deleteFile = true})
+	testing.expect_value(t, Project_FindComponent(&state.project, "components/props.component.xml"), -1)
+	testing.expect(t, state.currentScene < len(state.project.scenes), "the viewport's scene is valid")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+components_render_in_instances_and_thumbnails :: proc(t: ^testing.T) {
+	sync.guard(&previewTestLock)
+	defer Preview_Destroy()
+	state := testState()
+	defer State_Destroy(&state)
+	Project_Destroy(&state.project)
+	state.project = Project_CreateEmpty("unused", "Components")
+	state.currentScene = 0
+	// A component (in memory: no file) of a magenta label, and an instance of it
+	component := SceneDef{name = strings.clone("badge"), component = strings.clone("components/badge.component.xml")}
+	label := Scene_InsertNode(&component, "Badge", .Label, -1)
+	delete(component.nodes[label].text)
+	component.nodes[label].text = strings.clone("BADGE")
+	component.nodes[label].fontSize = 40
+	component.nodes[label].color = {255, 0, 255, 255}
+	append(&state.project.scenes, component)
+	append(&state.project.assets, AssetDef{strings.clone("components/badge.component.xml"), .Component})
+	scene := &state.project.scenes[0]
+	index := Scene_InsertNode(scene, "Badge1", .Component, -1)
+	delete(scene.nodes[index].component)
+	scene.nodes[index].component = strings.clone("components/badge.component.xml")
+	scene.nodes[index].position = {50, 50}
+	state.viewport = {center = {50, 50}, zoom = 1, size = {200, 120}}
+
+	magenta :: proc(pixels: []u8) -> int {
+		count := 0
+		for i := 0; i + 3 < len(pixels); i += 4 do if pixels[i] > 200 && pixels[i + 1] < 60 && pixels[i + 2] > 200 do count += 1
+		return count
+	}
+	pixels, ok := Preview_Render(&state, {200, 120}, 1)
+	testing.expect(t, ok && magenta(pixels) > 50, "the instance is drawn in the viewport")
+	thumb, key, thumbOk := Preview_RenderComponent(&state, 1, {160, 100})
+	testing.expect(t, thumbOk && magenta(thumb) > 50, "and in its thumbnail")
+	// Edited, the thumbnail changes
+	state.project.scenes[1].nodes[0].color = {0, 255, 0, 255}
+	_, again, _ := Preview_RenderComponent(&state, 1, {160, 100})
+	testing.expect(t, again != key, "a new picture")
 	free_all(context.temp_allocator)
 }

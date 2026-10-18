@@ -1,0 +1,48 @@
+# Components: save a node tree as a component, add instances from the browser, open and edit the
+# component, save. Run with: task test:ui (and task test:ui:fullscreen)
+#
+# PlayScene's rows: World, Camera, Spaceship, ShipLight, Props (node 4, with 4 children)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect nodes 11
+expect components 0
+click_row scene-tree 4
+expect selected Props
+
+# Save as Component (the scene tree's menu): Props is an instance of it now
+right_click_row scene-tree 4
+wait_until menu scene-tree-menu open
+click_menu_item scene-tree-menu 6
+expect components 1
+expect nodes 7
+expect kind Component
+expect selected Props
+
+# The browser shows it, with a picture; Add to Scene makes another instance
+select_asset components/props.component.xml
+expect preview component
+wait_until preview_visible true
+click_widget component-add
+expect nodes 8
+expect kind Component
+
+# Opened, it's edited like a scene (its own tab)
+click_widget component-open
+expect scene props
+expect nodes 5
+click_row scene-tree 0
+expect selected Props
+key ctrl+shift+a
+type Node2D
+key RETURN
+expect nodes 6
+
+key ctrl+s
+wait_until modified false
+expect project_file components/props.component.xml
+expect project_file_contains components/props.component.xml <component formatVersion=
+expect project_file_contains scenes/PlayScene.scene.xml kind="Component" name="Props"
+expect project_file_contains project.xml kind="Component"
+quit

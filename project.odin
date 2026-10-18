@@ -114,6 +114,8 @@ NodeDef :: struct {
 	collideConnected: bool,
 	// ParticleEmitter: every setting (a plain value; `texture` is its Texture shape's image)
 	particles: e.ParticleSettings,
+	// Component: the component it's an instance of (its file, relative to the project)
+	component: string,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -128,6 +130,12 @@ A scene: a named tree of nodes.
 SceneDef :: struct {
 	name: string,
 	nodes: [dynamic]NodeDef,
+	// A component (component_edit.odin): its file, relative to the project ("" for a scene). It's
+	// edited like a scene, but isn't one: scene lists, the start scene and project.xml's scene
+	// list leave it out (`Scene_IsComponent`)
+	component: string,
+	// Editor-only, components: open in a viewport tab
+	opened: bool,
 }
 
 AssetKind :: enum {
@@ -136,6 +144,8 @@ AssetKind :: enum {
 	Font,
 	// A data resource (`.data.json`, project_data.odin)
 	Data,
+	// A component: a saved node tree (`.component.xml`, component_edit.odin)
+	Component,
 }
 
 /*
@@ -210,6 +220,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		columns = defaults.columns,
 		rows = defaults.rows,
 		autoplay = strings.clone(""),
+		component = strings.clone(""),
 		script = strings.clone(""),
 		collisionLayer = defaults.collisionLayer,
 		collisionMask = defaults.collisionMask,
@@ -272,6 +283,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	for a in node.animations do delete(a.name)
 	delete(node.animations)
 	delete(node.autoplay)
+	delete(node.component)
 }
 
 /*
@@ -472,6 +484,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "Audio": kind = .Audio
 		case "Font":  kind = .Font
 		case "Data":  kind = .Data
+		case "Component": kind = .Component
 		}
 		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
 		// A data resource's values come from its file
@@ -506,82 +519,98 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 			return {}, fmt.tprintf("Couldn't load scene %s: %v", sceneFile, sceneErr), nil
 		}
 		scene := SceneDef{name = strings.clone(ref.name)}
-		for node in sceneData.nodes {
-			def := NodeDef{
-				name = strings.clone(node.name),
-				kind = node.kind,
-				parent = node.parent,
-				position = node.position,
-				rotation = node.rotation,
-				scale = node.scale,
-				layer = node.layer,
-				visible = node.visible,
-				expanded = true,
-				texture = strings.clone(node.texture),
-				text = strings.clone(node.text),
-				fontSize = node.fontSize,
-				color = node.color,
-				centered = node.centered,
-				zoom = node.zoom,
-				columns = node.columns,
-				rows = node.rows,
-				margin = node.margin,
-				spacing = node.spacing,
-				autoplay = strings.clone(node.autoplay),
-				collisionLayer = node.collisionLayer,
-				collisionMask = node.collisionMask,
-				friction = node.friction,
-				restitution = node.restitution,
-				density = node.density,
-				gravityScale = node.gravityScale,
-				linearDamping = node.linearDamping,
-				angularDamping = node.angularDamping,
-				fixedRotation = node.fixedRotation,
-				bullet = node.bullet,
-				floorMaxAngle = node.floorMaxAngle,
-				shape = node.shape,
-				shapeSize = node.shapeSize,
-				radius = node.radius,
-				disabled = node.disabled,
-				target = node.target,
-				enabled = node.enabled,
-				excludeParent = node.excludeParent,
-				jointKind = node.jointKind,
-				bodyA = strings.clone(node.bodyA),
-				bodyB = strings.clone(node.bodyB),
-				jointOffset = node.jointOffset,
-				enableLimit = node.enableLimit,
-				lower = node.lower,
-				upper = node.upper,
-				enableMotor = node.enableMotor,
-				motorSpeed = node.motorSpeed,
-				maxMotor = node.maxMotor,
-				enableSpring = node.enableSpring,
-				hertz = node.hertz,
-				dampingRatio = node.dampingRatio,
-				collideConnected = node.collideConnected,
-				particles = node.particles,
-			}
-			append(&def.points, ..node.points[:])
-			if node.kind == .AnimatedSprite {
-				for a in node.animations do append(&def.animations, AnimationDef{strings.clone(a.name), a.start, a.end, a.fps, a.loop, a.playMode})
-				// Files before format 7: one animation of every cell, at the node's speed
-				if len(def.animations) == 0 do append(&def.animations, AnimationDef{strings.clone("default"), 0, -1, node.fps, node.loop, node.playMode})
-			}
-			for item in node.items {
-				append(&def.items, MenuItemDef{strings.clone(item.label), strings.clone(item.action)})
-			}
-			def.script = strings.clone(node.script)
-			for prop in node.props {
-				append(&def.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
-			}
-			append(&scene.nodes, def)
-		}
+		for node in sceneData.nodes do append(&scene.nodes, NodeDef_FromData(node))
 		e.SceneData_Destroy(&sceneData)
 		append(&project.scenes, scene)
 		append(&project.sceneFiles, strings.clone(ref.path))
 	}
+	// Components: edited like scenes, after them in the list (component_edit.odin)
+	for asset in project.assets {
+		if asset.kind != .Component do continue
+		scene, problem := Project_LoadComponent(rootPath, asset.path)
+		if problem != "" {
+			list := make([dynamic]string, context.temp_allocator)
+			append(&list, ..warnings)
+			append(&list, problem)
+			warnings = list[:]
+		}
+		append(&project.scenes, scene)
+	}
 	return project, "", warnings
+}
+
+// A node as the editor holds it, from the engine's parsed scene or component data (strings copied)
+NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
+		def := NodeDef{
+			name = strings.clone(node.name),
+			kind = node.kind,
+			parent = node.parent,
+			position = node.position,
+			rotation = node.rotation,
+			scale = node.scale,
+			layer = node.layer,
+			visible = node.visible,
+			expanded = true,
+			texture = strings.clone(node.texture),
+			text = strings.clone(node.text),
+			fontSize = node.fontSize,
+			color = node.color,
+			centered = node.centered,
+			zoom = node.zoom,
+			columns = node.columns,
+			rows = node.rows,
+			margin = node.margin,
+			spacing = node.spacing,
+			autoplay = strings.clone(node.autoplay),
+			collisionLayer = node.collisionLayer,
+			collisionMask = node.collisionMask,
+			friction = node.friction,
+			restitution = node.restitution,
+			density = node.density,
+			gravityScale = node.gravityScale,
+			linearDamping = node.linearDamping,
+			angularDamping = node.angularDamping,
+			fixedRotation = node.fixedRotation,
+			bullet = node.bullet,
+			floorMaxAngle = node.floorMaxAngle,
+			shape = node.shape,
+			shapeSize = node.shapeSize,
+			radius = node.radius,
+			disabled = node.disabled,
+			target = node.target,
+			enabled = node.enabled,
+			excludeParent = node.excludeParent,
+			jointKind = node.jointKind,
+			bodyA = strings.clone(node.bodyA),
+			bodyB = strings.clone(node.bodyB),
+			jointOffset = node.jointOffset,
+			enableLimit = node.enableLimit,
+			lower = node.lower,
+			upper = node.upper,
+			enableMotor = node.enableMotor,
+			motorSpeed = node.motorSpeed,
+			maxMotor = node.maxMotor,
+			enableSpring = node.enableSpring,
+			hertz = node.hertz,
+			dampingRatio = node.dampingRatio,
+			collideConnected = node.collideConnected,
+			particles = node.particles,
+		}
+		append(&def.points, ..node.points[:])
+		if node.kind == .AnimatedSprite {
+			for a in node.animations do append(&def.animations, AnimationDef{strings.clone(a.name), a.start, a.end, a.fps, a.loop, a.playMode})
+			// Files before format 7: one animation of every cell, at the node's speed
+			if len(def.animations) == 0 do append(&def.animations, AnimationDef{strings.clone("default"), 0, -1, node.fps, node.loop, node.playMode})
+		}
+		for item in node.items {
+			append(&def.items, MenuItemDef{strings.clone(item.label), strings.clone(item.action)})
+		}
+		def.script = strings.clone(node.script)
+		for prop in node.props {
+			append(&def.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
+		}
+	def.component = strings.clone(node.component)
+	return def
 }
 
 /*

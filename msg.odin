@@ -22,6 +22,8 @@ Action :: enum {
 	Cut_Node,
 	Paste_Node,
 	Rename_Node,
+	// The selected node and its subtree become a component (component_edit.odin)
+	Save_As_Component,
 	// Play from the scene open in the viewport instead of the start scene
 	Play_Scene,
 	Open_Project_Settings,
@@ -311,6 +313,8 @@ NodeTextField :: enum {
 	Color,
 	// The AnimatedSprite animation it starts with ("" or ANIMATION_FIRST: the first)
 	Autoplay,
+	// A Component node's component (its file; TEXTURE_NONE for none)
+	Component,
 	// A CollisionShape's kind, by name
 	Shape,
 	// A Joint's kind, and its bodies (names; "" for body A's default)
@@ -408,6 +412,14 @@ New_Script_Opened :: struct {}
 New_Script_Name_Changed :: distinct string
 New_Script_Created :: struct {}
 New_Script_Cancelled :: struct {}
+
+// Components (component_edit.odin)
+// Opens a component (its index in project.scenes) in a viewport tab
+Component_Opened :: distinct int
+// Adds an instance of a component asset (its index in project.assets) to the open scene, under the selection
+Component_Instance_Added :: distinct int
+// Makes a new component (a Node2D to build on) and opens it
+Component_New :: struct {}
 
 // Project Settings > Input (input_actions.odin): the draft's actions
 Input_New_Name_Changed :: distinct string
@@ -718,6 +730,9 @@ Msg :: union {
 	Node_Layer_Toggled,
 	Node_Points_Changed,
 	Open_Keyboard_Settings,
+	Component_Opened,
+	Component_Instance_Added,
+	Component_New,
 	Input_New_Name_Changed,
 	Input_Action_Added,
 	Input_Defaults_Added,

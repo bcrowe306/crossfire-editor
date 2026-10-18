@@ -55,7 +55,7 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 	case .String:
 		if field.hint == "scene" {
 			scenes := make([dynamic]string, context.temp_allocator)
-			for scene in s.project.scenes do append(&scenes, scene.name)
+			append(&scenes, ..Project_SceneNames(&s.project))
 			return choices(ctx, value, scenes[:], payload, id(field, key), controlWidth)
 		}
 		return skald.text_input(ctx, strings.clone(value, context.temp_allocator), payload, onText, id = skald.hash_id(id(field, key)), width = controlWidth, padding = InspectorFieldPadding(ctx))
@@ -82,6 +82,7 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 	case .Sound:   return choices(ctx, value, assetsOf(s, .Audio), payload, id(field, key), controlWidth)
 	case .Font:    return choices(ctx, value, assetsOf(s, .Font), payload, id(field, key), controlWidth)
 	case .Data:    return choices(ctx, value, Project_DataOfType(&s.project, field.hint), payload, id(field, key), controlWidth)
+	case .Component: return choices(ctx, value, assetsOf(s, .Component), payload, id(field, key), controlWidth)
 	}
 	return skald.text(value, th.color.fg_muted, th.font.size_sm)
 }

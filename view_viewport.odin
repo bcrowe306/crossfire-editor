@@ -115,10 +115,17 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	}
 
-	labels := make([]string, len(s.project.scenes), context.temp_allocator)
-	for sc, i in s.project.scenes do labels[i] = sc.name
-	tabs := skald.tabs(ctx, labels, s.currentScene,
-		proc(index: int) -> Msg { return Scene_Tab_Changed(index) },
+	// A tab per scene, then per open component (the one being edited always has one)
+	tabScenes := ViewportTabScenes(s)
+	labels := make([]string, len(tabScenes), context.temp_allocator)
+	active := 0
+	for index, i in tabScenes {
+		scene := &s.project.scenes[index]
+		labels[i] = Scene_IsComponent(scene) ? fmt.tprintf("%s %s", ICON_CUBES, scene.name) : scene.name
+		if index == s.currentScene do active = i
+	}
+	tabs := skald.tabs(ctx, labels, active,
+		proc(tab: int) -> Msg { return Scene_Tab_Changed(tab) },
 		id = skald.hash_id("scene-tabs"))
 	buttons := skald.row(
 		panelButton(ctx, "viewport-animate", s.viewport.animate ? ICON_PAUSE : ICON_PLAY,
@@ -359,6 +366,24 @@ hitsShape :: proc(v: ^ViewportState, shape: NodeShape, mouseView, mouseWorld: [2
 
 // SHAPES
 
+// The rectangle a node and everything under it draw, in the node's space
+@(private="file")
+subtreeBounds :: proc(root: ^e.Node) -> (sdl.FRect, bool) {
+	lo, hi := [2]f32{max(f32), max(f32)}, [2]f32{min(f32), min(f32)}
+	visit :: proc(node: ^e.Node, toRoot: e.Transform2D, lo, hi: ^[2]f32) {
+		if bounds, ok := e.Node_GetLocalBounds(node); ok {
+			for corner in ([4][2]f32{{bounds.x, bounds.y}, {bounds.x + bounds.w, bounds.y}, {bounds.x, bounds.y + bounds.h}, {bounds.x + bounds.w, bounds.y + bounds.h}}) {
+				p := e.Transform2D_Apply(toRoot, corner)
+				lo^, hi^ = {min(lo.x, p.x), min(lo.y, p.y)}, {max(hi.x, p.x), max(hi.y, p.y)}
+			}
+		}
+		for child in node.children do visit(child, e.Transform2D_Multiply(toRoot, e.Node_GetLocalTransform(child)), lo, hi)
+	}
+	visit(root, e.TRANSFORM2D_IDENTITY, &lo, &hi)
+	if lo.x > hi.x do return {}, false
+	return {lo.x, lo.y, hi.x - lo.x, hi.y - lo.y}, true
+}
+
 // World transform, visibility and bounds of every node in the open scene (temp allocated)
 @(private="file")
 nodeShapes :: proc(s: ^State, scene: ^SceneDef) -> []NodeShape {
@@ -373,6 +398,8 @@ nodeShapes :: proc(s: ^State, scene: ^SceneDef) -> []NodeShape {
 		engineNode := Preview_Node(i)
 		if engineNode == nil do continue
 		bounds, ok := e.Node_GetLocalBounds(engineNode)
+		// An instance is everything its component draws
+		if node.kind == .Component do bounds, ok = subtreeBounds(engineNode)
 		if !ok do continue
 		// Labels and menus follow position only: no rotation or scale
 		transform := world[i]
@@ -708,6 +735,14 @@ drawRulers :: proc(r: ^skald.Renderer, canvas, viewRect: skald.Rect, v: ^Viewpor
 	skald.pop_clip(r)
 }
 
+// The scenes the viewport's tabs show, in order: every scene, then the open components (indices into project.scenes; temp allocated)
+ViewportTabScenes :: proc(s: ^State) -> []int {
+	list := make([dynamic]int, context.temp_allocator)
+	for &scene, i in s.project.scenes do if !Scene_IsComponent(&scene) do append(&list, i)
+	for &scene, i in s.project.scenes do if Scene_IsComponent(&scene) && (scene.opened || i == s.currentScene) do append(&list, i)
+	return list[:]
+}
+
 // Each node kind's color: its marker in the viewport and its row in the scene tree
 kindColor :: proc(kind: NodeKind) -> skald.Color {
 	switch kind {
@@ -726,6 +761,7 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .RayCast:        return skald.rgb(0xff6b6b)
 	case .Joint:          return skald.rgb(0xffdc78)
 	case .ParticleEmitter: return skald.rgb(0xff9d5c)
+	case .Component:      return COMPONENT_COLOR
 	}
 	return skald.rgb(0xffffff)
 }

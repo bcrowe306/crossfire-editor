@@ -36,7 +36,10 @@ Project_Save :: proc(project: ^Project) -> string {
 	}
 
 	for &scene in project.scenes {
-		path, _ := filepath.join({project.rootPath, SceneFilePath(&scene, context.temp_allocator)}, context.temp_allocator)
+		// A component goes to its own file
+		file := Scene_IsComponent(&scene) ? scene.component : SceneFilePath(&scene, context.temp_allocator)
+		path, _ := filepath.join({project.rootPath, file}, context.temp_allocator)
+		_ = os.make_directory_all(filepath.dir(path))
 		if err := os.write_entire_file(path, SceneToXML(&scene, context.temp_allocator)); err != nil {
 			return fmt.tprintf("Couldn't write %s: %v", path, err)
 		}
@@ -87,6 +90,8 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	if !physics.smoothing do attr(&w, "physicsSmoothing", false)
 	endOpen(&w)
 	for &scene in project.scenes {
+		// Components are assets, not scenes
+		if Scene_IsComponent(&scene) do continue
 		open(&w, "scene")
 		attr(&w, "name", scene.name)
 		attr(&w, "path", SceneFilePath(&scene, context.temp_allocator))
@@ -147,7 +152,9 @@ Returns:
 */
 SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 	w := xmlWriter(allocator)
-	open(&w, "scene")
+	// A component's file has the same nodes under a <component> root
+	root := Scene_IsComponent(scene) ? "component" : "scene"
+	open(&w, root)
 	attr(&w, "formatVersion", e.PROJECT_FORMAT_VERSION)
 	attr(&w, "name", scene.name)
 	endOpen(&w)
@@ -215,7 +222,7 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 	}
 	for _ in open_nodes do close(&w, "node")
 
-	close(&w, "scene")
+	close(&w, root)
 	return strings.to_string(w.builder)
 }
 
@@ -383,6 +390,8 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.collideConnected do attr(w, "collideConnected", true)
 	case .ParticleEmitter:
 		if node.texture != "" do attr(w, "texture", node.texture)
+	case .Component:
+		attr(w, "component", node.component)
 	case .Node2D, .Menu:
 	}
 }

@@ -13,3 +13,10 @@ SOUND_HIT :: e.SoundAsset{"assets/hit.wav"}
 SOUND_PICKUP :: e.SoundAsset{"assets/pickup.wav"}
 DATA_HAULER :: e.DataAsset{"data/hauler.data.json"}  // ShipStats
 DATA_SCOUT :: e.DataAsset{"data/scout.data.json"}  // ShipStats
+
+ACTION_UI_LEFT :: "ui_left"
+ACTION_UI_RIGHT :: "ui_right"
+ACTION_UI_UP :: "ui_up"
+ACTION_UI_DOWN :: "ui_down"
+ACTION_UI_ACCEPT :: "ui_accept"
+ACTION_UI_CANCEL :: "ui_cancel"

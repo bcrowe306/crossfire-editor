@@ -32,6 +32,8 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		return .Font, true
 	case ".json":
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), DATA_EXTENSION) do return .Data, true
+	case ".xml":
+		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), COMPONENT_EXTENSION) do return .Component, true
 	}
 	return .Image, false
 }
@@ -120,6 +122,11 @@ Project_RemoveAsset :: proc(project: ^Project, index: int, deleteFile: bool) -> 
 	if d := Project_FindData(project, asset.path); d >= 0 {
 		DataDef_Destroy(&project.data[d])
 		ordered_remove(&project.data, d)
+	}
+	// A component's SceneDef (the caller moves the viewport off it first)
+	if c := Project_FindComponent(project, asset.path); c >= 0 {
+		SceneDef_Destroy(&project.scenes[c])
+		ordered_remove(&project.scenes, c)
 	}
 	delete(asset.path)
 	ordered_remove(&project.assets, index)

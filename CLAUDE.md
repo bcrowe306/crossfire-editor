@@ -132,6 +132,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
 | `project_scenes.odin` | Scene list operations: add, copy, rename (updating references), remove, start scene, names; deleting old scene files on save |
 | `scene_actions.odin` | The browser's scene actions (`Scene_DoAction`), key routing while the browser has focus, scene rename, Project Settings state |
+| `component_edit.odin` | **Components**: saving a node tree as one (`Scene_SaveBranchAsComponent`), new ones, loading and writing their files, instances (`Scene_AddInstanceAt`, `Component_Contains` against nesting itself), `Scene_IsComponent` |
 | `input_actions.odin` | The project's input actions (`ActionDef`), the default ui_* ones (`DefaultActions`), capturing a binding through Skald (`Input_CaptureBinding`, `EngineKeyFor`), the Input tab's messages (`InputSettings_Update`) |
 | `view_project_settings.odin` | The Project Settings dialog: General (name, resolution, scaling, background, start scene) and Export (targets and their settings) tabs |
 | `export.odin` | Export targets (`ExportTarget`, `EXPORT_TARGETS`), per-target settings and export.ini, `Export_Plan` (the steps, pure and unit-tested), ldd parsing, the web page template |
@@ -543,6 +544,7 @@ MyGame/
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
   (world positions) are migrated when parsed.
 - **Version 4:** physics node kinds and attributes, and the project's physics settings.
+- **Version 9:** components (`.component.xml` files, asset kind Component) and Component nodes.
 - **Version 8:** input actions in project.xml.
 - **Version 7:** AnimatedSprite `<animation>` children, `margin`, `spacing`, `autoplay`.
 - **Version 6:** ParticleEmitter nodes; their settings are a `<particles>` child element (the
@@ -633,6 +635,39 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   not the defaults.
 - Play and exports need nothing more: the player is the engine's. Box2D is static (the native
   `.a` through the engine's binding; on the web, `box2d_web.o` on the emcc line).
+
+## Components (implemented, `component_edit.odin`; engine: project_loader.odin)
+
+Reusable node trees, like Godot's packed scenes: saved in the assets
+(`components/<name>.component.xml`, asset kind Component), instanced in any scene by a
+Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
+- **Model:** a component is a `SceneDef` with `component` set (its file), in `Project.scenes`
+  after the scenes, so the viewport, scene tree, inspector and undo edit it like a scene.
+  **Anything that means "the project's scenes" must skip `Scene_IsComponent`**: the browser's
+  Scenes folder, the start scene, scene fields and menu targets (`Project_SceneNames`),
+  `Project_FindScene`, `Project_SceneCount`, project.xml's scene list, scene file cleanup, the
+  export's scene files (component files go as assets), Play Scene (refused), and the `.Project`
+  undo snapshot (scenes only; components are assets: made and removed with their files, like data
+  resources). Loaded from the assets after the scenes (`Project_LoadComponent`); written by
+  `Project_Save` (`SceneToXML` writes a `<component>` root for them).
+- **Making one:** Save as Component (scene tree menu, Action.Save_As_Component): the subtree is
+  written as a component (root at the origin) and the node becomes an instance with its
+  transform (a `.Scene` undo step; the component stays). Browser > Components > New Component.
+- **Using one:** drag it from the browser into the viewport, Add to Scene (browser preview or
+  menu), or a Component node with the inspector's Component choice; instancing a component into
+  itself (directly or through others) is refused. Opened (double-click, Open), it gets a tab
+  (`SceneDef.opened`, `ViewportTabScenes`).
+- **Viewport:** instances are built from the components in memory (`provideComponents` fills the
+  engine game's component map before `Scene_Build`), and rebuild when a component they use
+  changes (`componentSignature`); an instance picks and outlines by its whole tree
+  (`subtreeBounds`). The browser preview draws a component with its own engine renderer
+  (`Preview_RenderComponent`, cached by content and size).
+- **Removing** its asset removes its SceneDef (`History_SceneRemoved` drops and re-indexes undo
+  steps). `scripts/assets.odin` gets `COMPONENT_X` constants; script fields of type
+  `e.ComponentAsset` get a picker.
+- Tests: `components_save_open_instance`, `components_render_in_instances_and_thumbnails` (the
+  preview tests take turns: `previewTestLock`, and `Preview_Destroy` after), `tests/ui/components.script`
+  (driver: `select_asset`, checks `components`, `kind`, `preview component`).
 
 ## Input actions (implemented; engine: input.odin)
 
