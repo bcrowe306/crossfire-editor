@@ -31,6 +31,9 @@ testState :: proc() -> State {
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
+	// Scripts open in the external program (`true` in tests that open one): the built-in code
+	// editor's package state is the code editor tests' (they take turns)
+	state.settings.builtInCodeEditor = false
 	state.selectedNode = nodeIndex(&state.project.scenes[1], "Spaceship")
 	return state
 }
@@ -3193,6 +3196,10 @@ renderer_setting_round_trip_and_undo :: proc(t: ^testing.T) {
 
 @(test)
 code_tabs_open_switch_close :: proc(t: ^testing.T) {
+	// The code editors are package state, and SDL_ttf (their font) isn't thread-safe: the tests
+	// using them or the viewport preview take turns
+	sync.guard(&previewTestLock)
+	defer CodeEditor_Shutdown()
 	dir := tempDir("editor_test_code_tabs")
 	defer removeAll(dir)
 	state := testState()
@@ -3206,6 +3213,7 @@ code_tabs_open_switch_close :: proc(t: ^testing.T) {
 	_ = os.write_entire_file(b, transmute([]byte)string("package scripts\n// b\n"))
 	// No language server here: tests mustn't start one
 	state.settings.olsPath = FixedText_Make("/nonexistent/ols")
+	state.settings.builtInCodeEditor = true
 
 	// Opening shows the file at a line; opening it again shows the same tab
 	testing.expect_value(t, CodeTabs_Active(&state), "")
@@ -3262,6 +3270,8 @@ code_tabs_open_switch_close :: proc(t: ^testing.T) {
 
 @(test)
 code_editor_settings_persist_and_disk_changes :: proc(t: ^testing.T) {
+	sync.guard(&previewTestLock)
+	defer CodeEditor_Shutdown()
 	dir := tempDir("editor_test_code_config")
 	defer removeAll(dir)
 	file := joinPath(dir, "a.odin", allocator = context.temp_allocator)

@@ -531,6 +531,11 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - **Looking at it:** `save_code_render <file.png>` (driver) writes the code editor's own pixels
   (its surface, not the screen). The rest of the UI can't be captured: Skald's offscreen renderer
   (`render_view_to_pixels`) is private.
+- **Unit tests and package state:** the code editor tests take `previewTestLock` (SDL_ttf isn't
+  thread-safe) and end with `CodeEditor_Shutdown`: each test has its own allocator, freed after
+  it, and the editors' list allocated by one test crashed the next (and corrupted others' data).
+  `testState` turns the built-in editor off; "unsaved scripts" and closing all look only at a
+  state's own tabs; the event watch is installed by the first code view, not by opening a file.
 - Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
   (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 

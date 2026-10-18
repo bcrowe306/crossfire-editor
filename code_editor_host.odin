@@ -192,6 +192,28 @@ CodeEditor_CloseAll :: proc() {
 	for len(host.editors) > 0 do CodeEditor_Close(host.editors[0].path)
 }
 
+/*
+Frees everything the code editor holds: the editors, their list and the font (the event watch
+stays). Tests call it when they finish: each test has its own allocator, freed after it, so the
+next one must not find this one's memory here.
+*/
+CodeEditor_Shutdown :: proc() {
+	CodeEditor_CloseAll()
+	delete(host.editors)
+	host.editors = nil
+	if host.font != nil {
+		ce.font_fallbacks_destroy(&host.fallbacks, host.font)
+		ttf.CloseFont(host.font)
+	}
+	host.font = nil
+	host.fallbacks = {}
+	host.failed = false
+	host.server = nil
+	host.lastShown = nil
+	host.uploaded = nil
+	host.serversStarted = 0
+}
+
 // Whether a file's editor has unsaved changes
 CodeEditor_IsDirty :: proc(path: string) -> bool {
 	c := CodeEditor_Find(path)
@@ -381,6 +403,9 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		drainEvents()
 		return skald.text(fmt.tprintf("%s isn't open", filepath.base(path)), ctx.theme.color.fg_muted, ctx.theme.font.size_sm)
 	}
+	// The input comes from an SDL event watch, installed when a code view first shows (only the
+	// running editor gets here: unit tests open files without SDL running)
+	if !host.watching do host.watching = sdl.AddEventWatch(eventWatch, nil)
 	rect := ctx.widgets.states[id].last_rect
 	scale := ctx.renderer != nil ? max(ctx.renderer.scale, 1) : 1
 	focused := ctx.widgets.focused_id == id
@@ -586,9 +611,6 @@ ensureHost :: proc() -> bool {
 		return false
 	}
 	host.fallbacks = ce.font_add_system_fallbacks(host.font, CODE_FONT_SIZE)
-	if !host.watching {
-		host.watching = sdl.AddEventWatch(eventWatch, nil)
-	}
 	return true
 }
 

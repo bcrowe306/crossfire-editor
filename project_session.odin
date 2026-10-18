@@ -46,7 +46,7 @@ SessionState :: struct {
 
 // Whether the project has changes that aren't saved
 Project_IsModified :: proc(state: ^State) -> bool {
-	return state.history.version != state.session.savedVersion || state.session.assetsChanged || CodeEditor_AnyDirty()
+	return state.history.version != state.session.savedVersion || state.session.assetsChanged || CodeTabs_AnyDirty(state)
 }
 
 // Records a successful save

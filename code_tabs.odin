@@ -96,10 +96,13 @@ CodeTabs_Close :: proc(state: ^State, index: int) {
 	}
 }
 
-// Closes every tab without asking (switching projects, after the save prompt)
+// Closes every tab without asking (switching projects, after the save prompt). Only this state's:
+// the editors are package state, which tests running side by side share
 CodeTabs_CloseAll :: proc(state: ^State) {
-	CodeEditor_CloseAll()
-	for tab in state.codeTabs do delete(tab)
+	for tab in state.codeTabs {
+		CodeEditor_Close(tab)
+		delete(tab)
+	}
 	clear(&state.codeTabs)
 	state.codeTab = 0
 	state.codeClose = {}
@@ -193,6 +196,12 @@ CodeTabs_SaveAll :: proc(state: ^State) -> bool {
 		logLine(state, .Info, fmt.aprintf("Saved %s", filepath.base(path)))
 	}
 	return true
+}
+
+// Whether one of this state's tabs has unsaved changes
+CodeTabs_AnyDirty :: proc(state: ^State) -> bool {
+	for path in state.codeTabs do if CodeEditor_IsDirty(path) do return true
+	return false
 }
 
 // How often the code view looks for language server replies while one is attached

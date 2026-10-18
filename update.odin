@@ -767,7 +767,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 
 	case .Save_Project:
 		// Saved scripts are built again in the background: the inspector learns new fields
-		scripts := CodeEditor_AnyDirty()
+		scripts := CodeTabs_AnyDirty(&out)
 		if Session_Save(&out) && scripts do return out, scriptsBuildQuietly(&out)
 	case .Play:
 		cmd := playStart(&out)
