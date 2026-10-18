@@ -558,6 +558,7 @@ MyGame/
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
   (world positions) are migrated when parsed.
 - **Version 4:** physics node kinds and attributes, and the project's physics settings.
+- **Version 11:** the project's `renderer` (written only when not Auto).
 - **Version 10:** sound nodes, `<bus>` elements in project.xml, asset kind Music.
 - **Version 9:** components (`.component.xml` files, asset kind Component) and Component nodes.
 - **Version 8:** input actions in project.xml.
@@ -645,6 +646,13 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   (Older editor.ini files' `play_collision_shapes` is ignored.)
 - The viewport header clips the scene tabs to what its buttons leave (measured with
   `skald.view_size`), so many scenes or a narrow window can't push the buttons out of view.
+- **Project Settings > General > Renderer** (`Project.renderer`, the engine's `e.RenderBackend`;
+  `Project_Settings_Renderer_Changed`, in the `.Project` snapshot): every backend, those this
+  computer's SDL lacks marked "(not on this computer)" (`e.RenderBackend_Available`), with a note
+  on where the choice works. Play and exports read it from project.xml; the game falls back to
+  SDL's choice where it isn't available, and logs "Renderer: <name>" (scenes.script plays with
+  Vulkan and checks that line). The viewport isn't affected: it renders with the engine's
+  software renderer (`viewport_preview.odin`).
 - **Project Settings > General:** pixels per meter, gravity, Show shapes (the game's debug
   drawing), Smooth motion (the engine's smoothing: bodies drawn between physics steps); `Project.physics`, in the `.Project` undo snapshot, written to project.xml only when
   not the defaults.

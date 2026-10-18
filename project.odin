@@ -175,6 +175,8 @@ Project :: struct {
 	// Game resolution, as in the engine's `Game.size`
 	gameSize: [2]f32,
 	scaleMode: e.ScaleMode,
+	// The renderer the game draws with (Auto: SDL's choice; the engine's render_backend.odin)
+	renderer: e.RenderBackend,
 	background: sdl.Color,
 	// Name of the scene the game starts in
 	startScene: string,
@@ -482,6 +484,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		rootPath = strings.clone(rootPath),
 		gameSize = data.size,
 		scaleMode = data.scaleMode,
+		renderer = data.renderer,
 		background = data.background,
 		startScene = strings.clone(data.startScene),
 		physics = data.physics,

@@ -338,6 +338,15 @@ In code: `e.AudioPlayer_Play(player)`, `e.AudioPlayer_Stop`, `e.MusicPlayer_Fade
 
 The demo project (`examples/demo_project`, see its README) uses all of these.
 
+## Renderer
+
+**File > Project Settings > General > Renderer** picks what the game draws with: **Auto** (the
+default: SDL's choice, OpenGL on Linux, Direct3D 11 on Windows, Metal on macOS), OpenGL,
+OpenGL ES 2, Vulkan, SDL GPU, Direct3D 11 or 12, Metal, or Software. Choices this computer
+doesn't have are marked. A game whose renderer isn't available where it runs uses SDL's choice
+instead, and web exports always use WebGL. The game's log says which one it got
+(`Renderer: vulkan` in the Console). The engine's player also takes `--renderer <name>`.
+
 ## Exporting
 
 **File > Project Settings > Export** lists every target. Check the ones you want, set each one's

@@ -79,6 +79,7 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	attr(&w, "width", project.gameSize.x)
 	attr(&w, "height", project.gameSize.y)
 	attr(&w, "scaleMode", project.scaleMode)
+	if project.renderer != .Auto do attr(&w, "renderer", project.renderer)
 	attr(&w, "background", e.FormatColor(project.background, context.temp_allocator))
 	attr(&w, "startScene", project.startScene)
 	// Physics settings only when they aren't the defaults

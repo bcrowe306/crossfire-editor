@@ -3159,3 +3159,29 @@ fader_scale_in_decibels :: proc(t: ^testing.T) {
 	testing.expect_value(t, Pan_Text(-0.4), "L40")
 	testing.expect_value(t, Pan_Text(0.25), "R25")
 }
+
+@(test)
+renderer_setting_round_trip_and_undo :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	testing.expect_value(t, state.project.renderer, e.RenderBackend.Auto)
+	send(&state, Action.Open_Project_Settings)
+	send(&state, Project_Settings_Renderer_Changed(.Vulkan))
+	testing.expect_value(t, state.project.renderer, e.RenderBackend.Auto) // A draft until Apply
+	send(&state, Project_Settings_Applied{})
+	testing.expect_value(t, state.project.renderer, e.RenderBackend.Vulkan)
+	send(&state, Action.Undo)
+	testing.expect_value(t, state.project.renderer, e.RenderBackend.Auto)
+	send(&state, Action.Redo)
+	testing.expect_value(t, state.project.renderer, e.RenderBackend.Vulkan)
+
+	// Written only when it isn't Auto, and read back
+	text := ProjectToXML(&state.project, context.temp_allocator)
+	testing.expect(t, strings.contains(text, `renderer="Vulkan"`), "written")
+	data, err := e.ParseProject(text, context.temp_allocator)
+	testing.expect_value(t, err, e.ProjectError.None)
+	testing.expect_value(t, data.renderer, e.RenderBackend.Vulkan)
+	state.project.renderer = .Auto
+	testing.expect(t, !strings.contains(ProjectToXML(&state.project, context.temp_allocator), "renderer="), "Auto isn't written")
+	free_all(context.temp_allocator)
+}

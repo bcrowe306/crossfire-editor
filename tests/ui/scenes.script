@@ -1,5 +1,5 @@
 # Scenes in the project browser: the context menu, keys while the browser has focus, renaming in
-# place, undo, Project Settings (start scene, name), and Play Scene.
+# place, undo, Project Settings (start scene, name, renderer), and Play Scene (with that renderer).
 # Run with: task test:ui
 #
 # Browser rows: 0 Scenes, 1 MenuScene (start), 2 PlayScene, 3 OptionsScene, 4 Images...
@@ -59,12 +59,14 @@ type Arena
 key RETURN
 expect start_scene Arena
 
-# Project Settings: the name
+# Project Settings: the name, and the renderer (Auto, OpenGL, OpenGL ES 2, Vulkan, ...)
 action Open_Project_Settings
 expect project_settings open
 click_widget project-settings-name
 key ctrl+a
 type Space Game
+click_widget project-settings-renderer
+click_overlay_item 3
 click_widget project-settings-apply
 expect project_settings closed
 expect project Space Game
@@ -75,6 +77,8 @@ expect scene PlayScene
 key ctrl+F5
 wait_until play Playing timeout=120
 wait_until console_contains from scene PlayScene timeout=10
+expect console_contains Renderer: vulkan
+expect project_file_contains project.xml renderer="Vulkan"
 key shift+F5
 wait_until play Stopped
 

@@ -34,6 +34,7 @@ ProjectSettingsDialog :: struct {
 	name: string,
 	gameSize: [2]f32,
 	scaleMode: e.ScaleMode,
+	renderer: e.RenderBackend,
 	background: skald.Color,
 	// Owned
 	startScene: string,
@@ -203,6 +204,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		name = strings.clone(p.name),
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
+		renderer = p.renderer,
 		background = skald.rgb(u32(c.r) << 16 | u32(c.g) << 8 | u32(c.b)),
 		startScene = strings.clone(p.startScene),
 		tab = tab,
@@ -280,6 +282,8 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 		dialog.gameSize[clamp(v.axis, 0, 1)] = clamp(f32(v.value), 16, 16384)
 	case Project_Settings_Scale_Changed:
 		if mode, ok := reflect.enum_from_name(e.ScaleMode, string(v)); ok do dialog.scaleMode = mode
+	case Project_Settings_Renderer_Changed:
+		dialog.renderer = e.RenderBackend(v)
 	case Project_Settings_Background_Changed:
 		dialog.background = skald.Color(v)
 	case Project_Settings_Start_Changed:
@@ -309,6 +313,7 @@ applyProjectSettings :: proc(state: ^State) {
 	}
 	p.gameSize = dialog.gameSize
 	p.scaleMode = dialog.scaleMode
+	p.renderer = dialog.renderer
 	if color, ok := e.ParseColor(fmt.tprintf("#%s", skald.color_to_hex(dialog.background))); ok do p.background = color
 	if Project_FindScene(p, dialog.startScene) >= 0 && dialog.startScene != p.startScene {
 		delete(p.startScene)

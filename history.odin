@@ -76,6 +76,7 @@ ProjectSnapshot :: struct {
 	startScene: string,
 	gameSize: [2]f32,
 	scaleMode: e.ScaleMode,
+	renderer: e.RenderBackend,
 	background: sdl.Color,
 	scenes: [dynamic]SceneDef,
 	exports: ExportSettings,
@@ -698,6 +699,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		startScene = strings.clone(p.startScene),
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
+		renderer = p.renderer,
 		background = p.background,
 		exports = p.exports,
 		physics = p.physics,
@@ -727,6 +729,7 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.name = strings.clone(snapshot.name)
 	p.startScene = strings.clone(snapshot.startScene)
 	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
+	p.renderer = snapshot.renderer
 	p.exports = snapshot.exports
 	p.physics = snapshot.physics
 	for &g in p.globals do GlobalDef_Destroy(&g)
@@ -789,7 +792,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 @(private="file")
 projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if a.name != b.name || a.startScene != b.startScene || a.gameSize != b.gameSize || a.scaleMode != b.scaleMode ||
-	   a.background != b.background || a.exports != b.exports || a.physics != b.physics || len(a.scenes) != len(b.scenes) {
+	   a.renderer != b.renderer || a.background != b.background || a.exports != b.exports || a.physics != b.physics || len(a.scenes) != len(b.scenes) {
 		return false
 	}
 	for scene, i in a.scenes {

@@ -168,6 +168,8 @@ RenameTarget :: enum {
 // Project Settings dialog (view_project_settings.odin)
 Project_Settings_Name_Changed :: distinct string
 Project_Settings_Scale_Changed :: distinct string
+// The renderer the game draws with (Project Settings > General)
+Project_Settings_Renderer_Changed :: distinct e.RenderBackend
 Project_Settings_Background_Changed :: distinct skald.Color
 Project_Settings_Start_Changed :: distinct string
 Project_Settings_Size_Changed :: struct {
@@ -703,6 +705,7 @@ Msg :: union {
 	Browser_Right_Clicked,
 	Project_Settings_Name_Changed,
 	Project_Settings_Scale_Changed,
+	Project_Settings_Renderer_Changed,
 	Project_Settings_Background_Changed,
 	Project_Settings_Start_Changed,
 	Project_Settings_Size_Changed,

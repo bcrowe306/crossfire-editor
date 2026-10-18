@@ -91,6 +91,34 @@ settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> 
 	)
 }
 
+// The renderer choices: every backend, marked when this computer's SDL doesn't have it
+@(private="file")
+rendererSelect :: proc(ctx: ^skald.Ctx(Msg), backend: e.RenderBackend) -> skald.View {
+	labels := make([dynamic]string, context.temp_allocator)
+	for b in e.RenderBackend do append(&labels, rendererLabel(b))
+	return skald.select(ctx, rendererLabel(backend), labels[:],
+		proc(label: string) -> Msg {
+			for b in e.RenderBackend do if rendererLabel(b) == label do return Project_Settings_Renderer_Changed(b)
+			return nil
+		},
+		id = skald.hash_id("project-settings-renderer"), width = 260)
+}
+
+@(private="file")
+rendererLabel :: proc(backend: e.RenderBackend) -> string {
+	info := e.RENDER_BACKENDS[backend]
+	if !e.RenderBackend_Available(backend) do return fmt.tprintf("%s (not on this computer)", info.label)
+	return info.label
+}
+
+// Where the chosen renderer works, and what happens elsewhere
+@(private="file")
+rendererNote :: proc(backend: e.RenderBackend) -> string {
+	if backend == .Auto do return "SDL picks the best renderer on each platform: OpenGL on Linux, Direct3D 11 on Windows, Metal on macOS. Web exports always use WebGL."
+	return fmt.tprintf("%s: %s. Where it isn't available (or fails to start), the game falls back to SDL's choice; web exports always use WebGL.",
+		e.RENDER_BACKENDS[backend].label, e.RENDER_BACKENDS[backend].platforms)
+}
+
 @(private="file")
 generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
@@ -114,6 +142,8 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Scaling", skald.select(ctx, fmt.tprint(d.scaleMode), modes[:],
 			proc(v: string) -> Msg { return Project_Settings_Scale_Changed(v) },
 			id = skald.hash_id("project-settings-scale"), width = 160)),
+		settingRow(ctx, "Renderer", rendererSelect(ctx, d.renderer)),
+		skald.text(rendererNote(d.renderer), th.color.fg_muted, th.font.size_xs, max_width = 420),
 		settingRow(ctx, "Background", skald.color_picker(ctx, d.background,
 			proc(c: skald.Color) -> Msg { return Project_Settings_Background_Changed(c) },
 			id = skald.hash_id("project-settings-background"), width = 160)),
