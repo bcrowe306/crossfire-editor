@@ -26,6 +26,83 @@ ColoredTreeRow :: struct {
 	labelColor: skald.Color,
 }
 
+/*
+Scrolls a tree's scroll so its selected row is wholly in view, when the selection has moved to
+another row since the last call (a click on a half-hidden row, a node picked in the viewport, the
+arrow keys), so wheeling away from a selection isn't undone. Call it before building the scroll,
+which must have `reveal_focus = false`: that would show the focused tree, taller than the view,
+from its top, and scroll the clicked row away.
+*/
+Tree_RevealSelected :: proc(ctx: ^skald.Ctx(Msg), rows: []ColoredTreeRow, treeKey, scrollKey: string, rowHeight: f32) {
+	treeId := skald.hash_id(treeKey)
+	selected := -1
+	for r, i in rows do if r.selected {
+		selected = i
+		break
+	}
+	last, known := treeRevealed[treeId]
+	treeRevealed[treeId] = selected
+	if selected < 0 || (known && last == selected) do return
+	tree, drawn := ctx.widgets.states[treeId]
+	scroll, scrollDrawn := &ctx.widgets.states[skald.hash_id(scrollKey)]
+	if !drawn || !scrollDrawn || scroll.last_rect.h <= 0 do return
+	area := scroll.last_rect
+	top := tree.last_rect.y + f32(selected) * rowHeight
+	MARGIN :: f32(4)
+	if top + rowHeight + MARGIN > area.y + area.h {
+		scroll.scroll_y += top + rowHeight + MARGIN - (area.y + area.h)
+	} else if top - MARGIN < area.y {
+		scroll.scroll_y = max(scroll.scroll_y - (area.y - top + MARGIN), 0)
+	} else {
+		return
+	}
+	skald.send(ctx, Msg(Frame_Requested{}))
+}
+
+/*
+When a click inside a scroll ends on a control that's partly out of its view, scrolls just enough
+to show all of it (Skald's scroll only reveals controls that take keyboard focus). On release, so
+the control doesn't move away between the press and the release of its own click. Call it before
+building the scroll.
+*/
+Scroll_RevealClicked :: proc(ctx: ^skald.Ctx(Msg), scrollKey: string) {
+	if !ctx.input.mouse_released[.Left] do return
+	scroll, drawn := &ctx.widgets.states[skald.hash_id(scrollKey)]
+	if !drawn || scroll.last_rect.h <= 0 do return
+	area := scroll.last_rect
+	mouse := ctx.input.mouse_pos
+	inside :: proc(r: skald.Rect, p: [2]f32) -> bool { return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h }
+	if !inside(area, mouse) || skald.mouse_over_overlay(ctx) do return
+	// The smallest control drawn last frame inside this scroll, under the pointer
+	best: skald.Rect
+	found := false
+	for id, st in ctx.widgets.states {
+		if st.last_frame + 1 < ctx.widgets.frame || id == skald.hash_id(scrollKey) do continue
+		c := st.clip_rect
+		if c.w <= 0 || c.x < area.x - 0.5 || c.y < area.y - 0.5 || c.x + c.w > area.x + area.w + 0.5 || c.y + c.h > area.y + area.h + 0.5 do continue
+		r := st.last_rect
+		if !inside(r, mouse) || r.h >= area.h do continue
+		if !found || r.w * r.h < best.w * best.h {
+			best = r
+			found = true
+		}
+	}
+	if !found do return
+	MARGIN :: f32(6)
+	if best.y + best.h + MARGIN > area.y + area.h {
+		scroll.scroll_y += best.y + best.h + MARGIN - (area.y + area.h)
+	} else if best.y - MARGIN < area.y {
+		scroll.scroll_y = max(scroll.scroll_y - (area.y - best.y + MARGIN), 0)
+	} else {
+		return
+	}
+	skald.send(ctx, Msg(Frame_Requested{}))
+}
+
+// The row each tree last revealed (Tree_RevealSelected), by widget id
+@(private="file")
+treeRevealed: map[skald.Widget_ID]int
+
 coloredTree :: proc(
 	ctx: ^skald.Ctx(Msg),
 	rows: []ColoredTreeRow,

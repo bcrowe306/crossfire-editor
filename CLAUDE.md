@@ -128,7 +128,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard tabs |
 | `settings.default.ini` | Default settings, built into the editor |
-| `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors |
+| `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors; `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
@@ -193,6 +193,14 @@ Skald is not immediate-mode and not a retained widget tree:
 - **A widget inside a scroll must hit-test against its `clip_rect` too**, not just `last_rect`:
   the rect of content taller than the scroll runs on past it, over whatever is below (the scene
   tree's rows took clicks meant for the inspector under it and selected hidden rows).
+- **A focusable widget taller than its scroll makes Skald's `reveal_focus` scroll to its top.**
+  The trees are one focusable widget each, so a click on a row (which focuses the tree) threw the
+  browser and scene tree back to their top and the clicked row out of view. Their scrolls have
+  `reveal_focus = false`; `Tree_RevealSelected` scrolls the selected row into view instead, only
+  when the selection moves (clicks, the arrow keys, a node picked in the viewport), so wheeling
+  away stays put. The inspector's `Scroll_RevealClicked` shows all of a control clicked while
+  half hidden (on release, so it doesn't move mid-click); Skald only reveals focusable ones.
+  Test: `tests/ui/scroll_reveal.script` (driver checks `scrolled`, `row_visible`).
 - A custom widget that stores state under an id (`widget_get`) must not also wrap itself in
   `skald.zone` with that id: the zone claims the slot as another widget kind and Skald resets the
   state every frame. Return a bare `skald.View_Zone{id, child}` (as `coloredTree` does).
@@ -751,8 +759,9 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
 - **Mixer tab** (`MixerPanel`, `Mixer_Update`), laid out like a DAW's mixer: channel strips for
   the buses in an `hScroll` (wheel or bar), Master pinned on the far right with + (Add Bus,
   "Bus", "Bus 2", ...; the new strip is scrolled into view: `hScroll_ScrollToEnd`) beside it.
-  A strip: node count and remove (not Master; its nodes go to Master), pan (`panControl`), the
-  fader (`fader`: -inf to +6 dB, unity snaps, Shift fine, double-click or Ctrl+click resets)
+  A strip, as tall as the panel: node count and remove (not Master; its nodes go to Master), pan
+  (`panControl`), the fader (`fader`, 20 px: -inf to +6 dB, unity snaps, Shift fine, double-click or
+  Ctrl+click resets; in a flex slot built by `skald.sized`, so it takes the height the rest leaves)
   beside its meter on the same scale, the level in dB, mute, the name (typed text kept in
   `State.busEdit` until valid: not empty, no edge spaces, unused ignoring case; nodes on it
   follow the name). Each edit is a `.Project` undo step, merged while a fader drags.

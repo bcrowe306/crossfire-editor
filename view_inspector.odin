@@ -68,6 +68,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	menuState, _ := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
 	shield := menuState.open && skald.mouse_over_overlay(ctx) && ctx.input.mouse_pressed[.Left]
 	if shield do ctx.input.mouse_pressed[.Left] = false
+	Tree_RevealSelected(ctx, rows, "scene-tree", "scene-tree-scroll", s.settings.rowHeight)
 	tree := skald.scroll(ctx, {0, 0},
 		coloredTree(ctx, rows,
 			on_toggle = proc(row: int) -> Msg { return Node_Toggled(row) },
@@ -76,6 +77,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			row_height = s.settings.rowHeight,
 		),
 		id = skald.hash_id("scene-tree-scroll"),
+		reveal_focus = false,
 	)
 	if shield do ctx.input.mouse_pressed[.Left] = true
 	labels := make([]string, len(SCENE_TREE_MENU), context.temp_allocator)
@@ -275,6 +277,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
 	header := panelHeader(ctx, ICON_CIRCLE_INFO, "Inspector")
+	Scroll_RevealClicked(ctx, "inspector-scroll")
 
 	if s.dataSelection >= 0 && s.dataSelection < len(s.project.data) {
 		return skald.col(

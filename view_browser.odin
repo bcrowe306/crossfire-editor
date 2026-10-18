@@ -119,6 +119,7 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	}
 
+	Tree_RevealSelected(ctx, rows, "browser-tree", "browser-scroll", s.settings.rowHeight)
 	tree := skald.scroll(ctx, {0, 0},
 		coloredTree(ctx, rows,
 			on_toggle = proc(row: int) -> Msg { return Browser_Toggled(row) },
@@ -127,6 +128,7 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			row_height = s.settings.rowHeight,
 		),
 		id = skald.hash_id("browser-scroll"),
+		reveal_focus = false,
 	)
 	// The right-click menu: what it offers depends on the row (set by browserMenuItems)
 	labels := browserMenuItems(s)
@@ -301,7 +303,7 @@ browserRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> 
 	y := tree.y + f32(row) * rowHeight
 	area := treeState.clip_rect.w > 0 ? treeState.clip_rect : tree
 	if y < area.y || y + rowHeight > area.y + area.h {
-		// Scrolled out of view (focusing the tree scrolls the browser back to its top): bring the
+		// Scrolled out of view (the browser was scrolled away from it): bring the
 		// row back, so the field can be shown and focused next frame
 		scroll := &ctx.widgets.states[skald.hash_id("browser-scroll")]
 		scroll.scroll_y = max(scroll.scroll_y + (y + rowHeight * 0.5) - (area.y + area.h * 0.5), 0)

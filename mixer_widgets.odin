@@ -136,7 +136,7 @@ down. A press off the cap jumps it there.
 
 Widget key: `key`.
 */
-fader :: proc(ctx: ^skald.Ctx($Msg), key: string, gain: f32, payload: $P, on_change: proc(payload: P, gain: f32) -> Msg, height: f32, width: f32 = 30) -> skald.View {
+fader :: proc(ctx: ^skald.Ctx($Msg), key: string, gain: f32, payload: $P, on_change: proc(payload: P, gain: f32) -> Msg, height: f32, width: f32 = FADER_WIDTH) -> skald.View {
 	th := ctx.theme
 	id := skald.hash_id(key)
 	position := Fader_GainToPosition(gain)
@@ -193,6 +193,8 @@ fader :: proc(ctx: ^skald.Ctx($Msg), key: string, gain: f32, payload: $P, on_cha
 }
 
 FADER_CAP_HEIGHT :: f32(16)
+FADER_WIDTH :: f32(20)
+METER_WIDTH :: f32(12)
 
 /*
 A balance control from -1 (left) to 1 (right): a bar filled from the center, dragged sideways.
@@ -247,7 +249,7 @@ with the levels read this frame (0 to 1 per side). It keeps what it shows under 
 Returns:
 - The meter, and whether it's still moving (keep frames coming)
 */
-levelMeter :: proc(ctx: ^skald.Ctx($Msg), key: string, level: [2]f32, height: f32, width: f32 = 14) -> (view: skald.View, moving: bool) {
+levelMeter :: proc(ctx: ^skald.Ctx($Msg), key: string, level: [2]f32, height: f32, width: f32 = METER_WIDTH) -> (view: skald.View, moving: bool) {
 	th := ctx.theme
 	id := skald.hash_id(key)
 	now := time.now()

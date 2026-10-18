@@ -150,6 +150,9 @@ Checks:
 	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
 	buses <count>                The project's mix buses (Master counts)
 	widget_visible <key> <true | false>   Some of the widget was drawn last frame, not clipped away
+	scrolled <scroll key> <true | false>  A scroll container is scrolled down from its top
+	widget_bottom_near <key> <other key> <px>   The two widgets' bottoms are within px (one fills the other)
+	row_visible <tree key> <row> <true | false>   A tree row is wholly inside its scroll's view
 	meter <key> <sounding | silent>   A level meter shows more than -50 dB, or nothing
 	bus <index> <name | volume | pan | mute | nodes> <value>   A bus (numbers with two decimals)
 	sound <sound | bus | volume | pitch | pan | loop | autostart | range> <value>
@@ -986,6 +989,30 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		key, _, expected := strings.partition(value, " ")
 		found = levelMeter_Shown(key) > -50 ? "sounding" : "silent"
 		return found == strings.trim_space(expected), found
+	case "widget_bottom_near":
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 3 do return false, "expected two widget keys and a distance"
+		a, aOk := ctx.widgets.states[skald.hash_id(parts[0])]
+		b, bOk := ctx.widgets.states[skald.hash_id(parts[1])]
+		if !aOk || !bOk do return false, "not drawn"
+		px, _ := strconv.parse_f32(parts[2])
+		gap := (b.last_rect.y + b.last_rect.h) - (a.last_rect.y + a.last_rect.h)
+		return abs(gap) <= px, fmt.tprintf("%.0f px apart (fader %.0f px tall)", gap, a.last_rect.h)
+	case "scrolled":
+		key, _, expected := strings.partition(value, " ")
+		state := ctx.widgets.states[skald.hash_id(key)]
+		found = fmt.tprint(state.scroll_y > 0.5)
+		return found == strings.trim_space(expected), found
+	case "row_visible":
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 3 do return false, "expected a tree, a row and true or false"
+		tree, ok := ctx.widgets.states[skald.hash_id(parts[0])]
+		if !ok do return false, "the tree wasn't drawn"
+		row, _ := strconv.parse_int(parts[1])
+		area := tree.clip_rect.w > 0 ? tree.clip_rect : tree.last_rect
+		y := tree.last_rect.y + f32(row) * s.settings.rowHeight
+		found = fmt.tprint(y >= area.y - 0.5 && y + s.settings.rowHeight <= area.y + area.h + 0.5)
+		return found == parts[2], found
 	case "widget_visible":
 		key, _, expected := strings.partition(value, " ")
 		_, visible := widgetRect(ctx, key)

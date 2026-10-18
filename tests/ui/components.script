@@ -39,7 +39,9 @@ type Node2D
 key RETURN
 expect nodes 6
 
-# Make Unique: the instance Add to Scene made gets its own copy
+# Make Unique: the instance Add to Scene made gets its own copy (the browser stayed scrolled to
+# the component: back to the top for the scenes)
+scroll_by browser-scroll 0
 click_row browser-tree 2
 expect scene PlayScene
 click_node props

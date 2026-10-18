@@ -1,0 +1,43 @@
+# Clicking a row keeps it in view: the scene tree (and browser) don't jump back to their top when
+# the tree takes focus, and a selection made elsewhere scrolls its row into view.
+# Run with: task test:ui
+#
+# PlayScene's scene tree has 11 rows (all open); the pane is short, so it scrolls
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+scroll_by scene-tree-scroll 400
+expect scrolled scene-tree-scroll true
+expect row_visible scene-tree 10 true
+click_row scene-tree 10
+expect scrolled scene-tree-scroll true
+expect row_visible scene-tree 10 true
+
+# The arrow keys move the selection down the tree; the scroll follows it
+scroll_by scene-tree-scroll 0
+expect scrolled scene-tree-scroll false
+click_row scene-tree 0
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+expect row_visible scene-tree 10 true
+expect scrolled scene-tree-scroll true
+
+# The inspector keeps its place when a control in it is clicked
+key escape
+key ctrl+shift+a
+type ParticleEmitter
+key RETURN
+expect selected ParticleEmitter
+scroll_into_view inspector-scroll inspector-particle-continuous-11
+click_widget inspector-particle-continuous-11
+expect particle continuous false
+expect widget_visible inspector-particle-continuous-11 true

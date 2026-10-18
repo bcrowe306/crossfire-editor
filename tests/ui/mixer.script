@@ -73,6 +73,8 @@ key ctrl+a
 type SFX
 expect bus 1 name SFX
 key escape
+# The strips fill the panel's height: the name sits at the bottom
+expect widget_bottom_near mixer-name-1 mixer-buses 12
 
 # The fader: dragged to the bottom is silence, up past the top +6 dB (a gain of 2), a
 # double-click puts it back at 0 dB

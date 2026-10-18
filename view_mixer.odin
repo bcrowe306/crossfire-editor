@@ -24,10 +24,10 @@ MixerPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 @(private="file")
-STRIP_WIDTH :: f32(78)
-// What a strip needs besides its fader, at the default text size
+STRIP_WIDTH :: f32(72)
+// The shortest a fader gets; the strips are as tall as the panel, the fader takes what's left
 @(private="file")
-STRIP_FIXED_HEIGHT :: f32(160)
+FADER_MIN_HEIGHT :: f32(60)
 
 @(private="file")
 mixerBody :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
@@ -47,24 +47,22 @@ mixerBody :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
 	height := max(size.y - gap * 2, 0)
 	stripsWidth := f32(len(buses) - 1) * (STRIP_WIDTH + gap) - gap
 	areaWidth := max(size.x - STRIP_WIDTH - ADD_WIDTH - gap * 5 - 1, STRIP_WIDTH)
+	// The strips fill the height the scroll bar (when there is one) leaves
 	bar: f32 = stripsWidth > areaWidth ? H_SCROLL_BAR + 2 : 0
-	faderHeight := clamp(height - bar - STRIP_FIXED_HEIGHT, 60, 420)
+	stripHeight := max(height - bar, 0)
 
 	strips := make([dynamic]skald.View, context.temp_allocator)
 	for b, i in buses {
 		if i == 0 do continue
 		level := b.name == previewBus ? busLevel : [2]f32{}
-		strip, stripMoving := channelStrip(ctx, s, b, i, level, faderHeight)
-		moving ||= stripMoving
-		append(&strips, strip)
+		append(&strips, channelStrip(ctx, s, b, i, level, stripHeight))
 	}
 	add := skald.tooltip(ctx, skald.button(ctx, ICON_PLUS, Msg(Bus_Added{}), id = skald.hash_id("mixer-add"),
 		bg = th.color.surface, fg = th.color.fg, width = ADD_WIDTH, padding = {0, th.spacing.md}, radius = th.radius.sm),
 		"Add a bus", id = skald.hash_id("mixer-add-tip"))
 	if len(strips) == 0 do append(&strips, skald.text("No buses yet: + adds one", th.color.fg_muted, th.font.size_xs))
-	master, masterMoving := channelStrip(ctx, s, buses[0], 0, masterLevel, faderHeight)
-	moving ||= masterMoving
-	// Keep frames coming while a meter moves
+	master := channelStrip(ctx, s, buses[0], 0, masterLevel, stripHeight)
+	// Keep frames coming while the preview plays (meters that are still falling ask too)
 	if moving do skald.send(ctx, Msg(Preview_Tick{}))
 
 	return skald.row(
@@ -81,15 +79,14 @@ mixerBody :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
 @(private="file")
 ADD_WIDTH :: f32(32)
 
-// One bus's strip; whether its meter is still moving
+// One bus's strip, `height` tall: the fader and meter take what the rest leaves
 @(private="file")
-channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: [2]f32, faderHeight: f32) -> (skald.View, bool) {
+channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: [2]f32, height: f32) -> skald.View {
 	th := ctx.theme
 	inner := STRIP_WIDTH - th.spacing.xs * 2
 	tiny :: proc(ctx: ^skald.Ctx(Msg), text: string, color: skald.Color) -> skald.View {
 		return skald.text(text, color, ctx.theme.font.size_xs)
 	}
-	onVolume :: proc(i: int, v: f32) -> Msg { return Bus_Volume_Changed{i, v} }
 	onPan :: proc(i: int, v: f32) -> Msg { return Bus_Pan_Changed{i, v} }
 	onName :: proc(i: int, name: string) -> Msg { return Bus_Renamed{i, name} }
 
@@ -115,11 +112,10 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 		panControl(ctx, fmt.tprintf("mixer-pan-%d", i), b.pan, i, onPan, inner),
 	)
 
-	// Fader and meter, centered
-	meter, moving := levelMeter(ctx, fmt.tprintf("mixer-meter-%d", i), level, faderHeight)
+	// Fader and meter, centered, as tall as the strip has room for (known at layout: `sized`)
+	slot := FaderSlot{i, b.volume, level}
 	append(&rows,
-		skald.row(fader(ctx, fmt.tprintf("mixer-fader-%d", i), b.volume, i, onVolume, faderHeight), meter,
-			spacing = th.spacing.xs, main_align = .Center, width = inner),
+		skald.flex(1, skald.sized(ctx, &slot, faderAndMeter, min_w = inner, min_h = FADER_MIN_HEIGHT)),
 		skald.row(tiny(ctx, Fader_Text(b.volume), th.color.fg), main_align = .Center, width = inner),
 	)
 
@@ -146,6 +142,24 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 		}
 	}
 
-	return skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.xs, width = STRIP_WIDTH,
-		bg = th.color.surface, radius = th.radius.sm), moving
+	return skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.xs, width = STRIP_WIDTH, height = height,
+		bg = th.color.surface, radius = th.radius.sm)
+}
+
+@(private="file")
+FaderSlot :: struct {
+	index: int,
+	volume: f32,
+	level: [2]f32,
+}
+
+@(private="file")
+faderAndMeter :: proc(ctx: ^skald.Ctx(Msg), slot: ^FaderSlot, size: [2]f32) -> skald.View {
+	onVolume :: proc(i: int, v: f32) -> Msg { return Bus_Volume_Changed{i, v} }
+	h := max(size.y, FADER_MIN_HEIGHT)
+	meter, moving := levelMeter(ctx, fmt.tprintf("mixer-meter-%d", slot.index), slot.level, h)
+	// A meter still falling keeps frames coming
+	if moving do skald.send(ctx, Msg(Preview_Tick{}))
+	return skald.row(fader(ctx, fmt.tprintf("mixer-fader-%d", slot.index), slot.volume, slot.index, onVolume, h), meter,
+		spacing = ctx.theme.spacing.xs, main_align = .Center, width = size.x)
 }
