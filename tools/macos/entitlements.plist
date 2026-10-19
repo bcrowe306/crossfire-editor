@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime entitlements for signing with a Developer ID (gon.json). The editor starts
+     other programs (odin, clang, the games it builds) and loads MoltenVK from its own bundle,
+     which the hardened runtime allows; nothing here relaxes it yet. -->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>

@@ -137,6 +137,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `project_archive.odin` | Project archives (`.odinsdl`): `ProjectArchive_Create` (outside assets brought in), `ProjectArchive_Extract`, the File menu's flow |
 | `vcs.odin` | Version control through `git`: `GitSnapshot` / `Git_ReadSnapshot`, `GitOp` / `Git_Commands` / `Git_RunCommands`, `Git_Update` |
 | `view_git.odin` | The bottom panel's Git tab |
+| `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject`, `Editor_ArgumentPath` |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
@@ -1130,6 +1131,51 @@ targets (unoptimized; about 10 s once emsdk's port cache is warm).
   libpng/libjpeg ports, which Emscripten has).
 - Fold the SDL3_mixer build into the automatic toolchain setup above.
 
+## macOS app bundle (`Taskfile.macos.yml`, `tools/macos/`)
+
+`task macos:dist` makes `dist/macos/Odin SDL Editor.app` and a disk image; `task macos:verify`
+installs the image's app into a temporary folder and runs UI scripts with it. CI's macOS job runs
+the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in the bundle:
+
+	Contents/MacOS/odin_sdl_editor, ols, prebuilt/<target>/player
+	Contents/Frameworks/   libvulkan.1.dylib, libMoltenVK.dylib, whatever else dylibbundler finds
+	Contents/Resources/    vulkan/icd.d/MoltenVK_icd.json, engine/ (sources, box2d/lib, sdl/lib)
+
+- **Steps** (tools/macos/bundle.sh, one task each): `layout` (Info.plist from Info.plist.in, the
+  binaries, the engine's git-tracked files without third_party/), `vulkan` (Homebrew's loader and
+  MoltenVK, copied: SDL dlopens the loader, so dylibbundler can't see it; ids @rpath; the
+  manifest's `library_path` rewritten to `../../../Frameworks/`), `dylibs` (dylibbundler, `-of`
+  not `-od`, which would empty Frameworks; `@rpath` plus an rpath per executable's depth),
+  `sign` (ad hoc, inside out: Apple Silicon runs nothing unsigned and install_name_tool breaks
+  signatures), `check` (no Mach-O links outside `/usr/lib`, `/System` and the bundle; the
+  prebuilt player links nothing bundled, since exported games carry no bundle; files present;
+  `codesign --verify --deep --strict`).
+- **SDL is static** (the engine's sdl/lib): the editor and players link no SDL dylibs. Skald
+  loads Vulkan through SDL at run time; `bundle_darwin.odin` sets `SDL_VULKAN_LIBRARY` to the
+  bundle's loader and `VK_DRIVER_FILES` / `VK_ICD_FILENAMES` to its MoltenVK manifest (unless set).
+- **A bundle is read-only and starts in `/`:** `Editor_SetupBundle` makes the data folder
+  (`Toolchain_DataDir`) the working folder, so Play's and Export's relative `build/` folders land
+  there; settings live there too; the demo project goes to `~/Documents/Odin SDL Editor/`.
+  Command-line and UI-script paths resolve against the folder the editor was started in
+  (`Editor_ArgumentPath`: the driver's `import`, `open_project`, archives). The engine is found in
+  `Resources/engine`, OLS beside the executable (`Code_FindOLS`), the prebuilt player in
+  `MacOS/prebuilt/`. ols.json gets `odin_command` (the toolchain's odin, which needn't be in PATH).
+- **Spaces in paths:** "Odin SDL Editor.app" found that the engine's static SDL `-L` wasn't
+  quoted (the link failed); it is now (the engine's sdl_static.odin).
+- **Tested on Linux with a fake bundle** (the real editor, OLS, prebuilt player and engine copy
+  in `/tmp/fakebundle/Odin SDL Editor.app/Contents/...`, `XDG_DATA_HOME` scratch): toolchain,
+  ldtk, scripts (a game with scripts compiled against the bundled engine) and code_editor pass.
+  The dylib, Vulkan, signing and disk-image steps only run on a Mac: CI.
+- **CI:** `brew install go-task`, `task macos:deps`, `task macos:dist`, `UI=false task
+  macos:verify` (install and bundle check: fails the build), then `task macos:verify` with UI
+  scripts as `continue-on-error` until we know MoltenVK gets a Metal device on GitHub's virtual
+  macOS runners. The release ships the `.dmg`.
+- **Later:** a Developer ID signature and notarization with gon (`task macos:notarize`,
+  `tools/macos/gon.json.example`, `entitlements.plist`); an app icon.
+- OLS is pinned in code_editor (`OLS_REF`): `c96dea91` is the newest that builds with Odin
+  dev-2026-10 (newer OLS needs `core:odin/tool-format`). UI test tasks build it (`ols`):
+  toolchain.script expects a language server.
+
 ## CI and releases (`.github/workflows/build.yml`)
 
 Pushing a `v*` tag builds and tests on Linux x86_64 (ubuntu-24.04), Windows x86_64 (windows-2022)
@@ -1140,7 +1186,8 @@ failed, fixes it and builds again with the next tag.
 - The engine's `main` is checked out next to the editor (`odin_sdl_engine/`), and its
   `tools/ci/setup.sh` and `tools/build_box2d.sh` set things up. The emsdk submodule isn't
   fetched (desktop builds don't need it).
-- `tools/ci/package_editor.sh` packs the built editor (settings and fonts are built in; the demo
+- macOS uses the bundling tasks instead (above): its release asset is the `.dmg`.
+- `tools/ci/package_editor.sh` packs the built editor (Linux, Windows) (settings and fonts are built in; the demo
   is recreated when missing), its SDL3 libraries when SDL isn't static, this platform's prebuilt
   player (`prebuilt/<target>/player`; SDL DLLs beside both on Windows only without the static SDL,
   which CI now builds there too: `ldd` checks no SDL library is loaded), and the engine's

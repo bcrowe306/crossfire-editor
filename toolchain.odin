@@ -76,6 +76,9 @@ Toolchain_EngineDir :: proc() -> (string, bool) {
 	if exeDir, err := os.get_executable_directory(context.temp_allocator); err == nil {
 		bundled := joinPath(exeDir, "engine", allocator = context.temp_allocator)
 		if os.exists(joinPath(bundled, "player", allocator = context.temp_allocator)) do return bundled, true
+		// A macOS app bundle keeps it in Contents/Resources (bundle.odin)
+		resources := joinPath(exeDir, "..", "Resources", "engine", allocator = context.temp_allocator)
+		if os.exists(joinPath(resources, "player", allocator = context.temp_allocator)) do return absolutePath(resources), true
 	}
 	return absolutePath(ENGINE_DIR), false
 }

@@ -1,0 +1,17 @@
+{
+	"_comment": "Signing and notarizing the editor with gon (brew install mitchellh/gon/gon) once there's an Apple developer account. Copy to gon.json, set the identity, and run: task macos:notarize. AC_USERNAME and AC_PASSWORD (an app-specific password) come from the environment; never check them in.",
+	"source": ["dist/macos/Odin SDL Editor.app"],
+	"bundle_id": "io.github.bcrowe306.odin-sdl-editor",
+	"apple_id": {
+		"username": "@env:AC_USERNAME",
+		"password": "@env:AC_PASSWORD"
+	},
+	"sign": {
+		"application_identity": "Developer ID Application: YOUR NAME (TEAMID)",
+		"entitlements_file": "tools/macos/entitlements.plist"
+	},
+	"dmg": {
+		"output_path": "dist/macos/Odin SDL Editor (signed).dmg",
+		"volume_name": "Odin SDL Editor"
+	}
+}

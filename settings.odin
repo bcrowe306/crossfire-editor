@@ -342,6 +342,11 @@ Returns:
 - The path (allocated), or "" if the executable's folder can't be found
 */
 Settings_DefaultPath :: proc(allocator := context.allocator) -> string {
+	// A bundle is read-only: its settings are in the editor's data folder (bundle.odin)
+	if _, inBundle := Editor_BundleContents(); inBundle {
+		path, _ := filepath.join({Toolchain_DataDir(), SETTINGS_FILE_NAME}, allocator)
+		return path
+	}
 	dir, err := os.get_executable_directory(context.temp_allocator)
 	if err != nil do return ""
 	path, _ := filepath.join({dir, SETTINGS_FILE_NAME}, allocator)

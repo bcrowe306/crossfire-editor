@@ -498,6 +498,17 @@ one archive per platform with the built editor and the SDL3 libraries it needs (
 badges above show the latest build. Play and Export in a release still need Odin (`dev-2026-10`)
 and the engine's sources at `../odin_sdl_engine` (the archive's README.txt says how).
 
+## macOS app
+
+On a Mac, `task macos:deps` (once: dylibbundler, Homebrew's Vulkan loader and MoltenVK, CMake,
+dmgbuild), then `task macos:dist` builds **`dist/macos/Odin SDL Editor.app`** and a disk image
+to install it from. The app holds everything but Odin: the editor, the Odin language server, the
+prebuilt player, the engine's sources and static libraries (games compile against them), the
+Vulkan loader and MoltenVK. `task macos:verify` installs the disk image's app into a temporary
+folder and runs UI tests with it. Each step is a task of its own (`task --list`); CI runs the
+same ones. From the app, settings live in `~/Library/Application Support/odin_sdl_editor` and the
+demo project in `~/Documents/Odin SDL Editor`.
+
 ## Documentation
 
 Source code uses Odin-style doc comments; `odin doc .` prints them. Contributor and design notes,

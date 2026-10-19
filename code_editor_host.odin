@@ -578,6 +578,11 @@ Code_FindOLS :: proc(setting: string) -> string {
 	}
 	if found, ok := Script_FindEditorProgram("ols"); ok do return found
 	exeDir := filepath.dir(os.args[0])
+	// Next to the editor: a release archive's, or a macOS bundle's Contents/MacOS
+	if dir, err := os.get_executable_directory(context.temp_allocator); err == nil {
+		beside := filepath.join({dir, ODIN_OS == .Windows ? "ols.exe" : "ols"}, context.temp_allocator) or_else ""
+		if os.exists(beside) && !os.is_dir(beside) do return beside
+	}
 	for candidate in ([]string{"code_editor/third_party/ols/ols", "../code_editor/third_party/ols/ols", "../../code_editor/third_party/ols/ols"}) {
 		path := filepath.join({exeDir, candidate}, context.temp_allocator) or_continue
 		if os.exists(path) do return path

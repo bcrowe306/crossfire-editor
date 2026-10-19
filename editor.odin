@@ -303,7 +303,7 @@ init :: proc() -> State {
 		state.project = project
 		logLine(&state, .Info, fmt.aprintf("Opened '%s' from %s", project.name, root))
 		for warning in warnings do logLine(&state, .Warning, strings.clone(warning))
-	} else if root == DEMO_PROJECT {
+	} else if root == Editor_DemoProject() {
 		// First run: write the demo project so it can be played and edited
 		state.project = Project_CreateDemo(root)
 		if saveMessage := Project_Save(&state.project); saveMessage != "" {
@@ -387,18 +387,20 @@ Args :: struct {
 
 @(private="file")
 parseArgs :: proc() -> Args {
-	args := Args{project = DEMO_PROJECT}
+	args := Args{project = Editor_DemoProject()}
 	settingsGiven := false
 	for i := 1; i < len(os.args); i += 1 {
 		if os.args[i] == "--script" && i + 1 < len(os.args) {
-			args.script = os.args[i + 1]
+			args.script = Editor_ArgumentPath(os.args[i + 1])
 			i += 1
 		} else if os.args[i] == "--settings" && i + 1 < len(os.args) {
-			args.settings = strings.clone(os.args[i + 1])
+			args.settings = Editor_ArgumentPath(os.args[i + 1])
 			settingsGiven = true
 			i += 1
+		} else if strings.has_prefix(os.args[i], "-psn_") {
+			// Old macOS Finder launches add a process serial number: not a project
 		} else {
-			args.project = os.args[i]
+			args.project = Editor_ArgumentPath(os.args[i])
 		}
 	}
 	if !settingsGiven && args.script == "" do args.settings = Settings_DefaultPath()
@@ -411,6 +413,8 @@ EDITOR_FULLSCREEN :: #config(EDITOR_FULLSCREEN, false)
 
 main :: proc() {
 	context.logger = log.create_console_logger(.Info)
+	// From a macOS app bundle: a writable working folder, the bundled Vulkan (bundle.odin)
+	Editor_SetupBundle()
 
 	// A UI test script drives the editor through injected input (test_driver.odin)
 	if script := parseArgs().script; script != "" {

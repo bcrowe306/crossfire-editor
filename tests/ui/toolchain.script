@@ -12,6 +12,7 @@ expect toolchain Linker (clang): found
 expect toolchain Prebuilt player: found
 expect toolchain Static SDL: found
 expect toolchain Git: found
+expect toolchain Odin language server: found
 scroll_into_view settings-toolchain-scroll settings-install-odin
 expect widget_visible settings-install-odin true
 expect widget_visible settings-odin-path true

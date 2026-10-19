@@ -726,9 +726,21 @@ Scripts_OLSConfig :: proc(project: ^Project) -> string {
 	"enable_hover": true,
 	"enable_document_symbols": true,
 	"enable_semantic_tokens": true,
-	"enable_inlay_hints_params": true
+	"enable_inlay_hints_params": true%s
 }}
-`, OLS_GENERATED_KEY, quoted(olsEngineDir()), quoted(absolute(project.rootPath)))
+`, OLS_GENERATED_KEY, quoted(olsEngineDir()), quoted(absolute(project.rootPath)), olsOdinCommand())
+}
+
+// The odin OLS asks for Odin's core library, when the toolchain has one (an installed Odin needn't
+// be in PATH, where OLS would look): `,\n\t"odin_command": "..."`, or ""
+@(private="file")
+olsOdinCommand :: proc() -> string {
+	odin := Toolchain_Odin("")
+	if odin == "" do return ""
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, ",\n\t\"odin_command\": ")
+	strings.write_quoted_string(&b, absolutePath(odin))
+	return strings.to_string(b)
 }
 
 // The engine's sources for ols.json (the toolchain's: a checkout or a release's engine/)

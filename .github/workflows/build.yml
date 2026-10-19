@@ -83,12 +83,53 @@ jobs:
         run: odin test . $COLLECTIONS -vet-unused -vet-packages:editor $ODIN_LINK_FLAGS
 
       - name: Package the editor
+        if: runner.os != 'macOS'
         run: tools/ci/package_editor.sh ${{ matrix.platform }} ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
 
       - uses: actions/upload-artifact@v4
+        if: runner.os != 'macOS'
         with:
           name: editor-${{ matrix.platform }}
           path: odin_sdl_editor/dist/*
+          if-no-files-found: error
+
+      # macOS: the same tasks you'd run by hand (Taskfile.macos.yml): a self-contained .app in a
+      # disk image, then installed from it and tested
+      - name: Install Task
+        if: runner.os == 'macOS'
+        run: brew install go-task
+
+      - name: macOS bundling tools
+        if: runner.os == 'macOS'
+        run: task macos:deps
+
+      - name: Build the app and its disk image
+        if: runner.os == 'macOS'
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+        run: task macos:dist
+
+      - name: Install the disk image and check the bundle
+        if: runner.os == 'macOS'
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+        run: UI=false task macos:verify
+
+      - name: UI tests with the installed app
+        if: runner.os == 'macOS'
+        # GitHub's macOS runners are virtual machines: whether MoltenVK gets a Metal device there
+        # decides this step, so it doesn't fail the build (yet)
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+        run: task macos:verify
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: editor-${{ matrix.platform }}
+          path: odin_sdl_editor/dist/macos/*.dmg
           if-no-files-found: error
 
   release:

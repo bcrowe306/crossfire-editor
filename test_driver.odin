@@ -895,7 +895,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		return false
 
 	case "archive_project":
-		skald.send(ctx, Msg(Project_Archive_Path_Chosen{path = strings.clone(rest)}))
+		skald.send(ctx, Msg(Project_Archive_Path_Chosen{path = Editor_ArgumentPath(rest)}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
@@ -905,14 +905,14 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			fail(fmt.tprintf("%s (expected open_archive <archive> | <folder>)", line))
 			return false
 		}
-		skald.send(ctx, Msg(Project_Archive_Open_Chosen{path = strings.clone(archive)}))
-		skald.send(ctx, Msg(Project_Archive_Destination_Chosen{path = strings.clone(folder)}))
+		skald.send(ctx, Msg(Project_Archive_Open_Chosen{path = Editor_ArgumentPath(archive)}))
+		skald.send(ctx, Msg(Project_Archive_Destination_Chosen{path = Editor_ArgumentPath(folder)}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 	case "open_project":
 		// Kept: the message may be handled after this frame's temp memory is freed (test-only, tiny)
-		skald.send(ctx, Msg(Open_Project_Chosen{path = strings.clone(rest)}))
+		skald.send(ctx, Msg(Open_Project_Chosen{path = Editor_ArgumentPath(rest)}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
@@ -1027,7 +1027,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		return true
 
 	case "import":
-		skald.send(ctx, Msg(Asset_Import_Result{path = strings.clone(rest)}))
+		skald.send(ctx, Msg(Asset_Import_Result{path = Editor_ArgumentPath(rest)}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false

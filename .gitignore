@@ -22,3 +22,4 @@ examples/*/scripts/ols.json
 
 # CI packages (tools/ci/package_editor.sh)
 /dist/
+/tools/macos/gon.json

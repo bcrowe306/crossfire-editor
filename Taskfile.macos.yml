@@ -1,0 +1,154 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+# Building, bundling and checking the editor on macOS: a self-contained "Odin SDL Editor.app"
+# (everything but Odin itself) in a disk image. Included by Taskfile.yml as `macos:`, so:
+#
+#   task macos:deps      once: dylibbundler, the Vulkan loader, MoltenVK (Homebrew), dmgbuild (pip)
+#   task macos:dist      the app and its disk image, in dist/macos/
+#   task macos:verify    install the disk image's app into a temporary folder and run UI tests with it
+#
+# Each step is a task of its own (macos:editor, macos:app:layout, macos:app:dylibs...), and CI
+# runs these same tasks. The steps' details are in tools/macos/bundle.sh. VERSION (from the
+# environment, else `git describe`) names the disk image and fills Info.plist.
+
+version: '3'
+
+vars:
+  APP_NAME: Odin SDL Editor
+  BUNDLE_ID: io.github.bcrowe306.odin-sdl-editor
+  DIST: dist/macos
+  WORK: '{{.DIST}}/build'
+  APP: '{{.DIST}}/{{.APP_NAME}}.app'
+  VERSION:
+    sh: 'echo "${VERSION:-$(git describe --tags --always 2>/dev/null || echo dev)}"'
+  TARGET:
+    sh: 'case "$(uname -m)" in arm64) echo macos_arm64;; *) echo macos_x64;; esac'
+  DMG: '{{.DIST}}/odin_sdl_editor-{{.VERSION}}-{{.TARGET}}.dmg'
+  OLS_BIN: code_editor/third_party/ols/ols
+
+# What tools/macos/bundle.sh reads
+env:
+  APP: '{{.APP}}'
+  APP_NAME: '{{.APP_NAME}}'
+  BUNDLE_ID: '{{.BUNDLE_ID}}'
+  VERSION: '{{.VERSION}}'
+  TARGET: '{{.TARGET}}'
+  EDITOR_BIN: '{{.WORK}}/odin_sdl_editor'
+  PLAYER_BIN: '{{.WORK}}/player'
+  OLS_BIN: '{{.OLS_BIN}}'
+  ENGINE_DIR: '{{.ENGINE_DIR}}'
+
+tasks:
+  deps:
+    desc: Install what bundling needs (once) - dylibbundler, Homebrew's Vulkan loader and MoltenVK, CMake (the static SDL), and dmgbuild
+    platforms: [darwin]
+    cmds:
+      - brew install dylibbundler vulkan-loader molten-vk cmake
+      - python3 -m pip install --user --upgrade dmgbuild || python3 -m pip install --user --upgrade --break-system-packages dmgbuild
+    status:
+      - command -v dylibbundler
+      - test -f "$(brew --prefix vulkan-loader)/lib/libvulkan.1.dylib"
+      - test -f "$(brew --prefix molten-vk)/lib/libMoltenVK.dylib"
+      - python3 -c "import dmgbuild"
+
+  editor:
+    desc: The editor, optimized, with the engine's static SDL linked in
+    platforms: [darwin]
+    deps: [':box2d', ':sdl']
+    cmds:
+      - mkdir -p {{.WORK}}
+      - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.WORK}}/odin_sdl_editor $ODIN_LINK_FLAGS
+
+  player:
+    desc: The engine's player (optimized, static SDL), the bundle's prebuilt player
+    platforms: [darwin]
+    deps: [':box2d', ':sdl']
+    cmds:
+      - mkdir -p {{.WORK}}
+      - odin build {{.ENGINE_DIR}}/player -o:speed -out:{{.WORK}}/player $ODIN_LINK_FLAGS
+
+  ols:
+    desc: The Odin language server the built-in code editor uses (code_editor's pinned OLS)
+    platforms: [darwin]
+    cmds:
+      - task: ':ols'
+
+  app:
+    desc: Build "Odin SDL Editor.app" in dist/macos - the editor, OLS, the prebuilt player, the engine's sources and static libraries, the Vulkan loader, MoltenVK and every other library it links, signed ad hoc
+    platforms: [darwin]
+    deps: [editor, player, ols]
+    cmds:
+      - task: app:layout
+      - task: app:vulkan
+      - task: app:dylibs
+      - task: app:sign
+      - task: check
+
+  app:layout:
+    desc: The bundle's folders, Info.plist, the editor, OLS, the prebuilt player and the engine's sources (no build)
+    platforms: [darwin]
+    cmds:
+      - tools/macos/bundle.sh layout
+
+  app:vulkan:
+    desc: Copy the Vulkan loader and MoltenVK into the bundle, with MoltenVK's manifest
+    platforms: [darwin]
+    cmds:
+      - tools/macos/bundle.sh vulkan
+
+  app:dylibs:
+    desc: Copy every library the bundle's executables link into Contents/Frameworks (dylibbundler)
+    platforms: [darwin]
+    cmds:
+      - tools/macos/bundle.sh dylibs
+
+  app:sign:
+    desc: Sign the bundle ad hoc (Apple Silicon runs nothing unsigned); a Developer ID signature is macos:notarize
+    platforms: [darwin]
+    cmds:
+      - tools/macos/bundle.sh sign
+
+  check:
+    desc: Check the bundle without running it - nothing linked outside it but the system, its files there, its signature valid
+    platforms: [darwin]
+    cmds:
+      - tools/macos/bundle.sh check
+
+  dmg:
+    desc: The disk image (dmgbuild, tools/macos/dmg_settings.py) of the app built by macos:app
+    platforms: [darwin]
+    preconditions:
+      - sh: test -d "{{.APP}}"
+        msg: 'No app yet: task macos:app'
+    cmds:
+      - rm -f "{{.DMG}}"
+      - python3 -m dmgbuild -s tools/macos/dmg_settings.py -D app="{{.APP}}" "{{.APP_NAME}}" "{{.DMG}}"
+      - echo "Wrote {{.DMG}}"
+
+  dist:
+    desc: The app and its disk image, in dist/macos (macos:app, then macos:dmg)
+    platforms: [darwin]
+    cmds:
+      - task: app
+      - task: dmg
+
+  verify:
+    desc: Install the disk image's app into a temporary folder (as a user would), check it, and run UI test scripts with it; SCRIPTS="tests/ui/a.script ..." picks them, UI=false skips them
+    platforms: [darwin]
+    preconditions:
+      - sh: test -f "{{.DMG}}"
+        msg: 'No disk image yet: task macos:dist'
+    cmds:
+      - tools/macos/verify.sh "{{.DMG}}" {{.SCRIPTS}}
+
+  notarize:
+    desc: Sign with a Developer ID and notarize with gon (needs tools/macos/gon.json, from gon.json.example, and an Apple developer account)
+    platforms: [darwin]
+    preconditions:
+      - sh: command -v gon
+        msg: 'gon is needed: brew install mitchellh/gon/gon'
+      - sh: test -f tools/macos/gon.json
+        msg: 'No tools/macos/gon.json: copy tools/macos/gon.json.example and fill in the signing identity'
+    deps: [app]
+    cmds:
+      - gon tools/macos/gon.json
