@@ -140,6 +140,8 @@ State :: struct {
 	codeFocusPending: bool,
 	// The file dialog the code editor asked for, until it answers
 	codeDialog: CodeDialog,
+	// Settings > Toolchain is installing Odin
+	toolchainInstalling: bool,
 	// Closing a tab with unsaved changes: the prompt
 	codeClose: struct {
 		open: bool,

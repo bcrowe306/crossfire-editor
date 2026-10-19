@@ -132,12 +132,19 @@ buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 	if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, strings.clone(message))
 	target := playerTarget(state)
 	if Project_HasScripts(&state.project) do state.scripts.status = .Building
-	if playerIsCurrent(target) {
+	if target.prebuilt || playerIsCurrent(target) {
 		return afterBuild(state)
 	}
 
+	odin := Toolchain_Odin(FixedText_String(&state.settings.odinPath))
+	if odin == "" {
+		logLine(state, .Error, fmt.aprintf("No Odin compiler to build the game with: install one in Settings > Toolchain"))
+		state.scripts.status = .Failed
+		return {}
+	}
+	engineDir, _ := Toolchain_EngineDir()
 	command := make([dynamic]string, context.temp_allocator)
-	append(&command, "odin", "build", target.source, fmt.tprintf("-collection:engine=%s", absolutePath(ENGINE_DIR)))
+	append(&command, odin, "build", target.source, fmt.tprintf("-collection:engine=%s", engineDir))
 	if target.project != "" do append(&command, fmt.tprintf("-collection:project=%s", target.project))
 	if state.settings.optimizedPlay do append(&command, "-o:speed")
 	append(&command, fmt.tprintf("-out:%s", target.binary))
@@ -368,12 +375,18 @@ PlayerTarget :: struct {
 	project: string,
 	// Folders whose .odin files the binary depends on
 	inputs: []string,
+	// A prebuilt player (next to the editor): nothing to build
+	prebuilt: bool,
 }
 
 @(private="file")
 playerTarget :: proc(state: ^State) -> PlayerTarget {
-	engineDir := absolutePath(ENGINE_DIR)
+	engineDir, _ := Toolchain_EngineDir()
 	if !Project_HasScripts(&state.project) {
+		// A release's prebuilt player: no compiler needed
+		if host, ok := Toolchain_HostTarget(); ok {
+			if prebuilt := Toolchain_PrebuiltPlayer(host); prebuilt != "" do return {binary = prebuilt, prebuilt = true}
+		}
 		source, _ := filepath.join({engineDir, "player"}, context.temp_allocator)
 		inputs := make([]string, 2, context.temp_allocator)
 		inputs[0], inputs[1] = engineDir, source

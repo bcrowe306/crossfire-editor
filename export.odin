@@ -300,6 +300,8 @@ ExportStepKind :: enum {
 	Remove_Folder,
 	// Create the folder `path` (and its parents); compilers don't create their output folders
 	Make_Folder,
+	// Copy the file `source` to `path`, as an executable (a prebuilt player)
+	Copy_File,
 	// Append the engine's data pack to the executable `path`: `files` (relative paths) from
 	// `source`, and `content` as project.xml
 	Append_Pack,
@@ -341,6 +343,11 @@ ExportInput :: struct {
 	// Whether the engine's box2d/lib has box2d_web.o (else the export builds it first, with the
 	// engine's tools/build_box2d.sh)
 	webBox2DBuilt: bool,
+	// The odin compiler (Toolchain_Odin; "odin" when empty, for tests)
+	odin: string,
+	// A prebuilt player for the target (Toolchain_PrebuiltPlayer): a project without scripts is
+	// exported with it instead of being compiled ("" for none)
+	prebuiltPlayer: string,
 	// Whether the engine's static SDL is built for the target (its tools/build_sdl_static.sh,
 	// sdl/lib/<os>_<arch>/): the game then has SDL inside, and there's nothing to bundle
 	staticSDL: bool,
@@ -394,16 +401,22 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 		name := Export_Name(&settings, .Executable_Name, input.projectName)
 		if strings.contains_any(name, "/\\") do return {}, fmt.tprintf("The executable name '%s' can't contain a slash", name)
 		binary := joinPath(plan.outputDir, name)
-		command := make([dynamic]string)
-		append(&command, "odin", "build", source)
-		append(&command, ..collections[:])
-		if settings.optimize do append(&command, "-o:speed")
-		append(&command, fmt.aprintf("-out:%s", binary))
-		// SDL is linked into the game when the engine's static SDL is built; otherwise its shared
-		// libraries are found in lib/ next to the executable first
-		bundle := settings.bundleLibraries && !input.staticSDL
-		if bundle do append(&command, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib")
-		append(&steps, ExportStep{kind = .Command, label = "Build the game", command = command[:]})
+		bundle := false
+		if !input.hasScripts && input.prebuiltPlayer != "" {
+			// No scripts: the editor's prebuilt player (SDL linked in) is the game, no compiler needed
+			append(&steps, ExportStep{kind = .Copy_File, label = "Copy the prebuilt player", source = strings.clone(input.prebuiltPlayer), path = binary})
+		} else {
+			command := make([dynamic]string)
+			append(&command, odinProgram(input), "build", source)
+			append(&command, ..collections[:])
+			if settings.optimize do append(&command, "-o:speed")
+			append(&command, fmt.aprintf("-out:%s", binary))
+			// SDL is linked into the game when the engine's static SDL is built; otherwise its
+			// shared libraries are found in lib/ next to the executable first
+			bundle = settings.bundleLibraries && !input.staticSDL
+			if bundle do append(&command, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib")
+			append(&steps, ExportStep{kind = .Command, label = "Build the game", command = command[:]})
+		}
 		if settings.singleFile {
 			// The project's files inside the game: one file (the engine finds them at its end)
 			files := make([]string, len(input.files))
@@ -448,7 +461,7 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 			build[0], build[1], build[2] = "bash", joinPath(input.engineDir, "tools", "build_box2d.sh"), input.emsdkDir
 			append(&steps, ExportStep{kind = .Command, label = "Build Box2D for the web (once)", command = build})
 		}
-		append(&command, "odin", "build", source, "-target:js_wasm32", "-build-mode:obj")
+		append(&command, odinProgram(input), "build", source, "-target:js_wasm32", "-build-mode:obj")
 		append(&command, ..collections[:])
 		if settings.optimize do append(&command, "-o:speed")
 		append(&command, fmt.aprintf("-out:%s", object))
@@ -597,6 +610,12 @@ Export_ProjectXML :: proc(project: ^Project, allocator := context.allocator) -> 
 projectFileStep :: proc(input: ExportInput, dataDir: string) -> ExportStep {
 	return {kind = .Write_File, label = "Write project.xml (without development settings)",
 		path = joinPath(dataDir, "project.xml"), content = strings.clone(input.projectXML)}
+}
+
+// The odin to build with ("odin" when the input names none)
+@(private="file")
+odinProgram :: proc(input: ExportInput) -> string {
+	return strings.clone(input.odin != "" ? input.odin : "odin")
 }
 
 @(private="file")

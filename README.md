@@ -39,6 +39,18 @@ player (progress in the **Output** tab), then starts the game; its log appears i
 To open a different project: File > Open Project (Ctrl+O), or `task run -- path/to/project`. To use an engine checkout somewhere
 else: `task run ENGINE_DIR=/path/to/odin_sdl_engine`.
 
+## Toolchain (what building games needs)
+
+**Settings > Toolchain** lists what the editor found, and how to get what's missing:
+- **Projects without scripts** play and export with a **prebuilt player** next to the editor
+  (`prebuilt/<target>/player`; `task prebuilt` builds it, releases ship it): nothing to install.
+- **Projects with scripts** are compiled with Odin `dev-2026-10`: the path set in that tab, else
+  `odin` in PATH, else the one **Install Odin** downloads into the editor's data folder (about 3
+  minutes). The engine's sources are your checkout (`ENGINE_DIR`), or `engine/` in a release.
+- Odin needs a **linker**: clang on Linux (your package manager), Xcode's command line tools on
+  macOS (`xcode-select --install`), Visual Studio Build Tools on Windows ("Desktop development
+  with C++").
+
 ## Commands
 
 Run `task` to list them all.
@@ -64,6 +76,7 @@ Run `task` to list them all.
 | `task run` | Build optimized and run. Program arguments go after `--` |
 | `task run:debug` | Build with debug info (unoptimized, several times slower) and run |
 | `task run:fullscreen` | Run fullscreen. Useful on tiling window managers, which shrink the window into a tile |
+| `task prebuilt` | Build this platform's prebuilt player (optimized) next to the editors: projects without scripts then play and export without compiling |
 | `task player` | Build the engine's game player into `build/player/` |
 | `task play:demo` | Run the demo project in the player, without the editor |
 | `task clean` | Delete build output |

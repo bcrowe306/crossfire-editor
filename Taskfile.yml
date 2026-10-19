@@ -11,6 +11,9 @@ vars:
   # Override with: task run ENGINE_DIR=/path/to/odin_sdl_engine
   ENGINE_DIR: '{{.ENGINE_DIR | default "../odin_sdl_engine"}}'
   DEMO_PROJECT: examples/demo_project
+  # This machine's prebuilt-player folder name (the editor's ExportTarget, lowercased)
+  PREBUILT_TARGET:
+    sh: 'case "$(uname -s)-$(uname -m)" in Linux-x86_64) echo linux_x64;; Linux-aarch64) echo linux_arm64;; Darwin-arm64) echo macos_arm64;; Darwin-x86_64) echo macos_x64;; *) echo windows_x64;; esac'
   # UI tests run on a copy of this fixed project, not the demo (which `task run` opens and you edit)
   UI_PROJECT: tests/fixtures/ui_project
   # Skald is imported as "gui:skald", the engine as "engine:."
@@ -43,6 +46,19 @@ tasks:
     cmds:
       - git -C {{.ENGINE_DIR}} submodule update --init third_party/box2d
       - '{{.ENGINE_DIR}}/tools/build_box2d.sh'
+
+  prebuilt:
+    desc: Build the engine's player (optimized, static SDL) as this platform's prebuilt player, beside the debug and release editors (build/prebuilt/<target>/player, build/release/prebuilt/...) - projects without scripts then play and export without compiling (releases ship one)
+    deps: [box2d, sdl]
+    sources:
+      - '{{.ENGINE_DIR}}/*.odin'
+      - '{{.ENGINE_DIR}}/player/*.odin'
+    generates:
+      - '{{.BUILD_DIR}}/prebuilt/{{.PREBUILT_TARGET}}/player'
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}/prebuilt/{{.PREBUILT_TARGET}} {{.BUILD_DIR}}/release/prebuilt/{{.PREBUILT_TARGET}}
+      - odin build {{.ENGINE_DIR}}/player -o:speed -out:{{.BUILD_DIR}}/prebuilt/{{.PREBUILT_TARGET}}/player
+      - cp {{.BUILD_DIR}}/prebuilt/{{.PREBUILT_TARGET}}/player {{.BUILD_DIR}}/release/prebuilt/{{.PREBUILT_TARGET}}/player
 
   sdl:
     desc: Build the engine's static SDL (its tools/build_sdl_static.sh, into <engine>/sdl/lib; needs CMake). The editor and every game then link SDL in. A dependency of check, test, the builds and run; skipped when built. Linux and macOS
@@ -129,7 +145,7 @@ tasks:
 
   test:ui:
     desc: Run the UI test scripts in tests/ui (opens the editor window; uses a copy of tests/fixtures/ui_project); SCRIPT=<file> runs one
-    deps: [build]
+    deps: [build, prebuilt]
     cmds:
       # Each script starts from a fresh copy of the project (scripts save and rename things) and
       # tests/ui/settings.ini (the defaults, but opening scripts runs nothing), in a scratch file:
@@ -142,7 +158,7 @@ tasks:
 
   test:ui:fullscreen:
     desc: The UI test scripts in a fullscreen editor (the wide layouts a tiled window never gets); SCRIPT=<file> runs one
-    deps: [box2d, sdl]
+    deps: [box2d, sdl, prebuilt]
     cmds:
       - mkdir -p {{.BUILD_DIR}}
       - odin build . {{.COLLECTIONS}} {{.VET}} -debug -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/{{.NAME}}_fullscreen
@@ -168,7 +184,7 @@ tasks:
 
   run:
     desc: Build optimized and run. Pass program arguments after --, e.g. task run -- path/to/project
-    deps: [box2d, sdl]
+    deps: [box2d, sdl, prebuilt]
     # Optimized: the debug build is several times slower (the viewport ran at ~14 fps vs 60)
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release

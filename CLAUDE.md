@@ -78,7 +78,11 @@ add it as a task and to the README's command table.
 - **Engine location:** the Taskfile's `ENGINE_DIR` (default `../odin_sdl_engine`, override with
   `task run ENGINE_DIR=...`) is used twice:
   - as the `engine` collection (`import e "engine:."`)
-  - as `-define:ENGINE_DIR`, which Play uses to build `<engine>/player`
+  - as `-define:ENGINE_DIR`, which Play and Export build from (`Toolchain_EngineDir`; a release
+    has no checkout there and uses the `engine/` folder it ships instead)
+- `task prebuilt` builds this platform's **prebuilt player** (`<engine>/player`, `-o:speed`) into
+  `build/prebuilt/<target>/player` and `build/release/prebuilt/...`, next to both editors: projects
+  without scripts then play and export without compiling. `run` and the UI test tasks depend on it.
 - `task run -- <project folder>` opens another project. With no argument the editor opens
   `examples/demo_project`, recreating it from `Project_CreateDemo` if it's missing.
 - Skald is imported as `import "gui:skald"` (`-collection:gui=Skald`, set by the Taskfile).
@@ -129,8 +133,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `node_edit.odin` | Subtree copy/paste/duplicate, `Scene_MoveNode` (reorder and reparent keeping the world transform), unique names |
 | `history.odin` | Undo/redo: command history, automatic recording (`History_Classify`), merging |
 | `settings.odin` | `Settings`, loading/saving editor.ini over `settings.default.ini`, chord text, the Skald theme |
+| `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
-| `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard tabs |
+| `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard, Toolchain tabs |
 | `settings.default.ini` | Default settings, built into the editor |
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors; `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
@@ -466,7 +471,11 @@ they show the last busy moment.
 Play runs the project in a **player** (`e.Player_Run`), a separate program that loads `project.xml`
 and runs the start scene. A crashing game can't take the editor down, and the player is the same
 runtime exports will ship.
-- A project **without scripts** uses the engine's `<engine>/player` (`build/player/player`).
+- A project **without scripts** uses the prebuilt player next to the editor when there is one
+  (`Toolchain_PrebuiltPlayer`, `PlayerTarget.prebuilt`: nothing is compiled), else the engine's
+  `<engine>/player` (`build/player/player`).
+- Compiling uses `Toolchain_Odin` (Settings > Toolchain's path, PATH, the editor's install); with
+  none, Play fails with a message pointing at Settings > Toolchain.
 - A project **with scripts** (`.odin` files in `scripts/`) gets its own: `playerTarget` writes a
   generated `main.odin` (`playerMainSource`) into `build/players/<project>-<hash>/`, which imports
   `engine:.` and `project:scripts`, built with `-collection:project=<project folder>`.
@@ -631,6 +640,30 @@ after, and its scene. Undo switches to that scene and restores "before"; redo re
 - Keyboard tab: clicking a shortcut starts a capture; the next key press (with modifiers) binds
   it, Escape cancels, Clear unbinds. `captureKey` empties that frame's key input so nothing else
   sees it. Conflicts are shown, not blocked (the first action in `Action` order wins).
+
+### Toolchain (implemented, `toolchain.odin`, Settings > Toolchain)
+
+What a user needs to build games, so a release works without a checkout or a hand-installed Odin:
+- **Projects without scripts** play and export with the **prebuilt player** shipped next to the
+  editor (`prebuilt/<target>/player`): nothing to install.
+- **Projects with scripts** are compiled from the **engine's sources**: `ENGINE_DIR` (a checkout:
+  development), else `engine/` next to the editor (releases ship the engine's git-tracked files
+  with its built `box2d/lib` and `sdl/lib`).
+- **Odin:** `Toolchain_Odin` takes the setting (`odin_path`), else `odin` in PATH, else the one
+  the editor installed. **Install Odin** (`Toolchain_InstallOdin`, a `skald.cmd_thread`) downloads
+  the pinned release (`ODIN_VERSION`, the engine's: `dev-2026-10`) from GitHub with curl and
+  unpacks it with tar (Windows 10+ has both) into `<SDL pref path>/odin/<version>/` (Linux:
+  `$XDG_DATA_HOME/odin_sdl_editor/...`, else `~/.local/share/...`). About 3 minutes.
+- **A linker** can't be shipped: clang (Linux), Xcode's command line tools (macOS), Visual Studio
+  Build Tools (Windows). The tab says how to get the missing one.
+- The tab lists `Toolchain_Check`'s rows (Odin, engine sources, linker, prebuilt player, static
+  SDL, OLS) with found/missing, the path and a note. It reads the dialog's **draft**, so an edited
+  Odin path shows its result before Apply.
+- Tests: `export_plan_uses_a_prebuilt_player`; `tests/ui/toolchain.script` (the tab, a bad path
+  shows missing; `toolchain <name>: <found|missing>` in the driver). Verified by hand: with no
+  odin in PATH (mise's shims removed) and `XDG_DATA_HOME` scratch, Install Odin, then
+  `scripts.script` compiles with the installed one (its path in the Output tab).
+- Later: the zig experiment (one linker everywhere, an old glibc target) and the emsdk download.
 
 ## Project format (XML)
 
@@ -941,7 +974,9 @@ Intermediate files go to `build/exports/<project>-<hash>/` in the editor's folde
 - Output goes to `<project>/export/<target>` unless an output folder is set. `checkOutputDir` refuses
   folders that contain the project or sit in its scenes/, assets/ or scripts/.
 
-**Linux x86_64:** `odin build <player> -o:speed -out:<out>/<exe>`, then with **Single file** (the
+**Linux x86_64:** for a project without scripts with a prebuilt player next to the editor, the
+plan copies it (`Copy_File`, made executable) instead of compiling; otherwise
+`odin build <player> -o:speed -out:<out>/<exe>` (odin: `Toolchain_Odin`). Then with **Single file** (the
 default, `ExportTargetSettings.singleFile`) the project's files (project.xml as exported, each
 scene's file, each asset) appended to the executable as the engine's data pack
 (`ExportStepKind.Append_Pack`, `e.Pack_Append`): the export is one file. With it off, they're
@@ -1006,9 +1041,12 @@ failed, fixes it and builds again with the next tag.
 - The engine's `main` is checked out next to the editor (`odin_sdl_engine/`), and its
   `tools/ci/setup.sh` and `tools/build_box2d.sh` set things up. The emsdk submodule isn't
   fetched (desktop builds don't need it).
-- `tools/ci/package_editor.sh` packs only the built editor and its SDL3 libraries (settings and
-  fonts are built in; the demo is recreated when missing). Releases are development builds: Play
-  and Export need Odin and the engine's sources at `../odin_sdl_engine`.
+- `tools/ci/package_editor.sh` packs the built editor (settings and fonts are built in; the demo
+  is recreated when missing), its SDL3 libraries when SDL isn't static, this platform's prebuilt
+  player (`prebuilt/<target>/player`, with the SDL DLLs beside it on Windows), and the engine's
+  sources in `engine/` (git-tracked files without `third_party/`, plus `box2d/lib` and `sdl/lib`;
+  about 17 MB). Each archive has only its own platform's player: exports only build for the host
+  so far. Projects with scripts need Odin (Settings > Toolchain installs it) and a linker.
 
 ## Documentation (required)
 

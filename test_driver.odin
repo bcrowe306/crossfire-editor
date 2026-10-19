@@ -160,6 +160,7 @@ Checks:
 	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
 	buses <count>                The project's mix buses (Master counts)
 	scene_tabs <a,b,...>         The scene and component tabs, by name, in order
+	toolchain <tool name>: <found | missing>   A Settings > Toolchain row (toolchain Odin compiler: found)
 	code_tabs <count>            Open code tabs
 	code_close_dialog <open | closed>   The "save changes?" prompt for closing a code tab
 	code_disk_conflict <true | false>   The shown file changed on disk under unsaved changes (the bar)
@@ -1170,6 +1171,16 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprintf("%d running, %d started", running, started)
 	case "code_close_dialog":
 		found = s.codeClose.open ? "open" : "closed"
+	case "toolchain":
+		// A tool on Settings > Toolchain: found or missing
+		name, _, expected := strings.partition(value, ":")
+		// The dialog's draft while it's open (what the page shows)
+		checked := s.settingsDialog.open ? &s.settingsDialog.draft : &s.settings
+		for tool in Toolchain_Check(checked) do if tool.name == strings.trim_space(name) {
+			found = tool.found ? "found" : "missing"
+			return found == strings.trim_space(expected), fmt.tprintf("%s (%s)", found, tool.path)
+		}
+		return false, fmt.tprintf("no tool %q", name)
 	case "scene_tabs":
 		// The scene tabs' names, in order ("MenuScene,PlayScene")
 		names := make([dynamic]string, context.temp_allocator)

@@ -709,7 +709,14 @@ Scripts_OLSConfig :: proc(project: ^Project) -> string {
 	"enable_semantic_tokens": true,
 	"enable_inlay_hints_params": true
 }}
-`, OLS_GENERATED_KEY, quoted(absolute(ENGINE_DIR)), quoted(absolute(project.rootPath)))
+`, OLS_GENERATED_KEY, quoted(olsEngineDir()), quoted(absolute(project.rootPath)))
+}
+
+// The engine's sources for ols.json (the toolchain's: a checkout or a release's engine/)
+@(private="file")
+olsEngineDir :: proc() -> string {
+	dir, _ := Toolchain_EngineDir()
+	return dir
 }
 
 // Stops tracking launched code editors (at shutdown; they keep running)

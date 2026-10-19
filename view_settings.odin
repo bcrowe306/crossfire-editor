@@ -30,6 +30,7 @@ settingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		case .Appearance: content = appearanceTab(s, ctx)
 		case .Editor:     content = editorTab(s, ctx)
 		case .Keyboard:   content = keyboardTab(s, ctx)
+		case .Toolchain:  content = toolchainTab(s, ctx)
 		}
 	}
 
@@ -120,6 +121,44 @@ appearanceTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		padding = th.spacing.sm,
 		cross_align = .Stretch,
 	)
+}
+
+/*
+What building games needs (toolchain.odin's Toolchain_Check): each tool found or not, where, and
+what to do about a missing one; the odin path; Install Odin (the pinned release, into the editor's
+data folder). Widget keys: `settings-odin-path`, `settings-install-odin`.
+*/
+@(private="file")
+toolchainTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	draft := &s.settingsDialog.draft
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	append(&rows, skald.text("Building games", th.color.fg, th.font.size_md),
+		hint(ctx, "Play and Export compile your game with Odin. A project without scripts needs no compiler when the editor has a prebuilt player for it."))
+	for tool in Toolchain_Check(draft) {
+		mark := tool.found ? ICON_CHECK : ICON_XMARK
+		color := tool.found ? th.color.success : th.color.danger
+		lines := make([dynamic]skald.View, context.temp_allocator)
+		append(&lines, skald.text(tool.name, th.color.fg, th.font.size_sm))
+		if tool.path != "" do append(&lines, skald.text(tool.path, th.color.fg_muted, th.font.size_xs, max_width = 420))
+		append(&lines, skald.text(tool.note, th.color.fg_muted, th.font.size_xs, max_width = 420))
+		append(&rows, skald.row(
+			skald.col(skald.text(mark, color, th.font.size_md), width = 22),
+			skald.col(..lines[:], spacing = 1),
+			spacing = th.spacing.sm,
+		))
+	}
+	append(&rows, skald.spacer(th.spacing.sm), skald.text("Odin", th.color.fg, th.font.size_md),
+		settingRow(ctx, "Odin program", skald.text_input(ctx, strings.clone(FixedText_String(&draft.odinPath), context.temp_allocator),
+			proc(v: string) -> Msg { return Settings_Odin_Path_Changed(v) },
+			id = skald.hash_id("settings-odin-path"), width = 300, placeholder = "odin in PATH, else the installed one")))
+	installed := Toolchain_InstalledOdin() != ""
+	label := s.toolchainInstalling ? "Installing..." : installed ? fmt.tprintf("Odin %s is installed", ODIN_VERSION) : fmt.tprintf("%s  Install Odin %s", ICON_DOWNLOAD, ODIN_VERSION)
+	append(&rows, settingRow(ctx, "", skald.button(ctx, label, Msg(Toolchain_Install_Requested{}), id = skald.hash_id("settings-install-odin"),
+		disabled = s.toolchainInstalling || installed, bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm, padding = {th.spacing.sm, 2})))
+	append(&rows, hint(ctx, fmt.tprintf("Downloads the Odin release the engine uses (about 70 MB, from GitHub) into %s. It still needs the linker above.", Toolchain_DataDir())))
+	return skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.sm, cross_align = .Stretch),
+		id = skald.hash_id("settings-toolchain-scroll"))
 }
 
 @(private="file")

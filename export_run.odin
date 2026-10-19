@@ -92,7 +92,13 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 			break
 		}
 		problem: string
-		job.plan, problem = Export_Plan(exportInput(state, target, vmem.arena_allocator(&job.arena)), vmem.arena_allocator(&job.arena))
+		input := exportInput(state, target, vmem.arena_allocator(&job.arena))
+		job.plan, problem = Export_Plan(input, vmem.arena_allocator(&job.arena))
+		// A build needs an Odin compiler (a project without scripts can do without, on a target
+		// with a prebuilt player)
+		if problem == "" && input.odin == "" && (input.hasScripts || input.prebuiltPlayer == "") {
+			problem = "No Odin compiler to build the game with: install one in Settings > Toolchain"
+		}
 		if problem == "" && target == .Web && !os.exists(Export_EmccPath(absolutePath(EMSDK_DIR), context.temp_allocator)) {
 			problem = "The web export needs Emscripten. In the editor's folder, run: task emsdk (about 1 GB, once per machine)"
 		}
@@ -173,6 +179,7 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 	workDir = absolutePath(workDir)
 	_ = os.make_directory_all(WEB_LIB_DIR)
 	webLibDir := absolutePath(WEB_LIB_DIR)
+	engineDir, _ := Toolchain_EngineDir()
 	return {
 		target = target,
 		settings = state.project.exports.targets[target],
@@ -181,14 +188,16 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 		hasScripts = Project_HasScripts(&state.project),
 		files = Export_ProjectFiles(&state.project, allocator),
 		projectXML = Export_ProjectXML(&state.project, allocator),
-		engineDir = strings.clone(absolutePath(ENGINE_DIR), allocator),
+		engineDir = strings.clone(engineDir, allocator),
+		odin = strings.clone(Toolchain_Odin(FixedText_String(&state.settings.odinPath)), allocator),
+		prebuiltPlayer = strings.clone(Toolchain_PrebuiltPlayer(target), allocator),
 		emsdkDir = strings.clone(absolutePath(EMSDK_DIR), allocator),
 		mixerDir = strings.clone(absolutePath(SDL_MIXER_DIR), allocator),
 		mixerBuildScript = strings.clone(absolutePath(WEB_MIXER_SCRIPT), allocator),
 		webLibDir = strings.clone(webLibDir, allocator),
 		webMixerBuilt = os.exists(joinPath(webLibDir, "libSDL3_mixer.a", allocator = context.temp_allocator)),
-		webBox2DBuilt = os.exists(joinPath(absolutePath(ENGINE_DIR), "box2d", "lib", "box2d_web.o", allocator = context.temp_allocator)),
-		staticSDL = Export_StaticSDLBuilt(ENGINE_DIR, target),
+		webBox2DBuilt = os.exists(joinPath(engineDir, "box2d", "lib", "box2d_web.o", allocator = context.temp_allocator)),
+		staticSDL = Export_StaticSDLBuilt(engineDir, target),
 		workDir = strings.clone(workDir, allocator),
 	}
 }
@@ -246,6 +255,9 @@ runFileStep :: proc(state: ^State, step: ExportStep) -> string {
 			}
 			if err := os.copy_file(to, from); err != nil do return fmt.tprintf("couldn't copy %s: %v", from, err)
 		}
+	case .Copy_File:
+		if err := os.copy_file(step.path, step.source); err != nil do return fmt.tprintf("couldn't copy %s: %v", step.source, err)
+		when ODIN_OS != .Windows do _ = os.chmod(step.path, {.Read_User, .Write_User, .Execute_User, .Read_Group, .Execute_Group, .Read_Other, .Execute_Other})
 	case .Append_Pack:
 		extra := make(map[string]string, context.temp_allocator)
 		extra["project.xml"] = step.content

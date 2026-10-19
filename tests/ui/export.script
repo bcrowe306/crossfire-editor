@@ -39,6 +39,8 @@ expect output_contains Export finished: 2 succeeded, 0 failed
 expect project_file export/linux_x64/Asteroids_Demo
 # One file: the project's files are inside the game (the engine's data pack, at its end), and SDL
 # is linked in (the engine's static SDL): nothing beside it
+# The fixture has no scripts: the export is the prebuilt player (task prebuilt), not compiled
+expect output_contains Copy the prebuilt player
 expect project_file_contains export/linux_x64/Asteroids_Demo ODINPAK1
 expect project_file_missing export/linux_x64/data
 expect project_file_missing export/linux_x64/lib

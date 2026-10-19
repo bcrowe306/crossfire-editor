@@ -2,8 +2,13 @@
 # Builds the editor (optimized) and packs the built program for a release:
 #   dist/odin_sdl_editor-<version>-<platform>.tar.gz (.zip on Windows), holding the editor's
 #   executable with the SDL3 libraries it needs (Linux: lib/, found through rpath $ORIGIN/lib;
-#   Windows: the DLLs next to it; macOS: Homebrew's, not bundled) and a README.txt. No sources:
-#   settings, icons and fonts are built in.
+#   Windows: the DLLs next to it; macOS: Homebrew's, not bundled), a README.txt, and what building
+#   games needs besides Odin and a linker (the editor's toolchain.odin):
+#   - prebuilt/<target>/player: the engine's player for this platform (optimized), which plays and
+#     exports projects without scripts with no compiler at all
+#   - engine/: the engine's sources (its git-tracked files, without the third_party submodules)
+#     with its built Box2D (box2d/lib) and static SDL (sdl/lib), for games with scripts
+#   Settings, icons and fonts are built in.
 #
 # Usage: tools/ci/package_editor.sh <platform> <version>
 # Run from the editor's folder, with the engine checked out next to it (../odin_sdl_engine) and
@@ -43,6 +48,31 @@ Darwin)
 	;;
 esac
 
+# The prebuilt player, in the folder Toolchain_PrebuiltPlayer looks in (linux-x64 -> linux_x64)
+target=${platform//-/_}
+mkdir -p "$stage/prebuilt/$target"
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*)
+	odin build "$engine/player" -o:speed "-out:$stage/prebuilt/$target/player.exe"
+	# Windows finds DLLs next to the program
+	for d in sdl3 sdl3/image sdl3/ttf sdl3/mixer; do cp "${root%/}/vendor/$d"/*.dll "$stage/prebuilt/$target/"; done
+	;;
+Linux)
+	if $static; then
+		odin build "$engine/player" -o:speed "-out:$stage/prebuilt/$target/player"
+	else
+		odin build "$engine/player" -o:speed "-out:$stage/prebuilt/$target/player" "-extra-linker-flags:-Wl,-rpath,\$ORIGIN/../../lib"
+	fi
+	;;
+*)
+	odin build "$engine/player" -o:speed "-out:$stage/prebuilt/$target/player" ${ODIN_LINK_FLAGS:-}
+	;;
+esac
+
+# The engine's sources, with its built libraries
+mkdir -p "$stage/engine"
+(cd "$engine" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) | tar -xf - -C "$stage/engine"
+
 cat > "$stage/README.txt" <<TXT
 odin_sdl_editor $version ($platform), a development build
 
@@ -51,11 +81,12 @@ odin_sdl_editor $version ($platform), a development build
 With no folder it opens examples/demo_project in the current folder, creating it if it's missing.
 The editor needs a Vulkan driver (on macOS: brew install molten-vk vulkan-loader).
 
-Play and Export compile your game, so they need:
-- Odin dev-2026-10 on PATH (https://github.com/odin-lang/Odin/releases/tag/dev-2026-10)
-- the engine's sources at ../odin_sdl_engine, relative to the folder you start the editor from:
-      git clone --recursive https://github.com/bcrowe306/odin_sdl_engine
-      odin_sdl_engine/tools/build_box2d.sh
+Projects without scripts play and export with the prebuilt player (prebuilt/): nothing to install.
+Projects with scripts are compiled, with the engine's sources in engine/, so they need:
+- Odin dev-2026-10: Settings > Toolchain > Install Odin downloads it (or put it on PATH)
+- a linker: clang on Linux (your package manager), Xcode's command line tools on macOS
+  (xcode-select --install), Visual Studio Build Tools on Windows ("Desktop development with C++")
+Settings > Toolchain shows what's found.
 TXT
 if [[ "$(uname -s)" == Darwin ]] && ! $static; then
 	echo "macOS: also needs SDL3 from Homebrew: brew install sdl3 sdl3_image sdl3_ttf sdl3_mixer" >> "$stage/README.txt"

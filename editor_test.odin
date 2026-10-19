@@ -3397,3 +3397,39 @@ scene_tree_marks_nodes_with_scripts :: proc(t: ^testing.T) {
 	testing.expect_value(t, row.badgeColor, SCRIPT_COLOR)
 	free_all(context.temp_allocator)
 }
+
+
+@(test)
+export_plan_uses_a_prebuilt_player :: proc(t: ^testing.T) {
+	when ODIN_OS == .Linux && ODIN_ARCH == .amd64 {
+		input := exportTestInput(.Linux_x64)
+		input.prebuiltPlayer = "/editor/prebuilt/linux_x64/player"
+		input.odin = "/opt/odin/odin"
+		// No scripts: the prebuilt player is copied, nothing is compiled
+		plan, problem := Export_Plan(input, context.temp_allocator)
+		testing.expect_value(t, problem, "")
+		copied := false
+		for step in plan.steps {
+			testing.expect(t, step.kind != .Command, "no compiler")
+			if step.kind == .Copy_File {
+				copied = true
+				testing.expect_value(t, step.source, "/editor/prebuilt/linux_x64/player")
+				testing.expect_value(t, step.path, "/games/Space/export/linux_x64/Space_Game")
+			}
+		}
+		testing.expect(t, copied, "the prebuilt player")
+		// With scripts it's compiled, with the toolchain's odin
+		input.hasScripts = true
+		plan, problem = Export_Plan(input, context.temp_allocator)
+		testing.expect_value(t, problem, "")
+		built := false
+		for step in plan.steps do if step.kind == .Command && step.command[1] == "build" {
+			built = true
+			testing.expect_value(t, step.command[0], "/opt/odin/odin")
+		}
+		testing.expect(t, built, "compiled")
+		testing.expect_value(t, Toolchain_TargetFolder(.Linux_x64), "linux_x64")
+		testing.expect_value(t, Toolchain_TargetFolder(.macOS_ARM64), "macos_arm64")
+	}
+	free_all(context.temp_allocator)
+}

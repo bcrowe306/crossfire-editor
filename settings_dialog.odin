@@ -15,6 +15,8 @@ SettingsTab :: enum {
 	Appearance,
 	Editor,
 	Keyboard,
+	// What building games needs, found or not (toolchain.odin)
+	Toolchain,
 }
 
 SettingsDialog :: struct {
@@ -88,6 +90,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		draft.builtInCodeEditor = bool(v)
 	case Settings_OLS_Path_Changed:
 		draft.olsPath = FixedText_Make(string(v))
+	case Settings_Odin_Path_Changed:
+		draft.odinPath = FixedText_Make(string(v))
 	case Settings_Search_Changed:
 		delete(dialog.search)
 		dialog.search = strings.clone(string(v))
@@ -118,6 +122,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.codeEditorPath, draft.codeEditorArgs, draft.optimizedPlay = defaults.codeEditorPath, defaults.codeEditorArgs, defaults.optimizedPlay
 		case .Keyboard:
 			draft.keymap = defaults.keymap
+		case .Toolchain:
+			draft.odinPath = defaults.odinPath
 		}
 		dialog.capture = {}
 	case Settings_Applied:

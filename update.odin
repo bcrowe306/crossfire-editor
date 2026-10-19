@@ -66,7 +66,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed:
 		// Handled by SettingsDialog_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
@@ -129,6 +129,20 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.browserOpen[AssetFolder(v.kind)] = true
 		logLine(&out, .Info, fmt.aprintf("%s is %s now", filepath.base(asset.path), v.kind == .Music ? "music (streamed)" : "a sound"))
 		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+	case Toolchain_Install_Requested:
+		if out.toolchainInstalling do break
+		out.toolchainInstalling = true
+		logLine(&out, .Info, fmt.aprintf("Installing Odin %s (about 70 MB)...", ODIN_VERSION))
+		return out, Toolchain_InstallOdin()
+	case Toolchain_Install_Finished:
+		out.toolchainInstalling = false
+		if v.problem != "" {
+			logLine(&out, .Error, fmt.aprintf("Installing Odin failed: %s", v.problem))
+			delete(v.problem)
+		} else {
+			logLine(&out, .Info, fmt.aprintf("Installed Odin %s: %s", ODIN_VERSION, v.path))
+			delete(v.path)
+		}
 	case Open_Keyboard_Settings:
 		SettingsDialog_Open(&out)
 		out.settingsDialog.tab = .Keyboard
