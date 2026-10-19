@@ -58,6 +58,8 @@ ExportField :: enum {
 	Optimize,
 	// Ship the SDL3 libraries next to the game
 	Bundle_Libraries,
+	// The project's files inside the executable (the engine's data pack): the game is one file
+	Single_File,
 	// Windows: no console window (-subsystem:windows)
 	Hide_Console,
 	// macOS: the .app's bundle identifier
@@ -88,7 +90,8 @@ EXPORT_FIELDS := [ExportField]ExportFieldInfo{
 	.Executable_Name   = {"executable_name", "Executable", .Text, "Empty: the project's name."},
 	.Page_Title        = {"page_title", "Page title", .Text, "Empty: the project's name."},
 	.Optimize          = {"optimize", "Optimize", .Bool, "Build with -o:speed: a faster game, a slower build."},
-	.Bundle_Libraries  = {"bundle_libraries", "Bundle libraries", .Bool, "Copy the SDL3 libraries into lib/ next to the game, so players don't need them installed."},
+	.Bundle_Libraries  = {"bundle_libraries", "Bundle libraries", .Bool, "Copy the SDL3 libraries into lib/ next to the game, so players don't need them installed (not needed when the engine's static SDL is built)."},
+	.Single_File       = {"single_file", "Single file", .Bool, "Put the project's files inside the executable: the game is one file. Off: they go in data/ next to it."},
 	.Hide_Console      = {"hide_console", "Hide console", .Bool, "No console window next to the game."},
 	.Bundle_Identifier = {"bundle_identifier", "Bundle ID", .Text, "Like com.example.mygame."},
 	.Archive           = {"archive", "Archive", .Bool, "Also pack the export into one file next to the output folder."},
@@ -105,10 +108,10 @@ ExportTargetInfo :: struct {
 }
 
 @(private="file")
-DESKTOP_FIELDS :: bit_set[ExportField]{.Output_Folder, .Executable_Name, .Optimize, .Bundle_Libraries, .Archive}
+DESKTOP_FIELDS :: bit_set[ExportField]{.Output_Folder, .Executable_Name, .Optimize, .Bundle_Libraries, .Single_File, .Archive}
 
 EXPORT_TARGETS := [ExportTarget]ExportTargetInfo{
-	.Linux_x64       = {"Linux x86_64", .Desktop, DESKTOP_FIELDS, "An executable with data/ and lib/ beside it. The archive is a .tar.gz."},
+	.Linux_x64       = {"Linux x86_64", .Desktop, DESKTOP_FIELDS, "One executable, the project's files and SDL inside it (with Single file off: data/ beside it; without the engine's static SDL: lib/). The archive is a .tar.gz."},
 	.Linux_ARM64     = {"Linux ARM64", .Desktop, DESKTOP_FIELDS, "Needs an ARM64 machine or CI to build."},
 	.Windows_x64     = {"Windows x86_64", .Desktop, DESKTOP_FIELDS + {.Hide_Console}, "Needs Windows (or CI) to build."},
 	.Windows_ARM64   = {"Windows ARM64", .Desktop, DESKTOP_FIELDS + {.Hide_Console}, "Needs Windows (or CI) to build."},
@@ -129,6 +132,8 @@ ExportTargetSettings :: struct {
 	name: FixedText,
 	optimize: bool,
 	bundleLibraries: bool,
+	// Desktop: the project's files appended to the executable (the engine's pack.odin)
+	singleFile: bool,
 	hideConsole: bool,
 	archive: bool,
 	// Bundle ID (macOS) or Steam app ID
@@ -153,6 +158,7 @@ ExportSettings_Default :: proc() -> ExportSettings {
 	for &t in settings.targets {
 		t.optimize = true
 		t.bundleLibraries = true
+		t.singleFile = true
 	}
 	return settings
 }
@@ -173,6 +179,7 @@ ExportField_Bool :: proc(t: ^ExportTargetSettings, field: ExportField) -> ^bool 
 	#partial switch field {
 	case .Optimize:         return &t.optimize
 	case .Bundle_Libraries: return &t.bundleLibraries
+	case .Single_File:      return &t.singleFile
 	case .Hide_Console:     return &t.hideConsole
 	case .Archive:          return &t.archive
 	}
@@ -293,6 +300,9 @@ ExportStepKind :: enum {
 	Remove_Folder,
 	// Create the folder `path` (and its parents); compilers don't create their output folders
 	Make_Folder,
+	// Append the engine's data pack to the executable `path`: `files` (relative paths) from
+	// `source`, and `content` as project.xml
+	Append_Pack,
 }
 
 ExportStep :: struct {
@@ -331,6 +341,9 @@ ExportInput :: struct {
 	// Whether the engine's box2d/lib has box2d_web.o (else the export builds it first, with the
 	// engine's tools/build_box2d.sh)
 	webBox2DBuilt: bool,
+	// Whether the engine's static SDL is built for the target (its tools/build_sdl_static.sh,
+	// sdl/lib/<os>_<arch>/): the game then has SDL inside, and there's nothing to bundle
+	staticSDL: bool,
 	// A folder the export may use for intermediate files (the editor's build/exports/<project>)
 	workDir: string,
 }
@@ -386,12 +399,22 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 		append(&command, ..collections[:])
 		if settings.optimize do append(&command, "-o:speed")
 		append(&command, fmt.aprintf("-out:%s", binary))
-		// The libraries are found in lib/ next to the executable first
-		if settings.bundleLibraries do append(&command, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib")
+		// SDL is linked into the game when the engine's static SDL is built; otherwise its shared
+		// libraries are found in lib/ next to the executable first
+		bundle := settings.bundleLibraries && !input.staticSDL
+		if bundle do append(&command, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib")
 		append(&steps, ExportStep{kind = .Command, label = "Build the game", command = command[:]})
-		append(&steps, copyProjectStep(input, joinPath(plan.outputDir, "data")))
-		append(&steps, projectFileStep(input, joinPath(plan.outputDir, "data")))
-		if settings.bundleLibraries {
+		if settings.singleFile {
+			// The project's files inside the game: one file (the engine finds them at its end)
+			files := make([]string, len(input.files))
+			for file, i in input.files do files[i] = strings.clone(file)
+			append(&steps, ExportStep{kind = .Append_Pack, label = "Put the project's files inside the game", path = binary,
+				source = input.projectDir, files = files, content = strings.clone(input.projectXML)})
+		} else {
+			append(&steps, copyProjectStep(input, joinPath(plan.outputDir, "data")))
+			append(&steps, projectFileStep(input, joinPath(plan.outputDir, "data")))
+		}
+		if bundle {
 			ldd := make([]string, 2)
 			ldd[0], ldd[1] = "ldd", binary
 			append(&steps, ExportStep{kind = .Command, label = "Find the libraries it uses", command = ldd, capture = true})

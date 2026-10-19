@@ -52,6 +52,7 @@ Run `task` to list them all.
 | `task web:mixer` | Rebuild SDL3_mixer for the web (`build/web/`); exports build it themselves when it's missing |
 | `task stb` | Build Odin's STB libraries, which Skald needs. Skipped if already built |
 | `task check` | Type-check the editor, with vet |
+| `task sdl` | Build the engine's static SDL once (needs CMake): the editor and your games then have SDL built in |
 | `task test` | Run the unit tests |
 | `task test:code-editor` | Unit tests of the built-in code editor's packages (`code_editor/`) |
 | `task ols` | Build the Odin language server for the built-in code editor (clones OLS; not needed if `ols` is in PATH) |
@@ -390,7 +391,7 @@ project folder unless you choose another folder.
 
 | Target | Status | What you get |
 |---|---|---|
-| Linux x86_64 | Works (on Linux x86_64) | The game, `data/` (project files) and `lib/` (the SDL3 libraries); optional `.tar.gz`. Runs from anywhere: no arguments needed |
+| Linux x86_64 | Works (on Linux x86_64) | **One file**: the game, with the project's files inside it (Single file; off: `data/` beside it) and SDL built in (once the engine's `tools/build_sdl_static.sh` has run, `task sdl`; else its libraries go in `lib/`); optional `.tar.gz`. Runs from anywhere: no arguments needed. Runs on the glibc it was built with or newer: export on an older Linux to reach more players |
 | Web (WebAssembly) | Works | `index.html`, `.js`, `.wasm`, `.data`: serve the folder over HTTP (`python3 -m http.server`); optional `.zip` for itch.io. Sound works (WAV, OGG, MP3, FLAC) and starts after the first click or key press, as browsers require; images must be PNG or BMP. Needs `task emsdk` |
 | Linux ARM64, Windows, macOS | Not implemented | Planned: built on CI, one runner per OS |
 | Steam | Not implemented | Planned: uploads desktop builds |

@@ -44,6 +44,14 @@ tasks:
       - git -C {{.ENGINE_DIR}} submodule update --init third_party/box2d
       - '{{.ENGINE_DIR}}/tools/build_box2d.sh'
 
+  sdl:
+    desc: Build the engine's static SDL (its tools/build_sdl_static.sh, into <engine>/sdl/lib; needs CMake). The editor and every game then link SDL in. A dependency of check, test, the builds and run; skipped when built. Linux and macOS
+    platforms: [linux, darwin]
+    status:
+      - ls {{.ENGINE_DIR}}/sdl/lib/*/libSDL3.a
+    cmds:
+      - '{{.ENGINE_DIR}}/tools/build_sdl_static.sh'
+
   box2d:web:
     desc: Build the engine's Box2D for web exports (needs emsdk). Exports also build it when it's missing
     status:
@@ -89,13 +97,13 @@ tasks:
 
   check:
     desc: Type-check the editor with vet
-    deps: [box2d]
+    deps: [box2d, sdl]
     cmds:
       - odin check . {{.COLLECTIONS}} {{.VET}}
 
   test:
     desc: Run the unit tests
-    deps: [box2d]
+    deps: [box2d, sdl]
     cmds:
       - odin test . {{.COLLECTIONS}} {{.VET}}
 
@@ -134,7 +142,7 @@ tasks:
 
   test:ui:fullscreen:
     desc: The UI test scripts in a fullscreen editor (the wide layouts a tiled window never gets); SCRIPT=<file> runs one
-    deps: [box2d]
+    deps: [box2d, sdl]
     cmds:
       - mkdir -p {{.BUILD_DIR}}
       - odin build . {{.COLLECTIONS}} {{.VET}} -debug -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/{{.NAME}}_fullscreen
@@ -146,21 +154,21 @@ tasks:
 
   build:
     desc: Debug build into build/
-    deps: [box2d]
+    deps: [box2d, sdl]
     cmds:
       - mkdir -p {{.BUILD_DIR}}
       - odin build . {{.COLLECTIONS}} {{.VET}} -debug -out:{{.BUILD_DIR}}/{{.NAME}}
 
   build:release:
     desc: Optimized build into build/release/
-    deps: [box2d]
+    deps: [box2d, sdl]
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
       - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}}
 
   run:
     desc: Build optimized and run. Pass program arguments after --, e.g. task run -- path/to/project
-    deps: [box2d]
+    deps: [box2d, sdl]
     # Optimized: the debug build is several times slower (the viewport ran at ~14 fps vs 60)
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
@@ -169,13 +177,13 @@ tasks:
 
   run:debug:
     desc: Build with debug info (unoptimized, slower) and run, for a debugger or bounds checks
-    deps: [box2d]
+    deps: [box2d, sdl]
     cmds:
       - odin run . {{.COLLECTIONS}} -debug -- {{.CLI_ARGS}}
 
   run:fullscreen:
     desc: Build optimized and run fullscreen, to see the full layout on a tiling window manager
-    deps: [box2d]
+    deps: [box2d, sdl]
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
       - odin build . {{.COLLECTIONS}} -o:speed -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/release/{{.NAME}}-fullscreen
@@ -183,7 +191,7 @@ tasks:
 
   player:
     desc: Build the engine's game player (Play does this automatically when the engine changed)
-    deps: [box2d]
+    deps: [box2d, sdl]
     cmds:
       - mkdir -p {{.BUILD_DIR}}/player
       - odin build {{.ENGINE_DIR}}/player -o:speed -out:{{.BUILD_DIR}}/player/player

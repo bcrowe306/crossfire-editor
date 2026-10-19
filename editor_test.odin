@@ -1940,6 +1940,23 @@ export_settings_ini :: proc(t: ^testing.T) {
 export_plan_linux :: proc(t: ^testing.T) {
 	when ODIN_OS == .Linux && ODIN_ARCH == .amd64 {
 		input := exportTestInput(.Linux_x64)
+		// Single file (the default): the project's files go inside the game
+		single, singleProblem := Export_Plan(input, context.temp_allocator)
+		testing.expect_value(t, singleProblem, "")
+		packed := false
+		for step in single.steps {
+			testing.expect(t, step.kind != .Copy_Files && step.kind != .Write_File, "no data/")
+			if step.kind == .Append_Pack {
+				packed = true
+				testing.expect_value(t, step.path, "/games/Space/export/linux_x64/Space_Game")
+				testing.expect_value(t, len(step.files), 2)
+				testing.expect_value(t, step.content, input.projectXML)
+			}
+		}
+		testing.expect(t, packed, "a data pack")
+
+		// Single file off: data/ beside the game
+		input.settings.singleFile = false
 		plan, problem := Export_Plan(input, context.temp_allocator)
 		testing.expect_value(t, problem, "")
 		testing.expect_value(t, plan.outputDir, "/games/Space/export/linux_x64")
@@ -1962,6 +1979,16 @@ export_plan_linux :: proc(t: ^testing.T) {
 		testing.expect(t, plan.steps[3].path == "/games/Space/export/linux_x64/data/project.xml" && plan.steps[3].content == input.projectXML)
 		testing.expect(t, plan.steps[4].capture && plan.steps[4].command[0] == "ldd")
 		testing.expect_value(t, plan.steps[5].path, "/games/Space/export/linux_x64/lib")
+
+		// With the engine's static SDL, SDL is inside the game: no rpath, nothing to bundle
+		input.staticSDL = true
+		plan, problem = Export_Plan(input, context.temp_allocator)
+		testing.expect_value(t, problem, "")
+		for step in plan.steps {
+			testing.expect(t, step.kind != .Bundle_Libraries, "nothing to bundle")
+			for arg in step.command do testing.expect(t, !strings.contains(arg, "rpath"), "no rpath")
+		}
+		input.staticSDL = false
 
 		// Scripts: a generated main that links them; no bundling; an archive; a name of its own
 		input.hasScripts = true

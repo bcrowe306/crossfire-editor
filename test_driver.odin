@@ -146,6 +146,7 @@ Checks:
 	export <idle | running>      Whether exports are running
 	export_enabled <Target> <true | false>   An export target is checked (the project's settings)
 	project_file <path>          A file exists, relative to the project folder (an export's output)
+	project_file_missing <path>  No such file or folder, relative to the project folder
 	project_file_contains <path> <text>   A project file contains the text (after saving)
 	shapes <on | off>            The viewport outlines collision shapes, rays and joints
 	particle <setting> <value>   A ParticleEmitter setting of the selected node, as scene files
@@ -1054,6 +1055,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = selected != nil ? fmt.tprint(selected.kind) : "none"
 	case "preview_visible":
 		found = fmt.tprint(previewImageArea.x >= 32 && previewImageArea.y >= 32)
+		if found != value do return false, fmt.tprintf("%s: the picture is %v, the window %v, the workspace %v", found, previewImageArea,
+			ctx.renderer != nil ? ctx.renderer.fb_size : [2]u32{}, s.layout.workspace)
 	case "audio":
 		found = AudioPreview_IsPlaying() ? "playing" : "stopped"
 	case "dialog":
@@ -1390,6 +1393,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		if !known do return false, fmt.tprintf("unknown export target '%s'", target_name)
 		found = fmt.tprint(s.project.exports.targets[target].enabled)
 		return found == strings.trim_space(expected), found
+	case "project_file_missing":
+		path := joinPath(s.project.rootPath, value, allocator = context.temp_allocator)
+		found = os.exists(path) ? "exists" : "missing"
+		return found == "missing", fmt.tprintf("%s %s", path, found)
 	case "project_file":
 		path := joinPath(s.project.rootPath, value, allocator = context.temp_allocator)
 		return os.exists(path), fmt.tprintf("%s doesn't exist", path)

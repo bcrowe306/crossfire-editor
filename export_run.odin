@@ -7,6 +7,7 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "gui:skald"
+import e "engine:."
 
 /*
 Running exports: File > Export (every enabled target) and the Export tab's Export button (one
@@ -187,6 +188,7 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 		webLibDir = strings.clone(webLibDir, allocator),
 		webMixerBuilt = os.exists(joinPath(webLibDir, "libSDL3_mixer.a", allocator = context.temp_allocator)),
 		webBox2DBuilt = os.exists(joinPath(absolutePath(ENGINE_DIR), "box2d", "lib", "box2d_web.o", allocator = context.temp_allocator)),
+		staticSDL = Export_StaticSDLBuilt(ENGINE_DIR, target),
 		workDir = strings.clone(workDir, allocator),
 	}
 }
@@ -244,6 +246,10 @@ runFileStep :: proc(state: ^State, step: ExportStep) -> string {
 			}
 			if err := os.copy_file(to, from); err != nil do return fmt.tprintf("couldn't copy %s: %v", from, err)
 		}
+	case .Append_Pack:
+		extra := make(map[string]string, context.temp_allocator)
+		extra["project.xml"] = step.content
+		if problem := e.Pack_Append(step.path, step.source, step.files, extra); problem != "" do return fmt.tprintf("the data pack: %s", problem)
 	case .Bundle_Libraries:
 		libraries := Export_ParseLdd(string(state.exporting.captured[:]), context.temp_allocator)
 		if len(libraries) == 0 do return "ldd found no SDL3 libraries in the game"
@@ -378,4 +384,20 @@ removeAll :: proc(path: string) -> os.Error {
 		for entry in entries do removeAll(entry.fullpath) or_return
 	}
 	return os.remove(path)
+}
+
+/*
+Whether the engine's static SDL (tools/build_sdl_static.sh) is built for a desktop target, so
+its games link SDL in and need no libraries next to them.
+*/
+Export_StaticSDLBuilt :: proc(engineDir: string, target: ExportTarget) -> bool {
+	folder: string
+	#partial switch target {
+	case .Linux_x64:   folder = "linux_amd64"
+	case .Linux_ARM64: folder = "linux_arm64"
+	case .macOS_x64:   folder = "darwin_amd64"
+	case .macOS_ARM64: folder = "darwin_arm64"
+	case:              return false
+	}
+	return os.exists(joinPath(engineDir, "sdl", "lib", folder, "libSDL3.a", allocator = context.temp_allocator))
 }

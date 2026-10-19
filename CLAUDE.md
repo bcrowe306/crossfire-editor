@@ -52,6 +52,7 @@ add it as a task and to the README's command table.
 |---|---|
 | `task setup` | One-time setup: `submodules` + `stb` + `box2d` |
 | `task box2d` | Build the engine's Box2D (`<engine>/tools/build_box2d.sh` into `<engine>/box2d/lib`). A dependency of `check`, `test`, the builds and `run`; skipped when built |
+| `task sdl` | Build the engine's static SDL (`<engine>/tools/build_sdl_static.sh` into `<engine>/sdl/lib`; CMake; Linux, macOS). The editor and every game then link SDL in (a single executable). A dependency like `box2d`; skipped when built |
 | `task box2d:web` | The engine's Box2D for web exports (`task emsdk` runs it; exports build it when missing) |
 | `task submodules` | `git submodule update --init --recursive` (Skald, emsdk) |
 | `task emsdk` | Install Emscripten into the `third_party/emsdk` submodule (`EMSDK_VERSION`, ~1 GB, once per machine), then `web:mixer`. Web exports need it |
@@ -940,10 +941,16 @@ Intermediate files go to `build/exports/<project>-<hash>/` in the editor's folde
 - Output goes to `<project>/export/<target>` unless an output folder is set. `checkOutputDir` refuses
   folders that contain the project or sit in its scenes/, assets/ or scripts/.
 
-**Linux x86_64:** `odin build <player> -o:speed -out:<out>/<exe>
--extra-linker-flags:-Wl,-rpath,$ORIGIN/lib`, the project's files (project.xml, each scene's file,
-each asset) copied to `<out>/data/`, then `ldd` on the game and the `libSDL3*` libraries it names
-copied to `<out>/lib/` under their sonames. The engine's player finds `data/project.xml` next to the
+**Linux x86_64:** `odin build <player> -o:speed -out:<out>/<exe>`, then with **Single file** (the
+default, `ExportTargetSettings.singleFile`) the project's files (project.xml as exported, each
+scene's file, each asset) appended to the executable as the engine's data pack
+(`ExportStepKind.Append_Pack`, `e.Pack_Append`): the export is one file. With it off, they're
+copied to `<out>/data/`. **With the engine's static
+SDL built** (its tools/build_sdl_static.sh; `Export_StaticSDLBuilt`, `ExportInput.staticSDL`) SDL
+is inside the game: the export is the executable and `data/`, needing only libc (verified: ldd
+shows libc, libm and the loader). Without it, `-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib`, then
+`ldd` on the game and the `libSDL3*` libraries it names copied to `<out>/lib/` under their
+sonames. A game runs on the glibc it was built against or newer (see the engine's CLAUDE.md). The engine's player finds `data/project.xml` next to the
 executable when it gets no folder argument. Other libraries (libc, GPU drivers, the libraries SDL3
 itself links) come from the player's system. Archive: `tar -czf <out>.tar.gz`.
 Verified: the export copied elsewhere runs from another folder with the bundled libraries (ldd),

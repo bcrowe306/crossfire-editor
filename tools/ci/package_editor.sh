@@ -20,11 +20,18 @@ mkdir -p "$stage"
 cd "$editor"
 
 flags=(-collection:gui=Skald "-collection:engine=$engine" -define:ENGINE_DIR=../odin_sdl_engine -o:speed)
+# With the engine's static SDL built (its tools/build_sdl_static.sh), SDL is inside the editor
+static=false
+compgen -G "$engine/sdl/lib/*/libSDL3.a" > /dev/null && static=true
 case "$(uname -s)" in
 Linux)
-	odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor" "-extra-linker-flags:-Wl,-rpath,\$ORIGIN/lib"
-	mkdir -p "$stage/lib"
-	ldd "$stage/odin_sdl_editor" | awk '/libSDL3/ { print $3 }' | while read -r lib; do cp -L "$lib" "$stage/lib/"; done
+	if $static; then
+		odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor"
+	else
+		odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor" "-extra-linker-flags:-Wl,-rpath,\$ORIGIN/lib"
+		mkdir -p "$stage/lib"
+		ldd "$stage/odin_sdl_editor" | awk '/libSDL3/ { print $3 }' | while read -r lib; do cp -L "$lib" "$stage/lib/"; done
+	fi
 	;;
 Darwin)
 	odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor" ${ODIN_LINK_FLAGS:-}
@@ -50,7 +57,7 @@ Play and Export compile your game, so they need:
       git clone --recursive https://github.com/bcrowe306/odin_sdl_engine
       odin_sdl_engine/tools/build_box2d.sh
 TXT
-if [[ "$(uname -s)" == Darwin ]]; then
+if [[ "$(uname -s)" == Darwin ]] && ! $static; then
 	echo "macOS: also needs SDL3 from Homebrew: brew install sdl3 sdl3_image sdl3_ttf sdl3_mixer" >> "$stage/README.txt"
 fi
 
