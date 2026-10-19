@@ -28,6 +28,7 @@ flags=(-collection:gui=Skald "-collection:engine=$engine" -define:ENGINE_DIR=../
 # With the engine's static SDL built (its tools/build_sdl_static.sh), SDL is inside the editor
 static=false
 compgen -G "$engine/sdl/lib/*/libSDL3.a" > /dev/null && static=true
+compgen -G "$engine/sdl/lib/*/sdl3_static.lib" > /dev/null && static=true
 case "$(uname -s)" in
 Linux)
 	if $static; then
@@ -44,7 +45,9 @@ Darwin)
 *)
 	odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor.exe"
 	root=$(odin root)
-	for d in sdl3 sdl3/image sdl3/ttf sdl3/mixer; do cp "${root%/}/vendor/$d"/*.dll "$stage/"; done
+	if ! $static; then
+		for d in sdl3 sdl3/image sdl3/ttf sdl3/mixer; do cp "${root%/}/vendor/$d"/*.dll "$stage/"; done
+	fi
 	;;
 esac
 
@@ -55,7 +58,9 @@ case "$(uname -s)" in
 MINGW* | MSYS* | CYGWIN*)
 	odin build "$engine/player" -o:speed "-out:$stage/prebuilt/$target/player.exe"
 	# Windows finds DLLs next to the program
-	for d in sdl3 sdl3/image sdl3/ttf sdl3/mixer; do cp "${root%/}/vendor/$d"/*.dll "$stage/prebuilt/$target/"; done
+	if ! $static; then
+		for d in sdl3 sdl3/image sdl3/ttf sdl3/mixer; do cp "${root%/}/vendor/$d"/*.dll "$stage/prebuilt/$target/"; done
+	fi
 	;;
 Linux)
 	if $static; then
@@ -68,6 +73,17 @@ Linux)
 	odin build "$engine/player" -o:speed "-out:$stage/prebuilt/$target/player" ${ODIN_LINK_FLAGS:-}
 	;;
 esac
+
+# Static: neither program may load an SDL library
+if $static && command -v ldd > /dev/null; then
+	for program in "$stage"/odin_sdl_editor* "$stage/prebuilt/$target"/player*; do
+		if ldd "$program" | grep -i "sdl3"; then
+			echo "$program still links SDL dynamically" >&2
+			exit 1
+		fi
+	done
+	echo "SDL is inside the editor and the prebuilt player"
+fi
 
 # The engine's sources, with its built libraries
 mkdir -p "$stage/engine"

@@ -54,6 +54,7 @@ git_init_stage_commit_branch_push :: proc(t: ^testing.T) {
 	testing.expect_value(t, snapshot.branch, "main")
 	testing.expect(t, !snapshot.hasCommits)
 	testing.expect(t, os.exists(joinPath(root, ".gitignore", allocator = context.temp_allocator)))
+	testing.expect(t, os.exists(joinPath(root, ".gitattributes", allocator = context.temp_allocator)))
 	change, found := findChange(&snapshot, "project.xml")
 	testing.expect(t, found, "project.xml is a change")
 	testing.expect_value(t, change.staged, '?')

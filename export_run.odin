@@ -409,7 +409,10 @@ Export_StaticSDLBuilt :: proc(engineDir: string, target: ExportTarget) -> bool {
 	case .Linux_ARM64: folder = "linux_arm64"
 	case .macOS_x64:   folder = "darwin_amd64"
 	case .macOS_ARM64: folder = "darwin_arm64"
+	case .Windows_x64: folder = "windows_amd64"
+	case .Windows_ARM64: folder = "windows_arm64"
 	case:              return false
 	}
-	return os.exists(joinPath(engineDir, "sdl", "lib", folder, "libSDL3.a", allocator = context.temp_allocator))
+	library := target == .Windows_x64 || target == .Windows_ARM64 ? "sdl3_static.lib" : "libSDL3.a"
+	return os.exists(joinPath(engineDir, "sdl", "lib", folder, library, allocator = context.temp_allocator))
 }

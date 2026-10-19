@@ -450,7 +450,8 @@ the folder to unpack it into, and opens it.
 
 **Version control:** the bottom panel's **Git** tab (needs [Git](https://git-scm.com)).
 Initialize Repository makes the project folder a repository, with a `.gitignore` that leaves out
-exported games and build output. Then: the changed files (check one to stage it; Commit with
+exported games and build output, and a `.gitattributes` that keeps line endings the same on every
+OS. Then: the changed files (check one to stage it; Commit with
 nothing staged commits every change), the commit message, the history, branches (switch, or type
 a name and Create), and Pull / Push (or Add Remote with a URL). The editor saves before git runs,
 and opens the project again after a pull or a branch switch. Git needs your name and email for

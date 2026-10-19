@@ -187,7 +187,8 @@ Toolchain_InstallOdin :: proc() -> skald.Command(Msg) {
 		run :: proc(command: []string) -> string {
 			state, _, stderr, err := os.process_exec({command = command}, context.temp_allocator)
 			if err != nil do return fmt.aprintf("Couldn't run %s: %v", command[0], err)
-			if !state.success do return fmt.aprintf("%s failed: %s", command[0], strings.trim_space(string(stderr)))
+			// The exit code, not state.success: Odin's Windows process_wait always sets that
+			if state.exit_code != 0 do return fmt.aprintf("%s failed: %s", command[0], strings.trim_space(string(stderr)))
 			return ""
 		}
 		if problem := run({"curl", "-fL", "--silent", "--show-error", "-o", job.archive, job.url}); problem != "" {

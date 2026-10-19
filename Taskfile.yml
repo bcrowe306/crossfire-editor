@@ -61,10 +61,9 @@ tasks:
       - cp {{.BUILD_DIR}}/prebuilt/{{.PREBUILT_TARGET}}/player {{.BUILD_DIR}}/release/prebuilt/{{.PREBUILT_TARGET}}/player
 
   sdl:
-    desc: Build the engine's static SDL (its tools/build_sdl_static.sh, into <engine>/sdl/lib; needs CMake). The editor and every game then link SDL in. A dependency of check, test, the builds and run; skipped when built. Linux and macOS
-    platforms: [linux, darwin]
+    desc: Build the engine's static SDL (its tools/build_sdl_static.sh, into <engine>/sdl/lib; needs CMake). The editor and every game then link SDL in. A dependency of check, test, the builds and run; skipped when built. Linux, macOS and Windows (Visual Studio)
     status:
-      - ls {{.ENGINE_DIR}}/sdl/lib/*/libSDL3.a
+      - ls {{.ENGINE_DIR}}/sdl/lib/*/libSDL3.a || ls {{.ENGINE_DIR}}/sdl/lib/*/sdl3_static.lib
     cmds:
       - '{{.ENGINE_DIR}}/tools/build_sdl_static.sh'
 

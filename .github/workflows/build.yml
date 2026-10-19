@@ -65,7 +65,6 @@ jobs:
         run: ../odin_sdl_engine/tools/build_box2d.sh
 
       - name: Cache static SDL
-        if: runner.os != 'Windows'
         uses: actions/cache@v4
         with:
           path: odin_sdl_engine/sdl/lib
@@ -74,7 +73,7 @@ jobs:
       - name: Build static SDL (games and the editor link it; Windows later)
         if: runner.os != 'Windows'
         run: |
-          if [ ! -f ../odin_sdl_engine/sdl/lib/*/libSDL3.a ]; then ../odin_sdl_engine/tools/build_sdl_static.sh; fi
+          if ! compgen -G "../odin_sdl_engine/sdl/lib/*/libSDL3.a" > /dev/null && ! compgen -G "../odin_sdl_engine/sdl/lib/*/sdl3_static.lib" > /dev/null; then ../odin_sdl_engine/tools/build_sdl_static.sh; fi
 
       - name: Check
         run: odin check . $COLLECTIONS -vet-unused -vet-packages:editor

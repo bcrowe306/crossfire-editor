@@ -1089,7 +1089,8 @@ targets (unoptimized; about 10 s once emsdk's port cache is warm).
 - **CI/CD on GitHub Actions:** build the editor and engine on every desktop platform (a runner per
   OS and architecture), run the unit and UI tests, show build statuses, and publish development
   binaries as releases. The other desktop export targets get built there too.
-- The remaining targets: Windows (`-subsystem:windows` for Hide console, DLLs next to the exe),
+- The remaining targets: Windows (`-subsystem:windows` for Hide console; SDL can be static there
+  now, `Export_StaticSDLBuilt` knows its `sdl3_static.lib`),
   macOS (`.app` bundle, dylibs in `Contents/Frameworks`, signing and notarization), Linux ARM64,
   Steam (Steamworks SDK, depots via `steamcmd`; Steam Deck = the Linux build), consoles (licensed
   SDKs).
@@ -1109,7 +1110,8 @@ failed, fixes it and builds again with the next tag.
   fetched (desktop builds don't need it).
 - `tools/ci/package_editor.sh` packs the built editor (settings and fonts are built in; the demo
   is recreated when missing), its SDL3 libraries when SDL isn't static, this platform's prebuilt
-  player (`prebuilt/<target>/player`, with the SDL DLLs beside it on Windows), and the engine's
+  player (`prebuilt/<target>/player`; SDL DLLs beside both on Windows only without the static SDL,
+  which CI now builds there too: `ldd` checks no SDL library is loaded), and the engine's
   sources in `engine/` (git-tracked files without `third_party/`, plus `box2d/lib` and `sdl/lib`;
   about 17 MB). Each archive has only its own platform's player: exports only build for the host
   so far. Projects with scripts need Odin (Settings > Toolchain installs it) and a linker.

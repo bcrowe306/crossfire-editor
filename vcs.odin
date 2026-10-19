@@ -25,7 +25,8 @@ view_git.odin).
   Console. The project is saved first; after a pull or a branch switch, which change files, it's
   opened again from disk.
 - **Initialize** runs `git init -b main` and writes a `.gitignore` (when there's none) leaving
-  out exported games, build output, project archives and OS clutter (`GITIGNORE_DEFAULT`).
+  out exported games, build output, project archives and OS clutter (`GITIGNORE_DEFAULT`), and a
+  `.gitattributes` keeping LF line endings on every OS (`GITATTRIBUTES_DEFAULT`).
 - **Commit** commits what's staged; with nothing staged, every change in the project folder
   (like VS Code's smart commit). Git needs a name and email for commits (`git config --global
   user.name "..."`, `user.email`): its error says so.
@@ -46,6 +47,15 @@ build/
 .DS_Store
 Thumbs.db
 desktop.ini
+`
+
+/*
+The .gitattributes Initialize writes: text files keep the editor's line endings (LF) on every OS,
+so a project checked out on Windows (where git turns LF into CRLF by default) has the files the
+editor writes, and moving between systems shows no changes. Git still detects binary files.
+*/
+GITATTRIBUTES_DEFAULT :: `# Made by odin_sdl_editor: text files keep the editor's line endings (LF) on every OS
+* text=auto eol=lf
 `
 
 // What the project's version control is
@@ -468,6 +478,8 @@ Git_RunCommands :: proc(folder: string, op: GitOp, commands: [][]string, allocat
 	if op == .Init {
 		ignore := strings.concatenate({folder, "/.gitignore"}, context.temp_allocator)
 		if !os.exists(ignore) do _ = os.write_entire_file(ignore, transmute([]byte)string(GITIGNORE_DEFAULT))
+		attributes := strings.concatenate({folder, "/.gitattributes"}, context.temp_allocator)
+		if !os.exists(attributes) do _ = os.write_entire_file(attributes, transmute([]byte)string(GITATTRIBUTES_DEFAULT))
 	}
 	return strings.to_string(output), true
 }
@@ -508,7 +520,8 @@ gitRun :: proc(folder: string, command: []string, allocator := context.allocator
 	if !sshSet do append(&full, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
 	state, stdout, stderr, err := os.process_exec({working_dir = folder, command = command, env = full[:]}, context.temp_allocator)
 	if err != nil do return fmt.aprintf("couldn't run git: %v", err, allocator = allocator), false
-	if !state.success {
+	// The exit code, not state.success: Odin's Windows process_wait always sets that
+	if state.exit_code != 0 {
 		text := strings.trim_space(string(stderr))
 		if text == "" do text = strings.trim_space(string(stdout))
 		return strings.clone(text, allocator), false
