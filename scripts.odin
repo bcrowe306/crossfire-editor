@@ -477,7 +477,8 @@ Script_EditorCommand :: proc(program, args, file: string, line: int, folder := "
 
 /*
 Where the code editor program is: the setting itself if it's a path (absolute, or relative to
-the editor's folder), or the first match in PATH for a bare name. Empty means the default.
+the editor's folder), or the first match in PATH for a bare name (PATH split with the OS's
+separator; on Windows "odin" also finds odin.exe). Empty means the default.
 
 Returns:
 - The path (temp allocated), and whether it exists
@@ -491,12 +492,22 @@ Script_FindEditorProgram :: proc(setting: string) -> (string, bool) {
 			program, _ = filepath.join({home, program[2:]}, context.temp_allocator)
 		}
 	}
-	if strings.contains_rune(program, '/') do return program, os.exists(program)
+	// Windows programs end in .exe, which PATH lookups add ("odin" finds odin.exe)
+	names := []string{program}
+	when ODIN_OS == .Windows {
+		if !strings.has_suffix(strings.to_lower(program, context.temp_allocator), ".exe") do names = []string{program, fmt.tprintf("%s.exe", program)}
+	}
+	if strings.contains_any(program, "/\\") {
+		for name in names do if os.exists(name) && !os.is_dir(name) do return name, true
+		return program, false
+	}
 	path := os.get_env("PATH", context.temp_allocator)
-	for dir in strings.split(path, ":", context.temp_allocator) {
+	for dir in strings.split(path, fmt.tprint(filepath.LIST_SEPARATOR), context.temp_allocator) {
 		if dir == "" do continue
-		candidate, _ := filepath.join({dir, program}, context.temp_allocator)
-		if os.exists(candidate) && !os.is_dir(candidate) do return candidate, true
+		for name in names {
+			candidate, _ := filepath.join({dir, name}, context.temp_allocator)
+			if os.exists(candidate) && !os.is_dir(candidate) do return candidate, true
+		}
 	}
 	return program, false
 }

@@ -64,6 +64,9 @@ tempDir :: proc(name: string) -> string {
 	return dir
 }
 
+// A program that exits at once, standing in for the external code editor (Windows has no `true`)
+TEST_NOOP_PROGRAM :: "whoami" when ODIN_OS == .Windows else "true"
+
 @(test)
 scene_tree_rows_hide_collapsed_subtrees :: proc(t: ^testing.T) {
 	state := testState()
@@ -1569,7 +1572,7 @@ new_script_files :: proc(t: ^testing.T) {
 	state := testState()
 	defer State_Destroy(&state)
 	// Never open a real editor from a test
-	state.settings.codeEditorPath = FixedText_Make("true")
+	state.settings.codeEditorPath = FixedText_Make(TEST_NOOP_PROGRAM)
 	os.make_directory("build")
 	dir := "build/test_script_project"
 	removeAll(dir)
@@ -3286,9 +3289,9 @@ code_tabs_open_switch_close :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(state.codeTabs), 0)
 	testing.expect_value(t, state.codeTab, 0)
 
-	// Off in Settings: the external program instead (the test command `true`)
+	// Off in Settings: the external program instead (TEST_NOOP_PROGRAM)
 	state.settings.builtInCodeEditor = false
-	state.settings.codeEditorPath = FixedText_Make("true")
+	state.settings.codeEditorPath = FixedText_Make(TEST_NOOP_PROGRAM)
 	_ = Script_Open(&state, a, 1)
 	testing.expect_value(t, len(state.codeTabs), 0)
 	free_all(context.temp_allocator)
