@@ -12,6 +12,9 @@ Action :: enum {
 	Open_Project,
 	Save_Project,
 	Export,
+	// The whole project in one file, and opening one (project_archive.odin)
+	Export_Project_Archive,
+	Open_Project_Archive,
 	Quit,
 	Undo,
 	Redo,
@@ -291,6 +294,11 @@ New_Project_Cancelled :: struct {}
 // Quit even with unsaved changes (the UI test driver, when a script ends)
 Quit_Without_Asking :: struct {}
 Open_Project_Chosen :: distinct skald.File_Dialog_Result
+// Project archives (project_archive.odin): where to write one; the archive to open, then the
+// folder to unpack it into (paths are only valid while handling the message)
+Project_Archive_Path_Chosen :: distinct skald.File_Dialog_Result
+Project_Archive_Open_Chosen :: distinct skald.File_Dialog_Result
+Project_Archive_Destination_Chosen :: distinct skald.File_Dialog_Result
 
 // Project browser drag of an image asset into the viewport
 Asset_Drag_Pressed :: struct {
@@ -740,6 +748,11 @@ Msg :: union {
 	New_Project_Created,
 	New_Project_Cancelled,
 	Open_Project_Chosen,
+	Project_Archive_Path_Chosen,
+	Project_Archive_Open_Chosen,
+	Project_Archive_Destination_Chosen,
+	Project_Archive_Written,
+	Project_Archive_Extracted,
 	Quit_Without_Asking,
 	Scripts_Auto_Build,
 	Node_Script_Changed,
@@ -811,6 +824,13 @@ Msg :: union {
 	Settings_Odin_Path_Changed,
 	Toolchain_Install_Requested,
 	Toolchain_Install_Finished,
+	Git_Refresh_Requested,
+	Git_Snapshot_Read,
+	Git_Op_Requested,
+	Git_Op_Finished,
+	Git_Message_Changed,
+	Git_New_Branch_Changed,
+	Git_Remote_URL_Changed,
 	Settings_Capture_Started,
 	Settings_Key_Captured,
 	Settings_Capture_Cancelled,

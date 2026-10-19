@@ -17,6 +17,8 @@ SettingsTab :: enum {
 	Keyboard,
 	// What building games needs, found or not (toolchain.odin)
 	Toolchain,
+	// The Project Settings dialog's tabs, inside this one (ProjectSettingsDialog.embedded)
+	Project,
 }
 
 SettingsDialog :: struct {
@@ -49,6 +51,23 @@ SettingsDialog_Open :: proc(state: ^State) {
 	dialog := &state.settingsDialog
 	delete(dialog.search)
 	dialog^ = {open = true, tab = dialog.tab, draft = state.settings}
+	if dialog.tab == .Project do openEmbeddedProjectSettings(state)
+}
+
+// The Project tab edits the Project Settings dialog's draft, opened on the project's values once
+@(private="file")
+openEmbeddedProjectSettings :: proc(state: ^State) {
+	if state.projectSettings.open && state.projectSettings.embedded do return
+	ProjectSettings_Open(state, state.projectSettings.tab)
+	state.projectSettings.embedded = true
+}
+
+// Closes the Project tab's draft, dropping its changes
+@(private="file")
+closeEmbeddedProjectSettings :: proc(state: ^State) {
+	if !state.projectSettings.embedded do return
+	state.projectSettings.open = false
+	state.projectSettings.embedded = false
 }
 
 /*
@@ -64,6 +83,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 	case Settings_Tab_Changed:
 		dialog.tab = SettingsTab(v)
 		dialog.capture = {}
+		if dialog.tab == .Project do openEmbeddedProjectSettings(state)
 	case Settings_Theme_Changed:
 		draft.theme = string(v) == "Light" ? .Light : .Dark
 	case Settings_Value_Changed:
@@ -124,6 +144,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.keymap = defaults.keymap
 		case .Toolchain:
 			draft.odinPath = defaults.odinPath
+		case .Project:
+			// The project has no defaults to go back to (the button is hidden)
 		}
 		dialog.capture = {}
 	case Settings_Applied:
@@ -135,10 +157,16 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		} else {
 			logLine(state, .Info, fmt.aprintf("Saved settings to %s", state.settingsPath))
 		}
-		return skald.cmd_set_theme(Msg, Settings_Theme(&state.settings)), true
+		theme := skald.cmd_set_theme(Msg, Settings_Theme(&state.settings))
+		// The Project tab was opened: its changes are applied too, as their own undoable step
+		if state.projectSettings.open && state.projectSettings.embedded {
+			return skald.cmd_batch(theme, skald.cmd_now(Msg(Project_Settings_Applied{}))), true
+		}
+		return theme, true
 	case Settings_Cancelled:
 		dialog.open = false
 		dialog.capture = {}
+		closeEmbeddedProjectSettings(state)
 	case:
 		return {}, false
 	}

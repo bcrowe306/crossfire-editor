@@ -134,6 +134,9 @@ when nothing is selected.
   - Appearance: dark or light theme, text size, spacing, row height
   - Editor: how undo merges edits, and how many steps it keeps
   - Keyboard: every shortcut, two per command. Click one and press the new keys
+  - Toolchain: what building games needs, found or not (see above)
+  - Project: the open project's settings (the same tabs as File > Project Settings). Apply and
+    Save apply them too, as one undoable step; Cancel drops them
 - Settings are saved to `editor.ini` next to the editor's executable. The defaults are in
   [`settings.default.ini`](settings.default.ini). Use `--settings <file>` to keep them elsewhere.
 
@@ -437,6 +440,22 @@ the frame rate and the last viewport render time.
 
 **File > New Project** (Ctrl+N) creates a project folder with a Main scene. **Open Project**
 (Ctrl+O) opens a project folder. Both, and Quit, ask to save unsaved changes first.
+
+**Project archives:** File > **Export Project Archive...** saves the project and writes it as one
+`.odinsdl` file (a zip, so any unzip tool opens it too): everything in the project folder except
+exported games, `build/` and `.git/`. Assets that live outside the project folder are copied in,
+and the archive's files point at the copies, so the archive works anywhere (the project itself
+isn't changed). File > **Open Project Archive...** picks an archive (or a zip of a project), then
+the folder to unpack it into, and opens it.
+
+**Version control:** the bottom panel's **Git** tab (needs [Git](https://git-scm.com)).
+Initialize Repository makes the project folder a repository, with a `.gitignore` that leaves out
+exported games and build output. Then: the changed files (check one to stage it; Commit with
+nothing staged commits every change), the commit message, the history, branches (switch, or type
+a name and Create), and Pull / Push (or Add Remote with a URL). The editor saves before git runs,
+and opens the project again after a pull or a branch switch. Git needs your name and email for
+commits (`git config --global user.name "..."` and `user.email`); pushing uses your usual git
+credentials (it never stops to ask for a password).
 
 A project is a folder with `project.xml`, a `scenes/` folder with one XML file per scene, and
 `assets/`. The format is specified in the engine's `project_format.odin`.

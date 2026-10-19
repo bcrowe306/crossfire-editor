@@ -1,0 +1,60 @@
+# The Settings dialog's Project tab: the Project Settings tabs inside Settings. Apply and Save
+# apply the project's changes too (one undoable step), Cancel drops them.
+# Run with: task test:ui
+
+wait 5
+expect project Asteroids Demo
+expect undo 0
+key ctrl+comma
+expect settings_dialog open
+click_widget settings-tab-Project
+expect project_settings open
+expect widget_visible project-settings-name true
+expect widget_visible settings-reset-tab false
+
+# Apply keeps the dialog open and applies the project's name as an undoable step
+click_widget project-settings-name
+key ctrl+a
+type Renamed Game
+click_widget settings-apply
+expect project Renamed Game
+expect undo 1
+expect settings_dialog open
+expect project_settings open
+
+# The other project tabs are there too
+click_widget project-settings-tab-Export
+expect widget_visible export-enable-Linux_x64 true
+click_widget project-settings-tab-General
+
+# Cancel drops the project changes
+click_widget project-settings-name
+key ctrl+a
+type Dropped
+click_widget settings-cancel
+expect settings_dialog closed
+expect project_settings closed
+expect project Renamed Game
+
+# The tab is remembered: reopening shows the project again; Save applies and closes
+key ctrl+comma
+expect project_settings open
+click_widget project-settings-name
+key ctrl+a
+type Saved Game
+click_widget settings-save
+expect settings_dialog closed
+expect project_settings closed
+expect project Saved Game
+expect undo 2
+
+# Undo takes the name back
+key ctrl+z
+expect project Renamed Game
+
+# File > Project Settings is still its own dialog
+action Open_Project_Settings
+expect project_settings open
+expect widget_visible project-settings-apply true
+click_widget project-settings-cancel
+expect project_settings closed

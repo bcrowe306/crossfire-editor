@@ -40,6 +40,8 @@ BottomTab :: enum {
 	Animation,
 	// Mix buses (view_mixer.odin)
 	Mixer,
+	// Version control (view_git.odin)
+	Git,
 }
 
 LogLevel :: enum {
@@ -142,6 +144,14 @@ State :: struct {
 	codeDialog: CodeDialog,
 	// Settings > Toolchain is installing Odin
 	toolchainInstalling: bool,
+	// Project archives (project_archive.odin): one being written or unpacked; the archive Open
+	// Project Archive picked, until its folder is chosen (owned)
+	archive: struct {
+		busy: bool,
+		openPath: string,
+	},
+	// The Git tab (vcs.odin)
+	git: GitState,
 	// Closing a tab with unsaved changes: the prompt
 	codeClose: struct {
 		open: bool,
@@ -319,6 +329,8 @@ State_Destroy :: proc(state: ^State) {
 	CodeTabs_CloseAll(state)
 	delete(state.codeTabs)
 	Project_Destroy(&state.project)
+	delete(state.archive.openPath)
+	GitState_Destroy(&state.git)
 	for line in state.console do delete(line.text)
 	delete(state.console)
 	for line in state.output do delete(line.text)

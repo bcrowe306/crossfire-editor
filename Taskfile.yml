@@ -146,12 +146,18 @@ tasks:
   test:ui:
     desc: Run the UI test scripts in tests/ui (opens the editor window; uses a copy of tests/fixtures/ui_project); SCRIPT=<file> runs one
     deps: [build, prebuilt]
+    env:
+      # The Git tab's script commits: a name and email, whatever git is set up with
+      GIT_AUTHOR_NAME: UI test
+      GIT_AUTHOR_EMAIL: ui-test@example.com
+      GIT_COMMITTER_NAME: UI test
+      GIT_COMMITTER_EMAIL: ui-test@example.com
     cmds:
       # Each script starts from a fresh copy of the project (scripts save and rename things) and
       # tests/ui/settings.ini (the defaults, but opening scripts runs nothing), in a scratch file:
       # never your editor.ini
       - for: { var: UI_SCRIPTS }
-        cmd: 'rm -rf {{.BUILD_DIR}}/ui_project && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project && cp tests/ui/settings.ini {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}} {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
+        cmd: 'rm -rf {{.BUILD_DIR}}/ui_project {{.BUILD_DIR}}/ui_archive && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project && cp tests/ui/settings.ini {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}} {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
     vars:
       UI_SCRIPTS:
         sh: echo "${SCRIPT:-$(ls tests/ui/*.script)}"
@@ -159,11 +165,17 @@ tasks:
   test:ui:fullscreen:
     desc: The UI test scripts in a fullscreen editor (the wide layouts a tiled window never gets); SCRIPT=<file> runs one
     deps: [box2d, sdl, prebuilt]
+    env:
+      # The Git tab's script commits: a name and email, whatever git is set up with
+      GIT_AUTHOR_NAME: UI test
+      GIT_AUTHOR_EMAIL: ui-test@example.com
+      GIT_COMMITTER_NAME: UI test
+      GIT_COMMITTER_EMAIL: ui-test@example.com
     cmds:
       - mkdir -p {{.BUILD_DIR}}
       - odin build . {{.COLLECTIONS}} {{.VET}} -debug -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/{{.NAME}}_fullscreen
       - for: { var: UI_SCRIPTS }
-        cmd: 'rm -rf {{.BUILD_DIR}}/ui_project && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project && cp tests/ui/settings.ini {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}}_fullscreen {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
+        cmd: 'rm -rf {{.BUILD_DIR}}/ui_project {{.BUILD_DIR}}/ui_archive && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project && cp tests/ui/settings.ini {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}}_fullscreen {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
     vars:
       UI_SCRIPTS:
         sh: echo "${SCRIPT:-$(ls tests/ui/*.script)}"

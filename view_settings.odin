@@ -5,13 +5,17 @@ import "core:strings"
 import "gui:skald"
 
 /*
-The Settings dialog (Edit > Settings, Ctrl+,): three tabs over a draft of the settings.
+The Settings dialog (Edit > Settings, Ctrl+,): tabs over a draft of the settings.
 
 	Appearance   theme, text size, spacing, tree row height
-	Editor       undo merging (debounce and throttle) and history length
+	Editor       undo merging (debounce and throttle) and history length, code editor, Play
 	Keyboard     every action's two shortcuts: click one, then press the new keys
+	Toolchain    what building games needs, found or not, and installing Odin
+	Project      the Project Settings dialog's tabs (General, Input, Globals, Export), on its draft
 
-Footer: reset the open tab to its defaults, Cancel, Apply (keep the dialog open), Save.
+Footer: reset the open tab to its defaults (not on Project), Cancel, Apply (keep the dialog open),
+Save. Apply and Save also apply the Project tab's changes once it was opened (one undoable step);
+Cancel drops them.
 
 Widget keys for UI tests: `settings-dialog`, tabs `settings-tab-<Tab>`, `settings-search`,
 shortcut buttons `settings-key-<Action>-<slot>` (slot 0 or 1), `settings-reset-<Action>`,
@@ -31,8 +35,11 @@ settingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		case .Editor:     content = editorTab(s, ctx)
 		case .Keyboard:   content = keyboardTab(s, ctx)
 		case .Toolchain:  content = toolchainTab(s, ctx)
+		case .Project:    content = projectTab(s, ctx)
 		}
 	}
+	// The project's Input and Export tabs are laid out for the Project Settings dialog's width
+	width: f32 = dialog.tab == .Project && s.projectSettings.tab != .General ? 760 : 640
 
 	tabs := make([dynamic]skald.View, context.temp_allocator)
 	for tab in SettingsTab {
@@ -56,7 +63,7 @@ settingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.col(skald.flex(1, content), height = 380, cross_align = .Stretch),
 			skald.divider(ctx),
 			skald.row(
-				skald.button(ctx, "Reset to Defaults", Msg(Settings_Tab_Reset{}), id = skald.hash_id("settings-reset-tab"),
+				dialog.tab == .Project ? skald.spacer(0) : skald.button(ctx, "Reset to Defaults", Msg(Settings_Tab_Reset{}), id = skald.hash_id("settings-reset-tab"),
 					bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm),
 				skald.flex(1, skald.spacer(0)),
 				skald.button(ctx, "Cancel", Msg(Settings_Cancelled{}), id = skald.hash_id("settings-cancel"),
@@ -73,8 +80,22 @@ settingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			cross_align = .Stretch,
 		),
 		id = skald.hash_id("settings-dialog"),
-		width = 640,
-		max_width = 640,
+		width = width,
+		max_width = width,
+	)
+}
+
+// The Project tab: the Project Settings dialog's own tabs, on its draft
+@(private="file")
+projectTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	if !s.projectSettings.open do return skald.spacer(0)
+	tabs, body := ProjectSettings_TabsView(s, ctx)
+	return skald.col(
+		tabs,
+		skald.flex(1, body),
+		spacing = th.spacing.sm,
+		cross_align = .Stretch,
 	)
 }
 

@@ -24,6 +24,7 @@ PendingAction :: enum {
 	Quit,
 	New_Project,
 	Open_Project,
+	Open_Project_Archive,
 }
 
 SessionState :: struct {
@@ -68,6 +69,7 @@ Session_Save :: proc(state: ^State) -> bool {
 		return false
 	}
 	Session_MarkSaved(state)
+	state.git.stale = true
 	logLine(state, .Info, fmt.aprintf("Saved to %s", state.project.rootPath))
 	return true
 }
@@ -221,6 +223,8 @@ runPending :: proc(state: ^State, action: PendingAction) -> skald.Command(Msg) {
 	case .Open_Project:
 		return skald.cmd_open_folder_dialog(proc(r: skald.File_Dialog_Result) -> Msg { return Open_Project_Chosen(r) },
 			default_location = filepath.dir(state.project.rootPath))
+	case .Open_Project_Archive:
+		return ProjectArchive_Open(state)
 	}
 	return {}
 }
@@ -253,6 +257,8 @@ switchProject :: proc(state: ^State, project: Project) {
 	state.scripts.status = .Unknown
 	state.scriptsAutoBuilt = false
 	Scripts_Refresh(state)
+	// Another folder: its version control is read again
+	state.git.stale = true
 }
 
 /*

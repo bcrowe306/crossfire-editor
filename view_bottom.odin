@@ -4,7 +4,8 @@ import "core:fmt"
 import "gui:skald"
 
 /*
-Bottom panel: Console, Output and Animation tabs (the animation editor: view_animation.odin).
+Bottom panel: Console, Output, Animation (view_animation.odin), Mixer (view_mixer.odin) and Git
+(view_git.odin) tabs.
 Keyboard shortcuts are listed in Settings > Keyboard (Help > Keyboard Shortcuts opens it). The chevron collapses it to just its header;
 clicking a tab while collapsed opens it again.
 */
@@ -37,6 +38,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Output:    content = logView(ctx, s.output[:], "Build output appears here when you press Play.", "output-scroll")
 	case .Animation: content = AnimationPanel(s, ctx)
 	case .Mixer:     content = MixerPanel(s, ctx)
+	case .Git:       content = GitPanel(s, ctx)
 	}
 
 	return skald.col(

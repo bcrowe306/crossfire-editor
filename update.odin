@@ -49,6 +49,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
 	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
 	if command, handled := Session_Update(&out, m); handled do return out, command
+	if command, handled := ProjectArchive_Update(&out, m); handled do return out, command
+	if command, handled := Git_Update(&out, m); handled do return out, command
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
 	if command, handled := CodeTabs_Update(&out, m); handled do return out, command
@@ -255,6 +257,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Confirm_Chosen, New_Project_Name_Changed, New_Project_Location_Changed, New_Project_Browse,
 	     New_Project_Location_Chosen, New_Project_Created, New_Project_Cancelled, Open_Project_Chosen:
 		// Handled by Session_Update above
+	case Project_Archive_Path_Chosen, Project_Archive_Open_Chosen, Project_Archive_Destination_Chosen,
+	     Project_Archive_Written, Project_Archive_Extracted:
+		// Handled by ProjectArchive_Update above
+	case Git_Refresh_Requested, Git_Snapshot_Read, Git_Op_Requested, Git_Op_Finished, Git_Message_Changed,
+	     Git_New_Branch_Changed, Git_Remote_URL_Changed:
+		// Handled by Git_Update above
 	case Settings_Tab_Changed, Settings_Theme_Changed, Settings_Value_Changed, Settings_Search_Changed,
 	     Settings_Capture_Started, Settings_Key_Captured, Settings_Capture_Cancelled, Settings_Key_Cleared,
 	     Settings_Key_Reset, Settings_Tab_Reset, Settings_Applied, Settings_Cancelled:
@@ -475,6 +483,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Bottom_Tab_Changed:
 		out.bottomTab = BottomTab(int(v))
 		layout.bottomOpen = true
+		// What git says may have changed since it was read
+		if out.bottomTab == .Git do return out, Git_Refresh(&out)
 	case Scene_Tab_Changed:
 		out.codeTab = 0
 		tabs := ViewportTabScenes(&out)
@@ -795,6 +805,10 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		return out, Session_Request(&out, .New_Project)
 	case .Open_Project:
 		return out, Session_Request(&out, .Open_Project)
+	case .Open_Project_Archive:
+		return out, Session_Request(&out, .Open_Project_Archive)
+	case .Export_Project_Archive:
+		return out, ProjectArchive_Export(&out)
 
 	case .Save_Project:
 		// Saved scripts are built again in the background: the inspector learns new fields

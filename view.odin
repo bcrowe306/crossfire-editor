@@ -30,6 +30,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.send(ctx, Msg(Scripts_Auto_Build{}))
 	}
 	Session_UpdateTitle(&state)
+	Git_View_Tick(&state, ctx)
 	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
 
 	return skald.col(
@@ -75,12 +76,14 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 		{"File", []skald.Menu_Item(Msg){
 			item("New Project", .New_Project, keys),
 			item("Open Project", .Open_Project, keys),
+			item("Open Project Archive...", .Open_Project_Archive, keys),
 			item("Save", .Save_Project, keys),
 			{separator = true},
 			item("Import Asset...", .Import_Asset, keys),
 			item("Project Settings...", .Open_Project_Settings, keys),
 			{separator = true},
 			item("Export...", .Export, keys),
+			item("Export Project Archive...", .Export_Project_Archive, keys),
 			{separator = true},
 			item("Quit", .Quit, keys),
 		}},

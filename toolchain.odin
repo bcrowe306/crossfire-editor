@@ -141,6 +141,8 @@ Toolchain_Check :: proc(settings: ^Settings) -> []ToolStatus {
 		append(&list, ToolStatus{"Static SDL", static, static ? joinPath(engine, "sdl", "lib", allocator = context.temp_allocator) : "",
 			static ? "Linked into games: they're one file." : "Games need the SDL3 libraries beside them. Build it with the engine's tools/build_sdl_static.sh (CMake)."})
 	}
+	git, gitFound := Script_FindEditorProgram("git")
+	append(&list, ToolStatus{"Git", gitFound, gitFound ? git : "", gitFound ? "Version control for your projects (the Git tab)." : "Optional: version control in the Git tab. Install it from git-scm.com or your package manager."})
 	ols := Code_FindOLS(FixedText_String(&settings.olsPath))
 	append(&list, ToolStatus{"Odin language server", ols != "", ols, ols != "" ? "Completion and diagnostics in the code editor." : "Optional: completion and diagnostics in the code editor (ols in PATH, or task ols)."})
 	return list[:]

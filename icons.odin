@@ -64,6 +64,9 @@ ICON_SLIDERS     :: "\uf1de"
 ICON_COPY        :: "\uf0c5"
 ICON_ARROW_UP    :: "\uf062"
 ICON_ARROW_DOWN  :: "\uf063"
+ICON_CODE_BRANCH :: "\uf126"
+ICON_REFRESH     :: "\uf021"
+ICON_UPLOAD      :: "\uf0ee"
 
 @(private="file")
 iconFontRegistered: bool

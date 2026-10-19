@@ -1,0 +1,69 @@
+# Version control: the Git tab on a project that isn't a repository yet (the scratch copy is
+# in build/, which the editor's own repository ignores): Initialize, stage and unstage a file,
+# commit, an edit shows up as a change after saving, a new branch, switching back (the project
+# is opened again from disk).
+# Run with: task test:ui (commits need a git name and email: GIT_AUTHOR_* is set by the task)
+
+wait 5
+# Saved once first: saving writes the fixture's older files in the current format
+key ctrl+s
+click_tab bottom-tabs 4
+expect tab Git
+wait_until git idle
+expect git_state Not_Repo
+click_widget git-init
+wait_until git_state Repo
+wait_until git idle
+expect git_branch main
+expect project_file .gitignore
+expect project_file_contains .gitignore export/
+expect git_commits 0
+expect git_staged 0
+
+# A file in and out of the next commit
+click_widget git-change-0
+wait_until git_staged 1
+wait_until git idle
+click_widget git-change-0
+wait_until git_staged 0
+wait_until git idle
+
+# Commit: nothing staged takes every change
+click_widget git-message
+type First version
+click_widget git-commit
+wait_until git_commits 1
+wait_until git idle
+expect git_last_commit First version
+expect git_changes 0
+expect console_contains Git: commit
+
+# An edit, saved: a change
+click_row browser-tree 2
+key ctrl+1
+click_node Spaceship
+key RIGHT
+key ctrl+s
+wait_until git_changes 1
+wait_until git idle
+
+# A branch with the change committed on it
+click_widget git-new-branch
+type moved-ship
+click_widget git-create-branch
+wait_until git_branch moved-ship
+wait_until git idle
+click_widget git-message
+type Move the ship
+click_widget git-commit
+wait_until git_commits 2
+wait_until git idle
+expect project_file_contains scenes/PlayScene.scene.xml name="Spaceship" x="641"
+
+# Back to main: the project is opened again, with main's files
+send Git_Switch_Branch main
+wait_until git_branch main
+wait_until git idle
+expect console_contains Opened 'Asteroids Demo'
+expect git_commits 1
+expect project_file_contains scenes/PlayScene.scene.xml name="Spaceship" x="640"

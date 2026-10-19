@@ -1,0 +1,31 @@
+# Project archives: File > Export Project Archive writes the project as one .odinsdl file (a zip);
+# File > Open Project Archive unpacks one into a folder and opens it. (The file dialogs can't be
+# scripted: archive_project and open_archive send what they would pick.)
+# Run with: task test:ui
+
+wait 5
+expect project Asteroids Demo
+# An unsaved change: the archive saves first, so it holds it
+click_row browser-tree 2
+key ctrl+1
+click_node Spaceship
+expect selected Spaceship
+expect field x 640
+key RIGHT
+expect field x 641
+expect modified true
+archive_project build/ui_archive/Asteroids.odinsdl
+wait_until console_contains Wrote the project archive
+expect archive idle
+expect modified false
+
+# Open it: unpacked next to it, into Asteroids (the project folder's name), then opened
+open_archive build/ui_archive/Asteroids.odinsdl | build/ui_archive
+wait_until console_contains Unpacked Asteroids.odinsdl
+expect archive idle
+expect console_contains Opened 'Asteroids Demo'
+expect project Asteroids Demo
+expect project_file project.xml
+expect project_file scenes/PlayScene.scene.xml
+expect project_file assets/ship.png
+expect project_file_contains scenes/PlayScene.scene.xml name="Spaceship" x="641"

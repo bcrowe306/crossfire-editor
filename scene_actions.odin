@@ -26,6 +26,9 @@ ProjectSettingsTab :: enum {
 // The Project Settings dialog edits a copy of these; Apply sets them as one undoable step
 ProjectSettingsDialog :: struct {
 	open: bool,
+	// Shown as the Settings dialog's Project tab instead of its own dialog: the Settings dialog's
+	// Apply, Save and Cancel act on it too
+	embedded: bool,
 	tab: ProjectSettingsTab,
 	// The Export tab's target
 	exportTarget: ExportTarget,
@@ -293,8 +296,16 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 		applyProjectSettings(state)
 		dialog.open = false
 		logLine(state, .Info, strings.clone("Project settings changed"))
+		// Applied from the Settings dialog, still open: keep editing a fresh copy
+		if dialog.embedded && state.settingsDialog.open {
+			ProjectSettings_Open(state, dialog.tab)
+			dialog.embedded = true
+		} else {
+			dialog.embedded = false
+		}
 	case Project_Settings_Cancelled:
 		dialog.open = false
+		dialog.embedded = false
 	case:
 		return {}, false
 	}

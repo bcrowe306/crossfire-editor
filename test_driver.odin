@@ -75,8 +75,13 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	send <Message> <value>           Send what a dropdown choice would (dropdowns can't be clicked
 	                                 open): New_Script_Kind_Changed <Node | Global | Data>,
 	                                 Global_Added <script>, New_Data_Type_Changed <type>,
-	                                 Project_Settings_Tab_Changed <tab>, New_Script_Opened,
+	                                 Project_Settings_Tab_Changed <tab>, Git_Switch_Branch <name>
+	                                 (the Git tab's branch list), New_Script_Opened,
 	                                 New_Data_Opened (no value)
+	archive_project <path>           Export Project Archive to a file, as if picked in its dialog
+	open_archive <archive> | <folder>
+	                                 Open Project Archive: unpack the archive into the folder (as
+	                                 if picked in its two dialogs; no unsaved-changes prompt)
 	open_project <folder>            Open a project, as if picked in the folder dialog (no
 	                                 unsaved-changes prompt)
 	drag_node <name> <dx> <dy>       Press on a node, move by (dx, dy) window pixels, release
@@ -144,6 +149,12 @@ Checks:
 	console_contains <text>      A console line contains the text
 	output_contains <text>       An Output line contains the text
 	export <idle | running>      Whether exports are running
+	archive <idle | busy>        Whether a project archive is being written or unpacked
+	git <idle | busy>            Whether the Git tab runs a command or reads the repository
+	git_state <Unknown | Missing | Not_Repo | Repo>
+	git_branch <name>            The project's branch
+	git_changes <n>              Changed files in the project folder; git_staged <n>: staged
+	git_commits <n>              Commits in the history; git_last_commit <subject>: the newest
 	export_enabled <Target> <true | false>   An export target is checked (the project's settings)
 	project_file <path>          A file exists, relative to the project folder (an export's output)
 	project_file_missing <path>  No such file or folder, relative to the project folder
@@ -856,6 +867,8 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		case "Project_Settings_Tab_Changed":
 			tab, ok := reflect.enum_from_name(ProjectSettingsTab, value)
 			if ok do msg = Project_Settings_Tab_Changed(tab)
+		case "Git_Switch_Branch":
+			msg = Git_Op_Requested{op = .Switch_Branch, arg = strings.clone(value, context.temp_allocator)}
 		}
 		if msg == nil {
 			fail(fmt.tprintf("%s: unknown message or value", line))
@@ -878,6 +891,22 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "archive_project":
+		skald.send(ctx, Msg(Project_Archive_Path_Chosen{path = strings.clone(rest)}))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+	case "open_archive":
+		archive, _, folder := strings.partition(rest, " | ")
+		if archive == "" || folder == "" {
+			fail(fmt.tprintf("%s (expected open_archive <archive> | <folder>)", line))
+			return false
+		}
+		skald.send(ctx, Msg(Project_Archive_Open_Chosen{path = strings.clone(archive)}))
+		skald.send(ctx, Msg(Project_Archive_Destination_Chosen{path = strings.clone(folder)}))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
 	case "open_project":
 		// Kept: the message may be handled after this frame's temp memory is freed (test-only, tiny)
 		skald.send(ctx, Msg(Open_Project_Chosen{path = strings.clone(rest)}))
@@ -1398,6 +1427,24 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return found == strings.trim_space(expected), found
 	case "export":
 		found = Export_Busy(s) ? "running" : "idle"
+	case "archive":
+		found = s.archive.busy ? "busy" : "idle"
+	case "git":
+		found = s.git.busy || s.git.refreshing || s.git.stale ? "busy" : "idle"
+	case "git_state":
+		found = fmt.tprint(s.git.snapshot.availability)
+	case "git_branch":
+		found = s.git.snapshot.branch
+	case "git_changes":
+		found = fmt.tprint(len(s.git.snapshot.changes))
+	case "git_staged":
+		staged := 0
+		for change in s.git.snapshot.changes do if change.staged != ' ' && change.staged != '?' do staged += 1
+		found = fmt.tprint(staged)
+	case "git_commits":
+		found = fmt.tprint(len(s.git.snapshot.log))
+	case "git_last_commit":
+		found = len(s.git.snapshot.log) > 0 ? s.git.snapshot.log[0].subject : "none"
 	case "export_enabled":
 		target_name, _, expected := strings.partition(value, " ")
 		target, known := reflect.enum_from_name(ExportTarget, target_name)

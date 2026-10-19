@@ -28,34 +28,20 @@ Widget keys for UI tests: `project-settings-tab-<Tab>`, `project-settings-name`,
 */
 projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
-	if !s.projectSettings.open do return closedDialog(ctx, "project-settings-dialog")
+	// Embedded: the Settings dialog's Project tab shows it (ProjectSettings_TabsView)
+	if !s.projectSettings.open || s.projectSettings.embedded do return closedDialog(ctx, "project-settings-dialog")
 	th := ctx.theme
 	d := &s.projectSettings
 	content: skald.View = skald.View_Spacer{size = 0}
 	if d.open {
-		tabs := make([dynamic]skald.View, context.temp_allocator)
-		for tab in ProjectSettingsTab {
-			active := tab == d.tab
-			append(&tabs, skald.button(ctx, fmt.tprintf("%v", tab), Msg(Project_Settings_Tab_Changed(tab)),
-				id = skald.hash_id(fmt.tprintf("project-settings-tab-%v", tab)),
-				bg = active ? th.color.primary : th.color.surface,
-				fg = active ? th.color.on_primary : th.color.fg,
-				font_size = th.font.size_sm))
-		}
-		body: skald.View
-		switch d.tab {
-		case .General: body = generalTab(s, ctx)
-		case .Input:   body = inputTab(s, ctx)
-		case .Globals: body = globalsTab(s, ctx)
-		case .Export:  body = exportTab(s, ctx)
-		}
+		tabs, body := ProjectSettings_TabsView(s, ctx)
 		// The Export tab scrolls inside a fixed height: 400 px, less in a short window, so the
 		// buttons below stay on screen (the title, tabs and footer take about 220 px)
 		exportHeight: f32 = 400
 		if ctx.renderer != nil do exportHeight = clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 400)
 		content = skald.col(
 			skald.text("Project Settings", th.color.fg, th.font.size_lg),
-			skald.row(..tabs[:], spacing = th.spacing.xs),
+			tabs,
 			skald.divider(ctx),
 			skald.col(skald.flex(1, body), height = d.tab == .General ? 0 : exportHeight, cross_align = .Stretch),
 			skald.divider(ctx),
@@ -81,6 +67,34 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 		width = width,
 		max_width = width,
 	)
+}
+
+/*
+The Project Settings tabs: the row of tab buttons and the shown tab, for the Project Settings
+dialog and the Settings dialog's Project tab.
+
+Returns:
+- The tab buttons (a row), and the shown tab's content
+*/
+ProjectSettings_TabsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> (tabs, body: skald.View) {
+	th := ctx.theme
+	d := &s.projectSettings
+	buttons := make([dynamic]skald.View, context.temp_allocator)
+	for tab in ProjectSettingsTab {
+		active := tab == d.tab
+		append(&buttons, skald.button(ctx, fmt.tprintf("%v", tab), Msg(Project_Settings_Tab_Changed(tab)),
+			id = skald.hash_id(fmt.tprintf("project-settings-tab-%v", tab)),
+			bg = active ? th.color.primary : th.color.surface,
+			fg = active ? th.color.on_primary : th.color.fg,
+			font_size = th.font.size_sm))
+	}
+	switch d.tab {
+	case .General: body = generalTab(s, ctx)
+	case .Input:   body = inputTab(s, ctx)
+	case .Globals: body = globalsTab(s, ctx)
+	case .Export:  body = exportTab(s, ctx)
+	}
+	return skald.row(..buttons[:], spacing = th.spacing.xs), body
 }
 
 @(private="file")

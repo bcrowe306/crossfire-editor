@@ -133,6 +133,10 @@ Skald is not immediate-mode and not a retained widget tree:
 | `node_edit.odin` | Subtree copy/paste/duplicate, `Scene_MoveNode` (reorder and reparent keeping the world transform), unique names |
 | `history.odin` | Undo/redo: command history, automatic recording (`History_Classify`), merging |
 | `settings.odin` | `Settings`, loading/saving editor.ini over `settings.default.ini`, chord text, the Skald theme |
+| `zip.odin` | Zip files: `Zip_Write` (stored), `Zip_List` / `Zip_Read` (stored and deflated, CRC checked), `Zip_SafeName` |
+| `project_archive.odin` | Project archives (`.odinsdl`): `ProjectArchive_Create` (outside assets brought in), `ProjectArchive_Extract`, the File menu's flow |
+| `vcs.odin` | Version control through `git`: `GitSnapshot` / `Git_ReadSnapshot`, `GitOp` / `Git_Commands` / `Git_RunCommands`, `Git_Update` |
+| `view_git.odin` | The bottom panel's Git tab |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard, Toolchain tabs |
@@ -460,6 +464,59 @@ positioned at that point in the parent's space. Undoable.
   Open Project: a folder dialog, then `Project_Load`. `switchProject` resets everything that
   belonged to the old project, including the undo history.
 
+### Project archives (implemented, `project_archive.odin`, `zip.odin`)
+
+A project in one file: a zip with the extension `.odinsdl` (`PROJECT_ARCHIVE_EXTENSION`) holding
+one folder, the project folder's name (`Game/project.xml`, ...). Its doc comment has the rules.
+- **Export Project Archive** (File menu): a save dialog, then `Session_Save`, then
+  `ProjectArchive_Create` on a worker (`ProjectArchive_Input` copies what it needs). Left out:
+  `export/`, `.git/`, `build/`, every export target's output folder, OS clutter, the archive
+  itself. **Assets outside the folder** (`../x.png`, absolute) go to `assets/external/` and the
+  archive's text files (`.xml`, `.json`, `.odin`, `.ini`) get the quoted old path replaced; the
+  project on disk keeps its paths.
+- **Open Project Archive**: the unsaved-changes prompt (`PendingAction.Open_Project_Archive`), an
+  open dialog (`.odinsdl`, `.zip`), a folder dialog (default: the archive's folder), then
+  `ProjectArchive_Extract` on a worker into `<folder>/<top folder>` (`_2`... when taken), then
+  `Session_OpenProject`. A zip with `project.xml` at its top works too (folder: the zip's name).
+  Names with `..`, absolute, with `\` or `:` are refused before anything is written.
+- **Why stored, not deflated:** Odin's core library inflates (`core:compress/zlib`) but has no
+  deflate encoder, and a project is mostly PNGs and compressed audio. No zip64 (65535 files, 4 GB).
+- Tests: `zip_round_trip_and_safe_names` (round trip, CRC catches damage, a Python-made deflated
+  zip `tests/fixtures/deflated.zip`, zip slip names), `project_archive_brings_outside_assets_in`
+  (left-out folders, rewritten paths, opens with `Project_Load`, `_2`, refusals);
+  `tests/ui/project_archive.script` (unsaved edit saved first, archive, unpack, open; `unzip -t`
+  accepts the archive). The driver's `archive_project <path>` and `open_archive <a> | <folder>`
+  stand in for the dialogs.
+
+### Version control (implemented, `vcs.odin`, `view_git.odin`; the bottom panel's Git tab)
+
+Git through the `git` program (`Script_FindEditorProgram`; Settings > Toolchain has a row).
+`vcs.odin`'s doc comment has the behavior; what the code relies on:
+- **The tab shows a `GitSnapshot`**, read on a worker (`Git_ReadSnapshot`: rev-parse, status
+  `--porcelain=v1 -z --branch -- .`, log, branch, remote) into its own arena, replaced whole.
+  Reads are asked for by `Git_View_Tick` (the view, every frame) when the snapshot is unknown or
+  `stale`: saves (`Session_Save`) and `switchProject` set `stale`, since they can't return
+  commands; showing the tab and every command's end refresh directly. A snapshot read for another
+  folder (the project changed meanwhile) is dropped and read again.
+- **Paths are the project's**: commands run in the project folder with `-- .` pathspecs, and
+  porcelain paths (relative to the repository) lose the project's prefix. A project inside a
+  repository that ignores it (`check-ignore`, like `build/ui_project` in this repo) counts as not
+  under version control: Initialize makes it its own repository.
+- **Commands** (`GitOp`, `Git_Commands` lists the git calls, `Git_OpProblem` refuses bad input)
+  run one at a time on a worker (`Git_RunCommands`), env `GIT_TERMINAL_PROMPT=0`,
+  `GIT_MERGE_AUTOEDIT=no`, `GIT_SSH_COMMAND=ssh -o BatchMode=yes` (unless set) and no stdin, so
+  nothing waits for a password. Saved first; Pull and Switch_Branch (`Git_ChangesFiles`) open the
+  project again from disk. Unstage before the first commit is `git rm --cached` (no HEAD to reset
+  to). Commit with nothing staged runs `git add -A -- .` first.
+- **Layout:** the history column is left out under 720 px (a tiled window), so the commit
+  controls keep their width.
+- Tests: `git_init_stage_commit_branch_push` (a real repository in build/: init, stage and
+  unstage, commits, branches, a bare remote for push, upstream and ahead counts; sets
+  `GIT_AUTHOR_*` since CI has no identity) and `tests/ui/git.script` (the Taskfile's UI tasks set
+  `GIT_AUTHOR_*` / `GIT_COMMITTER_*`). The branch list is a dropdown: the driver's `send
+  Git_Switch_Branch <name>` picks one.
+- Later: diffs, discarding changes, merge conflicts, Git LFS, a branch in the status bar.
+
 ### Status bar frame stats
 
 `FrameStats` (view.odin) counts the frames drawn per second and times the last viewport render and
@@ -640,6 +697,15 @@ after, and its scene. Undo switches to that scene and restores "before"; redo re
 - Keyboard tab: clicking a shortcut starts a capture; the next key press (with modifiers) binds
   it, Escape cancels, Clear unbinds. `captureKey` empties that frame's key input so nothing else
   sees it. Conflicts are shown, not blocked (the first action in `Action` order wins).
+
+### Settings > Project
+
+The Settings dialog's last tab shows the Project Settings dialog's tabs (`ProjectSettings_TabsView`,
+shared) on its draft, opened with `ProjectSettingsDialog.embedded` set: File > Project Settings'
+own dialog then draws nothing. Settings' Apply and Save also send `Project_Settings_Applied`
+(`cmd_batch` after the theme), one undoable step, after which an Apply (dialog still open) opens a
+fresh copy; Cancel drops it. Reset to Defaults is hidden on that tab. The dialog widens to 760 for
+the project's Input, Globals and Export tabs. Test: `tests/ui/settings_project.script`.
 
 ### Toolchain (implemented, `toolchain.odin`, Settings > Toolchain)
 
@@ -1139,6 +1205,8 @@ Highlights:
   - dialog buttons `dialog-<name>`, the viewport `viewport-canvas`
   - Add Node dialog: `add-node-search`, rows `add-node-<Kind>` (e.g. `add-node-Sprite`), `add-node-cancel`
   - the scene tree's context menu `scene-tree-menu` (`right_click_row`, `click_menu_item`)
+  - Git tab: `git-init`, `git-message`, `git-commit`, `git-change-<i>`, `git-new-branch`,
+    `git-create-branch`, `git-remote-url`, `git-add-remote`, `git-pull`, `git-push` (view_git.odin)
   - Settings dialog: `settings-tab-<Tab>`, `settings-search`, `settings-key-<Action>-<slot>`,
     `settings-save` / `settings-apply` / `settings-cancel` (see view_settings.odin)
   - Project Settings: `project-settings-tab-<Tab>`; Export tab `export-enable-<Target>`,
