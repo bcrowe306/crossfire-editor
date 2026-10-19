@@ -9,8 +9,6 @@ owns it.
 - **macOS bundle signing and notarization** with gon (`brew install mitchellh/gon/gon`, a
   checked-in `.json` config), once an Apple developer account is available: `task
   macos:notarize`, `tools/macos/gon.json.example`, `entitlements.plist`.
-- **macOS UI tests in CI**: make the installed-app UI step required once MoltenVK is known to
-  get a Metal device on GitHub's macOS runners (it's `continue-on-error` until then).
 - **An app icon** (`.icns`, `CFBundleIconFile` in tools/macos/Info.plist.in) and a disk image
   background.
 - **Linux and Windows bundles** the same way: Taskfile.linux.yml (an AppImage?) and

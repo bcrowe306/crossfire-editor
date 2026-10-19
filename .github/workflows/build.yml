@@ -117,9 +117,7 @@ jobs:
 
       - name: UI tests with the installed app
         if: runner.os == 'macOS'
-        # GitHub's macOS runners are virtual machines: whether MoltenVK gets a Metal device there
-        # decides this step, so it doesn't fail the build (yet)
-        continue-on-error: true
+        # MoltenVK gets a Metal device on GitHub's macOS runners: the installed app opens its window
         timeout-minutes: 20
         env:
           VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}

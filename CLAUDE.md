@@ -1173,9 +1173,13 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
   ldtk, scripts (a game with scripts compiled against the bundled engine) and code_editor pass.
   The dylib, Vulkan, signing and disk-image steps only run on a Mac: CI.
 - **CI:** `brew install go-task`, `task macos:deps`, `task macos:dist`, `UI=false task
-  macos:verify` (install and bundle check: fails the build), then `task macos:verify` with UI
-  scripts as `continue-on-error` until we know MoltenVK gets a Metal device on GitHub's virtual
-  macOS runners. The release ships the `.dmg`.
+  macos:verify` (install and bundle check), then `task macos:verify` with UI scripts (smoke,
+  toolchain, ldtk, scripts) run by the installed app: MoltenVK gets a Metal device on GitHub's
+  macOS runners. `verify.sh` unsets the job's `SDL_VIDEO_DRIVER=dummy` (no Vulkan there). The
+  release ships the `.dmg`.
+- **The host target** (`Toolchain_HostTarget`) comes from `ODIN_OS` / `ODIN_ARCH`: it once came
+  from the implemented exports, so on a Mac there was none and Play never used the prebuilt
+  player (the installed app's toolchain.script found it).
 - **Later:** a Developer ID signature and notarization with gon (`task macos:notarize`,
   `tools/macos/gon.json.example`, `entitlements.plist`); an app icon.
 - OLS is pinned in code_editor (`OLS_REF`): `c96dea91` is the newest that builds with Odin

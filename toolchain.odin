@@ -103,9 +103,18 @@ Toolchain_TargetFolder :: proc(target: ExportTarget) -> string {
 	return strings.to_lower(fmt.tprint(target), context.temp_allocator)
 }
 
-// The desktop target this editor runs on (Linux_x64 on Linux x86_64...), and whether it is one
+/*
+The desktop target this editor runs on (Linux_x64 on Linux x86_64...), and whether it is one: from
+what the editor was compiled for, not from which exports are implemented (on a Mac, where no
+export is yet, it once found no host, so Play never used the bundle's prebuilt player).
+*/
 Toolchain_HostTarget :: proc() -> (ExportTarget, bool) {
-	for target in ExportTarget do if Export_Implemented(target) && target != .Web do return target, true
+	when ODIN_OS == .Linux && ODIN_ARCH == .amd64 do return .Linux_x64, true
+	when ODIN_OS == .Linux && ODIN_ARCH == .arm64 do return .Linux_ARM64, true
+	when ODIN_OS == .Windows && ODIN_ARCH == .amd64 do return .Windows_x64, true
+	when ODIN_OS == .Windows && ODIN_ARCH == .arm64 do return .Windows_ARM64, true
+	when ODIN_OS == .Darwin && ODIN_ARCH == .amd64 do return .macOS_x64, true
+	when ODIN_OS == .Darwin && ODIN_ARCH == .arm64 do return .macOS_ARM64, true
 	return .Linux_x64, false
 }
 
