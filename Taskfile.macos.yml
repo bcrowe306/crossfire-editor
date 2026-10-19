@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 
-# Building, bundling and checking the editor on macOS: a self-contained "Odin SDL Editor.app"
+# Building, bundling and checking the editor on macOS: a self-contained "Crossfire Editor.app"
 # (everything but Odin itself) in a disk image. Included by Taskfile.yml as `macos:`, so:
 #
 #   task macos:deps      once: dylibbundler, the Vulkan loader, MoltenVK (Homebrew), dmgbuild (pip)
@@ -14,8 +14,8 @@
 version: '3'
 
 vars:
-  APP_NAME: Odin SDL Editor
-  BUNDLE_ID: io.github.bcrowe306.odin-sdl-editor
+  APP_NAME: Crossfire Editor
+  BUNDLE_ID: io.github.bcrowe306.crossfire-editor
   DIST: dist/macos
   WORK: '{{.DIST}}/build'
   APP: '{{.DIST}}/{{.APP_NAME}}.app'
@@ -23,7 +23,7 @@ vars:
     sh: 'echo "${VERSION:-$(git describe --tags --always 2>/dev/null || echo dev)}"'
   TARGET:
     sh: 'case "$(uname -m)" in arm64) echo macos_arm64;; *) echo macos_x64;; esac'
-  DMG: '{{.DIST}}/odin_sdl_editor-{{.VERSION}}-{{.TARGET}}.dmg'
+  DMG: '{{.DIST}}/crossfire-editor-{{.VERSION}}-{{.TARGET}}.dmg'
   OLS_BIN: '{{.WORK}}/ols'
   # Room in the executables' headers for dylibbundler's rewritten library paths (without it,
   # install_name_tool fails: "larger updated load commands do not fit"). No ODIN_LINK_FLAGS (CI's
@@ -82,7 +82,7 @@ tasks:
       - odin build code_editor/third_party/ols/src -collection:src=code_editor/third_party/ols/src -o:speed -out:{{.WORK}}/ols {{.MACOS_LINK}}
 
   app:
-    desc: Build "Odin SDL Editor.app" in dist/macos - the editor, OLS, the prebuilt player, the engine's sources and static libraries, the Vulkan loader, MoltenVK and every other library it links, signed ad hoc
+    desc: Build "Crossfire Editor.app" in dist/macos - the editor, OLS, the prebuilt player, the engine's sources and static libraries, the Vulkan loader, MoltenVK and every other library it links, signed ad hoc
     platforms: [darwin]
     deps: [editor, player, ols]
     cmds:

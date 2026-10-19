@@ -30,6 +30,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.send(ctx, Msg(Scripts_Auto_Build{}))
 	}
 	Session_UpdateTitle(&state)
+	Branding_SetWindowIcon()
 	Git_View_Tick(&state, ctx)
 	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds the editor (optimized) and packs the built program for a release:
-#   dist/odin_sdl_editor-<version>-<platform>.tar.gz (.zip on Windows), holding the editor's
+# Builds Crossfire Editor (optimized) and packs the built program for a release:
+#   dist/crossfire-editor-<version>-<platform>.tar.gz (.zip on Windows), holding the editor's
 #   executable with the SDL3 libraries it needs (Linux: lib/, found through rpath $ORIGIN/lib;
 #   Windows: the DLLs next to it; macOS: Homebrew's, not bundled), a README.txt, and what building
 #   games needs besides Odin and a linker (the editor's toolchain.odin):
@@ -8,7 +8,9 @@
 #     exports projects without scripts with no compiler at all
 #   - engine/: the engine's sources (its git-tracked files, without the third_party submodules)
 #     with its built Box2D (box2d/lib) and static SDL (sdl/lib), for games with scripts
-#   Settings, icons and fonts are built in.
+#   Settings, icons and fonts are built in. The Windows executable has the Crossfire icon
+#   (crossfire.rc); the Linux archive has icons/ and install-desktop-entry.sh (the application
+#   menu entry, with the icon). macOS releases are the app bundle (Taskfile.macos.yml) instead.
 #
 # Usage: tools/ci/package_editor.sh <platform> <version>
 # Run from the editor's folder, with the engine checked out next to it (../odin_sdl_engine) and
@@ -18,7 +20,7 @@ platform=$1
 version=$2
 editor=$(cd "$(dirname "$0")/../.." && pwd)
 engine=$(cd "$editor/../odin_sdl_engine" && pwd)
-name="odin_sdl_editor-$version-$platform"
+name="crossfire-editor-$version-$platform"
 stage="$editor/dist/$name"
 rm -rf "$stage"
 mkdir -p "$stage"
@@ -50,7 +52,7 @@ Darwin)
 	fi
 	;;
 *)
-	odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor.exe"
+	odin build . "${flags[@]}" -resource:crossfire.rc "-out:$stage/odin_sdl_editor.exe"
 	root=$(odin root)
 	if ! $static; then
 		for d in sdl3 sdl3/image sdl3/ttf sdl3/mixer; do cp "${root%/}/vendor/$d"/*.dll "$stage/"; done
@@ -96,12 +98,20 @@ fi
 mkdir -p "$stage/engine"
 (cd "$engine" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) | tar -xf - -C "$stage/engine"
 
+# Linux: the icon and the application menu entry
+if [[ "$(uname -s)" == Linux ]]; then
+	mkdir -p "$stage/icons"
+	cp assets/icons/crossfire.png assets/icons/crossfire_256.png "$stage/icons/"
+	cp tools/linux/install-desktop-entry.sh "$stage/"
+fi
+
 cat > "$stage/README.txt" <<TXT
-odin_sdl_editor $version ($platform), a development build
+Crossfire Editor $version ($platform), a development build
 
     ./odin_sdl_editor [project folder]     (odin_sdl_editor.exe on Windows)
 
 With no folder it opens examples/demo_project in the current folder, creating it if it's missing.
+Linux: ./install-desktop-entry.sh adds it to your application menu, with its icon.
 The editor needs a Vulkan driver (on macOS: brew install molten-vk vulkan-loader).
 
 Projects without scripts play and export with the prebuilt player (prebuilt/): nothing to install.

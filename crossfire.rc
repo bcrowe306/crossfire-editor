@@ -1,0 +1,4 @@
+// The Windows executable's icon, compiled in with `odin build ... -resource:crossfire.rc` (the
+// Taskfile's builds on Windows and tools/ci/package_editor.sh). Here, beside the build's working
+// folder, so the relative path resolves whichever folder rc.exe resolves it from.
+1 ICON "assets/icons/crossfire.ico"

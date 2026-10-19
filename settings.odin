@@ -244,7 +244,7 @@ Returns:
 */
 Settings_ToINI :: proc(settings: ^Settings) -> string {
 	b := strings.builder_make(context.temp_allocator)
-	strings.write_string(&b, "; Odin SDL Editor settings, saved by the Settings dialog (Edit > Settings).\n")
+	strings.write_string(&b, "; Crossfire Editor settings, saved by the Settings dialog (Edit > Settings).\n")
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)

@@ -263,10 +263,10 @@ switchProject :: proc(state: ^State, project: Project) {
 
 /*
 Keeps the window title showing the project and whether it has unsaved changes:
-"NewGame* - Odin SDL Editor". Called from `view`; only touches the window when the text changes.
+"NewGame* - Crossfire Editor". Called from `view`; only touches the window when the text changes.
 */
 Session_UpdateTitle :: proc(state: ^State) {
-	title := fmt.tprintf("%s%s - Odin SDL Editor", state.project.name, Project_IsModified(state) ? "*" : "")
+	title := fmt.tprintf("%s%s - %s", state.project.name, Project_IsModified(state) ? "*" : "", APP_NAME)
 	if title == lastWindowTitle do return
 	count: i32
 	windows := sdl.GetWindows(&count)

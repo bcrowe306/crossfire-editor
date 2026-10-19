@@ -5,16 +5,16 @@ import "core:path/filepath"
 import "core:strings"
 
 /*
-Running from a macOS app bundle (`Odin SDL Editor.app`, made by Taskfile.macos.yml): the
+Running from a macOS app bundle (`Crossfire Editor.app`, made by Taskfile.macos.yml): the
 editor's executable is in `Contents/MacOS`, beside OLS and the prebuilt player; the engine's
 sources are in `Contents/Resources/engine`; the Vulkan loader and MoltenVK are in
 `Contents/Frameworks`. A bundle is read-only (it's signed, and usually in /Applications), and an
 app started from the Finder runs in `/`, so `Editor_SetupBundle`, first thing in `main`:
 
 - makes the editor's data folder (`Toolchain_DataDir`: `~/Library/Application Support/
-  odin_sdl_editor`) the working folder: Play's and Export's `build/` folders go there;
+  crossfire-editor`) the working folder: Play's and Export's `build/` folders go there;
 - keeps the settings there (`Settings_DefaultPath`), not next to the executable;
-- puts the demo project in `~/Documents/Odin SDL Editor/demo_project` (`Editor_DemoProject`);
+- puts the demo project in `~/Documents/Crossfire Editor/demo_project` (`Editor_DemoProject`);
 - points SDL at the bundled Vulkan loader (`SDL_VULKAN_LIBRARY`) and the loader at the bundled
   MoltenVK driver (`VK_DRIVER_FILES` / `VK_ICD_FILENAMES`, unless they're set already), so nothing
   needs installing.
@@ -49,11 +49,11 @@ Editor_SetupBundle :: proc() {
 }
 
 // The project opened when none is given: examples/demo_project in the working folder, or in
-// ~/Documents/Odin SDL Editor from a bundle
+// ~/Documents/Crossfire Editor from a bundle
 Editor_DemoProject :: proc() -> string {
 	if _, inBundle := Editor_BundleContents(); inBundle {
 		if home, err := os.user_home_dir(context.temp_allocator); err == nil {
-			return filepath.join({home, "Documents", "Odin SDL Editor", "demo_project"}, context.allocator) or_else DEMO_PROJECT
+			return filepath.join({home, "Documents", "Crossfire Editor", "demo_project"}, context.allocator) or_else DEMO_PROJECT
 		}
 	}
 	return DEMO_PROJECT

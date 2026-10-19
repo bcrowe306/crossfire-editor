@@ -1,14 +1,16 @@
 # dmgbuild settings for the editor's disk image (task macos:dmg):
-#   dmgbuild -s tools/macos/dmg_settings.py -D app="dist/macos/Odin SDL Editor.app" "Odin SDL Editor" out.dmg
+#   dmgbuild -s tools/macos/dmg_settings.py -D app="dist/macos/Crossfire Editor.app" "Crossfire Editor" out.dmg
 # The window shows the app and a link to /Applications to drag it onto.
 # Reference: https://dmgbuild.readthedocs.io/en/latest/settings.html
 import os.path
 
 # `defines` comes from dmgbuild's -D options
-application = defines.get("app", "dist/macos/Odin SDL Editor.app")  # noqa: F821
+application = defines.get("app", "dist/macos/Crossfire Editor.app")  # noqa: F821
 appname = os.path.basename(application)
 
 format = "UDZO"  # zlib-compressed, read-only
+# The mounted volume's icon: the app's
+icon = os.path.join(application, "Contents", "Resources", "Crossfire.icns")
 filesystem = "HFS+"
 size = None  # as big as the contents need
 files = [application]

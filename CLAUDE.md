@@ -1,6 +1,22 @@
-# Odin SDL Editor
+# Crossfire Editor
 
-A desktop game editor for the **odin_sdl_engine**. Users create projects, build scenes from nodes,
+A desktop game editor for the **Crossfire Engine** (the odin_sdl_engine repository).
+
+**Branding:** the product names are **Crossfire Editor** and **Crossfire Engine**; the logo is
+`assets/icons/crossfire.png` (1024 px, transparent; made from the artwork with the background and
+watermarks removed: see `tools/icons/make_icons.sh`). Use the names in anything users see (window
+title, docs, release titles and archives, the app bundle). The repositories, the Odin package
+names and the executable keep `odin_sdl`.
+- **Icons per platform:** the window icon at run time on all of them (`branding.odin`, from
+  `assets/icons/crossfire_256.png`); Windows: `crossfire.rc` (at the root, so rc.exe finds
+  `assets/icons/crossfire.ico` whichever folder it resolves from) compiled in with `-resource:`
+  (`ICON_RESOURCE` in the Taskfile, package_editor.sh); macOS: `Crossfire.icns` made by
+  bundle.sh's layout step (sips + iconutil), `CFBundleIconFile`, also the disk image's volume
+  icon; Linux: the archive's `icons/` and `install-desktop-entry.sh` (a `.desktop` named by the
+  app ID `io.github.bcrowe306.crossfire-editor`, which the window carries, so the desktop shows
+  the icon for the running window too).
+- The data folder (`Toolchain_DataDir`) is `crossfire-editor` (it was `odin_sdl_editor`: an Odin
+  installed there before needs installing again). Users create projects, build scenes from nodes,
 manage assets, run their game, and export it to the web and desktop platforms (later: Steam,
 consoles and handhelds).
 
@@ -137,6 +153,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `project_archive.odin` | Project archives (`.odinsdl`): `ProjectArchive_Create` (outside assets brought in), `ProjectArchive_Extract`, the File menu's flow |
 | `vcs.odin` | Version control through `git`: `GitSnapshot` / `Git_ReadSnapshot`, `GitOp` / `Git_Commands` / `Git_RunCommands`, `Git_Update` |
 | `view_git.odin` | The bottom panel's Git tab |
+| `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject`, `Editor_ArgumentPath` |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
@@ -721,7 +738,7 @@ What a user needs to build games, so a release works without a checkout or a han
   the editor installed. **Install Odin** (`Toolchain_InstallOdin`, a `skald.cmd_thread`) downloads
   the pinned release (`ODIN_VERSION`, the engine's: `dev-2026-10`) from GitHub with curl and
   unpacks it with tar (Windows 10+ has both) into `<SDL pref path>/odin/<version>/` (Linux:
-  `$XDG_DATA_HOME/odin_sdl_editor/...`, else `~/.local/share/...`). About 3 minutes.
+  `$XDG_DATA_HOME/crossfire-editor/...`, else `~/.local/share/...`). About 3 minutes.
 - **A linker** can't be shipped: clang (Linux), Xcode's command line tools (macOS), Visual Studio
   Build Tools (Windows). The tab says how to get the missing one.
 - The tab lists `Toolchain_Check`'s rows (Odin, engine sources, linker, prebuilt player, static
@@ -1133,7 +1150,7 @@ targets (unoptimized; about 10 s once emsdk's port cache is warm).
 
 ## macOS app bundle (`Taskfile.macos.yml`, `tools/macos/`)
 
-`task macos:dist` makes `dist/macos/Odin SDL Editor.app` and a disk image; `task macos:verify`
+`task macos:dist` makes `dist/macos/Crossfire Editor.app` and a disk image; `task macos:verify`
 installs the image's app into a temporary folder and runs UI scripts with it. CI's macOS job runs
 the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in the bundle:
 
@@ -1155,7 +1172,7 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
   bundle's loader and `VK_DRIVER_FILES` / `VK_ICD_FILENAMES` to its MoltenVK manifest (unless set).
 - **A bundle is read-only and starts in `/`:** `Editor_SetupBundle` makes the data folder
   (`Toolchain_DataDir`) the working folder, so Play's and Export's relative `build/` folders land
-  there; settings live there too; the demo project goes to `~/Documents/Odin SDL Editor/`.
+  there; settings live there too; the demo project goes to `~/Documents/Crossfire Editor/`.
   Command-line and UI-script paths resolve against the folder the editor was started in
   (`Editor_ArgumentPath`: the driver's `import`, `open_project`, archives). The engine is found in
   `Resources/engine`, OLS beside the executable (`Code_FindOLS`), the prebuilt player in
@@ -1166,10 +1183,10 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
   tasks pass only `-headerpad_max_install_names` (room for dylibbundler's rewritten paths; OLS
   failed without it, so `macos:ols` builds its own optimized copy). `check` fails if any SDL
   dylib got bundled.
-- **Spaces in paths:** "Odin SDL Editor.app" found that the engine's static SDL `-L` wasn't
+- **Spaces in paths:** "Crossfire Editor.app" found that the engine's static SDL `-L` wasn't
   quoted (the link failed); it is now (the engine's sdl_static.odin).
 - **Tested on Linux with a fake bundle** (the real editor, OLS, prebuilt player and engine copy
-  in `/tmp/fakebundle/Odin SDL Editor.app/Contents/...`, `XDG_DATA_HOME` scratch): toolchain,
+  in `/tmp/fakebundle/Crossfire Editor.app/Contents/...`, `XDG_DATA_HOME` scratch): toolchain,
   ldtk, scripts (a game with scripts compiled against the bundled engine) and code_editor pass.
   The dylib, Vulkan, signing and disk-image steps only run on a Mac: CI.
 - **CI:** `brew install go-task`, `task macos:deps`, `task macos:dist`, `UI=false task

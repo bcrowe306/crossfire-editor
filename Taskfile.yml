@@ -24,6 +24,8 @@ vars:
   EMSDK_VERSION: 6.0.12
   # Vet only the editor's own package: Skald itself doesn't pass -vet
   VET: -vet-unused -vet-packages:editor
+  # Windows: the executable's icon (crossfire.rc)
+  ICON_RESOURCE: '{{if eq OS "windows"}}-resource:crossfire.rc{{end}}'
 
 # Building and bundling for macOS (an .app and a disk image): task macos:dist, task macos:verify
 includes:
@@ -190,7 +192,7 @@ tasks:
       GIT_COMMITTER_EMAIL: ui-test@example.com
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - odin build . {{.COLLECTIONS}} {{.VET}} -debug -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/{{.NAME}}_fullscreen
+      - odin build . {{.COLLECTIONS}} {{.VET}} -debug -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/{{.NAME}}_fullscreen {{.ICON_RESOURCE}}
       - for: { var: UI_SCRIPTS }
         cmd: 'rm -rf {{.BUILD_DIR}}/ui_project {{.BUILD_DIR}}/ui_archive && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project && cp tests/ui/settings.ini {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}}_fullscreen {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
     vars:
@@ -202,14 +204,14 @@ tasks:
     deps: [box2d, sdl]
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - odin build . {{.COLLECTIONS}} {{.VET}} -debug -out:{{.BUILD_DIR}}/{{.NAME}}
+      - odin build . {{.COLLECTIONS}} {{.VET}} -debug -out:{{.BUILD_DIR}}/{{.NAME}} {{.ICON_RESOURCE}}
 
   build:release:
     desc: Optimized build into build/release/
     deps: [box2d, sdl]
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
-      - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}}
+      - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}} {{.ICON_RESOURCE}}
 
   run:
     desc: Build optimized and run. Pass program arguments after --, e.g. task run -- path/to/project
@@ -217,7 +219,7 @@ tasks:
     # Optimized: the debug build is several times slower (the viewport ran at ~14 fps vs 60)
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
-      - odin build . {{.COLLECTIONS}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}}
+      - odin build . {{.COLLECTIONS}} -o:speed -out:{{.BUILD_DIR}}/release/{{.NAME}} {{.ICON_RESOURCE}}
       - '{{.BUILD_DIR}}/release/{{.NAME}} {{.CLI_ARGS}}'
 
   run:debug:
@@ -231,7 +233,7 @@ tasks:
     deps: [box2d, sdl]
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release
-      - odin build . {{.COLLECTIONS}} -o:speed -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/release/{{.NAME}}-fullscreen
+      - odin build . {{.COLLECTIONS}} -o:speed -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/release/{{.NAME}}-fullscreen {{.ICON_RESOURCE}}
       - '{{.BUILD_DIR}}/release/{{.NAME}}-fullscreen {{.CLI_ARGS}}'
 
   player:

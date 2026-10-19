@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds "Odin SDL Editor.app": a macOS app bundle with everything the editor needs except Odin
+# Builds "Crossfire Editor.app": a macOS app bundle with everything the editor needs except Odin
 # itself. Taskfile.macos.yml runs each step (`task macos:app` runs them in order); run one alone
 # with: tools/macos/bundle.sh <step>
 #
@@ -13,8 +13,8 @@
 #   check      what `task macos:verify` checks without running anything: no Mach-O file links
 #              outside the bundle except the system, the manifest, the signature
 #
-#   Odin SDL Editor.app/Contents/
-#     Info.plist
+#   Crossfire Editor.app/Contents/
+#     Info.plist                               (CFBundleIconFile: Resources/Crossfire.icns)
 #     MacOS/odin_sdl_editor                    the editor (SDL linked in statically)
 #     MacOS/ols                                the Odin language server
 #     MacOS/prebuilt/<target>/player           the player for projects without scripts
@@ -30,7 +30,7 @@
 set -euo pipefail
 step=${1:?usage: bundle.sh layout|vulkan|dylibs|sign|check}
 here=$(cd "$(dirname "$0")" && pwd)
-: "${APP:?}" "${VERSION:=0.0.0}" "${BUNDLE_ID:=io.github.bcrowe306.odin-sdl-editor}" "${APP_NAME:=Odin SDL Editor}"
+: "${APP:?}" "${VERSION:=0.0.0}" "${BUNDLE_ID:=io.github.bcrowe306.crossfire-editor}" "${APP_NAME:=Crossfire Editor}"
 contents="$APP/Contents"
 executable=odin_sdl_editor
 
@@ -53,6 +53,17 @@ layout)
 		-e "s|@VERSION@|$VERSION|g" -e "s|@SHORT_VERSION@|$short|g" "$here/Info.plist.in" > "$contents/Info.plist"
 	plutil -lint "$contents/Info.plist" > /dev/null
 	printf 'APPL????' > "$contents/PkgInfo"
+	# The app icon: Crossfire.icns from the 1024 px logo, every size macOS asks for (sips scales,
+	# iconutil packs; Info.plist's CFBundleIconFile names it)
+	iconset=$(mktemp -d)/Crossfire.iconset
+	mkdir -p "$iconset"
+	for size in 16 32 128 256 512; do
+		sips -z $size $size "$here/../../assets/icons/crossfire.png" --out "$iconset/icon_${size}x${size}.png" > /dev/null
+		double=$((size * 2))
+		sips -z $double $double "$here/../../assets/icons/crossfire.png" --out "$iconset/icon_${size}x${size}@2x.png" > /dev/null
+	done
+	iconutil -c icns "$iconset" -o "$contents/Resources/Crossfire.icns"
+	rm -rf "$(dirname "$iconset")"
 	cp "$EDITOR_BIN" "$contents/MacOS/$executable"
 	cp "$OLS_BIN" "$contents/MacOS/ols"
 	cp "$PLAYER_BIN" "$contents/MacOS/prebuilt/$TARGET/player"
@@ -141,7 +152,7 @@ check)
 			problems=$((problems + 1))
 		fi
 	done
-	for f in "$contents/Info.plist" "$contents/MacOS/ols" "$contents/Frameworks/libvulkan.1.dylib" \
+	for f in "$contents/Info.plist" "$contents/Resources/Crossfire.icns" "$contents/MacOS/ols" "$contents/Frameworks/libvulkan.1.dylib" \
 		"$contents/Frameworks/libMoltenVK.dylib" "$contents/Resources/vulkan/icd.d/MoltenVK_icd.json" \
 		"$contents/Resources/engine/player/main.odin"; do
 		[[ -e "$f" ]] || { echo "Missing $f" >&2; problems=$((problems + 1)); }

@@ -59,7 +59,7 @@ Toolchain_InstalledOdin :: proc() -> string {
 
 // The editor's data folder: the OS's per-user application data (SDL's pref path; temp allocated)
 Toolchain_DataDir :: proc() -> string {
-	raw := sdl.GetPrefPath("", "odin_sdl_editor")
+	raw := sdl.GetPrefPath("", "crossfire-editor")
 	if raw == nil do return ""
 	defer sdl.free(raw)
 	return strings.trim_right(strings.clone(string(cstring(raw)), context.temp_allocator), "/\\")

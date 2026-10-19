@@ -415,6 +415,8 @@ main :: proc() {
 	context.logger = log.create_console_logger(.Info)
 	// From a macOS app bundle: a writable working folder, the bundled Vulkan (bundle.odin)
 	Editor_SetupBundle()
+	// The app's name and ID (Linux desktops match the window to its .desktop entry by it)
+	Branding_SetAppMetadata()
 
 	// A UI test script drives the editor through injected input (test_driver.odin)
 	if script := parseArgs().script; script != "" {
@@ -427,7 +429,7 @@ main :: proc() {
 	delete(args.settings)
 
 	skald.run(skald.App(State, Msg){
-		title  = "Odin SDL Editor",
+		title  = APP_NAME,
 		size   = {1440, 900},
 		theme  = Settings_Theme(&settings),
 		init   = init,

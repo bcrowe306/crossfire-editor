@@ -1,9 +1,12 @@
-# Odin SDL Editor
+<p align="center"><img src="assets/icons/crossfire_256.png" width="128" alt="Crossfire"></p>
+
+# Crossfire Editor
 
 [![Build](https://github.com/bcrowe306/odin_sdl_editor/actions/workflows/build.yml/badge.svg)](https://github.com/bcrowe306/odin_sdl_editor/actions/workflows/build.yml)
 [![Engine build](https://github.com/bcrowe306/odin_sdl_engine/actions/workflows/build.yml/badge.svg)](https://github.com/bcrowe306/odin_sdl_engine/actions/workflows/build.yml)
 
-A game editor for [odin_sdl_engine](../odin_sdl_engine), written in [Odin](https://odin-lang.org)
+The game editor for the [Crossfire Engine](https://github.com/bcrowe306/odin_sdl_engine)
+(the `odin_sdl_engine` repository), written in [Odin](https://odin-lang.org)
 with the [Skald](https://github.com/bcrowe306/Skald) GUI framework.
 
 **Status:** early. Projects load from and save to XML. You can edit scenes in the engine-rendered
@@ -501,13 +504,13 @@ and the engine's sources at `../odin_sdl_engine` (the archive's README.txt says 
 ## macOS app
 
 On a Mac, `task macos:deps` (once: dylibbundler, Homebrew's Vulkan loader and MoltenVK, CMake,
-dmgbuild), then `task macos:dist` builds **`dist/macos/Odin SDL Editor.app`** and a disk image
+dmgbuild), then `task macos:dist` builds **`dist/macos/Crossfire Editor.app`** and a disk image
 to install it from. The app holds everything but Odin: the editor, the Odin language server, the
 prebuilt player, the engine's sources and static libraries (games compile against them), the
 Vulkan loader and MoltenVK. `task macos:verify` installs the disk image's app into a temporary
 folder and runs UI tests with it. Each step is a task of its own (`task --list`); CI runs the
-same ones. From the app, settings live in `~/Library/Application Support/odin_sdl_editor` and the
-demo project in `~/Documents/Odin SDL Editor`.
+same ones. From the app, settings live in `~/Library/Application Support/crossfire-editor` and the
+demo project in `~/Documents/Crossfire Editor`.
 
 ## Documentation
 

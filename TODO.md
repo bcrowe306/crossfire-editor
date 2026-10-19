@@ -9,8 +9,7 @@ owns it.
 - **macOS bundle signing and notarization** with gon (`brew install mitchellh/gon/gon`, a
   checked-in `.json` config), once an Apple developer account is available: `task
   macos:notarize`, `tools/macos/gon.json.example`, `entitlements.plist`.
-- **An app icon** (`.icns`, `CFBundleIconFile` in tools/macos/Info.plist.in) and a disk image
-  background.
+- A disk image background (the volume and app have the Crossfire icon).
 - **Linux and Windows bundles** the same way: Taskfile.linux.yml (an AppImage?) and
   Taskfile.windows.yml (an installer?), with CI calling them as it does for macOS.
 - Windows and macOS **game exports** (exports only build Linux x86_64 so far). macOS games keep
@@ -21,6 +20,14 @@ owns it.
   made on this Arch machine needs GLIBC 2.43).
 - **Download Emscripten for the user** the first time a web export needs it (today: `task emsdk`
   by hand; a release has no emsdk), and fold the SDL3_mixer web build into it.
+
+## Branding (Crossfire)
+
+- An **About** dialog with the logo and the version (Help > About only logs "not implemented").
+- The engine's player: a window icon for games (the project's own, or Crossfire's by default).
+- Optional, bigger renames: the executable (`odin_sdl_editor` -> `crossfire-editor`), the GitHub
+  repositories, the Odin packages. Only display names, archives, the app bundle, the data folder
+  and the app ID are Crossfire so far.
 
 ## LDtk levels
 
