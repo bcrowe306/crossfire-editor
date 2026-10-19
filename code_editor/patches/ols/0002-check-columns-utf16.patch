@@ -6,13 +6,13 @@ an astral character (emoji) before the error, every squiggle landed one cell
 early per such character. Convert using the file's text (read once per check
 run). Found via odin_editor's diagnostics visual test.
 
-Applied by `task ols:fetch` after 0001; drop once upstream fixes it.
+Applied by `task ols:fetch` on top of OLS_REF; drop once upstream fixes it.
 ---
 diff --git a/src/server/check.odin b/src/server/check.odin
-index 90faaac1..2cab4028 100644
+index 91a37b41..12a23c1e 100644
 --- a/src/server/check.odin
 +++ b/src/server/check.odin
-@@ -304,6 +304,7 @@ check :: proc(mode: Check_Mode, uri: common.Uri, config: ^common.Config) {
+@@ -313,6 +313,7 @@ check :: proc(mode: Check_Mode, check_paths: []string, config: ^common.Config) {
  	}
  
  	diagnostics := make(map[DiagnosticKey]struct{}, context.temp_allocator)
@@ -20,7 +20,7 @@ index 90faaac1..2cab4028 100644
  	for e in errors {
  		for error in e.errors {
  			if len(error.msgs) == 0 {
-@@ -341,6 +342,19 @@ check :: proc(mode: Check_Mode, uri: common.Uri, config: ^common.Config) {
+@@ -350,6 +351,19 @@ check :: proc(mode: Check_Mode, check_paths: []string, config: ^common.Config) {
  
  			uri := common.create_uri(path, context.temp_allocator)
  
@@ -40,7 +40,7 @@ index 90faaac1..2cab4028 100644
  			add_diagnostics(
  				.Check,
  				uri.uri,
-@@ -349,8 +363,8 @@ check :: proc(mode: Check_Mode, uri: common.Uri, config: ^common.Config) {
+@@ -358,8 +372,8 @@ check :: proc(mode: Check_Mode, check_paths: []string, config: ^common.Config) {
  					severity = map_diagnostic_severity(error.type),
  					range = {
  						// odin will sometimes report errors on column 0, so we ensure we don't provide a negative column/line to the client
@@ -51,7 +51,7 @@ index 90faaac1..2cab4028 100644
  					},
  					message = message,
  				},
-@@ -420,3 +434,29 @@ map_diagnostic_severity :: proc(type: string) -> DiagnosticSeverity {
+@@ -435,3 +449,29 @@ map_diagnostic_severity :: proc(type: string) -> DiagnosticSeverity {
  
  	return .Error
  }

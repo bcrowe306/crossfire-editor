@@ -390,15 +390,15 @@ task ols:repin   # find a compatible commit and update OLS_REF (NEWEST=1: newest
 `patches/ols/` holds local fixes for upstream OLS bugs this editor runs into,
 reapplied in order on a clean checkout by every `ols:fetch`:
 
-- `0001-check-request-uri-lifetime.patch` — OLS hands the save-triggered
-  `odin check` request a temp-allocated URI that is freed before the check
-  thread reads it, so errors fixed since the previous save are never
-  cleared.
 - `0002-check-columns-utf16.patch` — the compiler reports code-point
   columns; OLS forwarded them as LSP (UTF-16) characters, so squiggles after
   an emoji landed early.
 
-Drop a patch once upstream fixes the bug.
+Drop a patch once upstream fixes the bug. (`0001-check-request-uri-lifetime`, a
+check request's path freed before the check thread read it, was dropped when the
+pin moved to `c96dea91` (2026-10-10): upstream clones it now. That's also the
+newest OLS that builds with Odin dev-2026-10; later commits import
+`core:odin/tool-format`, which needs a newer Odin.)
 
 Then attach it to an editor instance:
 

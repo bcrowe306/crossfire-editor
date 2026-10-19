@@ -9,7 +9,7 @@ vars:
   # This commit is confirmed to build cleanly against the Odin version
   # this project targets (see README.md "Odin Language Server" section).
   # Override with `task ols:build OLS_REF=<sha>` to try a different pin.
-  OLS_REF: ad264df0f2292bd988ce00135eaf3c95f030e3f8
+  OLS_REF: c96dea912cf8272da7bb01a68696af5dfe1269ca
 
 tasks:
   default:
