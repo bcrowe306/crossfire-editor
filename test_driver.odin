@@ -150,6 +150,9 @@ Checks:
 	output_contains <text>       An Output line contains the text
 	export <idle | running>      Whether exports are running
 	archive <idle | busy>        Whether a project archive is being written or unpacked
+	console_lacks <text>         No Console line contains the text
+	ldtk_preview <levels> <entities> <shapes>
+	                             What the viewport built for the selected LDtkLevel node
 	git <idle | busy>            Whether the Git tab runs a command or reads the repository
 	git_state <Unknown | Missing | Not_Repo | Repo>
 	git_branch <name>            The project's branch
@@ -1089,6 +1092,14 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			ctx.renderer != nil ? ctx.renderer.fb_size : [2]u32{}, s.layout.workspace)
 	case "audio":
 		found = AudioPreview_IsPlaying() ? "playing" : "stopped"
+	case "ldtk_preview":
+		// What the viewport built for the selected LDtkLevel node: levels, entities, collision shapes
+		engineNode := Preview_Node(s.selectedNode)
+		if engineNode == nil || !e.Node_Is(engineNode, e.LDtkLevelNode) do return false, "the selected node isn't a built LDtkLevel"
+		level := cast(^e.LDtkLevelNode)engineNode
+		shapes := 0
+		for view in level.views do for child in view.children do if child.name == "Collision" do shapes += len(child.children)
+		found = fmt.tprintf("%d %d %d", len(level.views), len(level.spawned), shapes)
 	case "dialog":
 		found = s.removeConfirm.open ? "open" : "closed"
 	case "add_dialog":
@@ -1488,6 +1499,9 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		lines := name == "console_contains" ? s.console[:] : s.output[:]
 		for line in lines do if strings.contains(line.text, value) do return true, "found"
 		return false, fmt.tprintf("%d lines, none match", len(lines))
+	case "console_lacks":
+		for line in s.console do if strings.contains(line.text, value) do return false, line.text
+		return true, "none"
 	case:
 		return false, fmt.tprintf("unknown check '%s'", name)
 	}

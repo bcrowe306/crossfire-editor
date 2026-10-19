@@ -137,6 +137,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `project_archive.odin` | Project archives (`.odinsdl`): `ProjectArchive_Create` (outside assets brought in), `ProjectArchive_Extract`, the File menu's flow |
 | `vcs.odin` | Version control through `git`: `GitSnapshot` / `Git_ReadSnapshot`, `GitOp` / `Git_Commands` / `Git_RunCommands`, `Git_Update` |
 | `view_git.odin` | The bottom panel's Git tab |
+| `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard, Toolchain tabs |
@@ -896,6 +897,37 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   `kind`, `preview component`), `components_rename_and_make_unique`.
 - The browser's inline rename scrolls its row back into view when it's out of view (focusing the
   tree scrolls the browser to its top, which hid the field and left the rename stuck).
+
+## LDtk levels (implemented, `ldtk_edit.odin`; engine: ldtk.odin, ldtk_nodes.odin)
+
+`ldtk_edit.odin`'s doc comment describes the feature; what the code relies on:
+- **Data:** `NodeDef.ldtk` is the engine's `e.LDtkLevelSettings` (owned: `LDtkSettings_Clone`,
+  `e.LDtkLevelSettings_Destroy`, `LDtkSettings_Equal` for undo). Every copy path clones it
+  (load, `NodeDef_Clone`, `NodeDef_Make` from `e.DEFAULT_LDTK_LEVEL_SETTINGS`). The XML writer
+  leaves defaults out and writes `<entity>` children; the generated body's physics attributes
+  only with a collision layer.
+- **Inspector edits** are one message, `LDtk_Setting_Changed{field, text, flag, name}`, handled in
+  `LDtkEdit_Update`; each is a node undo step (collision values typing merges).
+- **Two parsed copies:** the inspector's (`LDtkEdit_Project`, a thread-local cache by full path,
+  re-read when the file's modification time changes) and the preview game's (`Game_LoadLDtk`).
+  The viewport's rebuild signature includes the file's time (`LDtkSettings_Signature`), and
+  `rebuild` drops the preview game's changed projects (`forgetChangedLDtk`) after destroying the
+  old scene, so saving in LDtk rebuilds the level when the editor next draws.
+- **Import** (`Project_ImportAsset` -> `LDtkEdit_Import` for `.ldtk` from outside):
+  `e.LDtk_Dependencies` lists tilesets, `.ldtkl` files and backgrounds; they're copied at the
+  same relative paths under `assets/<stem>/` (`_2`... when taken); `../` ones go to `external/`
+  and the copy's JSON is rewritten (quoted paths, plain and `\/`-escaped).
+- **Exports:** `Export_ProjectFiles` adds `LDtkEdit_ExportFiles` (dependencies inside the project
+  that aren't assets already), so packs and data folders have the tilesets.
+- **Browser:** a **Levels** folder (last, so other rows keep their indices), its preview lists
+  levels; the menu and preview have Open in LDtk (`LDtk_Asset_Open_Requested`).
+- Tests: `ldtk_import_settings_and_export`, `ldtk_import_brings_outside_files_in`;
+  `tests/ui/ldtk.script` (import, Add Node, inspector selects, the preview's levels / entities /
+  shapes through the driver's `ldtk_preview`, undo, save, Play). The fixture
+  `tests/fixtures/ldtk/` (a one-level project with a generated 32x32 tileset) is ours, written
+  for the tests: LDtk's own samples have third-party art.
+- Later: parallax, entity references as nodes, LDtk's tile render modes, a level picker that
+  shows thumbnails, hot reload while playing.
 
 ## Input actions (implemented; engine: input.odin)
 

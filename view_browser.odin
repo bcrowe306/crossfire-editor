@@ -196,6 +196,7 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			switch s.project.assets[selection.index].kind {
 			case .Audio: add(&labels, "Use as Music (streamed)", Msg(Asset_Kind_Changed{selection.index, .Music}))
 			case .Music: add(&labels, "Use as a Sound", Msg(Asset_Kind_Changed{selection.index, .Audio}))
+			case .LDtk: add(&labels, "Open in LDtk", Msg(LDtk_Asset_Open_Requested(selection.index)))
 			case .Image, .Font, .Data, .Component:
 			}
 		}
@@ -424,6 +425,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			)
 		case .Component:
 			content = componentPreview(s, ctx, asset)
+		case .LDtk:
+			content = ldtkPreview(s, ctx, asset, path)
 		case .Data:
 			i := Project_FindData(&s.project, asset.path)
 			type := i >= 0 ? s.project.data[i].type : "?"
@@ -593,6 +596,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Font:  return ICON_FONT_GLYPH
 	case .Data:  return ICON_DATABASE
 	case .Component: return ICON_CUBES
+	case .LDtk:  return ICON_MAP
 	}
 	return ICON_FILE
 }

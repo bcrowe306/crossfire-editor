@@ -182,7 +182,8 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		// A ParticleEmitter's settings that aren't the defaults
 		particles := node.kind == .ParticleEmitter ? e.FormatParticleSettings(node.particles) : nil
 		animations := node.kind == .AnimatedSprite ? node.animations[:] : nil
-		if len(node.items) == 0 && node.script == "" && len(particles) == 0 && len(animations) == 0 && !hasChildren {
+		entities := node.kind == .LDtkLevel ? node.ldtk.entityComponents[:] : nil
+		if len(node.items) == 0 && node.script == "" && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -201,6 +202,13 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		if len(particles) > 0 {
 			open(&w, "particles")
 			for pair in particles do attr(&w, pair.name, pair.value)
+			closeEmpty(&w)
+		}
+		// An LDtkLevel's entity components
+		for m in entities {
+			open(&w, "entity")
+			attr(&w, "name", m.entity)
+			attr(&w, "component", m.component)
 			closeEmpty(&w)
 		}
 		for item in node.items {
@@ -403,6 +411,27 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.texture != "" do attr(w, "texture", node.texture)
 	case .Component:
 		attr(w, "component", node.component)
+	case .LDtkLevel:
+		l, d := node.ldtk, e.DEFAULT_LDTK_LEVEL_SETTINGS
+		attr(w, "ldtk", l.file)
+		if l.level != "" do attr(w, "level", l.level)
+		if l.allLevels do attr(w, "allLevels", true)
+		if l.collisionLayer != "" {
+			attr(w, "intGridCollision", l.collisionLayer)
+			if len(l.collisionValues) > 0 {
+				values := strings.builder_make(context.temp_allocator)
+				for v, i in l.collisionValues do fmt.sbprintf(&values, "%s%d", i > 0 ? " " : "", v)
+				attr(w, "collisionValues", strings.to_string(values))
+			}
+			// The generated StaticBody's
+			if node.collisionLayer != e.DEFAULT_SCENE_NODE.collisionLayer do attr(w, "collisionLayer", e.FormatPhysicsLayers(node.collisionLayer, context.temp_allocator))
+			if node.collisionMask != e.DEFAULT_SCENE_NODE.collisionMask do attr(w, "collisionMask", e.FormatPhysicsLayers(node.collisionMask, context.temp_allocator))
+			if node.friction != e.DEFAULT_SCENE_NODE.friction do attr(w, "friction", node.friction)
+			if node.restitution != e.DEFAULT_SCENE_NODE.restitution do attr(w, "restitution", node.restitution)
+		}
+		if l.spawnEntities != d.spawnEntities do attr(w, "spawnEntities", l.spawnEntities)
+		if l.background != d.background do attr(w, "background", l.background)
+		if l.smoothTiles != d.smoothTiles do attr(w, "smoothTiles", l.smoothTiles)
 	case .AudioPlayer, .AudioPlayer2D, .MusicPlayer:
 		a, d := node.audio, e.DEFAULT_AUDIO_SETTINGS
 		if node.sound != "" do attr(w, "sound", node.sound)

@@ -225,6 +225,7 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		case .Font:  prefix, type = "FONT", "FontAsset"
 		case .Data:  prefix, type = "DATA", "DataAsset"
 		case .Component: prefix, type = "COMPONENT", "ComponentAsset"
+		case .LDtk:  prefix, type = "LDTK", "LDtkAsset"
 		}
 		stem := asset.kind == .Data ? DataName(asset.path) : asset.kind == .Component ? ComponentName(asset.path) : filepath.stem(filepath.base(asset.path))
 		name := fmt.tprintf("%s_%s", prefix, strings.to_upper(sanitize(stem), context.temp_allocator))

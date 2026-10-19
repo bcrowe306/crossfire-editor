@@ -1,0 +1,64 @@
+# LDtk levels: import an .ldtk project (its tileset comes with it), add an LDtkLevel node, pick
+# the file and the IntGrid layer that becomes collision in the inspector, the viewport builds it
+# (tiles, entities, merged collision), undo, save, and play it.
+# Run with: task test:ui
+#
+# PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+expect selected none
+
+# The project and its tileset
+import tests/fixtures/ldtk/world.ldtk
+expect assets 4
+expect project_file assets/world/world.ldtk
+expect project_file assets/world/tiles.png
+select_asset assets/world/world.ldtk
+expect widget_visible browser-ldtk-open true
+
+# A level node, then its file
+key escape
+key ctrl+shift+a
+type LDtk
+click_widget add-node-LDtkLevel
+expect selected LDtkLevel
+expect nodes 12
+scroll_into_view inspector-scroll inspector-ldtk-file-11
+click_widget inspector-ldtk-file-11
+click_overlay_item 1
+wait 3
+expect ldtk_preview 1 3 0
+
+# The Walls layer becomes collision: the floor and two walls, merged into 3 rectangles
+scroll_into_view inspector-scroll inspector-ldtk-collision-11
+click_widget inspector-ldtk-collision-11
+click_overlay_item 1
+wait 3
+expect ldtk_preview 1 3 3
+
+# Without entities; undo brings them back
+scroll_into_view inspector-scroll inspector-ldtk-entities-11
+click_widget inspector-ldtk-entities-11
+wait 3
+expect ldtk_preview 1 0 3
+key ctrl+z
+wait 3
+expect ldtk_preview 1 3 3
+
+# Saved with its settings
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml kind="LDtkLevel"
+expect project_file_contains scenes/PlayScene.scene.xml ldtk="assets/world/world.ldtk"
+expect project_file_contains scenes/PlayScene.scene.xml intGridCollision="Walls"
+expect project_file_contains project.xml kind="LDtk"
+
+# It plays (the prebuilt player draws it too)
+action Play_Scene
+wait_until play Playing
+wait 30
+expect console_lacks LDtk:
+key shift+F5
+wait_until play Stopped

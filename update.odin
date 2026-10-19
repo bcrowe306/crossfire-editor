@@ -51,6 +51,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := Session_Update(&out, m); handled do return out, command
 	if command, handled := ProjectArchive_Update(&out, m); handled do return out, command
 	if command, handled := Git_Update(&out, m); handled do return out, command
+	if command, handled := LDtkEdit_Update(&out, m); handled do return out, command
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
 	if command, handled := CodeTabs_Update(&out, m); handled do return out, command
@@ -68,7 +69,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed:
 		// Handled by SettingsDialog_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
@@ -260,6 +261,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Project_Archive_Path_Chosen, Project_Archive_Open_Chosen, Project_Archive_Destination_Chosen,
 	     Project_Archive_Written, Project_Archive_Extracted:
 		// Handled by ProjectArchive_Update above
+	case LDtk_Setting_Changed, LDtk_Open_Requested, LDtk_Asset_Open_Requested:
+		// Handled by LDtkEdit_Update above
 	case Git_Refresh_Requested, Git_Snapshot_Read, Git_Op_Requested, Git_Op_Finished, Git_Message_Changed,
 	     Git_New_Branch_Changed, Git_Remote_URL_Changed:
 		// Handled by Git_Update above
@@ -396,6 +399,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.assetDrag = {}
 		if asset >= 0 && asset < len(out.project.assets) && out.project.assets[asset].kind == .Component {
 			addInstance(&out, out.project.assets[asset].path, v.world)
+			break
+		}
+		if asset >= 0 && asset < len(out.project.assets) && out.project.assets[asset].kind == .LDtk {
+			index := Scene_AddLDtkAt(&out.project.scenes[out.currentScene], out.project.assets[asset].path, out.selectedNode, v.world)
+			out.selectedNode = index
+			logLine(&out, .Info, fmt.aprintf("Added %s, a level of %s", out.project.scenes[out.currentScene].nodes[index].name, filepath.base(out.project.assets[asset].path)))
 			break
 		}
 		if asset < 0 || asset >= len(out.project.assets) || out.project.assets[asset].kind != .Image do break
@@ -964,10 +973,11 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 
 	case .Import_Asset:
 		@(static) filters := [?]skald.File_Filter{
-			{"Images, audio and fonts", IMPORT_IMAGE_PATTERN + ";" + IMPORT_AUDIO_PATTERN + ";" + IMPORT_FONT_PATTERN},
+			{"Images, audio, fonts and LDtk levels", IMPORT_IMAGE_PATTERN + ";" + IMPORT_AUDIO_PATTERN + ";" + IMPORT_FONT_PATTERN + ";" + IMPORT_LDTK_PATTERN},
 			{"Images", IMPORT_IMAGE_PATTERN},
 			{"Audio", IMPORT_AUDIO_PATTERN},
 			{"Fonts", IMPORT_FONT_PATTERN},
+			{"LDtk projects", IMPORT_LDTK_PATTERN},
 		}
 		return out, skald.cmd_open_file_dialog(filters[:], proc(r: skald.File_Dialog_Result) -> Msg { return Asset_Import_Result(r) })
 	case .Remove_Asset:
@@ -1037,7 +1047,7 @@ openScene :: proc(state: ^State, index: int) {
 	}
 }
 
-@(private="file")
+@(private="package")
 selectedNode :: proc(state: ^State) -> ^NodeDef {
 	scene := &state.project.scenes[state.currentScene]
 	if state.selectedNode < 0 || state.selectedNode >= len(scene.nodes) do return nil

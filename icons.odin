@@ -67,6 +67,7 @@ ICON_ARROW_DOWN  :: "\uf063"
 ICON_CODE_BRANCH :: "\uf126"
 ICON_REFRESH     :: "\uf021"
 ICON_UPLOAD      :: "\uf0ee"
+ICON_MAP         :: "\uf279"
 
 @(private="file")
 iconFontRegistered: bool
@@ -100,6 +101,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .AudioPlayer:    return ICON_VOLUME
 	case .AudioPlayer2D:  return ICON_LOCATION
 	case .MusicPlayer:    return ICON_MUSIC
+	case .LDtkLevel:      return ICON_MAP
 	}
 	return ICON_CUBE
 }

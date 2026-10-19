@@ -211,6 +211,10 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			proc(v: string) -> Msg { return Settings_OLS_Path_Changed(v) },
 			id = skald.hash_id("settings-ols-path"), width = 300, placeholder = "found automatically")),
 		hint(ctx, olsStatus(FixedText_String(&draft.olsPath))),
+		settingRow(ctx, "LDtk program", skald.text_input(ctx, strings.clone(FixedText_String(&draft.ldtkPath), context.temp_allocator),
+			proc(v: string) -> Msg { return Settings_LDtk_Path_Changed(v) },
+			id = skald.hash_id("settings-ldtk-path"), width = 300, placeholder = "ldtk in PATH")),
+		hint(ctx, "The level editor (ldtk.io) that an LDtkLevel node's Open in LDtk starts."),
 		// Copies: the draft is inside this frame's copy of the state, which is gone by the time
 		// Skald draws the fields (they showed garbage, and editing saved garbage)
 		settingRow(ctx, "External program", skald.row(

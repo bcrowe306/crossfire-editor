@@ -853,6 +853,8 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .Component:      return COMPONENT_COLOR
 	// Sound: the browser's audio pink
 	case .AudioPlayer, .AudioPlayer2D, .MusicPlayer: return skald.rgb(0xf08fd8)
+	// The browser's Levels orange
+	case .LDtkLevel:      return skald.rgb(0xff8a5b)
 	}
 	return skald.rgb(0xffffff)
 }

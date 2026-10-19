@@ -531,6 +531,8 @@ Export_ProjectFiles :: proc(project: ^Project, allocator := context.allocator) -
 	// Components' files are among the assets
 	for &scene in project.scenes do if !Scene_IsComponent(&scene) do append(&files, SceneFilePath(&scene, allocator))
 	for asset in project.assets do append(&files, strings.clone(asset.path, allocator))
+	// What LDtk projects need with them: tileset images, separate level files, backgrounds
+	append(&files, ..LDtkEdit_ExportFiles(project, allocator))
 	return files[:]
 }
 

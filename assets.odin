@@ -34,6 +34,8 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), DATA_EXTENSION) do return .Data, true
 	case ".xml":
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), COMPONENT_EXTENSION) do return .Component, true
+	case ".ldtk":
+		return .LDtk, true
 	}
 	return .Image, false
 }
@@ -42,6 +44,7 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 IMPORT_IMAGE_PATTERN :: "png;jpg;jpeg;bmp;gif;tga;webp;qoi"
 IMPORT_AUDIO_PATTERN :: "wav;ogg;mp3;flac"
 IMPORT_FONT_PATTERN  :: "ttf;otf"
+IMPORT_LDTK_PATTERN  :: "ldtk"
 
 /*
 Imports a file into the project: copies it into `assets/` (adding `_1`, `_2`... if the name is
@@ -72,6 +75,11 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 	relative := ""
 	if rel, err := filepath.rel(root, absSource, context.temp_allocator); err == nil && !strings.has_prefix(rel, "..") {
 		relative = toSlashes(rel)
+	} else if kind == .LDtk {
+		// With the tilesets and level files it needs (ldtk_edit.odin)
+		copied, problem := LDtkEdit_Import(project, source)
+		if problem != "" do return -1, problem
+		relative = copied
 	} else {
 		assetsDir, _ := filepath.join({project.rootPath, ASSETS_FOLDER}, context.temp_allocator)
 		_ = os.make_directory_all(assetsDir)

@@ -89,6 +89,7 @@ AssetFolder :: proc(kind: AssetKind) -> BrowserFolder {
 	case .Font:  return .Fonts
 	case .Data:  return .Data
 	case .Component: return .Components
+	case .LDtk: return .Levels
 	}
 	return .Images
 }

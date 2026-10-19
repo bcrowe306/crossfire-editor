@@ -261,6 +261,11 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			info.label = fmt.tprintf("%v %d nodes", drag.mode, len(s.selection))
 		}
 		return info
+	case LDtk_Setting_Changed:
+		if !hasSelection do break
+		// Typing collision values merges into one step
+		if v.field == .Collision_Values do return node(selected, fmt.tprintf("Change the collision values of %s", name), key("ldtk-values", s.currentScene, selected))
+		return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
 	case Audio_Field_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("audio", v.field, s.currentScene, selected))
 	case Audio_Flag_Changed:
@@ -284,6 +289,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	case Add_Node_Confirmed, Add_Node_Kind_Chosen:
 		return {scope = .Scene, label = "Add node"}
 	case Asset_Dropped:
+		asset := s.assetDrag.asset
+		if asset >= 0 && asset < len(s.project.assets) && s.project.assets[asset].kind == .LDtk do return {scope = .Scene, label = "Add level"}
 		return {scope = .Scene, label = "Add sprite"}
 	case Tree_Drag_Dropped:
 		if s.treeDrag.node >= 0 && s.treeDrag.node < len(scene.nodes) {
@@ -624,7 +631,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio {
+	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false

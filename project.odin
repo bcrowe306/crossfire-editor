@@ -121,6 +121,8 @@ NodeDef :: struct {
 	sound: string,
 	bus: string,
 	audio: e.AudioSettings,
+	// LDtkLevel (ldtk_edit.odin): the .ldtk file, the level, collision, entity components... (owned)
+	ldtk: e.LDtkLevelSettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -156,6 +158,8 @@ AssetKind :: enum {
 	Music,
 	// A component: a saved node tree (`.component.xml`, component_edit.odin)
 	Component,
+	// An LDtk project (`.ldtk`: ldtk_edit.odin); LDtkLevel nodes show its levels
+	LDtk,
 }
 
 /*
@@ -257,6 +261,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		jointOffset = defaults.jointOffset,
 		dampingRatio = defaults.dampingRatio,
 		particles = defaults.particles,
+		ldtk = LDtkSettings_Clone(e.DEFAULT_LDTK_LEVEL_SETTINGS),
 	}
 	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
@@ -303,6 +308,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.component)
 	delete(node.sound)
 	delete(node.bus)
+	e.LDtkLevelSettings_Destroy(&node.ldtk)
 }
 
 /*
@@ -508,6 +514,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "Font":  kind = .Font
 		case "Data":  kind = .Data
 		case "Component": kind = .Component
+		case "LDtk": kind = .LDtk
 		}
 		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
 		// A data resource's values come from its file
@@ -637,6 +644,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.sound = strings.clone(node.sound)
 	def.bus = strings.clone(node.bus)
 	def.audio = node.audio
+	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	return def
 }
 

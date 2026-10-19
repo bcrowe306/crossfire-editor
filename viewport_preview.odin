@@ -38,6 +38,8 @@ Preview :: struct {
 	animated: bool,
 	lastFrame: time.Tick,
 	pixels: [dynamic]u8,
+	// The LDtk files the game read, and their modification times then (forgetChangedLDtk)
+	ldtkModified: map[string]time.Time,
 }
 
 @(private="file")
@@ -199,6 +201,7 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	// Scripts don't run in the viewport. Instances are built from the components being edited
 	// (unsaved changes included), not their files
 	provideComponents(s, preview.game)
+	forgetChangedLDtk(s, preview.game)
 	created := e.Scene_Build(preview.scene, &data, s.project.rootPath, attachScripts = false)
 	preview.game.components = nil
 	e.Scene_ProcessQueues(preview.scene)
@@ -207,6 +210,28 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	append(&preview.nodes, ..created)
 	preview.animated = false
 	for node in scene.nodes do if node.kind == .AnimatedSprite || node.kind == .ParticleEmitter || node.kind == .Component do preview.animated = true
+}
+
+/*
+Drops the LDtk projects the preview game read whose files changed since (saved in LDtk), so the
+build reads them again. Their nodes are gone: the scene was destroyed first.
+*/
+@(private="file")
+forgetChangedLDtk :: proc(s: ^State, game: ^e.Game) {
+	changed := make([dynamic]string, context.temp_allocator)
+	for path in game.ldtk {
+		modified := ldtkModified(joinPath(s.project.rootPath, path, allocator = context.temp_allocator))
+		if known, found := preview.ldtkModified[path]; found && known == modified do continue
+		append(&changed, strings.clone(path, context.temp_allocator))
+	}
+	for path in changed do e.Game_ForgetLDtk(game, path)
+	// Each file's time as read (forgotten ones are read again by this build)
+	for path, _ in preview.ldtkModified do delete(path)
+	clear(&preview.ldtkModified)
+	for &scene in s.project.scenes do for &node in scene.nodes {
+		if node.kind != .LDtkLevel || node.ldtk.file == "" || node.ldtk.file in preview.ldtkModified do continue
+		preview.ldtkModified[strings.clone(node.ldtk.file)] = ldtkModified(joinPath(s.project.rootPath, node.ldtk.file, allocator = context.temp_allocator))
+	}
 }
 
 // Gives a game the project's components as they are in the editor, for building instances (temp
@@ -373,7 +398,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk,
 		})
 	}
 	return data
@@ -397,6 +422,8 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_byte(&b, '|')
 		strings.write_int(&b, int(node.kind))
 		strings.write_int(&b, node.parent)
+		// A level rebuilds when its settings change, or its file does (saved in LDtk)
+		if node.kind == .LDtkLevel do LDtkSettings_Signature(&b, s.project.rootPath, &node.ldtk)
 		// An instance rebuilds when its component changes
 		if node.kind == .Component {
 			strings.write_string(&b, node.component)
@@ -453,9 +480,12 @@ Preview_Destroy :: proc() {
 	destroyAll()
 	delete(preview.pixels)
 	delete(preview.nodes)
+	for path in preview.ldtkModified do delete(path)
+	delete(preview.ldtkModified)
 	preview = {}
 	t := &thumbnail
 	if t.game != nil {
+		e.Game_ForgetLDtk(t.game)
 		t.game.resourceManager->destroy()
 		free(t.game)
 	}
@@ -473,6 +503,7 @@ destroyAll :: proc() {
 		preview.scene = nil
 	}
 	if preview.game != nil {
+		e.Game_ForgetLDtk(preview.game)
 		preview.game.resourceManager->destroy()
 		free(preview.game)
 		preview.game = nil

@@ -288,6 +288,32 @@ becomes an *instance* of it. Then:
 - In code, as many as needed: `e.Scene_Instantiate(self.scene, COMPONENT_SHIP, position = {100, 50})`
   (constants in `scripts/assets.odin`; exported `e.ComponentAsset` fields get a picker).
 
+## LDtk levels
+
+Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:
+
+1. **Import** the `.ldtk` file (File > Import Asset). It's copied into `assets/<name>/` with the
+   tileset images and level files it uses, and listed under **Levels** in the browser. Keep
+   editing that copy in LDtk (the browser's preview, or the node's inspector, has **Open in
+   LDtk**; set LDtk's path in Settings > Editor if it isn't in PATH).
+2. **Drag it into the viewport**, or add an **LDtkLevel** node and pick the file. The viewport
+   shows the level as the game draws it, and follows LDtk's saves.
+3. In the inspector, pick the **level** (or **Whole world**: every level at its place), the
+   IntGrid layer that becomes **collision** (and which values; the cells are merged into a few
+   rectangles of one StaticBody), and what each **entity** becomes: a component, else the script
+   with the entity's name (its LDtk fields set the script's fields with the same name), else a
+   rectangle that draws the entity's tile.
+
+In code:
+
+```odin
+level := cast(^e.LDtkLevelNode)e.Scene_FindNode(self.scene, "Level")
+for coin in e.LDtk_FindEntityNodes(level, "Coin") do log.infof("a coin at %v", coin.position)
+entity := e.LDtk_EntityOf(self.node)                       // this node's LDtk data
+hp := e.LDtk_FieldValue(entity.fields, "hp", i64(3))
+onLadder := e.LDtk_IntGridAtPosition(level, "Walls", e.Node_GetWorldPosition(self.node)) == 2
+```
+
 ## Input actions
 
 **File > Project Settings > Input** lists the game's actions: named inputs like `jump` or

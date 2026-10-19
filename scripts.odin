@@ -437,8 +437,16 @@ Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> skald.Com
 		logLine(state, .Error, fmt.aprintf("Couldn't start %s: %v. Check Settings > Editor", program, err))
 		return {}
 	}
-	append(&editorProcesses, EditorProcess{process = process, program = strings.clone(filepath.base(program)), started = time.tick_now()})
 	logLine(state, .Info, fmt.aprintf("Opened %s:%d in %s", filepath.base(file), max(line, 1), filepath.base(program)))
+	return Editor_WatchProcess(process, program)
+}
+
+/*
+Watches a program the editor started (a code editor, LDtk): one that exits with an error is
+reported, and exited ones are reaped (Editor_Process_Check).
+*/
+Editor_WatchProcess :: proc(process: os.Process, program: string) -> skald.Command(Msg) {
+	append(&editorProcesses, EditorProcess{process = process, program = strings.clone(filepath.base(program)), started = time.tick_now()})
 	return skald.cmd_delay(EDITOR_CHECK_SECONDS, Msg(Editor_Process_Check{}))
 }
 

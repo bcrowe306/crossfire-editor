@@ -69,6 +69,8 @@ BrowserFolder :: enum {
 	Data,
 	// Saved node trees (component_edit.odin)
 	Components,
+	// LDtk projects (ldtk_edit.odin)
+	Levels,
 }
 
 /*
@@ -276,7 +278,7 @@ init :: proc() -> State {
 		currentScene = 0,
 		selectedNode = -1,
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},
@@ -331,6 +333,7 @@ State_Destroy :: proc(state: ^State) {
 	Project_Destroy(&state.project)
 	delete(state.archive.openPath)
 	GitState_Destroy(&state.git)
+	LDtkEdit_Destroy()
 	for line in state.console do delete(line.text)
 	delete(state.console)
 	for line in state.output do delete(line.text)

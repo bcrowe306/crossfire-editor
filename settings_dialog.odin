@@ -108,6 +108,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		draft.optimizedPlay = bool(v)
 	case Settings_Builtin_Editor_Changed:
 		draft.builtInCodeEditor = bool(v)
+	case Settings_LDtk_Path_Changed:
+		draft.ldtkPath = FixedText_Make(string(v))
 	case Settings_OLS_Path_Changed:
 		draft.olsPath = FixedText_Make(string(v))
 	case Settings_Odin_Path_Changed:
@@ -140,6 +142,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
 			draft.gridSize = defaults.gridSize
 			draft.codeEditorPath, draft.codeEditorArgs, draft.optimizedPlay = defaults.codeEditorPath, defaults.codeEditorArgs, defaults.optimizedPlay
+			draft.ldtkPath = defaults.ldtkPath
 		case .Keyboard:
 			draft.keymap = defaults.keymap
 		case .Toolchain:

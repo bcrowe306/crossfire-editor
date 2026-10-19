@@ -27,7 +27,7 @@ testState :: proc() -> State {
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}

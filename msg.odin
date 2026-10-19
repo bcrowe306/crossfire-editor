@@ -668,6 +668,7 @@ Settings_Code_Editor_Picked :: distinct skald.File_Dialog_Result
 Settings_Optimized_Play_Changed :: distinct bool
 Settings_Builtin_Editor_Changed :: distinct bool
 Settings_OLS_Path_Changed :: distinct string
+Settings_LDtk_Path_Changed :: distinct string
 Settings_Odin_Path_Changed :: distinct string
 // Settings > Toolchain's Install Odin
 Toolchain_Install_Requested :: struct {}
@@ -821,6 +822,7 @@ Msg :: union {
 	Settings_Optimized_Play_Changed,
 	Settings_Builtin_Editor_Changed,
 	Settings_OLS_Path_Changed,
+	Settings_LDtk_Path_Changed,
 	Settings_Odin_Path_Changed,
 	Toolchain_Install_Requested,
 	Toolchain_Install_Finished,
@@ -831,6 +833,9 @@ Msg :: union {
 	Git_Message_Changed,
 	Git_New_Branch_Changed,
 	Git_Remote_URL_Changed,
+	LDtk_Setting_Changed,
+	LDtk_Open_Requested,
+	LDtk_Asset_Open_Requested,
 	Settings_Capture_Started,
 	Settings_Key_Captured,
 	Settings_Capture_Cancelled,
