@@ -70,8 +70,7 @@ jobs:
           path: odin_sdl_engine/sdl/lib
           key: sdl-static-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('odin_sdl_engine/tools/build_sdl_static.sh', 'odin_sdl_engine/.gitmodules') }}-3.4.16-3.4.6-3.2.2-3.2.4
 
-      - name: Build static SDL (games and the editor link it; Windows later)
-        if: runner.os != 'Windows'
+      - name: Build static SDL (games and the editor link it)
         run: |
           if ! compgen -G "../odin_sdl_engine/sdl/lib/*/libSDL3.a" > /dev/null && ! compgen -G "../odin_sdl_engine/sdl/lib/*/sdl3_static.lib" > /dev/null; then ../odin_sdl_engine/tools/build_sdl_static.sh; fi
 
