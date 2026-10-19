@@ -45,6 +45,8 @@ fi
 echo "== UI scripts with the installed editor"
 # Nothing from Homebrew may help: the bundle's own Vulkan, MoltenVK and libraries only
 unset VK_ICD_FILENAMES VK_DRIVER_FILES DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH
+# A real window: CI sets SDL's dummy video driver for its unit tests, which has no Vulkan
+unset SDL_VIDEO_DRIVER
 export GIT_AUTHOR_NAME="UI test" GIT_AUTHOR_EMAIL=ui-test@example.com GIT_COMMITTER_NAME="UI test" GIT_COMMITTER_EMAIL=ui-test@example.com
 failed=0
 for script in "${scripts[@]}"; do
