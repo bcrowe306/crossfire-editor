@@ -1160,6 +1160,12 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
   (`Editor_ArgumentPath`: the driver's `import`, `open_project`, archives). The engine is found in
   `Resources/engine`, OLS beside the executable (`Code_FindOLS`), the prebuilt player in
   `MacOS/prebuilt/`. ols.json gets `odin_command` (the toolchain's odin, which needn't be in PATH).
+- **No Homebrew `-L` with the static SDL:** CI's `ODIN_LINK_FLAGS` (`-L/opt/homebrew/lib`, for
+  the dynamic fallback) comes before the engine's static folder, and macOS's linker takes the
+  first folder that has a library: the first CI bundle linked Homebrew's SDL dylibs. The macOS
+  tasks pass only `-headerpad_max_install_names` (room for dylibbundler's rewritten paths; OLS
+  failed without it, so `macos:ols` builds its own optimized copy). `check` fails if any SDL
+  dylib got bundled.
 - **Spaces in paths:** "Odin SDL Editor.app" found that the engine's static SDL `-L` wasn't
   quoted (the link failed); it is now (the engine's sdl_static.odin).
 - **Tested on Linux with a fake bundle** (the real editor, OLS, prebuilt player and engine copy

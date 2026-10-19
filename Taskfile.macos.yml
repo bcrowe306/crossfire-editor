@@ -24,7 +24,12 @@ vars:
   TARGET:
     sh: 'case "$(uname -m)" in arm64) echo macos_arm64;; *) echo macos_x64;; esac'
   DMG: '{{.DIST}}/odin_sdl_editor-{{.VERSION}}-{{.TARGET}}.dmg'
-  OLS_BIN: code_editor/third_party/ols/ols
+  OLS_BIN: '{{.WORK}}/ols'
+  # Room in the executables' headers for dylibbundler's rewritten library paths (without it,
+  # install_name_tool fails: "larger updated load commands do not fit"). No ODIN_LINK_FLAGS (CI's
+  # -L to Homebrew): the static SDL needs none, and Homebrew's folder would win over the static
+  # libraries' (macOS's linker takes the first folder that has a library), linking its dylibs
+  MACOS_LINK: -extra-linker-flags:-headerpad_max_install_names
 
 # What tools/macos/bundle.sh reads
 env:
@@ -57,7 +62,7 @@ tasks:
     deps: [':box2d', ':sdl']
     cmds:
       - mkdir -p {{.WORK}}
-      - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.WORK}}/odin_sdl_editor $ODIN_LINK_FLAGS
+      - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.WORK}}/odin_sdl_editor {{.MACOS_LINK}}
 
   player:
     desc: The engine's player (optimized, static SDL), the bundle's prebuilt player
@@ -65,13 +70,16 @@ tasks:
     deps: [':box2d', ':sdl']
     cmds:
       - mkdir -p {{.WORK}}
-      - odin build {{.ENGINE_DIR}}/player -o:speed -out:{{.WORK}}/player $ODIN_LINK_FLAGS
+      - odin build {{.ENGINE_DIR}}/player -o:speed -out:{{.WORK}}/player {{.MACOS_LINK}}
 
   ols:
-    desc: The Odin language server the built-in code editor uses (code_editor's pinned OLS)
+    desc: The Odin language server the built-in code editor uses (code_editor's pinned, patched OLS), optimized, with header room for dylibbundler
     platforms: [darwin]
     cmds:
+      # Fetches the pinned commit and applies patches/ols (and builds the plain one)
       - task: ':ols'
+      - mkdir -p {{.WORK}}
+      - odin build code_editor/third_party/ols/src -collection:src=code_editor/third_party/ols/src -o:speed -out:{{.WORK}}/ols {{.MACOS_LINK}}
 
   app:
     desc: Build "Odin SDL Editor.app" in dist/macos - the editor, OLS, the prebuilt player, the engine's sources and static libraries, the Vulkan loader, MoltenVK and every other library it links, signed ad hoc

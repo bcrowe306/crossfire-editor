@@ -129,6 +129,11 @@ check)
 			problems=$((problems + 1))
 		fi
 	done < <(machos)
+	# SDL is linked in statically (the engine's sdl/lib): no SDL library may be bundled or linked
+	if compgen -G "$contents/Frameworks/libSDL3*" > /dev/null; then
+		echo "SDL dylibs were bundled: the static SDL wasn't linked (is Homebrew's lib folder passed with -L?)" >&2
+		problems=$((problems + 1))
+	fi
 	# A game exported with the prebuilt player carries no bundle with it: it may link nothing
 	for player in "$contents/MacOS/prebuilt/"*/player; do
 		if otool -L "$player" | tail -n +2 | grep -q "@rpath/"; then

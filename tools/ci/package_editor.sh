@@ -40,7 +40,14 @@ Linux)
 	fi
 	;;
 Darwin)
-	odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor" ${ODIN_LINK_FLAGS:-}
+	# Homebrew's -L only without the static SDL: macOS's linker takes the first folder with a
+	# library, so Homebrew's dylibs would win over the static ones (macOS releases use
+	# Taskfile.macos.yml's bundle instead of this archive)
+	if $static; then
+		odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor"
+	else
+		odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor" ${ODIN_LINK_FLAGS:-}
+	fi
 	;;
 *)
 	odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor.exe"
@@ -70,7 +77,7 @@ Linux)
 	fi
 	;;
 *)
-	odin build "$engine/player" -o:speed "-out:$stage/prebuilt/$target/player" ${ODIN_LINK_FLAGS:-}
+	odin build "$engine/player" -o:speed "-out:$stage/prebuilt/$target/player" $($static || echo "${ODIN_LINK_FLAGS:-}")
 	;;
 esac
 
