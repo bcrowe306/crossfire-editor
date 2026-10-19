@@ -31,29 +31,36 @@ rightSidebarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 }
 
+/*
+A node's scene tree row: its kind's icon and color (the same as its viewport marker), dimmed when
+hidden, and a script icon after the name when it has a script.
+*/
+SceneTree_Row :: proc(th: ^skald.Theme, scene: ^SceneDef, nodeIndex: int, selected: bool) -> ColoredTreeRow {
+	node := &scene.nodes[nodeIndex]
+	color := kindColor(node.kind)
+	label := TintLabel(th, color)
+	if !node.visible do label = th.color.fg_muted
+	return {
+		depth = Scene_NodeDepth(scene, nodeIndex),
+		label = node.visible ? node.name : fmt.tprintf("%s (hidden)", node.name),
+		expandable = Scene_HasChildren(scene, nodeIndex),
+		expanded = node.expanded,
+		selected = selected,
+		icon = NodeKindIcon(node.kind),
+		iconColor = color,
+		labelColor = label,
+		badge = node.script != "" ? ICON_FILE_CODE : "",
+		badgeColor = SCRIPT_COLOR,
+	}
+}
+
 @(private="file")
 sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
 	visible := SceneTreeRows(scene)
 	rows := make([]ColoredTreeRow, len(visible), context.temp_allocator)
-	for nodeIndex, i in visible {
-		node := &scene.nodes[nodeIndex]
-		// Each node kind in its own color, the same as its marker in the viewport; hidden nodes dimmed
-		color := kindColor(node.kind)
-		label := TintLabel(th, color)
-		if !node.visible do label = th.color.fg_muted
-		rows[i] = {
-			depth = Scene_NodeDepth(scene, nodeIndex),
-			label = node.visible ? node.name : fmt.tprintf("%s (hidden)", node.name),
-			expandable = Scene_HasChildren(scene, nodeIndex),
-			expanded = node.expanded,
-			selected = Selection_Contains(s, nodeIndex),
-			icon = NodeKindIcon(node.kind),
-			iconColor = color,
-			labelColor = label,
-		}
-	}
+	for nodeIndex, i in visible do rows[i] = SceneTree_Row(th, scene, nodeIndex, Selection_Contains(s, nodeIndex))
 
 	if s.refocus == .Scene_Tree {
 		skald.widget_focus(ctx, skald.hash_id("scene-tree"))

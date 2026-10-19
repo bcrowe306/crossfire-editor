@@ -259,6 +259,12 @@ browserMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) {
 	if ctx.input.mouse_pressed[.Left] && onRow && ctx.input.mouse_click_count[.Left] >= 2 && items[row].kind == .Scene {
 		skald.send(ctx, Msg(Scene_Action{.Rename, items[row].index}))
 	}
+	// A double-click on a script opens it (in a code tab, or the external editor)
+	if ctx.input.mouse_pressed[.Left] && onRow && ctx.input.mouse_click_count[.Left] >= 2 && items[row].kind == .Script && items[row].index < len(s.scriptFiles) {
+		path := joinPath(s.project.rootPath, s.scriptFiles[items[row].index], allocator = context.temp_allocator)
+		if absolute, err := os.get_absolute_path(path, context.temp_allocator); err == nil do path = absolute
+		skald.send(ctx, Msg(Script_Open_File{file = path, line = 1}))
+	}
 	// A double-click on a component opens it
 	if ctx.input.mouse_pressed[.Left] && onRow && ctx.input.mouse_click_count[.Left] >= 2 && items[row].kind == .Asset && items[row].index < len(s.project.assets) {
 		if asset := s.project.assets[items[row].index]; asset.kind == .Component {

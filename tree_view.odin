@@ -24,6 +24,9 @@ ColoredTreeRow :: struct {
 	// {} for the theme's default (muted icon, normal label)
 	iconColor: skald.Color,
 	labelColor: skald.Color,
+	// A small icon after the label ("" for none: the scene tree marks nodes with a script)
+	badge: string,
+	badgeColor: skald.Color,
 }
 
 /*
@@ -210,7 +213,12 @@ coloredTree :: proc(
 			skald.col(skald.text(chevron, chevronColor, fs), width = CHEVRON_WIDTH, height = rh, main_align = .Center, cross_align = .Center),
 		)
 		if r.icon != "" do append(&children, skald.spacer(iconGap), skald.text(r.icon, iconColor, fs))
-		append(&children, skald.spacer(iconGap), skald.text(r.label, labelColor, fs), skald.flex(1, skald.spacer(0)))
+		append(&children, skald.spacer(iconGap), skald.text(r.label, labelColor, fs))
+		if r.badge != "" {
+			badgeColor := r.selected ? th.color.on_primary : (r.badgeColor[3] > 0 ? r.badgeColor : th.color.fg_muted)
+			append(&children, skald.spacer(iconGap * 2), skald.text(r.badge, badgeColor, th.font.size_xs))
+		}
+		append(&children, skald.flex(1, skald.spacer(0)))
 		views[i] = skald.row(..children[:], height = rh, cross_align = .Center, bg = bg, radius = th.radius.sm)
 	}
 	// A bare zone, as skald.tree does: it records the rect under `id` without `skald.zone`'s click

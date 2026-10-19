@@ -539,7 +539,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Asset:
 			selectAsset(&out, item.index)
 		case .Script:
-			// The preview shows its source; a double-click (a second select of the same row) opens it
+			// The preview shows its source; a double-click opens it (view_browser.odin's browserMouse)
 		case .None:
 		}
 

@@ -3380,3 +3380,20 @@ scene_tabs_close_and_come_back :: proc(t: ^testing.T) {
 	_ = all
 	free_all(context.temp_allocator)
 }
+
+
+@(test)
+scene_tree_marks_nodes_with_scripts :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	theme := skald.theme_dark()
+	scene := playScene(&state)
+	ship := nodeIndex(scene, "Spaceship")
+	testing.expect_value(t, SceneTree_Row(&theme, scene, ship, false).badge, "")
+	delete(scene.nodes[ship].script)
+	scene.nodes[ship].script = strings.clone("Mover")
+	row := SceneTree_Row(&theme, scene, ship, false)
+	testing.expect_value(t, row.badge, ICON_FILE_CODE)
+	testing.expect_value(t, row.badgeColor, SCRIPT_COLOR)
+	free_all(context.temp_allocator)
+}

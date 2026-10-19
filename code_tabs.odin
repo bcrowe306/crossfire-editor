@@ -71,7 +71,8 @@ CodeTabs_Open :: proc(state: ^State, path: string, line: int) {
 	}
 	state.codeTab = index + 1
 	state.codeFocusPending = true
-	if line > 0 do CodeEditor_GotoLine(absolute, line)
+	// Line 1 (the browser's Open) only for a new tab: an open one keeps its caret
+	if line > 1 || (line == 1 && !known) do CodeEditor_GotoLine(absolute, line)
 }
 
 /*

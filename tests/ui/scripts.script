@@ -35,6 +35,12 @@ expect code_tabs 1
 expect code_caret 20 1
 click_widget code-tab-close-0
 expect code_tabs 0
+# A double-click on the script in the browser opens it again (rows: 4 Scripts, 5 assets.odin,
+# 6 mover.odin)
+double_click_row browser-tree 6
+expect code_tab mover.odin
+click_widget code-tab-close-0
+expect code_tabs 0
 
 # The external program instead (the test settings' is `true`): Settings > built-in editor off
 key ctrl+comma
