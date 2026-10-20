@@ -245,7 +245,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Project_Settings_Start_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
-	     Project_Settings_Physics_Smoothing_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
+	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)

@@ -189,6 +189,16 @@ Project_Settings_Physics_Changed :: struct {
 }
 Project_Settings_Physics_Debug_Changed :: distinct bool
 Project_Settings_Physics_Smoothing_Changed :: distinct bool
+// Project Settings > General: one of the window's settings (the engine's WindowSettings)
+WindowField :: enum {
+	Fullscreen,
+	VSync,
+	High_DPI,
+}
+Project_Settings_Window_Changed :: struct {
+	field: WindowField,
+	value: bool,
+}
 // Project Settings > Globals: add a script as a global, remove / move / show one (by index)
 // New Data Resource dialog (view_project_dialogs.odin)
 New_Script_Kind_Changed :: distinct ScriptKind
@@ -790,6 +800,7 @@ Msg :: union {
 	Project_Settings_Physics_Changed,
 	Project_Settings_Physics_Debug_Changed,
 	Project_Settings_Physics_Smoothing_Changed,
+	Project_Settings_Window_Changed,
 	New_Script_Kind_Changed,
 	New_Data_Opened,
 	New_Data_Name_Changed,

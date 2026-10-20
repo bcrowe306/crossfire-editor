@@ -198,6 +198,8 @@ Project :: struct {
 	assets: [dynamic]AssetDef,
 	// Physics: pixels per meter, gravity (px/s²), debug drawing in the game
 	physics: e.PhysicsSettings,
+	// The game's window: fullscreen, vsync, high-DPI (format 13)
+	window: e.WindowSettings,
 	// Scene files the editor loaded or saved (relative paths), so Save can delete the files of
 	// scenes that were renamed or removed, and nothing else (project_scenes.odin)
 	sceneFiles: [dynamic]string,
@@ -502,6 +504,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		background = data.background,
 		startScene = strings.clone(data.startScene),
 		physics = data.physics,
+		window = data.window,
 		exports = ExportSettings_Default(),
 	}
 	// Export settings: optional, and a bad line only loses that setting
@@ -678,6 +681,7 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 		background = {15, 18, 30, 255},
 		startScene = strings.clone("MenuScene"),
 		physics = e.DEFAULT_PHYSICS,
+		window = e.DEFAULT_WINDOW_SETTINGS,
 		exports = ExportSettings_Default(),
 	}
 	TITLE_COLOR :: sdl.Color{235, 240, 255, 255}

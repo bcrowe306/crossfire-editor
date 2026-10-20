@@ -167,6 +167,7 @@ Checks:
 	project_file <path>          A file exists, relative to the project folder (an export's output)
 	project_file_missing <path>  No such file or folder, relative to the project folder
 	project_file_contains <path> <text>   A project file contains the text (after saving)
+	project_file_lacks <path> <text>      A project file doesn't contain the text
 	shapes <on | off>            The viewport outlines collision shapes, rays and joints
 	particle <setting> <value>   A ParticleEmitter setting of the selected node, as scene files
 	                             store it (e.g. particle amount 50, particle size 5,5)
@@ -1512,11 +1513,12 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = s.viewport.showShapes ? "on" : "off"
 	case "physics_debug":
 		found = s.project.physics.debugDraw ? "on" : "off"
-	case "project_file_contains":
+	case "project_file_contains", "project_file_lacks":
 		path, _, text := strings.partition(value, " ")
 		data, err := os.read_entire_file(joinPath(s.project.rootPath, path, allocator = context.temp_allocator), context.temp_allocator)
 		if err != nil do return false, fmt.tprintf("can't read %s", path)
-		return strings.contains(string(data), text), "not found"
+		found := strings.contains(string(data), text)
+		return name == "project_file_contains" ? found : !found, found ? "found" : "not found"
 	case "console_contains", "output_contains":
 		lines := name == "console_contains" ? s.console[:] : s.output[:]
 		for line in lines do if strings.contains(line.text, value) do return true, "found"

@@ -160,6 +160,14 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id("project-settings-scale"), width = 160)),
 		settingRow(ctx, "Renderer", rendererSelect(ctx, d.renderer)),
 		skald.text(rendererNote(d.renderer), th.color.fg_muted, th.font.size_xs, max_width = 420),
+		settingRow(ctx, "Window", skald.row(
+			windowFlag(ctx, "Fullscreen", .Fullscreen, d.window.fullscreen),
+			windowFlag(ctx, "VSync", .VSync, d.window.vsync),
+			windowFlag(ctx, "High DPI", .High_DPI, d.window.highDPI),
+			spacing = th.spacing.md,
+		)),
+		skald.text("How the game's window starts: fullscreen at the desktop's resolution, frames in step with the display (vsync), at the display's full pixel density (sharper on high-DPI screens). Games can change fullscreen and vsync while running.",
+			th.color.fg_muted, th.font.size_xs, max_width = 420),
 		settingRow(ctx, "Background", skald.color_picker(ctx, d.background,
 			proc(c: skald.Color) -> Msg { return Project_Settings_Background_Changed(c) },
 			id = skald.hash_id("project-settings-background"), width = 160)),
@@ -509,4 +517,12 @@ exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, skald.text("Export (above) exports this target. File > Export exports every checked target. Exporting saves the project and applies these settings.",
 		th.color.fg_muted, th.font.size_xs, max_width = 440))
 	return skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start)
+}
+
+// One of the window's settings as a checkbox (key project-settings-window-<field>)
+@(private="file")
+windowFlag :: proc(ctx: ^skald.Ctx(Msg), label: string, field: WindowField, value: bool) -> skald.View {
+	return skald.checkbox(ctx, value, label, field,
+		proc(field: WindowField, value: bool) -> Msg { return Project_Settings_Window_Changed{field, value} },
+		id = skald.hash_id(fmt.tprintf("project-settings-window-%v", field)))
 }

@@ -1,0 +1,21 @@
+# Project Settings > General: the game window's settings (fullscreen, vsync, high-DPI), applied,
+# saved to project.xml, undone.
+# Run with: task test:ui (SCRIPT=tests/ui/window_settings.script)
+
+wait 5
+action Open_Project_Settings
+expect project_settings open
+click_widget project-settings-window-Fullscreen
+click_widget project-settings-window-VSync
+click_widget project-settings-window-High_DPI
+click_widget project-settings-apply
+key ctrl+s
+wait_until modified false
+expect project_file_contains project.xml fullscreen="true" vsync="false" highDPI="true"
+
+# Undo puts the defaults back (none written)
+key ctrl+z
+key ctrl+s
+wait_until modified false
+expect project_file_lacks project.xml fullscreen=
+quit

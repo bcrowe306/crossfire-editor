@@ -81,6 +81,7 @@ ProjectSnapshot :: struct {
 	scenes: [dynamic]SceneDef,
 	exports: ExportSettings,
 	physics: e.PhysicsSettings,
+	window: e.WindowSettings,
 	globals: [dynamic]GlobalDef,
 	data: [dynamic]DataDef,
 	actions: [dynamic]ActionDef,
@@ -713,6 +714,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		background = p.background,
 		exports = p.exports,
 		physics = p.physics,
+		window = p.window,
 		currentScene = s.currentScene,
 	}
 	// Scenes only: components are assets (made and removed with their files, like data resources)
@@ -742,6 +744,7 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.renderer = snapshot.renderer
 	p.exports = snapshot.exports
 	p.physics = snapshot.physics
+	p.window = snapshot.window
 	for &g in p.globals do GlobalDef_Destroy(&g)
 	clear(&p.globals)
 	for g in snapshot.globals do append(&p.globals, GlobalDef_Clone(g))
@@ -802,7 +805,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 @(private="file")
 projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if a.name != b.name || a.startScene != b.startScene || a.gameSize != b.gameSize || a.scaleMode != b.scaleMode ||
-	   a.renderer != b.renderer || a.background != b.background || a.exports != b.exports || a.physics != b.physics || len(a.scenes) != len(b.scenes) {
+	   a.renderer != b.renderer || a.background != b.background || a.exports != b.exports || a.physics != b.physics || a.window != b.window || len(a.scenes) != len(b.scenes) {
 		return false
 	}
 	for scene, i in a.scenes {

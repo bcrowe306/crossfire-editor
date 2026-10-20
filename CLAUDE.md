@@ -794,6 +794,10 @@ MyGame/
   .editor/                 per-user editor state (gitignored; not used yet)
 ```
 
+- **Version 13** also: the project's window (`Project.window`, the engine's `WindowSettings`):
+  Project Settings > General's Window checkboxes (`project-settings-window-<field>`,
+  `tests/ui/window_settings.script`), in the `.Project` undo snapshot, written when not the
+  defaults.
 - **Version 13:** every node's process mode, blend mode, z index, y sort and groups: `NodeDef`
   fields of the same names (groups as one comma-separated string), the inspector's common rows
   (Z index, Y sort, Blend, Process, Groups; `tests/ui/node_settings.script`), written only when

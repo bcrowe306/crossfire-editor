@@ -306,6 +306,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	tagged.ySort = true
 	delete(tagged.groups)
 	tagged.groups = strings.clone("enemies,flying")
+	original.window = {fullscreen = true, vsync = false, highDPI = true}
 
 	testing.expect_value(t, Project_Save(&original), "")
 	loaded, message, _ := Project_Load(dir)
@@ -317,6 +318,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	testing.expect_value(t, loaded.scaleMode, original.scaleMode)
 	testing.expect_value(t, loaded.background, original.background)
 	testing.expect_value(t, loaded.startScene, original.startScene)
+	testing.expect_value(t, loaded.window, original.window)
 	testing.expect_value(t, len(loaded.assets), len(original.assets))
 	testing.expect_value(t, len(loaded.scenes), len(original.scenes))
 

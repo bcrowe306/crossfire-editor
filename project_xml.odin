@@ -89,6 +89,11 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	if physics.gravity.y != e.DEFAULT_PHYSICS.gravity.y do attr(&w, "gravityY", physics.gravity.y)
 	if physics.debugDraw do attr(&w, "physicsDebug", true)
 	if !physics.smoothing do attr(&w, "physicsSmoothing", false)
+	// The window, only what isn't the default
+	window := project.window
+	if window.fullscreen != e.DEFAULT_WINDOW_SETTINGS.fullscreen do attr(&w, "fullscreen", window.fullscreen)
+	if window.vsync != e.DEFAULT_WINDOW_SETTINGS.vsync do attr(&w, "vsync", window.vsync)
+	if window.highDPI != e.DEFAULT_WINDOW_SETTINGS.highDPI do attr(&w, "highDPI", window.highDPI)
 	endOpen(&w)
 	for &scene in project.scenes {
 		// Components are assets, not scenes

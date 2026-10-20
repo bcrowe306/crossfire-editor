@@ -42,6 +42,7 @@ ProjectSettingsDialog :: struct {
 	// Owned
 	startScene: string,
 	physics: e.PhysicsSettings,
+	window: e.WindowSettings,
 	// Globals tab: a copy of the project's globals (owned), and the one shown
 	globals: [dynamic]GlobalDef,
 	selectedGlobal: int,
@@ -208,6 +209,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
 		renderer = p.renderer,
+		window = p.window,
 		background = skald.rgb(u32(c.r) << 16 | u32(c.g) << 8 | u32(c.b)),
 		startScene = strings.clone(p.startScene),
 		tab = tab,
@@ -265,6 +267,12 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 		dialog.selectedGlobal = int(v)
 	case Project_Settings_Physics_Smoothing_Changed:
 		dialog.physics.smoothing = bool(v)
+	case Project_Settings_Window_Changed:
+		switch v.field {
+		case .Fullscreen: dialog.window.fullscreen = v.value
+		case .VSync:      dialog.window.vsync = v.value
+		case .High_DPI:   dialog.window.highDPI = v.value
+		}
 	case Export_Target_Selected:
 		dialog.exportTarget = ExportTarget(v)
 	case Export_Target_Enabled:
@@ -325,6 +333,7 @@ applyProjectSettings :: proc(state: ^State) {
 	p.gameSize = dialog.gameSize
 	p.scaleMode = dialog.scaleMode
 	p.renderer = dialog.renderer
+	p.window = dialog.window
 	if color, ok := e.ParseColor(fmt.tprintf("#%s", skald.color_to_hex(dialog.background))); ok do p.background = color
 	if Project_FindScene(p, dialog.startScene) >= 0 && dialog.startScene != p.startScene {
 		delete(p.startScene)

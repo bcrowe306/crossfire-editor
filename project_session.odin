@@ -183,6 +183,7 @@ Project_CreateEmpty :: proc(root, name: string) -> Project {
 		background = {18, 20, 28, 255},
 		startScene = strings.clone("Main"),
 		physics = e.DEFAULT_PHYSICS,
+		window = e.DEFAULT_WINDOW_SETTINGS,
 		exports = ExportSettings_Default(),
 	}
 	scene := SceneDef{name = strings.clone("Main")}
