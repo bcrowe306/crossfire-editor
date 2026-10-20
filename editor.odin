@@ -155,6 +155,8 @@ State :: struct {
 	archive: struct {
 		busy: bool,
 		openPath: string,
+		// The archive being written keeps `.git/` (Export Project Archive with History)
+		includeGit: bool,
 	},
 	// The Git tab (vcs.odin)
 	git: GitState,
@@ -302,6 +304,15 @@ init :: proc() -> State {
 	state.settingsPath = args.settings
 	for problem in problems do logLine(&state, .Warning, fmt.aprintf("Settings: %s", problem))
 	root := args.project
+	// An archive given instead of a folder: unpacked next to it, then opened
+	if ProjectArchive_IsArchivePath(root) {
+		if unpacked, problem := ProjectArchive_ExtractArgument(root); problem == "" {
+			logLine(&state, .Info, fmt.aprintf("Unpacked %s into %s", root, unpacked))
+			root = unpacked
+		} else {
+			logLine(&state, .Error, fmt.aprintf("Couldn't open the archive %s: %s", root, problem))
+		}
+	}
 	project, message, warnings := Project_Load(root)
 	if message == "" {
 		state.project = project

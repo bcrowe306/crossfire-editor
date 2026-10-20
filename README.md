@@ -515,8 +515,10 @@ the frame rate and the last viewport render time.
 `.odinsdl` file (a zip, so any unzip tool opens it too): everything in the project folder except
 exported games, `build/` and `.git/`. Assets that live outside the project folder are copied in,
 and the archive's files point at the copies, so the archive works anywhere (the project itself
-isn't changed). File > **Open Project Archive...** picks an archive (or a zip of a project), then
-the folder to unpack it into, and opens it.
+isn't changed). **Export Project Archive with History...** keeps `.git/` too, so the archive
+carries the project's version history. File > **Open Project Archive...** picks an archive (or a
+zip of a project), then the folder to unpack it into, and opens it. An archive given on the
+command line (`odin_sdl_editor game.odinsdl`) is unpacked next to itself and opened.
 
 **Version control:** the bottom panel's **Git** tab (needs [Git](https://git-scm.com)).
 Initialize Repository makes the project folder a repository, with a `.gitignore` that leaves out

@@ -14,6 +14,7 @@ Action :: enum {
 	Export,
 	// The whole project in one file, and opening one (project_archive.odin)
 	Export_Project_Archive,
+	Export_Project_Archive_With_History,
 	Open_Project_Archive,
 	Quit,
 	Undo,

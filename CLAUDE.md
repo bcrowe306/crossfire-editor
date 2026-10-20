@@ -534,6 +534,11 @@ one folder, the project folder's name (`Game/project.xml`, ...). Its doc comment
   `ProjectArchive_Extract` on a worker into `<folder>/<top folder>` (`_2`... when taken), then
   `Session_OpenProject`. A zip with `project.xml` at its top works too (folder: the zip's name).
   Names with `..`, absolute, with `\` or `:` are refused before anything is written.
+- **With History** (Action.Export_Project_Archive_With_History): the same, `.git/` included
+  (`ArchiveInput.includeGit`, from `state.archive.includeGit`).
+- **On the command line** (`odin_sdl_editor game.odinsdl`, or a `.zip`): `init` unpacks it next
+  to itself (`ProjectArchive_ExtractArgument`, `_2`... when the folder is taken) before loading,
+  and opens what it unpacked (checked by hand: a fixture archive given to the built editor).
 - **Why stored, not deflated:** Odin's core library inflates (`core:compress/zlib`) but has no
   deflate encoder, and a project is mostly PNGs and compressed audio. No zip64 (65535 files, 4 GB).
 - Tests: `zip_round_trip_and_safe_names` (round trip, CRC catches damage, a Python-made deflated

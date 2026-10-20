@@ -826,6 +826,8 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		return out, Session_Request(&out, .Open_Project_Archive)
 	case .Export_Project_Archive:
 		return out, ProjectArchive_Export(&out)
+	case .Export_Project_Archive_With_History:
+		return out, ProjectArchive_Export(&out, includeGit = true)
 
 	case .Save_Project:
 		// Saved scripts are built again in the background: the inspector learns new fields

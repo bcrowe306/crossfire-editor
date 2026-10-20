@@ -86,6 +86,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			{separator = true},
 			item("Export...", .Export, keys),
 			item("Export Project Archive...", .Export_Project_Archive, keys),
+			item("Export Project Archive with History...", .Export_Project_Archive_With_History, keys),
 			{separator = true},
 			item("Quit", .Quit, keys),
 		}},

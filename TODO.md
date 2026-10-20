@@ -52,8 +52,4 @@ owns it.
 - Diffs of a change, discarding changes, merge conflicts, Git LFS for large assets, the branch
   in the status bar.
 
-## Project archives
-
-- Optionally include `.git` (the project's history) in an archive.
-- Open an archive given on the command line (`odin_sdl_editor game.odinsdl`).
 

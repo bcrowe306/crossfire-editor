@@ -60,6 +60,8 @@ ArchiveInput :: struct {
 	assets: []string,
 	// More folders to leave out (absolute): export output folders inside the project
 	skip: []string,
+	// Keep the project's version control history (`.git/`), which archives leave out otherwise
+	includeGit: bool,
 }
 
 // What writing an archive did
@@ -86,7 +88,10 @@ ProjectArchive_Create :: proc(input: ArchiveInput) -> ArchiveResult {
 	archive := absolutePath(input.archive)
 	_ = os.make_directory_all(filepath.dir(archive))
 	skip := make([dynamic]string, context.temp_allocator)
-	for folder in ARCHIVE_SKIPPED_FOLDERS do append(&skip, joinPath(root, folder, allocator = context.temp_allocator))
+	for folder in ARCHIVE_SKIPPED_FOLDERS {
+		if folder == ".git" && input.includeGit do continue
+		append(&skip, joinPath(root, folder, allocator = context.temp_allocator))
+	}
 	for folder in input.skip do append(&skip, absolutePath(folder))
 
 	relative := make([dynamic]string, context.temp_allocator)
@@ -217,6 +222,7 @@ ProjectArchive_Input :: proc(state: ^State, archive: string) -> ProjectArchive_J
 		archive = strings.clone(archive),
 		assets = assets,
 		skip = skip[:],
+		includeGit = state.archive.includeGit,
 	}}
 }
 
@@ -332,8 +338,10 @@ ProjectArchive_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 	return {}, true
 }
 
-// Asks where to write the open project's archive (File > Export Project Archive...)
-ProjectArchive_Export :: proc(state: ^State) -> skald.Command(Msg) {
+// Asks where to write the open project's archive (File > Export Project Archive..., or with
+// History: `.git/` too)
+ProjectArchive_Export :: proc(state: ^State, includeGit := false) -> skald.Command(Msg) {
+	state.archive.includeGit = includeGit
 	location := joinPath(filepath.dir(absolutePath(state.project.rootPath)),
 		fmt.tprintf("%s.%s", archiveFolderName(&state.project), PROJECT_ARCHIVE_EXTENSION), allocator = context.temp_allocator)
 	return skald.cmd_save_file_dialog(ARCHIVE_FILTERS, proc(r: skald.File_Dialog_Result) -> Msg { return Project_Archive_Path_Chosen(r) },
@@ -344,6 +352,24 @@ ProjectArchive_Export :: proc(state: ^State) -> skald.Command(Msg) {
 ProjectArchive_Open :: proc(state: ^State) -> skald.Command(Msg) {
 	return skald.cmd_open_file_dialog(OPEN_ARCHIVE_FILTERS, proc(r: skald.File_Dialog_Result) -> Msg { return Project_Archive_Open_Chosen(r) },
 		default_location = filepath.dir(absolutePath(state.project.rootPath)))
+}
+
+/*
+Unpacks an archive given on the command line (`odin_sdl_editor game.odinsdl`) next to it, as Open
+Project Archive would into the archive's folder.
+
+Returns:
+- The unpacked project's folder (temp allocated), or "" and why not
+*/
+ProjectArchive_ExtractArgument :: proc(archive: string) -> (root: string, problem: string) {
+	unpacked, _, message := ProjectArchive_Extract(archive, filepath.dir(absolutePath(archive)))
+	return unpacked, message
+}
+
+// Whether a command-line path is a project archive (opened by unpacking it)
+ProjectArchive_IsArchivePath :: proc(path: string) -> bool {
+	ext := strings.to_lower(filepath.ext(path), context.temp_allocator)
+	return ext == "." + PROJECT_ARCHIVE_EXTENSION || ext == ".zip"
 }
 
 // The archive's folder: the project folder's name (what unpacking it recreates)

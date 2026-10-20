@@ -127,6 +127,25 @@ project_archive_brings_outside_assets_in :: proc(t: ^testing.T) {
 	original, _ := os.read_entire_file(joinPath(root, "project.xml", allocator = context.temp_allocator), context.temp_allocator)
 	testing.expect(t, strings.contains(string(original), "../outside/ship.png"), "the project itself keeps its paths")
 
+	// With its history: .git goes in too (exports still don't)
+	withGit := joinPath(dir, "With Git.odinsdl", allocator = context.temp_allocator)
+	gitResult := ProjectArchive_Create({root = root, folder = "Game", archive = withGit, assets = {"../outside/ship.png"}, includeGit = true})
+	testing.expect_value(t, gitResult.problem, "")
+	gitData, _ := os.read_entire_file(withGit, context.temp_allocator)
+	gitEntries, _ := Zip_List(gitData)
+	gitNames := make([dynamic]string, context.temp_allocator)
+	for entry in gitEntries do append(&gitNames, entry.name)
+	gitJoined := strings.join(gitNames[:], ",", context.temp_allocator)
+	testing.expect(t, strings.contains(gitJoined, "Game/.git/HEAD"), gitJoined)
+	testing.expect(t, !strings.contains(gitJoined, "export/"), "exported games are still left out")
+
+	// Given on the command line: unpacked next to the archive (Game exists there: Game_2... here
+	// the folder beside it is free)
+	testing.expect(t, ProjectArchive_IsArchivePath("x/My Game.ODINSDL") && ProjectArchive_IsArchivePath("a.zip") && !ProjectArchive_IsArchivePath("Game"), "archive paths")
+	beside, besideProblem := ProjectArchive_ExtractArgument(withGit)
+	testing.expect_value(t, besideProblem, "")
+	testing.expect(t, strings.has_prefix(beside, absolutePath(dir)) && os.exists(joinPath(beside, ".git/HEAD", allocator = context.temp_allocator)), beside)
+
 	// Unpacking again doesn't overwrite: Game_2
 	again, _, againProblem := ProjectArchive_Extract(archive, unpackTo)
 	testing.expect_value(t, againProblem, "")
