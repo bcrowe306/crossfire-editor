@@ -87,6 +87,11 @@ numberField :: proc(
 	// Focus left with typed text pending: show the value again next frame
 	if editing && !focused do skald.send(ctx, Msg(Number_Edit_Ended(id)))
 
+	// Up and Down step it while it has focus (Shift: 10 steps); Left and Right move the caret
+	if steps := arrowSteps(ctx, id, upDownOnly = true); steps != 0 {
+		if editing do skald.send(ctx, Msg(Number_Edit_Ended(id)))
+		skald.send(ctx, NumberTarget_Msg(target, clamp(value + f64(steps) * step, minValue, maxValue)))
+	}
 	text := editing && focused ? s.numberEdit.text : formatNumber(value, decimals)
 	buttonWidth := max(f32(18), th.font.size_md * 1.4)
 	gap := f32(2)

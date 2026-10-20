@@ -46,6 +46,14 @@ valueSlider :: proc(
 		return math.clamp(v, lo, hi)
 	}
 
+	// Tab reaches the track; while it has focus the arrow keys step it (Shift: 10 steps)
+	skald.widget_make_focusable(ctx, trackId)
+	trackFocused := skald.widget_has_focus(ctx, trackId)
+	if steps := arrowSteps(ctx, trackId); steps != 0 {
+		unit := step > 0 ? step : span / 100
+		if v := settle(value + f32(steps) * unit, minValue, maxValue, step); v != value do skald.send(ctx, on_change(payload, v))
+	}
+
 	// The track: from last frame's rect, like Skald's own widgets
 	if state, drawn := ctx.widgets.states[trackId]; drawn && state.last_rect.w > 0 {
 		rect := state.last_rect
@@ -107,7 +115,8 @@ valueSlider :: proc(
 	}
 
 	Track :: struct { fraction: f32, fill, rail, thumb: skald.Color }
-	track := new_clone(Track{math.clamp((value - minValue) / span, 0, 1), th.color.primary, th.color.border, th.color.fg}, context.temp_allocator)
+	// A focused track's thumb takes the accent color: the arrow keys move it
+	track := new_clone(Track{math.clamp((value - minValue) / span, 0, 1), th.color.primary, th.color.border, trackFocused ? th.color.primary : th.color.fg}, context.temp_allocator)
 	trackWidth := max(width - textWidth - resetWidth - th.spacing.xs * 2, 16)
 	canvas := skald.canvas(ctx, track, proc(t: ^Track, p: skald.Canvas_Painter) {
 		b := p.bounds
@@ -120,6 +129,28 @@ valueSlider :: proc(
 		skald.draw_rect(p.r, {x - THUMB, b.y + b.h * 0.5 - THUMB, THUMB * 2, THUMB * 2}, t.thumb, THUMB)
 	}, id = trackId, width = trackWidth, height = 18, cursor = .EW_Resize)
 	return skald.row(canvas, box, reset, spacing = th.spacing.xs, cross_align = .Center)
+}
+
+/*
+The arrow keys pressed this frame for a focused control: +1 for Right or Up, -1 for Left or
+Down, times 10 with Shift. 0 when the control doesn't have focus.
+
+Inputs:
+- id: The control's widget id
+- upDownOnly: Only Up and Down count (a text box, whose Left and Right move the caret)
+*/
+arrowSteps :: proc(ctx: ^skald.Ctx($Msg), id: skald.Widget_ID, upDownOnly := false) -> int {
+	if !skald.widget_has_focus(ctx, id) do return 0
+	keys := ctx.input.keys_pressed
+	steps := 0
+	if .Up in keys do steps += 1
+	if .Down in keys do steps -= 1
+	if !upDownOnly {
+		if .Right in keys do steps += 1
+		if .Left in keys do steps -= 1
+	}
+	if .Shift in ctx.input.modifiers do steps *= 10
+	return steps
 }
 
 // Widest a value slider's text box gets, and its reset button's width

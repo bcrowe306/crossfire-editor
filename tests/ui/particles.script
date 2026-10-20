@@ -26,6 +26,13 @@ expect particle continuous false
 scroll_into_view inspector-scroll inspector-particle-amount-11
 drag_widget inspector-particle-amount-11 0.5 0.5 -0.5 0.5
 expect particle amount 1
+# The dragged (focused) slider steps with the arrow keys (Shift: 10 steps)
+key RIGHT
+expect particle amount 2
+key shift+RIGHT
+expect particle amount 12
+key LEFT
+expect particle amount 11
 
 # Typing a value into the box beside a slider (clamped to the range)
 scroll_into_view inspector-scroll inspector-particle-lifetime-11
@@ -105,7 +112,7 @@ expect particle amount 50
 expect particle continuous true
 expect particle size 5,5
 key ctrl+z
-expect particle amount 1
+expect particle amount 11
 expect particle size 100,100
 
 # A click in the inspector stays there: the scene tree's rows (12 now, taller than its pane) run
@@ -120,5 +127,5 @@ expect typing true
 key ctrl+s
 wait_until modified false
 expect project_file_contains scenes/PlayScene.scene.xml kind="ParticleEmitter" name="ParticleEmitter"
-expect project_file_contains scenes/PlayScene.scene.xml <particles continuous="false" amount="1"
+expect project_file_contains scenes/PlayScene.scene.xml <particles continuous="false" amount="11"
 quit

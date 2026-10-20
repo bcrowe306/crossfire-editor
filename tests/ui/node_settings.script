@@ -40,4 +40,15 @@ key ctrl+z
 key ctrl+s
 wait_until modified false
 expect project_file_contains scenes/PlayScene.scene.xml name="Node2D" x="0" y="0" processMode="WhenPaused" blendMode="Add" zIndex="2" ySort="true"/>
+
+# A focused number field steps with Up and Down (Shift: 10 steps)
+scroll_into_view inspector-scroll inspector-Z_Index-11
+click_widget inspector-Z_Index-11
+key UP
+key UP
+key DOWN
+key shift+UP
+key ctrl+s
+wait_until modified false
+expect project_file_contains scenes/PlayScene.scene.xml zIndex="13"
 quit

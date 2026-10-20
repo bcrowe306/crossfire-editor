@@ -145,6 +145,11 @@ fader :: proc(ctx: ^skald.Ctx($Msg), key: string, gain: f32, payload: $P, on_cha
 	th := ctx.theme
 	id := skald.hash_id(key)
 	position := Fader_GainToPosition(gain)
+	// Focused (clicked or tabbed to): the arrow keys move it a hundredth of its travel (Shift: 10)
+	skald.widget_make_focusable(ctx, id)
+	if steps := arrowSteps(ctx, id); steps != 0 {
+		if g := Fader_PositionToGain(math.clamp(position + f32(steps) * 0.01, 0, 1)); g != gain do skald.send(ctx, on_change(payload, g))
+	}
 	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.h > 0 {
 		rect := state.last_rect
 		usable := max(rect.h - FADER_CAP_HEIGHT, 1)
@@ -210,6 +215,11 @@ panControl :: proc(ctx: ^skald.Ctx($Msg), key: string, pan: f32, payload: $P, on
 	th := ctx.theme
 	id := skald.hash_id(key)
 	settle :: proc(v: f32) -> f32 { return math.clamp(math.round(v * 100) / 100, -1, 1) }
+	// Focused: the arrow keys move it by 0.01 (Shift: 0.1)
+	skald.widget_make_focusable(ctx, id)
+	if steps := arrowSteps(ctx, id); steps != 0 {
+		if v := settle(pan + f32(steps) * 0.01); v != pan do skald.send(ctx, on_change(payload, v))
+	}
 	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 {
 		rect := state.last_rect
 		mouse := ctx.input.mouse_pos

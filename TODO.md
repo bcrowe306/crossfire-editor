@@ -11,9 +11,9 @@ owns it.
 
 ## Editor UI
 
-- **Arrow keys adjust the focused control:** a focused slider, number field, dropdown, checkbox
-  or the like changes its value with the direction keys (Left/Right or Up/Down step it; Shift for
-  bigger steps on numbers), like desktop toolkits.
+- **Arrow keys change a focused dropdown's choice** (Up/Down while it's closed). Value sliders,
+  number fields, the fader and pan control already step with them, and Skald's slider does; its
+  `select` only opens on Space/Enter, so this one is a change in Skald.
 
 - **Pan and scroll the viewport.** Scroll horizontally and vertically, not only zoom. A pan tool
   of its own is fine; also a modifier with the wheel (say Shift + wheel pans sideways, Ctrl +
