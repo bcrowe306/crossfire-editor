@@ -580,7 +580,7 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		} else {
 			if host.uploadedSize == size do imageReady = skald.image_update_pixels(ctx.renderer, CODE_IMAGE, u32(size.x), u32(size.y), pixels)
 			if !imageReady {
-				imageReady = skald.image_load_pixels(ctx.renderer, CODE_IMAGE, u32(size.x), u32(size.y), pixels)
+				imageReady = skald.image_load_pixels(ctx.renderer, CODE_IMAGE, u32(size.x), u32(size.y), pixels, mipmaps = false)
 				host.uploadedSize = size
 			}
 			host.uploaded = imageReady ? c : nil

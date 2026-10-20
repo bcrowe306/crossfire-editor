@@ -116,7 +116,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				imageReady = skald.image_update_pixels(ctx.renderer, VIEWPORT_IMAGE, u32(size.x), u32(size.y), pixels)
 			}
 			if !imageReady {
-				imageReady = skald.image_load_pixels(ctx.renderer, VIEWPORT_IMAGE, u32(size.x), u32(size.y), pixels)
+				imageReady = skald.image_load_pixels(ctx.renderer, VIEWPORT_IMAGE, u32(size.x), u32(size.y), pixels, mipmaps = false)
 				uploadedSize = size
 			}
 			uploadedKey = imageReady ? key : 0

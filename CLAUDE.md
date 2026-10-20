@@ -298,18 +298,21 @@ sprites, animations, text and menus look as they do in the game. Future engine f
     (the engine's LDtk tiles: cracks, then tiles vanishing after a zoom).
   - Growing the GPU target keeps the renderer, its game and textures (the software surface
     still rebuilds them).
-  - Measured then: the Skald upload (~12 ms fullscreen) became the larger cost; making it cheap
-    is the Skald change below.
-- **The upload is the expensive part** (Skald rebuilds mipmaps on the CPU and waits for the GPU on
-  every update: ~4 ms optimized, ~46 ms in a debug build, for a 400x730 px viewport; ~12 ms for
-  a fullscreen 1059x555 one). So:
+  - The image is single-level (`image_load_pixels(..., mipmaps = false)`), so
+    `image_update_pixels` streams it (Skald's fast path: no CPU mips, a staging buffer kept
+    mapped, a fence instead of a queue wait): ~0.6 ms per update fullscreen, from ~12 ms. Checked
+    by reading the GPU image back after streamed updates (zooming, animations): byte-identical
+    to the render. The code editor's image is single-level too.
+- **The upload was the expensive part** (Skald rebuilt mipmaps on the CPU and waited for the
+  GPU on every update: ~4 ms optimized, ~46 ms in a debug build, for a 400x730 px viewport;
+  ~12 ms for a fullscreen 1059x555 one; now ~0.6 ms, see above). Still:
   - the view only renders and uploads when `Preview_FrameKey` changes (scene, transforms, view,
     size, animation frame); other redraws reuse the image
   - animations run on a timer at `VIEWPORT_ANIMATION_FPS` (30): `Viewport_Tick` schedules the
     next tick itself, and stops when the window isn't focused (`EditorFocused`)
-  - Making the upload cheap needs a Skald change (no mipmaps, a reused staging buffer, no
-    `QueueWaitIdle`); drawing the engine through Skald on the GPU needs a public textured-quad
-    API in Skald. Both were deferred; ask before changing Skald.
+  - The cheap upload was a Skald change (no mipmaps, a reused staging buffer, no
+    `QueueWaitIdle`: Skald's `mipmaps = false`). Drawing the engine through Skald on the GPU
+    would need a public textured-quad API in Skald: deferred; ask before changing Skald.
 - Skald draws with Vulkan, so it can't share a GPU context with the engine.
 - The preview is package state, not `State`, because it holds SDL resources:
   - The engine scene is rebuilt only when the scene's structure changes (`sceneSignature`).
