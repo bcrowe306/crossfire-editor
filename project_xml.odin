@@ -393,6 +393,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			attr(w, "points", e.FormatPoints(node.points[:], context.temp_allocator))
 		}
 		if node.disabled do attr(w, "disabled", true)
+		if node.oneWay do attr(w, "oneWay", true)
 	case .RayCast:
 		attr(w, "targetX", node.target.x)
 		attr(w, "targetY", node.target.y)

@@ -409,6 +409,8 @@ NodeFlag :: enum {
 	Collide_Connected,
 	// Every node: its children draw by their y (format 13)
 	Y_Sort,
+	// CollisionShape: a one-way platform (format 13)
+	One_Way,
 }
 
 // Turns one collision layer (1-64) on or off in the selected node's layers (or its mask)

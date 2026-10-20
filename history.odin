@@ -628,7 +628,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.restitution != b.restitution || a.density != b.density || a.gravityScale != b.gravityScale ||
 	   a.linearDamping != b.linearDamping || a.angularDamping != b.angularDamping || a.fixedRotation != b.fixedRotation ||
 	   a.bullet != b.bullet || a.floorMaxAngle != b.floorMaxAngle || a.shape != b.shape || a.shapeSize != b.shapeSize ||
-	   a.radius != b.radius || len(a.points) != len(b.points) || a.disabled != b.disabled || a.target != b.target ||
+	   a.radius != b.radius || len(a.points) != len(b.points) || a.disabled != b.disabled || a.oneWay != b.oneWay || a.target != b.target ||
 	   a.enabled != b.enabled || a.excludeParent != b.excludeParent ||
 	   a.jointKind != b.jointKind || a.bodyA != b.bodyA || a.bodyB != b.bodyB || a.jointOffset != b.jointOffset ||
 	   a.enableLimit != b.enableLimit || a.lower != b.lower || a.upper != b.upper || a.enableMotor != b.enableMotor ||

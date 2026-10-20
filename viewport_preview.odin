@@ -470,7 +470,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			gravityScale = node.gravityScale, linearDamping = node.linearDamping, angularDamping = node.angularDamping,
 			fixedRotation = node.fixedRotation, bullet = node.bullet, floorMaxAngle = node.floorMaxAngle,
 			shape = node.shape, shapeSize = node.shapeSize, radius = node.radius, points = node.points,
-			disabled = node.disabled, target = node.target, enabled = node.enabled, excludeParent = node.excludeParent,
+			disabled = node.disabled, oneWay = node.oneWay, target = node.target, enabled = node.enabled, excludeParent = node.excludeParent,
 			jointKind = node.jointKind, bodyA = node.bodyA, bodyB = node.bodyB, jointOffset = node.jointOffset,
 			enableLimit = node.enableLimit, lower = node.lower, upper = node.upper, enableMotor = node.enableMotor,
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,

@@ -100,6 +100,8 @@ NodeDef :: struct {
 	radius: f32,
 	points: [dynamic][2]f32,
 	disabled: bool,
+	// Only its top stops what comes down on it (format 13)
+	oneWay: bool,
 	// RayCast (collisionMask is what it hits)
 	target: [2]f32,
 	enabled: bool,
@@ -622,6 +624,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 			shapeSize = node.shapeSize,
 			radius = node.radius,
 			disabled = node.disabled,
+			oneWay = node.oneWay,
 			target = node.target,
 			enabled = node.enabled,
 			excludeParent = node.excludeParent,

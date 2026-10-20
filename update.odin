@@ -784,6 +784,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Fixed_Rotation: node.fixedRotation = v.value
 		case .Bullet:         node.bullet = v.value
 		case .Disabled:       node.disabled = v.value
+		case .One_Way:        node.oneWay = v.value
 		case .Enabled:        node.enabled = v.value
 		case .Exclude_Parent: node.excludeParent = v.value
 		case .Limit:          node.enableLimit = v.value

@@ -30,6 +30,9 @@ expect parent DynamicBody
 expect nodes 13
 scroll_into_view inspector-scroll inspector-Shape_Width-12-inc
 click_widget inspector-Shape_Width-12-inc
+# A one-way platform
+scroll_into_view inspector-scroll inspector-One_Way-12
+click_widget inspector-One_Way-12
 
 key ctrl+s
 wait_until modified false
@@ -37,8 +40,10 @@ expect project_file_contains scenes/PlayScene.scene.xml kind="DynamicBody" name=
 expect project_file_contains scenes/PlayScene.scene.xml collisionLayer="1 2"
 expect project_file_contains scenes/PlayScene.scene.xml collisionMask="2 3 4
 expect project_file_contains scenes/PlayScene.scene.xml shape="Rectangle" width="33" height="32"
+expect project_file_contains scenes/PlayScene.scene.xml oneWay="true"
 
-# Undo the width
+# Undo the one-way flag and the width
+key ctrl+z
 key ctrl+z
 expect modified true
 

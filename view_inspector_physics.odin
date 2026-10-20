@@ -112,6 +112,8 @@ physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 			)
 		}
 		append(&rows, inspectorRow(ctx, "Disabled", flag(ctx, key, .Disabled, node.disabled)))
+		append(&rows, inspectorRow(ctx, "One way", flag(ctx, key, .One_Way, node.oneWay)))
+		if node.oneWay do append(&rows, hint(ctx, "A platform: only its top stops what lands on it; bodies pass through from below and the sides."))
 		if shapeBody(scene, index) < 0 {
 			append(&rows, hint(ctx, "Not under a body: this shape does nothing. Move it under a StaticBody, DynamicBody, CharacterMover or Area.", warning = true))
 		}

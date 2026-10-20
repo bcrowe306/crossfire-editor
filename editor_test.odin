@@ -2219,6 +2219,7 @@ physics_nodes_round_trip :: proc(t: ^testing.T) {
 	scene.nodes[poly].shape = .Polygon
 	append(&scene.nodes[poly].points, [2]f32{-10, 0}, [2]f32{10, 0}, [2]f32{0, -12.5})
 	scene.nodes[poly].disabled = true
+	scene.nodes[poly].oneWay = true
 	hero := Scene_InsertNode(scene, "Hero", .CharacterMover, -1)
 	scene.nodes[hero].floorMaxAngle = 30
 	capsule := Scene_InsertNode(scene, "Body", .CollisionShape, hero)
