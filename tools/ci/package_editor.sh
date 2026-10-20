@@ -18,6 +18,21 @@
 # Run from the editor's folder, with the engine checked out next to it (../odin_sdl_engine) and
 # set up (the engine's tools/ci/setup.sh, tools/build_box2d.sh).
 set -euo pipefail
+
+# Built with zig for an old glibc (tools/ci/zig_toolchain.sh sets GLIBC_MAX): no program may need
+# a newer one
+glibc_check() { # <program>...
+	[[ -n "${GLIBC_MAX:-}" ]] || return 0
+	for program in "$@"; do
+		newest=$(objdump -T "$program" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -V | tail -1)
+		if [[ -n "$newest" ]] && [[ "$(printf '%s\n%s\n' "$newest" "$GLIBC_MAX" | sort -V | tail -1)" != "$GLIBC_MAX" ]]; then
+			echo "$program needs GLIBC $newest, newer than $GLIBC_MAX" >&2
+			exit 1
+		fi
+		echo "$program: GLIBC $newest at most"
+	done
+}
+
 platform=$1
 version=$2
 editor=$(cd "$(dirname "$0")/../.." && pwd)
@@ -95,6 +110,7 @@ if $static && command -v ldd > /dev/null; then
 	done
 	echo "SDL is inside the editor and the prebuilt player"
 fi
+[[ "$(uname -s)" == Linux ]] && glibc_check "$stage/crossfire-editor" "$stage/prebuilt/$target/player"
 
 # The engine's sources, with its built libraries
 mkdir -p "$stage/engine"
