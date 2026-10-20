@@ -197,6 +197,8 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	msRange :: [2]f32{f32(SETTINGS_UNDO_MS_RANGE[0]), f32(SETTINGS_UNDO_MS_RANGE[1])}
 	limitRange :: [2]f32{f32(SETTINGS_UNDO_LIMIT_RANGE[0]), f32(SETTINGS_UNDO_LIMIT_RANGE[1])}
 	gridRange :: [2]f32{f32(SETTINGS_GRID_SIZE_RANGE[0]), f32(SETTINGS_GRID_SIZE_RANGE[1])}
+	majorRange :: [2]f32{f32(SETTINGS_GRID_MAJOR_RANGE[0]), f32(SETTINGS_GRID_MAJOR_RANGE[1])}
+	percentRange :: [2]f32{f32(SETTINGS_PERCENT_RANGE[0]), f32(SETTINGS_PERCENT_RANGE[1])}
 	// Scrolls: the Scripts settings at the bottom don't fit the dialog's height
 	content := skald.col(
 		skald.text("Undo", th.color.fg, th.font.size_md),
@@ -207,8 +209,13 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Undo steps kept", numberSetting(ctx, s, .Undo_Limit, f64(draft.undoLimit), 10, limitRange, "")),
 		skald.spacer(th.spacing.sm),
 		skald.text("Viewport", th.color.fg, th.font.size_md),
-		settingRow(ctx, "Grid size", numberSetting(ctx, s, .Grid_Size, f64(draft.gridSize), 8, gridRange, "px")),
-		hint(ctx, "Spacing of the viewport grid, in world units. G shows it; Shift+G snaps moves to it (and rotation to 15°, scale to 0.1)."),
+		settingRow(ctx, "Grid width", numberSetting(ctx, s, .Grid_Width, f64(draft.gridSize.x), 8, gridRange, "px")),
+		settingRow(ctx, "Grid height", numberSetting(ctx, s, .Grid_Height, f64(draft.gridSize.y), 8, gridRange, "px")),
+		hint(ctx, "The viewport grid's cell, in world units. G shows it; Shift+G snaps moves to it (and rotation to 15°, scale to 0.1)."),
+		settingRow(ctx, "Major lines every", numberSetting(ctx, s, .Grid_Major_Every, f64(draft.gridMajorEvery), 1, majorRange, "cells")),
+		settingRow(ctx, "Line opacity", numberSetting(ctx, s, .Grid_Opacity, f64(draft.gridOpacity), 1, percentRange, "%")),
+		settingRow(ctx, "Major line opacity", numberSetting(ctx, s, .Grid_Major_Opacity, f64(draft.gridMajorOpacity), 1, percentRange, "%")),
+		hint(ctx, "Major lines divide the grid into blocks of cells (0: none). The game area is outlined in red."),
 		skald.spacer(th.spacing.sm),
 		skald.text("Scripts", th.color.fg, th.font.size_md),
 		settingRow(ctx, "Code editor", skald.checkbox(ctx, draft.builtInCodeEditor, "Use the built-in code editor",

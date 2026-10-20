@@ -579,6 +579,8 @@ Input_Device_Changed :: distinct int
 
 // Help > Keyboard Shortcuts: the Settings dialog on its Keyboard tab
 Open_Keyboard_Settings :: struct {}
+// View > Grid Settings: the Settings dialog on its Editor tab (the grid's settings)
+Open_Grid_Settings :: struct {}
 
 // The Animation panel (view_animation.odin, animation_edit.odin): the selected AnimatedSprite's
 // animations. Strings are only valid while handling the message
@@ -921,6 +923,7 @@ Msg :: union {
 	Node_Layer_Toggled,
 	Node_Points_Changed,
 	Open_Keyboard_Settings,
+	Open_Grid_Settings,
 	Component_Opened,
 	Audio_Field_Changed,
 	Audio_Flag_Changed,

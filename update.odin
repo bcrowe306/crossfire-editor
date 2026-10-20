@@ -168,6 +168,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Open_Keyboard_Settings:
 		SettingsDialog_Open(&out)
 		out.settingsDialog.tab = .Keyboard
+	case Open_Grid_Settings:
+		SettingsDialog_Open(&out)
+		out.settingsDialog.tab = .Editor
 
 	case Scripts_Auto_Build:
 		if out.scriptsAutoBuilt do break
@@ -491,7 +494,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		}
 		if drag.mode == .None || drag.mode == .Pan || drag.node < 0 || drag.node >= len(scene.nodes) do break
 		before := scene.nodes[drag.node]
-		grid := out.viewport.snap ? f32(out.settings.gridSize) : 0
+		grid: [2]f32
+		if out.viewport.snap do grid = {f32(out.settings.gridSize.x), f32(out.settings.gridSize.y)}
 		Viewport_ApplyDrag(&scene.nodes[drag.node], drag, v.mouse, v.constrain, grid)
 		// The rest of the selection follows
 		if len(out.selection) > 1 && Selection_Contains(&out, drag.node) {

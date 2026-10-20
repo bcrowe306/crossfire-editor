@@ -414,8 +414,14 @@ behave (`viewportOnly`, `textChord`).
 Add Node (Ctrl+Shift+A, the scene tree's + button, Edit menu) opens a dialog listing every
 `SceneNodeKind` with its description from the engine's `SCENE_NODE_KINDS`. A new kind in the engine
 shows up here with no editor change (it still needs inspector fields).
-- The search box has focus when it opens and filters by name or description, case-insensitive.
-- Up/Down move the highlight, Enter or a click adds that kind, Escape cancels.
+- The search box has focus when it opens and filters by name, description or category,
+  case-insensitive.
+- Kinds are listed under their category's header (the engine's `SceneNodeCategory`: Scene,
+  Graphics, User interface, Physics, Sound), in a scroll (`add-node-scroll`) as tall as the window
+  allows. `AddNode_Kinds` returns them in that order, which the highlight indexes.
+- Up/Down move the highlight and scroll it into view (rows and headers have fixed heights, so
+  its position is known without layout: rows scrolled out of view keep stale rects), Enter or a
+  click adds that kind, Escape cancels. add_node.script tests it.
 - The node becomes a child of the selected node (top-level when nothing is selected), is named
   after its kind (`Sprite`, `Sprite2`, ...), and is selected.
 - While any modal dialog or the scene tree's context menu is open, `KeymapDispatch` registers
@@ -496,11 +502,17 @@ shows up here with no editor change (it still needs inspector fields).
 
 ### Viewport grid and snapping
 
-- `viewport.gridVisible` (G, on by default) draws lines every `settings.gridSize` world units,
-  doubled until 8 px apart; the axes are brighter. `viewport.snap` (Shift+G) makes
-  `Viewport_ApplyDrag` put the node's origin on the grid, rotation on 15° steps and scale on 0.1.
-  Toolbar toggles sit in the viewport header. A multi-selection keeps its layout: only the dragged
-  node snaps.
+- `viewport.gridVisible` (G, on by default) draws lines every `settings.gridSize` (a cell's width
+  and height, world units), a major line every `gridMajorEvery` cells (0 = none), each at its
+  opacity (`gridOpacity`, `gridMajorOpacity`, percent of the theme's text color); the axes are
+  brighter. Zoomed out, cells double until 8 px apart, majors with them. Settings > Editor >
+  Viewport edits them (View > Grid Settings opens it: `Open_Grid_Settings`); older editor.ini
+  files' `grid_size` sets both sides. `viewport.snap` (Shift+G) makes `Viewport_ApplyDrag` put
+  the node's origin on the grid, rotation on 15° steps and scale on 0.1. Toolbar toggles sit in
+  the viewport header. A multi-selection keeps its layout: only the dragged node snaps.
+  usability.script tests the settings and snapping to a 16 x 24 grid.
+- The game area is outlined in a subtle red (`GAME_FRAME_COLOR`), apart from the grid and the
+  camera frames.
 
 ### Dragging images into the viewport
 

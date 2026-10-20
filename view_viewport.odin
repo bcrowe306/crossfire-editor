@@ -582,13 +582,13 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 	} else {
 		skald.draw_rect(r, viewRect, skald.rgb(0x101218))
 	}
-	if v.zoom > 0 && v.gridVisible do drawGrid(r, viewRect, v, f32(s.settings.gridSize), th)
+	if v.zoom > 0 && v.gridVisible do drawGrid(r, viewRect, v, &s.settings, th)
 	if v.zoom > 0 {
 		// Game frame
 		a := toWindow(p.bounds, v, {0, 0})
 		b := toWindow(p.bounds, v, s.project.gameSize)
-		skald.draw_rect_outline(r, {a.x, a.y, b.x - a.x, b.y - a.y}, 1, th.color.border)
-		drawTextTop(r, fmt.tprintf("%.0f x %.0f", s.project.gameSize.x, s.project.gameSize.y), a.x, a.y - 16, th.color.fg_muted, th.font.size_xs)
+		skald.draw_rect_outline(r, {a.x, a.y, b.x - a.x, b.y - a.y}, 1, GAME_FRAME_COLOR)
+		drawTextTop(r, fmt.tprintf("%.0f x %.0f", s.project.gameSize.x, s.project.gameSize.y), a.x, a.y - 16, GAME_FRAME_COLOR, th.font.size_xs)
 
 		for &node, i in scene.nodes {
 			shape := data.shapes[i]
@@ -677,25 +677,41 @@ drawOutline :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, s
 	}
 }
 
-// Grid lines every `size` world units, doubled until they're at least 8 px apart on screen
+// The game area's outline: a subtle red, apart from the grid and the camera frames
+GAME_FRAME_COLOR :: skald.Color{0.93, 0.36, 0.36, 0.6}
+
+/*
+Grid lines at the settings' cell size, a major (more opaque) line every `gridMajorEvery` cells,
+the axes brighter still. Zoomed out, cells double until they're at least 8 px apart on screen,
+and the major lines with them, so blocks keep the same number of cells.
+*/
 @(private="file")
-drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, size: f32, th: ^skald.Theme) {
-	if size <= 0 do return
-	step := size
-	for step * v.zoom < 8 do step *= 2
+drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, settings: ^Settings, th: ^skald.Theme) {
+	cell := [2]f32{f32(settings.gridSize.x), f32(settings.gridSize.y)}
+	if cell.x <= 0 || cell.y <= 0 do return
+	for cell.x * v.zoom < 8 || cell.y * v.zoom < 8 do cell *= 2
+	every := settings.gridMajorEvery
 	lo := Viewport_ViewToWorld(v, {0, 0})
 	hi := Viewport_ViewToWorld(v, {view.w, view.h})
 	color := th.color.fg
-	color[3] = 0.07
+	color[3] = f32(settings.gridOpacity) / 100
+	major := th.color.fg
+	major[3] = f32(settings.gridMajorOpacity) / 100
 	axis := th.color.fg
-	axis[3] = 0.18
-	for x := math.floor(lo.x / step) * step; x <= hi.x; x += step {
-		sx := view.x + Viewport_WorldToView(v, {x, 0}).x
-		skald.draw_rect(r, {sx, view.y, 1, view.h}, abs(x) < step * 0.5 ? axis : color)
+	axis[3] = min(max(major[3], color[3]) + 0.15, 1)
+	// The line's color by its index: line i sits at i cells from the origin
+	lineColor :: proc(i: int, every: int, color, major, axis: skald.Color) -> skald.Color {
+		if i == 0 do return axis
+		if every > 0 && i %% every == 0 do return major
+		return color
 	}
-	for y := math.floor(lo.y / step) * step; y <= hi.y; y += step {
-		sy := view.y + Viewport_WorldToView(v, {0, y}).y
-		skald.draw_rect(r, {view.x, sy, view.w, 1}, abs(y) < step * 0.5 ? axis : color)
+	for i := int(math.floor(lo.x / cell.x)); f32(i) * cell.x <= hi.x; i += 1 {
+		sx := view.x + Viewport_WorldToView(v, {f32(i) * cell.x, 0}).x
+		skald.draw_rect(r, {sx, view.y, 1, view.h}, lineColor(i, every, color, major, axis))
+	}
+	for i := int(math.floor(lo.y / cell.y)); f32(i) * cell.y <= hi.y; i += 1 {
+		sy := view.y + Viewport_WorldToView(v, {0, f32(i) * cell.y}).y
+		skald.draw_rect(r, {view.x, sy, view.w, 1}, lineColor(i, every, color, major, axis))
 	}
 }
 

@@ -172,10 +172,11 @@ Inputs:
 - drag: The drag, as started by `Viewport_Drag_Begin`
 - mouse: Current mouse position in world coordinates
 - constrain: Shift held: snap rotation, keep moves on one axis, scale axes separately
-- grid: Snapping on: the grid size. Moves put the node's origin on the grid, rotation snaps to
-  ROTATE_SNAP degrees, scale to SCALE_SNAP steps. 0 for no snapping
+- grid: Snapping on: the grid's cell (width, height). Moves put the node's origin on the grid,
+  rotation snaps to ROTATE_SNAP degrees, scale to SCALE_SNAP steps. Zero for no snapping
 */
-Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, constrain: bool, grid: f32 = 0) {
+Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, constrain: bool, grid: [2]f32 = {}) {
+	snap := grid.x > 0 && grid.y > 0
 	origin := drag.startWorld.origin
 	switch drag.mode {
 	case .Move, .Move_X, .Move_Y:
@@ -186,9 +187,9 @@ Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, c
 		if mode == .Move_Y do delta.x = 0
 		// The new world origin, expressed in the parent's space
 		world := origin + delta
-		if grid > 0 {
-			if mode != .Move_Y do world.x = math.round(world.x / grid) * grid
-			if mode != .Move_X do world.y = math.round(world.y / grid) * grid
+		if snap {
+			if mode != .Move_Y do world.x = math.round(world.x / grid.x) * grid.x
+			if mode != .Move_X do world.y = math.round(world.y / grid.y) * grid.y
 		}
 		node.position = e.Transform2D_Apply(e.Transform2D_Inverse(drag.parentWorld), world)
 
@@ -197,7 +198,7 @@ Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, c
 		b := mouse - origin
 		delta := math.to_degrees(math.atan2(b.y, b.x) - math.atan2(a.y, a.x))
 		rotation := drag.startRotation + delta
-		if constrain || grid > 0 do rotation = math.round(rotation / ROTATE_SNAP) * ROTATE_SNAP
+		if constrain || snap do rotation = math.round(rotation / ROTATE_SNAP) * ROTATE_SNAP
 		node.rotation = normalizeDegrees(rotation)
 
 	case .Scale, .Scale_Axes:
@@ -215,7 +216,7 @@ Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, c
 			lb := math.sqrt(b.x * b.x + b.y * b.y)
 			if la > 1e-3 do node.scale = drag.startScale * (lb / la)
 		}
-		if grid > 0 do node.scale = {math.round(node.scale.x / SCALE_SNAP) * SCALE_SNAP, math.round(node.scale.y / SCALE_SNAP) * SCALE_SNAP}
+		if snap do node.scale = {math.round(node.scale.x / SCALE_SNAP) * SCALE_SNAP, math.round(node.scale.y / SCALE_SNAP) * SCALE_SNAP}
 
 	case .None, .Pan, .Box:
 	}

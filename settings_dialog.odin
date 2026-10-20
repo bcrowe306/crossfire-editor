@@ -43,7 +43,11 @@ SettingsField :: enum {
 	Undo_Merge_Ms,
 	Undo_Group_Max_Ms,
 	Undo_Limit,
-	Grid_Size,
+	Grid_Width,
+	Grid_Height,
+	Grid_Major_Every,
+	Grid_Opacity,
+	Grid_Major_Opacity,
 }
 
 // Opens the dialog on a fresh copy of the active settings
@@ -94,7 +98,11 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		case .Undo_Merge_Ms:     draft.undoMergeMs = clamp(int(v.value), SETTINGS_UNDO_MS_RANGE[0], SETTINGS_UNDO_MS_RANGE[1])
 		case .Undo_Group_Max_Ms: draft.undoGroupMaxMs = clamp(int(v.value), SETTINGS_UNDO_MS_RANGE[0], SETTINGS_UNDO_MS_RANGE[1])
 		case .Undo_Limit:        draft.undoLimit = clamp(int(v.value), SETTINGS_UNDO_LIMIT_RANGE[0], SETTINGS_UNDO_LIMIT_RANGE[1])
-		case .Grid_Size:         draft.gridSize = clamp(int(v.value), SETTINGS_GRID_SIZE_RANGE[0], SETTINGS_GRID_SIZE_RANGE[1])
+		case .Grid_Width:        draft.gridSize.x = clamp(int(v.value), SETTINGS_GRID_SIZE_RANGE[0], SETTINGS_GRID_SIZE_RANGE[1])
+		case .Grid_Height:       draft.gridSize.y = clamp(int(v.value), SETTINGS_GRID_SIZE_RANGE[0], SETTINGS_GRID_SIZE_RANGE[1])
+		case .Grid_Major_Every:  draft.gridMajorEvery = clamp(int(v.value), SETTINGS_GRID_MAJOR_RANGE[0], SETTINGS_GRID_MAJOR_RANGE[1])
+		case .Grid_Opacity:      draft.gridOpacity = clamp(int(v.value), SETTINGS_PERCENT_RANGE[0], SETTINGS_PERCENT_RANGE[1])
+		case .Grid_Major_Opacity: draft.gridMajorOpacity = clamp(int(v.value), SETTINGS_PERCENT_RANGE[0], SETTINGS_PERCENT_RANGE[1])
 		}
 	case Settings_Code_Editor_Path_Changed:
 		draft.codeEditorPath = FixedText_Make(string(v))
@@ -142,7 +150,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.theme, draft.fontSize, draft.spacing, draft.rowHeight = defaults.theme, defaults.fontSize, defaults.spacing, defaults.rowHeight
 		case .Editor:
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
-			draft.gridSize = defaults.gridSize
+			draft.gridSize, draft.gridMajorEvery = defaults.gridSize, defaults.gridMajorEvery
+			draft.gridOpacity, draft.gridMajorOpacity = defaults.gridOpacity, defaults.gridMajorOpacity
 			draft.codeEditorPath, draft.codeEditorArgs, draft.optimizedPlay = defaults.codeEditorPath, defaults.codeEditorArgs, defaults.optimizedPlay
 			draft.wheelPans = defaults.wheelPans
 			draft.ldtkPath = defaults.ldtkPath

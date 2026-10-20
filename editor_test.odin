@@ -734,6 +734,15 @@ add_node_search_filters_kinds :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(images), 1)
 	testing.expect_value(t, images[0], NodeKind.Sprite)
 	testing.expect_value(t, len(AddNode_Kinds("zzz")), 0)
+	// Listed by category, as the dialog shows them; a category's name lists all of it
+	all := AddNode_Kinds("")
+	for i in 1 ..< len(all) {
+		testing.expect(t, e.SCENE_NODE_KINDS[all[i - 1]].category <= e.SCENE_NODE_KINDS[all[i]].category, "kinds are grouped by category")
+	}
+	testing.expect_value(t, all[0], NodeKind.Node2D)
+	physics := AddNode_Kinds("physics")
+	testing.expect_value(t, len(physics), 7)
+	for kind in physics do testing.expect_value(t, e.SCENE_NODE_KINDS[kind].category, e.SceneNodeCategory.Physics)
 	free_all(context.temp_allocator)
 }
 
@@ -964,6 +973,9 @@ settings_round_trip_and_overlay :: proc(t: ^testing.T) {
 	settings.keymap[.Delete_Node] = {}
 	settings.builtInCodeEditor = false
 	settings.olsPath = FixedText_Make("/opt/ols/ols")
+	settings.gridSize = {16, 24}
+	settings.gridMajorEvery = 0
+	settings.gridOpacity, settings.gridMajorOpacity = 12, 40
 
 	parsed := Settings_Default()
 	problems := Settings_Parse(&parsed, Settings_ToINI(&settings))
@@ -978,6 +990,11 @@ settings_round_trip_and_overlay :: proc(t: ^testing.T) {
 	testing.expect_value(t, partial.keymap[.Play][0], skald.Shortcut{.P, {.Ctrl}})
 	testing.expect_value(t, partial.keymap[.Stop], Settings_Default().keymap[.Stop])
 	testing.expect_value(t, len(problems), 4)
+
+	// Older files' one grid size sets both sides
+	old := Settings_Default()
+	testing.expect_value(t, len(Settings_Parse(&old, "[editor]\ngrid_size = 48\n")), 0)
+	testing.expect_value(t, old.gridSize, [2]int{48, 48})
 	free_all(context.temp_allocator)
 }
 

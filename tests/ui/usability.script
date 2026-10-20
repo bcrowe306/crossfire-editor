@@ -21,6 +21,29 @@ drag_node Spaceship 37 0
 expect field x 672
 key shift+g
 expect snap off
+# View > Grid Settings: Settings' Editor tab; a 16 x 24 cell, and snapping uses it
+send Open_Grid_Settings
+expect settings_dialog open
+click_widget settings-Grid_Width
+key ctrl+a
+type 16
+click_widget settings-Grid_Height
+key ctrl+a
+type 24
+click_widget settings-Grid_Major_Every-inc
+click_widget settings-save
+expect settings_dialog closed
+expect setting grid_width 16
+expect setting grid_height 24
+expect setting grid_major_every 5
+key shift+g
+drag_node Spaceship 37 5
+expect field x 704
+expect field y 432
+key shift+g
+key ctrl+z
+expect field x 672
+
 expect modified true
 
 # Number fields: type a value, or step it with the small + and - buttons

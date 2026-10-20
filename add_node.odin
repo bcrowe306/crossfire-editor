@@ -6,8 +6,8 @@ import e "engine:."
 /*
 The Add Node dialog's logic: which node kinds match the search, and adding the chosen one.
 
-The kinds and their descriptions come from the engine (`e.SCENE_NODE_KINDS`), so the dialog lists
-exactly what scene files and the player support. `view` (to draw the list) and `update` (to know
+The kinds, their descriptions and categories come from the engine (`e.SCENE_NODE_KINDS`), so the
+dialog lists exactly what scene files and the player support, grouped as the engine groups them. `view` (to draw the list) and `update` (to know
 what Enter or a click picked) both filter with `AddNode_Kinds`.
 */
 
@@ -23,21 +23,27 @@ AddNodeDialog :: struct {
 }
 
 /*
-Node kinds matching a search: a case-insensitive substring of the kind's name or description.
-An empty search lists every kind.
+Node kinds matching a search: a case-insensitive substring of the kind's name, description or
+category. An empty search lists every kind.
 
 Inputs:
 - search: The search text
 
 Returns:
-- The matching kinds, in engine order (temp allocated)
+- The matching kinds, by category (`e.SceneNodeCategory` order), then in engine order (temp
+  allocated). The dialog lists them in this order, and its highlight indexes this list
 */
 AddNode_Kinds :: proc(search: string) -> []NodeKind {
 	kinds := make([dynamic]NodeKind, context.temp_allocator)
-	for kind in NodeKind {
-		name := fmt.tprintf("%v", kind)
-		if matchesSearch(name, search) || matchesSearch(e.SCENE_NODE_KINDS[kind].description, search) {
-			append(&kinds, kind)
+	for category in e.SceneNodeCategory {
+		categoryMatches := matchesSearch(e.SCENE_NODE_CATEGORY_NAMES[category], search)
+		for kind in NodeKind {
+			info := e.SCENE_NODE_KINDS[kind]
+			if info.category != category do continue
+			name := fmt.tprintf("%v", kind)
+			if categoryMatches || matchesSearch(name, search) || matchesSearch(info.description, search) {
+				append(&kinds, kind)
+			}
 		}
 	}
 	return kinds[:]

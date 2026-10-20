@@ -33,4 +33,45 @@ expect nodes 12
 key escape
 expect add_dialog closed
 
+# Grouped by category in a scroll: the last kind (Sound's MusicPlayer) starts out of view, and
+# Down scrolls the highlight into view
+key ctrl+shift+a
+expect widget_visible add-node-Node2D true
+expect widget_visible add-node-MusicPlayer false
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+wait_until widget_visible add-node-MusicPlayer true
+expect widget_visible add-node-Node2D false
+key up
+wait_until widget_visible add-node-AudioPlayer2D true
+key RETURN
+expect add_dialog closed
+expect selected AudioPlayer2D
+expect nodes 13
+
+# A category's name lists its kinds
+key ctrl+shift+a
+type sound
+expect widget_visible add-node-AudioPlayer true
+expect widget_visible add-node-Sprite false
+click_widget add-node-MusicPlayer
+expect selected MusicPlayer
+expect nodes 14
+
 quit
