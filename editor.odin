@@ -71,6 +71,8 @@ BrowserFolder :: enum {
 	Components,
 	// LDtk projects (ldtk_edit.odin)
 	Levels,
+	// Translation tables (the engine's localization.odin)
+	Translations,
 }
 
 /*
@@ -278,7 +280,7 @@ init :: proc() -> State {
 		currentScene = 0,
 		selectedNode = -1,
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},

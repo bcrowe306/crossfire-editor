@@ -1,0 +1,28 @@
+# Localization: a translation table (CSV) imported as a Translation asset, the language the game
+# starts in (Project Settings > General > Language), saved to project.xml.
+# Run with: task test:ui (SCRIPT=tests/ui/localization.script)
+
+wait 5
+import tests/fixtures/strings.csv
+key ctrl+s
+wait_until modified false
+expect project_file_contains project.xml kind="Translation"
+# Its preview (languages and keys, parsed by the engine) draws
+select_asset assets/strings.csv
+wait 0.5
+
+action Open_Project_Settings
+expect project_settings open
+click_widget project-settings-locale
+type fr
+click_widget project-settings-apply
+key ctrl+s
+wait_until modified false
+expect project_file_contains project.xml locale="fr"
+
+# Undo: no language set
+key ctrl+z
+key ctrl+s
+wait_until modified false
+expect project_file_lacks project.xml locale=
+quit

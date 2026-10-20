@@ -250,6 +250,7 @@ BrowserItemColor :: proc(state: ^State, item: BrowserItem) -> skald.Color {
 		case .Data:   return assetKindColor(.Data)
 		case .Components: return assetKindColor(.Component)
 		case .Levels: return assetKindColor(.LDtk)
+		case .Translations: return assetKindColor(.Translation)
 		}
 	case .Scene: return SCENE_COLOR
 	case .Script: return SCRIPT_COLOR
@@ -274,6 +275,7 @@ assetKindColor :: proc(kind: AssetKind) -> skald.Color {
 	case .Data:  return skald.rgb(0x9ad1a8)
 	case .Component: return COMPONENT_COLOR
 	case .LDtk:  return skald.rgb(0xff8a5b)
+	case .Translation: return skald.rgb(0xc8d36a)
 	}
 	return {}
 }

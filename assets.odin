@@ -36,6 +36,8 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), COMPONENT_EXTENSION) do return .Component, true
 	case ".ldtk":
 		return .LDtk, true
+	case ".csv":
+		return .Translation, true
 	}
 	return .Image, false
 }
@@ -45,6 +47,7 @@ IMPORT_IMAGE_PATTERN :: "png;jpg;jpeg;bmp;gif;tga;webp;qoi"
 IMPORT_AUDIO_PATTERN :: "wav;ogg;mp3;flac"
 IMPORT_FONT_PATTERN  :: "ttf;otf"
 IMPORT_LDTK_PATTERN  :: "ldtk"
+IMPORT_TRANSLATION_PATTERN :: "csv"
 
 /*
 Imports a file into the project: copies it into `assets/` (adding `_1`, `_2`... if the name is

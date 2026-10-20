@@ -2,10 +2,12 @@ package editor
 
 import "core:c"
 import "core:fmt"
+import "core:log"
 import "core:math"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
+import e "engine:."
 import "gui:skald"
 import stbi "vendor:stb/image"
 
@@ -197,7 +199,7 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			case .Audio: add(&labels, "Use as Music (streamed)", Msg(Asset_Kind_Changed{selection.index, .Music}))
 			case .Music: add(&labels, "Use as a Sound", Msg(Asset_Kind_Changed{selection.index, .Audio}))
 			case .LDtk: add(&labels, "Open in LDtk", Msg(LDtk_Asset_Open_Requested(selection.index)))
-			case .Image, .Font, .Data, .Component:
+			case .Image, .Font, .Data, .Component, .Translation:
 			}
 		}
 		add(&labels, "Remove from Project...", Msg(Action.Remove_Asset))
@@ -427,6 +429,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			content = componentPreview(s, ctx, asset)
 		case .LDtk:
 			content = ldtkPreview(s, ctx, asset, path)
+		case .Translation:
+			content = translationPreview(ctx, asset, path)
 		case .Data:
 			i := Project_FindData(&s.project, asset.path)
 			type := i >= 0 ? s.project.data[i].type : "?"
@@ -597,8 +601,41 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Data:  return ICON_DATABASE
 	case .Component: return ICON_CUBES
 	case .LDtk:  return ICON_MAP
+	case .Translation: return ICON_GLOBE
 	}
 	return ICON_FILE
+}
+
+// A translation table: its languages, how many keys, the first few in the first language
+@(private="file")
+translationPreview :: proc(ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) -> skald.View {
+	th := ctx.theme
+	lines := make([dynamic]skald.View, context.temp_allocator)
+	append(&lines, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm))
+	data, err := os.read_entire_file(path, context.temp_allocator)
+	// Parsed by the engine, as the game will (a scratch game's tables, freed below)
+	game: e.Game
+	defer if game.arenaReady do e.MemoryArena_Destroy(&game.arena)
+	ok := false
+	if err == nil {
+		context.logger = log.nil_logger()
+		ok = e.Locale_LoadCSV(&game, string(data), asset.path)
+	}
+	if !ok {
+		append(&lines, skald.text("Not a translation table: the first row must be key,<language>,<language>...", th.color.danger, th.font.size_xs, max_width = 240))
+	} else {
+		locales := e.Locale_List(&game)
+		append(&lines, skald.text(fmt.tprintf("%d keys in %s", len(game.localization.texts), strings.join(locales, ", ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = 240))
+		append(&lines, skald.text("Labels and menu items show a key's text when theirs is @key; scripts call e.Tr(key).", th.color.fg_muted, th.font.size_xs, max_width = 240))
+		shown := 0
+		for key, values in game.localization.texts {
+			if shown == 12 do break
+			first := len(values) > 0 ? values[0] : ""
+			append(&lines, skald.text(fmt.tprintf("%s: %s", key, first), th.color.fg_muted, th.font.size_xs, max_width = 240))
+			shown += 1
+		}
+	}
+	return skald.col(..lines[:], spacing = th.spacing.xs)
 }
 
 // A script file's first lines, and a button that opens it in the code editor

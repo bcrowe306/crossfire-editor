@@ -27,7 +27,7 @@ testState :: proc() -> State {
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
@@ -307,6 +307,8 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	delete(tagged.groups)
 	tagged.groups = strings.clone("enemies,flying")
 	original.window = {fullscreen = true, vsync = false, highDPI = true}
+	original.locale = strings.clone("fr")
+	append(&original.assets, AssetDef{strings.clone("i18n/strings.csv"), .Translation})
 
 	testing.expect_value(t, Project_Save(&original), "")
 	loaded, message, _ := Project_Load(dir)
@@ -319,7 +321,9 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	testing.expect_value(t, loaded.background, original.background)
 	testing.expect_value(t, loaded.startScene, original.startScene)
 	testing.expect_value(t, loaded.window, original.window)
+	testing.expect_value(t, loaded.locale, "fr")
 	testing.expect_value(t, len(loaded.assets), len(original.assets))
+	testing.expect(t, loaded.assets[len(loaded.assets) - 1].kind == .Translation, "a translation table stays one")
 	testing.expect_value(t, len(loaded.scenes), len(original.scenes))
 
 	for &scene, s in original.scenes {
@@ -583,6 +587,7 @@ asset_kinds_from_extensions :: proc(t: ^testing.T) {
 	cases := [?]struct{path: string, kind: AssetKind, ok: bool}{
 		{"a/ship.PNG", .Image, true}, {"x.jpeg", .Image, true}, {"song.ogg", .Audio, true},
 		{"beep.wav", .Audio, true}, {"font.ttf", .Font, true}, {"notes.txt", .Image, false},
+		{"i18n/Strings.CSV", .Translation, true},
 	}
 	for c in cases {
 		kind, ok := AssetKindForPath(c.path)

@@ -170,6 +170,8 @@ AssetKind :: enum {
 	Component,
 	// An LDtk project (`.ldtk`: ldtk_edit.odin); LDtkLevel nodes show its levels
 	LDtk,
+	// A translation table (`.csv`, the engine's localization.odin): the game loads every one
+	Translation,
 }
 
 /*
@@ -196,6 +198,8 @@ Project :: struct {
 	background: sdl.Color,
 	// Name of the scene the game starts in
 	startScene: string,
+	// The language the game starts in (a translation table's; "" for the player's: format 13)
+	locale: string,
 	scenes: [dynamic]SceneDef,
 	assets: [dynamic]AssetDef,
 	// Physics: pixels per meter, gravity (px/s²), debug drawing in the game
@@ -466,6 +470,7 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.name)
 	delete(project.rootPath)
 	delete(project.startScene)
+	delete(project.locale)
 	for f in project.sceneFiles do delete(f)
 	delete(project.sceneFiles)
 	for &g in project.globals do GlobalDef_Destroy(&g)
@@ -505,6 +510,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		renderer = data.renderer,
 		background = data.background,
 		startScene = strings.clone(data.startScene),
+		locale = strings.clone(data.locale),
 		physics = data.physics,
 		window = data.window,
 		exports = ExportSettings_Default(),
@@ -526,6 +532,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "Data":  kind = .Data
 		case "Component": kind = .Component
 		case "LDtk": kind = .LDtk
+		case "Translation": kind = .Translation
 		}
 		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
 		// A data resource's values come from its file

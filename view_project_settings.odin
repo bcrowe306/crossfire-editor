@@ -176,6 +176,10 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id("project-settings-start"), width = 200)),
 		skald.text("The scene the game starts in (Play, and exports). Play Scene (Ctrl+F5) starts in the open scene instead.",
 			th.color.fg_muted, th.font.size_xs, max_width = 420),
+		settingRow(ctx, "Language", skald.text_input(ctx, strings.clone(d.locale, context.temp_allocator),
+			proc(v: string) -> Msg { return Project_Settings_Locale_Changed(v) },
+			id = skald.hash_id("project-settings-locale"), width = 120)),
+		skald.text(localeNote(s), th.color.fg_muted, th.font.size_xs, max_width = 420),
 		skald.divider(ctx),
 		settingRow(ctx, "Pixels per meter", numberField(ctx, s, "project-settings-ppm", PhysicsTarget.Pixels_Per_Meter, f64(d.physics.pixelsPerMeter), 10, 0, 120, 1, 10000)),
 		settingRow(ctx, "Gravity", skald.row(
@@ -525,4 +529,13 @@ windowFlag :: proc(ctx: ^skald.Ctx(Msg), label: string, field: WindowField, valu
 	return skald.checkbox(ctx, value, label, field,
 		proc(field: WindowField, value: bool) -> Msg { return Project_Settings_Window_Changed{field, value} },
 		id = skald.hash_id(fmt.tprintf("project-settings-window-%v", field)))
+}
+
+// What the Language setting does, and the languages the project's translation tables have
+@(private="file")
+localeNote :: proc(s: ^State) -> string {
+	tables := 0
+	for asset in s.project.assets do if asset.kind == .Translation do tables += 1
+	if tables == 0 do return "The language the game starts in, from its translation tables (CSV assets: import one). Empty: the player's system language."
+	return fmt.tprintf("The language the game starts in, as the translation tables name it (%d table%s in the project). Empty: the player's system language when a table has it, else the tables' first.", tables, tables == 1 ? "" : "s")
 }

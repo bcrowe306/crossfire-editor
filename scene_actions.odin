@@ -41,6 +41,8 @@ ProjectSettingsDialog :: struct {
 	background: skald.Color,
 	// Owned
 	startScene: string,
+	// Owned: the language the game starts in ("" for the player's)
+	locale: string,
 	physics: e.PhysicsSettings,
 	window: e.WindowSettings,
 	// Globals tab: a copy of the project's globals (owned), and the one shown
@@ -195,6 +197,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 	exportTarget := dialog.exportTarget
 	delete(dialog.name)
 	delete(dialog.startScene)
+	delete(dialog.locale)
 	for &g in dialog.globals do GlobalDef_Destroy(&g)
 	delete(dialog.globals)
 	for &a in dialog.actions do ActionDef_Destroy(&a)
@@ -212,6 +215,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		window = p.window,
 		background = skald.rgb(u32(c.r) << 16 | u32(c.g) << 8 | u32(c.b)),
 		startScene = strings.clone(p.startScene),
+		locale = strings.clone(p.locale),
 		tab = tab,
 		exportTarget = exportTarget,
 		exports = p.exports,
@@ -300,6 +304,9 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 	case Project_Settings_Start_Changed:
 		delete(dialog.startScene)
 		dialog.startScene = strings.clone(string(v))
+	case Project_Settings_Locale_Changed:
+		delete(dialog.locale)
+		dialog.locale = strings.clone(string(v))
 	case Project_Settings_Applied:
 		applyProjectSettings(state)
 		dialog.open = false
@@ -334,6 +341,10 @@ applyProjectSettings :: proc(state: ^State) {
 	p.scaleMode = dialog.scaleMode
 	p.renderer = dialog.renderer
 	p.window = dialog.window
+	if locale := strings.trim_space(dialog.locale); locale != p.locale {
+		delete(p.locale)
+		p.locale = strings.clone(locale)
+	}
 	if color, ok := e.ParseColor(fmt.tprintf("#%s", skald.color_to_hex(dialog.background))); ok do p.background = color
 	if Project_FindScene(p, dialog.startScene) >= 0 && dialog.startScene != p.startScene {
 		delete(p.startScene)

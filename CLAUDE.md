@@ -794,6 +794,12 @@ MyGame/
   .editor/                 per-user editor state (gitignored; not used yet)
 ```
 
+- **Version 13** also: CollisionShape `oneWay` (the inspector's One way checkbox,
+  `NodeFlag.One_Way`); **translation tables**: `.csv` assets of kind Translation (the browser's
+  Translations folder, its preview parsed by the engine's `e.Locale_LoadCSV`; not in
+  `scripts/assets.odin`: scripts use keys, `e.Tr`), and the project's `locale` (Project
+  Settings > General > Language, `project-settings-locale`, in the `.Project` snapshot;
+  `tests/ui/localization.script`).
 - **Version 13** also: the project's window (`Project.window`, the engine's `WindowSettings`):
   Project Settings > General's Window checkboxes (`project-settings-window-<field>`,
   `tests/ui/window_settings.script`), in the `.Project` undo snapshot, written when not the
