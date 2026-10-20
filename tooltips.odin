@@ -1,0 +1,179 @@
+package editor
+
+import "core:fmt"
+import "gui:skald"
+
+/*
+Tooltips for the inspector's, Settings' and Project Settings' rows: hovering a row's label
+explains the setting (what it does, its units and range). `inspectorRow` and `settingRow` look
+the label up in `fieldTip`, so a row gets its tooltip by having a label listed here; a label
+used in several places has one explanation that fits them all. Toolbar and panel buttons have
+their own (`toolButton`, `panelButton`, with the shortcut).
+*/
+
+// The explanation shown for a row label, "" for none
+fieldTip :: proc(label: string) -> string {
+	switch label {
+	// Every node
+	case "Type":           return "The node's kind (Add Node lists them all)."
+	case "Name":           return "The node's name: scripts find it with e.Scene_FindNode, joints name their bodies with it."
+	case "Position":       return "Where the node is, in pixels, relative to its parent."
+	case "Position X":     return "Horizontal position in pixels, relative to the parent (right is positive)."
+	case "Position Y":     return "Vertical position in pixels, relative to the parent (down is positive)."
+	case "Rotation":       return "Rotation in degrees, clockwise, relative to the parent."
+	case "Scale X":        return "Horizontal scale (1 = normal size; negative mirrors)."
+	case "Scale Y":        return "Vertical scale (1 = normal size; negative flips)."
+	case "Layer":          return "The render layer: layers draw in order, Layer1 first (at the back)."
+	case "Visible":        return "Hidden nodes and everything under them aren't drawn (they still update)."
+	case "Z index":        return "Draw order within the layer: higher draws on top. Nodes with the same z keep the tree's order."
+	case "Y sort":         return "Draws this node's children by their y position, lower ones in front (top-down games)."
+	case "Blend":          return "How the node's pixels mix with what's behind: normal blending, additive (glows), multiply, modulate or none."
+	case "Process":        return "When the node updates: Inherit (its parent's), Pausable (stops while the scene is paused), When paused (pause menus), Always, or Disabled."
+	case "Groups":         return "Group names, comma-separated: scripts get every node of a group with e.Scene_GetGroup."
+	// Drawing
+	case "Texture":        return "The image the node draws (an asset of kind Image)."
+	case "Sheet":          return "The sprite sheet the animations' frames come from."
+	case "Columns":        return "How many frames across the sprite sheet."
+	case "Rows":           return "How many frames down the sprite sheet."
+	case "Margin":         return "Pixels around the sheet's edge before the first frame."
+	case "Spacing":        return "Pixels between frames (or between items, for menus)."
+	case "Centered":       return "Draws the image centered on the node's position (otherwise its top-left corner is there)."
+	case "Starts with":    return "The animation the sprite plays when the scene starts."
+	case "Text":           return "The text shown. Text starting with @ is a translation key (@menu.play), shown in the game's language."
+	case "Font size":      return "Text size in pixels."
+	case "Color":          return "The color it's drawn with."
+	case "Alpha":          return "Opacity, 0 (invisible) to 255 (opaque)."
+	case "Background":     return "The color behind everything (the window is cleared to it)."
+	case "Zoom":           return "The camera's zoom: 2 shows things twice as big."
+	case "Component":      return "The component this node is an instance of. Its name, position, rotation, scale, layer and visibility are the instance's own."
+	// Physics
+	case "Kind":           return "What sort of thing it is (a shape's form, a joint's type...)."
+	case "Shape":          return "The collision shape's form: rectangle, circle, capsule, polygon or segment."
+	case "Width":          return "Width in pixels."
+	case "Height":         return "Height in pixels."
+	case "Radius":         return "Radius in pixels."
+	case "Points":         return "The shape's points as x,y pairs in the node's space, separated by spaces."
+	case "Disabled":       return "Leaves the shape out of its body (it collides with nothing)."
+	case "One way":        return "A one-way platform: only its top stops what comes down on it; bodies pass through from below and the sides."
+	case "Layers":         return "The collision layers (1-16) this body is on."
+	case "Collides":       return "The collision layers this body collides with."
+	case "Hits":           return "The collision layers the ray hits."
+	case "Friction":       return "How much it grips what it slides on: 0 is ice, 0.6 is typical."
+	case "Bounce":         return "Restitution: 0 doesn't bounce, 1 bounces back as fast as it came."
+	case "Density":        return "Mass per area: heavier bodies push lighter ones."
+	case "Gravity":        return "Gravity in pixels per second² (y down: 980 is Earth's at 100 px per meter)."
+	case "Damping":        return "Slows its movement over time (air resistance): 0 is none."
+	case "Spin damp":      return "Slows its spin over time: 0 is none."
+	case "No rotation":    return "The body never turns (characters, crates that should stay upright)."
+	case "Bullet":         return "Continuous collision for fast bodies, so they don't pass through thin walls."
+	case "Floor angle":    return "The steepest slope, in degrees, that counts as floor for the mover."
+	case "Target X":       return "Where the ray ends, x, relative to the node."
+	case "Target Y":       return "Where the ray ends, y, relative to the node."
+	case "Enabled":        return "Whether it's active."
+	case "Skip own body":  return "The ray ignores the body it's under."
+	case "Body A":         return "The first body the joint connects: the one it's under, or the world."
+	case "Body B":         return "The other body the joint connects, by name."
+	case "Offset X":       return "Body B's anchor, x, relative to the joint (Distance joints)."
+	case "Offset Y":       return "Body B's anchor, y, relative to the joint (Distance joints)."
+	case "Limit":          return "Limits how far the joint turns or slides."
+	case "Strength":       return "The motor's maximum torque (turning joints) or force (sliding ones)."
+	case "Motor":          return "Drives the joint at a speed, with a maximum force or torque."
+	case "Spring":         return "Makes the joint springy instead of rigid."
+	case "Stiffness Hz":   return "The spring's stiffness: oscillations per second."
+	case "Bodies collide": return "Whether the two connected bodies collide with each other."
+	// Sound
+	case "Sound":          return "The sound it plays (loaded whole)."
+	case "Music":          return "The music it plays (streamed from the file)."
+	case "Bus":            return "The mix bus it plays through (the Mixer tab): its volume and mute apply."
+	case "Volume":         return "Loudness, 0 (silent) to 2 (twice as loud); 1 is the file as it is."
+	case "Pitch":          return "Playback speed and pitch together: 2 is an octave up."
+	case "Speed":          return "Playback speed: 2 is twice as fast (and an octave up)."
+	case "Pan":            return "Left (-1) to right (1); 0 is the middle."
+	case "Loop":           return "Starts again when it ends."
+	case "Autostart":      return "Plays as soon as the scene starts."
+	case "Range":          return "How far away, in pixels, it can be heard (2D sound)."
+	case "Falloff":        return "How the volume drops with distance."
+	case "Fade in (s)":    return "Seconds the music takes to fade in when it starts."
+	case "Fade out (s)":   return "Seconds the music takes to fade out when it stops."
+	case "Ramp":           return "Colors over the particle's life: click the bar to add a stop, drag stops to move them."
+	// LDtk
+	case "LDtk file":      return "The LDtk project (.ldtk) the level comes from."
+	case "Level":          return "Which level of the LDtk project to show."
+	case "Whole world":    return "Shows every level of the world, laid out as in LDtk."
+	case "Collision":      return "The IntGrid layer whose cells become collision (a static body)."
+	case "Values":         return "Which IntGrid values are solid (all when empty)."
+	case "Entities":       return "LDtk entities become nodes: their components, or scripts named like them."
+	case "Smooth tiles":   return "Linear filtering for the tiles (off: crisp pixel art)."
+	// Settings
+	case "Theme":          return "Dark or light editor colors."
+	case "Text size":      return "The editor's text size."
+	case "Row height":     return "Height of the browser's and scene tree's rows, in pixels."
+	case "Merge edits within": return "Edits to the same field closer together than this become one undo step."
+	case "Longest merged edit": return "A run of merged edits is cut into a new undo step after this long (0: never)."
+	case "Undo steps kept": return "How many undo steps are kept."
+	case "Grid size":      return "The viewport grid's spacing in world units (snapping uses it)."
+	case "Code editor":    return "Open scripts in the built-in code editor, or in the external program below."
+	case "External program": return "The program that opens scripts when the built-in editor is off: a path, or a name found in PATH."
+	case "Arguments":      return "The external program's arguments: {file} and {line} are replaced, {folder} is the scripts folder."
+	case "Language server": return "OLS, the Odin language server, for completion and errors in the built-in editor (empty: found automatically)."
+	case "Odin program":   return "The Odin compiler games with scripts are built with (empty: found automatically)."
+	case "LDtk program":   return "The LDtk level editor, for Open in LDtk."
+	case "Optimized Play": return "Builds games for Play with -o:speed: faster games, slower builds."
+	case "Wheel pans":     return "The mouse wheel pans the viewport and Ctrl + wheel zooms (for touchpads)."
+	// Project Settings
+	case "Resolution":     return "The game's size in pixels: all drawing and positions use it, scaled to the window."
+	case "Scaling":        return "How the game's resolution fits the window: letterboxed, stretched, whole multiples, cropped, or not at all."
+	case "Renderer":       return "What the game draws with (Auto: the system's choice)."
+	case "Window":         return "How the game's window starts."
+	case "Start scene":    return "The scene the game starts in."
+	case "Language":       return "The language the game starts in, as the translation tables name it (empty: the player's)."
+	case "Pixels per meter": return "Physics works in meters: a body of 1 m is this many pixels."
+	case "Show shapes":    return "The game draws its collision shapes when you Play (exports never do; F9 toggles them while playing)."
+	case "Smooth motion":  return "Draws moving bodies between physics steps, so they glide on fast screens."
+	case "Deadzone":       return "How far a stick must move before the action counts (0 to 1)."
+	case "Key":            return "Add a key binding to the action."
+	case "Mouse":          return "Add a mouse button binding to the action."
+	case "Gamepad":        return "Add a gamepad button binding to the action."
+	case "Stick, trigger": return "Add a stick direction or trigger binding to the action."
+	case "For":            return "Which gamepad the new binding is for (any, or one by number)."
+	}
+	return ""
+}
+
+/*
+A row's label with its tooltip (`fieldTip`), or just the label when it has none.
+
+Inputs:
+- label: The label's text
+- labelView: The label as drawn
+- extra: More to say after the general explanation (a range, a default); may be ""
+*/
+tipLabel :: proc(ctx: ^skald.Ctx(Msg), label: string, labelView: skald.View, extra := "") -> skald.View {
+	tip := fieldTip(label)
+	if extra != "" do tip = tip == "" ? extra : fmt.tprintf("%s %s", tip, extra)
+	if tip == "" do return labelView
+	// Rows are built in the same order every frame: a running number keeps each one's id
+	rowTipCount += 1
+	return skald.tooltip(ctx, labelView, tip, id = skald.hash_id(fmt.tprintf("row-tip-%d", rowTipCount)))
+}
+
+// Rows with a tooltip so far this frame (reset by `view`; per thread: unit tests run in parallel)
+@(thread_local)
+rowTipCount: int
+
+// A script field's tooltip: its type, range and default (from the script's tags)
+scriptFieldTip :: proc(field: ^ScriptFieldDesc) -> string {
+	tip := fmt.tprintf("A field of the script: %v.", field.type)
+	lo, hasMin := field.min.?
+	hi, hasMax := field.max.?
+	switch {
+	case hasMin && hasMax: tip = fmt.tprintf("%s From %v to %v.", tip, lo, hi)
+	case hasMin:           tip = fmt.tprintf("%s At least %v.", tip, lo)
+	case hasMax:           tip = fmt.tprintf("%s At most %v.", tip, hi)
+	}
+	if field.defaultValue != "" do tip = fmt.tprintf("%s Default %s.", tip, field.defaultValue)
+	return tip
+}
+
+// The bottom panel's tab strip
+BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control."

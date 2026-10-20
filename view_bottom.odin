@@ -17,9 +17,9 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	for tab in BottomTab do labels[tab] = fmt.tprintf("%v", tab)
 
 	header := skald.row(
-		skald.tabs(ctx, labels, int(s.bottomTab),
+		skald.tooltip(ctx, skald.tabs(ctx, labels, int(s.bottomTab),
 			proc(index: int) -> Msg { return Bottom_Tab_Changed(index) },
-			id = skald.hash_id("bottom-tabs")),
+			id = skald.hash_id("bottom-tabs")), BOTTOM_TABS_TIP, id = skald.hash_id("bottom-tabs-tip")),
 		skald.flex(1, skald.spacer(0)),
 		panelButton(ctx, "clear-log", ICON_TRASH, "Clear", Action.Clear_Console,
 			disabled = !clearable(s)),

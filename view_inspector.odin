@@ -479,10 +479,11 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 // A label column and its control
 @(private="package")
-inspectorRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
+inspectorRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View, tip := "") -> skald.View {
 	th := ctx.theme
+	// Hovering the label explains the setting (tooltips.odin; `tip` adds to it)
 	return skald.row(
-		skald.col(skald.text(label, th.color.fg_muted, th.font.size_sm), width = INSPECTOR_LABEL_WIDTH),
+		skald.col(tipLabel(ctx, label, skald.text(label, th.color.fg_muted, th.font.size_sm), tip), width = INSPECTOR_LABEL_WIDTH),
 		control,
 		spacing = th.spacing.sm,
 		cross_align = .Center,
@@ -620,7 +621,7 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 		append(&rows, skald.text("No exported fields (tag a field with export:\"\" to edit it here).", th.color.fg_muted, th.font.size_xs, max_width = 260))
 	}
 	for &field in desc.fields {
-		append(&rows, inspectorRowView(ctx, field.name, FieldControl(ctx, s, node.props[:], &field, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth, numberWidth)))
+		append(&rows, inspectorRow(ctx, field.name, FieldControl(ctx, s, node.props[:], &field, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth, numberWidth), scriptFieldTip(&field)))
 	}
 	return rows[:]
 }

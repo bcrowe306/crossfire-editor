@@ -59,15 +59,18 @@ particleInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 		}
 		value, _ := e.ParticleSettings_Get(settings, field.name)
 		control := particleControl(ctx, s, field, index, value, key, controlWidth)
+		// Its range and default, after any general explanation (tooltips.odin)
+		defaultText, _ := e.ParticleSettings_Get(e.DEFAULT_PARTICLE_SETTINGS, field.name)
+		tip := field.ranged ? fmt.tprintf("From %v to %v; default %s.", field.min, field.max, defaultText) : fmt.tprintf("Default %s.", defaultText)
 		if field.type == [2]f32 {
 			// The link button goes with the label: beside the sliders it ran into the scrollbar
 			// strip in a narrow inspector (a click there paged the inspector instead)
 			th := ctx.theme
 			append(&rows, skald.row(
-				skald.col(skald.text(field.label, th.color.fg_muted, th.font.size_sm), linkButton(ctx, s, field, index), spacing = 2, width = INSPECTOR_LABEL_WIDTH),
+				skald.col(tipLabel(ctx, field.label, skald.text(field.label, th.color.fg_muted, th.font.size_sm), tip), linkButton(ctx, s, field, index), spacing = 2, width = INSPECTOR_LABEL_WIDTH),
 				control, spacing = th.spacing.sm, cross_align = .Center))
 		} else {
-			append(&rows, inspectorRow(ctx, field.label, control))
+			append(&rows, inspectorRow(ctx, field.label, control, tip))
 		}
 		// The Texture shape's image, under the shape
 		if field.name == "shape" && settings.shape == .Texture {

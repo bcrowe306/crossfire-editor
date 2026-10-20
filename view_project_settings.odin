@@ -100,7 +100,7 @@ ProjectSettings_TabsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> (tabs, body
 @(private="file")
 settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
 	return skald.row(
-		skald.col(skald.text(label, ctx.theme.color.fg, ctx.theme.font.size_sm), width = 120),
+		skald.col(tipLabel(ctx, label, skald.text(label, ctx.theme.color.fg, ctx.theme.font.size_sm)), width = 120),
 		control,
 		spacing = ctx.theme.spacing.sm,
 		cross_align = .Center,

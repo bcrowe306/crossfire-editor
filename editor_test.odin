@@ -3501,3 +3501,29 @@ new_components_start_with_a_chosen_root :: proc(t: ^testing.T) {
 	testing.expect(t, !state.addNode.forComponent, "a plain Add Node")
 	free_all(context.temp_allocator)
 }
+
+// Every inspector, Settings and Project Settings row with a fixed label explains itself
+// (tooltips.odin): a new row needs an entry in fieldTip
+@(test)
+every_row_label_has_a_tooltip :: proc(t: ^testing.T) {
+	files, err := os.read_all_directory_by_path(".", context.temp_allocator)
+	testing.expect(t, err == nil, "read the sources")
+	for file in files {
+		if !strings.has_suffix(file.name, ".odin") || strings.has_suffix(file.name, "_test.odin") do continue
+		data, readErr := os.read_entire_file(file.fullpath, context.temp_allocator)
+		if readErr != nil do continue
+		text := string(data)
+		for marker in ([]string{"inspectorRow(ctx, \"", "settingRow(ctx, \""}) {
+			rest := text
+			for {
+				at := strings.index(rest, marker)
+				if at < 0 do break
+				rest = rest[at + len(marker):]
+				end := strings.index_byte(rest, '"')
+				label := rest[:end]
+				if label != "" do testing.expectf(t, fieldTip(label) != "", "%s: the row \"%s\" has no tooltip (fieldTip)", file.name, label)
+			}
+		}
+	}
+	free_all(context.temp_allocator)
+}

@@ -320,7 +320,7 @@ keyboardTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
 	th := ctx.theme
 	return skald.row(
-		skald.col(skald.text(label, th.color.fg, th.font.size_sm), width = 170),
+		skald.col(tipLabel(ctx, label, skald.text(label, th.color.fg, th.font.size_sm)), width = 170),
 		control,
 		spacing = th.spacing.sm,
 		cross_align = .Center,

@@ -15,10 +15,6 @@ owns it.
   number fields, the fader and pan control already step with them, and Skald's slider does; its
   `select` only opens on Space/Enter, so this one is a change in Skald.
 
-- **Tooltips on the GUI's controls**, so it's easier to learn: every toolbar and panel button,
-  the inspector's fields (what the setting does, its range), the Project Settings and Settings
-  controls, the bottom panel's tabs. Some buttons have one (`skald.tooltip`, with the shortcut
-  from `actionTip`); most controls don't.
 
 ## Builds and releases
 

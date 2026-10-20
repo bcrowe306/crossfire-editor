@@ -11,6 +11,7 @@ Draws the whole editor window from the state. Called every frame.
 */
 view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	FrameStats_Begin()
+	rowTipCount = 0
 	ensureIconFont(ctx)
 	th := ctx.theme
 	state := s

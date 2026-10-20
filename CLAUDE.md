@@ -244,6 +244,13 @@ Skald is not immediate-mode and not a retained widget tree:
 - A custom widget that stores state under an id (`widget_get`) must not also wrap itself in
   `skald.zone` with that id: the zone claims the slot as another widget kind and Skald resets the
   state every frame. Return a bare `skald.View_Zone{id, child}` (as `coloredTree` does).
+- **Tooltips** (tooltips.odin): hovering a row's label in the inspector, Settings or Project
+  Settings explains it. `inspectorRow` and `settingRow` look the label up in `fieldTip` (one
+  explanation per label); particle settings add their range and default, script fields their
+  type, range and default (`scriptFieldTip`); the bottom panel's tab strip has one for all its
+  tabs (`skald.tabs` has no per-tab tooltips). **A new row with a fixed label needs a `fieldTip`
+  entry**: `every_row_label_has_a_tooltip` scans the sources. Ids come from a per-frame counter
+  (`rowTipCount`, reset by `view`). Toolbar and panel buttons have theirs with the shortcut.
 - **Arrow keys step a focused control** (`arrowSteps` in value_slider.odin: Right/Up +1,
   Left/Down -1, Shift ×10): `valueSlider`'s track (focusable, Tab reaches it; its thumb turns the
   accent color while focused), `numberField` (Up/Down only: Left/Right move the caret), the
