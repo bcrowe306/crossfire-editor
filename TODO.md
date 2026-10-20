@@ -57,10 +57,3 @@ owns it.
 - Optionally include `.git` (the project's history) in an archive.
 - Open an archive given on the command line (`odin_sdl_editor game.odinsdl`).
 
-## Tests
-
-- Small memory leaks reported by older unit tests (animation_panel_edits, components_*,
-  export_settings_dialog, globals_dialog_and_data_edits, input_settings_edits,
-  physics_project_settings, project_settings_dialog, renderer_setting_round_trip_and_undo).
-- `tests/ui/scene_tree.script` failed once in a fullscreen run at the paste-into-parent check
-  (line 95), then passed twice alone: a timing flake to find.

@@ -89,7 +89,10 @@ expect nodes 12
 key ctrl+x
 expect nodes 11
 expect clipboard 1
+# The cut changed the rows: make sure the click landed on Spaceship before pasting (a fullscreen
+# run once pasted elsewhere here; not reproduced in 8 runs since)
 click_row scene-tree 2
+wait_until selected Spaceship
 key ctrl+v
 expect selected Camera2
 expect parent Spaceship

@@ -138,7 +138,8 @@ tasks:
     desc: Run the unit tests
     deps: [box2d, sdl]
     cmds:
-      - odin test . {{.COLLECTIONS}} {{.VET}}
+      # A leak or bad free fails the test
+      - odin test . {{.COLLECTIONS}} {{.VET}} -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true
 
   test:code-editor:
     desc: Unit tests of the built-in code editor's own packages (code_editor/, its Taskfile)

@@ -1443,6 +1443,8 @@ Highlights:
 
 - `task verify` (check + tests) must pass before saying anything works. The vet flags are limited to
   this package (`-vet-packages:editor`) because Skald itself has unused imports.
+- `task test` fails a test that leaks or frees badly (`ODIN_TEST_FAIL_ON_BAD_MEMORY`): drafts
+  and dialogs free what they own on close and in `State_Destroy` (`ProjectSettings_Destroy`).
 - Logic (the serializer, model, undo, export command lines) gets `odin test` tests. Pay particular
   attention to XML round trips.
 - Interaction: add or extend a `tests/ui` script and run `task test:ui` **and**

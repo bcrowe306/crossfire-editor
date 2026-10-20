@@ -191,10 +191,8 @@ Scene_CommitRename :: proc(state: ^State) {
 	logLine(state, .Info, references > 0 ? fmt.aprintf("Renamed %s to %s (%d reference%s updated)", old, text, references, references == 1 ? "" : "s") : fmt.aprintf("Renamed %s to %s", old, text))
 }
 
-// Opens the Project Settings dialog on the project's current values, at a tab
-ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
-	dialog := &state.projectSettings
-	exportTarget := dialog.exportTarget
+// Frees what the Project Settings dialog's draft owns (it's opened again, or the editor quits)
+ProjectSettings_Destroy :: proc(dialog: ^ProjectSettingsDialog) {
 	delete(dialog.name)
 	delete(dialog.startScene)
 	delete(dialog.locale)
@@ -204,6 +202,15 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 	delete(dialog.actions)
 	delete(dialog.newActionName)
 	delete(dialog.renameText)
+	dialog.name, dialog.startScene, dialog.locale, dialog.newActionName, dialog.renameText = "", "", "", "", ""
+	dialog.globals, dialog.actions = nil, nil
+}
+
+// Opens the Project Settings dialog on the project's current values, at a tab
+ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
+	dialog := &state.projectSettings
+	exportTarget := dialog.exportTarget
+	ProjectSettings_Destroy(dialog)
 	p := &state.project
 	c := p.background
 	dialog^ = {
