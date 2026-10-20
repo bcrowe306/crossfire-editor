@@ -97,16 +97,21 @@ addComponent :: proc(project: ^Project, scene: SceneDef) -> (int, string) {
 }
 
 /*
-Makes a new component: a Node2D root named `name`, to build on.
+Makes a new component: a root node of `kind` named `name`, to build on.
+
+Inputs:
+- project: The project
+- name: The component's name (and its root's); "" for "Component"
+- kind: The root node's kind (New Component lets the user pick it, as Add Node does)
 
 Returns:
 - Its index in `project.scenes`, or -1 and why not
 */
-Project_NewComponent :: proc(project: ^Project, name: string) -> (int, string) {
+Project_NewComponent :: proc(project: ^Project, name: string, kind := NodeKind.Node2D) -> (int, string) {
 	name := strings.trim_space(name)
 	if name == "" do name = "Component"
 	scene := SceneDef{name = strings.clone(ComponentName(ComponentPathFor(project, name))), component = strings.clone(ComponentPathFor(project, name))}
-	Scene_InsertNode(&scene, name, .Node2D, -1)
+	Scene_InsertNode(&scene, name, kind, -1)
 	return addComponent(project, scene)
 }
 

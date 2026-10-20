@@ -15,13 +15,6 @@ owns it.
   number fields, the fader and pan control already step with them, and Skald's slider does; its
   `select` only opens on Space/Enter, so this one is a change in Skald.
 
-- **Edit components in the viewport without putting them in a scene.** Opening a component
-  (double-click or Open in the browser's Components folder) already gives it a tab of its own;
-  make that the obvious way in (an Edit button on the component's preview and inspector, the
-  same from an instance's inspector) and check that every editing tool works in a component
-  tab as in a scene. **Empty components that start with a node of your choice:** New Component
-  makes a Node2D root today; let it pick the root's kind (a Sprite, an Area, a CharacterMover...)
-  as Add Node does.
 - **Tooltips on the GUI's controls**, so it's easier to learn: every toolbar and panel button,
   the inspector's fields (what the setting does, its range), the Project Settings and Settings
   controls, the bottom panel's tabs. Some buttons have one (`skald.tooltip`, with the shortcut

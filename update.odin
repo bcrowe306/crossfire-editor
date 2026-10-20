@@ -421,9 +421,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if count > 0 do out.addNode.highlight = clamp(out.addNode.highlight + int(v), 0, count - 1)
 	case Add_Node_Confirmed:
 		kinds := AddNode_Kinds(out.addNode.search)
-		if out.addNode.highlight < len(kinds) do addNodeOfKind(&out, kinds[out.addNode.highlight])
+		if out.addNode.highlight < len(kinds) do addNodeChosen(&out, kinds[out.addNode.highlight])
 	case Add_Node_Kind_Chosen:
-		addNodeOfKind(&out, NodeKind(v))
+		addNodeChosen(&out, NodeKind(v))
 	case Add_Node_Cancelled:
 		out.addNode.open = false
 
@@ -538,16 +538,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		logLine(&out, .Info, fmt.aprintf("This instance has its own copy of %s now: %s", old, path))
 		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
 	case Component_New:
-		index, message := Project_NewComponent(&out.project, "Component")
-		if message != "" {
-			logLine(&out, .Error, fmt.aprintf("Couldn't make a component: %s", message))
-			break
-		}
-		out.session.assetsChanged = true
-		out.project.scenes[index].opened = true
-		openScene(&out, index)
-		logLine(&out, .Info, fmt.aprintf("Made component %s (%s)", out.project.scenes[index].name, out.project.scenes[index].component))
-		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+		// The Add Node dialog picks its root's kind (newComponent makes it)
+		delete(out.addNode.search)
+		out.addNode = {open = true, forComponent = true}
 	case Component_Instance_Added:
 		if int(v) < 0 || int(v) >= len(out.project.assets) || out.project.assets[v].kind != .Component do break
 		// At the selected node's origin (inside it), else the middle of the view
@@ -1118,6 +1111,33 @@ addInstance :: proc(state: ^State, path: string, world: [2]f32) {
 }
 
 // Adds a node from the Add Node dialog and closes it
+// The Add Node dialog's choice (a click or Enter): a node for the scene, or a new component's root
+@(private="file")
+addNodeChosen :: proc(state: ^State, kind: NodeKind) {
+	if state.addNode.forComponent {
+		state.addNode.open = false
+		newComponent(state, kind)
+	} else {
+		addNodeOfKind(state, kind)
+	}
+}
+
+// A new component with a root of `kind`, named after it, opened in its tab (New Component)
+@(private="file")
+newComponent :: proc(state: ^State, kind: NodeKind) {
+	index, message := Project_NewComponent(&state.project, fmt.tprint(kind), kind)
+	if message != "" {
+		logLine(state, .Error, fmt.aprintf("Couldn't make a component: %s", message))
+		return
+	}
+	state.session.assetsChanged = true
+	state.project.scenes[index].opened = true
+	openScene(state, index)
+	state.selectedNode = 0
+	logLine(state, .Info, fmt.aprintf("Made component %s (%s)", state.project.scenes[index].name, state.project.scenes[index].component))
+	if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, strings.clone(message))
+}
+
 @(private="file")
 addNodeOfKind :: proc(state: ^State, kind: NodeKind) {
 	index := AddNode_Create(state, kind)

@@ -63,7 +63,7 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = s.addNode.open,
 		on_dismiss = proc() -> Msg { return Add_Node_Cancelled{} },
 		content = skald.col(
-			skald.text("Add Node", th.color.fg, th.font.size_lg),
+			skald.text(s.addNode.forComponent ? "New Component" : "Add Node", th.color.fg, th.font.size_lg),
 			search,
 			skald.col(..rows[:], spacing = 2, cross_align = .Stretch),
 			skald.text(addNodeParentHint(s), th.color.fg_muted, th.font.size_xs),
@@ -84,6 +84,7 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // Where the new node will go
 @(private="file")
 addNodeParentHint :: proc(s: ^State) -> string {
+	if s.addNode.forComponent do return "The component's root: what it is (a Sprite, an Area, a CharacterMover...). Its name is the component's."
 	scene := &s.project.scenes[s.currentScene]
 	if s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) {
 		return fmt.tprintf("Adds a child of %s.", scene.nodes[s.selectedNode].name)

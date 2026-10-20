@@ -3477,3 +3477,27 @@ export_plan_uses_a_prebuilt_player :: proc(t: ^testing.T) {
 	}
 	free_all(context.temp_allocator)
 }
+
+@(test)
+new_components_start_with_a_chosen_root :: proc(t: ^testing.T) {
+	dir := tempDir("editor_test_new_component")
+	defer removeAll(dir)
+	state := testState()
+	defer State_Destroy(&state)
+	Project_Destroy(&state.project)
+	state.project = Project_CreateDemo(dir)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	before := len(state.project.scenes)
+	send(&state, Component_New{})
+	testing.expect(t, state.addNode.open && state.addNode.forComponent, "the Add Node dialog picks the root")
+	send(&state, Add_Node_Kind_Chosen(NodeKind.Area))
+	testing.expect(t, !state.addNode.open && len(state.project.scenes) == before + 1, "made one")
+	scene := &state.project.scenes[state.currentScene]
+	testing.expect(t, Scene_IsComponent(scene) && scene.component == "components/area.component.xml", "it's open")
+	testing.expect(t, len(scene.nodes) == 1 && scene.nodes[0].kind == .Area && scene.nodes[0].name == "Area", "an Area root named after it")
+	testing.expect_value(t, state.selectedNode, 0)
+	// Add Node afterwards adds to the scene again
+	send(&state, Action.Add_Node)
+	testing.expect(t, !state.addNode.forComponent, "a plain Add Node")
+	free_all(context.temp_allocator)
+}

@@ -18,6 +18,8 @@ AddNodeDialog :: struct {
 	search: string,
 	// Highlighted entry in the filtered list
 	highlight: int,
+	// Picking the root of a new component (New Component), not a node for the open scene
+	forComponent: bool,
 }
 
 /*

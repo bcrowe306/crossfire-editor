@@ -188,7 +188,7 @@ browserMenuItems :: proc(s: ^State) -> []string {
 	case .Asset:
 		if selection.folder == .Data do add(&labels, "New Data Resource...", Msg(New_Data_Opened{}))
 		if selection.folder == .Components && selection.index < len(s.project.assets) {
-			if i := Project_FindComponent(&s.project, s.project.assets[selection.index].path); i >= 0 do add(&labels, "Open", Msg(Component_Opened(i)))
+			if i := Project_FindComponent(&s.project, s.project.assets[selection.index].path); i >= 0 do add(&labels, "Edit", Msg(Component_Opened(i)))
 			add(&labels, "Add to Scene", Msg(Component_Instance_Added(selection.index)))
 			add(&labels, "Rename", Msg(Component_Rename_Started(selection.index)))
 			add(&labels, "New Component", Msg(Component_New{}))
@@ -527,7 +527,7 @@ componentPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> sk
 		skald.text(fmt.tprintf("%d node%s (%s root) · %d instance%s", len(component.nodes), len(component.nodes) == 1 ? "" : "s", root,
 			instances, instances == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = 260),
 		skald.row(
-			button(ctx, "component-open", fmt.tprintf("%s  Open", ICON_FILE_CODE), Msg(Component_Opened(index))),
+			button(ctx, "component-open", fmt.tprintf("%s  Edit", ICON_CUBES), Msg(Component_Opened(index))),
 			button(ctx, "component-add", fmt.tprintf("%s  Add to Scene", ICON_PLUS), Msg(Component_Instance_Added(s.browserSelection.index))),
 			spacing = th.spacing.xs,
 		),

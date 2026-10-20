@@ -938,7 +938,13 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   `Project_Save` (`SceneToXML` writes a `<component>` root for them).
 - **Making one:** Save as Component (scene tree menu, Action.Save_As_Component): the subtree is
   written as a component (root at the origin) and the node becomes an instance with its
-  transform (a `.Scene` undo step; the component stays). Browser > Components > New Component.
+  transform (a `.Scene` undo step; the component stays). Browser > Components > New Component
+  opens the Add Node dialog to pick the root's kind (`AddNodeDialog.forComponent`; a click and
+  Enter both go through `addNodeChosen`): the root is named after it and selected, and the
+  component opens in its tab (`Project_NewComponent(project, name, kind)`).
+- **Editing one:** **Edit** on the browser preview, the browser menu and an instance's inspector
+  opens its tab (`Component_Opened`), edited like a scene (components.script: Add Node and undo
+  in a new component's tab).
 - **Using one:** drag it from the browser into the viewport, Add to Scene (browser preview or
   menu), or a Component node with the inspector's Component choice; instancing a component into
   itself (directly or through others) is refused. Opened (double-click, Open), it gets a tab

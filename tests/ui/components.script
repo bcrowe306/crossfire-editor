@@ -71,4 +71,27 @@ expect project_file_contains components/props_set.component.xml <component forma
 expect project_file_contains scenes/PlayScene.scene.xml component="components/props_set.component.xml"
 expect project_file_contains scenes/PlayScene.scene.xml component="components/props_2.component.xml"
 expect project_file_contains project.xml kind="Component"
+
+# New Component: the Add Node dialog picks its root (a Sprite, named after it); it opens in its
+# own tab, edited like a scene (Add Node, undo)
+right_click_asset components/props_set.component.xml
+wait_until menu browser-menu open
+click_menu_item browser-menu 3 5
+wait_until typing true
+type Sprite
+key RETURN
+expect scene sprite
+expect components 3
+expect selected Sprite
+expect kind Sprite
+key ctrl+shift+a
+type Node2D
+key RETURN
+expect nodes 2
+expect parent Sprite
+key ctrl+z
+expect nodes 1
+key ctrl+s
+wait_until modified false
+expect project_file_contains components/sprite.component.xml kind="Sprite" name="Sprite"
 quit

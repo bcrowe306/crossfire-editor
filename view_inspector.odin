@@ -438,7 +438,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, inspectorRow(ctx, "Component", skald.select(ctx, node.component == "" ? TEXTURE_NONE : node.component, choices[:], NodeTextField.Component, onText,
 			id = skald.hash_id(fmt.tprintf("inspector-component-%d", key)), width = controlWidth, placeholder = "Choose a component")))
 		if i := Project_FindComponent(&s.project, node.component); i >= 0 {
-			open := skald.button(ctx, fmt.tprintf("%s  Open %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
+			open := skald.button(ctx, fmt.tprintf("%s  Edit %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
 				id = skald.hash_id(fmt.tprintf("inspector-open-component-%d", key)),
 				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
 			unique := skald.button(ctx, fmt.tprintf("%s  Make Unique", ICON_COPY), Msg(Component_Made_Unique{}),
