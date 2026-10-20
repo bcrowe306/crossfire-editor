@@ -1060,6 +1060,16 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .Build_Scripts:
 		Scripts_Refresh(&out)
 		return out, scriptsBuild(&out)
+	case .Add_Script:
+		// From the scene tree's menu: a node without a script gets New Script (a node script)
+		node := selectedNode(&out)
+		if node == nil do break
+		if node.script != "" {
+			path, line := Script_Location(&out, node.script)
+			return out, Script_Open(&out, path, line)
+		}
+		delete(out.newScript.name)
+		out.newScript = {open = true, name = strings.clone(""), kind = .Node}
 	case .Open_Script:
 		node := selectedNode(&out)
 		if node == nil || node.script == "" {

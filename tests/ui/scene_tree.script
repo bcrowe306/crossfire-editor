@@ -32,9 +32,9 @@ key escape
 expect menu scene-tree-menu closed
 expect selected Spaceship
 
-# Menu items: 0 Add Node, 1 Rename, 2 Duplicate, 3 Copy, 4 Cut, 5 Paste, 6 Delete
+# Menu items: 0 Add Node, 1 Add Script, 2 Rename, 3 Duplicate, 4 Copy, 5 Cut, 6 Paste, 7 Delete
 right_click_row scene-tree 2
-click_menu_item scene-tree-menu 2
+click_menu_item scene-tree-menu 3
 expect menu scene-tree-menu closed
 expect selected Spaceship2
 expect parent World
@@ -46,11 +46,11 @@ expect nodes 11
 # Copy Props and paste it into HUD; the copy is collapsed like Props
 right_click_row scene-tree 4
 expect selected Props
-click_menu_item scene-tree-menu 3
+click_menu_item scene-tree-menu 4
 expect clipboard 5
 right_click_row scene-tree 5
 expect selected HUD
-click_menu_item scene-tree-menu 5
+click_menu_item scene-tree-menu 6
 expect selected Props2
 expect parent HUD
 expect nodes 16
@@ -59,7 +59,7 @@ expect row 7 Props2
 # Delete it from the menu
 right_click_row scene-tree 7
 expect selected Props2
-click_menu_item scene-tree-menu 6
+click_menu_item scene-tree-menu 7
 expect nodes 11
 expect selected none
 
@@ -67,11 +67,19 @@ expect selected none
 right_click_row scene-tree 7
 expect selected none
 expect menu scene-tree-menu open
-click_menu_item scene-tree-menu 5
+click_menu_item scene-tree-menu 6
 expect selected Props2
 expect parent none
 key DELETE
 expect nodes 11
+
+# The menu's Add Script opens New Script for the right-clicked node (Spaceship: row 2)
+right_click_row scene-tree 2
+expect selected Spaceship
+click_menu_item scene-tree-menu 1
+expect new_script_dialog open
+key escape
+expect new_script_dialog closed
 
 # The menu's Add Node opens the dialog
 right_click_row scene-tree 2

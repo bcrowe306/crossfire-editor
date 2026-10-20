@@ -412,6 +412,10 @@ behave (`viewportOnly`, `textChord`).
   - **Scenes** (`scenePreview`): start scene, file, nodes by kind, camera, scripts and components
     used, Open / Play Scene / Set as Start, and the scene's own settings (below).
   - A double-click opens an LDtk project in LDtk (like Open in LDtk); on a component, its tab.
+  - **Preview text wraps** to `previewTextWidth` (the browser's width less padding, set by the
+    browser body's `sized` before the preview is built): every preview's `skald.text` gets
+    `max_width = previewTextWidth`, and the script preview's node rows are clickable text, not
+    buttons (a button's label doesn't wrap).
 - **A scene's own settings** (`SceneDef.settings`, the engine's `e.SceneSettings`, on the scene
   file's root element; scene_settings.odin): screen layers (drawn without the camera: HUDs,
   menus), its own background (the viewport draws it too), its own gravity. Each edit is a
@@ -454,7 +458,9 @@ shows up here with no editor change (it still needs inspector fields).
 - **Clipboard**: `State.clipboard`, editor-internal (not the system clipboard). Copy, Cut and Paste
   are Ctrl+C/X/V, Duplicate Ctrl+D. These are `textChord` bindings: skipped while typing, so text
   fields keep the chords. Paste goes into the selected node, or the top level.
-- **Context menu**: `skald.context_menu` wraps the tree's scroll area; items are `SCENE_TREE_MENU`.
+- **Context menu**: `skald.context_menu` wraps the tree's scroll area; items are `SCENE_TREE_MENU`
+  (Add Script... is `Action.Add_Script`: New Script, as a node script, for the right-clicked node;
+  on a node with a script it reads Open Script (Name) and opens it).
   A right-click first selects the row under the cursor (`Node_Right_Clicked`; below the rows it
   deselects). Skald builds the tree before the menu that wraps it, so the tree would see a click on
   a menu item first and select the row under it: `sceneTreeView` hides that press from the tree.

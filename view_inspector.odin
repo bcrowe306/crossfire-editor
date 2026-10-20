@@ -90,6 +90,11 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	labels := make([]string, len(SCENE_TREE_MENU), context.temp_allocator)
 	for action, i in SCENE_TREE_MENU {
 		label := action == .Add_Node ? "Add Node..." : ACTION_LABELS[action]
+		// Add Script... for a node without one; with one, it opens it
+		if action == .Add_Script {
+			node := s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) ? &scene.nodes[s.selectedNode] : nil
+			label = node != nil && node.script != "" ? fmt.tprintf("Open Script (%s)", node.script) : "Add Script..."
+		}
 		shortcut := skald.shortcut_format(Keymap_Shortcut(&s.settings.keymap, action))
 		labels[i] = shortcut == "" ? label : fmt.tprintf("%s   (%s)", label, shortcut)
 	}
@@ -114,7 +119,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 // The scene tree's right-click menu, in order
-SCENE_TREE_MENU := [?]Action{.Add_Node, .Rename_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Delete_Node, .Save_As_Component}
+SCENE_TREE_MENU := [?]Action{.Add_Node, .Add_Script, .Rename_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Delete_Node, .Save_As_Component}
 
 // How far the mouse moves with the button down before a press on a row becomes a drag
 TREE_DRAG_THRESHOLD :: 5

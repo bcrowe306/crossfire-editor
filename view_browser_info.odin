@@ -84,10 +84,10 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 	data, readErr := os.read_entire_file(path, context.temp_allocator)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	muted :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = 260)
+		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = previewTextWidth)
 	}
 	if readErr != nil {
-		append(&rows, skald.text(fmt.tprintf("Couldn't read %s", file), th.color.danger, th.font.size_sm))
+		append(&rows, skald.text(fmt.tprintf("Couldn't read %s", file), th.color.danger, th.font.size_sm, max_width = previewTextWidth))
 	} else {
 		info := ScriptFile_Registrations(string(data))
 		usageIndex := 0
@@ -96,7 +96,7 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 			for g in s.project.globals do if g.script == name do global = true
 			usages := Script_Usages(&s.project, name)
 			kind := global ? "Global script: runs for the whole game (Project Settings > Globals)" : "Node script"
-			append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_CODE, name), th.color.fg, th.font.size_sm))
+			append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_CODE, name), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
 			append(&rows, muted(ctx, kind))
 			if !global {
 				if len(usages) == 0 {
@@ -107,9 +107,13 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 				for u in usages {
 					scene := &s.project.scenes[u.scene]
 					label := fmt.tprintf("%s %s / %s", Scene_IsComponent(scene) ? ICON_CUBES : ICON_FILM, scene.name, Scene_NodePath(scene, -1, u.node, context.temp_allocator)[1:])
-					append(&rows, skald.button(ctx, label, Msg(Script_Usage_Clicked{u.scene, u.node}),
-						id = skald.hash_id(fmt.tprintf("preview-script-usage-%d", usageIndex)),
-						bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_xs, padding = {th.spacing.sm, 2}))
+					// Clickable text rather than a button: a long path wraps instead of overflowing
+					id := skald.hash_id(fmt.tprintf("preview-script-usage-%d", usageIndex))
+					hovered := skald.widget_hovered(ctx, id)
+					append(&rows, skald.clickable(ctx,
+						skald.col(skald.text(label, hovered ? th.color.primary : th.color.fg, th.font.size_xs, max_width = previewTextWidth - th.spacing.sm * 2),
+							padding = th.spacing.xs, bg = th.color.surface, radius = th.radius.sm),
+						Msg(Script_Usage_Clicked{u.scene, u.node}), id = id, focusable = false))
 					usageIndex += 1
 				}
 			}
@@ -124,7 +128,7 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 		for name in info.dataTypes {
 			count := 0
 			for d in s.project.data do if d.type == name do count += 1
-			append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_DATABASE, name), th.color.fg, th.font.size_sm))
+			append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_DATABASE, name), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
 			append(&rows, muted(ctx, fmt.tprintf("Data type: %d data resource%s (the browser's Data folder)", count, count == 1 ? "" : "s")))
 			append(&rows, skald.spacer(th.spacing.xs))
 		}
@@ -137,7 +141,7 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 	}
 	return skald.col(
 		skald.row(
-			skald.text(fmt.tprintf("%s  %s", ICON_FILE_CODE, filepath.base(file)), th.color.fg, th.font.size_sm),
+			skald.text(fmt.tprintf("%s  %s", ICON_FILE_CODE, filepath.base(file)), th.color.fg, th.font.size_sm, max_width = previewTextWidth - 70),
 			skald.flex(1, skald.spacer(0)),
 			skald.button(ctx, "Open", Msg(Script_Open_File{file = strings.clone(absolute, context.temp_allocator), line = 1}),
 				id = skald.hash_id("preview-open-script"), font_size = th.font.size_sm, padding = {th.spacing.sm, 2}),
@@ -156,14 +160,14 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 	scene := &s.project.scenes[index]
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	muted :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = 260)
+		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = previewTextWidth)
 	}
 	small :: proc(ctx: ^skald.Ctx(Msg), label, key: string, msg: Msg) -> skald.View {
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_xs, padding = {th.spacing.sm, 2})
 	}
 	start := s.project.startScene == scene.name
-	append(&rows, skald.text(fmt.tprintf("%s  %s%s", ICON_FILM, scene.name, start ? "  (start scene)" : ""), th.color.fg, th.font.size_sm))
+	append(&rows, skald.text(fmt.tprintf("%s  %s%s", ICON_FILM, scene.name, start ? "  (start scene)" : ""), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
 	append(&rows, muted(ctx, fmt.tprintf("scenes/%s.scene.xml", scene.name)))
 
 	// Its nodes by kind, most first
@@ -201,7 +205,7 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 
 	// Its own settings
 	append(&rows, skald.spacer(th.spacing.xs))
-	append(&rows, skald.text("Scene settings", th.color.fg, th.font.size_sm))
+	append(&rows, skald.text("Scene settings", th.color.fg, th.font.size_sm, max_width = previewTextWidth))
 	settings := scene.settings
 	layers := make([dynamic]skald.View, context.temp_allocator)
 	for layer in e.RenderLayer {
@@ -239,7 +243,7 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 		append(&rows, skald.row(
 			numberField(ctx, s, "scene-settings-gravity-x", SceneGravityTarget{index, 0}, f64(gravity.x), 10, 0, 80),
 			numberField(ctx, s, "scene-settings-gravity-y", SceneGravityTarget{index, 1}, f64(gravity.y), 10, 0, 80),
-			skald.text("px/s²", th.color.fg_muted, th.font.size_xs),
+			skald.text("px/s²", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 			spacing = th.spacing.xs,
 			cross_align = .Center,
 		))

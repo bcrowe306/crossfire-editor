@@ -5,6 +5,7 @@ import lspc "../lsp"
 import "core:fmt"
 import "core:strings"
 import "core:testing"
+import "core:unicode/utf8"
 import sdl "vendor:sdl3"
 
 // make_lsp_test_editor returns an editor with an LSP client attached but
@@ -200,6 +201,44 @@ sig_add :: proc(active_param: int) -> string {
 		`{"activeSignature":0,"activeParameter":`, fmt.tprint(active_param),
 		`,"signatures":[{"label":"add :: proc(a: int, b: int) -> int","parameters":[{"label":"a: int"},{"label":"b: int"}]}]}`,
 	}, context.temp_allocator)
+}
+
+@(test)
+test_signature_help_wraps_long_signatures :: proc(t: ^testing.T) {
+	run_leak_free(t, proc(t: ^testing.T) {
+		ed := make_lsp_test_editor("")
+		defer editor_destroy(&ed)
+		type_and_update(&ed, "add(")
+		fake_signature_response(&ed, sig_add(1))
+		editor_update(&ed)
+		text :: proc(line: Signature_Line) -> string { return utf8.runes_to_string(line.runes, context.temp_allocator) }
+
+		// Wide enough: one line
+		lines, cols := signature_wrapped(&ed, 100)
+		testing.expect_value(t, len(lines), 1)
+		testing.expect_value(t, cols, len("add :: proc(a: int, b: int) -> int"))
+		// Narrow: broken after spaces, continuations indented, nothing lost, the active
+		// parameter still marked
+		lines, cols = signature_wrapped(&ed, 16)
+		testing.expect(t, len(lines) > 1, "wrapped")
+		testing.expect(t, cols <= 16, "within the width")
+		joined := strings.builder_make(context.temp_allocator)
+		active := strings.builder_make(context.temp_allocator)
+		for line, i in lines {
+			if i > 0 do testing.expect(t, strings.has_prefix(text(line), "    "), "indented")
+			strings.write_string(&joined, strings.trim_space(text(line)))
+			strings.write_byte(&joined, ' ')
+			for r, j in line.runes do if line.styles[j] == .Active do strings.write_rune(&active, r)
+		}
+		testing.expect_value(t, strings.trim_space(strings.to_string(joined)), "add :: proc(a: int, b: int) -> int")
+		testing.expect_value(t, strings.to_string(active), "b: int")
+		testing.expect_value(t, text(lines[0]), "add :: proc(a: ")
+		// The tooltip is laid out as tall as its lines
+		ed.visible_cols = 18
+		layout := editor_popup_layout(&ed)
+		wrapped, _ := signature_wrapped(&ed, signature_max_cols(&ed))
+		testing.expect_value(t, layout.signature.h, f32(len(wrapped)) * ed.char_h + 2 * POPUP_PAD)
+	})
 }
 
 @(test)

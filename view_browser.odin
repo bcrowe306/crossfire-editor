@@ -44,6 +44,8 @@ browserView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	body := skald.sized(ctx, s, proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
 		if size.y != s.layout.browserBodyHeight do skald.send(ctx, Browser_Body_Measured(size.y))
 		tree := browserTree(s, ctx)
+		// Preview text wraps to the panel's width: its padding and a scrollbar's room off
+		previewTextWidth = max(size.x - ctx.theme.spacing.sm * 2 - 14, 80)
 		if !s.layout.previewOpen {
 			return skald.col(skald.flex(1, tree), previewHeader(s, ctx), cross_align = .Stretch)
 		}
@@ -390,6 +392,11 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 // How far the mouse moves with the button down before a press on an image becomes a drag
 ASSET_DRAG_THRESHOLD :: 5
 
+// How wide preview text may be: the browser's width less padding, measured each frame (the
+// browser body's `sized`); previews wrap their text to it
+@(private)
+previewTextWidth: f32 = 240
+
 @(private="file")
 previewHeader :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	open := s.layout.previewOpen
@@ -416,7 +423,7 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	} else if s.browserSelection.kind == .Scene && s.browserSelection.index >= 0 && s.browserSelection.index < len(s.project.scenes) {
 		content = scenePreview(s, ctx, s.browserSelection.index)
 	} else if s.browserSelection.kind != .Asset || s.browserSelection.index >= len(s.project.assets) {
-		content = skald.text("Select a scene, image, sound or script to preview it.", th.color.fg_muted, th.font.size_sm)
+		content = skald.text("Select a scene, image, sound or script to preview it.", th.color.fg_muted, th.font.size_sm, max_width = previewTextWidth)
 	} else {
 		asset := s.project.assets[s.browserSelection.index]
 		path := AssetFilePath(&s.project, asset)
@@ -425,9 +432,9 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		case .Audio, .Music: content = audioPreview(s, ctx, asset, path)
 		case .Font:
 			content = skald.col(
-				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm),
-				skald.text(fileInfo(path, ""), th.color.fg_muted, th.font.size_xs),
-				skald.text("Font previews aren't supported yet.", th.color.fg_muted, th.font.size_xs),
+				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(fileInfo(path, ""), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+				skald.text("Font previews aren't supported yet.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
 		case .Component:
@@ -440,8 +447,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			i := Project_FindData(&s.project, asset.path)
 			type := i >= 0 ? s.project.data[i].type : "?"
 			content = skald.col(
-				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm),
-				skald.text(fmt.tprintf("%s data resource; edit it in the inspector", type), th.color.fg_muted, th.font.size_xs, max_width = 240),
+				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(fmt.tprintf("%s data resource; edit it in the inspector", type), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
 		}
@@ -467,7 +474,7 @@ imagePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 		dimensions = fmt.tprintf("%d x %d", w, h)
 	}
 	if !os.exists(path) {
-		return skald.text(fmt.tprintf("%s is missing from the project folder.", asset.path), th.color.danger, th.font.size_sm)
+		return skald.text(fmt.tprintf("%s is missing from the project folder.", asset.path), th.color.danger, th.font.size_sm, max_width = previewTextWidth)
 	}
 
 	// Fit the image into whatever space the panel has left
@@ -479,8 +486,8 @@ imagePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 	})
 	return skald.col(
 		skald.flex(1, image),
-		skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm),
-		skald.text(fileInfo(path, dimensions), th.color.fg_muted, th.font.size_xs),
+		skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+		skald.text(fileInfo(path, dimensions), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 		spacing = th.spacing.xs,
 		cross_align = .Stretch,
 	)
@@ -502,7 +509,7 @@ how many instances use it, and Open and Add to Scene.
 componentPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> skald.View {
 	th := ctx.theme
 	index := Project_FindComponent(&s.project, asset.path)
-	if index < 0 do return skald.text(fmt.tprintf("%s couldn't be read.", asset.path), th.color.danger, th.font.size_sm)
+	if index < 0 do return skald.text(fmt.tprintf("%s couldn't be read.", asset.path), th.color.danger, th.font.size_sm, max_width = previewTextWidth)
 	Data :: struct { s: ^State, index: int }
 	data := new_clone(Data{s, index}, context.temp_allocator)
 	picture := skald.sized(ctx, data, proc(ctx: ^skald.Ctx(Msg), data: ^Data, size: [2]f32) -> skald.View {
@@ -528,9 +535,9 @@ componentPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> sk
 	}
 	return skald.col(
 		skald.flex(1, picture),
-		skald.text(fmt.tprintf("%s  %s", ICON_CUBES, component.name), th.color.fg, th.font.size_sm),
+		skald.text(fmt.tprintf("%s  %s", ICON_CUBES, component.name), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 		skald.text(fmt.tprintf("%d node%s (%s root) · %d instance%s", len(component.nodes), len(component.nodes) == 1 ? "" : "s", root,
-			instances, instances == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = 260),
+			instances, instances == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 		skald.row(
 			button(ctx, "component-open", fmt.tprintf("%s  Edit", ICON_CUBES), Msg(Component_Opened(index))),
 			button(ctx, "component-add", fmt.tprintf("%s  Add to Scene", ICON_PLUS), Msg(Component_Instance_Added(s.browserSelection.index))),
@@ -551,8 +558,8 @@ audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 
 	if !AudioPreview_IsLoaded(path) {
 		return skald.col(
-			skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm),
-			skald.text("Couldn't load this sound (see the Console).", th.color.fg_muted, th.font.size_xs),
+			skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+			skald.text("Couldn't load this sound (see the Console).", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 			spacing = th.spacing.xs,
 		)
 	}
@@ -561,12 +568,12 @@ audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 	Bar :: struct { fraction: f32, color, track: skald.Color }
 	bar := Bar{fraction, th.color.primary, th.color.surface}
 	return skald.col(
-		skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm),
+		skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 		skald.row(
 			skald.button(ctx, playing ? fmt.tprintf("%s  Stop", ICON_STOP) : fmt.tprintf("%s  Play", ICON_PLAY),
 				Msg(playing ? Action.Stop_Audio_Preview : Action.Play_Audio_Preview),
 				id = skald.hash_id("preview-play"), width = 90),
-			skald.text(fmt.tprintf("%s / %s", FormatDuration(position), FormatDuration(duration)), th.color.fg_muted, th.font.size_sm),
+			skald.text(fmt.tprintf("%s / %s", FormatDuration(position), FormatDuration(duration)), th.color.fg_muted, th.font.size_sm, max_width = previewTextWidth),
 			spacing = th.spacing.sm,
 			cross_align = .Center,
 		),
@@ -574,7 +581,7 @@ audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 			skald.draw_rect(p.r, p.bounds, bar.track, 3)
 			skald.draw_rect(p.r, {p.bounds.x, p.bounds.y, p.bounds.w * clamp(bar.fraction, 0, 1), p.bounds.h}, bar.color, 3)
 		}, height = 6),
-		skald.text(fileInfo(path, ""), th.color.fg_muted, th.font.size_xs),
+		skald.text(fileInfo(path, ""), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 		spacing = th.spacing.sm,
 		cross_align = .Stretch,
 	)
@@ -616,7 +623,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 translationPreview :: proc(ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) -> skald.View {
 	th := ctx.theme
 	lines := make([dynamic]skald.View, context.temp_allocator)
-	append(&lines, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm))
+	append(&lines, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
 	data, err := os.read_entire_file(path, context.temp_allocator)
 	// Parsed by the engine, as the game will (a scratch game's tables, freed below)
 	game: e.Game
@@ -627,16 +634,16 @@ translationPreview :: proc(ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) 
 		ok = e.Locale_LoadCSV(&game, string(data), asset.path)
 	}
 	if !ok {
-		append(&lines, skald.text("Not a translation table: the first row must be key,<language>,<language>...", th.color.danger, th.font.size_xs, max_width = 240))
+		append(&lines, skald.text("Not a translation table: the first row must be key,<language>,<language>...", th.color.danger, th.font.size_xs, max_width = previewTextWidth))
 	} else {
 		locales := e.Locale_List(&game)
-		append(&lines, skald.text(fmt.tprintf("%d keys in %s", len(game.localization.texts), strings.join(locales, ", ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = 240))
-		append(&lines, skald.text("Labels and menu items show a key's text when theirs is @key; scripts call e.Tr(key).", th.color.fg_muted, th.font.size_xs, max_width = 240))
+		append(&lines, skald.text(fmt.tprintf("%d keys in %s", len(game.localization.texts), strings.join(locales, ", ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		append(&lines, skald.text("Labels and menu items show a key's text when theirs is @key; scripts call e.Tr(key).", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
 		shown := 0
 		for key, values in game.localization.texts {
 			if shown == 12 do break
 			first := len(values) > 0 ? values[0] : ""
-			append(&lines, skald.text(fmt.tprintf("%s: %s", key, first), th.color.fg_muted, th.font.size_xs, max_width = 240))
+			append(&lines, skald.text(fmt.tprintf("%s: %s", key, first), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
 			shown += 1
 		}
 	}

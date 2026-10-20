@@ -29,6 +29,8 @@ Action :: enum {
 	Rename_Node,
 	// The selected node and its subtree become a component (component_edit.odin)
 	Save_As_Component,
+	// The selected node's script: New Script for it when it has none, else open it
+	Add_Script,
 	// Play from the scene open in the viewport instead of the start scene
 	Play_Scene,
 	Open_Project_Settings,

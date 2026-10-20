@@ -442,24 +442,24 @@ ldtkPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: stri
 	// The whole world, as the game draws it
 	picture: skald.View = skald.spacer(0)
 	if project != nil do picture = ldtkThumbnailView(ctx, s, .Browser, asset.path, "", true, 0, 0)
-	append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_MAP, filepath.base(asset.path)), th.color.fg, th.font.size_sm))
+	append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_MAP, filepath.base(asset.path)), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
 	if project == nil {
-		append(&rows, skald.text("This file can't be read as an LDtk project.", th.color.danger, th.font.size_xs))
+		append(&rows, skald.text("This file can't be read as an LDtk project.", th.color.danger, th.font.size_xs, max_width = previewTextWidth))
 	} else {
 		levels := 0
 		for world in project.worlds do levels += len(world.levels)
 		append(&rows, skald.text(fmt.tprintf("LDtk %s · %d level%s · %d tileset%s", project.jsonVersion, levels, levels == 1 ? "" : "s",
-			len(project.tilesets), len(project.tilesets) == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs))
+			len(project.tilesets), len(project.tilesets) == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
 		for world in project.worlds {
-			if len(project.worlds) > 1 do append(&rows, skald.text(fmt.tprintf("%s (%v)", world.identifier, world.layout), th.color.fg, th.font.size_xs))
+			if len(project.worlds) > 1 do append(&rows, skald.text(fmt.tprintf("%s (%v)", world.identifier, world.layout), th.color.fg, th.font.size_xs, max_width = previewTextWidth))
 			for level in world.levels {
 				entities := 0
 				for l in level.layers do entities += len(l.entities)
 				append(&rows, skald.text(fmt.tprintf("%s  %.0f x %.0f · %d layers · %d entities", level.identifier, level.size.x, level.size.y,
-					len(level.layers), entities), th.color.fg_muted, th.font.size_xs))
+					len(level.layers), entities), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
 			}
 		}
-		append(&rows, skald.text("Drag it into the viewport to add a level, or add an LDtkLevel node.", th.color.fg_muted, th.font.size_xs, max_width = 260))
+		append(&rows, skald.text("Drag it into the viewport to add a level, or add an LDtkLevel node.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
 	}
 	index := -1
 	for a, i in s.project.assets do if a.path == asset.path do index = i

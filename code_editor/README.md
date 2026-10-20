@@ -435,7 +435,10 @@ deferred `didOpen` once `initialize` has completed, pushes a full-text
   several overloads (proc groups) **Up / Down** cycle them ("1/2"), re-queries
   as the cursor moves so the active parameter is highlighted, and closes once
   the cursor leaves the call's parentheses (OLS keeps answering just past the
-  closing `)`, so the client checks paren depth itself) or on Escape.
+  closing `)`, so the client checks paren depth itself) or on Escape. A long
+  signature wraps (`signature_wrapped`: at most the text area's width, 100
+  columns, breaking after spaces, continuation lines indented), the active
+  parameter highlighted across the break.
 
 Responses to superseded requests are dropped, so a slow reply can't
 overwrite a newer one.

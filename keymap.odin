@@ -65,7 +65,7 @@ ACTION_LABELS := [Action]string{
 	.New_Project = "New project", .Open_Project = "Open project", .Save_Project = "Save",
 	.Export = "Export", .Export_Project_Archive = "Export project archive", .Export_Project_Archive_With_History = "Export project archive with its history", .Open_Project_Archive = "Open project archive", .Quit = "Quit", .Undo = "Undo", .Redo = "Redo",
 	.Add_Node = "Add node", .Delete_Node = "Delete node", .Duplicate_Node = "Duplicate node",
-	.Copy_Node = "Copy node", .Cut_Node = "Cut node", .Paste_Node = "Paste node", .Rename_Node = "Rename node", .Save_As_Component = "Save as component",
+	.Copy_Node = "Copy node", .Cut_Node = "Cut node", .Paste_Node = "Paste node", .Rename_Node = "Rename node", .Save_As_Component = "Save as component", .Add_Script = "Add or open the node's script",
 	.Select_All = "Select all nodes", .Toggle_Grid = "Show/hide grid", .Toggle_Snap = "Snap to grid", .Toggle_Collision_Shapes = "Show/hide collision shapes", .Toggle_Physics_Debug = "Show collision shapes in the game (development)", .Play = "Play", .Pause = "Pause",
 	.Stop = "Stop", .Toggle_Bottom_Panel = "Toggle bottom panel", .Clear_Console = "Clear console",
 	.About = "About",

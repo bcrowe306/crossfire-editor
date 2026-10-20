@@ -14,7 +14,7 @@ expect selected Props
 # Save as Component (the scene tree's menu): Props is an instance of it now
 right_click_row scene-tree 4
 wait_until menu scene-tree-menu open
-click_menu_item scene-tree-menu 7
+click_menu_item scene-tree-menu 8
 expect components 1
 expect nodes 7
 expect kind Component

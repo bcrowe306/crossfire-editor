@@ -92,9 +92,9 @@ editor_popup_layout :: proc(ed: ^Editor) -> (layout: Popup_Layout) {
 	below_y := cy + ed.char_h + 2
 
 	if editor_signature_visible(ed) {
-		label, _, _, _ := editor_signature_active_parts(ed)
-		w := f32(text_cols(signature_counter(ed)) + text_cols(label)) * ed.char_w + 2 * POPUP_PAD
-		h := ed.char_h + 2 * POPUP_PAD
+		lines, cols := signature_wrapped(ed, signature_max_cols(ed))
+		w := f32(cols) * ed.char_w + 2 * POPUP_PAD
+		h := f32(len(lines)) * ed.char_h + 2 * POPUP_PAD
 		y := cy - h - 2
 		if y < view_top {
 			y = below_y
@@ -234,22 +234,108 @@ render_completion_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 @(private)
 render_signature_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, theme: Theme, rect: sdl.FRect) {
 	draw_popup_box(renderer, rect, theme)
+	lines, _ := signature_wrapped(ed, signature_max_cols(ed))
+	for line, row in lines {
+		y := rect.y + POPUP_PAD + f32(row) * ed.char_h
+		// Each run of one style is drawn at once
+		start := 0
+		for start < len(line.runes) {
+			end := start + 1
+			for end < len(line.runes) && line.styles[end] == line.styles[start] do end += 1
+			x := rect.x + POPUP_PAD + f32(start) * ed.char_w
+			text := utf8.runes_to_string(line.runes[start:end], context.temp_allocator)
+			switch line.styles[start] {
+			case .Dim:  draw_text(renderer, font, text, x, y, theme.popup_text_dim, ed.char_h)
+			case .Text: draw_text(renderer, font, text, x, y, theme.popup_text, ed.char_h)
+			case .Active:
+				draw_text(renderer, font, text, x, y, theme.popup_active_param, ed.char_h)
+				// Underline the active parameter so it reads even without color.
+				fill_rect(renderer, {x, y + ed.char_h - 2, f32(end - start) * ed.char_w, 1}, theme.popup_active_param)
+			}
+			start = end
+		}
+	}
+}
+
+// How the signature tooltip draws a character: the overload counter, the signature, the active
+// parameter
+Signature_Style :: enum u8 {
+	Dim,
+	Text,
+	Active,
+}
+
+// One line of the wrapped signature tooltip: its characters and how each is drawn
+Signature_Line :: struct {
+	runes:  []rune,
+	styles: []Signature_Style,
+}
+
+// The signature tooltip is at most this many columns wide (less in a narrow editor)
+SIGNATURE_MAX_COLS :: 100
+// Continuation lines of a wrapped signature are indented this much
+SIGNATURE_INDENT :: 4
+
+// signature_max_cols is how wide the tooltip may be: the text area's
+// width (less a margin), at most SIGNATURE_MAX_COLS, at least 20.
+signature_max_cols :: proc(ed: ^Editor) -> int {
+	return clamp(ed.visible_cols - 2, 20, SIGNATURE_MAX_COLS)
+}
+
+// signature_wrapped lays the tooltip's text (the overload counter, then the
+// signature with its active parameter) out in lines of at most `max_cols`
+// columns, breaking after a space (", " between parameters) where one is
+// in the line's last two thirds, else mid-word. Continuation lines are
+// indented by SIGNATURE_INDENT. Returns the lines (temp allocated) and the
+// widest one's columns.
+signature_wrapped :: proc(ed: ^Editor, max_cols: int) -> (lines: []Signature_Line, cols: int) {
 	_, before, active, after := editor_signature_active_parts(ed)
-	x := rect.x + POPUP_PAD
-	y := rect.y + POPUP_PAD
-	if counter := signature_counter(ed); len(counter) > 0 {
-		draw_text(renderer, font, counter, x, y, theme.popup_text_dim, ed.char_h)
-		x += f32(text_cols(counter)) * ed.char_w
+	runes := make([dynamic]rune, context.temp_allocator)
+	styles := make([dynamic]Signature_Style, context.temp_allocator)
+	add :: proc(runes: ^[dynamic]rune, styles: ^[dynamic]Signature_Style, text: string, style: Signature_Style) {
+		for r in text {
+			append(runes, r)
+			append(styles, style)
+		}
 	}
-	draw_text(renderer, font, before, x, y, theme.popup_text, ed.char_h)
-	x += f32(text_cols(before)) * ed.char_w
-	draw_text(renderer, font, active, x, y, theme.popup_active_param, ed.char_h)
-	if len(active) > 0 {
-		// Underline the active parameter so it reads even without color.
-		fill_rect(renderer, {x, y + ed.char_h - 2, f32(text_cols(active)) * ed.char_w, 1}, theme.popup_active_param)
+	add(&runes, &styles, signature_counter(ed), .Dim)
+	add(&runes, &styles, before, .Text)
+	add(&runes, &styles, active, .Active)
+	add(&runes, &styles, after, .Text)
+
+	out := make([dynamic]Signature_Line, context.temp_allocator)
+	n := len(runes)
+	start := 0
+	indent := 0
+	for start < n || len(out) == 0 {
+		room := max(max_cols - indent, 8)
+		end := min(start + room, n)
+		if end < n {
+			for i := end; i > start + room / 3; i -= 1 {
+				if runes[i - 1] == ' ' {
+					end = i
+					break
+				}
+			}
+		}
+		line := Signature_Line{make([]rune, indent + end - start, context.temp_allocator), make([]Signature_Style, indent + end - start, context.temp_allocator)}
+		for i in 0 ..< indent {
+			line.runes[i] = ' '
+			line.styles[i] = .Text
+		}
+		copy(line.runes[indent:], runes[start:end])
+		copy(line.styles[indent:], styles[start:end])
+		// Trailing spaces don't count toward the width
+		width := len(line.runes)
+		for width > indent && line.runes[width - 1] == ' ' do width -= 1
+		cols = max(cols, width)
+		append(&out, line)
+		start = end
+		for start < n && runes[start] == ' ' do start += 1
+		indent = SIGNATURE_INDENT
+		if n == 0 do break
 	}
-	x += f32(text_cols(active)) * ed.char_w
-	draw_text(renderer, font, after, x, y, theme.popup_text, ed.char_h)
+	return out[:], cols
 }
 
 // signature_counter is the "2/3 " overload indicator (empty for one).
