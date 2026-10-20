@@ -119,12 +119,12 @@ NodeField_Struct :: struct {
 
 /*
 Finds the script struct in a file's text: the first `Name :: struct {` whose body has a
-`using script:` field, with the line of its closing brace.
+`using script:` field (the one called `name` when given), with the line of its closing brace.
 
 Returns:
 - The struct, and false when the file has none
 */
-NodeField_FindStruct :: proc(text: string) -> (found: NodeField_Struct, ok: bool) {
+NodeField_FindStruct :: proc(text: string, name := "") -> (found: NodeField_Struct, ok: bool) {
 	lines := strings.split_lines(text, context.temp_allocator)
 	found.engineAlias = "e"
 	for line in lines {
@@ -137,7 +137,9 @@ NodeField_FindStruct :: proc(text: string) -> (found: NodeField_Struct, ok: bool
 	}
 	for i := 0; i < len(lines); i += 1 {
 		trimmed := strings.trim_space(lines[i])
-		name, _, rest := strings.partition(trimmed, "::")
+		structName, _, rest := strings.partition(trimmed, "::")
+		// A named one: only that struct
+		if name != "" && strings.trim_space(structName) != name do continue
 		if !strings.has_prefix(strings.trim_space(rest), "struct") || !strings.has_suffix(trimmed, "{") do continue
 		depth := 0
 		isScript := false
@@ -155,7 +157,7 @@ NodeField_FindStruct :: proc(text: string) -> (found: NodeField_Struct, ok: bool
 				}
 			}
 			if depth == 0 {
-				if isScript do return {strings.trim_space(name), j, found.engineAlias, fields[:]}, true
+				if isScript do return {strings.trim_space(structName), j, found.engineAlias, fields[:]}, true
 				i = j
 				break
 			}
@@ -211,7 +213,7 @@ NodeField_Line :: proc(st: NodeField_Struct, project: ^Project, scene: ^SceneDef
 	name = NodeField_Name(scene.nodes[node].name, st.fields)
 	type := NodeField_TypeName(NodeDef_BuiltKind(project, &scene.nodes[node]))
 	path := Scene_NodePath(scene, from, node, context.temp_allocator)
-	return fmt.tprintf("\t%s: ^%s.%s `export:\"default=%s\"`\n", name, st.engineAlias, type, path), name
+	return fmt.tprintf("\t%s: ^%s.%s `export:\"default=%s\"`,\n", name, st.engineAlias, type, path), name
 }
 
 /*
@@ -240,7 +242,35 @@ NodeField_Insert :: proc(state: ^State, node: int) -> (message: string, ok: bool
 		}
 	}
 	line, name := NodeField_Line(st, &state.project, scene, node, from)
+	// The field above needs a comma now that another follows it
+	if at, col, needed := Struct_MissingComma(CodeEditor_Text(path), st.closeLine); needed do CodeEditor_InsertAt(path, at, col, ",")
 	if !CodeEditor_InsertAtLine(path, st.closeLine, line) do return "The code editor couldn't take the field", false
 	CodeEditor_GotoLine(path, st.closeLine + 1)
 	return fmt.tprintf("Added %s to %s: %s (save, and it's set before ready)", name, st.name, strings.trim_space(line)), true
+}
+
+/*
+Where the last field above a struct's closing brace lacks its comma: Odin allows that only for
+the last field, so a field added after it needs one. Comments after the field are kept after it.
+
+Inputs:
+- text: The file's text
+- closeLine: The line of the struct's closing brace (0-based)
+
+Returns:
+- The line and column (bytes) to put the comma at, and whether one is needed
+*/
+Struct_MissingComma :: proc(text: string, closeLine: int) -> (line, column: int, needed: bool) {
+	lines := strings.split_lines(text, context.temp_allocator)
+	for i := min(closeLine, len(lines)) - 1; i >= 0; i -= 1 {
+		code := lines[i]
+		// The part before a line comment (not inside a tag: tags hold no "//" here)
+		if at := strings.index(code, "//"); at >= 0 && strings.count(code[:at], "`") % 2 == 0 do code = code[:at]
+		code = strings.trim_right_space(code)
+		trimmed := strings.trim_space(code)
+		if trimmed == "" do continue // blank, or only a comment
+		if strings.has_suffix(trimmed, ",") || strings.has_suffix(trimmed, "{") do return 0, 0, false
+		return i, len(code), true
+	}
+	return 0, 0, false
 }

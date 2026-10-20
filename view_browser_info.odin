@@ -123,6 +123,12 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 				for f in desc.fields do append(&names, f.type == .Node ? fmt.tprintf("%s (^%s)", f.name, f.hint) : f.name)
 				append(&rows, muted(ctx, fmt.tprintf("Fields: %s", strings.join(names[:], ", ", context.temp_allocator))))
 			}
+			// The events it publishes, once built
+			for &desc in s.scripts.scripts do if desc.name == name && len(desc.events) > 0 {
+				names := make([dynamic]string, context.temp_allocator)
+				for ev in desc.events do append(&names, Event_ShortName(ev.name))
+				append(&rows, muted(ctx, fmt.tprintf("Events: %s", strings.join(names[:], ", ", context.temp_allocator))))
+			}
 			append(&rows, skald.spacer(th.spacing.xs))
 		}
 		for name in info.dataTypes {

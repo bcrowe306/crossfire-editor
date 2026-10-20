@@ -337,9 +337,14 @@ Returns:
 - false when the file isn't open or the line is past its end
 */
 CodeEditor_InsertAtLine :: proc(path: string, line: int, text: string) -> bool {
+	return CodeEditor_InsertAt(path, line, 0, text)
+}
+
+// Inserts text at a 0-based line and byte column of an open file's buffer, like CodeEditor_InsertAtLine
+CodeEditor_InsertAt :: proc(path: string, line, column: int, text: string) -> bool {
 	c := CodeEditor_Find(path)
 	if c == nil || line < 0 || line > cebuf.buffer_line_count(&c.ed.buf) do return false
-	cebuf.buffer_insert_text(&c.ed.buf, {line = line, col = 0}, text)
+	cebuf.buffer_insert_text(&c.ed.buf, {line = line, col = column}, text)
 	ce.editor_notify_lsp_changed(&c.ed)
 	return true
 }

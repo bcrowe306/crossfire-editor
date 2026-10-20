@@ -241,6 +241,7 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		// Scripts listening to its events
 		for l in node.listeners {
 			open(&w, "listener")
+			if l.global != "" do attr(&w, "global", l.global)
 			attr(&w, "event", l.event)
 			attr(&w, "target", l.target)
 			attr(&w, "handler", l.handler)

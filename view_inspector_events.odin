@@ -1,6 +1,7 @@
 package crossfire_editor
 
 import "core:fmt"
+import "core:strings"
 import "gui:skald"
 import e "engine:."
 
@@ -10,57 +11,155 @@ The inspector's Events section and the Listen... dialog (node_listeners.odin): t
 one) and Listen..., which asks which script of the scene listens. Collapsed until opened, unless
 the node has listeners.
 
-Widget keys: `inspector-events-toggle`, `inspector-event-listen-<event>`,
-`inspector-listener-remove-<i>`; the dialog's `listener-dialog`, `listener-target-<i>` (the
+Widget keys: `inspector-events-toggle`, `inspector-event-listen-<event>` (a script's:
+`inspector-event-listen-script.<name>`), `inspector-global-listen-<Global>-<event>`,
+`inspector-new-event`, `inspector-global-new-event-<Global>`, `inspector-listener-remove-<i>`;
+the New Event dialog's `new-event-name`, `new-event-description`, `new-event-kind`,
+`new-event-create`, `new-event-cancel`; the dialog's `listener-dialog`, `listener-target-<i>` (the
 scene's scripted nodes in order), `listener-cancel`.
 */
 @(private="package")
 eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWidth: f32) -> []skald.View {
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	events := e.SceneNodeKind_Events(NodeDef_BuiltKind(&s.project, node))
+	own := e.SceneNodeKind_Events(NodeDef_BuiltKind(&s.project, node))
+	script := NodeDef_Script(&s.project, node)
+	scriptEvents := Script_Events(s, script)
 	open := s.inspectorEventsOpen || len(node.listeners) > 0
 	small :: proc(ctx: ^skald.Ctx(Msg), label, key: string, msg: Msg) -> skald.View {
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
 			padding = {th.spacing.sm, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
+	muted :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View {
+		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
+	}
 	append(&rows, skald.row(
-		skald.text(fmt.tprintf("%s  Events (%d)", ICON_LINK, len(events)), th.color.fg, th.font.size_sm),
+		skald.text(fmt.tprintf("%s  Events (%d)", ICON_LINK, len(own) + len(scriptEvents)), th.color.fg, th.font.size_sm),
 		skald.flex(1, skald.spacer(0)),
 		len(node.listeners) > 0 ? skald.View(skald.View_Spacer{size = 0}) : small(ctx, open ? "Hide" : "Show", "inspector-events-toggle", Msg(Inspector_Events_Toggled{})),
 		cross_align = .Center,
 	))
 	if !open do return rows[:]
 	width := controlWidth + INSPECTOR_LABEL_WIDTH
-	for ev in events {
-		short := Event_ShortName(ev.name)
-		append(&rows, skald.row(
-			tipLabel(ctx, short, skald.text(ev.name, th.color.fg_muted, th.font.size_sm), ev.description),
+	shown := make([dynamic]int, context.temp_allocator)
+	// One event: its name (the description on hover), Listen..., its listeners
+	event :: proc(ctx: ^skald.Ctx(Msg), s: ^State, rows: ^[dynamic]skald.View, shown: ^[dynamic]int, node: ^NodeDef, ev: e.NodeEventInfo, global, label, key: string, listen: Msg, width: f32) {
+		th := ctx.theme
+		append(rows, skald.row(
+			tipLabel(ctx, Event_ShortName(ev.name), skald.text(label, th.color.fg_muted, th.font.size_sm, max_width = width - 70), ev.description),
 			skald.flex(1, skald.spacer(0)),
-			small(ctx, "Listen...", fmt.tprintf("inspector-event-listen-%s", ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name})),
+			skald.button(ctx, "Listen...", listen, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
+				padding = {th.spacing.sm, 1}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = listen == nil),
 			cross_align = .Center,
 		))
-		for l, i in node.listeners do if l.event == ev.name {
-			append(&rows, skald.row(
-				skald.flex(1, skald.text(fmt.tprintf("    → %s  %s", l.target, l.handler), th.color.fg, th.font.size_xs, max_width = width - 30)),
-				small(ctx, "×", fmt.tprintf("inspector-listener-remove-%d", i), Msg(Listener_Removed{s.selectedNode, i})),
-				cross_align = .Center,
-			))
+		for l, i in node.listeners do if l.event == ev.name && l.global == global {
+			append(shown, i)
+			append(rows, listenerRow(ctx, s, l, i, width))
 		}
 	}
-	// Listeners for events the node's kind doesn't have (it changed kind, or an older engine's)
-	for l, i in node.listeners {
-		known := false
-		for ev in events do if ev.name == l.event do known = true
-		if known do continue
+	for ev in own {
+		event(ctx, s, &rows, &shown, node, ev, "", ev.name, fmt.tprintf("inspector-event-listen-%s", ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width)
+	}
+	// Its script's own events (once built), and a new one
+	if script != "" {
 		append(&rows, skald.row(
-			skald.flex(1, skald.text(fmt.tprintf("%s (no such event) → %s  %s", l.event, l.target, l.handler), th.color.warning, th.font.size_xs, max_width = width - 30)),
+			skald.text(fmt.tprintf("%s  %s", ICON_CODE, script), th.color.fg, th.font.size_xs),
+			skald.flex(1, skald.spacer(0)),
+			small(ctx, "New Event...", "inspector-new-event", Msg(New_Event_Opened(script))),
+			cross_align = .Center,
+		))
+		if ScriptCatalog_Find(&s.scripts, script) == nil do append(&rows, muted(ctx, fmt.tprintf("Build the scripts (Ctrl+B) to see %s's events.", script), width))
+		for ev in scriptEvents {
+			event(ctx, s, &rows, &shown, node, ev, "", Event_ShortName(ev.name), fmt.tprintf("inspector-event-listen-%s", ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width)
+		}
+	}
+	// The globals' events: this node's script listens (stored on this node)
+	if len(s.project.globals) > 0 {
+		append(&rows, skald.text("Globals", th.color.fg, th.font.size_xs))
+		if node.script == "" do append(&rows, muted(ctx, "Give this node a script to listen to the globals' events.", width))
+		for g in s.project.globals {
+			append(&rows, skald.row(
+				skald.text(fmt.tprintf("%s  %s", ICON_GLOBE, g.script), th.color.fg_muted, th.font.size_xs),
+				skald.flex(1, skald.spacer(0)),
+				small(ctx, "+ Event", fmt.tprintf("inspector-global-new-event-%s", g.script), Msg(New_Event_Opened(g.script))),
+				cross_align = .Center,
+			))
+			for ev in Script_Events(s, g.script) {
+				listen := node.script != "" ? Msg(Global_Listen_Requested{s.selectedNode, g.script, ev.name}) : nil
+				event(ctx, s, &rows, &shown, node, ev, g.script, fmt.tprintf("  %s", Event_ShortName(ev.name)), fmt.tprintf("inspector-global-listen-%s-%s", g.script, ev.name), listen, width)
+			}
+		}
+	}
+	// Listeners whose event isn't there: for a script's or a global's, only known after a build
+	for l, i in node.listeners {
+		listed := false
+		for j in shown do if j == i do listed = true
+		if listed do continue
+		scriptOnes := l.global != "" || strings.has_prefix(l.event, e.SCRIPT_EVENT_PREFIX)
+		if scriptOnes && s.scripts.status != .Ready do continue
+		append(&rows, skald.row(
+			skald.flex(1, skald.text(fmt.tprintf("%s%s (no such event) → %s  %s", l.global != "" ? fmt.tprintf("%s.", l.global) : "", l.event, l.target, l.handler), th.color.warning, th.font.size_xs, max_width = width - 30)),
 			small(ctx, "×", fmt.tprintf("inspector-listener-remove-%d", i), Msg(Listener_Removed{s.selectedNode, i})),
 			cross_align = .Center,
 		))
 	}
 	return rows[:]
+}
+
+// A listener of the selected node, with × to remove it
+@(private="file")
+listenerRow :: proc(ctx: ^skald.Ctx(Msg), s: ^State, l: e.NodeListenerData, index: int, width: f32) -> skald.View {
+	th := ctx.theme
+	return skald.row(
+		skald.flex(1, skald.text(fmt.tprintf("    → %s  %s", l.target, l.handler), th.color.fg, th.font.size_xs, max_width = width - 30)),
+		skald.button(ctx, "×", Msg(Listener_Removed{s.selectedNode, index}), id = skald.hash_id(fmt.tprintf("inspector-listener-remove-%d", index)),
+			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 1}, font_size = th.font.size_xs, radius = th.radius.sm),
+		cross_align = .Center,
+	)
+}
+
+// The New Event dialog: a name, what it means and its data, written into the script's struct
+newEventDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	if !s.newEvent.open do return closedDialog(ctx, "new-event-dialog")
+	th := ctx.theme
+	d := &s.newEvent
+	problem := NewEvent_Problem(s)
+	kinds := make([]string, len(EventDataKind), context.temp_allocator)
+	for k, i in EventDataKind do kinds[i] = EVENT_DATA_LABELS[k]
+	field :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
+		return skald.row(skald.col(skald.text(label, ctx.theme.color.fg, ctx.theme.font.size_sm), width = 90), skald.flex(1, control), spacing = ctx.theme.spacing.sm, cross_align = .Center)
+	}
+	return skald.dialog(ctx,
+		open = true,
+		on_dismiss = proc() -> Msg { return New_Event_Cancelled{} },
+		content = skald.col(
+			skald.text(fmt.tprintf("New Event on %s", d.script), th.color.fg, th.font.size_lg),
+			field(ctx, "Name", skald.text_input(ctx, d.name, proc(v: string) -> Msg { return New_Event_Name_Changed(v) },
+				id = skald.hash_id("new-event-name"), placeholder = "onCoinCollected")),
+			field(ctx, "What it means", skald.text_input(ctx, d.description, proc(v: string) -> Msg { return New_Event_Description_Changed(v) },
+				id = skald.hash_id("new-event-description"), placeholder = "The hero picked up a coin")),
+			field(ctx, "Data", skald.select(ctx, EVENT_DATA_LABELS[d.kind], kinds,
+				proc(v: string) -> Msg {
+					for label, k in EVENT_DATA_LABELS do if label == v do return New_Event_Kind_Changed(k)
+					return New_Event_Kind_Changed(.None)
+				}, id = skald.hash_id("new-event-kind"), width = 220)),
+			skald.text(problem != "" ? problem : fmt.tprintf("Adds %s to %s's struct, with how to fire it. Saved and built, it's listed here to listen to.", d.name, d.script),
+				problem != "" && d.name != "" ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = 400),
+			skald.row(
+				skald.flex(1, skald.spacer(0)),
+				skald.button(ctx, "Cancel", Msg(New_Event_Cancelled{}), id = skald.hash_id("new-event-cancel"), bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm),
+				skald.button(ctx, "Create", Msg(New_Event_Created{}), id = skald.hash_id("new-event-create"), font_size = th.font.size_sm, disabled = problem != ""),
+				spacing = th.spacing.sm,
+			),
+			spacing = th.spacing.sm,
+			padding = th.spacing.lg,
+			cross_align = .Stretch,
+		),
+		id = skald.hash_id("new-event-dialog"),
+		initial_focus = skald.hash_id("new-event-name"),
+		width = 460,
+	)
 }
 
 // The Listen... dialog: which of the scene's scripts listens to the node's event

@@ -801,6 +801,20 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   `Listener_HandlerName`), in the code tab (`CodeEditor_InsertAtLine`, caret in the body) or,
   with the external editor, written to the file. Tests: `listeners_from_the_inspector`,
   scripts.script (built and played without a listener warning).
+- **Script events** (new_event.odin; the catalog's `ScriptDesc.events`): the Events section also
+  lists the node's script's events ("script.x"; a Component instance's root's script:
+  `NodeDef_Script`), once built, with **New Event...** (`NewEventDialog`: name, description,
+  `EventDataKind`), which adds the tagged field and a "Fire it:" comment to the script's struct
+  (`NewEvent_Insert`, `NodeField_FindStruct(text, name)` for files with several scripts), and
+  **Globals**: each global's events (Listen... makes the selected node's script listen, the
+  listener stored on that node with `global` set: `Global_Listen_Requested`,
+  `Listener_Connect`) and **+ Event** for the global. Handlers for a script's event get a
+  `sender := e.Node_GetScript(source, X)` hint, a global's `x := e.Global(X)`. Listeners whose
+  event is gone show "(no such event)" once the scripts are built. Tests:
+  `scripts_publish_events_in_the_editor`; scripts.script (New Event, build, listen, play).
+- **Fields the editor adds end with a comma**, and the field above gets one if it had none
+  (`Struct_MissingComma`): Odin allows no comma only on the last field, so the next insert broke
+  the build.
 - **Node fields** (node_fields.odin; the engine sets them before `ready`): an exported pointer
   to a node type (`camera: ^e.Camera2D `export:"default=../Camera"``) holds a path
   (`e.Node_FindPath`). The inspector's control is a dropdown of the scene's nodes that fit

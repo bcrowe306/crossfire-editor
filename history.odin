@@ -166,6 +166,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	#partial switch v in m {
 	case Listener_Target_Chosen:
 		if d := s.listenerDialog; d.node >= 0 && d.node < len(scene.nodes) do return node(d.node, fmt.tprintf("Listen to %s's %s", scene.nodes[d.node].name, d.event))
+	case Global_Listen_Requested:
+		if v.node >= 0 && v.node < len(scene.nodes) do return node(v.node, fmt.tprintf("Listen to %s's %s", v.global, v.event))
 	case Listener_Removed:
 		if v.node >= 0 && v.node < len(scene.nodes) do return node(v.node, fmt.tprintf("Remove a listener of %s", scene.nodes[v.node].name))
 	case Scene_Action:

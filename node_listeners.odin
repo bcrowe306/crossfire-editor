@@ -35,7 +35,7 @@ ListenerDialog :: struct {
 
 // A listener's copy (strings cloned)
 Listener_Clone :: proc(l: e.NodeListenerData) -> e.NodeListenerData {
-	return {strings.clone(l.event), strings.clone(l.target), strings.clone(l.handler)}
+	return {strings.clone(l.event), strings.clone(l.target), strings.clone(l.handler), strings.clone(l.global)}
 }
 
 // The event's name without the struct field it's in ("animation.onAnimationEnded" -> "onAnimationEnded")
@@ -103,8 +103,9 @@ Inputs:
 - nodeName, event: Whose event it is, for the comment
 - info: The event (its description and data hint)
 - alias: The engine's import name in the file ("e")
+- reach: Code reaching what sent it (a node's script, a global), for a comment; "" for none
 */
-Listener_HandlerSource :: proc(script, handler, nodeName, event: string, info: e.NodeEventInfo, alias: string) -> string {
+Listener_HandlerSource :: proc(script, handler, nodeName, event: string, info: e.NodeEventInfo, alias: string, reach := "") -> string {
 	b := strings.builder_make(context.temp_allocator)
 	fmt.sbprintf(&b, "\n// %s's %s (Events in %s's inspector): %s\n", nodeName, event, nodeName, info.description)
 	fmt.sbprintf(&b, "%s_%s :: proc(self: ^%s, source: ^%s.Node, data: %s.EventData) {{\n", script, handler, script, alias, alias)
@@ -112,6 +113,7 @@ Listener_HandlerSource :: proc(script, handler, nodeName, event: string, info: e
 		hint, _ := strings.replace_all(info.dataHint, "e.", fmt.tprintf("%s.", alias), context.temp_allocator)
 		fmt.sbprintf(&b, "\t// %s\n", hint)
 	}
+	if reach != "" do fmt.sbprintf(&b, "\t// %s\n", reach)
 	strings.write_string(&b, "}\n\n@(init)\n")
 	fmt.sbprintf(&b, "register_%s_%s :: proc \"contextless\" () {{\n", script, handler)
 	fmt.sbprintf(&b, "\t%s.Script_Listener(%s, \"%s\", %s_%s)\n}}\n", alias, script, handler, script, handler)
@@ -136,28 +138,58 @@ Script_FileOf :: proc(state: ^State, script: string) -> string {
 	return ""
 }
 
+// The script a node runs: its own, or for a Component instance its component's root's
+NodeDef_Script :: proc(project: ^Project, node: ^NodeDef) -> string {
+	if node.kind != .Component do return node.script
+	if i := Project_FindComponent(project, node.component); i >= 0 && len(project.scenes[i].nodes) > 0 {
+		return NodeDef_Script(project, &project.scenes[i].nodes[0])
+	}
+	return ""
+}
+
+// A built script's events (the catalog's; none before a build)
+Script_Events :: proc(state: ^State, script: string) -> []e.NodeEventInfo {
+	if desc := ScriptCatalog_Find(&state.scripts, script); desc != nil do return desc.events[:]
+	return nil
+}
+
 /*
-Connects the dialog's node event to a script: the listener on the node, the handler in the
+An event a listener names: one of the node kind's, one of its script's ("script.x"), or a
+global's (`global` set).
+
+Returns:
+- The event, and false when nothing has it (not built yet, renamed, removed)
+*/
+Listener_EventInfo :: proc(state: ^State, node: ^NodeDef, event, global: string) -> (e.NodeEventInfo, bool) {
+	events := global != "" ? Script_Events(state, global) : strings.has_prefix(event, e.SCRIPT_EVENT_PREFIX) ? Script_Events(state, NodeDef_Script(&state.project, node)) : e.SceneNodeKind_Events(NodeDef_BuiltKind(&state.project, node))
+	for ev in events do if ev.name == event do return ev, true
+	return {}, false
+}
+
+/*
+Connects an event to a script: the listener on `carrier` (the emitting node for its own and its
+script's events; the listening node for a global's), the handler appended to the listening node's
 script's file (see the file's comment).
 
 Inputs:
-- state: The editor state (its `listenerDialog` says which event)
-- target: The listening node, in the open scene
+- state: The editor state
+- carrier: The node the listener is stored on, in the open scene
+- listening: The node whose script listens
+- event: The event's name
+- global: The global's script name for a global's event, else ""
 
 Returns:
 - What happened, for the Console, and false when nothing was connected
 */
-Listener_Attach :: proc(state: ^State, target: int) -> (message: string, ok: bool) {
-	dialog := &state.listenerDialog
+Listener_Connect :: proc(state: ^State, carrier, listening: int, event, global: string) -> (message: string, ok: bool) {
 	scene := &state.project.scenes[state.currentScene]
-	if dialog.node < 0 || dialog.node >= len(scene.nodes) || target < 0 || target >= len(scene.nodes) do return "No node", false
-	script := scene.nodes[target].script
-	if script == "" do return "That node has no script", false
+	if carrier < 0 || carrier >= len(scene.nodes) || listening < 0 || listening >= len(scene.nodes) do return "No node", false
+	script := scene.nodes[listening].script
+	if script == "" do return fmt.tprintf("%s has no script to listen with", scene.nodes[listening].name), false
 	file := Script_FileOf(state, script)
 	if file == "" do return fmt.tprintf("No file in scripts/ registers %s", script), false
-	source := &scene.nodes[dialog.node]
-	info: e.NodeEventInfo
-	for ev in e.SceneNodeKind_Events(NodeDef_BuiltKind(&state.project, source)) do if ev.name == dialog.event do info = ev
+	source := &scene.nodes[carrier]
+	info, _ := Listener_EventInfo(state, source, event, global)
 
 	// The file's text: the code tab's (with unsaved edits), else the disk's
 	absolute := absolutePath(joinPath(state.project.rootPath, file, allocator = context.temp_allocator))
@@ -172,8 +204,16 @@ Listener_Attach :: proc(state: ^State, target: int) -> (message: string, ok: boo
 	}
 	st, _ := NodeField_FindStruct(text)
 	alias := st.engineAlias != "" ? st.engineAlias : "e"
-	handler := Listener_HandlerName(source.name, dialog.event, Listener_RegisteredHandlers(text))
-	code := Listener_HandlerSource(script, handler, source.name, dialog.event, info, alias)
+	whose := global != "" ? global : source.name
+	handler := Listener_HandlerName(whose, event, Listener_RegisteredHandlers(text))
+	// How to reach what sent it: a node's script, or the global
+	reach := ""
+	if global != "" {
+		reach = fmt.tprintf("%s%s := %s.Global(%s)", strings.to_lower(global[:1], context.temp_allocator), global[1:], alias, global)
+	} else if sender := NodeDef_Script(&state.project, source); strings.has_prefix(event, e.SCRIPT_EVENT_PREFIX) && sender != "" {
+		reach = fmt.tprintf("sender := %s.Node_GetScript(source, %s)", alias, sender)
+	}
+	code := Listener_HandlerSource(script, handler, whose, event, info, alias, reach)
 	lines := strings.count(text, "\n") + (strings.has_suffix(text, "\n") || text == "" ? 0 : 1)
 	if !strings.has_suffix(text, "\n") && text != "" do code = strings.concatenate({"\n", code}, context.temp_allocator)
 	// The handler's body: the line after its signature
@@ -186,6 +226,12 @@ Listener_Attach :: proc(state: ^State, target: int) -> (message: string, ok: boo
 			return fmt.tprintf("Couldn't write %s", file), false
 		}
 	}
-	append(&source.listeners, e.NodeListenerData{strings.clone(dialog.event), Scene_NodePath(scene, dialog.node, target), strings.clone(handler)})
-	return fmt.tprintf("%s now listens to %s's %s: %s_%s in %s (save to build it)", scene.nodes[target].name, source.name, dialog.event, script, handler, filepath.base(file)), true
+	target := global != "" ? strings.clone(".") : Scene_NodePath(scene, carrier, listening)
+	append(&source.listeners, e.NodeListenerData{strings.clone(event), target, strings.clone(handler), strings.clone(global)})
+	return fmt.tprintf("%s now listens to %s's %s: %s_%s in %s (save to build it)", scene.nodes[listening].name, whose, event, script, handler, filepath.base(file)), true
+}
+
+// The Listen... dialog's choice (`Listener_Connect` with the dialog's node and event)
+Listener_Attach :: proc(state: ^State, target: int) -> (message: string, ok: bool) {
+	return Listener_Connect(state, state.listenerDialog.node, target, state.listenerDialog.event, "")
 }

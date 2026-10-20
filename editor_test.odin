@@ -3733,9 +3733,19 @@ Hero :: struct {
 	scene := &state.project.scenes[1]
 	line, name := NodeField_Line(st, &state.project, scene, nodeIndex(scene, "Camera"), nodeIndex(scene, "Spaceship"))
 	testing.expect_value(t, name, "camera2")
-	testing.expect_value(t, line, "\tcamera2: ^e.Camera2D `export:\"default=../Camera\"`\n")
+	testing.expect_value(t, line, "\tcamera2: ^e.Camera2D `export:\"default=../Camera\"`,\n")
 	line, _ = NodeField_Line(st, &state.project, scene, nodeIndex(scene, "ShipLight"), -1)
-	testing.expect_value(t, line, "\tshipLight: ^e.AnimatedSprite `export:\"default=/World/Spaceship/ShipLight\"`\n")
+	testing.expect_value(t, line, "\tshipLight: ^e.AnimatedSprite `export:\"default=/World/Spaceship/ShipLight\"`,\n")
+
+	// A field added after one without a comma (Odin allows it on the last field) gives it one,
+	// before a trailing comment; one with a comma, or the struct's first line, needs none
+	missing := "A :: struct {\n\tusing script: e.Script,\n\tspeed: f32 `export:\"default=1\"` // fast\n\n}\n"
+	commaLine, commaColumn, needed := Struct_MissingComma(missing, 4)
+	testing.expect(t, needed && commaLine == 2 && commaColumn == len("\tspeed: f32 `export:\"default=1\"`"), "after the tag, before the comment")
+	_, _, needed = Struct_MissingComma("A :: struct {\n\tx: int,\n}\n", 2)
+	testing.expect(t, !needed, "already has one")
+	_, _, needed = Struct_MissingComma("A :: struct {\n}\n", 1)
+	testing.expect(t, !needed, "an empty struct")
 
 	// What a file registers, for the script preview
 	info := ScriptFile_Registrations("e.Script_Register(Hero, {})\ne.Data_Register(Stats)\ne.Script_Register(Hero, {})\ne.Script_Register(Coin, {})")
@@ -3816,7 +3826,7 @@ listeners_from_the_inspector :: proc(t: ^testing.T) {
 	testing.expect(t, !state.listenerDialog.open, "closed")
 	listeners := scene.nodes[menu].listeners[:]
 	testing.expect_value(t, len(listeners), 1)
-	if len(listeners) == 1 do testing.expect_value(t, listeners[0], e.NodeListenerData{"onButtonPressed", "../../World/Spaceship", "onBackMenuButtonPressed"})
+	if len(listeners) == 1 do testing.expect_value(t, listeners[0], e.NodeListenerData{"onButtonPressed", "../../World/Spaceship", "onBackMenuButtonPressed", ""})
 	data, _ := os.read_entire_file(filepath.join({dir, "scripts", "hero.odin"}, context.temp_allocator) or_else "", context.temp_allocator)
 	text := string(data)
 	testing.expect(t, strings.contains(text, "Hero_onBackMenuButtonPressed :: proc(self: ^Hero, source: ^e.Node, data: e.EventData) {\n\t// index := data.(int)\n}"), text)
@@ -3836,5 +3846,76 @@ listeners_from_the_inspector :: proc(t: ^testing.T) {
 	// × removes it (an undo step too)
 	send(&state, Listener_Removed{menu, 0})
 	testing.expect_value(t, len(scene.nodes[menu].listeners), 0)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+scripts_publish_events_in_the_editor :: proc(t: ^testing.T) {
+	// The catalog lists a script's events
+	scripts, dataTypes, ok := ScriptCatalog_ParseAll(`{"scripts": [{"name": "Hero", "file": "hero.odin", "line": 9, "fields": [], "events": [{"name": "script.onPinged", "description": "It was pinged", "data": "text := data.(string)"}]}, {"name": "GameState", "file": "game_state.odin", "line": 9, "fields": [], "events": [{"name": "script.onScored", "description": "The score changed", "data": "value := data.(int)"}]}], "data": []}`)
+	testing.expect(t, ok && len(scripts) == 2 && len(scripts[0].events) == 1, "events parsed")
+	testing.expect_value(t, scripts[0].events[0].name, "script.onPinged")
+	testing.expect_value(t, scripts[0].events[0].dataHint, "text := data.(string)")
+
+	// The field New Event writes, with how to fire it
+	testing.expect_value(t, NewEvent_Source("onPinged", `It was "pinged"`, .String, "e", false),
+		"\t// It was 'pinged'. Fire it: e.Event_Notify(&self.onPinged, self.node, \"text\")\n\tonPinged: e.EventSubject `event:\"It was 'pinged'\" data:\"text := data.(string)\"`,\n")
+	testing.expect(t, strings.contains(NewEvent_Source("onScored", "Scored", .Int, "e", true), "e.Event_Notify(&self.onScored, nil, 42)"), "a global fires with no node")
+	testing.expect(t, !strings.contains(NewEvent_Source("onTick", "Ticked", .None, "e", false), "data:"), "no data, no hint")
+
+	state := testState()
+	defer State_Destroy(&state)
+	state.scripts = {status = .Ready, scripts = scripts, dataTypes = dataTypes}
+	dir := tempDir("editor_test_script_events")
+	defer removeAll(dir)
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone(dir)
+	_ = os.make_directory_all(filepath.join({dir, "scripts"}, context.temp_allocator) or_else "")
+	write :: proc(dir, name, text: string) { _ = os.write_entire_file(filepath.join({dir, "scripts", name}, context.temp_allocator) or_else "", transmute([]u8)text) }
+	read :: proc(dir, name: string) -> string {
+		data, _ := os.read_entire_file(filepath.join({dir, "scripts", name}, context.temp_allocator) or_else "", context.temp_allocator)
+		return string(data)
+	}
+	// Two scripts in one file: the event goes into the one asked for
+	write(dir, "hero.odin", "package scripts\n\nimport e \"engine:.\"\n\nOther :: struct {\n\tusing script: e.Script,\n}\n\nHero :: struct {\n\tusing script: e.Script,\n\tspeed: f32,\n}\n\n@(init)\nregister_Hero :: proc \"contextless\" () {\n\te.Script_Register(Hero, {})\n\te.Script_Register(Other, {})\n}\n")
+	write(dir, "game_state.odin", "package scripts\n\nimport e \"engine:.\"\n\nGameState :: struct {\n\tusing script: e.Script,\n}\n\n@(init)\nregister_GameState :: proc \"contextless\" () {\n\te.Script_Register(GameState, {})\n}\n")
+	append(&state.scriptFiles, strings.clone("scripts/hero.odin"), strings.clone("scripts/game_state.odin"))
+	append(&state.project.globals, GlobalDef{script = strings.clone("GameState")})
+	state.settings.codeEditorPath = FixedText_Make(TEST_NOOP_PROGRAM)
+
+	send(&state, New_Event_Opened("Hero"))
+	send(&state, New_Event_Name_Changed("onPinged"))
+	testing.expect(t, NewEvent_Problem(&state) != "", "Hero already has onPinged (built)")
+	send(&state, New_Event_Name_Changed("onJumped"))
+	send(&state, New_Event_Description_Changed("It jumped"))
+	send(&state, New_Event_Kind_Changed(.Float))
+	testing.expect_value(t, NewEvent_Problem(&state), "")
+	send(&state, New_Event_Created{})
+	testing.expect(t, !state.newEvent.open, "closed")
+	hero := read(dir, "hero.odin")
+	testing.expect(t, strings.contains(hero, "\tspeed: f32,\n\t// It jumped. Fire it: e.Event_Notify(&self.onJumped, self.node, 1.5)\n\tonJumped: e.EventSubject `event:\"It jumped\" data:\"value := data.(f32)\"`,\n}"), hero)
+	testing.expect(t, strings.index(hero, "onJumped") > strings.index(hero, "Hero :: struct"), "in Hero, not Other")
+
+	// A node with Hero listens to the global's onScored: the listener on that node
+	scene := playScene(&state)
+	ship := nodeIndex(scene, "Spaceship")
+	delete(scene.nodes[ship].script)
+	scene.nodes[ship].script = strings.clone("Hero")
+	send(&state, Global_Listen_Requested{ship, "GameState", "script.onScored"})
+	listeners := scene.nodes[ship].listeners[:]
+	if testing.expect_value(t, len(listeners), 1) {
+		testing.expect_value(t, listeners[0], e.NodeListenerData{"script.onScored", ".", "onGameStateScored", "GameState"})
+	}
+	hero = read(dir, "hero.odin")
+	testing.expect(t, strings.contains(hero, "Hero_onGameStateScored :: proc(self: ^Hero, source: ^e.Node, data: e.EventData) {\n\t// value := data.(int)\n\t// gameState := e.Global(GameState)\n}"), hero)
+	// A node's script event: the listener's handler can reach the sender
+	send(&state, Listener_Dialog_Opened{ship, "script.onPinged"})
+	send(&state, Listener_Target_Chosen(ship))
+	hero = read(dir, "hero.odin")
+	testing.expect(t, strings.contains(hero, "\t// sender := e.Node_GetScript(source, Hero)\n"), hero)
+	// Saved with the global named
+	testing.expect_value(t, Project_Save(&state.project), "")
+	xml := SceneToXML(scene, context.temp_allocator)
+	testing.expect(t, strings.contains(xml, `<listener global="GameState" event="script.onScored" target="." handler="onGameStateScored"/>`), xml)
 	free_all(context.temp_allocator)
 }

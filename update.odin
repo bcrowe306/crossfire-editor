@@ -557,10 +557,30 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		scene := &out.project.scenes[out.currentScene]
 		if v.node < 0 || v.node >= len(scene.nodes) || v.index < 0 || v.index >= len(scene.nodes[v.node].listeners) do break
 		l := scene.nodes[v.node].listeners[v.index]
-		delete(l.event); delete(l.target); delete(l.handler)
+		delete(l.event); delete(l.target); delete(l.handler); delete(l.global)
 		ordered_remove(&scene.nodes[v.node].listeners, v.index)
 	case Inspector_Events_Toggled:
 		out.inspectorEventsOpen = !out.inspectorEventsOpen
+	case Global_Listen_Requested:
+		message, attached := Listener_Connect(&out, v.node, v.node, v.event, v.global)
+		logLine(&out, attached ? .Info : .Warning, strings.clone(message))
+	case New_Event_Opened:
+		NewEventDialog_Destroy(&out.newEvent)
+		out.newEvent = {open = true, script = strings.clone(string(v)), name = strings.clone("on"), description = strings.clone("")}
+	case New_Event_Name_Changed:
+		delete(out.newEvent.name)
+		out.newEvent.name = strings.clone(string(v))
+	case New_Event_Description_Changed:
+		delete(out.newEvent.description)
+		out.newEvent.description = strings.clone(string(v))
+	case New_Event_Kind_Changed:
+		out.newEvent.kind = EventDataKind(v)
+	case New_Event_Cancelled:
+		out.newEvent.open = false
+	case New_Event_Created:
+		message, added := NewEvent_Insert(&out)
+		if added do out.newEvent.open = false
+		logLine(&out, added ? .Info : .Warning, strings.clone(message))
 	case Script_Usage_Clicked:
 		if v.scene < 0 || v.scene >= len(out.project.scenes) || v.node < 0 || v.node >= len(out.project.scenes[v.scene].nodes) do break
 		if Scene_IsComponent(&out.project.scenes[v.scene]) do out.project.scenes[v.scene].opened = true

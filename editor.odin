@@ -218,6 +218,8 @@ State :: struct {
 	// The inspector's Listen... dialog (node_listeners.odin) and whether its Events section is open
 	listenerDialog: ListenerDialog,
 	inspectorEventsOpen: bool,
+	// The New Event dialog (new_event.odin)
+	newEvent: NewEventDialog,
 	newScript: struct {
 		open: bool,
 		// Owned
@@ -392,6 +394,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.scriptFiles)
 	delete(state.newScript.name)
 	delete(state.listenerDialog.event)
+	NewEventDialog_Destroy(&state.newEvent)
 	delete(state.newData.name)
 	delete(state.newData.type)
 	delete(state.selection)

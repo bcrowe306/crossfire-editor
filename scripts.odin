@@ -53,6 +53,8 @@ ScriptDesc :: struct {
 	file: string,
 	line: int,
 	fields: [dynamic]ScriptFieldDesc,
+	// The events it publishes ("script.onX": the engine's tagged EventSubject fields; offset unused)
+	events: [dynamic]e.NodeEventInfo,
 }
 
 ScriptFieldDesc :: struct {
@@ -118,6 +120,16 @@ ScriptCatalog_ParseAll :: proc(text: string) -> (scripts, dataTypes: [dynamic]Sc
 				for n in names do if s, isString := n.(json.String); isString do append(&field.enumNames, strings.clone(s))
 				append(&desc.fields, field)
 			}
+			events, _ := obj["events"].(json.Array)
+			for ev in events {
+				eo, isEvent := ev.(json.Object)
+				if !isEvent do continue
+				append(&desc.events, e.NodeEventInfo{
+					name = strings.clone(jsonString(eo, "name")),
+					description = strings.clone(jsonString(eo, "description")),
+					dataHint = strings.clone(jsonString(eo, "data")),
+				})
+			}
 			append(into, desc)
 		}
 	}
@@ -132,19 +144,7 @@ ScriptCatalog_ParseAll :: proc(text: string) -> (scripts, dataTypes: [dynamic]Sc
 ScriptCatalog_Clear :: proc(catalog: ^ScriptCatalog) {
 	scriptDescs_Destroy(&catalog.dataTypes)
 	catalog.dataTypes = {}
-	for &script in catalog.scripts {
-		delete(script.name)
-		delete(script.file)
-		for &field in script.fields {
-			delete(field.name)
-			delete(field.defaultValue)
-			delete(field.hint)
-			for n in field.enumNames do delete(n)
-			delete(field.enumNames)
-		}
-		delete(script.fields)
-	}
-	delete(catalog.scripts)
+	scriptDescs_Destroy(&catalog.scripts)
 	catalog.scripts = {}
 }
 
@@ -161,6 +161,8 @@ scriptDescs_Destroy :: proc(list: ^[dynamic]ScriptDesc) {
 			delete(field.enumNames)
 		}
 		delete(d.fields)
+		for ev in d.events { delete(ev.name); delete(ev.description); delete(ev.dataHint) }
+		delete(d.events)
 	}
 	delete(list^)
 }

@@ -68,6 +68,32 @@ expect code_dirty false
 wait 60
 wait_until scripts Ready timeout=240
 wait 30
+# New Event on Mover: a field in its struct; built, Spaceship's Events lists it to listen to, and
+# the handler goes into the code tab (the game plays without a listener warning, below)
+scroll_into_view inspector-scroll inspector-new-event
+click_widget inspector-new-event
+expect widget_visible new-event-name true
+click_widget new-event-name
+key ctrl+a
+type onPinged
+click_widget new-event-create
+wait_until code_contains true onPinged: e.EventSubject timeout=5
+expect console_contains Added the event onPinged to Mover
+key ctrl+s
+expect code_dirty false
+wait 60
+wait_until scripts Ready timeout=240
+wait 30
+scroll_into_view inspector-scroll inspector-event-listen-script.onPinged
+click_widget inspector-event-listen-script.onPinged
+click_widget listener-target-0
+wait_until code_contains true Mover_onSpaceshipPinged :: proc timeout=5
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml <listener event="script.onPinged" target="." handler="onSpaceshipPinged"/>
+expect code_dirty false
+wait 60
+wait_until scripts Ready timeout=240
+wait 30
 click_widget code-tab-close-0
 expect code_tabs 0
 
@@ -89,8 +115,9 @@ click_widget settings-builtin-editor
 click_widget settings-save
 scroll_into_view inspector-scroll inspector-open-script
 click_widget inspector-open-script
-# (line 21: the camera field moved the registration down one)
-expect console_contains Opened mover.odin:21 in true
+# (line 23: the camera field and the onPinged event (its comment and field) moved the
+# registration down three)
+expect console_contains Opened mover.odin:23 in true
 
 # A program that fails is reported: set it to `false` (exits with code 1) in Settings
 key ctrl+comma

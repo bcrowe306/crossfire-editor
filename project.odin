@@ -327,7 +327,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.script)
 	for prop in node.props { delete(prop.name); delete(prop.value) }
 	delete(node.props)
-	for l in node.listeners { delete(l.event); delete(l.target); delete(l.handler) }
+	for l in node.listeners { delete(l.event); delete(l.target); delete(l.handler); delete(l.global) }
 	delete(node.listeners)
 	delete(node.points)
 	delete(node.bodyA)

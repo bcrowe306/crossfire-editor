@@ -181,6 +181,11 @@ Game code is Odin, in the project's `scripts/` folder, and attaches to nodes:
    it to that node before `ready`. In the inspector, each node using the script can pick
    another node of that type.
 
+6. **Publish your own events:** in the Events section, **New Event...** adds one to the node's
+   script (a name, what it means, what data it carries) with how to fire it. Once built, other
+   scripts listen to it like any node event. Global scripts can have events too (Events >
+   Globals > + Event); any node's script can listen to them.
+
 5. **React to a node's events:** in the inspector's **Events** section (a sprite finished its
    animation, a body landed, a button was pressed...), click **Listen...** next to one and pick
    which script of the scene listens. The editor adds a handler procedure to that script and

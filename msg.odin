@@ -194,6 +194,20 @@ Listener_Removed :: struct {
 	node, index: int,
 }
 Inspector_Events_Toggled :: struct {}
+// The Events section's Globals: the node's script listens to a global's event (strings only
+// valid while handling the message)
+Global_Listen_Requested :: struct {
+	node: int,
+	global: string,
+	event: string,
+}
+// The New Event dialog (new_event.odin): opened for a script; its fields; Create; Cancel
+New_Event_Opened :: distinct string
+New_Event_Name_Changed :: distinct string
+New_Event_Description_Changed :: distinct string
+New_Event_Kind_Changed :: distinct EventDataKind
+New_Event_Created :: struct {}
+New_Event_Cancelled :: struct {}
 // The script preview's list of nodes using it: open that scene (or component) and select the node
 Script_Usage_Clicked :: struct {
 	scene, node: int,
@@ -800,6 +814,13 @@ Msg :: union {
 	Listener_Target_Chosen,
 	Listener_Removed,
 	Inspector_Events_Toggled,
+	Global_Listen_Requested,
+	New_Event_Opened,
+	New_Event_Name_Changed,
+	New_Event_Description_Changed,
+	New_Event_Kind_Changed,
+	New_Event_Created,
+	New_Event_Cancelled,
 	Action,
 	Play_Tick,
 	Script_Tick,
