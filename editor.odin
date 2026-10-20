@@ -24,6 +24,8 @@ Tool :: enum {
 	Move,
 	Rotate,
 	Scale,
+	// Left drags pan the view (like Space + drag)
+	Pan,
 }
 
 PlayState :: enum {

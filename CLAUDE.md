@@ -348,14 +348,19 @@ sprites, animations, text and menus look as they do in the game. Future engine f
 - Tool handles: the move arrows constrain to an axis, the rotate ring rotates, the scale corners
   scale each axis separately.
 - Shift constrains a drag.
-- Wheel zooms around the cursor. Middle or right drag, or Space + left drag, pans.
+- Wheel zooms around the cursor; Shift + wheel pans sideways, Ctrl + wheel up and down, and
+  sideways scrolling always pans (`wheelAction`, `WHEEL_PAN_PIXELS` a notch). Settings > Editor >
+  Wheel pans (`settings.wheelPans`, `viewport_wheel_pans`, for touchpads) makes the wheel pan and
+  Ctrl + wheel zoom. Middle or right drag, Space + left drag, or the Pan tool (H, `Tool.Pan`)
+  pans. viewport.script tests them (the driver's `scroll ... shift|ctrl|sideways`,
+  `viewport_center`).
 - Messages: `Viewport_Drag_Begin/Move/End`, `Viewport_Panned`, `Viewport_Zoomed`, `Viewport_Measured`.
 
 **Keyboard** (`keymap.odin`): the chords are in `Settings.keymap` (two per action), with defaults
 in the `[keymap]` section of `settings.default.ini`. `ACTION_KEY_RULES` says how each action's keys
 behave (`viewportOnly`, `textChord`).
 - Defaults:
-  - Q W E R tools, F frame selected
+  - Q W E R H tools (H: pan), F frame selected
   - Ctrl+0 fit, Ctrl+1 100%, Ctrl+=/- zoom, P animations
   - arrows nudge (Shift ×10), Esc deselect, Delete
   - Ctrl+D duplicate, Ctrl+C/X/V copy/cut/paste nodes (not while typing)

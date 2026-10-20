@@ -49,6 +49,7 @@ Action :: enum {
 	Tool_Move,
 	Tool_Rotate,
 	Tool_Scale,
+	Tool_Pan,
 	// Viewport navigation
 	Frame_Selected,
 	View_Fit,
@@ -691,6 +692,8 @@ Settings_Code_Editor_Args_Changed :: distinct string
 Settings_Code_Editor_Browse :: struct {}
 Settings_Code_Editor_Picked :: distinct skald.File_Dialog_Result
 Settings_Optimized_Play_Changed :: distinct bool
+// Settings > Editor: the mouse wheel pans the viewport (Ctrl + wheel zooms), for touchpads
+Settings_Wheel_Pans_Changed :: distinct bool
 Settings_Builtin_Editor_Changed :: distinct bool
 Settings_OLS_Path_Changed :: distinct string
 Settings_LDtk_Path_Changed :: distinct string
@@ -848,6 +851,7 @@ Msg :: union {
 	Settings_Code_Editor_Browse,
 	Settings_Code_Editor_Picked,
 	Settings_Optimized_Play_Changed,
+	Settings_Wheel_Pans_Changed,
 	Settings_Builtin_Editor_Changed,
 	Settings_OLS_Path_Changed,
 	Settings_LDtk_Path_Changed,

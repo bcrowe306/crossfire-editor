@@ -150,16 +150,18 @@ The viewport renders the open scene with the engine (animations play; P toggles 
 | Input | Does |
 |---|---|
 | Click / drag | Select the node under the cursor and drag it with the active tool |
-| Q / W / E / R | Select, Move, Rotate, Scale tool |
+| Q / W / E / R / H | Select, Move, Rotate, Scale, Pan tool |
 | Shift while dragging | Move along one axis, snap rotation to 15°, scale axes separately |
 | Mouse wheel | Zoom around the cursor |
-| Middle or right drag, Space + drag | Pan |
+| Shift + wheel / Ctrl + wheel / sideways scroll | Pan sideways / up and down / sideways |
+| Middle or right drag, Space + drag, Pan tool | Pan |
 | F | Frame the selected node |
 | Ctrl+0 / Ctrl+1 / Ctrl+= / Ctrl+- | Fit game area / 100% / zoom in / zoom out |
 | Arrow keys (Shift for ×10) | Nudge the selected node (mouse over the viewport) |
 | Esc / Delete | Deselect / delete node |
 
-Single-letter shortcuts are ignored while typing in a field. Help > Keyboard Shortcuts lists them all.
+With a touchpad, turn on Settings > Editor > **Wheel pans**: two-finger scrolling pans and
+Ctrl + scroll zooms. Single-letter shortcuts are ignored while typing in a field. Help > Keyboard Shortcuts lists them all.
 
 ## Scripts
 

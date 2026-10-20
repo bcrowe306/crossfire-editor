@@ -349,12 +349,15 @@ handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Wid
 	}
 	if !hovered do return
 
-	if input.scroll.y != 0 {
-		skald.send(ctx, Viewport_Zoomed{math.pow(WHEEL_ZOOM_STEP, input.scroll.y), mouseWorld})
+	if input.scroll != {} {
+		zoom, pan := wheelAction(input.scroll, input.modifiers, s.settings.wheelPans)
+		if zoom != 0 do skald.send(ctx, Viewport_Zoomed{math.pow(WHEEL_ZOOM_STEP, zoom), mouseWorld})
+		if pan != {} do skald.send(ctx, Viewport_Panned(pan))
 	}
 
 	spaceHeld := .Space in input.keys_down && !IsTyping(ctx)
-	if input.mouse_pressed[.Middle] || input.mouse_pressed[.Right] || (input.mouse_pressed[.Left] && spaceHeld) {
+	panTool := s.tool == .Pan && input.mouse_pressed[.Left]
+	if input.mouse_pressed[.Middle] || input.mouse_pressed[.Right] || (input.mouse_pressed[.Left] && spaceHeld) || panTool {
 		skald.send(ctx, Viewport_Drag_Begin{mode = .Pan, node = -1, mouse = mouseWorld})
 		return
 	}
@@ -387,12 +390,35 @@ handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Wid
 	}
 }
 
+/*
+What a wheel turn does to the viewport: wheel notches to zoom by (positive zooms in), and view
+pixels to pan by (as `Viewport_Panned`: the content moves with it). Sideways scrolling always pans.
+Without `wheelPans` the wheel zooms, Shift + wheel pans sideways, Ctrl + wheel up and down; with
+it (touchpads) the wheel pans and Ctrl + wheel zooms.
+*/
+wheelAction :: proc(scroll: [2]f32, modifiers: skald.Modifiers, wheelPans: bool) -> (zoom: f32, pan: [2]f32) {
+	pan.x = scroll.x * WHEEL_PAN_PIXELS
+	switch {
+	case wheelPans && .Ctrl in modifiers, !wheelPans && .Ctrl not_in modifiers && .Shift not_in modifiers:
+		zoom = scroll.y
+	case !wheelPans && .Shift in modifiers:
+		pan.x += scroll.y * WHEEL_PAN_PIXELS
+	case:
+		pan.y = scroll.y * WHEEL_PAN_PIXELS
+	}
+	return
+}
+
+// View pixels a wheel notch pans
+WHEEL_PAN_PIXELS :: 40
+
 @(private="file")
 toolDragMode :: proc(tool: Tool) -> DragMode {
 	switch tool {
 	case .Select, .Move: return .Move
 	case .Rotate:        return .Rotate
 	case .Scale:         return .Scale
+	case .Pan:           return .Pan
 	}
 	return .Move
 }
@@ -420,7 +446,7 @@ gizmoHit :: proc(s: ^State, shapes: []NodeShape, mouseView, mouseWorld: [2]f32) 
 			}
 		}
 		if length(mouseView - origin) < PICK_RADIUS do return .Scale
-	case .Select:
+	case .Select, .Pan:
 	}
 	// Grabbing the selected node itself uses the tool's normal drag
 	if hitsShape(v, shape, mouseView, mouseWorld) do return toolDragMode(s.tool)
@@ -706,7 +732,7 @@ drawSelection :: proc(r: ^skald.Renderer, canvas: skald.Rect, s: ^State, shape: 
 			}
 		}
 		skald.draw_rect(r, {origin.x - 4, origin.y - 4, 8, 8}, color)
-	case .Select:
+	case .Select, .Pan:
 	}
 }
 

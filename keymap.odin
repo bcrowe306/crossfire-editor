@@ -70,7 +70,7 @@ ACTION_LABELS := [Action]string{
 	.Stop = "Stop", .Toggle_Bottom_Panel = "Toggle bottom panel", .Clear_Console = "Clear console",
 	.About = "About",
 	.Tool_Select = "Select tool", .Tool_Move = "Move tool", .Tool_Rotate = "Rotate tool",
-	.Tool_Scale = "Scale tool", .Frame_Selected = "Frame selected node", .View_Fit = "Fit game area",
+	.Tool_Scale = "Scale tool", .Tool_Pan = "Pan tool", .Frame_Selected = "Frame selected node", .View_Fit = "Fit game area",
 	.Zoom_In = "Zoom in", .Zoom_Out = "Zoom out", .Zoom_100 = "Zoom to 100%",
 	.Toggle_Animation = "Play/pause viewport animations", .Deselect = "Deselect",
 	.Nudge_Left = "Nudge left", .Nudge_Right = "Nudge right", .Nudge_Up = "Nudge up",

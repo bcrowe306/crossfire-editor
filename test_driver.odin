@@ -89,8 +89,10 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	open_project <folder>            Open a project, as if picked in the folder dialog (no
 	                                 unsaved-changes prompt)
 	drag_node <name> <dx> <dy>       Press on a node, move by (dx, dy) window pixels, release
-	scroll <notches> [<fx> <fy>]     Mouse wheel over the viewport (positive zooms in): its center,
-	                                 or a point as fractions of its view (0 0 top-left, 1 1 bottom-right)
+	scroll <notches> [<fx> <fy>] [shift|ctrl|sideways]
+	                                 Mouse wheel over the viewport (positive zooms in): its center,
+	                                 or a point as fractions of its view (0 0 top-left, 1 1 bottom-right);
+	                                 holding Shift or Ctrl, or turned sideways
 	click <x> <y>                    Click a window position (logical pixels)
 	move <x> <y>                     Move the mouse
 	key <combo>                      Press a key: F5, DELETE, ctrl+s, shift+F5 (SDL scancode names)
@@ -115,6 +117,7 @@ Checks:
 	tool <Select | Move | Rotate | Scale>
 	zoom <percent>               Viewport zoom, rounded to a whole percent
 	viewport_center <x> <y>      The world point at the viewport's center, rounded
+	viewport_center_not <x> <y>  ... isn't that point (the view moved)
 	typing <true | false>        Whether a text or number field has keyboard focus
 	assets <count>               Assets in the project
 	browser_rows <count>         Rows the project browser shows (after search filtering)
@@ -965,6 +968,18 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			fail(fmt.tprintf("%s: the viewport hasn't been drawn", line))
 			return true
 		}
+		// A last argument "shift" or "ctrl" holds that key; "sideways" turns the wheel sideways
+		args := args
+		mods: sdl.Keymod
+		sideways := false
+		if len(args) > 1 {
+			switch args[len(args) - 1] {
+			case "shift":    mods = {.LSHIFT}
+			case "ctrl":     mods = {.LCTRL}
+			case "sideways": sideways = true
+			}
+			if mods != {} || sideways do args = args[:len(args) - 1]
+		}
 		if len(args) >= 3 {
 			rect, _ := widgetRect(ctx, "viewport-canvas")
 			fx, _ := strconv.parse_f32(args[1])
@@ -972,11 +987,19 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			center = {rect.x + RULER_SIZE + (rect.w - RULER_SIZE) * fx, rect.y + RULER_SIZE + (rect.h - RULER_SIZE) * fy}
 		}
 		pushMouse(.MOUSE_MOTION, center)
+		if mods != {} do pushKey(.KEY_DOWN, mods)
 		event: sdl.Event
 		event.type = .MOUSE_WHEEL
-		event.wheel.y = f32(atoi(args, 0, 1))
+		if sideways do event.wheel.x = f32(atoi(args, 0, 1))
+		else do event.wheel.y = f32(atoi(args, 0, 1))
 		event.wheel.mouse_x, event.wheel.mouse_y = center.x, center.y
 		queueBatch(event)
+		if mods != {} {
+			release: sdl.Event
+			release.type = .KEY_UP
+			release.key.scancode = .LCTRL in mods ? .LCTRL : .LSHIFT
+			queueBatch(release)
+		}
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
@@ -1095,6 +1118,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(int(math.round(s.viewport.zoom * 100)))
 	case "viewport_center":
 		found = fmt.tprintf("%d %d", int(math.round(s.viewport.center.x)), int(math.round(s.viewport.center.y)))
+	case "viewport_center_not":
+		// Passes when the view's center isn't that point (it moved)
+		center := fmt.tprintf("%d %d", int(math.round(s.viewport.center.x)), int(math.round(s.viewport.center.y)))
+		found = center != value ? value : fmt.tprintf("still %s", center)
 	case "typing":
 		found = fmt.tprint(IsTyping(ctx))
 	case "assets":

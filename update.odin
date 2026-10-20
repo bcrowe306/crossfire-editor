@@ -69,7 +69,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed:
 		// Handled by SettingsDialog_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
@@ -942,6 +942,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .Tool_Move:   out.tool = .Move
 	case .Tool_Rotate: out.tool = .Rotate
 	case .Tool_Scale:  out.tool = .Scale
+	case .Tool_Pan:    out.tool = .Pan
 
 	case .View_Fit:
 		Viewport_Fit(&out.viewport, out.project.gameSize)

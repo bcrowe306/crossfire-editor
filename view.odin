@@ -114,6 +114,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Move Tool", .Tool_Move, keys),
 			item("Rotate Tool", .Tool_Rotate, keys),
 			item("Scale Tool", .Tool_Scale, keys),
+			item("Pan Tool", .Tool_Pan, keys),
 			{separator = true},
 			item("Frame Selected", .Frame_Selected, keys),
 			item("Fit Game Area", .View_Fit, keys),
@@ -164,6 +165,7 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		toolButton(ctx, "move", ICON_MOVE, actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
 		toolButton(ctx, "rotate", ICON_ROTATE, actionTip(s, "Rotate", .Tool_Rotate), Action.Tool_Rotate, active = s.tool == .Rotate),
 		toolButton(ctx, "scale", ICON_SCALE, actionTip(s, "Scale", .Tool_Scale), Action.Tool_Scale, active = s.tool == .Scale),
+		toolButton(ctx, "pan", ICON_HAND, actionTip(s, "Pan the view", .Tool_Pan), Action.Tool_Pan, active = s.tool == .Pan),
 
 		// Play controls sit in the middle of the toolbar
 		skald.flex(1, skald.spacer(0)),

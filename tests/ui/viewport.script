@@ -14,6 +14,27 @@ expect zoom 115
 key ctrl+1
 expect zoom 100
 
+# Panning with the wheel (40 view pixels a notch): Shift sideways, Ctrl up and down, and
+# sideways scrolling
+expect viewport_center 640 360
+scroll 1 shift
+expect viewport_center 600 360
+scroll 1 ctrl
+expect viewport_center 600 320
+scroll -1 sideways
+expect viewport_center 640 320
+# The Pan tool: a left drag moves the view, and selects nothing
+key h
+expect tool Pan
+drag_widget viewport-canvas 0.5 0.5 0.7 0.5
+expect viewport_center_not 640 320
+expect selected none
+# Back to the game area's middle at 100% for what follows
+key ctrl+0
+key ctrl+1
+expect viewport_center 640 360
+key q
+
 # Tool keys
 key w
 expect tool Move

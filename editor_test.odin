@@ -446,6 +446,21 @@ viewport_view_math :: proc(t: ^testing.T) {
 	Viewport_FitRect(&v, {0, 0, 4, 4})
 	testing.expect(t, abs(v.zoom - min(v.size.x, v.size.y) / VIEWPORT_FIT_MIN_SIZE * VIEWPORT_FIT_MARGIN) < 0.001, "tiny content isn't magnified without end")
 
+	// The wheel: zooms; Shift pans sideways, Ctrl up and down; sideways scrolling pans; with
+	// wheelPans (touchpads) it pans and Ctrl zooms
+	zoom, pan := wheelAction({0, 2}, {}, false)
+	testing.expect(t, zoom == 2 && pan == {}, "the wheel zooms")
+	zoom, pan = wheelAction({0, 1}, {.Shift}, false)
+	testing.expect(t, zoom == 0 && pan == {WHEEL_PAN_PIXELS, 0}, "Shift + wheel pans sideways")
+	zoom, pan = wheelAction({0, -1}, {.Ctrl}, false)
+	testing.expect(t, zoom == 0 && pan == {0, -WHEEL_PAN_PIXELS}, "Ctrl + wheel pans up and down")
+	zoom, pan = wheelAction({1, 0}, {}, false)
+	testing.expect(t, zoom == 0 && pan == {WHEEL_PAN_PIXELS, 0}, "sideways scrolling pans")
+	zoom, pan = wheelAction({1, 1}, {}, true)
+	testing.expect(t, zoom == 0 && pan == {WHEEL_PAN_PIXELS, WHEEL_PAN_PIXELS}, "a touchpad pans both ways")
+	zoom, pan = wheelAction({0, 1}, {.Ctrl}, true)
+	testing.expect(t, zoom == 1 && pan == {}, "Ctrl + touchpad zooms")
+
 	v.zoom = 1
 	v.center = {640, 360}
 	Viewport_Pan(&v, {10, -20})
@@ -529,7 +544,7 @@ keymap_rules :: proc(t: ^testing.T) {
 	testing.expect_value(t, Keymap_Shortcut(keymap, .Delete_Node), skald.Shortcut{.Delete, {}})
 	testing.expect_value(t, Keymap_Shortcut(keymap, .Save_Project, typing = true), skald.Shortcut{.S, {.Ctrl}})
 	// Every tool has a key
-	for action in ([]Action{.Tool_Select, .Tool_Move, .Tool_Rotate, .Tool_Scale}) {
+	for action in ([]Action{.Tool_Select, .Tool_Move, .Tool_Rotate, .Tool_Scale, .Tool_Pan}) {
 		testing.expectf(t, Keymap_Shortcut(keymap, action) != {}, "%v has no shortcut", action)
 	}
 	free_all(context.temp_allocator)

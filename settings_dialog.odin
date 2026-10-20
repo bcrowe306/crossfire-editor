@@ -106,6 +106,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		if !v.cancelled && v.path != "" do draft.codeEditorPath = FixedText_Make(v.path)
 	case Settings_Optimized_Play_Changed:
 		draft.optimizedPlay = bool(v)
+	case Settings_Wheel_Pans_Changed:
+		draft.wheelPans = bool(v)
 	case Settings_Builtin_Editor_Changed:
 		draft.builtInCodeEditor = bool(v)
 	case Settings_LDtk_Path_Changed:
@@ -142,6 +144,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
 			draft.gridSize = defaults.gridSize
 			draft.codeEditorPath, draft.codeEditorArgs, draft.optimizedPlay = defaults.codeEditorPath, defaults.codeEditorArgs, defaults.optimizedPlay
+			draft.wheelPans = defaults.wheelPans
 			draft.ldtkPath = defaults.ldtkPath
 		case .Keyboard:
 			draft.keymap = defaults.keymap

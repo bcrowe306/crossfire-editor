@@ -15,10 +15,6 @@ owns it.
   number fields, the fader and pan control already step with them, and Skald's slider does; its
   `select` only opens on Space/Enter, so this one is a change in Skald.
 
-- **Pan and scroll the viewport.** Scroll horizontally and vertically, not only zoom. A pan tool
-  of its own is fine; also a modifier with the wheel (say Shift + wheel pans sideways, Ctrl +
-  wheel up and down, plain wheel zooms as now) and a touchpad's two-finger scroll. Today the
-  wheel only zooms; panning is a right or middle drag, or Space + left drag (`Viewport_Panned`).
 - **Edit components in the viewport without putting them in a scene.** Opening a component
   (double-click or Open in the browser's Components folder) already gives it a tab of its own;
   make that the obvious way in (an Edit button on the component's preview and inspector, the
