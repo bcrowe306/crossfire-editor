@@ -6,7 +6,8 @@ owns it.
 
 ## Builds and releases
 
-- **macOS bundle signing and notarization** (the Apple developer account exists now): CI's
+- **macOS bundle signing and notarization**, deferred until the version 1 release (decided
+  2026-10-20; the Apple developer account exists). Then CI's
   `combine-macos` signs with the Developer ID (a temporary keychain, hardened runtime,
   `entitlements.plist`) and notarizes and staples the disk image with `xcrun notarytool`,
   falling back to ad hoc without the secrets. The secrets come from a gitignored `.env`
