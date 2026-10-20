@@ -263,7 +263,8 @@ jobs:
           zip=$(ls combined/crossfire-editor-*-windows-x64.zip | head -1)
           mkdir -p release installer && 7z x -bso0 -orelease "$zip"
           source=$(cygpath -w "$PWD/release/$(ls release)")
-          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" "/DSourceDir=$source" "/DAppVersion=$VERSION" "/DOutputDir=$(cygpath -w "$PWD/installer")" editor/tools/windows/crossfire-editor.iss
+          # Git Bash would turn the /D... options into paths: off for this call
+          MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" "/DSourceDir=$source" "/DAppVersion=$VERSION" "/DOutputDir=$(cygpath -w "$PWD/installer")" editor/tools/windows/crossfire-editor.iss
           ls -la installer
       - uses: actions/upload-artifact@v4
         with:
