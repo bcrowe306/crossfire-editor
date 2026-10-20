@@ -16,8 +16,11 @@ vars:
     sh: 'case "$(uname -s)-$(uname -m)" in Linux-x86_64) echo linux_x64;; Linux-aarch64) echo linux_arm64;; Darwin-arm64) echo macos_arm64;; Darwin-x86_64) echo macos_x64;; *) echo windows_x64;; esac'
   # UI tests run on a copy of this fixed project, not the demo (which `task run` opens and you edit)
   UI_PROJECT: tests/fixtures/ui_project
+  # The version Help > About shows (EDITOR_VERSION): the nearest tag and commit
+  VERSION:
+    sh: 'echo "${VERSION:-$(git describe --tags --always 2>/dev/null || echo dev)}"'
   # Skald is imported as "gui:skald", the engine as "engine:."
-  COLLECTIONS: -collection:gui=Skald -collection:engine={{.ENGINE_DIR}} -define:ENGINE_DIR={{.ENGINE_DIR}}
+  COLLECTIONS: -collection:gui=Skald -collection:engine={{.ENGINE_DIR}} -define:ENGINE_DIR={{.ENGINE_DIR}} -define:EDITOR_VERSION={{.VERSION}}
   # Emscripten, for web exports: the third_party/emsdk submodule is pinned to this release tag,
   # and `task emsdk` installs that version (keep them in step when updating)
   EMSDK_DIR: third_party/emsdk

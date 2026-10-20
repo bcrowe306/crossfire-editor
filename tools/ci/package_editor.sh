@@ -28,7 +28,7 @@ rm -rf "$stage"
 mkdir -p "$stage"
 cd "$editor"
 
-flags=(-collection:gui=Skald "-collection:engine=$engine" -define:ENGINE_DIR=../odin_sdl_engine -o:speed)
+flags=(-collection:gui=Skald "-collection:engine=$engine" -define:ENGINE_DIR=../odin_sdl_engine "-define:EDITOR_VERSION=$version" -o:speed)
 # With the engine's static SDL built (its tools/build_sdl_static.sh), SDL is inside the editor
 static=false
 compgen -G "$engine/sdl/lib/*/libSDL3.a" > /dev/null && static=true

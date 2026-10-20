@@ -145,7 +145,7 @@ Checks:
 	grid <on | off>, snap <on | off>   Viewport grid and snapping
 	modified <true | false>      The project has unsaved changes
 	project <name>               The open project's name
-	confirm_dialog <open | closed>, new_project_dialog <open | closed>
+	about_dialog <open | closed>, confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
 	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit> <value>
 	                             An active (applied) setting
@@ -1437,6 +1437,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(Project_IsModified(s))
 	case "project":
 		found = s.project.name
+	case "about_dialog":
+		found = s.aboutOpen ? "open" : "closed"
 	case "confirm_dialog":
 		found = s.session.confirm.open ? "open" : "closed"
 	case "new_project_dialog":

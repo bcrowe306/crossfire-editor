@@ -180,6 +180,8 @@ State :: struct {
 		asset: int,
 	},
 	addNode: AddNodeDialog,
+	// Help > About (view_about.odin)
+	aboutOpen: bool,
 	// The Animation panel (view_animation.odin)
 	animEditor: AnimEditor,
 	// The Mixer tab: a bus name being typed (its index, the text; owned), kept until it's valid

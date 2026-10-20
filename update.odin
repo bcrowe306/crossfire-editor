@@ -382,6 +382,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			delete(out.numberEdit.text)
 			out.numberEdit = {}
 		}
+	case About_Closed:
+		out.aboutOpen = false
+	case About_Link_Opened:
+		About_OpenLink(string(v))
 	case Frame_Requested:
 	case Quit_Without_Asking:
 		playStop(&out)
@@ -1039,7 +1043,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		for t, target in out.project.exports.targets do if t.enabled do enabled += {target}
 		return out, Export_Start(&out, enabled)
 	case .About:
-		logLine(&out, .Warning, fmt.aprintf("%v is not implemented yet", action))
+		out.aboutOpen = true
 	}
 	return out, {}
 }

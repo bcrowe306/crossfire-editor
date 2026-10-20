@@ -1,0 +1,14 @@
+# Help > About: the dialog with the logo and the version, closed by its button and by Escape.
+# Run with: task test:ui (SCRIPT=tests/ui/about.script)
+
+wait 5
+action About
+expect about_dialog open
+wait 0.5
+click_widget about-close
+expect about_dialog closed
+action About
+expect about_dialog open
+key escape
+expect about_dialog closed
+quit
