@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scene formatVersion="13" name="MenuScene">
+<scene formatVersion="11" name="MenuScene">
 	<node kind="Label" name="Title" x="640" y="180" layer="7" text="ASTEROIDS" fontSize="80" color="#ebf0ff"/>
 	<node kind="Menu" name="MainMenu" x="640" y="320">
 		<item label="Play" action="scene:PlayScene"/>

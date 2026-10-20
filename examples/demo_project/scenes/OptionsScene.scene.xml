@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scene formatVersion="13" name="OptionsScene">
+<scene formatVersion="8" name="OptionsScene">
 	<node kind="Label" name="Title" x="640" y="120" layer="7" text="Options" fontSize="64" color="#ebf0ff"/>
 	<node kind="Label" name="Info" x="640" y="260" layer="7" text="Ship" fontSize="32" color="#ebf0ff">
 		<script name="ShipPicker"/>

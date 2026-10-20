@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scene formatVersion="13" name="ForestScene">
+<scene formatVersion="12" name="ForestScene">
 	<node kind="Camera" name="Camera" x="213" y="360" zoom="3"/>
 	<node kind="LDtkLevel" name="Level" x="0" y="0" ldtk="assets/forest/forest.ldtk" level="Forest" intGridCollision="Collisions">
 		<entity name="Hero" component="components/hero.component.xml"/>

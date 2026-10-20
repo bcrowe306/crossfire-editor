@@ -14,9 +14,6 @@ Pickup :: struct {
 	// A SoundAsset field: the inspector lists the project's sounds
 	sound: e.SoundAsset `export:""`,
 }
-Test :: struct {
-	sound2: e.SoundAsset `export:""`
-}
 
 @(init)
 register_Pickup :: proc "contextless" () {

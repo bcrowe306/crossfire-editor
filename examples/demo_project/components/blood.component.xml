@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component formatVersion="13" name="blood">
+<component formatVersion="12" name="blood">
 	<node kind="ParticleEmitter" name="Blood" x="0" y="0">
 		<particles emitting="false" continuous="false" amount="28" lifetime="0.6" burst="1" spread="3,3" shape="Rectangle" size="2.5,2.5" sizeVariance="0.6" sizeSpread="2" scaleEnd="0.4,0.4" colorRamp="0:#e0242a 0.5:#a01018 1:#60000800" angle="270" angleVariance="1" angleSpread="55" velocity="130" velocityVariance="0.7" velocitySpread="90" gravityVelocity="520"/>
 		<script name="Burst"/>
