@@ -582,7 +582,7 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 	} else {
 		skald.draw_rect(r, viewRect, skald.rgb(0x101218))
 	}
-	if v.zoom > 0 && v.gridVisible do drawGrid(r, viewRect, v, &s.settings, th)
+	if v.zoom > 0 && v.gridVisible do drawGrid(r, viewRect, v, s.project.grid, th)
 	if v.zoom > 0 {
 		// Game frame
 		a := toWindow(p.bounds, v, {0, 0})
@@ -681,22 +681,22 @@ drawOutline :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, s
 GAME_FRAME_COLOR :: skald.Color{0.93, 0.36, 0.36, 0.6}
 
 /*
-Grid lines at the settings' cell size, a major (more opaque) line every `gridMajorEvery` cells,
+Grid lines at the project's cell size, a major (more opaque) line every `majorEvery` cells,
 the axes brighter still. Zoomed out, cells double until they're at least 8 px apart on screen,
 and the major lines with them, so blocks keep the same number of cells.
 */
 @(private="file")
-drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, settings: ^Settings, th: ^skald.Theme) {
-	cell := [2]f32{f32(settings.gridSize.x), f32(settings.gridSize.y)}
+drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, grid: e.GridSettings, th: ^skald.Theme) {
+	cell := [2]f32{f32(grid.size.x), f32(grid.size.y)}
 	if cell.x <= 0 || cell.y <= 0 do return
 	for cell.x * v.zoom < 8 || cell.y * v.zoom < 8 do cell *= 2
-	every := settings.gridMajorEvery
+	every := grid.majorEvery
 	lo := Viewport_ViewToWorld(v, {0, 0})
 	hi := Viewport_ViewToWorld(v, {view.w, view.h})
 	color := th.color.fg
-	color[3] = f32(settings.gridOpacity) / 100
+	color[3] = f32(grid.opacity) / 100
 	major := th.color.fg
-	major[3] = f32(settings.gridMajorOpacity) / 100
+	major[3] = f32(grid.majorOpacity) / 100
 	axis := th.color.fg
 	axis[3] = min(max(major[3], color[3]) + 0.15, 1)
 	// The line's color by its index: line i sits at i cells from the origin

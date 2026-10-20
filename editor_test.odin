@@ -307,6 +307,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	delete(tagged.groups)
 	tagged.groups = strings.clone("enemies,flying")
 	original.window = {fullscreen = true, vsync = false, highDPI = true}
+	original.grid = {size = {16, 24}, majorEvery = 0, opacity = 12, majorOpacity = 40}
 	original.locale = strings.clone("fr")
 	original.icon = strings.clone("assets/ship.png")
 	append(&original.assets, AssetDef{strings.clone("i18n/strings.csv"), .Translation})
@@ -322,6 +323,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	testing.expect_value(t, loaded.background, original.background)
 	testing.expect_value(t, loaded.startScene, original.startScene)
 	testing.expect_value(t, loaded.window, original.window)
+	testing.expect_value(t, loaded.grid, original.grid)
 	testing.expect_value(t, loaded.locale, "fr")
 	testing.expect_value(t, loaded.icon, "assets/ship.png")
 	testing.expect_value(t, len(loaded.assets), len(original.assets))
@@ -973,9 +975,6 @@ settings_round_trip_and_overlay :: proc(t: ^testing.T) {
 	settings.keymap[.Delete_Node] = {}
 	settings.builtInCodeEditor = false
 	settings.olsPath = FixedText_Make("/opt/ols/ols")
-	settings.gridSize = {16, 24}
-	settings.gridMajorEvery = 0
-	settings.gridOpacity, settings.gridMajorOpacity = 12, 40
 
 	parsed := Settings_Default()
 	problems := Settings_Parse(&parsed, Settings_ToINI(&settings))
@@ -991,10 +990,9 @@ settings_round_trip_and_overlay :: proc(t: ^testing.T) {
 	testing.expect_value(t, partial.keymap[.Stop], Settings_Default().keymap[.Stop])
 	testing.expect_value(t, len(problems), 4)
 
-	// Older files' one grid size sets both sides
+	// Older files' grid settings (the project's now) are skipped without a problem
 	old := Settings_Default()
-	testing.expect_value(t, len(Settings_Parse(&old, "[editor]\ngrid_size = 48\n")), 0)
-	testing.expect_value(t, old.gridSize, [2]int{48, 48})
+	testing.expect_value(t, len(Settings_Parse(&old, "[editor]\ngrid_size = 48\ngrid_width = 16\n")), 0)
 	free_all(context.temp_allocator)
 }
 

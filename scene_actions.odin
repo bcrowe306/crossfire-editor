@@ -21,6 +21,7 @@ ProjectSettingsTab :: enum {
 	Input,
 	Globals,
 	Export,
+	Grid,
 }
 
 // The Project Settings dialog edits a copy of these; Apply sets them as one undoable step
@@ -47,6 +48,8 @@ ProjectSettingsDialog :: struct {
 	icon: string,
 	physics: e.PhysicsSettings,
 	window: e.WindowSettings,
+	// Grid tab: the viewport grid
+	grid: e.GridSettings,
 	// Globals tab: a copy of the project's globals (owned), and the one shown
 	globals: [dynamic]GlobalDef,
 	selectedGlobal: int,
@@ -223,6 +226,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		scaleMode = p.scaleMode,
 		renderer = p.renderer,
 		window = p.window,
+		grid = p.grid,
 		background = skald.rgb(u32(c.r) << 16 | u32(c.g) << 8 | u32(c.b)),
 		startScene = strings.clone(p.startScene),
 		locale = strings.clone(p.locale),
@@ -259,6 +263,15 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 		}
 	case Project_Settings_Physics_Debug_Changed:
 		dialog.physics.debugDraw = bool(v)
+	case Project_Settings_Grid_Changed:
+		n := int(v.value)
+		switch v.field {
+		case .Width:         dialog.grid.size.x = clamp(n, e.GRID_SIZE_RANGE[0], e.GRID_SIZE_RANGE[1])
+		case .Height:        dialog.grid.size.y = clamp(n, e.GRID_SIZE_RANGE[0], e.GRID_SIZE_RANGE[1])
+		case .Major_Every:   dialog.grid.majorEvery = clamp(n, e.GRID_MAJOR_RANGE[0], e.GRID_MAJOR_RANGE[1])
+		case .Opacity:       dialog.grid.opacity = clamp(n, 0, 100)
+		case .Major_Opacity: dialog.grid.majorOpacity = clamp(n, 0, 100)
+		}
 	case Global_Added:
 		name := strings.trim_space(string(v))
 		if name == "" || name == TEXTURE_NONE do break
@@ -355,6 +368,7 @@ applyProjectSettings :: proc(state: ^State) {
 	p.scaleMode = dialog.scaleMode
 	p.renderer = dialog.renderer
 	p.window = dialog.window
+	p.grid = dialog.grid
 	if dialog.icon != p.icon {
 		delete(p.icon)
 		p.icon = strings.clone(dialog.icon)

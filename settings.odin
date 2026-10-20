@@ -48,14 +48,6 @@ Settings :: struct {
 	// A merged run is cut after this long, 0 = never (throttle)
 	undoGroupMaxMs: int,
 	undoLimit: int,
-	// The viewport grid's cell, world units: width and height
-	gridSize: [2]int,
-	// A major grid line (more opaque) every this many cells; 0 = none
-	gridMajorEvery: int,
-	// Opacity of the grid's lines, percent
-	gridOpacity: int,
-	// Opacity of its major lines, percent
-	gridMajorOpacity: int,
 	// The program that opens scripts: a path to its executable, or a name looked up in PATH
 	codeEditorPath: FixedText,
 	// Its arguments, split on spaces: {file} and {line} are replaced ("{file}:{line}")
@@ -84,9 +76,6 @@ SETTINGS_SPACING_RANGE :: [2]f32{25, 200}
 SETTINGS_ROW_HEIGHT_RANGE :: [2]f32{18, 48}
 SETTINGS_UNDO_MS_RANGE :: [2]int{0, 10000}
 SETTINGS_UNDO_LIMIT_RANGE :: [2]int{1, 10000}
-SETTINGS_GRID_SIZE_RANGE :: [2]int{2, 1024}
-SETTINGS_GRID_MAJOR_RANGE :: [2]int{0, 64}
-SETTINGS_PERCENT_RANGE :: [2]int{0, 100}
 
 /*
 Text stored inline, so `Settings` stays a plain value that can be copied (the Settings dialog edits
@@ -162,19 +151,8 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 			case "undo_merge_ms":     target, limits = &settings.undoMergeMs, SETTINGS_UNDO_MS_RANGE
 			case "undo_group_max_ms": target, limits = &settings.undoGroupMaxMs, SETTINGS_UNDO_MS_RANGE
 			case "undo_limit":        target, limits = &settings.undoLimit, SETTINGS_UNDO_LIMIT_RANGE
-			case "grid_width":        target, limits = &settings.gridSize.x, SETTINGS_GRID_SIZE_RANGE
-			case "grid_height":       target, limits = &settings.gridSize.y, SETTINGS_GRID_SIZE_RANGE
-			case "grid_major_every":  target, limits = &settings.gridMajorEvery, SETTINGS_GRID_MAJOR_RANGE
-			case "grid_opacity":      target, limits = &settings.gridOpacity, SETTINGS_PERCENT_RANGE
-			case "grid_major_opacity": target, limits = &settings.gridMajorOpacity, SETTINGS_PERCENT_RANGE
-			case "grid_size":
-				// Older files: one size for both
-				if n, ok := strconv.parse_int(value); ok {
-					size := clamp(n, SETTINGS_GRID_SIZE_RANGE[0], SETTINGS_GRID_SIZE_RANGE[1])
-					settings.gridSize = {size, size}
-				} else {
-					problem(&problems, it.section, key, value, "expected a whole number")
-				}
+			case "grid_size", "grid_width", "grid_height", "grid_major_every", "grid_opacity", "grid_major_opacity":
+				// Older files: the grid is the project's now (Project Settings > Grid)
 				continue
 			case "code_editor_path":
 				settings.codeEditorPath = FixedText_Make(value)
@@ -279,9 +257,8 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ngrid_width = %d\ngrid_height = %d\ngrid_major_every = %d\ngrid_opacity = %d\ngrid_major_opacity = %d\ncode_editor_builtin = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nviewport_wheel_pans = %v\n\n",
-		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit, settings.gridSize.x, settings.gridSize.y,
-		settings.gridMajorEvery, settings.gridOpacity, settings.gridMajorOpacity,
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ncode_editor_builtin = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nviewport_wheel_pans = %v\n\n",
+		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit,
 		settings.builtInCodeEditor, FixedText_String(&settings.olsPath), FixedText_String(&settings.odinPath), FixedText_String(&settings.ldtkPath),
 		FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.wheelPans)
 	strings.write_string(&b, "[keymap]\n")

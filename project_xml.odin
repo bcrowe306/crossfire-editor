@@ -127,6 +127,17 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 		}
 		close(&w, "global")
 	}
+	// The editor's grid, when not the default
+	if grid := project.grid; grid != e.DEFAULT_GRID_SETTINGS {
+		d := e.DEFAULT_GRID_SETTINGS
+		open(&w, "grid")
+		if grid.size.x != d.size.x do attr(&w, "width", grid.size.x)
+		if grid.size.y != d.size.y do attr(&w, "height", grid.size.y)
+		if grid.majorEvery != d.majorEvery do attr(&w, "majorEvery", grid.majorEvery)
+		if grid.opacity != d.opacity do attr(&w, "opacity", grid.opacity)
+		if grid.majorOpacity != d.majorOpacity do attr(&w, "majorOpacity", grid.majorOpacity)
+		closeEmpty(&w)
+	}
 	// Buses: Master only when it's not the default
 	for bus, i in project.buses {
 		if i == 0 && bus.volume == 1 && bus.pan == 0 && !bus.mute do continue

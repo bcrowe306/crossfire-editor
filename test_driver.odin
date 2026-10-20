@@ -83,7 +83,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 (the Git tab's branch list), New_Script_Opened,
 	                                 New_Data_Opened (no value), Scene_Tab_Changed <tab index>,
 	                                 Code_Open_Requested <file> (opens it in a code tab),
-	                                 Open_Grid_Settings (View > Grid Settings)
+	                                 Open_Grid_Settings (View > Grid Settings: Project Settings > Grid)
 	archive_project <path>           Export Project Archive to a file, as if picked in its dialog
 	open_archive <archive> | <folder>
 	                                 Open Project Archive: unpack the archive into the folder (as
@@ -150,8 +150,8 @@ Checks:
 	ldtk_level <identifier|first>    The selected LDtkLevel node's level
 	about_dialog <open | closed>, confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
-	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit | grid_width |
-	        grid_height | grid_major_every> <value>
+	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit> <value>
+	project_grid <width> <height> <majorEvery> <opacity> <majorOpacity>   The project's viewport grid
 	                             An active (applied) setting
 	chord <Action> <text>        An action's shortcuts as the settings file writes them, e.g.
 	                             chord Redo Ctrl+Shift+Z | Ctrl+Y ("-" for none)
@@ -1464,6 +1464,9 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = s.session.newProject.open ? "open" : "closed"
 	case "settings_dialog":
 		found = s.settingsDialog.open ? "open" : "closed"
+	case "project_grid":
+		g := s.project.grid
+		found = fmt.tprintf("%d %d %d %d %d", g.size.x, g.size.y, g.majorEvery, g.opacity, g.majorOpacity)
 	case "setting":
 		setting, _, expected := strings.partition(value, " ")
 		switch setting {
@@ -1473,9 +1476,6 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "theme":         found = fmt.tprint(s.settings.theme)
 		case "undo_merge_ms": found = fmt.tprint(s.settings.undoMergeMs)
 		case "undo_limit":    found = fmt.tprint(s.settings.undoLimit)
-		case "grid_width":    found = fmt.tprint(s.settings.gridSize.x)
-		case "grid_height":   found = fmt.tprint(s.settings.gridSize.y)
-		case "grid_major_every": found = fmt.tprint(s.settings.gridMajorEvery)
 		case: return false, fmt.tprintf("unknown setting '%s'", setting)
 		}
 		return found == strings.trim_space(expected), found

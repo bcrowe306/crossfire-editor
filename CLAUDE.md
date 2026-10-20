@@ -502,15 +502,19 @@ shows up here with no editor change (it still needs inspector fields).
 
 ### Viewport grid and snapping
 
-- `viewport.gridVisible` (G, on by default) draws lines every `settings.gridSize` (a cell's width
-  and height, world units), a major line every `gridMajorEvery` cells (0 = none), each at its
-  opacity (`gridOpacity`, `gridMajorOpacity`, percent of the theme's text color); the axes are
-  brighter. Zoomed out, cells double until 8 px apart, majors with them. Settings > Editor >
-  Viewport edits them (View > Grid Settings opens it: `Open_Grid_Settings`); older editor.ini
-  files' `grid_size` sets both sides. `viewport.snap` (Shift+G) makes `Viewport_ApplyDrag` put
-  the node's origin on the grid, rotation on 15° steps and scale on 0.1. Toolbar toggles sit in
-  the viewport header. A multi-selection keeps its layout: only the dragged node snaps.
-  usability.script tests the settings and snapping to a 16 x 24 grid.
+- **The grid is the project's** (`Project.grid`, the engine's `e.GridSettings`, project.xml's
+  `<grid>`, written when not `e.DEFAULT_GRID_SETTINGS`; in the `.Project` undo snapshot), so a
+  team shares it and tilemaps can use it later. Project Settings > **Grid** edits it
+  (`Project_Settings_Grid_Changed`, `GridTarget`; View > Grid Settings opens it:
+  `Open_Grid_Settings`). Older editor.ini files' `grid_*` keys are skipped.
+- `viewport.gridVisible` (G, on by default) draws lines every cell (width and height, world
+  units), a major line every `majorEvery` cells (0 = none), each at its opacity (`opacity`,
+  `majorOpacity`, percent of the theme's text color); the axes are brighter. Zoomed out, cells
+  double until 8 px apart, majors with them. `viewport.snap` (Shift+G) makes
+  `Viewport_ApplyDrag` put the node's origin on the grid, rotation on 15° steps and scale on 0.1.
+  Toolbar toggles sit in the viewport header. A multi-selection keeps its layout: only the
+  dragged node snaps. usability.script sets a 16 x 24 grid, saves it and snaps to it (driver
+  check `project_grid`).
 - The game area is outlined in a subtle red (`GAME_FRAME_COLOR`), apart from the grid and the
   camera frames.
 
@@ -856,6 +860,8 @@ MyGame/
   `scripts/assets.odin`: scripts use keys, `e.Tr`), and the project's `locale` (Project
   Settings > General > Language, `project-settings-locale`, in the `.Project` snapshot;
   `tests/ui/localization.script`).
+- **Version 13** also: the editor's grid (`<grid width height majorEvery opacity majorOpacity/>`,
+  `Project.grid`; see "Viewport grid and snapping"). Games ignore it.
 - **Version 13** also: the game window's icon (`Project.icon`, an image asset; Project Settings >
   General > Icon, `project-settings-icon`; written when set; the engine shows the Crossfire logo
   without one). The General tab scrolls (`project-settings-general-scroll`) once taller than the

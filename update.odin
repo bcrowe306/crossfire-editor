@@ -169,8 +169,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		SettingsDialog_Open(&out)
 		out.settingsDialog.tab = .Keyboard
 	case Open_Grid_Settings:
-		SettingsDialog_Open(&out)
-		out.settingsDialog.tab = .Editor
+		ProjectSettings_Open(&out, .Grid)
 
 	case Scripts_Auto_Build:
 		if out.scriptsAutoBuilt do break
@@ -267,7 +266,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Project_Settings_Start_Changed, Project_Settings_Locale_Changed, Project_Settings_Icon_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
-	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
+	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Project_Settings_Grid_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)
@@ -495,7 +494,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if drag.mode == .None || drag.mode == .Pan || drag.node < 0 || drag.node >= len(scene.nodes) do break
 		before := scene.nodes[drag.node]
 		grid: [2]f32
-		if out.viewport.snap do grid = {f32(out.settings.gridSize.x), f32(out.settings.gridSize.y)}
+		if out.viewport.snap do grid = {f32(out.project.grid.size.x), f32(out.project.grid.size.y)}
 		Viewport_ApplyDrag(&scene.nodes[drag.node], drag, v.mouse, v.constrain, grid)
 		// The rest of the selection follows
 		if len(out.selection) > 1 && Selection_Contains(&out, drag.node) {

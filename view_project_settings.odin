@@ -7,17 +7,19 @@ import "gui:skald"
 import e "engine:."
 
 /*
-The Project Settings dialog (File > Project Settings), in two tabs:
+The Project Settings dialog (File > Project Settings), in these tabs:
 - General: the game's name, resolution, how it scales to the window, its background color, and
   the scene it starts in.
 - Input: the game's input actions and what triggers them (input_actions.odin).
 - Globals: the scripts that run for the whole game.
 - Export: every export target, each with a checkbox (File > Export exports the checked ones) and
   its own settings, plus an Export button for the shown target.
+- Grid: the viewport grid (cell size, major lines, opacities; View > Grid Settings opens it).
 Apply makes the changes one undoable step (scene_actions.odin); Export applies them first.
 
 Widget keys for UI tests: `project-settings-tab-<Tab>`, `project-settings-name`,
-`project-settings-start`, `project-settings-apply`, `project-settings-cancel`; Export tab:
+`project-settings-start`, `project-settings-apply`, `project-settings-cancel`; Grid tab:
+`project-settings-grid-<Width | Height | Major_Every | Opacity | Major_Opacity>`; Export tab:
 `export-target-<Target>` (shows it), `export-enable-<Target>`, `export-field-<Field>`,
 `export-run`, `export-cancel`, the settings scroll `export-settings-scroll-<Target>`; Input tab:
 `input-action-<i>` (shows it), `input-up-<i>`, `input-down-<i>`, `input-remove-<i>`,
@@ -99,8 +101,39 @@ ProjectSettings_TabsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> (tabs, body
 	case .Input:   body = inputTab(s, ctx)
 	case .Globals: body = globalsTab(s, ctx)
 	case .Export:  body = exportTab(s, ctx)
+	case .Grid:    body = gridTab(s, ctx)
 	}
 	return skald.row(..buttons[:], spacing = th.spacing.xs), body
+}
+
+// The viewport grid for this project (keys project-settings-grid-<field>)
+@(private="file")
+gridTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	g := &s.projectSettings.grid
+	field :: proc(ctx: ^skald.Ctx(Msg), s: ^State, target: GridTarget, value: int, limits: [2]int, unit: string) -> skald.View {
+		return skald.row(
+			numberField(ctx, s, fmt.tprintf("project-settings-grid-%v", target), target, f64(value), 1, 0, 120, f64(limits[0]), f64(limits[1])),
+			skald.text(unit, ctx.theme.color.fg_muted, ctx.theme.font.size_sm),
+			spacing = ctx.theme.spacing.xs,
+			cross_align = .Center,
+		)
+	}
+	note :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
+		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = 440)
+	}
+	return skald.col(
+		settingRow(ctx, "Grid width", field(ctx, s, .Width, g.size.x, e.GRID_SIZE_RANGE, "px")),
+		settingRow(ctx, "Grid height", field(ctx, s, .Height, g.size.y, e.GRID_SIZE_RANGE, "px")),
+		note(ctx, "The viewport grid's cell, in world units. G shows the grid; Shift+G snaps moves to it (and rotation to 15°, scale to 0.1)."),
+		settingRow(ctx, "Major lines every", field(ctx, s, .Major_Every, g.majorEvery, e.GRID_MAJOR_RANGE, "cells")),
+		settingRow(ctx, "Line opacity", field(ctx, s, .Opacity, g.opacity, {0, 100}, "%")),
+		settingRow(ctx, "Major line opacity", field(ctx, s, .Major_Opacity, g.majorOpacity, {0, 100}, "%")),
+		note(ctx, "Major lines divide the grid into blocks of cells (0: none). The grid is saved with the project (project.xml), so everyone working on it sees the same one; the game doesn't use it."),
+		spacing = th.spacing.sm,
+		padding = th.spacing.xs,
+		cross_align = .Start,
+	)
 }
 
 @(private="file")

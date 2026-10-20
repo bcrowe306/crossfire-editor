@@ -194,6 +194,11 @@ Project_Settings_Physics_Changed :: struct {
 	value: f64,
 }
 Project_Settings_Physics_Debug_Changed :: distinct bool
+// Project Settings > Grid: one of the grid's numbers
+Project_Settings_Grid_Changed :: struct {
+	field: GridTarget,
+	value: f64,
+}
 Project_Settings_Physics_Smoothing_Changed :: distinct bool
 // Project Settings > General: one of the window's settings (the engine's WindowSettings)
 WindowField :: enum {
@@ -579,7 +584,7 @@ Input_Device_Changed :: distinct int
 
 // Help > Keyboard Shortcuts: the Settings dialog on its Keyboard tab
 Open_Keyboard_Settings :: struct {}
-// View > Grid Settings: the Settings dialog on its Editor tab (the grid's settings)
+// View > Grid Settings: the Project Settings dialog on its Grid tab
 Open_Grid_Settings :: struct {}
 
 // The Animation panel (view_animation.odin, animation_edit.odin): the selected AnimatedSprite's
@@ -822,6 +827,7 @@ Msg :: union {
 	Project_Settings_Physics_Debug_Changed,
 	Project_Settings_Physics_Smoothing_Changed,
 	Project_Settings_Window_Changed,
+	Project_Settings_Grid_Changed,
 	New_Script_Kind_Changed,
 	New_Data_Opened,
 	New_Data_Name_Changed,
