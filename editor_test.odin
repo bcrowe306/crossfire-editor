@@ -2115,10 +2115,13 @@ export_plan_web :: proc(t: ^testing.T) {
 @(test)
 export_plan_refusals :: proc(t: ^testing.T) {
 	// Targets that aren't done yet say so
+	host, _ := Toolchain_HostTarget()
 	for target in ([]ExportTarget{.Windows_x64, .macOS_ARM64, .Steam, .PlayStation_5, .Xbox_Series, .Nintendo_Switch, .Linux_ARM64}) {
+		// This machine's own target is exportable here (the test input's host is Linux x86_64)
+		if target == host do continue
 		_, problem := Export_Plan(exportTestInput(target), context.temp_allocator)
 		testing.expectf(t, problem != "", "%v should be refused", target)
-		testing.expect(t, !Export_Implemented(target))
+		testing.expectf(t, !Export_Implemented(target), "%v isn't exportable here", target)
 	}
 	testing.expect(t, Export_Implemented(.Web))
 	// Output folders that would copy the project into itself, or into its own folders (relative
@@ -3534,6 +3537,14 @@ every_row_label_has_a_tooltip :: proc(t: ^testing.T) {
 // target's prebuilt player; the steps each needs
 @(test)
 export_plans_for_windows_and_macos :: proc(t: ^testing.T) {
+	// Plans join paths the OS's way: compared with "/" and without the leading one
+	same :: proc(t: ^testing.T, got, want: string, loc := #caller_location) {
+		norm :: proc(p: string) -> string {
+			s, _ := strings.replace_all(p, "\\", "/", context.temp_allocator)
+			return strings.trim_left(s, "/")
+		}
+		testing.expectf(t, norm(got) == norm(want), "got %s, want %s", got, want, loc = loc)
+	}
 	kinds :: proc(plan: ExportPlan) -> bit_set[ExportStepKind] {
 		set: bit_set[ExportStepKind]
 		for step in plan.steps do set += {step.kind}
@@ -3553,8 +3564,8 @@ export_plans_for_windows_and_macos :: proc(t: ^testing.T) {
 	testing.expect_value(t, problem, "")
 	testing.expect(t, kinds(plan) >= {.Copy_File, .Patch_Subsystem, .Append_Pack, .Zip_Folder} && .Command not_in kinds(plan), "prebuilt, patched, packed, zipped")
 	copy, _ := stepOf(plan, .Copy_File)
-	testing.expect_value(t, copy.path, "/games/Space/export/windows_x64/Space_Game.exe")
-	testing.expect_value(t, plan.archive, "/games/Space/export/windows_x64.zip")
+	same(t, copy.path, "/games/Space/export/windows_x64/Space_Game.exe")
+	same(t, plan.archive, "/games/Space/export/windows_x64.zip")
 	// With scripts: only on Windows
 	win.hasScripts = true
 	_, problem = Export_Plan(win, context.temp_allocator)
@@ -3581,11 +3592,11 @@ export_plans_for_windows_and_macos :: proc(t: ^testing.T) {
 	testing.expect_value(t, problem, "")
 	testing.expect(t, .Append_Pack not_in kinds(plan) && .Command in kinds(plan), "no pack; the archive's tar")
 	copy, _ = stepOf(plan, .Copy_File)
-	testing.expect_value(t, copy.path, "/games/Space/export/macos_arm64/Space_Game.app/Contents/MacOS/Space_Game")
+	same(t, copy.path, "/games/Space/export/macos_arm64/Space_Game.app/Contents/MacOS/Space_Game")
 	plist, _ := stepOf(plan, .Write_File)
 	testing.expect(t, strings.contains(plist.content, "<string>Space_Game</string>") && strings.contains(plist.content, "io.crossfire.space_game"), plist.content)
 	data, _ := stepOf(plan, .Copy_Files)
-	testing.expect_value(t, data.path, "/games/Space/export/macos_arm64/Space_Game.app/Contents/Resources/data")
+	same(t, data.path, "/games/Space/export/macos_arm64/Space_Game.app/Contents/Resources/data")
 	for step in plan.steps do if step.kind == .Command do testing.expect(t, step.command[0] != "codesign", "no codesign off a Mac")
 	// On a Mac: compiled (static SDL needed) and signed
 	mac.host = .macOS_ARM64

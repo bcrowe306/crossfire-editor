@@ -22,9 +22,38 @@ app started from the Finder runs in `/`, so `Editor_SetupBundle`, first thing in
   MoltenVK driver (`VK_DRIVER_FILES` / `VK_ICD_FILENAMES`, unless they're set already), so nothing
   needs installing.
 
-Outside a bundle none of this happens: the editor works from the folder it's started in, as
-before.
+**Installed** the same way, not only in a macOS bundle (`Editor_Installed`): inside an AppImage
+(its `APPIMAGE` variable; the image is read-only) or anywhere the editor's own folder isn't
+writable (a Windows install in Program Files): the data folder is the working folder and holds
+the settings, and the demo is copied to Documents on first run, from the release's
+`examples/demo_project` beside the executable.
+
+Otherwise (an unpacked archive, a checkout) none of this happens: the editor works from the folder
+it's started in, as before.
 */
+
+// Whether the editor runs installed (see above): a macOS bundle, an AppImage, or a folder it
+// can't write to. Worked out once
+Editor_Installed :: proc() -> bool {
+	@(static) known, installed: bool
+	if known do return installed
+	known = true
+	if _, inBundle := Editor_BundleContents(); inBundle {
+		installed = true
+	} else if os.get_env("APPIMAGE", context.temp_allocator) != "" {
+		installed = true
+	} else if exeDir, err := os.get_executable_directory(context.temp_allocator); err == nil {
+		// Can it write next to itself? (Program Files can't, without elevation)
+		probe := filepath.join({exeDir, ".crossfire-write-test"}, context.temp_allocator) or_else ""
+		if file, createErr := os.create(probe); createErr == nil {
+			os.close(file)
+			os.remove(probe)
+		} else {
+			installed = true
+		}
+	}
+	return installed
+}
 
 // The bundle's Contents folder, when the editor runs from one (temp allocated)
 Editor_BundleContents :: proc() -> (string, bool) {
@@ -39,16 +68,15 @@ Editor_BundleContents :: proc() -> (string, bool) {
 // relative paths on the command line
 launchDir: string
 
-// Sets up running from an app bundle (see above); nothing outside one
+// Sets up running installed (see above): a bundle, an AppImage, a read-only install; nothing otherwise
 Editor_SetupBundle :: proc() {
-	contents, inBundle := Editor_BundleContents()
-	if !inBundle do return
+	if !Editor_Installed() do return
 	if cwd, err := os.get_working_directory(context.temp_allocator); err == nil do launchDir = strings.clone(cwd)
 	if data := Toolchain_DataDir(); data != "" {
 		_ = os.make_directory_all(data)
 		_ = os.set_working_directory(data)
 	}
-	setupBundleVulkan(contents)
+	if contents, inBundle := Editor_BundleContents(); inBundle do setupBundleVulkan(contents)
 }
 
 /*
@@ -58,7 +86,7 @@ executable (a release archive's examples/demo_project); else examples/demo_proje
 working folder (a checkout).
 */
 Editor_DemoProject :: proc() -> string {
-	if _, inBundle := Editor_BundleContents(); inBundle {
+	if Editor_Installed() {
 		if home, err := os.user_home_dir(context.temp_allocator); err == nil {
 			return filepath.join({home, "Documents", "Crossfire Editor", "demo_project"}, context.allocator) or_else DEMO_PROJECT
 		}
@@ -72,12 +100,17 @@ Editor_DemoProject :: proc() -> string {
 	return DEMO_PROJECT
 }
 
-// The demo project a bundle carries (`Contents/Resources/demo_project`), to copy where it can be
-// edited; "" outside a bundle or when it has none (temp allocated)
+// The demo project an installed editor carries (a bundle's `Contents/Resources/demo_project`, else
+// `examples/demo_project` beside the executable), to copy where it can be edited; "" when not
+// installed or when it has none (temp allocated)
 Editor_ShippedDemo :: proc() -> string {
-	contents, inBundle := Editor_BundleContents()
-	if !inBundle do return ""
-	path := filepath.join({contents, "Resources", "demo_project"}, context.temp_allocator) or_else ""
+	if !Editor_Installed() do return ""
+	path := ""
+	if contents, inBundle := Editor_BundleContents(); inBundle {
+		path = filepath.join({contents, "Resources", "demo_project"}, context.temp_allocator) or_else ""
+	} else if exeDir, err := os.get_executable_directory(context.temp_allocator); err == nil {
+		path = filepath.join({exeDir, DEMO_PROJECT}, context.temp_allocator) or_else ""
+	}
 	if path == "" || !os.exists(filepath.join({path, "project.xml"}, context.temp_allocator) or_else "") do return ""
 	return path
 }

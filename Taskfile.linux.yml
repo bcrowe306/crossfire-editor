@@ -1,0 +1,16 @@
+# Linux packages (included by Taskfile.yml as linux:). CI's combine job makes the AppImage the
+# release ships, from the archive with every platform's prebuilt player.
+version: '3'
+
+vars:
+  VERSION:
+    sh: 'echo "${VERSION:-$(git describe --tags --always 2>/dev/null || echo dev)}"'
+
+tasks:
+  appimage:
+    desc: The editor as an AppImage (dist/Crossfire_Editor-<version>-x86_64.AppImage), from a release archive made here
+    platforms: [linux]
+    cmds:
+      - tools/ci/package_editor.sh linux-x64 {{.VERSION}}
+      - rm -rf build/appimage && mkdir -p build/appimage && tar -xzf dist/crossfire-editor-{{.VERSION}}-linux-x64.tar.gz -C build/appimage
+      - tools/linux/make_appimage.sh build/appimage/crossfire-editor-{{.VERSION}}-linux-x64 dist/Crossfire_Editor-{{.VERSION}}-x86_64.AppImage

@@ -32,6 +32,9 @@ vars:
 
 # Building and bundling for macOS (an .app and a disk image): task macos:dist, task macos:verify
 includes:
+  linux:
+    taskfile: ./Taskfile.linux.yml
+    dir: .
   macos:
     taskfile: ./Taskfile.macos.yml
     dir: .

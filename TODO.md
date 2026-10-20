@@ -10,7 +10,5 @@ owns it.
   checked-in `.json` config), once an Apple developer account is available: `task
   macos:notarize`, `tools/macos/gon.json.example`, `entitlements.plist`.
 - A disk image background (the volume and app have the Crossfire icon).
-- **Linux and Windows bundles** the same way: Taskfile.linux.yml (an AppImage?) and
-  Taskfile.windows.yml (an installer?), with CI calling them as it does for macOS.
 - **The zig experiment**: one linker everywhere, and Linux builds against an old glibc (a build
   made on this Arch machine needs GLIBC 2.43).

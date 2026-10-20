@@ -1343,6 +1343,16 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
 
 ## CI and releases (`.github/workflows/build.yml`)
 
+**Linux and Windows packages:** an AppImage (`tools/linux/make_appimage.sh`, `task
+linux:appimage`; CI's combine job makes it from the Linux archive with every player; appimagetool
+is downloaded and run extracted, no FUSE needed) and an installer (`tools/windows/
+crossfire-editor.iss`, Inno Setup 6, preinstalled on GitHub's Windows runners: the
+`windows-installer` job). Both run the editor **installed** (`Editor_Installed`, bundle.odin:
+$APPIMAGE set, or the editor's folder not writable): settings and build folders in the data
+folder, the demo copied to ~/Documents/Crossfire Editor from the release's
+`examples/demo_project`. Checked by hand: the AppImage from a locally made release archive, run
+with a scratch home (`--appimage-extract-and-run`): the demo copied, `build/` in the data folder.
+
 **Every release has every platform's prebuilt player:** each build job uploads its player
 (`player-<platform>`); the `combine` job (Ubuntu) adds the others' to the Linux and Windows
 archives (`prebuilt/<target>/`), `combine-macos` (a Mac) to the app's

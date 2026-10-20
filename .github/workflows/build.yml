@@ -188,6 +188,9 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v4
+        with:
+          path: editor
       - uses: actions/download-artifact@v4
         with:
           pattern: player-*
@@ -221,10 +224,51 @@ jobs:
             ls -la "$(basename "$archive")"
           done
           rm -rf work
+      # The AppImage, from the Linux archive with every player (tools/linux/make_appimage.sh)
+      - name: The AppImage
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+        run: |
+          linux=$(ls combined/crossfire-editor-*-linux-x64.tar.gz | head -1)
+          rm -rf appimage && mkdir appimage && tar -xzf "$linux" -C appimage
+          editor/tools/linux/make_appimage.sh "appimage/$(ls appimage)" "combined/Crossfire_Editor-$VERSION-x86_64.AppImage"
+          rm -rf appimage
       - uses: actions/upload-artifact@v4
         with:
           name: final-archives
           path: combined/*
+          if-no-files-found: error
+
+  # The Windows installer (Inno Setup, preinstalled on GitHub's Windows runners), from the archive
+  # with every player
+  windows-installer:
+    name: Windows installer
+    needs: combine
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: editor
+      - uses: actions/download-artifact@v4
+        with:
+          name: final-archives
+          path: combined
+      - name: Compile the installer
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+        run: |
+          zip=$(ls combined/crossfire-editor-*-windows-x64.zip | head -1)
+          mkdir -p release installer && 7z x -bso0 -orelease "$zip"
+          source=$(cygpath -w "$PWD/release/$(ls release)")
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" "/DSourceDir=$source" "/DAppVersion=$VERSION" "/DOutputDir=$(cygpath -w "$PWD/installer")" editor/tools/windows/crossfire-editor.iss
+          ls -la installer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-installer
+          path: installer/*.exe
           if-no-files-found: error
 
   # ...and the macOS app gets them in Contents/Resources/prebuilt (codesign takes only Mac programs
@@ -271,7 +315,7 @@ jobs:
 
   release:
     name: Release
-    needs: [combine, combine-macos]
+    needs: [combine, combine-macos, windows-installer]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     steps:
