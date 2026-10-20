@@ -944,8 +944,13 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   shapes through the driver's `ldtk_preview`, undo, save, Play). The fixture
   `tests/fixtures/ldtk/` (a one-level project with a generated 32x32 tileset) is ours, written
   for the tests: LDtk's own samples have third-party art.
-- Later: parallax, entity references as nodes, LDtk's tile render modes, a level picker that
-  shows thumbnails, hot reload while playing.
+- **Collision settings:** with a collision layer, the inspector shows the generated body's
+  layers, mask, friction and bounce (`bodySurfaceRows`, shared with body nodes).
+- **Thumbnails:** `Preview_RenderLDtk` builds an LDtkLevel node in its own software renderer and
+  fits it; one cache per place (`LDtkThumbnailSlot`: the browser's world map, the inspector's
+  level), keyed by file, level and the file's modification time. `ldtkThumbnailView` uploads it.
+- **Play reloads** saved LDtk files (the engine's LDtk_WatchFiles in dev runs): tiles, collision
+  and backgrounds update in the running game; entity changes need another Play.
 
 ## Input actions (implemented; engine: input.odin)
 

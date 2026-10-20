@@ -307,6 +307,12 @@ Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:
    with the entity's name (its LDtk fields set the script's fields with the same name), else a
    rectangle that draws the entity's tile.
 
+While the game runs from Play, saving in LDtk updates it: tiles, collision and backgrounds (entity
+changes show on the next Play). Parallax layers follow the camera, entities draw their tiles as
+LDtk does (cover, stretch, repeat, nine-slice...), and the inspector and browser show pictures of
+the levels. LDtk's internal icons are a commercial pack the engine can't include: put your copy
+(`finalbossblues-icons_full_16.png`) beside the `.ldtk` file to see them.
+
 In code:
 
 ```odin
@@ -315,6 +321,7 @@ for coin in e.LDtk_FindEntityNodes(level, "Coin") do log.infof("a coin at %v", c
 entity := e.LDtk_EntityOf(self.node)                       // this node's LDtk data
 hp := e.LDtk_FieldValue(entity.fields, "hp", i64(3))
 onLadder := e.LDtk_IntGridAtPosition(level, "Walls", e.Node_GetWorldPosition(self.node)) == 2
+door := e.LDtk_EntityRefNode(self.node, "door")              // an EntityRef field's entity
 ```
 
 ## Input actions

@@ -38,6 +38,9 @@ click_widget inspector-ldtk-collision-11
 click_overlay_item 1
 wait 3
 expect ldtk_preview 1 3 3
+# The body it becomes: its layers, what it collides with, its surface
+scroll_into_view inspector-scroll inspector-Friction-11
+expect widget_visible inspector-Friction-11 true
 
 # Without entities; undo brings them back
 scroll_into_view inspector-scroll inspector-ldtk-entities-11

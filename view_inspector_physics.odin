@@ -24,6 +24,26 @@ JOINT_BODY_DEFAULT :: "(body above, or the world)"
 JOINT_BODY_NONE :: "(none)"
 
 @(private="package")
+/*
+A body's collision layers, what it collides with, and (unless `surface` is false: Areas) its
+friction and bounce. Bodies show them, and so does an LDtkLevel node for the StaticBody it makes
+from an IntGrid layer.
+*/
+bodySurfaceRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32, surface := true) -> []skald.View {
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	append(&rows,
+		inspectorRow(ctx, "Layers", layerGrid(ctx, key, false, node.collisionLayer, controlWidth)),
+		inspectorRow(ctx, "Collides", layerGrid(ctx, key, true, node.collisionMask, controlWidth)),
+	)
+	if surface {
+		append(&rows,
+			inspectorRow(ctx, "Friction", numberField(ctx, s, fmt.tprintf("inspector-%v-%d", NodeField.Friction, key), .Friction, f64(node.friction), 0.1, 2, numberWidth, 0, 10)),
+			inspectorRow(ctx, "Bounce", numberField(ctx, s, fmt.tprintf("inspector-%v-%d", NodeField.Restitution, key), .Restitution, f64(node.restitution), 0.1, 2, numberWidth, 0, 1)),
+		)
+	}
+	return rows[:]
+}
+
 physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: NodeField, value: f32, step: f64, decimals: int, width: f32, minValue := min(f64), maxValue := max(f64)) -> skald.View {
@@ -41,17 +61,9 @@ physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 
 	#partial switch node.kind {
 	case .StaticBody, .DynamicBody, .CharacterMover, .Area:
-		append(&rows,
-			inspectorRow(ctx, "Layers", layerGrid(ctx, key, false, node.collisionLayer, controlWidth)),
-			inspectorRow(ctx, "Collides", layerGrid(ctx, key, true, node.collisionMask, controlWidth)),
-		)
+		append(&rows, ..bodySurfaceRows(ctx, s, node, key, controlWidth, numberWidth, surface = node.kind != .Area))
 		if node.kind == .Area {
 			append(&rows, hint(ctx, "Reports bodies entering and leaving it (on the layers in Collides); stops nothing."))
-		} else {
-			append(&rows,
-				inspectorRow(ctx, "Friction", number(ctx, s, key, .Friction, node.friction, 0.1, 2, numberWidth, 0, 10)),
-				inspectorRow(ctx, "Bounce", number(ctx, s, key, .Restitution, node.restitution, 0.1, 2, numberWidth, 0, 1)),
-			)
 		}
 		#partial switch node.kind {
 		case .DynamicBody:

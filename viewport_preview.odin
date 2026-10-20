@@ -476,14 +476,88 @@ copyPixels :: proc(size: [2]int) -> []u8 {
 }
 
 // Frees the preview and the thumbnail renderer (tests: each test has its own allocator)
-Preview_Destroy :: proc() {
-	destroyAll()
-	delete(preview.pixels)
-	delete(preview.nodes)
-	for path in preview.ldtkModified do delete(path)
-	delete(preview.ldtkModified)
-	preview = {}
-	t := &thumbnail
+/*
+A picture of an LDtk level (or a whole world) for the browser and the inspector: the engine builds
+it as an LDtkLevel node (as the editor does: no parallax, entities outlined) and it's fitted to
+`size`. Each place it's shown (`slot`: LDtkThumbnailSlot) has its own cache, so the browser's world
+map and the inspector's level don't redraw each other every frame; it's drawn again when the file
+(its modification time), the level or the size changes.
+
+Returns:
+- RGBA8 pixels (`size.x * size.y * 4`, valid until the next call for that slot), a key that changes
+  when the picture does, and false if it couldn't render
+*/
+Preview_RenderLDtk :: proc(s: ^State, slot: LDtkThumbnailSlot, file, level: string, allLevels: bool, size: [2]int) -> (pixels: []u8, key: u64, ok: bool) {
+	if file == "" || size.x <= 0 || size.y <= 0 do return nil, 0, false
+	modified := ldtkModified(joinPath(s.project.rootPath, file, allocator = context.temp_allocator))
+	signature := fmt.tprintf("%s|%s|%v|%v|%v", file, level, allLevels, size, modified)
+	key = hash.fnv64a(transmute([]u8)signature)
+	t := &ldtkThumbnails[slot]
+	if key == t.key && len(t.pixels) == size.x * size.y * 4 do return t.pixels[:], key, true
+	if !thumbnailTarget(t, size) do return nil, 0, false
+	// A changed file is read again (no scene of this game holds the old one: each is destroyed)
+	e.Game_ForgetLDtk(t.game, file)
+	t.game.size = s.project.gameSize
+	scene := new(e.Scene)
+	e.Scene_Init(scene)
+	scene.physicsPaused = true
+	scene.game = t.game
+	defer { e.Scene_Destroy(scene); free(scene) }
+	node := e.DEFAULT_SCENE_NODE
+	node.kind = .LDtkLevel
+	node.name = "Level"
+	node.ldtk = e.DEFAULT_LDTK_LEVEL_SETTINGS
+	node.ldtk.file = file
+	node.ldtk.level = level
+	node.ldtk.allLevels = allLevels
+	data := e.SceneData{name = "LDtk", nodes = make([dynamic]e.SceneNodeData, context.temp_allocator)}
+	append(&data.nodes, node)
+	created := e.Scene_Build(scene, &data, s.project.rootPath, attachScripts = false)
+	e.Scene_ProcessQueues(scene)
+	bounds, has := e.Node_GetLocalBounds(created[0])
+	if !has do bounds = {0, 0, 64, 64}
+	zoom := min(f32(size.x) / max(bounds.w, 1), f32(size.y) / max(bounds.h, 1)) * 0.95
+	center := [2]f32{bounds.x + bounds.w * 0.5, bounds.y + bounds.h * 0.5}
+	view := e.Transform2D{x = {zoom, 0}, y = {0, zoom}, origin = [2]f32{f32(size.x), f32(size.y)} * 0.5 - center * zoom}
+	r := t.renderer
+	sdl.SetRenderDrawColor(r, 16, 18, 24, 255)
+	sdl.RenderClear(r)
+	e.Scene_DrawWithView(scene, r, view, screenLayersUseView = true, positionOnlyScale = zoom)
+	sdl.FlushRenderer(r)
+	resize(&t.pixels, size.x * size.y * 4)
+	src := ([^]u8)(t.surface.pixels)
+	row := size.x * 4
+	for y in 0 ..< size.y do copy(t.pixels[y * row:][:row], src[y * int(t.surface.pitch):][:row])
+	t.key = key
+	return t.pixels[:], key, true
+}
+
+// Where an LDtk picture is shown (each has its own cache)
+LDtkThumbnailSlot :: enum {
+	Browser,
+	Inspector,
+}
+
+@(private="file")
+ldtkThumbnails: [LDtkThumbnailSlot]Thumbnail
+
+// A thumbnail's surface, software renderer and game at a size (made again when the size changes)
+@(private="file")
+thumbnailTarget :: proc(t: ^Thumbnail, size: [2]int) -> bool {
+	if t.surface != nil && t.surface.w == i32(size.x) && t.surface.h == i32(size.y) && t.renderer != nil do return true
+	thumbnailDestroy(t)
+	if ttf.WasInit() == 0 && !ttf.Init() do return false
+	t.surface = sdl.CreateSurface(i32(size.x), i32(size.y), .RGBA32)
+	if t.surface != nil do t.renderer = sdl.CreateSoftwareRenderer(t.surface)
+	if t.renderer == nil do return false
+	t.game = new(e.Game)
+	t.game.renderer = t.renderer
+	e.ResourceManager_Init(&t.game.resourceManager, t.renderer, nil)
+	return true
+}
+
+@(private="file")
+thumbnailDestroy :: proc(t: ^Thumbnail) {
 	if t.game != nil {
 		e.Game_ForgetLDtk(t.game)
 		t.game.resourceManager->destroy()
@@ -492,7 +566,18 @@ Preview_Destroy :: proc() {
 	if t.renderer != nil do sdl.DestroyRenderer(t.renderer)
 	if t.surface != nil do sdl.DestroySurface(t.surface)
 	delete(t.pixels)
-	thumbnail = {}
+	t^ = {}
+}
+
+Preview_Destroy :: proc() {
+	destroyAll()
+	delete(preview.pixels)
+	delete(preview.nodes)
+	for path in preview.ldtkModified do delete(path)
+	delete(preview.ldtkModified)
+	preview = {}
+	thumbnailDestroy(&thumbnail)
+	for &t in ldtkThumbnails do thumbnailDestroy(&t)
 }
 
 @(private="file")

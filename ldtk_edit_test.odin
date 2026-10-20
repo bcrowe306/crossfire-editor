@@ -2,6 +2,7 @@ package editor
 
 import "core:os"
 import "core:strings"
+import "core:sync"
 import "core:testing"
 import e "engine:."
 
@@ -29,6 +30,8 @@ sendTo :: proc(state: ^State, msg: Msg) {
 
 @(test)
 ldtk_import_settings_and_export :: proc(t: ^testing.T) {
+	// It renders a thumbnail: the preview's package state is shared
+	sync.guard(&previewTestLock)
 	os.make_directory("build")
 	dir := "build/test_ldtk"
 	removeAll(dir)
@@ -107,6 +110,23 @@ ldtk_import_settings_and_export :: proc(t: ^testing.T) {
 	for f in files do if f == "assets/world/tiles.png" do found = true
 	testing.expect(t, found, "the tileset is exported")
 	testing.expect(t, strings.contains(Scripts_AssetsSource(&state.project), `LDTK_WORLD :: e.LDtkAsset{"assets/world/world.ldtk"}`), "the LDTK_ constant")
+
+	// A picture of the level for the inspector: the tileset's stone and grass show (not just the
+	// background), and the same request is cached
+	pixels, key, ok := Preview_RenderLDtk(&state, .Inspector, asset.path, "", false, {128, 64})
+	testing.expect(t, ok, "the level renders")
+	if ok {
+		stone, grass := 0, 0
+		for i := 0; i + 3 < len(pixels); i += 4 {
+			r, g, b := int(pixels[i]), int(pixels[i + 1]), int(pixels[i + 2])
+			if abs(r - 110) < 30 && abs(g - 110) < 30 && abs(b - 120) < 30 do stone += 1
+			if g > 140 && r < 110 && b < 110 do grass += 1
+		}
+		testing.expectf(t, stone > 100 && grass > 20, "stone %d, grass %d pixels", stone, grass)
+		_, again, _ := Preview_RenderLDtk(&state, .Inspector, asset.path, "", false, {128, 64})
+		testing.expect_value(t, again, key)
+	}
+	defer Preview_Destroy()
 
 	// Copying the node copies its settings
 	copy := NodeDef_Clone(state.project.scenes[0].nodes[nodeAt])

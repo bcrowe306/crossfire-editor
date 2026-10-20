@@ -2628,8 +2628,8 @@ particle_inspector_edits :: proc(t: ^testing.T) {
 	free_all(context.temp_allocator)
 }
 
-// Tests that render through the viewport preview (package state, one SDL renderer) take turns
-@(private="file")
+// Tests that render through the viewport preview (package state, one SDL renderer) take turns,
+// ldtk_edit_test.odin's too
 previewTestLock: sync.Mutex
 
 @(test)

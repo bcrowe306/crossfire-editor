@@ -240,7 +240,7 @@ LDtkEdit_OpenInLDtk :: proc(state: ^State, path: string) -> skald.Command(Msg) {
 }
 
 // The inspector's LDtkLevel rows
-ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth: f32) -> []skald.View {
+ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	settings := &node.ldtk
@@ -286,6 +286,8 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 		entities := 0
 		for l in level.layers do entities += len(l.entities)
 		append(&rows, small(ctx, fmt.tprintf("%s: %.0f x %.0f px, %d layers, %d entities", level.identifier, level.size.x, level.size.y, len(level.layers), entities), th.color.fg_muted))
+		// What it builds: the level (or the world), as the viewport shows it
+		append(&rows, ldtkThumbnailView(ctx, s, .Inspector, settings.file, settings.level, settings.allLevels, 260, 120))
 	}
 
 	// Collision from an IntGrid layer
@@ -302,6 +304,8 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 		names := strings.builder_make(context.temp_allocator)
 		for v, i in def.intGridValues do fmt.sbprintf(&names, "%s%d = %s", i > 0 ? ", " : "", v.value, v.identifier == "" ? "(unnamed)" : v.identifier)
 		append(&rows, small(ctx, fmt.tprintf("Cells with these values become a StaticBody (%s)", strings.to_string(names)), th.color.fg_muted))
+		// The StaticBody's layers, what it collides with, its surface
+		append(&rows, ..bodySurfaceRows(ctx, s, node, key, controlWidth, numberWidth))
 	}
 	append(&rows,
 		inspectorRow(ctx, "Entities", flag(ctx, key, "entities", .Spawn_Entities, settings.spawnEntities)),
@@ -414,8 +418,11 @@ LDtk.
 ldtkPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) -> skald.View {
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_MAP, filepath.base(asset.path)), th.color.fg, th.font.size_sm))
 	project := LDtkEdit_Project(s.project.rootPath, asset.path)
+	// The whole world, as the game draws it
+	picture: skald.View = skald.spacer(0)
+	if project != nil do picture = ldtkThumbnailView(ctx, s, .Browser, asset.path, "", true, 0, 0)
+	append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_MAP, filepath.base(asset.path)), th.color.fg, th.font.size_sm))
 	if project == nil {
 		append(&rows, skald.text("This file can't be read as an LDtk project.", th.color.danger, th.font.size_xs))
 	} else {
@@ -439,7 +446,11 @@ ldtkPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: stri
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  Open in LDtk", ICON_MAP), Msg(LDtk_Asset_Open_Requested(index)),
 		id = skald.hash_id("browser-ldtk-open"), bg = th.color.surface, fg = th.color.fg,
 		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
-	return skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.sm), id = skald.hash_id("browser-ldtk-preview"))
+	return skald.col(
+		skald.flex(3, picture),
+		skald.flex(2, skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.sm), id = skald.hash_id("browser-ldtk-preview"))),
+		cross_align = .Stretch,
+	)
 }
 
 /*
@@ -460,4 +471,44 @@ Scene_AddLDtkAt :: proc(scene: ^SceneDef, path: string, parent: int, world: [2]f
 	local := e.Transform2D_Apply(e.Transform2D_Inverse(parentWorld), world)
 	node.position = {f32(int(local.x)), f32(int(local.y))}
 	return index
+}
+
+// The Skald images LDtk pictures are uploaded to, and what each holds
+@(private="file")
+LDTK_IMAGES := [LDtkThumbnailSlot]string{.Browser = "ldtk-thumbnail-browser", .Inspector = "ldtk-thumbnail-inspector"}
+@(private="file")
+ldtkImageKeys: [LDtkThumbnailSlot]u64
+@(private="file")
+ldtkImageSizes: [LDtkThumbnailSlot][2]int
+
+/*
+A picture of an LDtk level (or the whole world) filling the space it gets (Preview_RenderLDtk;
+re-uploaded only when the picture changes).
+
+Inputs:
+- height: 0 to flex (fill what the parent gives)
+*/
+ldtkThumbnailView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, slot: LDtkThumbnailSlot, file, level: string, allLevels: bool, width, height: f32) -> skald.View {
+	Data :: struct {
+		s: ^State,
+		slot: LDtkThumbnailSlot,
+		file, level: string,
+		allLevels: bool,
+	}
+	data := new_clone(Data{s, slot, strings.clone(file, context.temp_allocator), strings.clone(level, context.temp_allocator), allLevels}, context.temp_allocator)
+	picture := skald.sized(ctx, data, proc(ctx: ^skald.Ctx(Msg), d: ^Data, size: [2]f32) -> skald.View {
+		pixelSize := [2]int{max(int(size.x), 1), max(int(size.y), 1)}
+		pixels, key, ok := Preview_RenderLDtk(d.s, d.slot, d.file, d.level, d.allLevels, pixelSize)
+		if ok && ctx.renderer != nil && (key != ldtkImageKeys[d.slot] || pixelSize != ldtkImageSizes[d.slot]) {
+			if pixelSize == ldtkImageSizes[d.slot] do skald.image_update_pixels(ctx.renderer, LDTK_IMAGES[d.slot], u32(pixelSize.x), u32(pixelSize.y), pixels)
+			else do skald.image_load_pixels(ctx.renderer, LDTK_IMAGES[d.slot], u32(pixelSize.x), u32(pixelSize.y), pixels)
+			ldtkImageKeys[d.slot], ldtkImageSizes[d.slot] = key, pixelSize
+		}
+		Paint :: struct { slot: LDtkThumbnailSlot }
+		return skald.canvas(ctx, new_clone(Paint{d.slot}, context.temp_allocator), proc(p: ^Paint, painter: skald.Canvas_Painter) {
+			skald.draw_image(painter.r, LDTK_IMAGES[p.slot], painter.bounds, .Fill)
+		}, width = max(size.x, 1), height = max(size.y, 1))
+	})
+	if height <= 0 do return skald.flex(1, picture)
+	return skald.col(picture, width = width, height = height)
 }

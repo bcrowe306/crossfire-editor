@@ -31,15 +31,9 @@ owns it.
 
 ## LDtk levels
 
-- Parallax layers (the data is read: `LDtkLayer.parallax`, `parallaxScaling`).
-- Entity references (`EntityRef` fields) resolved to the entities' nodes.
-- LDtk's tile render modes for entity tiles (Cover, Repeat, Stretch, NineSlice...); they're all
-  fitted inside today.
-- LDtk's internal icon atlas (`embedAtlas: LdtkIcons`): entities using it show as outlined boxes.
-- Culling large tile layers to the view.
-- The generated collision body's physics layers, mask, friction and restitution in the
-  inspector (the engine and the scene format have them).
-- A level picker with thumbnails; hot reload of a level while the game plays.
+- Pick a level by clicking it in the browser's world map (the inspector shows the chosen one).
+- Hot reload of entities and of layers added or removed (Play reloads tiles, collision and
+  backgrounds; entities would need scripts to let go of their nodes).
 
 ## Version control (Git tab)
 
