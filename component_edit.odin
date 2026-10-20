@@ -10,7 +10,7 @@ import e "engine:."
 Components: node trees saved in the assets (`components/<name>.component.xml`, assets of kind
 Component) and reused in any scene through Component nodes (instances), like Godot's packed
 scenes. The engine builds an instance's tree in its place (project_loader.odin); scripts add more
-with `e.Scene_Instantiate(scene, COMPONENT_SHIP)`.
+with `e.Scene_AddComponent(scene, COMPONENT_SHIP)` (and removed with `e.Scene_RemoveComponent`).
 
 - **Editing:** a component is a `SceneDef` with `component` set (its file), kept in
   `Project.scenes` after the scenes, so the viewport, scene tree, inspector and undo work on it as

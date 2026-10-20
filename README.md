@@ -295,8 +295,12 @@ becomes an *instance* of it. Then:
 - An instance's **Make Unique** (inspector) gives it its own copy of the component, to change it
   without changing the others.
 - The browser's preview draws it. **New Component** starts an empty one.
-- In code, as many as needed: `e.Scene_Instantiate(self.scene, COMPONENT_SHIP, position = {100, 50})`
-  (constants in `scripts/assets.odin`; exported `e.ComponentAsset` fields get a picker).
+- In code, as many as needed: `ship := e.Scene_AddComponent(self.scene, COMPONENT_SHIP, position = {100, 50})`,
+  and `e.Scene_RemoveComponent(self.scene, ship.id)` to remove one (constants in
+  `scripts/assets.odin`; exported `e.ComponentAsset` fields get a picker).
+  `e.Scene_GetComponentInstances` lists a component's instances.
+- A one-shot ParticleEmitter tells when it's done: subscribe to its `onFinished` event (the demo's
+  blood removes itself that way).
 
 ## LDtk levels
 

@@ -983,7 +983,8 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
 
 Reusable node trees, like Godot's packed scenes: saved in the assets
 (`components/<name>.component.xml`, asset kind Component), instanced in any scene by a
-Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
+Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)` (removed with
+`e.Scene_RemoveComponent(scene, root.id)`).
 - **Model:** a component is a `SceneDef` with `component` set (its file), in `Project.scenes`
   after the scenes, so the viewport, scene tree, inspector and undo edit it like a scene.
   **Anything that means "the project's scenes" must skip `Scene_IsComponent`**: the browser's

@@ -54,7 +54,7 @@ updates its tiles and collision as you save.
 | **A platformer on a CharacterMover** | `hero.odin`: scripted gravity (the project has none), `e.CharacterMover_Move`, jump buffering and coyote time, short hops, a camera following inside the level's bounds (`e.Camera2D_SetBounds`, `e.Camera2D_Follow`), the sprite mirrored by a negative scale |
 | **Removing nodes** | Coins, defeated enemies and the opened gate are removed with `e.Scene_RemoveNode` |
 | **Combat** | `hero.odin`: the attack's two slashes hit what the sword reaches; `enemy.odin`: health, knockback (walkers never off a ledge: `e.LDtk_IntGridAtPosition` on the Collisions layer), a red flash, death animations, stomps and contact through physics (`e.PhysicsBody_IsInArea`); `snail.odin`, `boar.odin` (charges when it sees the hero), `bee.odin` (flies, dives) |
-| **Hit feel** | `effects.odin`: blood (`components/blood.component.xml`, a one-shot ParticleEmitter instanced from code with `e.Scene_Instantiate`, its `Burst` script removing it when done), a hitstop (`e.Game_HitStop`: the game freezes for a few frames) and a camera shake (`e.Camera2D_Shake`) |
+| **Hit feel** | `effects.odin`: blood (`components/blood.component.xml`, a one-shot ParticleEmitter instanced from code with `e.Scene_AddComponent`, its `Burst` script removing it with `e.Scene_RemoveComponent` when the emitter's `onFinished` event says it's done), a hitstop (`e.Game_HitStop`: the game freezes for a few frames) and a camera shake (`e.Camera2D_Shake`) |
 | **A HUD for the level** | `hud.odin`: a health bar along the top (the lost part trails and drains), coins collected, score (enemies defeated and the chest) |
 
 The art and sounds are from two asset packs (see `assets/forest/CREDITS.md`). The editor's

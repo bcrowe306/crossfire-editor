@@ -1,7 +1,6 @@
 package scripts
 
 import e "engine:."
-import sdl "vendor:sdl3"
 
 /*
 The forest level's shared helpers: what a hit looks and feels like, and questions about the
@@ -10,7 +9,7 @@ level's ground.
 A hit (Effects_Hit) is three things at once:
 - blood: an instance of components/blood.component.xml (a one-shot ParticleEmitter, its look
   edited in the editor), sprayed away from whoever struck, removed by its Burst script once its
-  particles are gone (e.Scene_Instantiate from code);
+  particles are gone (e.Scene_AddComponent from code, e.Scene_RemoveComponent);
 - a hitstop: the game freezes for a few frames (e.Game_HitStop);
 - a camera shake (e.Camera2D_Shake).
 */
@@ -27,7 +26,7 @@ HitWeight :: enum {
 
 // Blood, a hitstop and a shake at `at` (world), the blood flying toward `direction` (-1 left, 1 right)
 Effects_Hit :: proc(scene: ^e.Scene, at: [2]f32, direction: f32, weight: HitWeight) {
-	if blood := e.Scene_Instantiate(scene, COMPONENT_BLOOD, nil, at); blood != nil && e.Node_Is(blood, e.ParticleEmitter) {
+	if blood := e.Scene_AddComponent(scene, COMPONENT_BLOOD, nil, at); blood != nil && e.Node_Is(blood, e.ParticleEmitter) {
 		// Up and away: 300° is up-right, 240° up-left
 		(cast(^e.ParticleEmitter)blood).settings.angle = direction >= 0 ? 300 : 240
 		if weight == .Heavy do (cast(^e.ParticleEmitter)blood).settings.amount = 48
@@ -67,24 +66,25 @@ Level_CanWalk :: proc(scene: ^e.Scene, feet: [2]f32, direction, reach: f32) -> b
 }
 
 /*
-Burst: on a one-shot ParticleEmitter (components/blood.component.xml). Starts it, then removes it
-once its particles are gone, so effects made from code clean up after themselves.
+Burst: on a one-shot ParticleEmitter, the root of components/blood.component.xml. Starts it, then
+removes the instance when the emitter finishes (its onFinished event: the cycle ended and its
+particles are gone), so effects made from code clean up after themselves.
 */
 Burst :: struct {
 	using script: e.Script,
-	time: f32,
 }
 
 @(init)
 register_Burst :: proc "contextless" () {
 	e.Script_Register(Burst, {
 		ready = proc(self: ^Burst) {
-			if e.Node_Is(self.node, e.ParticleEmitter) do e.ParticleEmitter_Start(cast(^e.ParticleEmitter)self.node)
-		},
-		update = proc(self: ^Burst, _: []sdl.Event, deltaTime: f64) {
-			self.time += f32(deltaTime)
-			if !e.Node_Is(self.node, e.ParticleEmitter) || self.time < 0.2 do return
-			if e.ParticleEmitter_AliveCount(cast(^e.ParticleEmitter)self.node) == 0 do e.Scene_RemoveNode(self.scene, self.node.id)
+			if !e.Node_Is(self.node, e.ParticleEmitter) do return
+			emitter := cast(^e.ParticleEmitter)self.node
+			e.Event_Subscribe(&emitter.onFinished, proc(_: ^e.EventSubject, source: rawptr, _: e.EventData, _: rawptr) {
+				emitter := cast(^e.ParticleEmitter)source
+				e.Scene_RemoveComponent(emitter.scene, emitter.id)
+			}, nil)
+			e.ParticleEmitter_Start(emitter)
 		},
 	})
 }
