@@ -261,7 +261,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Project_Archive_Path_Chosen, Project_Archive_Open_Chosen, Project_Archive_Destination_Chosen,
 	     Project_Archive_Written, Project_Archive_Extracted:
 		// Handled by ProjectArchive_Update above
-	case LDtk_Setting_Changed, LDtk_Open_Requested, LDtk_Asset_Open_Requested:
+	case LDtk_Setting_Changed, LDtk_Level_Picked, LDtk_Open_Requested, LDtk_Asset_Open_Requested:
 		// Handled by LDtkEdit_Update above
 	case Git_Refresh_Requested, Git_Snapshot_Read, Git_Op_Requested, Git_Op_Finished, Git_Message_Changed,
 	     Git_New_Branch_Changed, Git_Remote_URL_Changed:

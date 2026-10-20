@@ -264,6 +264,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			info.label = fmt.tprintf("%v %d nodes", drag.mode, len(s.selection))
 		}
 		return info
+	case LDtk_Level_Picked:
+		return {scope = .Scene, label = fmt.tprintf("Show level %s", v.level)}
 	case LDtk_Setting_Changed:
 		if !hasSelection do break
 		// Typing collision values merges into one step

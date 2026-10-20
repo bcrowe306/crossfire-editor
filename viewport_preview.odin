@@ -625,12 +625,51 @@ Preview_RenderLDtk :: proc(s: ^State, slot: LDtkThumbnailSlot, file, level: stri
 	sdl.RenderClear(r)
 	e.Scene_DrawWithView(scene, r, view, screenLayersUseView = true, positionOnlyScale = zoom)
 	sdl.FlushRenderer(r)
+	// Where each level is in the picture, for clicks on it (Preview_LDtkLevelAt)
+	for rect in ldtkLevelRects[slot] do delete(rect.identifier)
+	clear(&ldtkLevelRects[slot])
+	if created[0].type == typeid_of(e.LDtkLevelNode) {
+		levelNode := cast(^e.LDtkLevelNode)created[0]
+		for levelView in levelNode.views {
+			if levelView.level == nil do continue
+			origin := e.Transform2D_Apply(view, e.Node_GetWorldTransform(levelView).origin)
+			append(&ldtkLevelRects[slot], LDtkLevelRect{strings.clone(levelView.level.identifier), {origin.x, origin.y, levelView.level.size.x * zoom, levelView.level.size.y * zoom}})
+		}
+	}
 	resize(&t.pixels, size.x * size.y * 4)
 	src := ([^]u8)(t.surface.pixels)
 	row := size.x * 4
 	for y in 0 ..< size.y do copy(t.pixels[y * row:][:row], src[y * int(t.surface.pitch):][:row])
 	t.key = key
 	return t.pixels[:], key, true
+}
+
+// A level's place in an LDtk picture, in its pixels
+LDtkLevelRect :: struct {
+	identifier: string,
+	rect: [4]f32,
+}
+
+// Each picture's levels, as last drawn (identifiers owned)
+@(private="file")
+ldtkLevelRects: [LDtkThumbnailSlot][dynamic]LDtkLevelRect
+
+/*
+The level under a point of an LDtk picture, as last drawn.
+
+Inputs:
+- slot: Which picture
+- point: In the picture's pixels (0, 0 its top-left corner)
+
+Returns:
+- The level's identifier and rectangle (the picture's), and whether there's one there
+*/
+Preview_LDtkLevelAt :: proc(slot: LDtkThumbnailSlot, point: [2]f32) -> (identifier: string, rect: [4]f32, ok: bool) {
+	for level in ldtkLevelRects[slot] {
+		r := level.rect
+		if point.x >= r[0] && point.y >= r[1] && point.x < r[0] + r[2] && point.y < r[1] + r[3] do return level.identifier, r, true
+	}
+	return "", {}, false
 }
 
 // Where an LDtk picture is shown (each has its own cache)
@@ -671,6 +710,11 @@ thumbnailDestroy :: proc(t: ^Thumbnail) {
 }
 
 Preview_Destroy :: proc() {
+	for &rects in ldtkLevelRects {
+		for rect in rects do delete(rect.identifier)
+		delete(rects)
+		rects = nil
+	}
 	destroyAll()
 	delete(preview.pixels)
 	delete(preview.nodes)

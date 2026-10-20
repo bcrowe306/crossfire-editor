@@ -60,6 +60,11 @@ LDtk_Setting_Changed :: struct {
 // Open the selected LDtkLevel node's file in LDtk
 LDtk_Open_Requested :: struct {}
 
+// A level clicked in the browser's world map (strings only live for the frame)
+LDtk_Level_Picked :: struct {
+	file, level: string,
+}
+
 // The choice for no level ("the first one") and no collision layer
 LDTK_FIRST_LEVEL :: "(first level)"
 LDTK_NO_LAYER :: "(none)"
@@ -161,6 +166,21 @@ Returns:
 */
 LDtkEdit_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	#partial switch v in m {
+	case LDtk_Level_Picked:
+		// The selected LDtkLevel node if it shows this file, else the scene's first that does
+		scene := &state.project.scenes[state.currentScene]
+		target := -1
+		if node := selectedNode(state); node != nil && node.kind == .LDtkLevel && node.ldtk.file == v.file do target = state.selectedNode
+		for &n, i in scene.nodes do if target < 0 && n.kind == .LDtkLevel && n.ldtk.file == v.file do target = i
+		if target < 0 {
+			logLine(state, .Info, fmt.aprintf("No LDtkLevel node shows %s in %s: drag it into the viewport to add one", filepath.base(v.file), scene.name))
+			return {}, true
+		}
+		settings := &scene.nodes[target].ldtk
+		delete(settings.level)
+		settings.level = strings.clone(v.level)
+		settings.allLevels = false
+		state.selectedNode = target
 	case LDtk_Setting_Changed:
 		node := selectedNode(state)
 		if node == nil || node.kind != .LDtkLevel do return {}, true
@@ -504,10 +524,29 @@ ldtkThumbnailView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, slot: LDtkThumbnailSl
 			else do skald.image_load_pixels(ctx.renderer, LDTK_IMAGES[d.slot], u32(pixelSize.x), u32(pixelSize.y), pixels)
 			ldtkImageKeys[d.slot], ldtkImageSizes[d.slot] = key, pixelSize
 		}
-		Paint :: struct { slot: LDtkThumbnailSlot }
-		return skald.canvas(ctx, new_clone(Paint{d.slot}, context.temp_allocator), proc(p: ^Paint, painter: skald.Canvas_Painter) {
+		// The browser's world map: hovering a level outlines it, a click picks it for the selected
+		// LDtkLevel node (LDtk_Level_Picked)
+		id := skald.hash_id(fmt.tprintf("ldtk-map-%v", d.slot))
+		hovered: [4]f32
+		hovering := false
+		if d.slot == .Browser {
+			if state, drawn := ctx.widgets.states[id]; drawn && skald.widget_hovered(ctx, id) && len(ctx.widgets.overlay_rects_prev) == 0 {
+				local := ctx.input.mouse_pos - {state.last_rect.x, state.last_rect.y}
+				if identifier, rect, ok := Preview_LDtkLevelAt(d.slot, local); ok {
+					hovered, hovering = rect, true
+					if ctx.input.mouse_pressed[.Left] do skald.send(ctx, Msg(LDtk_Level_Picked{file = strings.clone(d.file, context.temp_allocator), level = strings.clone(identifier, context.temp_allocator)}))
+				}
+			}
+		}
+		Paint :: struct { slot: LDtkThumbnailSlot, hovered: [4]f32, hovering: bool, color: skald.Color }
+		paint := new_clone(Paint{d.slot, hovered, hovering, ctx.theme.color.primary}, context.temp_allocator)
+		return skald.canvas(ctx, paint, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 			skald.draw_image(painter.r, LDTK_IMAGES[p.slot], painter.bounds, .Fill)
-		}, width = max(size.x, 1), height = max(size.y, 1))
+			if p.hovering {
+				b := painter.bounds
+				skald.draw_rect_outline(painter.r, {b.x + p.hovered[0], b.y + p.hovered[1], p.hovered[2], p.hovered[3]}, 2, p.color)
+			}
+		}, id = id, width = max(size.x, 1), height = max(size.y, 1), cursor = d.slot == .Browser && hovering ? .Pointer : .Default)
 	})
 	if height <= 0 do return skald.flex(1, picture)
 	return skald.col(picture, width = width, height = height)

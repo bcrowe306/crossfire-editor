@@ -874,6 +874,7 @@ Msg :: union {
 	Git_New_Branch_Changed,
 	Git_Remote_URL_Changed,
 	LDtk_Setting_Changed,
+	LDtk_Level_Picked,
 	LDtk_Open_Requested,
 	LDtk_Asset_Open_Requested,
 	Settings_Capture_Started,

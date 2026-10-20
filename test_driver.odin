@@ -145,6 +145,7 @@ Checks:
 	grid <on | off>, snap <on | off>   Viewport grid and snapping
 	modified <true | false>      The project has unsaved changes
 	project <name>               The open project's name
+	ldtk_level <identifier|first>    The selected LDtkLevel node's level
 	about_dialog <open | closed>, confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
 	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit> <value>
@@ -1437,6 +1438,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(Project_IsModified(s))
 	case "project":
 		found = s.project.name
+	case "ldtk_level":
+		// The selected node's LDtk level ("" shows as "first")
+		if selected == nil do return false, "nothing selected"
+		found = selected.ldtk.level == "" ? "first" : selected.ldtk.level
 	case "about_dialog":
 		found = s.aboutOpen ? "open" : "closed"
 	case "confirm_dialog":

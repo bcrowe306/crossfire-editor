@@ -41,7 +41,6 @@ owns it.
 
 ## LDtk levels
 
-- Pick a level by clicking it in the browser's world map (the inspector shows the chosen one).
 - Hot reload of entities and of layers added or removed (Play reloads tiles, collision and
   backgrounds; entities would need scripts to let go of their nodes).
 

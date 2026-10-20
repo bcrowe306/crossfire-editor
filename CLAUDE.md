@@ -1014,8 +1014,11 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   and the copy's JSON is rewritten (quoted paths, plain and `\/`-escaped).
 - **Exports:** `Export_ProjectFiles` adds `LDtkEdit_ExportFiles` (dependencies inside the project
   that aren't assets already), so packs and data folders have the tilesets.
-- **Browser:** a **Levels** folder (last, so other rows keep their indices), its preview lists
-  levels; the menu and preview have Open in LDtk (`LDtk_Asset_Open_Requested`).
+- **Browser:** a **Levels** folder, its preview lists levels; the menu and preview have Open in
+  LDtk (`LDtk_Asset_Open_Requested`). **The world map picks levels:** `Preview_RenderLDtk`
+  records each level's rectangle in the picture (`Preview_LDtkLevelAt`); hovering one outlines
+  it and a click sends `LDtk_Level_Picked`, which shows it in the selected LDtkLevel node (else
+  the scene's first using that file), a `.Scene` undo step (ldtk.script: `ldtk_level`).
 - Tests: `ldtk_import_settings_and_export`, `ldtk_import_brings_outside_files_in`;
   `tests/ui/ldtk.script` (import, Add Node, inspector selects, the preview's levels / entities /
   shapes through the driver's `ldtk_preview`, undo, save, Play). The fixture
