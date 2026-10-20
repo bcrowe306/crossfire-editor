@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scene formatVersion="12" name="ForestScene">
-	<node kind="Camera" name="Camera" x="213" y="264" zoom="3"/>
+	<node kind="Camera" name="Camera" x="213" y="360" zoom="3"/>
 	<node kind="LDtkLevel" name="Level" x="0" y="0" ldtk="assets/forest/forest.ldtk" level="Forest" intGridCollision="Collisions">
 		<entity name="Hero" component="components/hero.component.xml"/>
 		<entity name="Coin" component="components/coin.component.xml"/>
 		<entity name="Snail" component="components/snail.component.xml"/>
+		<entity name="Boar" component="components/boar.component.xml"/>
+		<entity name="Bee" component="components/bee.component.xml"/>
 		<entity name="Key" component="components/key.component.xml"/>
 		<entity name="Gate" component="components/gate.component.xml"/>
 		<entity name="Chest" component="components/chest.component.xml"/>

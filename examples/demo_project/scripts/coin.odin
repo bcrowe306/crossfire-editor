@@ -7,7 +7,8 @@ import sdl "vendor:sdl3"
 /*
 Coin: the forest level's coins, LDtk entities mapped to components/coin.component.xml (an Area
 with a sprite). Each coin's "value" field in LDtk sets `value`: the one on the highest platform
-is worth 5, and drawn bigger. Taking one adds its value to the score and removes the coin.
+is worth 5, and drawn bigger. Taking one adds its value to the coins collected (the HUD shows
+them) and removes the coin.
 */
 Coin :: struct {
 	using script: e.Script,
@@ -33,7 +34,7 @@ register_Coin :: proc "contextless" () {
 		collisionEnter = proc(self: ^Coin, hit: ^e.Collision) {
 			if self.taken || !e.Node_Is(hit.other, e.CharacterMover) do return
 			self.taken = true
-			if state := e.Global(GameState); state != nil do state.score += self.value
+			if state := e.Global(GameState); state != nil do state.coins += self.value
 			e.Game_PlaySound(self.game, SOUND_COIN)
 			e.Scene_RemoveNode(self.scene, self.node.id)
 		},

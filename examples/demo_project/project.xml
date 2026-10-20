@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project formatVersion="11" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
+<project formatVersion="12" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
 	<scene name="MenuScene" path="scenes/MenuScene.scene.xml"/>
 	<scene name="PlayScene" path="scenes/PlayScene.scene.xml"/>
 	<scene name="OptionsScene" path="scenes/OptionsScene.scene.xml"/>
@@ -21,12 +21,18 @@
 	<asset path="assets/forest/gate.png" kind="Image"/>
 	<asset path="assets/forest/chest.png" kind="Image"/>
 	<asset path="assets/forest/chest_open.png" kind="Image"/>
+	<asset path="assets/forest/boar.png" kind="Image"/>
+	<asset path="assets/forest/bee.png" kind="Image"/>
 	<asset path="assets/forest/sounds/jump.ogg" kind="Audio"/>
 	<asset path="assets/forest/sounds/coin.ogg" kind="Audio"/>
 	<asset path="assets/forest/sounds/stomp.ogg" kind="Audio"/>
 	<asset path="assets/forest/sounds/key.ogg" kind="Audio"/>
 	<asset path="assets/forest/sounds/gate.ogg" kind="Audio"/>
 	<asset path="assets/forest/sounds/win.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/swing.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/hit.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/defeat.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/hurt.ogg" kind="Audio"/>
 	<asset path="assets/forest/forest.ldtk" kind="LDtk"/>
 	<asset path="components/hero.component.xml" kind="Component"/>
 	<asset path="components/coin.component.xml" kind="Component"/>
@@ -34,6 +40,9 @@
 	<asset path="components/key.component.xml" kind="Component"/>
 	<asset path="components/gate.component.xml" kind="Component"/>
 	<asset path="components/chest.component.xml" kind="Component"/>
+	<asset path="components/boar.component.xml" kind="Component"/>
+	<asset path="components/bee.component.xml" kind="Component"/>
+	<asset path="components/blood.component.xml" kind="Component"/>
 	<global script="GameState">
 		<prop name="ship" value="data/scout.data.json"/>
 	</global>
@@ -76,5 +85,11 @@
 		<key key="Up"/>
 		<key key="W"/>
 		<gamepad button="South"/>
+	</action>
+	<action name="attack">
+		<key key="J"/>
+		<key key="X"/>
+		<mouse button="Left"/>
+		<gamepad button="West"/>
 	</action>
 </project>

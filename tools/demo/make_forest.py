@@ -10,16 +10,17 @@ script is only needed to start over:
 (magick) for the images.
 
 What it makes:
-- the images: the tileset, the sky, the tree strips, a combined hero sheet (idle, run and jump
-  rows of 80 x 80 cells, feet on one line), the snail's walk, and single items cut from the
-  tileset (coin, key, chest, open chest, gate log)
+- the images: the tileset, the sky (mirrored into a wide strip), the tree strips, combined
+  sheets (the hero: idle, run, jump and attack rows of 96 x 80 cells, feet on one line; the
+  boar: idle, walk, run, hit; the bee: fly, attack, hit; the snail: walk, hide, dead), and single
+  items cut from the tileset (coin, key, chest, open chest, the gate's log)
 - the sounds, copied under short names
 - forest.ldtk: an LDtk 1.5.3 project, built from LDtk's own JSON schema (every object gets every
   key the schema requires) and checked against it. Its ground is an IntGrid layer with auto-layer
   RULES (edges, corners, grass tips, planks), and the tiles saved with it are what those rules
   make, so painting ground in LDtk tiles it the same way. Also: a Decor tile layer, two parallax
   tree layers, the sky as the level background, and entities with fields (the hero's speed, coin
-  values, snail patrols, the key's EntityRef to the gate).
+  values, enemies' patrols, speeds and health, the key's EntityRef to the gate).
 """
 import json, os, random, shutil, subprocess, sys, uuid
 
@@ -31,7 +32,7 @@ OUT = os.path.join(EDITOR, "examples", "demo_project", "assets", "forest")
 SCHEMA = os.path.join(WORKSPACE, "ldtk", "docs", "JSON_SCHEMA.json")
 
 G = 16                  # grid size
-W, H = 100, 24          # level size in cells
+W, H = 200, 30          # level size in cells
 TILES_COLS = 25         # tiles.png: 400 / 16
 
 
@@ -41,12 +42,33 @@ def magick(*args):
 
 # --- Images and sounds -----------------------------------------------------------------------
 
+def sheet(out, cell, rows, columns):
+    """Combines sprite sheets into one of `cell` (w, h) cells, a row per sheet: rows are
+    (path, frames, frame w, frame h, feet). Frames are centered across; with `feet` the sheet's
+    lowest opaque pixel goes to that y, else frames are centered down too."""
+    cw, ch = cell
+    parts = []
+    for row, (path, frames, fw, fh, feet) in enumerate(rows):
+        src = os.path.join(PACK, path)
+        if feet is not None:
+            bottom = int(subprocess.run(["magick", src, "-trim", "-format", "%[fx:page.y+h]", "info:"], capture_output=True, text=True, check=True).stdout)
+            dy = feet - bottom
+        else:
+            dy = (ch - fh) // 2
+        dx = (cw - fw) // 2
+        for i in range(frames):
+            parts += ["(", src, "-crop", f"{fw}x{fh}+{i * fw}+0", "+repage", "-background", "none", "-extent", f"{cw}x{ch}{-dx:+d}{-dy:+d}", "-repage", f"+{i * cw}+{row * ch}", ")"]
+    magick("-size", f"{columns * cw}x{len(rows) * ch}", "xc:none", *parts, "-background", "none", "-layers", "flatten", os.path.join(OUT, out))
+
+
 def prepare_assets():
     os.makedirs(os.path.join(OUT, "sounds"), exist_ok=True)
     shutil.copy(os.path.join(PACK, "Assets", "Tiles.png"), os.path.join(OUT, "tiles.png"))
-    shutil.copy(os.path.join(PACK, "Background", "Background.png"), os.path.join(OUT, "sky.png"))
     shutil.copy(os.path.join(PACK, "Trees", "Background.png"), os.path.join(OUT, "trees.png"))
-    shutil.copy(os.path.join(PACK, "Mob", "Snail", "walk-Sheet.png"), os.path.join(OUT, "snail.png"))
+    # The sky three times across, the middle one mirrored, so it joins up: a wide level covers
+    # with it at a smaller scale
+    sky = os.path.join(PACK, "Background", "Background.png")
+    magick(sky, "(", sky, "-flop", ")", sky, "+append", os.path.join(OUT, "sky.png"))
 
     # Single items from the tileset: (x, y, w, h) in pixels
     tiles = os.path.join(PACK, "Assets", "Tiles.png")
@@ -55,26 +77,44 @@ def prepare_assets():
         "key": (15 * G, 20 * G, 16, 16),
         "chest": (18 * G, 17 * G, 32, 32),
         "chest_open": (20 * G, 17 * G, 32, 32),
-        "gate": (10 * G, 3 * G, 32, 48),
+        # A tree trunk: too tall to jump over
+        "gate": (10 * G, 3 * G, 32, 112),
     }.items():
         magick(tiles, "-crop", f"{w}x{h}+{x}+{y}", "+repage", os.path.join(OUT, f"{name}.png"))
 
-    # The hero: one sheet of 80 x 80 cells, 15 across: idle (row 0), run (row 1), jump (row 2), each
-    # sheet's frames centered across and their feet (the lowest opaque pixel of the sheet) at y 76
-    sheets = [("Idle/Idle-Sheet.png", 4, 64, 80), ("Run/Run-Sheet.png", 8, 80, 80), ("Jumlp-All/Jump-All-Sheet.png", 15, 64, 64)]
-    cell = 80
-    parts = []
-    for row, (path, frames, fw, fh) in enumerate(sheets):
-        src = os.path.join(PACK, "Character", path)
-        bottom = int(subprocess.run(["magick", src, "-trim", "-format", "%[fx:page.y+h]", "info:"], capture_output=True, text=True, check=True).stdout)
-        dy = 76 - bottom
-        dx = (cell - fw) // 2
-        for i in range(frames):
-            parts += ["(", src, "-crop", f"{fw}x{fh}+{i * fw}+0", "+repage", "-background", "none", "-extent", f"{cell}x{cell}-{dx}-{dy}", "-repage", f"+{i * cell}+{row * cell}", ")"]
-    magick("-size", f"{15 * cell}x{3 * cell}", "xc:none", *parts, "-background", "none", "-layers", "flatten", os.path.join(OUT, "hero.png"))
+    # The hero: 15 columns of 96 x 80 cells; rows idle, run, jump, attack; feet at y 76
+    sheet("hero.png", (96, 80), [
+        ("Character/Idle/Idle-Sheet.png", 4, 64, 80, 76),
+        ("Character/Run/Run-Sheet.png", 8, 80, 80, 76),
+        ("Character/Jumlp-All/Jump-All-Sheet.png", 15, 64, 64, 76),
+        ("Character/Attack-01/Attack-01-Sheet.png", 8, 96, 80, 76),
+    ], 15)
+    # The boar (faces left): 6 columns of 48 x 32; idle, walk, run, hit (white flashes)
+    sheet("boar.png", (48, 32), [
+        ("Mob/Boar/Idle/Idle-Sheet.png", 4, 48, 32, 32),
+        ("Mob/Boar/Walk/Walk-Base-Sheet.png", 6, 48, 32, 32),
+        ("Mob/Boar/Run/Run-Sheet.png", 6, 48, 32, 32),
+        ("Mob/Boar/Hit-Vanish/Hit-Sheet.png", 4, 48, 32, 32),
+    ], 6)
+    # The bee (faces left): 4 columns of 64 x 64; fly, attack, hit
+    sheet("bee.png", (64, 64), [
+        ("Mob/Small Bee/Fly/Fly-Sheet.png", 4, 64, 64, None),
+        ("Mob/Small Bee/Attack/Attack-Sheet.png", 4, 64, 64, None),
+        ("Mob/Small Bee/Hit/Hit-Sheet.png", 4, 64, 64, None),
+    ], 4)
+    # The snail (faces left): 8 columns of 48 x 32; walk, hide (in its shell), dead
+    sheet("snail.png", (48, 32), [
+        ("Mob/Snail/walk-Sheet.png", 8, 48, 32, None),
+        ("Mob/Snail/Hide-Sheet.png", 8, 48, 32, None),
+        ("Mob/Snail/Dead-Sheet.png", 8, 48, 32, None),
+    ], 8)
 
     for name, (folder, file) in {
         "jump": ("SWIPES - SLASHES - WHOOSHES - (58)", "SWIPE Whoosh 01.ogg"),
+        "swing": ("SWIPES - SLASHES - WHOOSHES - (58)", "SWIPE Whoosh 03.ogg"),
+        "hit": ("SWIPES - SLASHES - WHOOSHES - (58)", "SWIPE Slash Splat 01.ogg"),
+        "defeat": ("SPLATS - SQUELCHES - (36)", "SPLAT Squelch 03.ogg"),
+        "hurt": ("VOCAL CUTE - CHARACTERS - (113)", "VOCAL CUTE Distress Pain 03.ogg"),
         "coin": ("COINS - MONEY - TREASURE - (26)", "COINS Collect Chime 01.ogg"),
         "stomp": ("SPLATS - SQUELCHES - (36)", "SPLAT Short 01.ogg"),
         "key": ("SUCCESS - PICKUPS - (109)", "SUCCESS PICKUP Collect Beep 05.ogg"),
@@ -169,18 +209,29 @@ def fill(x0, x1, y0, y1, value=GROUND):
             grid[y][x] = value
 
 
-fill(0, 15, 19, 23)          # the meadow
-fill(0, 1, 6, 18)            # a cliff on the left
-fill(19, 30, 17, 23)         # a raised step (a pit before it)
-fill(31, 43, 20, 23)         # low ground under the platforms
-fill(33, 36, 14, 14, PLANK)  # platforms up to the key
-fill(39, 43, 11, 11, PLANK)
-fill(26, 29, 13, 13, PLANK)
-fill(44, 47, 17, 17, PLANK)  # a bridge over the gap
-fill(48, 60, 15, 23)         # a hill
-fill(61, 99, 19, 23)         # the last stretch
-fill(74, 79, 17, 18)         # a mound
-fill(98, 99, 6, 18)          # a cliff on the right
+# Heights: the hero jumps about 5 cells, so steps up are at most 4; the gate is 7 tall
+fill(0, 22, 24, 29)           # the meadow
+fill(0, 1, 8, 23)             # a cliff on the left
+fill(14, 17, 22, 23)          # a mound
+fill(26, 38, 22, 29)          # a raised step (a pit before it)
+fill(30, 33, 18, 18, PLANK)
+fill(39, 52, 24, 29)          # low ground: a boar's
+fill(53, 58, 21, 21, PLANK)   # a bridge over a pit
+fill(59, 75, 20, 29)          # a hill
+fill(66, 69, 16, 16, PLANK)
+fill(76, 104, 24, 29)         # a long flat: a boar, bees above
+fill(80, 84, 20, 20, PLANK)   # platforms up to the key
+fill(87, 91, 16, 16, PLANK)
+fill(94, 99, 12, 12, PLANK)
+fill(109, 125, 22, 29)        # raised ground after a pit
+fill(112, 116, 17, 17, PLANK)
+fill(126, 140, 25, 29)        # a dip: another boar
+fill(141, 144, 22, 22, PLANK) # a bridge over a pit
+fill(145, 160, 21, 29)        # a hill with bees
+fill(155, 157, 19, 20)        # a mound on it
+fill(161, 199, 24, 29)        # the last stretch: the gate, a boar, the chest
+fill(165, 168, 20, 20, PLANK)
+fill(198, 199, 8, 23)         # a cliff on the right
 
 
 def at(x, y):
@@ -235,12 +286,16 @@ def tile_rect(tileset, x, y, w, h):
 def make_level():
     prepare_assets()
     random.seed(7)
-    TILES, TREES, HERO, SNAIL = 1, 2, 3, 4
+    TILES, TREES, HERO, SNAIL, BOAR, BEE = 1, 2, 3, 4, 5, 6
+    def tileset(ident, uid_, rel, w, h):
+        return make("TilesetDef", __cWid=w // G, __cHei=h // G, identifier=ident, uid=uid_, relPath=rel, pxWid=w, pxHei=h, tileGridSize=G)
     tilesets = [
-        make("TilesetDef", __cWid=25, __cHei=25, identifier="Tiles", uid=TILES, relPath="tiles.png", pxWid=400, pxHei=400, tileGridSize=G),
-        make("TilesetDef", __cWid=56, __cHei=16, identifier="Trees", uid=TREES, relPath="trees.png", pxWid=896, pxHei=256, tileGridSize=G),
-        make("TilesetDef", __cWid=15, __cHei=3, identifier="Hero", uid=HERO, relPath="hero.png", pxWid=1200, pxHei=240, tileGridSize=80),
-        make("TilesetDef", __cWid=8, __cHei=1, identifier="Snail", uid=SNAIL, relPath="snail.png", pxWid=384, pxHei=32, tileGridSize=48),
+        tileset("Tiles", TILES, "tiles.png", 400, 400),
+        tileset("Trees", TREES, "trees.png", 896, 256),
+        tileset("Hero", HERO, "hero.png", 1440, 320),
+        tileset("Snail", SNAIL, "snail.png", 384, 96),
+        tileset("Boar", BOAR, "boar.png", 288, 128),
+        tileset("Bee", BEE, "bee.png", 256, 192),
     ]
 
     # Layer definitions (and their uids)
@@ -293,15 +348,19 @@ def make_level():
         return make("EntityDef", **values)
     speed_def = field_def("speed", "F_Float", "Float", {"id": "V_Float", "params": [110.0]})
     value_def = field_def("value", "F_Int", "Int", {"id": "V_Int", "params": [1]})
-    patrol_def = field_def("patrol", "F_Point", "Point", None, editorDisplayMode="PointPath")
-    snail_speed_def = field_def("speed", "F_Float", "Float", {"id": "V_Float", "params": [24.0]})
+    def enemy_fields(speed, health):
+        return [field_def("patrol", "F_Point", "Point", None, editorDisplayMode="PointPath"),
+                field_def("speed", "F_Float", "Float", {"id": "V_Float", "params": [speed]}),
+                field_def("health", "F_Int", "Int", {"id": "V_Int", "params": [health]})]
     opens_def = field_def("opens", "F_EntityRef", "EntityRef", None, editorDisplayMode="RefLinkBetweenCenters", editorLinkStyle="CurvedArrow")
     E = {}
-    E["Hero"] = entity_def("Hero", 16, 32, "#5BC0EB", (0.5, 1.0), tile_rect(HERO, 0, 0, 80, 80), "FullSizeUncropped", [speed_def])
+    E["Hero"] = entity_def("Hero", 16, 32, "#5BC0EB", (0.5, 1.0), tile_rect(HERO, 0, 0, 96, 80), "FullSizeUncropped", [speed_def])
     E["Coin"] = entity_def("Coin", 16, 16, "#FFD23F", (0.5, 0.5), tile_rect(TILES, 15 * G, 21 * G, 16, 16), "FitInside", [value_def])
-    E["Snail"] = entity_def("Snail", 32, 20, "#E4572E", (0.5, 1.0), tile_rect(SNAIL, 0, 0, 48, 32), "FullSizeUncropped", [patrol_def, snail_speed_def])
+    E["Snail"] = entity_def("Snail", 32, 20, "#E4572E", (0.5, 1.0), tile_rect(SNAIL, 0, 0, 48, 32), "FullSizeUncropped", enemy_fields(24.0, 2))
+    E["Boar"] = entity_def("Boar", 32, 24, "#9C6644", (0.5, 1.0), tile_rect(BOAR, 0, 0, 48, 32), "FullSizeUncropped", enemy_fields(40.0, 3))
+    E["Bee"] = entity_def("Bee", 20, 20, "#F9C74F", (0.5, 0.5), tile_rect(BEE, 0, 0, 64, 64), "FullSizeUncropped", enemy_fields(50.0, 1))
     E["Key"] = entity_def("Key", 16, 16, "#F4D35E", (0.5, 0.5), tile_rect(TILES, 15 * G, 20 * G, 16, 16), "FitInside", [opens_def])
-    E["Gate"] = entity_def("Gate", 24, 48, "#8D6346", (0.5, 1.0), tile_rect(TILES, 10 * G, 3 * G, 32, 48), "FullSizeUncropped", [])
+    E["Gate"] = entity_def("Gate", 24, 112, "#8D6346", (0.5, 1.0), tile_rect(TILES, 10 * G, 3 * G, 32, 112), "FullSizeUncropped", [])
     E["Chest"] = entity_def("Chest", 32, 32, "#C08552", (0.5, 1.0), tile_rect(TILES, 18 * G, 17 * G, 32, 32), "FitInside", [])
 
     level_iid = iid("level")
@@ -314,6 +373,7 @@ def make_level():
     instances = []
     def entity(name, cx, cy, fields=(), key=None):
         d = E[name]
+        assert at(cx, cy) == 0, f"{name} at {cx},{cy} is inside the ground"
         # px: where its pivot is (a pivot at the bottom stands on the cell's bottom edge)
         px = [int(cx * G + d["width"] * d["pivotX"]) if d["pivotX"] != 0.5 else cx * G + 8, int(cy * G + (G if d["pivotY"] == 1.0 else 8))]
         e = make("EntityInstance", __identifier=name, __grid=[cx, cy], __pivot=[d["pivotX"], d["pivotY"]], __smartColor=d["color"],
@@ -322,20 +382,39 @@ def make_level():
         instances.append(e)
         return e
 
-    entity("Hero", 4, 18, [field(speed_def, 110.0, "V_Float")])
-    for cx, cy, to in [(9, 18, 14), (23, 16, 29), (52, 14, 58), (84, 18, 92)]:
-        entity("Snail", cx, cy, [field(patrol_def, {"cx": to, "cy": cy}), field(snail_speed_def, 24.0, "V_Float")])
-    coins = [(16, 15), (17, 14), (18, 15)]                                     # over the pit
-    coins += [(x, 15) for x in range(21, 29, 2)]                             # along the step
-    coins += [(x, 12) for x in range(33, 37)] + [(27, 11), (28, 11)]         # the platforms
-    coins += [(x, 13) for x in range(50, 59, 2)] + [(x, 17) for x in range(63, 72, 2)]
+    entity("Hero", 4, 23, [field(speed_def, 160.0, "V_Float")])
+    def enemy(name, cx, cy, to, speed, health):
+        d = {f["identifier"]: f for f in E[name]["fieldDefs"]}
+        entity(name, cx, cy, [field(d["patrol"], {"cx": to[0], "cy": to[1]}), field(d["speed"], speed, "V_Float"), field(d["health"], health, "V_Int")])
+    # Snails crawl (stomp or hit them twice); boars charge when they see the hero (three hits);
+    # bees fly their patrol and dive at the hero (one hit)
+    for cx, cy, to in [(8, 23, (12, 23)), (29, 21, (37, 21)), (62, 19, (73, 19)), (113, 21, (124, 21)), (146, 20, (153, 20))]:
+        enemy("Snail", cx, cy, to, 24.0, 2)
+    for cx, cy, to in [(48, 23, (41, 23)), (92, 23, (79, 23)), (134, 24, (128, 24)), (184, 23, (194, 23))]:
+        enemy("Boar", cx, cy, to, 40.0, 3)
+    for cx, cy, to in [(78, 16, (86, 13)), (101, 9, (106, 15)), (118, 13, (124, 16)), (149, 14, (158, 12)), (176, 17, (190, 15))]:
+        enemy("Bee", cx, cy, to, 50.0, 1)
+
+    coins = [(19, 20), (20, 19), (21, 20)]                                    # over the meadow's mound and pit
+    coins += [(x, 20) for x in range(27, 38, 2)] + [(31, 16), (32, 16)]      # the step and its plank
+    coins += [(x, 19) for x in range(53, 59)]                                 # over the bridge
+    coins += [(x, 18) for x in range(61, 75, 3)] + [(67, 14), (68, 14)]      # the hill
+    coins += [(x, 22) for x in range(77, 104, 4)]                             # the long flat
+    coins += [(82, 18), (89, 14)]                                             # up to the key
+    coins += [(106, 19), (107, 18)]                                           # over the pit
+    coins += [(x, 15) for x in range(112, 117)]                               # the plank
+    coins += [(x, 23) for x in range(128, 140, 3)]                            # the dip
+    coins += [(x, 20) for x in range(141, 145)]                               # the second bridge
+    coins += [(x, 19) for x in range(146, 154, 2)] + [(159, 18)]              # the bee hill
+    coins += [(x, 18) for x in range(165, 169)]                               # by the gate
+    coins += [(x, 22) for x in range(176, 194, 3)]                            # the last stretch
     for cx, cy in coins:
         entity("Coin", cx, cy, [field(value_def, 1, "V_Int")])
-    entity("Coin", 41, 8, [field(value_def, 5, "V_Int")], key="Coin-big")  # the top platform's: worth 5
-    gate = entity("Gate", 68, 18, key="Gate")
+    entity("Coin", 97, 8, [field(value_def, 5, "V_Int")], key="Coin-big")  # above the key: worth 5
+    gate = entity("Gate", 172, 23, key="Gate")
     gate_ref = make("EntityReferenceInfos", entityIid=gate["iid"], layerIid=entities_iid, levelIid=level_iid, worldIid=world_iid)
-    entity("Key", 42, 10, [field(opens_def, gate_ref)], key="Key")
-    entity("Chest", 95, 18, key="Chest")
+    entity("Key", 97, 11, [field(opens_def, gate_ref)], key="Key")
+    entity("Chest", 195, 23, key="Chest")
 
     # The ground's tiles, by the rules
     int_csv = [grid[y][x] for y in range(H) for x in range(W)]
@@ -369,13 +448,13 @@ def make_level():
     decor_tiles = [make("Tile", px=[x * G, y * G], src=[cx * G, cy * G], f=random.choice([0, 1]) if cy != 17 else 0, t=tid(cx, cy), a=1.0, d=[x + y * W])
                    for x, y, cx, cy in decor]
 
-    # The trees, their bottom on the meadow's ground line (row 19). trees.png has clusters of
+    # The trees, their bottom on the meadow's ground line (row 24). trees.png has clusters of
     # trees (dark: columns 0-21, light: 22-43) and two seamless fills with jagged tops (dark:
     # 44-49, light: 50-55). The far layer is the light fill all across; the near one dark
     # clusters with gaps between them, where the far trees show.
     def strip(first_col, cols, every):
         tiles = []
-        base = 19 - 16
+        base = 24 - 16
         for start in range(0, W, every):
             for c in range(cols):
                 for r in range(16):
@@ -400,10 +479,11 @@ def make_level():
 
     # The sky covers the level, its top showing (scaled to cover the width; cropped below)
     px_w, px_h = W * G, H * G
-    scale = max(px_w / 480, px_h / 272)
+    SKY_W, SKY_H = 1440, 272
+    scale = max(px_w / SKY_W, px_h / SKY_H)
     level = make("Level", identifier="Forest", iid=level_iid, uid=0, worldX=0, worldY=0, worldDepth=0, pxWid=px_w, pxHei=px_h,
                  __bgColor="#8FE1E3", bgColor="#8FE1E3", bgRelPath="sky.png", bgPos="Cover", bgPivotX=0.5, bgPivotY=0.0,
-                 __bgPos=make("LevelBgPosInfos", cropRect=[0.0, 0.0, 480.0, px_h / scale], scale=[scale, scale], topLeftPx=[0, 0]),
+                 __bgPos=make("LevelBgPosInfos", cropRect=[0.0, 0.0, float(SKY_W), px_h / scale], scale=[scale, scale], topLeftPx=[0, 0]),
                  __smartColor="#8FE1E3", useAutoIdentifier=False, externalRelPath=None, fieldInstances=[], __neighbours=[], layerInstances=layers)
 
     defs = make("Definitions", layers=layer_defs, entities=list(E.values()), tilesets=tilesets, enums=[], externalEnums=[], levelFields=[])

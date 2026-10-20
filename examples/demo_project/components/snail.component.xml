@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component formatVersion="12" name="snail">
 	<node kind="Area" name="Snail" x="0" y="0">
-		<node kind="AnimatedSprite" name="Sprite" x="0" y="-16" texture="assets/forest/snail.png" columns="8" rows="1">
-			<animation name="walk" start="0" end="-1" fps="8" loop="true"/>
+		<node kind="AnimatedSprite" name="Sprite" x="0" y="-16" texture="assets/forest/snail.png" columns="8" rows="3">
+			<animation name="walk" start="0" end="7" fps="8" loop="true"/>
+			<animation name="hide" start="8" end="11" fps="16"/>
+			<animation name="dead" start="16" end="23" fps="12"/>
 		</node>
 		<node kind="CollisionShape" name="Shell" x="0" y="-8" shape="Rectangle" width="24" height="16"/>
 	</node>

@@ -7,6 +7,8 @@ import e "engine:."
 
 TEXTURE_SPACESHIP_12_1 :: e.TextureAsset{"assets/Spaceship_12_1.png"}
 TEXTURE_BALLOONS :: e.TextureAsset{"assets/balloons.png"}
+TEXTURE_BEE :: e.TextureAsset{"assets/forest/bee.png"}
+TEXTURE_BOAR :: e.TextureAsset{"assets/forest/boar.png"}
 TEXTURE_CHEST :: e.TextureAsset{"assets/forest/chest.png"}
 TEXTURE_CHEST_OPEN :: e.TextureAsset{"assets/forest/chest_open.png"}
 TEXTURE_COIN :: e.TextureAsset{"assets/forest/coin.png"}
@@ -17,15 +19,22 @@ TEXTURE_SNAIL :: e.TextureAsset{"assets/forest/snail.png"}
 TEXTURE_LIGHT :: e.TextureAsset{"assets/light.png"}
 TEXTURE_SHIP :: e.TextureAsset{"assets/ship.png"}
 SOUND_COIN :: e.SoundAsset{"assets/forest/sounds/coin.ogg"}
+SOUND_DEFEAT :: e.SoundAsset{"assets/forest/sounds/defeat.ogg"}
 SOUND_GATE :: e.SoundAsset{"assets/forest/sounds/gate.ogg"}
+SOUND_HIT :: e.SoundAsset{"assets/forest/sounds/hit.ogg"}
+SOUND_HURT :: e.SoundAsset{"assets/forest/sounds/hurt.ogg"}
 SOUND_JUMP :: e.SoundAsset{"assets/forest/sounds/jump.ogg"}
 SOUND_KEY :: e.SoundAsset{"assets/forest/sounds/key.ogg"}
 SOUND_STOMP :: e.SoundAsset{"assets/forest/sounds/stomp.ogg"}
+SOUND_SWING :: e.SoundAsset{"assets/forest/sounds/swing.ogg"}
 SOUND_WIN :: e.SoundAsset{"assets/forest/sounds/win.ogg"}
-SOUND_HIT :: e.SoundAsset{"assets/hit.wav"}
+SOUND_HIT_2 :: e.SoundAsset{"assets/hit.wav"}
 SOUND_PICKUP :: e.SoundAsset{"assets/pickup.wav"}
 DATA_HAULER :: e.DataAsset{"data/hauler.data.json"}  // ShipStats
 DATA_SCOUT :: e.DataAsset{"data/scout.data.json"}  // ShipStats
+COMPONENT_BEE :: e.ComponentAsset{"components/bee.component.xml"}
+COMPONENT_BLOOD :: e.ComponentAsset{"components/blood.component.xml"}
+COMPONENT_BOAR :: e.ComponentAsset{"components/boar.component.xml"}
 COMPONENT_CHEST :: e.ComponentAsset{"components/chest.component.xml"}
 COMPONENT_COIN :: e.ComponentAsset{"components/coin.component.xml"}
 COMPONENT_GATE :: e.ComponentAsset{"components/gate.component.xml"}
@@ -42,3 +51,4 @@ ACTION_UI_DOWN :: "ui_down"
 ACTION_UI_ACCEPT :: "ui_accept"
 ACTION_UI_CANCEL :: "ui_cancel"
 ACTION_JUMP :: "jump"
+ACTION_ATTACK :: "attack"

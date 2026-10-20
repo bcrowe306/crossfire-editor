@@ -20,6 +20,8 @@ GameState :: struct {
 	startingLives: int `export:"default=3 min=1 max=9"`,
 	// The ship flown (a data resource; Options changes it). kind=ShipStats: the picker only lists those
 	ship: e.DataAsset `export:"kind=ShipStats" save:""`,
+	// The forest level's health
+	maxHealth: int `export:"default=5 min=1 max=20"`,
 
 	// The game's own state (saved)
 	score: int,
@@ -27,6 +29,9 @@ GameState :: struct {
 	highScore: int,
 	// Not saved: seconds left of the safety after a hit
 	invulnerable: f32 `save:"-"`,
+	// Not saved: the forest's health and coins (its score is `score`: enemies defeated, the chest)
+	health: int `save:"-"`,
+	coins: int `save:"-"`,
 }
 
 // The ship's stats, or nil
@@ -43,6 +48,19 @@ GameState_Hit :: proc(state: ^GameState) {
 	if state.lives > 0 do return
 	GameState_EndRun(state)
 	state.game->switchScene("MenuScene")
+}
+
+/*
+The forest's damage: takes health (unless just hurt) and gives a moment of safety.
+
+Returns:
+- true when that was the last of it (the caller ends the run)
+*/
+GameState_Damage :: proc(state: ^GameState, amount: int) -> bool {
+	if state.invulnerable > 0 || state.health <= 0 do return false
+	state.health = max(state.health - amount, 0)
+	state.invulnerable = 1.2
+	return state.health == 0
 }
 
 // Ends a run (out of lives, or the forest's chest reached): keeps the high score and saves
@@ -78,6 +96,8 @@ register_GameState :: proc "contextless" () {
 				self.score = 0
 				self.lives = self.startingLives
 				self.invulnerable = 0
+				self.health = self.maxHealth
+				self.coins = 0
 			}
 		},
 	})

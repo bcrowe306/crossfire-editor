@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="12" name="bee">
+	<node kind="Area" name="Bee" x="0" y="0">
+		<node kind="AnimatedSprite" name="Sprite" x="0" y="0" texture="assets/forest/bee.png" columns="4" rows="3" autoplay="fly">
+			<animation name="fly" start="0" end="3" fps="12" loop="true"/>
+			<animation name="attack" start="4" end="7" fps="12" loop="true"/>
+			<animation name="hit" start="8" end="11" fps="12" loop="true"/>
+		</node>
+		<node kind="CollisionShape" name="Body" x="2" y="2" shape="Circle" radius="9"/>
+	</node>
+</component>

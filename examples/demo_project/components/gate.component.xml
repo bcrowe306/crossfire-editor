@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component formatVersion="12" name="gate">
 	<node kind="StaticBody" name="Gate" x="0" y="0">
-		<node kind="Sprite" name="Sprite" x="0" y="-24" texture="assets/forest/gate.png"/>
-		<node kind="CollisionShape" name="Block" x="0" y="-24" shape="Rectangle" width="24" height="48"/>
+		<node kind="Sprite" name="Sprite" x="0" y="-56" texture="assets/forest/gate.png"/>
+		<node kind="CollisionShape" name="Block" x="0" y="-56" shape="Rectangle" width="24" height="112"/>
 	</node>
 </component>

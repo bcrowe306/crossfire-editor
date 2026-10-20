@@ -314,8 +314,9 @@ the levels. LDtk's internal icons are a commercial pack the engine can't include
 (`finalbossblues-icons_full_16.png`) beside the `.ldtk` file to see them.
 
 The demo project's **forest level** (ForestScene, from its menu) uses all of this: a platformer
-with auto-tiled ground, IntGrid collision, parallax trees, and entities (hero, coins, snails, a
-key that opens a gate through an entity reference) that are components with scripts.
+with auto-tiled ground, IntGrid collision, parallax trees, and entities (a sword-fighting hero,
+coins, snails, boars, bees, a key that opens a gate through an entity reference) that are
+components with scripts, with blood particles, hitstop, camera shake and a HUD.
 
 In code:
 

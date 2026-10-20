@@ -958,7 +958,9 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   and backgrounds update in the running game; entity changes need another Play.
 - **The demo's forest level** (ForestScene, `examples/demo_project/assets/forest/forest.ldtk`)
   uses all of it: auto-layer rules, IntGrid collision, parallax layers, entities mapped to
-  components with scripts named like them, fields, an EntityRef. Test:
+  components with scripts named like them, fields (enemies' patrol, speed, health), an EntityRef.
+  Combat (the hero's attack, snails, boars, bees, blood, the engine's hitstop and camera shake,
+  the HUD) is in its scripts; the demo README lists where. Test:
   `shipped_demo_copies_with_its_level` (copied like a bundle's first run, loaded, its files
   exported). It was checked playing (a headless program driving the hero through each mechanic)
   and rendered, in the game and as the editor shows it.

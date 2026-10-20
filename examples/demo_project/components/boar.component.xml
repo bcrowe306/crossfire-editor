@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="12" name="boar">
+	<node kind="Area" name="Boar" x="0" y="0">
+		<node kind="AnimatedSprite" name="Sprite" x="0" y="-16" texture="assets/forest/boar.png" columns="6" rows="4" autoplay="walk">
+			<animation name="idle" start="0" end="3" fps="6" loop="true"/>
+			<animation name="walk" start="6" end="11" fps="8" loop="true"/>
+			<animation name="run" start="12" end="17" fps="14" loop="true"/>
+			<animation name="vanish" start="18" end="21" fps="12" loop="true"/>
+		</node>
+		<node kind="CollisionShape" name="Body" x="0" y="-11" shape="Rectangle" width="34" height="22"/>
+	</node>
+</component>

@@ -188,7 +188,7 @@ shipped_demo_copies_with_its_level :: proc(t: ^testing.T) {
 	if level == nil do return
 	testing.expect_value(t, level.ldtk.file, "assets/forest/forest.ldtk")
 	testing.expect_value(t, level.ldtk.collisionLayer, "Collisions")
-	testing.expect_value(t, len(level.ldtk.entityComponents), 6)
+	testing.expect_value(t, len(level.ldtk.entityComponents), 8)
 	for m in level.ldtk.entityComponents {
 		testing.expectf(t, os.exists(joinPath(root, m.component, allocator = context.temp_allocator)), "%s's component %s", m.entity, m.component)
 	}

@@ -32,9 +32,10 @@ physics shapes.
 ## The forest level (LDtk)
 
 From the menu, **Forest (LDtk)**: run with the arrows or A / D, jump with Space, W or Up (hold
-it to jump higher), collect coins, stomp the snails (walking into one costs a life), take the
-key to open the log blocking the way, and reach the chest. Falling into a pit costs a life too.
-Escape goes back to the menu.
+it to jump higher), attack with J, X, the left mouse button or a gamepad's West button. Fight
+snails, charging boars and diving bees (or stomp them), collect coins, take the key high up to
+open the log blocking the way, and reach the chest. Touching an enemy or falling into a pit
+costs health (the bar at the top); at none, the run ends. Escape goes back to the menu.
 
 The level is `assets/forest/forest.ldtk`, an [LDtk](https://ldtk.io) project: open it with
 **Open in LDtk** (the browser's Levels folder), change it, save, and a running game (Play)
@@ -51,7 +52,10 @@ updates its tiles and collision as you save.
 | **LDtk fields set script fields** | The hero's `speed`, each coin's `value` (the one up high is worth 5), each snail's `patrol` (a Point: where it turns back) and `speed`: set per entity in LDtk |
 | **Entity references** | The key's `opens` field points at the gate (an arrow in LDtk); `key.odin` finds the gate with `e.LDtk_EntityRefNode(self.node, "opens")` |
 | **A platformer on a CharacterMover** | `hero.odin`: scripted gravity (the project has none), `e.CharacterMover_Move`, jump buffering and coyote time, short hops, a camera following inside the level's bounds (`e.Camera2D_SetBounds`, `e.Camera2D_Follow`), the sprite mirrored by a negative scale |
-| **Removing nodes** | Coins, squashed snails and the opened gate are removed with `e.Scene_RemoveNode` |
+| **Removing nodes** | Coins, defeated enemies and the opened gate are removed with `e.Scene_RemoveNode` |
+| **Combat** | `hero.odin`: the attack's two slashes hit what the sword reaches; `enemy.odin`: health, knockback (walkers never off a ledge: `e.LDtk_IntGridAtPosition` on the Collisions layer), a red flash, death animations, stomps and contact through physics (`e.PhysicsBody_IsInArea`); `snail.odin`, `boar.odin` (charges when it sees the hero), `bee.odin` (flies, dives) |
+| **Hit feel** | `effects.odin`: blood (`components/blood.component.xml`, a one-shot ParticleEmitter instanced from code with `e.Scene_Instantiate`, its `Burst` script removing it when done), a hitstop (`e.Game_HitStop`: the game freezes for a few frames) and a camera shake (`e.Camera2D_Shake`) |
+| **A HUD for the level** | `hud.odin`: a health bar along the top (the lost part trails and drains), coins collected, score (enemies defeated and the chest) |
 
 The art and sounds are from two asset packs (see `assets/forest/CREDITS.md`). The editor's
 `tools/demo/make_forest.py` made the first version of the level from them.

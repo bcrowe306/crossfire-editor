@@ -11,7 +11,7 @@ itself (text drawn by the script, in the level, through the camera), and ends th
 */
 Chest :: struct {
 	using script: e.Script,
-	bonus: int `export:"default=20 min=0"`,
+	bonus: int `export:"default=50 min=0"`,
 	delay: f32 `export:"default=3 min=0 max=10"`,
 	opened: bool,
 	time: f32,
