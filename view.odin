@@ -23,7 +23,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Tab gives the keyboard back to the code editor that had it (code_editor_host.odin)
 	coding := CodeEditor_Frame(ctx, CodeTabs_Active(&state) != "")
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
-		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.newData.open || state.projectSettings.open || state.aboutOpen ||
+		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.newData.open || state.projectSettings.open || state.aboutOpen || state.git.discardAsk != "" ||
 		(drawn && menu.open) || (browserMenuDrawn && browserMenu.open)
 	// A project with scripts is built once in the background when it opens, so the inspector
 	// knows their fields
@@ -55,6 +55,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		confirmDialogView(&state, ctx),
 		codeCloseDialogView(&state, ctx),
 		aboutDialogView(&state, ctx),
+		gitDiscardDialog(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
@@ -274,9 +275,20 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) {
 		selection = fmt.tprintf("%s (%v)", scene.nodes[s.selectedNode].name, scene.nodes[s.selectedNode].kind)
 	}
+	// The Git branch (and how far it is from its upstream): a click opens the Git tab
+	branch: skald.View = skald.View_Spacer{size = 0}
+	if git := &s.git.snapshot; git.availability == .Repo {
+		text := fmt.tprintf("%s  %s%s%s%s", ICON_CODE_BRANCH, git.branch == "" ? "(no branch)" : git.branch,
+			git.ahead > 0 ? fmt.tprintf("  %s%d", ICON_ARROW_UP, git.ahead) : "",
+			git.behind > 0 ? fmt.tprintf("  %s%d", ICON_ARROW_DOWN, git.behind) : "",
+			git.merging ? "  (merging)" : "")
+		branch = skald.button(ctx, text, Msg(Bottom_Tab_Changed(int(BottomTab.Git))), id = skald.hash_id("status-git-branch"),
+			bg = {}, fg = git.merging ? th.color.warning : th.color.fg_muted, padding = {th.spacing.xs, 0}, font_size = th.font.size_sm)
+	}
 	return skald.row(
 		statusText(ctx, fmt.tprintf("%s  %s", ICON_SITEMAP, s.project.name)),
 		Project_IsModified(s) ? skald.text("Modified", th.color.warning, th.font.size_sm) : skald.text("Saved", th.color.fg_muted, th.font.size_sm),
+		branch,
 		statusText(ctx, fmt.tprintf("Scene: %s", scene.name)),
 		statusText(ctx, fmt.tprintf("%d nodes", len(scene.nodes))),
 		statusText(ctx, fmt.tprintf("Selection: %s", selection)),

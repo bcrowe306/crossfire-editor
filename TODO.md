@@ -39,9 +39,4 @@ owns it.
   repositories, the Odin packages. Only display names, archives, the app bundle, the data folder
   and the app ID are Crossfire so far.
 
-## Version control (Git tab)
-
-- Diffs of a change, discarding changes, merge conflicts, Git LFS for large assets, the branch
-  in the status bar.
-
 

@@ -67,3 +67,33 @@ wait_until git idle
 expect console_contains Opened 'Asteroids Demo'
 expect git_commits 1
 expect project_file_contains scenes/PlayScene.scene.xml name="Spaceship" x="640"
+
+# A change's diff, then discarding it (asked first): the file goes back, the project is read again
+click_row browser-tree 2
+key ctrl+1
+click_node Spaceship
+key RIGHT
+key ctrl+s
+wait_until git_changes 1
+wait_until git idle
+click_widget git-diff-0
+wait_until git_diff scenes/PlayScene.scene.xml
+wait_until git_diff_contains x="641"
+click_widget git-diff-close
+expect git_diff none
+click_widget git-discard-0
+expect git_discard_dialog open
+click_widget git-discard-confirm
+expect git_discard_dialog closed
+wait_until git_changes 0
+wait_until git idle
+expect git_diff none
+expect project_file_contains scenes/PlayScene.scene.xml name="Spaceship" x="640"
+
+# Merging the branch in (a fast-forward here): its files, the project read again
+click_widget git-merge
+click_overlay_item 0
+wait_until git_commits 2
+wait_until git idle
+expect project_file_contains scenes/PlayScene.scene.xml name="Spaceship" x="641"
+quit

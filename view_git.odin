@@ -55,13 +55,91 @@ GitPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 @(private="file")
 repoBody :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
 	historyWidth := size.x >= 720 ? min(380, size.x * 0.36) : 0
-	if historyWidth == 0 do return changesColumn(s, ctx)
+	// A diff shows on the right instead of the history (in a narrow panel, instead of the changes:
+	// a short panel has no room for both)
+	if historyWidth == 0 do return s.git.diffPath == "" ? changesColumn(s, ctx) : diffColumn(s, ctx)
+	right := s.git.diffPath != "" ? diffColumn(s, ctx) : historyColumn(s, ctx)
 	return skald.row(
 		skald.flex(1, changesColumn(s, ctx)),
 		skald.divider(ctx, vertical = true),
-		skald.col(historyColumn(s, ctx), width = historyWidth, cross_align = .Stretch),
+		skald.col(right, width = s.git.diffPath != "" ? max(historyWidth, size.x * 0.5) : historyWidth, cross_align = .Stretch),
 		cross_align = .Stretch,
 		height = size.y,
+	)
+}
+
+// A change's diff (`git diff HEAD`), + lines green, - lines red; Close goes back to the history
+@(private="file")
+diffColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	th := ctx.theme
+	small := th.font.size_sm
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	if s.git.diffReading && s.git.diffText == "" {
+		append(&rows, skald.text("Reading...", th.color.fg_muted, small))
+	} else {
+		MAX_LINES :: 2000
+		text := s.git.diffText
+		count := 0
+		for line in strings.split_lines_iterator(&text) {
+			if count == MAX_LINES {
+				append(&rows, skald.text("...", th.color.fg_muted, small))
+				break
+			}
+			color := th.color.fg_muted
+			switch {
+			case strings.has_prefix(line, "+++"), strings.has_prefix(line, "---"): color = th.color.fg
+			case strings.has_prefix(line, "+"):  color = th.color.success
+			case strings.has_prefix(line, "-"):  color = th.color.danger
+			case strings.has_prefix(line, "@@"): color = th.color.primary
+			}
+			append(&rows, skald.text(strings.expand_tabs(line, 4, context.temp_allocator), color, th.font.size_xs))
+			count += 1
+		}
+	}
+	return skald.col(
+		skald.row(
+			skald.text(fmt.tprintf("%s  %s", ICON_FILE_LINES, s.git.diffPath), th.color.fg, small),
+			skald.flex(1, skald.spacer(0)),
+			skald.button(ctx, "Close", Msg(Git_Diff_Requested("")), id = skald.hash_id("git-diff-close"),
+				bg = th.color.surface, fg = th.color.fg, font_size = small),
+			spacing = th.spacing.sm,
+			cross_align = .Center,
+			padding = th.spacing.xs,
+		),
+		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = 0, padding = th.spacing.sm), id = skald.hash_id("git-diff"))),
+		cross_align = .Stretch,
+	)
+}
+
+// Asking before throwing a change away (it can't be undone)
+gitDiscardDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	if s.git.discardAsk == "" do return closedDialog(ctx, "git-discard-dialog")
+	th := ctx.theme
+	path := strings.clone(s.git.discardAsk, context.temp_allocator)
+	change: GitChange
+	for c in s.git.snapshot.changes do if c.path == s.git.discardAsk do change = c
+	what := change.unstaged == '?' || change.staged == 'A' ? "The new file will be deleted." : "It goes back to how it was at the last commit."
+	return skald.dialog(ctx,
+		open = true,
+		on_dismiss = proc() -> Msg { return Git_Discard_Asked("") },
+		content = skald.col(
+			skald.text(fmt.tprintf("Discard the changes to %s?", path), th.color.fg, th.font.size_lg, max_width = 400),
+			skald.text(what, th.color.fg_muted, th.font.size_sm, max_width = 400),
+			skald.text("This can't be undone.", th.color.fg_muted, th.font.size_sm),
+			skald.row(
+				skald.flex(1, skald.spacer(0)),
+				skald.button(ctx, "Cancel", Msg(Git_Discard_Asked("")), id = skald.hash_id("git-discard-cancel"),
+					bg = th.color.surface, fg = th.color.fg),
+				skald.button(ctx, "Discard", Msg(Git_Op_Requested{op = .Discard, arg = path}), id = skald.hash_id("git-discard-confirm"),
+					bg = th.color.danger),
+				spacing = th.spacing.sm,
+			),
+			spacing = th.spacing.sm,
+			padding = th.spacing.lg,
+			cross_align = .Stretch,
+		),
+		id = skald.hash_id("git-discard-dialog"),
+		width = 440,
 	)
 }
 
@@ -100,7 +178,21 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&bar, skald.button(ctx, "Create", Msg(Git_Op_Requested{op = .Create_Branch, arg = strings.clone(git.newBranch, context.temp_allocator)}),
 		id = skald.hash_id("git-create-branch"), bg = th.color.surface, fg = th.color.fg, font_size = small,
 		disabled = git.busy || strings.trim_space(git.newBranch) == ""))
+	// Merge another branch into this one
+	others := make([dynamic]string, context.temp_allocator)
+	for b in snapshot.branches do if b != snapshot.branch do append(&others, b)
+	if len(others) > 0 && !snapshot.merging {
+		append(&bar, skald.select(ctx, "Merge...", others[:],
+			proc(name: string) -> Msg { return Git_Op_Requested{op = .Merge, arg = name} },
+			id = skald.hash_id("git-merge"), width = 110, disabled = git.busy))
+	}
 	append(&bar, skald.flex(1, skald.spacer(0)))
+	// Git LFS, when it's installed and the repository doesn't use it yet
+	if snapshot.lfsAvailable && !snapshot.lfsTracked {
+		append(&bar, skald.tooltip(ctx, skald.button(ctx, "Use Git LFS", Msg(Git_Op_Requested{op = .LFS_Setup}), id = skald.hash_id("git-lfs"),
+			bg = th.color.surface, fg = th.color.fg, font_size = small, disabled = git.busy),
+			"Store the project's images, sounds and fonts with Git LFS (.gitattributes): the repository stays small", id = skald.hash_id("git-lfs-tip")))
+	}
 	append(&bar, refreshButton(s, ctx))
 
 	// The remote: Pull and Push, or adding one
@@ -157,14 +249,48 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 
 	rows := make([dynamic]skald.View, context.temp_allocator)
+	if snapshot.merging {
+		append(&rows, skald.row(
+			skald.text("Merging: resolve each conflicted file (!), then Commit.", th.color.warning, small),
+			skald.flex(1, skald.spacer(0)),
+			skald.button(ctx, "Abort Merge", Msg(Git_Op_Requested{op = .Merge_Abort}), id = skald.hash_id("git-merge-abort"),
+				bg = th.color.surface, fg = th.color.fg, font_size = small, disabled = git.busy),
+			spacing = th.spacing.sm,
+			cross_align = .Center,
+		))
+	}
 	for change, i in snapshot.changes {
 		letter, color := changeLetter(change, th)
+		path := strings.clone(change.path, context.temp_allocator)
+		smallButton :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, disabled: bool) -> skald.View {
+			th := ctx.theme
+			return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
+				padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
+		}
+		// Conflicted: keep one side; otherwise the file can be thrown back to the last commit
+		actions: skald.View
+		if isConflicted(change) {
+			actions = skald.row(
+				smallButton(ctx, fmt.tprintf("git-mine-%d", i), "Keep mine", Msg(Git_Op_Requested{op = .Resolve_Mine, arg = path}), git.busy),
+				smallButton(ctx, fmt.tprintf("git-theirs-%d", i), "Take theirs", Msg(Git_Op_Requested{op = .Resolve_Theirs, arg = path}), git.busy),
+				spacing = th.spacing.xs,
+			)
+		} else {
+			actions = skald.tooltip(ctx, smallButton(ctx, fmt.tprintf("git-discard-%d", i), ICON_UNDO, Msg(Git_Discard_Asked(path)), git.busy || snapshot.merging),
+				"Discard the changes (back to the last commit)", id = skald.hash_id(fmt.tprintf("git-discard-tip-%d", i)))
+		}
+		shown := git.diffPath == change.path
 		append(&rows, skald.row(
-			skald.checkbox(ctx, isStaged(change), "", strings.clone(change.path, context.temp_allocator),
+			skald.checkbox(ctx, isStaged(change), "", path,
 				proc(path: string, value: bool) -> Msg { return Git_Op_Requested{op = value ? .Stage : .Unstage, arg = path} },
-				id = skald.hash_id(fmt.tprintf("git-change-%d", i)), disabled = git.busy),
+				id = skald.hash_id(fmt.tprintf("git-change-%d", i)), disabled = git.busy || isConflicted(change)),
 			skald.col(skald.text(letter, color, small), width = 16),
-			skald.text(change.path, th.color.fg, small),
+			// Before the path: rows in a scroll aren't width-limited, so a long path would push
+			// them out of a narrow panel
+			actions,
+			// The path shows its diff
+			skald.button(ctx, change.path, Msg(Git_Diff_Requested(shown ? "" : path)), id = skald.hash_id(fmt.tprintf("git-diff-%d", i)),
+				bg = shown ? th.color.surface : {}, fg = th.color.fg, padding = {th.spacing.xs, 1}, font_size = small, radius = th.radius.sm),
 			spacing = th.spacing.sm,
 			cross_align = .Center,
 		))
@@ -202,6 +328,12 @@ historyColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.sm), id = skald.hash_id("git-history"))
 }
 
+// Whether a change is a merge conflict (both sides changed it: UU, AA, DD, AU...)
+@(private="file")
+isConflicted :: proc(change: GitChange) -> bool {
+	return change.staged == 'U' || change.unstaged == 'U' || (change.staged == 'A' && change.unstaged == 'A') || (change.staged == 'D' && change.unstaged == 'D')
+}
+
 // Whether a change is in the index (what Commit takes when anything is)
 @(private="file")
 isStaged :: proc(change: GitChange) -> bool {
@@ -211,6 +343,7 @@ isStaged :: proc(change: GitChange) -> bool {
 // A change's letter (the work tree's, else the index's) and its color
 @(private="file")
 changeLetter :: proc(change: GitChange, th: ^skald.Theme) -> (string, skald.Color) {
+	if isConflicted(change) do return "!", th.color.danger
 	letter := change.unstaged != ' ' ? change.unstaged : change.staged
 	switch letter {
 	case '?': return "U", th.color.success

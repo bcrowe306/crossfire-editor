@@ -576,7 +576,24 @@ Git through the `git` program (`Script_FindEditorProgram`; Settings > Toolchain 
   `GIT_AUTHOR_*` since CI has no identity) and `tests/ui/git.script` (the Taskfile's UI tasks set
   `GIT_AUTHOR_*` / `GIT_COMMITTER_*`). The branch list is a dropdown: the driver's `send
   Git_Switch_Branch <name>` picks one.
-- Later: diffs, discarding changes, merge conflicts, Git LFS, a branch in the status bar.
+- **Diffs:** a change's path shows `git diff HEAD` (a new file: its lines as added;
+  `Git_ReadDiff` on a worker) on the right instead of the history, or instead of the changes in
+  a narrow panel. **Discard** (↶ before the path, asked first: `gitDiscardDialog`): `git restore
+  --source=HEAD --staged --worktree`; a new file is deleted (`Git_DiscardDeletes`, done by
+  `Git_RunCommands` after git lets go of it). Rows put their buttons before the path: rows in a
+  scroll aren't width-limited, and a long path pushed them out of a narrow panel.
+- **Merges:** Merge... (`git merge --no-edit`); conflicts stop it (`snapshot.merging`, from
+  MERGE_HEAD): conflicted files (UU, AA...) get Keep mine / Take theirs (`git checkout
+  --ours|--theirs` + add), Abort Merge (`git merge --abort`); the Commit after resolving ends it.
+  The project is read again after merges, discards, aborts and that commit, never while a merge
+  is half resolved (other files still have conflict markers). `gitRun` keeps stdout and stderr
+  on failure (a merge prints CONFLICT on stdout).
+- **Git LFS:** with git-lfs installed and not in use, Use Git LFS runs `git lfs install --local`
+  and tracks the asset patterns (`GIT_LFS_PATTERNS`, .gitattributes). Not checked by hand: this
+  machine has no git-lfs (the unit test checks the refusal).
+- **The status bar** shows the branch (ahead / behind, merging); a click opens the Git tab.
+- Tests: the unit test also diffs, discards, merges with conflicts resolved both ways and
+  aborted (rerere off in its repository); git.script diffs, discards and merges (a fast-forward).
 
 ### Status bar frame stats
 

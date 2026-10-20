@@ -103,6 +103,10 @@ GitSnapshot :: struct {
 	log: []GitCommit,
 	branches: []string,
 	remotes: []string,
+	// A merge stopped on conflicts (MERGE_HEAD exists): resolve them, then Commit, or Abort
+	merging: bool,
+	// Git LFS is installed, and the repository stores the project's binary assets with it
+	lfsAvailable, lfsTracked: bool,
 	// A command that failed while reading it ("" normally)
 	problem: string,
 }
@@ -124,7 +128,20 @@ GitOp :: enum {
 	Push,
 	// arg: the URL (as "origin")
 	Add_Remote,
+	// A file's changes thrown away: back to the last commit (a new file deleted). arg: its path
+	Discard,
+	// Another branch merged into this one (conflicts stop it: `merging`). arg: the branch
+	Merge,
+	// A conflicted file resolved with this branch's version, or the merged branch's. arg: its path
+	Resolve_Mine,
+	Resolve_Theirs,
+	Merge_Abort,
+	// Git LFS for the project's images, sounds and fonts (.gitattributes), when it's installed
+	LFS_Setup,
 }
+
+// The file patterns LFS_Setup stores with Git LFS: the binary assets a project imports
+GIT_LFS_PATTERNS :: []string{"*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.tga", "*.webp", "*.qoi", "*.wav", "*.ogg", "*.mp3", "*.flac", "*.ttf", "*.otf"}
 
 // The Git tab's state: the snapshot shown, and what's being typed
 GitState :: struct {
@@ -138,6 +155,13 @@ GitState :: struct {
 	message: string,
 	newBranch: string,
 	remoteURL: string,
+	// The change whose diff shows (owned; "" for none), the diff (owned), being read
+	diffPath, diffText: string,
+	diffReading: bool,
+	// Discarding a change asks first: its path (owned; "" when not asking)
+	discardAsk: string,
+	// The running Commit ends a merge (the project is read again after it)
+	mergeCommit: bool,
 }
 
 // Read a new snapshot (Git_Refresh)
@@ -158,6 +182,14 @@ Git_Op_Finished :: struct {
 	ok: bool,
 	output: string,
 }
+// Show a change's diff (its path; "" closes it)
+Git_Diff_Requested :: distinct string
+// A diff was read (strings heap allocated: the handler keeps or frees them)
+Git_Diff_Read :: struct {
+	path, text: string,
+}
+// Asking before discarding a change: its path (copied), or "" to stop asking
+Git_Discard_Asked :: distinct string
 Git_Message_Changed :: distinct string
 Git_New_Branch_Changed :: distinct string
 Git_Remote_URL_Changed :: distinct string
@@ -177,6 +209,9 @@ GitState_Destroy :: proc(git: ^GitState) {
 	delete(git.message)
 	delete(git.newBranch)
 	delete(git.remoteURL)
+	delete(git.diffPath)
+	delete(git.diffText)
+	delete(git.discardAsk)
 	git^ = {}
 }
 
@@ -241,7 +276,51 @@ Git_ReadSnapshot :: proc(folder: string) -> GitSnapshot {
 	snapshot.branches = nonEmptyLines(branches)
 	remotes, _ := gitRun(folder, {"git", "remote"})
 	snapshot.remotes = nonEmptyLines(remotes)
+	_, snapshot.merging = gitRun(folder, {"git", "rev-parse", "-q", "--verify", "MERGE_HEAD"})
+	_, snapshot.lfsAvailable = gitRun(folder, {"git", "lfs", "version"})
+	if snapshot.lfsAvailable {
+		attributes, _ := os.read_entire_file(strings.concatenate({folder, "/.gitattributes"}, context.temp_allocator), context.temp_allocator)
+		snapshot.lfsTracked = strings.contains(string(attributes), "filter=lfs")
+	}
 	return snapshot
+}
+
+/*
+A change's diff against the last commit (what Commit would record), as git prints it; a new file
+is all added lines. Blocks: the tab reads it on a worker thread.
+
+Inputs:
+- folder: The project folder
+- path: The change's path (relative to the project folder)
+- untracked: It's a new file git doesn't know yet
+- hasCommits: The repository has a commit to compare with
+
+Returns:
+- The diff (allocated with `allocator`)
+*/
+Git_ReadDiff :: proc(folder, path: string, untracked, hasCommits: bool, allocator := context.allocator) -> string {
+	if untracked {
+		full := strings.concatenate({folder, "/", path}, context.temp_allocator)
+		data, err := os.read_entire_file(full, context.temp_allocator)
+		if err != nil do return fmt.aprintf("Couldn't read %s", path, allocator = allocator)
+		if !isText(data) do return fmt.aprintf("New binary file %s (%d bytes)", path, len(data), allocator = allocator)
+		b := strings.builder_make(context.temp_allocator)
+		fmt.sbprintf(&b, "New file %s\n", path)
+		text := string(data)
+		for line in strings.split_lines_iterator(&text) do fmt.sbprintf(&b, "+%s\n", line)
+		return strings.clone(strings.to_string(b), allocator)
+	}
+	command := hasCommits ? []string{"git", "diff", "HEAD", "--", path} : []string{"git", "diff", "--cached", "--", path}
+	text, ok := gitRun(folder, command, context.temp_allocator)
+	if ok && strings.trim_space(text) == "" do text = "No differences (only the file's mode or line endings changed)"
+	return strings.clone(text, allocator)
+}
+
+// Whether file contents look like text (no NUL in the first 8 KB)
+@(private="file")
+isText :: proc(data: []byte) -> bool {
+	for b in data[:min(len(data), 8192)] do if b == 0 do return false
+	return true
 }
 
 /*
@@ -293,13 +372,58 @@ Git_Commands :: proc(op: GitOp, arg: string, snapshot: ^GitSnapshot) -> [][]stri
 		}
 	case .Add_Remote:
 		add(&commands, "git", "remote", "add", "origin", arg)
+	case .Discard:
+		// A new file: out of the index (Git_RunCommands deletes it); a changed one: back to HEAD
+		change := gitChange(snapshot, arg)
+		switch {
+		case change.unstaged == '?':
+		case change.staged == 'A' || !snapshot.hasCommits:
+			add(&commands, "git", "rm", "-q", "-f", "--cached", "--", arg)
+		case:
+			add(&commands, "git", "restore", "--source=HEAD", "--staged", "--worktree", "--", arg)
+		}
+	case .Merge:
+		add(&commands, "git", "merge", "--no-edit", arg)
+	case .Resolve_Mine:
+		add(&commands, "git", "checkout", "--ours", "--", arg)
+		add(&commands, "git", "add", "--", arg)
+	case .Resolve_Theirs:
+		add(&commands, "git", "checkout", "--theirs", "--", arg)
+		add(&commands, "git", "add", "--", arg)
+	case .Merge_Abort:
+		add(&commands, "git", "merge", "--abort")
+	case .LFS_Setup:
+		add(&commands, "git", "lfs", "install", "--local")
+		track := make([dynamic]string, context.temp_allocator)
+		append(&track, "git", "lfs", "track")
+		append(&track, ..GIT_LFS_PATTERNS)
+		add(&commands, ..track[:])
+		add(&commands, "git", "add", "--", ".gitattributes")
 	}
 	return commands[:]
 }
 
+// The file a Discard deletes (a new one: nothing to go back to), or ""
+Git_DiscardDeletes :: proc(op: GitOp, path: string, snapshot: ^GitSnapshot) -> string {
+	if op != .Discard do return ""
+	change := gitChange(snapshot, path)
+	if change.unstaged == '?' || change.staged == 'A' || !snapshot.hasCommits do return path
+	return ""
+}
+
+// The snapshot's change for a path (zero when it has none)
+@(private="file")
+gitChange :: proc(snapshot: ^GitSnapshot, path: string) -> GitChange {
+	for change in snapshot.changes do if change.path == path do return change
+	return {}
+}
+
 // Whether an operation changes the project's files (the project is opened again after it)
 Git_ChangesFiles :: proc(op: GitOp) -> bool {
-	return op == .Pull || op == .Switch_Branch
+	#partial switch op {
+	case .Pull, .Switch_Branch, .Discard, .Merge, .Resolve_Mine, .Resolve_Theirs, .Merge_Abort: return true
+	}
+	return false
 }
 
 // Why an operation can't run now, or ""
@@ -317,6 +441,15 @@ Git_OpProblem :: proc(op: GitOp, arg: string, snapshot: ^GitSnapshot) -> string 
 		if op == .Push && snapshot.branch == "" do return "not on a branch"
 	case .Add_Remote:
 		if strings.trim_space(arg) == "" do return "type the remote's URL"
+	case .Discard:
+		if gitChange(snapshot, arg).path == "" do return fmt.tprintf("%s has no changes", arg)
+	case .Merge:
+		if arg == "" || arg == snapshot.branch do return "pick another branch to merge into this one"
+		if snapshot.merging do return "finish the merge in progress first (resolve its conflicts and Commit, or Abort)"
+	case .Merge_Abort:
+		if !snapshot.merging do return "there's no merge in progress"
+	case .LFS_Setup:
+		if !snapshot.lfsAvailable do return "Git LFS isn't installed (git-lfs.com)"
 	}
 	return ""
 }
@@ -372,6 +505,34 @@ Git_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 			git.refreshAgain = false
 			return Git_Refresh(state), true
 		}
+	case Git_Diff_Requested:
+		path := string(v)
+		delete(git.diffPath)
+		delete(git.diffText)
+		git.diffPath, git.diffText = strings.clone(path), strings.clone("")
+		if path == "" do return {}, true
+		git.diffReading = true
+		change := gitChange(&git.snapshot, path)
+		Job :: struct { folder, path: string, untracked, hasCommits: bool }
+		job := Job{strings.clone(absolutePath(state.project.rootPath)), strings.clone(path), change.unstaged == '?', git.snapshot.hasCommits}
+		return skald.cmd_thread(Msg, job, proc(job: Job) -> Msg {
+			defer delete(job.folder)
+			return Git_Diff_Read{path = job.path, text = Git_ReadDiff(job.folder, job.path, job.untracked, job.hasCommits)}
+		}), true
+	case Git_Diff_Read:
+		git.diffReading = false
+		// Another file was asked for (or the diff closed) meanwhile: drop this one
+		if v.path != git.diffPath {
+			delete(v.path)
+			delete(v.text)
+			break
+		}
+		delete(v.path)
+		delete(git.diffText)
+		git.diffText = v.text
+	case Git_Discard_Asked:
+		delete(git.discardAsk)
+		git.discardAsk = strings.clone(string(v))
 	case Git_Message_Changed:
 		delete(git.message)
 		git.message = strings.clone(string(v))
@@ -391,8 +552,14 @@ Git_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 			logLine(state, .Warning, fmt.aprintf("Git: %s", problem))
 			return {}, true
 		}
-		// Git works on what's on disk: save first
-		if v.op != .Add_Remote && Project_IsModified(state) && !Session_Save(state) do return {}, true
+		// Git works on what's on disk: save first (not mid-merge: the files have its conflicts)
+		if v.op != .Add_Remote && !git.snapshot.merging && Project_IsModified(state) && !Session_Save(state) do return {}, true
+		if v.op == .Discard {
+			delete(git.discardAsk)
+			git.discardAsk = strings.clone("")
+		}
+		// A commit ending a merge: the merged files are read again after it
+		git.mergeCommit = v.op == .Commit && git.snapshot.merging
 		git.busy = true
 		return gitStart(state, v.op, arg), true
 	case Git_Op_Finished:
@@ -400,7 +567,10 @@ Git_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		defer delete(v.output)
 		label := gitOpLabel(v.op)
 		output := strings.trim_space(v.output)
-		if !v.ok {
+		if !v.ok && v.op == .Merge && strings.contains(output, "CONFLICT") {
+			logLine(state, .Warning, fmt.aprintf("Git: the merge stopped on conflicts: %s", output))
+			logLine(state, .Info, strings.clone("Git: for each conflicted file (!), keep this branch's version or take the merged one, then Commit; or Abort the merge"))
+		} else if !v.ok {
 			logLine(state, .Error, fmt.aprintf("Git: %s failed: %s", label, output))
 			if strings.contains(output, "Please tell me who you are") || strings.contains(output, "Author identity unknown") {
 				logLine(state, .Info, strings.clone("Git needs your name and email for commits: run git config --global user.name \"Your Name\" and git config --global user.email you@example.com"))
@@ -419,8 +589,16 @@ Git_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 				delete(git.remoteURL)
 				git.remoteURL = strings.clone("")
 			}
-			if Git_ChangesFiles(v.op) do Session_OpenProject(state, strings.clone(state.project.rootPath, context.temp_allocator))
+			// The project's files changed: read it again (not one file at a time while a merge's
+			// conflicts are resolved: the others still have conflict markers)
+			if v.op == .Discard && git.diffPath != "" {
+				delete(git.diffPath)
+				git.diffPath = strings.clone("")
+			}
+			reopen := (Git_ChangesFiles(v.op) && v.op != .Resolve_Mine && v.op != .Resolve_Theirs) || git.mergeCommit
+			if reopen do Session_OpenProject(state, strings.clone(state.project.rootPath, context.temp_allocator))
 		}
+		git.mergeCommit = false
 		return Git_Refresh(state), true
 	case:
 		return {}, false
@@ -428,12 +606,14 @@ Git_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	return {}, true
 }
 
-// A command's job for the worker: the folder, its commands (owned), whether to write .gitignore
+// A command's job for the worker: the folder, its commands (owned), a new file a discard
+// deletes (owned, "" for none)
 @(private="file")
 GitJob :: struct {
 	op: GitOp,
 	folder: string,
 	commands: [][]string,
+	deleteFile: string,
 }
 
 @(private="file")
@@ -446,6 +626,7 @@ gitStart :: proc(state: ^State, op: GitOp, arg: string) -> skald.Command(Msg) {
 	}
 	logLine(state, .Info, fmt.aprintf("Git: %s...", gitOpLabel(op)))
 	job := GitJob{op = op, folder = strings.clone(absolutePath(state.project.rootPath)), commands = owned}
+	if file := Git_DiscardDeletes(op, arg, &state.git.snapshot); file != "" do job.deleteFile = strings.clone(file)
 	return skald.cmd_thread(Msg, job, proc(job: GitJob) -> Msg {
 		defer {
 			for command in job.commands {
@@ -454,8 +635,9 @@ gitStart :: proc(state: ^State, op: GitOp, arg: string) -> skald.Command(Msg) {
 			}
 			delete(job.commands)
 			delete(job.folder)
+			delete(job.deleteFile)
 		}
-		output, ok := Git_RunCommands(job.folder, job.op, job.commands)
+		output, ok := Git_RunCommands(job.folder, job.op, job.commands, deleteFile = job.deleteFile)
 		return Git_Op_Finished{op = job.op, ok = ok, output = output}
 	})
 }
@@ -467,13 +649,20 @@ Init, writes the .gitignore when there's none. Blocks: the tab runs it on a work
 Returns:
 - What git printed (allocated with `allocator`), and whether every command worked
 */
-Git_RunCommands :: proc(folder: string, op: GitOp, commands: [][]string, allocator := context.allocator) -> (string, bool) {
+Git_RunCommands :: proc(folder: string, op: GitOp, commands: [][]string, allocator := context.allocator, deleteFile := "") -> (string, bool) {
 	output := strings.builder_make(allocator)
 	for command in commands {
 		text, ok := gitRun(folder, command, context.temp_allocator)
 		if strings.builder_len(output) > 0 && strings.trim_space(text) != "" do strings.write_string(&output, "\n")
 		strings.write_string(&output, strings.trim_space(text))
 		if !ok do return strings.to_string(output), false
+	}
+	// Discarding a new file deletes it, once git has let go of it (Git_DiscardDeletes)
+	if deleteFile != "" {
+		if err := os.remove(strings.concatenate({folder, "/", deleteFile}, context.temp_allocator)); err != nil {
+			fmt.sbprintf(&output, "couldn't delete %s: %v", deleteFile, err)
+			return strings.to_string(output), false
+		}
 	}
 	if op == .Init {
 		ignore := strings.concatenate({folder, "/.gitignore"}, context.temp_allocator)
@@ -499,6 +688,12 @@ gitOpLabel :: proc(op: GitOp) -> string {
 	case .Pull:          return "pull"
 	case .Push:          return "push"
 	case .Add_Remote:    return "add remote"
+	case .Discard:       return "discard changes"
+	case .Merge:         return "merge"
+	case .Resolve_Mine:  return "keep this branch's version"
+	case .Resolve_Theirs: return "take the merged branch's version"
+	case .Merge_Abort:   return "abort the merge"
+	case .LFS_Setup:     return "set up Git LFS"
 	}
 	return ""
 }
@@ -522,8 +717,9 @@ gitRun :: proc(folder: string, command: []string, allocator := context.allocator
 	if err != nil do return fmt.aprintf("couldn't run git: %v", err, allocator = allocator), false
 	// The exit code, not state.success: Odin's Windows process_wait always sets that
 	if state.exit_code != 0 {
-		text := strings.trim_space(string(stderr))
-		if text == "" do text = strings.trim_space(string(stdout))
+		// Both: a merge prints its conflicts on stdout and other notes on stderr
+		out, errText := strings.trim_space(string(stdout)), strings.trim_space(string(stderr))
+		text := out == "" ? errText : errText == "" ? out : strings.concatenate({out, "\n", errText}, context.temp_allocator)
 		return strings.clone(text, allocator), false
 	}
 	return strings.clone(string(stdout), allocator), true

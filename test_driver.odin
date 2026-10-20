@@ -168,6 +168,8 @@ Checks:
 	git_branch <name>            The project's branch
 	git_changes <n>              Changed files in the project folder; git_staged <n>: staged
 	git_commits <n>              Commits in the history; git_last_commit <subject>: the newest
+	git_diff <path|none>         The change whose diff shows; git_diff_contains <text>: in it
+	git_discard_dialog <open|closed>  Asking before discarding a change
 	export_enabled <Target> <true | false>   An export target is checked (the project's settings)
 	project_file <path>          A file exists, relative to the project folder (an export's output)
 	project_file_missing <path>  No such file or folder, relative to the project folder
@@ -1516,6 +1518,13 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(len(s.git.snapshot.log))
 	case "git_last_commit":
 		found = len(s.git.snapshot.log) > 0 ? s.git.snapshot.log[0].subject : "none"
+	case "git_diff":
+		// The change whose diff shows, "none" when closed
+		found = s.git.diffPath == "" ? "none" : s.git.diffPath
+	case "git_diff_contains":
+		found = strings.contains(s.git.diffText, value) ? value : "(not in the diff)"
+	case "git_discard_dialog":
+		found = s.git.discardAsk != "" ? "open" : "closed"
 	case "export_enabled":
 		target_name, _, expected := strings.partition(value, " ")
 		target, known := reflect.enum_from_name(ExportTarget, target_name)
