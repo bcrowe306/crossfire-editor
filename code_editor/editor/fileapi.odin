@@ -135,6 +135,15 @@ editor_notify_lsp_changed :: proc(ed: ^Editor) {
 	if !ed.lsp_enabled || len(ed.document_uri) == 0 {
 		return
 	}
+	// The whole text carries every edit made so far: the queued incremental ones mustn't go out
+	// again with the next sync (they'd be applied twice, and the server's copy would differ)
+	editor_consume_buffer_changes(ed)
+	editor_clear_lsp_pending(ed)
+	ed.lsp_need_full = false
+	// Not open on the server yet: the didOpen (editor_sync_lsp) will carry the text
+	if !ed.lsp_doc_open || !ed.lsp.initialized {
+		return
+	}
 	ed.lsp_version += 1
 	ed.lsp_synced_version = ed.buf.version
 	text := buf.buffer_to_string(&ed.buf, context.temp_allocator)

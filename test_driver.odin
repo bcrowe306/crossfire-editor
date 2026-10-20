@@ -53,7 +53,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	double_click_row <tree key> <row>   Double-click a row
 	click_tab <tabs key> <index>     Click a tab of a skald.tabs strip (the center panel's tabs are
 	                                 widgets: scene-tab-<i>, scene-tab-close-<i>, code-tab-<i>, ...)
-	touch_project_file <path> <text> Append a line to a project file, as another program would
+	touch_project_file <path> <text> Append a line to a project file (made if missing), as another
+	                                 program would
 	save_code_render <file.png>      Save the shown code tab's render (its own pixels, not the screen)
 	write_project_file <path> <text> Write a project file ("\n", "\t"), as another program would
 	code_dialog_pick <path>          Answer the code editor's Open / Save As dialog with a project path
@@ -212,6 +213,7 @@ Checks:
 	                             that render is the image on screen
 	code_lsp <Off | Starting | Running | Failed>   The shown code tab's language server
 	code_completion <true | false>   The completion list shows
+	code_completion_has <label>      The server's last completion list has that item
 	widget_visible <key> <true | false>   Some of the widget was drawn last frame, not clipped away
 	scrolled <scroll key> <true | false>  A scroll container is scrolled down from its top
 	widget_bottom_near <key> <other key> <px>   The two widgets' bottoms are within px (one fills the other)
@@ -819,12 +821,12 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// second ahead (so a change in the same second as the last write still shows)
 		file, _, text := strings.partition(rest, " ")
 		path := joinPath(s.project.rootPath, file, allocator = context.temp_allocator)
-		old, readErr := os.read_entire_file(path, context.temp_allocator)
-		if readErr != nil {
-			fail(fmt.tprintf("%s: can't read %s", line, path))
+		// A missing file is created (a new file, as git or another editor would make)
+		old, _ := os.read_entire_file(path, context.temp_allocator)
+		if err := os.write_entire_file(path, transmute([]byte)strings.concatenate({string(old), text, "\n"}, context.temp_allocator)); err != nil {
+			fail(fmt.tprintf("%s: can't write %s", line, path))
 			return true
 		}
-		_ = os.write_entire_file(path, transmute([]byte)strings.concatenate({string(old), text, "\n"}, context.temp_allocator))
 		later := time.time_add(time.now(), time.Second)
 		_ = os.change_times(path, later, later)
 		report(true, line)
@@ -1349,6 +1351,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "code_lsp":
 		found = CodeEditor_LspStatus(CodeTabs_Active(s))
 		if found == "" do found = "Off"
+	case "code_completion_has":
+		found = fmt.tprint(CodeEditor_CompletionHas(CodeTabs_Active(s), strings.trim_space(value)))
+		_, items := CodeEditor_CompletionVisible(CodeTabs_Active(s))
+		return found == "true", fmt.tprintf("%s; %d items from the server", found, items)
 	case "code_completion":
 		visible, items := CodeEditor_CompletionVisible(CodeTabs_Active(s))
 		found = fmt.tprint(visible)

@@ -9,6 +9,7 @@ package lsp
 import "core:c/libc"
 import "core:mem"
 import "core:os"
+import "core:strings"
 import "core:time"
 
 RequestKind :: enum {
@@ -82,6 +83,9 @@ Client :: struct {
 	// textDocumentSync kind from the initialize result: 1 = full text,
 	// 2 = incremental ranges (0 = none). Defaults to full until known.
 	sync_kind: int,
+	// Tests: when set, every framed message is appended here (cloned with context.allocator)
+	// instead of being written to a server, so a test can replay exactly what was sent.
+	sent_log: ^[dynamic]string,
 
 	// isIncomplete of the last completion list: typing further should
 	// re-query rather than only filter locally.
@@ -228,6 +232,10 @@ client_next_id :: proc(c: ^Client) -> int {
 }
 
 client_send_raw :: proc(c: ^Client, framed: string) -> bool {
+	if c.sent_log != nil {
+		append(c.sent_log, strings.clone(framed))
+		return true
+	}
 	if !c.has_process || c.stdin == nil {
 		return false
 	}

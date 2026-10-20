@@ -65,6 +65,26 @@ client_did_change_incremental :: proc(c: ^Client, uri: string, changes: []Increm
 	client_send_raw(c, msg)
 }
 
+// A file of the workspace that changed on disk (workspace/didChangeWatchedFiles)
+FileEvent :: struct {
+	uri: string,
+	// 1 created, 2 changed, 3 deleted
+	kind: int `json:"type"`,
+}
+
+DidChangeWatchedFilesParams :: struct {
+	changes: []FileEvent,
+}
+
+// client_did_change_watched_files tells the server about files that were
+// created, changed or deleted on disk while it ran (OLS doesn't see a new
+// file of a package, and keeps a changed one's old symbols, until told).
+client_did_change_watched_files :: proc(c: ^Client, changes: []FileEvent) {
+	if len(changes) == 0 do return
+	msg := encode_notification("workspace/didChangeWatchedFiles", DidChangeWatchedFilesParams{changes = changes}, context.temp_allocator)
+	client_send_raw(c, msg)
+}
+
 client_did_close :: proc(c: ^Client, uri: string) {
 	params := DidCloseTextDocumentParams{textDocument = TextDocumentIdentifier{uri = uri}}
 	msg := encode_notification("textDocument/didClose", params, context.temp_allocator)

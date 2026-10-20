@@ -705,6 +705,18 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   if the server process changed (`openedIn`, the pid it was opened in). Closing a tab sends
   `didClose` (`releaseServer`); the last tab stops the server. `Code_Tick` (0.1 s with a server,
   1 s without, while the window is focused) keeps frames coming for replies and the disk check.
+- **The language server's view of the scripts** (OLS, rooted at the scripts folder: checked
+  with a headless LSP session to complete same-file structs in Script_Register's proc
+  literals, other files' types and `e.`): it doesn't see a file of the package created or
+  rewritten while it runs (New Script, the regenerated assets.odin, git) until told, so
+  `CodeEditor_WatchScripts` (from Code_Tick, at most once a second) sends
+  `workspace/didChangeWatchedFiles` for the folder's .odin files that appeared, changed or went
+  (files open in a tab excepted). And text the host inserts (`CodeEditor_InsertAtLine`: node
+  fields, listeners) reaches it once: `editor_notify_lsp_changed` drops the queued incremental
+  edits its full text already carries (they were sent again, doubling the inserted code on the
+  server and breaking completion). code_editor.script writes a new file and completes its
+  struct (`code_completion_has`); the code editor's sync_shadow_test.odin replays what the client
+  sends after every kind of edit and compares it with the buffer.
 - **Files changed on disk:** the modification time is kept at open, save and reload; the shown
   file is looked at once a second and as soon as its tab shows again (`CodeEditor_DiskChange`):
   unchanged buffers reload (caret kept), dirty ones get the bar over the code (`CodeTabs_DiskBar`:

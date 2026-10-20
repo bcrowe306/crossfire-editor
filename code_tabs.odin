@@ -185,6 +185,8 @@ CodeTabs_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		if bool(v) do logLine(state, .Info, fmt.aprintf("%s reloaded from disk (your changes are gone)", filepath.base(path)))
 	case Code_Tick:
 		state.codeTickPending = false
+		// The language server learns of script files changed on disk (new scripts, assets.odin)
+		CodeEditor_WatchScripts(absolutePath(joinPath(state.project.rootPath, SCRIPTS_FOLDER, allocator = context.temp_allocator)))
 	case Code_Focused:
 		state.codeFocusPending = false
 	case Code_Dialog_Requested:

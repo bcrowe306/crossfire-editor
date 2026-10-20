@@ -440,6 +440,14 @@ deferred `didOpen` once `initialize` has completed, pushes a full-text
   columns, breaking after spaces, continuation lines indented), the active
   parameter highlighted across the break.
 
+Document sync is incremental when the server asks for it (OLS does). A host
+that changes the buffer itself and calls `editor_notify_lsp_changed` sends the
+whole text, and the incremental edits queued for it are dropped (they'd be
+applied a second time). `sync_shadow_test.odin` replays exactly what the client
+sends (`Client.sent_log`) after each kind of edit (typing, auto-pairs, multiple
+cursors, line moves, comments, indenting, undo/redo) and checks the server's
+copy matches the buffer.
+
 Responses to superseded requests are dropped, so a slow reply can't
 overwrite a newer one.
 

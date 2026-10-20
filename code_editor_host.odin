@@ -128,6 +128,11 @@ host: struct {
 	serversStarted: int,
 	// The editor shown last frame (a tab showing again looks at its file at once)
 	lastShown: ^CodeEditor,
+	// The scripts folder's .odin files and their modification times, as the language server was
+	// last told (CodeEditor_WatchScripts; paths owned), the folder, and when it was last looked at
+	watched: map[string]time.Time,
+	watchedDir: string,
+	lastWatch: time.Time,
 }
 
 /*
@@ -217,6 +222,11 @@ CodeEditor_Shutdown :: proc() {
 	CodeEditor_CloseAll()
 	delete(host.editors)
 	host.editors = nil
+	for path in host.watched do delete(path)
+	delete(host.watched)
+	host.watched = nil
+	delete(host.watchedDir)
+	host.watchedDir = ""
 	if host.font != nil {
 		ce.font_fallbacks_destroy(&host.fallbacks, host.font)
 		ttf.CloseFont(host.font)
@@ -334,6 +344,57 @@ CodeEditor_InsertAtLine :: proc(path: string, line: int, text: string) -> bool {
 	return true
 }
 
+/*
+Tells the language server about the scripts folder's .odin files that were created, changed or
+deleted on disk since it was last told: OLS doesn't see a new file of the package (a New Script,
+the regenerated assets.odin, a git pull, another editor's save) or a changed one's new symbols
+until it is, so completion missed them. Files open in a code tab are left out: the server has
+their text. Looks at most once a second; the first look (or a new folder) only records.
+
+Inputs:
+- dir: The project's scripts folder
+*/
+CodeEditor_WatchScripts :: proc(dir: string) {
+	c := host.server
+	if c == nil || !c.ed.lsp.initialized do return
+	now := time.now()
+	if time.diff(host.lastWatch, now) < time.Second do return
+	host.lastWatch = now
+	first := host.watchedDir != dir
+	if first {
+		delete(host.watchedDir)
+		host.watchedDir = strings.clone(dir)
+		for path in host.watched do delete(path)
+		clear(&host.watched)
+	}
+	entries, err := os.read_all_directory_by_path(dir, context.temp_allocator)
+	if err != nil do return
+	changes := make([dynamic]lspc.FileEvent, context.temp_allocator)
+	seen := make(map[string]bool, context.temp_allocator)
+	uri :: proc(path: string) -> string { return lspc.file_uri(lspc.resolve_path(path, context.temp_allocator), context.temp_allocator) }
+	for entry in entries {
+		if entry.type == .Directory || !strings.has_suffix(entry.name, ".odin") do continue
+		path := absolutePath(entry.fullpath)
+		seen[path] = true
+		known, had := host.watched[path]
+		if had && known == entry.modification_time do continue
+		if had {
+			host.watched[path] = entry.modification_time
+		} else {
+			host.watched[strings.clone(path)] = entry.modification_time
+		}
+		if !first && CodeEditor_Find(path) == nil do append(&changes, lspc.FileEvent{uri(path), had ? 2 : 1})
+	}
+	gone := make([dynamic]string, context.temp_allocator)
+	for path in host.watched do if path not_in seen do append(&gone, path)
+	for path in gone {
+		append(&changes, lspc.FileEvent{uri(path), 3})
+		delete_key(&host.watched, path)
+		delete(path)
+	}
+	lspc.client_did_change_watched_files(&c.ed.lsp, changes[:])
+}
+
 // Puts the caret on a 1-based line, scrolled into view
 CodeEditor_GotoLine :: proc(path: string, line: int) {
 	if c := CodeEditor_Find(path); c != nil && line > 0 do ce.editor_goto_lsp_position(&c.ed, line - 1, 0)
@@ -384,6 +445,14 @@ CodeEditor_CompletionVisible :: proc(path: string) -> (visible: bool, items: int
 	c := CodeEditor_Find(path)
 	if c == nil do return false, 0
 	return ce.editor_completion_visible(&c.ed), len(c.ed.lsp.last_completion)
+}
+
+// Whether the last completion list from the server has an item with that label (tests)
+CodeEditor_CompletionHas :: proc(path, label: string) -> bool {
+	c := CodeEditor_Find(path)
+	if c == nil do return false
+	for item in c.ed.lsp.last_completion do if item.label == label do return true
+	return false
 }
 
 // How many language servers run now (0 or 1: every tab shares one), and how many were started

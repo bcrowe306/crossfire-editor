@@ -60,6 +60,16 @@ type e.
 wait_until code_completion true timeout=20
 key ESCAPE
 expect code_completion false
+# A script file written while the server runs (as git or another editor would): the server is
+# told (workspace/didChangeWatchedFiles), so its struct completes here
+touch_project_file scripts/gadget.odin package scripts
+touch_project_file scripts/gadget.odin Gadget :: struct { power: int }
+wait 90
+key ctrl+END
+key RETURN
+type gadget_probe :: proc(g: ^Gadget) { g.
+wait_until code_completion_has power timeout=20
+key ESCAPE
 
 # Ctrl+S saves the script (and the project)
 key ctrl+s
