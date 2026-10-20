@@ -544,6 +544,23 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			out.codeTab = 0
 			openScene(&out, next)
 		}
+	case Listener_Dialog_Opened:
+		delete(out.listenerDialog.event)
+		out.listenerDialog = {open = true, node = v.node, event = strings.clone(v.event)}
+	case Listener_Dialog_Cancelled:
+		out.listenerDialog.open = false
+	case Listener_Target_Chosen:
+		message, attached := Listener_Attach(&out, int(v))
+		out.listenerDialog.open = false
+		logLine(&out, attached ? .Info : .Warning, strings.clone(message))
+	case Listener_Removed:
+		scene := &out.project.scenes[out.currentScene]
+		if v.node < 0 || v.node >= len(scene.nodes) || v.index < 0 || v.index >= len(scene.nodes[v.node].listeners) do break
+		l := scene.nodes[v.node].listeners[v.index]
+		delete(l.event); delete(l.target); delete(l.handler)
+		ordered_remove(&scene.nodes[v.node].listeners, v.index)
+	case Inspector_Events_Toggled:
+		out.inspectorEventsOpen = !out.inspectorEventsOpen
 	case Script_Usage_Clicked:
 		if v.scene < 0 || v.scene >= len(out.project.scenes) || v.node < 0 || v.node >= len(out.project.scenes[v.scene].nodes) do break
 		if Scene_IsComponent(&out.project.scenes[v.scene]) do out.project.scenes[v.scene].opened = true

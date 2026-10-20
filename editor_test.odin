@@ -3784,3 +3784,57 @@ scene_settings_save_load_and_undo :: proc(t: ^testing.T) {
 	testing.expect_value(t, loaded.scenes[0].settings, e.SceneSettings{})
 	free_all(context.temp_allocator)
 }
+
+@(test)
+listeners_from_the_inspector :: proc(t: ^testing.T) {
+	testing.expect_value(t, Listener_HandlerName("Blood", "onFinished", nil), "onBloodFinished")
+	testing.expect_value(t, Listener_HandlerName("Blood", "onFinished", {"onBloodFinished"}), "onBloodFinished2")
+	testing.expect_value(t, Listener_HandlerName("hero sprite", "animation.onAnimationEnded", nil), "onHeroSpriteAnimationEnded")
+	handlers := Listener_RegisteredHandlers("e.Script_Listener(Hero, \"onA\", Hero_onA)\nx\ne.Script_Listener(Hero, \"onB\", Hero_onB)")
+	testing.expect(t, len(handlers) == 2 && handlers[0] == "onA" && handlers[1] == "onB", "registered handlers")
+
+	// Attaching: the listener on the node, the handler appended to the script's file (the
+	// external editor here: written to the file)
+	state := testState()
+	defer State_Destroy(&state)
+	dir := tempDir("editor_test_listeners")
+	defer removeAll(dir)
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone(dir)
+	_ = os.make_directory_all(filepath.join({dir, "scripts"}, context.temp_allocator) or_else "")
+	hero := "package scripts\n\nimport e \"engine:.\"\n\nHero :: struct {\n\tusing script: e.Script,\n}\n\n@(init)\nregister_Hero :: proc \"contextless\" () {\n\te.Script_Register(Hero, {})\n}\n"
+	_ = os.write_entire_file(filepath.join({dir, "scripts", "hero.odin"}, context.temp_allocator) or_else "", transmute([]u8)hero)
+	append(&state.scriptFiles, strings.clone("scripts/hero.odin"))
+	state.settings.codeEditorPath = FixedText_Make(TEST_NOOP_PROGRAM)
+	scene := playScene(&state)
+	ship, menu := nodeIndex(scene, "Spaceship"), nodeIndex(scene, "BackMenu")
+	delete(scene.nodes[ship].script)
+	scene.nodes[ship].script = strings.clone("Hero")
+	testing.expect_value(t, len(Listener_Targets(scene)), 1)
+	send(&state, Listener_Dialog_Opened{menu, "onButtonPressed"})
+	send(&state, Listener_Target_Chosen(ship))
+	testing.expect(t, !state.listenerDialog.open, "closed")
+	listeners := scene.nodes[menu].listeners[:]
+	testing.expect_value(t, len(listeners), 1)
+	if len(listeners) == 1 do testing.expect_value(t, listeners[0], e.NodeListenerData{"onButtonPressed", "../../World/Spaceship", "onBackMenuButtonPressed"})
+	data, _ := os.read_entire_file(filepath.join({dir, "scripts", "hero.odin"}, context.temp_allocator) or_else "", context.temp_allocator)
+	text := string(data)
+	testing.expect(t, strings.contains(text, "Hero_onBackMenuButtonPressed :: proc(self: ^Hero, source: ^e.Node, data: e.EventData) {\n\t// index := data.(int)\n}"), text)
+	testing.expect(t, strings.contains(text, "e.Script_Listener(Hero, \"onBackMenuButtonPressed\", Hero_onBackMenuButtonPressed)"), "registered")
+	// One undo step: the listener goes (the code is the code editor's to undo)
+	send(&state, Action.Undo)
+	testing.expect_value(t, len(scene.nodes[menu].listeners), 0)
+	send(&state, Action.Redo)
+	testing.expect_value(t, len(scene.nodes[menu].listeners), 1)
+	// Written to the scene file and read back
+	testing.expect_value(t, Project_Save(&state.project), "")
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	reloaded := &loaded.scenes[1].nodes[menu]
+	testing.expect(t, len(reloaded.listeners) == 1 && reloaded.listeners[0].handler == "onBackMenuButtonPressed", "round trip")
+	// × removes it (an undo step too)
+	send(&state, Listener_Removed{menu, 0})
+	testing.expect_value(t, len(scene.nodes[menu].listeners), 0)
+	free_all(context.temp_allocator)
+}

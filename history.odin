@@ -164,6 +164,10 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		return {scope = .Project, label = fmt.tprintf("Change the %s of %s", field, sceneName), mergeKey = key("scene-settings", field, index)}
 	}
 	#partial switch v in m {
+	case Listener_Target_Chosen:
+		if d := s.listenerDialog; d.node >= 0 && d.node < len(scene.nodes) do return node(d.node, fmt.tprintf("Listen to %s's %s", scene.nodes[d.node].name, d.event))
+	case Listener_Removed:
+		if v.node >= 0 && v.node < len(scene.nodes) do return node(v.node, fmt.tprintf("Remove a listener of %s", scene.nodes[v.node].name))
 	case Scene_Action:
 		if SceneOp_EditsProject(v.op) do return {scope = .Project, label = sceneOpLabel(s, v)}
 		return {}
@@ -650,6 +654,8 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	for p, i in a.points do if p != b.points[i] do return false
 	for item, i in a.items do if item != b.items[i] do return false
 	for prop, i in a.props do if prop != b.props[i] do return false
+	if len(a.listeners) != len(b.listeners) do return false
+	for l, i in a.listeners do if l != b.listeners[i] do return false
 	return true
 }
 

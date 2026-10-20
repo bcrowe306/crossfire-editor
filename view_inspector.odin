@@ -404,6 +404,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	append(&rows, skald.divider(ctx))
 	append(&rows, ..scriptSection(ctx, s, node, key, controlWidth, numberWidth))
+	append(&rows, skald.divider(ctx))
+	append(&rows, ..eventsSection(ctx, s, node, controlWidth))
 
 	if node.kind != .Node2D {
 		append(&rows, skald.divider(ctx), skald.text(fmt.tprintf("%v", node.kind), th.color.fg, th.font.size_sm))

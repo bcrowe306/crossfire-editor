@@ -215,6 +215,9 @@ State :: struct {
 	scriptFiles: [dynamic]string,
 	// A background build of the scripts was requested once for this project
 	scriptsAutoBuilt: bool,
+	// The inspector's Listen... dialog (node_listeners.odin) and whether its Events section is open
+	listenerDialog: ListenerDialog,
+	inspectorEventsOpen: bool,
 	newScript: struct {
 		open: bool,
 		// Owned
@@ -388,6 +391,7 @@ State_Destroy :: proc(state: ^State) {
 	for f in state.scriptFiles do delete(f)
 	delete(state.scriptFiles)
 	delete(state.newScript.name)
+	delete(state.listenerDialog.event)
 	delete(state.newData.name)
 	delete(state.newData.type)
 	delete(state.selection)

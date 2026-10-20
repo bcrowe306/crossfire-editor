@@ -151,6 +151,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_browser.odin` | Left sidebar: project browser (search, tree, collapsible preview panel) |
 | `view_browser_info.odin` | The preview for scripts (`scriptInfoPreview`: what each registered script and data type is, where it's used) and scenes (`scenePreview`: facts, actions, the scene's own settings) |
 | `scene_settings.odin` | A scene's own settings (`SceneDef.settings`, the engine's `e.SceneSettings`): their messages and undo |
+| `node_listeners.odin`, `view_inspector_events.odin` | **Listening to node events**: the inspector's Events section (`eventsSection`), the Listen... dialog (`listenerDialogView`), attaching (`Listener_Attach`: the listener on the node, the handler appended to the script's file) |
 | `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`) |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
 | `viewport_preview.odin` | Engine-rendered preview of the open scene (software renderer → Skald image) |
@@ -775,6 +776,19 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Browser: a Scripts folder (only when there are scripts; `State.scriptFiles`, refreshed by
   `Scripts_Refresh`) whose preview shows the file's start and an Open button.
 - Scripts don't run in the viewport (`Scene_Build(..., attachScripts = false)`).
+- **Events and listeners** (node_listeners.odin, view_inspector_events.odin; the engine's
+  node_events.odin): the inspector's Events section lists the node's events
+  (`e.SceneNodeKind_Events` of `NodeDef_BuiltKind`; collapsed until Show, open when the node has
+  listeners) with its listeners (× removes one: `Listener_Removed`). Listen... opens a dialog of
+  the scene's nodes with a script (`Listener_Targets`); choosing one (`Listener_Target_Chosen`,
+  a `.Node` undo step) adds `NodeDef.listeners` (`<listener event target handler/>`, target a
+  path from the node) and appends to the script's file (`Script_FileOf`: the one registering it)
+  the handler `<Script>_<handler> :: proc(self: ^Script, source: ^e.Node, data: e.EventData)`
+  with the event's data hint and its `@(init)` `e.Script_Listener` registration
+  (`Listener_HandlerSource`; named `on<Node><Event>`, unique in the file:
+  `Listener_HandlerName`), in the code tab (`CodeEditor_InsertAtLine`, caret in the body) or,
+  with the external editor, written to the file. Tests: `listeners_from_the_inspector`,
+  scripts.script (built and played without a listener warning).
 - **Node fields** (node_fields.odin; the engine sets them before `ready`): an exported pointer
   to a node type (`camera: ^e.Camera2D `export:"default=../Camera"``) holds a path
   (`e.Node_FindPath`). The inspector's control is a dropdown of the scene's nodes that fit

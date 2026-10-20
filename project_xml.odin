@@ -210,7 +210,7 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		particles := node.kind == .ParticleEmitter ? e.FormatParticleSettings(node.particles) : nil
 		animations := node.kind == .AnimatedSprite ? node.animations[:] : nil
 		entities := node.kind == .LDtkLevel ? node.ldtk.entityComponents[:] : nil
-		if len(node.items) == 0 && node.script == "" && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && !hasChildren {
+		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -236,6 +236,14 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			open(&w, "entity")
 			attr(&w, "name", m.entity)
 			attr(&w, "component", m.component)
+			closeEmpty(&w)
+		}
+		// Scripts listening to its events
+		for l in node.listeners {
+			open(&w, "listener")
+			attr(&w, "event", l.event)
+			attr(&w, "target", l.target)
+			attr(&w, "handler", l.handler)
 			closeEmpty(&w)
 		}
 		for item in node.items {

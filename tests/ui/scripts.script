@@ -50,6 +50,24 @@ click_row scene-tree 2
 expect selected Spaceship
 scroll_into_view inspector-scroll inspector-prop-camera-2
 expect widget_visible inspector-prop-camera-2 true
+# The inspector's Events: Listen... on Spaceship's onExit, Mover (on Spaceship itself) listens; its
+# handler goes into the code tab, the listener into the scene, bound before ready when it plays
+scroll_into_view inspector-scroll inspector-events-toggle
+click_widget inspector-events-toggle
+scroll_into_view inspector-scroll inspector-event-listen-onExit
+click_widget inspector-event-listen-onExit
+expect widget_visible listener-target-0 true
+click_widget listener-target-0
+wait_until code_contains true Mover_onSpaceshipExit :: proc(self: ^Mover, source: ^e.Node, data: e.EventData) timeout=5
+expect console_contains Spaceship now listens to Spaceship's onExit
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml <listener event="onExit" target="." handler="onSpaceshipExit"/>
+expect project_file_contains scripts/mover.odin e.Script_Listener(Mover, "onSpaceshipExit", Mover_onSpaceshipExit)
+expect code_dirty false
+# (the save's build may only start now: let it start and the layout settle before closing)
+wait 60
+wait_until scripts Ready timeout=240
+wait 30
 click_widget code-tab-close-0
 expect code_tabs 0
 
@@ -105,6 +123,8 @@ wait_until console_contains 1 scripts registered timeout=30
 # (ready has run by then: node fields are set just before it)
 wait 30
 expect console_lacks Mover.camera
+expect console_lacks has no handler
+expect console_lacks to listen
 key shift+F5
 wait_until play Stopped
 

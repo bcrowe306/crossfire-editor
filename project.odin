@@ -77,6 +77,9 @@ NodeDef :: struct {
 	// (scripts.odin). Values for fields the script doesn't have are kept, not shown
 	script: string,
 	props: [dynamic]ScriptPropDef,
+	// Any kind: scripts listening to its events (the engine's `<listener event target handler/>`;
+	// strings owned; node_events.odin): the inspector's Events section
+	listeners: [dynamic]e.NodeListenerData,
 
 	// Physics (the engine's SceneNodeData has the same fields; physics_nodes.odin there).
 	// Bodies: layers it's on and collides with (bit sets), surface
@@ -324,6 +327,8 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.script)
 	for prop in node.props { delete(prop.name); delete(prop.value) }
 	delete(node.props)
+	for l in node.listeners { delete(l.event); delete(l.target); delete(l.handler) }
+	delete(node.listeners)
 	delete(node.points)
 	delete(node.bodyA)
 	delete(node.bodyB)
@@ -674,6 +679,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 		for prop in node.props {
 			append(&def.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
 		}
+		for l in node.listeners do append(&def.listeners, Listener_Clone(l))
 	def.component = strings.clone(node.component)
 	def.sound = strings.clone(node.sound)
 	def.bus = strings.clone(node.bus)

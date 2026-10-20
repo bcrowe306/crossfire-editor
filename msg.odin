@@ -180,6 +180,20 @@ Scene_Gravity_Changed :: struct {
 	axis: int,
 	value: f64,
 }
+// The inspector's Events section (view_inspector_events.odin): Listen... on a node's event
+Listener_Dialog_Opened :: struct {
+	node: int,
+	// Only valid while handling the message
+	event: string,
+}
+Listener_Dialog_Cancelled :: struct {}
+// The dialog's choice: the node (in the open scene) whose script listens
+Listener_Target_Chosen :: distinct int
+// × on a listener: the node and the listener's index
+Listener_Removed :: struct {
+	node, index: int,
+}
+Inspector_Events_Toggled :: struct {}
 // The script preview's list of nodes using it: open that scene (or component) and select the node
 Script_Usage_Clicked :: struct {
 	scene, node: int,
@@ -781,6 +795,11 @@ Msg :: union {
 	Scene_Gravity_Toggled,
 	Scene_Gravity_Changed,
 	Script_Usage_Clicked,
+	Listener_Dialog_Opened,
+	Listener_Dialog_Cancelled,
+	Listener_Target_Chosen,
+	Listener_Removed,
+	Inspector_Events_Toggled,
 	Action,
 	Play_Tick,
 	Script_Tick,
