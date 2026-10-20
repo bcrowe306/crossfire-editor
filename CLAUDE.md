@@ -582,8 +582,13 @@ Scripts open in code tabs after the scene tabs (`State.codeTabs`, absolute paths
 external program (`Script_OpenInEditor`). Picking a scene tab, or anything that changes
 `currentScene` (`update` resets `codeTab`), shows the scene.
 - **Rendering:** the code editor draws with an SDL renderer; Skald draws with Vulkan. Each open
-  file has an SDL software renderer on a surface; the active one is rendered every frame it
-  shows and uploaded into one Skald image only when its pixels' hash changed. It's drawn at the
+  file has an SDL software renderer on a surface; only the shown one is rendered, and only when
+  what it shows may have changed (`codeRenderKey`: size, text version, carets, scroll, the
+  server's answer counters; or input reached it, a server reply is waiting, it was reloaded or
+  just came to the front), at least every `CODE_RENDER_REFRESH` (0.5 s) for anything else. A
+  full render takes about 11 ms fullscreen: done every frame, it took most of a 60 fps frame
+  (measured with the editor running: 60 renders a second before, 2 after). It's uploaded into
+  one Skald image only when its pixels' hash changed. It's drawn at the
   display's pixel scale (font size × `ctx.renderer.scale`).
 - **Input:** Skald has no raw-event hook and folds a frame's keys into a set, so an SDL event
   watch (`sdl.AddEventWatch`) copies every key, text and mouse event as SDL queues it; the code

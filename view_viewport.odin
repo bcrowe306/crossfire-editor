@@ -67,6 +67,10 @@ toggleButton :: proc(s: ^State, ctx: ^skald.Ctx(Msg), key, icon, tip: string, ac
 	return skald.tooltip(ctx, button, actionTip(s, tip, action), id = skald.hash_id(fmt.tprintf("panel-tip-%s", key)))
 }
 
+// The viewport's last render, kept only while a test script runs (save_viewport_render)
+lastViewportRender: [dynamic]u8
+lastViewportSize: [2]int
+
 viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	canvasId := skald.hash_id("viewport-canvas")
@@ -100,6 +104,12 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			imageReady = true
 		} else if pixels, ok := Preview_Render(s, size, pixelScale); ok {
 			renderMs = time.duration_milliseconds(time.tick_since(renderStart))
+			// Test scripts can save it (the driver's save_viewport_render)
+			if ScriptDriver_Active() {
+				resize(&lastViewportRender, len(pixels))
+				copy(lastViewportRender[:], pixels)
+				lastViewportSize = size
+			}
 			started := time.tick_now()
 			defer frameStats.viewportMs = renderMs + time.duration_milliseconds(time.tick_since(started))
 			if size == uploadedSize {

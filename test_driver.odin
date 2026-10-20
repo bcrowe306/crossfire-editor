@@ -14,6 +14,7 @@ import "core:time"
 import e "engine:."
 import "gui:skald"
 import sdl "vendor:sdl3"
+import stbi "vendor:stb/image"
 
 /*
 UI test driver: runs a script that drives the editor through real input.
@@ -55,6 +56,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	save_code_render <file.png>      Save the shown code tab's render (its own pixels, not the screen)
 	write_project_file <path> <text> Write a project file ("\n", "\t"), as another program would
 	code_dialog_pick <path>          Answer the code editor's Open / Save As dialog with a project path
+	save_viewport_render <png>       Write the viewport's last render (the engine's pixels, never the
+	                                 screen) to a file, to look at
 	code_import_path <zed | vscode> <file>   Where the shown code tab imports key bindings from
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
@@ -77,7 +80,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 Global_Added <script>, New_Data_Type_Changed <type>,
 	                                 Project_Settings_Tab_Changed <tab>, Git_Switch_Branch <name>
 	                                 (the Git tab's branch list), New_Script_Opened,
-	                                 New_Data_Opened (no value)
+	                                 New_Data_Opened (no value), Scene_Tab_Changed <tab index>,
+	                                 Code_Open_Requested <file> (opens it in a code tab)
 	archive_project <path>           Export Project Archive to a file, as if picked in its dialog
 	open_archive <archive> | <folder>
 	                                 Open Project Archive: unpack the archive into the folder (as
@@ -85,7 +89,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	open_project <folder>            Open a project, as if picked in the folder dialog (no
 	                                 unsaved-changes prompt)
 	drag_node <name> <dx> <dy>       Press on a node, move by (dx, dy) window pixels, release
-	scroll <notches>                 Mouse wheel over the viewport center (positive zooms in)
+	scroll <notches> [<fx> <fy>]     Mouse wheel over the viewport (positive zooms in): its center,
+	                                 or a point as fractions of its view (0 0 top-left, 1 1 bottom-right)
 	click <x> <y>                    Click a window position (logical pixels)
 	move <x> <y>                     Move the mouse
 	key <combo>                      Press a key: F5, DELETE, ctrl+s, shift+F5 (SDL scancode names)
@@ -707,6 +712,13 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "save_viewport_render":
+		// The viewport's last render as a PNG (its own pixels, never the screen), to look at
+		size := lastViewportSize
+		if size.x > 0 do _ = stbi.write_png(strings.clone_to_cstring(rest, context.temp_allocator), i32(size.x), i32(size.y), 4, raw_data(lastViewportRender), i32(size.x) * 4)
+		report(size.x > 0, line)
+		return false
+
 	case "save_code_render":
 		// The shown code tab's own render (never the screen), to look at
 		if problem := CodeEditor_SaveRender(CodeTabs_Active(s), rest); problem != "" {
@@ -870,6 +882,10 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		case "Project_Settings_Tab_Changed":
 			tab, ok := reflect.enum_from_name(ProjectSettingsTab, value)
 			if ok do msg = Project_Settings_Tab_Changed(tab)
+		case "Scene_Tab_Changed":
+			if i, ok := strconv.parse_int(value); ok do msg = Scene_Tab_Changed(i)
+		case "Code_Open_Requested":
+			msg = Code_Open_Requested{path = Editor_ArgumentPath(value)}
 		case "Git_Switch_Branch":
 			msg = Git_Op_Requested{op = .Switch_Branch, arg = strings.clone(value, context.temp_allocator)}
 		}
@@ -946,6 +962,12 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		if !ok {
 			fail(fmt.tprintf("%s: the viewport hasn't been drawn", line))
 			return true
+		}
+		if len(args) >= 3 {
+			rect, _ := widgetRect(ctx, "viewport-canvas")
+			fx, _ := strconv.parse_f32(args[1])
+			fy, _ := strconv.parse_f32(args[2])
+			center = {rect.x + RULER_SIZE + (rect.w - RULER_SIZE) * fx, rect.y + RULER_SIZE + (rect.h - RULER_SIZE) * fy}
 		}
 		pushMouse(.MOUSE_MOTION, center)
 		event: sdl.Event

@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:hash"
 import "core:os"
 import "core:path/filepath"
+import "core:slice"
 import "core:strings"
 import "core:time"
 import "gui:skald"
@@ -83,7 +84,14 @@ CodeEditor :: struct {
 	openedIn: int,
 	// The font size (pixels) its cell size was measured at
 	cellsFor: f32,
+	// What its last render showed (renderKey) and when: it's drawn again only when something
+	// it shows may have changed (codeRenderKey, input, a server reply)
+	renderKey: u64,
+	renderedAt: time.Tick,
 }
+
+// The longest a shown code editor goes without being drawn again (anything the change checks miss)
+CODE_RENDER_REFRESH :: 500 * time.Millisecond
 
 // What a file did on disk since it was read (`CodeEditor_DiskChange`)
 CodeDiskChange :: enum {
@@ -478,11 +486,14 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	// This frame's input
 	passthrough := passthroughChords(&s.settings.keymap)
 	dragging := c.ed.mouse.drag != .None
+	// Input reaching the editor this frame: it's drawn again
+	handled := 0
 	for i in 0 ..< host.eventCount {
 		e := host.events[i]
 		#partial switch e.type {
 		case .KEY_DOWN, .KEY_UP:
 			if !focused || isPassthrough(e.key, passthrough) do continue
+			handled += 1
 			if ce.editor_handle_event(&c.ed, e) || e.type != .KEY_DOWN do continue
 			// What the code editor leaves to its host: Open and Save As need file dialogs
 			if action, bound := km.keymap_resolve(&c.ed.keymap, ce.sdl_event_to_chord(e.key)); bound {
@@ -492,20 +503,25 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 				}
 			}
 		case .TEXT_INPUT, .TEXT_EDITING:
-			if focused do _ = ce.editor_handle_event(&c.ed, e)
+			if !focused do continue
+			handled += 1
+			_ = ce.editor_handle_event(&c.ed, e)
 		case .MOUSE_MOTION:
 			if !over && !dragging do continue
+			handled += 1
 			e.motion.x = (e.motion.x - rect.x) * scale
 			e.motion.y = (e.motion.y - rect.y) * scale
 			_ = ce.editor_handle_event(&c.ed, e)
 		case .MOUSE_BUTTON_DOWN, .MOUSE_BUTTON_UP:
 			if e.type == .MOUSE_BUTTON_DOWN && !over do continue
 			if e.type == .MOUSE_BUTTON_UP && !over && !dragging do continue
+			handled += 1
 			e.button.x = (e.button.x - rect.x) * scale
 			e.button.y = (e.button.y - rect.y) * scale
 			_ = ce.editor_handle_event(&c.ed, e)
 		case .MOUSE_WHEEL:
 			if !over do continue
+			handled += 1
 			e.wheel.mouse_x = (e.wheel.mouse_x - rect.x) * scale
 			e.wheel.mouse_y = (e.wheel.mouse_y - rect.y) * scale
 			_ = ce.editor_handle_event(&c.ed, e)
@@ -514,6 +530,10 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	drainEvents()
 	// The shared language server follows the file that shows
 	takeServer(c)
+	// A reply from the language server (completions, diagnostics, hover...) may change what shows
+	if c.ed.lsp_enabled && c.ed.lsp.has_process && c.ed.lsp.stdout != nil {
+		if pending, err := os.pipe_has_data(c.ed.lsp.stdout); err == nil && pending do handled += 1
+	}
 	ce.editor_update(&c.ed)
 	if c.ed.lsp_enabled && c.ed.lsp_doc_open do c.openedIn = serverProcess(c)
 	if other, line, character, ok := ce.editor_take_open_request(&c.ed); ok {
@@ -528,14 +548,26 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		ce.editor_load_theme(&c.ed)
 	}
 	#partial switch CodeEditor_DiskChange(path, now = host.lastShown != c) {
-	case .Reloaded: skald.send(ctx, Msg(Code_Reloaded{strings.clone(path, context.temp_allocator)}))
+	case .Reloaded:
+		handled += 1
+		skald.send(ctx, Msg(Code_Reloaded{strings.clone(path, context.temp_allocator)}))
 	}
+	if host.lastShown != c do handled += 1
 	host.lastShown = c
 
-	// Render when the size or anything shown changed; upload only changed pixels
+	// Render only when what it shows may have changed (input, a server reply, a reload, the
+	// size, its text or carets, the scroll, the server's answers), and at least every
+	// CODE_RENDER_REFRESH; upload only changed pixels. Rendering is a full software redraw
+	// (about 11 ms fullscreen): every frame, it took most of a 60 fps frame
 	size := [2]int{int(rect.w * scale), int(rect.h * scale)}
 	imageReady := false
-	if ctx.renderer != nil && size.x > 0 && size.y > 0 && ensureSurface(c, size) {
+	stillShown := host.uploaded == c && host.uploadedSize == size
+	key := codeRenderKey(c, size, scale)
+	if stillShown && handled == 0 && key == c.renderKey && time.tick_since(c.renderedAt) < CODE_RENDER_REFRESH {
+		imageReady = true
+	} else if ctx.renderer != nil && size.x > 0 && size.y > 0 && ensureSurface(c, size) {
+		c.renderKey = key
+		c.renderedAt = time.tick_now()
 		ce.editor_set_viewport(&c.ed, f32(size.x), f32(size.y))
 		sdl.SetRenderDrawColor(c.renderer, 0, 0, 0, 255)
 		sdl.RenderClear(c.renderer)
@@ -564,6 +596,23 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		skald.draw_rect(p.r, p.bounds, d.bg)
 		if d.ready do skald.draw_image(p.r, CODE_IMAGE, p.bounds, .Fill)
 	}, id = id, cursor = cursor)
+}
+
+// What a code editor's picture depends on, cheaply: its size, text version, carets and
+// selections, scroll, and the server's latest answers
+@(private="file")
+codeRenderKey :: proc(c: ^CodeEditor, size: [2]int, scale: f32) -> u64 {
+	Key :: struct {
+		size: [2]int,
+		scale: f32,
+		version, cursors, scrollLine, scrollCol: int,
+		diagnostics, completions, signatures: int,
+	}
+	key := Key{size, scale, c.ed.buf.version, len(c.ed.buf.cursors), c.ed.scroll_line, c.ed.scroll_col,
+		c.ed.lsp.diagnostics_seq, c.ed.lsp.completion_seq, c.ed.lsp.signature_seq}
+	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
+	if len(c.ed.buf.cursors) > 0 do h = hash.fnv64a(slice.to_bytes(c.ed.buf.cursors[:]), h)
+	return h
 }
 
 /*
