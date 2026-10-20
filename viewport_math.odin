@@ -83,6 +83,9 @@ ViewportState :: struct {
 	tickPending: bool,
 	// When the next tick is due, so ticks keep a steady rate however late each one lands
 	nextTick: time.Tick,
+	// Fit the view to what the scene draws once its preview is built (a component opening:
+	// `Viewport_FitRect`), instead of to the game area
+	fitContent: bool,
 }
 
 // Viewport animations are drawn at this rate, not the display's: each frame re-renders the scene
@@ -114,6 +117,24 @@ Viewport_Fit :: proc(v: ^ViewportState, gameSize: [2]f32) {
 		v.zoom = 1
 	}
 }
+
+/*
+Shows a world rectangle, centered, as large as fits (with the fit margin). A rectangle smaller
+than `VIEWPORT_FIT_MIN_SIZE` is shown at that size, so a tiny or empty component isn't magnified
+without end.
+*/
+Viewport_FitRect :: proc(v: ^ViewportState, rect: [4]f32) {
+	size := [2]f32{max(rect[2], VIEWPORT_FIT_MIN_SIZE), max(rect[3], VIEWPORT_FIT_MIN_SIZE)}
+	v.center = {rect[0] + rect[2] * 0.5, rect[1] + rect[3] * 0.5}
+	if v.size.x > 0 && v.size.y > 0 {
+		v.zoom = clamp(min(v.size.x / size.x, v.size.y / size.y) * VIEWPORT_FIT_MARGIN, VIEWPORT_MIN_ZOOM, VIEWPORT_MAX_ZOOM)
+	} else {
+		v.zoom = 1
+	}
+}
+
+// The smallest world size `Viewport_FitRect` fits (an empty component shows 128 units around it)
+VIEWPORT_FIT_MIN_SIZE :: 128
 
 /*
 Zooms by a factor, keeping a world point under the same pixel (the mouse, for wheel zoom).

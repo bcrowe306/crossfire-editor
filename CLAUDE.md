@@ -933,7 +933,12 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
 - **Using one:** drag it from the browser into the viewport, Add to Scene (browser preview or
   menu), or a Component node with the inspector's Component choice; instancing a component into
   itself (directly or through others) is refused. Opened (double-click, Open), it gets a tab
-  (`SceneDef.opened`, `ViewportTabScenes`).
+  (`SceneDef.opened`, `ViewportTabScenes`), and the view fits what it draws rather than the game
+  area: `openScene` sets `viewport.fitContent`; once the preview has built it
+  (`Preview_IsCurrent`) the view sends `Viewport_Content_Measured` (`contentRect`: every visible
+  node's bounds, and the positions of nodes that draw nothing) and update fits it
+  (`Viewport_FitRect`, at least `VIEWPORT_FIT_MIN_SIZE` across). components.script checks it
+  (`viewport_center`).
 - **Viewport:** instances are built from the components in memory (`provideComponents` fills the
   engine game's component map before `Scene_Build`), and rebuild when a component they use
   changes (`componentSignature`); an instance picks and outlines by its whole tree

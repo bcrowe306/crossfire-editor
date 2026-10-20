@@ -164,6 +164,11 @@ Preview_Node :: proc(index: int) -> ^e.Node {
 	return preview.nodes[index]
 }
 
+// Whether the preview has built the open scene as it is now (its nodes are the scene's)
+Preview_IsCurrent :: proc(s: ^State) -> bool {
+	return preview.scene != nil && preview.signature == sceneSignature(s, &s.project.scenes[s.currentScene])
+}
+
 // Whether the previewed scene has anything animated, so the view keeps frames coming
 Preview_IsAnimated :: proc() -> bool {
 	return preview.animated

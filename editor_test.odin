@@ -439,7 +439,15 @@ viewport_view_math :: proc(t: ^testing.T) {
 	testing.expect(t, nearly(v.center, {640, 360}), "fit centers the game area")
 	testing.expect(t, abs(v.zoom - 800.0 / 1280 * VIEWPORT_FIT_MARGIN) < 0.001, "fit zoom")
 
+	// A rectangle fits around its middle; a tiny one shows at the minimum size
+	Viewport_FitRect(&v, {100, 50, 200, 100})
+	testing.expect(t, nearly(v.center, {200, 100}), "fit rect centers it")
+	testing.expect(t, abs(v.zoom - min(v.size.x / 200, v.size.y / 100) * VIEWPORT_FIT_MARGIN) < 0.001, "fit rect zoom")
+	Viewport_FitRect(&v, {0, 0, 4, 4})
+	testing.expect(t, abs(v.zoom - min(v.size.x, v.size.y) / VIEWPORT_FIT_MIN_SIZE * VIEWPORT_FIT_MARGIN) < 0.001, "tiny content isn't magnified without end")
+
 	v.zoom = 1
+	v.center = {640, 360}
 	Viewport_Pan(&v, {10, -20})
 	testing.expect(t, nearly(v.center, {630, 380}), "pan moves the content with the mouse")
 

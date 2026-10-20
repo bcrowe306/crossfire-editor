@@ -254,6 +254,9 @@ Rename_Committed :: struct {
 Rename_Cancelled :: struct {}
 // Keeps frames coming (auto-scrolling while the mouse is held still)
 Frame_Requested :: struct {}
+// What the open scene draws, as a world rectangle {x, y, w, h}, once its preview is built (the
+// view sends it while `viewport.fitContent` is set)
+Viewport_Content_Measured :: distinct [4]f32
 
 // Project session (project_session.odin)
 ConfirmChoice :: enum {
@@ -831,6 +834,7 @@ Msg :: union {
 	Rename_Committed,
 	Rename_Cancelled,
 	Frame_Requested,
+	Viewport_Content_Measured,
 	Asset_Drag_Pressed,
 	Asset_Drag_Started,
 	Asset_Dropped,

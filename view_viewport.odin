@@ -127,6 +127,8 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.send(ctx, Msg(Viewport_Tick_Requested{}))
 		}
 	}
+	// A component just opened: fit the view to what it draws, now that it's built
+	if s.viewport.fitContent && Preview_IsCurrent(s) do skald.send(ctx, Viewport_Content_Measured(contentRect(s, scene)))
 
 	buttons := skald.row(
 		panelButton(ctx, "viewport-animate", s.viewport.animate ? ICON_PAUSE : ICON_PLAY,
@@ -448,6 +450,23 @@ hitsShape :: proc(v: ^ViewportState, shape: NodeShape, mouseView, mouseWorld: [2
 
 
 // SHAPES
+
+// The world rectangle {x, y, w, h} around what the scene draws, and the nodes that draw nothing
+// (their positions); zero size at the origin for an empty scene
+@(private="file")
+contentRect :: proc(s: ^State, scene: ^SceneDef) -> [4]f32 {
+	lo, hi := [2]f32{max(f32), max(f32)}, [2]f32{min(f32), min(f32)}
+	grow :: proc(lo, hi: ^[2]f32, p: [2]f32) {
+		lo^, hi^ = {min(lo.x, p.x), min(lo.y, p.y)}, {max(hi.x, p.x), max(hi.y, p.y)}
+	}
+	for shape in nodeShapes(s, scene) {
+		if !shape.visible do continue
+		if shape.hasBounds do for corner in shape.corners do grow(&lo, &hi, corner)
+		else do grow(&lo, &hi, shape.world.origin)
+	}
+	if lo.x > hi.x do return {}
+	return {lo.x, lo.y, hi.x - lo.x, hi.y - lo.y}
+}
 
 // The rectangle a node and everything under it draw, in the node's space
 @(private="file")

@@ -14,9 +14,6 @@ owns it.
 - **Arrow keys adjust the focused control:** a focused slider, number field, dropdown, checkbox
   or the like changes its value with the direction keys (Left/Right or Up/Down step it; Shift for
   bigger steps on numbers), like desktop toolkits.
-- **Opening a component fits it to the viewport.** A component's tab opens at the game area's
-  fit, so a small component (a coin, an enemy) shows tiny; fit the view to the component's own
-  bounds instead (as Frame Selected does for a node).
 
 - **Pan and scroll the viewport.** Scroll horizontally and vertically, not only zoom. A pan tool
   of its own is fine; also a modifier with the wheel (say Shift + wheel pans sideways, Ctrl +

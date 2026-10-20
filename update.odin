@@ -430,6 +430,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Viewport_Measured:
 		out.viewport.size = cast([2]f32)v
 		if out.viewport.zoom == 0 do Viewport_Fit(&out.viewport, out.project.gameSize)
+	case Viewport_Content_Measured:
+		if out.viewport.fitContent && out.viewport.size.x > 0 {
+			out.viewport.fitContent = false
+			Viewport_FitRect(&out.viewport, cast([4]f32)v)
+		}
 	case Viewport_Panned:
 		Viewport_Pan(&out.viewport, cast([2]f32)v)
 	case Viewport_Zoomed:
@@ -1056,6 +1061,9 @@ openScene :: proc(state: ^State, index: int) {
 	} else {
 		state.viewport.zoom = 0
 	}
+	// A component is usually much smaller than the game: the view fits what it draws, once the
+	// preview has built it (the viewport sends Viewport_Content_Measured)
+	state.viewport.fitContent = Scene_IsComponent(&state.project.scenes[index])
 }
 
 @(private="package")

@@ -28,10 +28,12 @@ click_widget component-add
 expect nodes 8
 expect kind Component
 
-# Opened, it's edited like a scene (its own tab)
+# Opened, it's edited like a scene (its own tab), the view fitted to what the component draws
+# (centered on it, not on the game area)
 click_widget component-open
 expect scene props
 expect nodes 5
+wait_until viewport_center 0 71
 click_row scene-tree 0
 expect selected Props
 key ctrl+shift+a

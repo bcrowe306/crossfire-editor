@@ -114,6 +114,7 @@ Checks:
 	                             Property of the selected node (numbers are rounded to whole units)
 	tool <Select | Move | Rotate | Scale>
 	zoom <percent>               Viewport zoom, rounded to a whole percent
+	viewport_center <x> <y>      The world point at the viewport's center, rounded
 	typing <true | false>        Whether a text or number field has keyboard focus
 	assets <count>               Assets in the project
 	browser_rows <count>         Rows the project browser shows (after search filtering)
@@ -1092,6 +1093,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(s.tool)
 	case "zoom":
 		found = fmt.tprint(int(math.round(s.viewport.zoom * 100)))
+	case "viewport_center":
+		found = fmt.tprintf("%d %d", int(math.round(s.viewport.center.x)), int(math.round(s.viewport.center.y)))
 	case "typing":
 		found = fmt.tprint(IsTyping(ctx))
 	case "assets":
