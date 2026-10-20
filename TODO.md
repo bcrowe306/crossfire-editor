@@ -4,6 +4,24 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
+## Editor UI
+
+- **Pan and scroll the viewport.** Scroll horizontally and vertically, not only zoom. A pan tool
+  of its own is fine; also a modifier with the wheel (say Shift + wheel pans sideways, Ctrl +
+  wheel up and down, plain wheel zooms as now) and a touchpad's two-finger scroll. Today the
+  wheel only zooms; panning is a right or middle drag, or Space + left drag (`Viewport_Panned`).
+- **Edit components in the viewport without putting them in a scene.** Opening a component
+  (double-click or Open in the browser's Components folder) already gives it a tab of its own;
+  make that the obvious way in (an Edit button on the component's preview and inspector, the
+  same from an instance's inspector) and check that every editing tool works in a component
+  tab as in a scene. **Empty components that start with a node of your choice:** New Component
+  makes a Node2D root today; let it pick the root's kind (a Sprite, an Area, a CharacterMover...)
+  as Add Node does.
+- **Tooltips on the GUI's controls**, so it's easier to learn: every toolbar and panel button,
+  the inspector's fields (what the setting does, its range), the Project Settings and Settings
+  controls, the bottom panel's tabs. Some buttons have one (`skald.tooltip`, with the shortcut
+  from `actionTip`); most controls don't.
+
 ## Builds and releases
 
 - **macOS bundle signing and notarization** with gon (`brew install mitchellh/gon/gon`, a
