@@ -1,0 +1,43 @@
+# Every node's format-13 settings in the inspector: z index, y sort, blend mode, process mode and
+# groups, edited with real input, saved to the scene file, and undone.
+# Run with: task test:ui (SCRIPT=tests/ui/node_settings.script)
+#
+# PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+key ctrl+shift+a
+type Node2D
+key RETURN
+expect selected Node2D
+expect nodes 12
+
+scroll_into_view inspector-scroll inspector-Z_Index-11-inc
+click_widget inspector-Z_Index-11-inc
+click_widget inspector-Z_Index-11-inc
+scroll_into_view inspector-scroll inspector-Y_Sort-11
+click_widget inspector-Y_Sort-11
+scroll_into_view inspector-scroll inspector-Blend_Mode-11
+click_widget inspector-Blend_Mode-11
+click_overlay_item 1
+scroll_into_view inspector-scroll inspector-Process_Mode-11
+click_widget inspector-Process_Mode-11
+click_overlay_item 2
+scroll_into_view inspector-scroll inspector-Groups-11
+click_widget inspector-Groups-11
+type enemies,flying
+key RETURN
+
+key ctrl+s
+wait_until modified false
+expect project_file_contains scenes/PlayScene.scene.xml name="Node2D" x="0" y="0" processMode="WhenPaused" blendMode="Add" zIndex="2" ySort="true" groups="enemies,flying"
+
+# Undo takes the groups back off
+key escape
+key ctrl+z
+key ctrl+s
+wait_until modified false
+expect project_file_contains scenes/PlayScene.scene.xml name="Node2D" x="0" y="0" processMode="WhenPaused" blendMode="Add" zIndex="2" ySort="true"/>
+quit

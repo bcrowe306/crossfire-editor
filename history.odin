@@ -360,6 +360,7 @@ fieldLabel :: proc(field: NodeField) -> string {
 	case .Scale_X:    return "scale"
 	case .Scale_Y:    return "scale"
 	case .Layer:      return "layer"
+	case .Z_Index:    return "z index"
 	case .Font_Size:  return "font size"
 	case .Zoom:       return "zoom"
 	case .Columns:    return "columns"
@@ -615,6 +616,8 @@ Whether two nodes are the same, ignoring the editor-only `expanded` flag.
 NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	if a.name != b.name || a.kind != b.kind || a.parent != b.parent || a.position != b.position ||
 	   a.rotation != b.rotation || a.scale != b.scale || a.layer != b.layer || a.visible != b.visible ||
+	   a.processMode != b.processMode || a.blendMode != b.blendMode || a.zIndex != b.zIndex || a.ySort != b.ySort ||
+	   a.groups != b.groups ||
 	   a.texture != b.texture || a.text != b.text || a.fontSize != b.fontSize || a.color != b.color ||
 	   a.centered != b.centered || a.zoom != b.zoom || a.columns != b.columns || a.rows != b.rows ||
 	   a.margin != b.margin || a.spacing != b.spacing || a.autoplay != b.autoplay || !animationsEqual(a.animations[:], b.animations[:]) ||

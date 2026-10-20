@@ -698,6 +698,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Scale_X:    node.scale.x = value
 		case .Scale_Y:    node.scale.y = value
 		case .Layer:      node.layer = clamp(int(v.value), 0, 7)
+		case .Z_Index:    node.zIndex = i32(clamp(v.value, -1_000_000, 1_000_000))
 		case .Font_Size:  node.fontSize = max(value, 1)
 		case .Zoom:       node.zoom = max(value, 0.05)
 		case .Columns:    node.columns = max(int(v.value), 1)
@@ -758,6 +759,13 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			node.autoplay = strings.clone(v.value == ANIMATION_FIRST ? "" : v.value)
 		case .Shape:
 			if shape, ok := reflect.enum_from_name(e.CollisionShapeKind, v.value); ok do node.shape = shape
+		case .Process_Mode:
+			if mode, ok := reflect.enum_from_name(e.ProcessMode, v.value); ok do node.processMode = mode
+		case .Blend_Mode:
+			if mode, ok := reflect.enum_from_name(e.BlendMode, v.value); ok do node.blendMode = mode
+		case .Groups:
+			delete(node.groups)
+			node.groups = strings.clone(v.value)
 		case .Joint_Kind:
 			if kind, ok := reflect.enum_from_name(e.JointKind, v.value); ok do node.jointKind = kind
 		case .Body_A:
@@ -772,6 +780,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if node == nil do break
 		switch v.flag {
 		case .Centered:       node.centered = v.value
+		case .Y_Sort:         node.ySort = v.value
 		case .Fixed_Rotation: node.fixedRotation = v.value
 		case .Bullet:         node.bullet = v.value
 		case .Disabled:       node.disabled = v.value

@@ -332,6 +332,11 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 	if node.scale.y != 1 do attr(w, "scaleY", node.scale.y)
 	if node.layer != 0 do attr(w, "layer", node.layer)
 	if !node.visible do attr(w, "visible", false)
+	if node.processMode != .Inherit do attr(w, "processMode", node.processMode)
+	if node.blendMode != .Blend do attr(w, "blendMode", node.blendMode)
+	if node.zIndex != 0 do attr(w, "zIndex", int(node.zIndex))
+	if node.ySort do attr(w, "ySort", true)
+	if node.groups != "" do attr(w, "groups", node.groups)
 
 	switch node.kind {
 	case .Sprite:

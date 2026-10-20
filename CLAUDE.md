@@ -794,6 +794,10 @@ MyGame/
   .editor/                 per-user editor state (gitignored; not used yet)
 ```
 
+- **Version 13:** every node's process mode, blend mode, z index, y sort and groups: `NodeDef`
+  fields of the same names (groups as one comma-separated string), the inspector's common rows
+  (Z index, Y sort, Blend, Process, Groups; `tests/ui/node_settings.script`), written only when
+  not the defaults.
 - **Version 2:** node positions, rotation and scale are relative to the parent. Version 1 files
   (world positions) are migrated when parsed.
 - **Version 4:** physics node kinds and attributes, and the project's physics settings.

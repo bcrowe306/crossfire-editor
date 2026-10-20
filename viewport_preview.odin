@@ -149,7 +149,7 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 	}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	for node in scene.nodes {
-		t := struct { position: [2]f32, rotation: f32, scale: [2]f32, visible: bool, layer: int }{node.position, node.rotation, node.scale, node.visible, node.layer}
+		t := struct { position: [2]f32, rotation: f32, scale: [2]f32, visible: bool, layer: int, zIndex: i32, blendMode: e.BlendMode, ySort: bool }{node.position, node.rotation, node.scale, node.visible, node.layer, node.zIndex, node.blendMode, node.ySort}
 		h = hash.fnv64a(([^]u8)(&t)[:size_of(t)], h)
 	}
 	return h
@@ -423,6 +423,9 @@ syncTransforms :: proc(scene: ^SceneDef) {
 		node.scale = def.scale
 		node.visible = def.visible
 		node.layer = e.RenderLayer(clamp(def.layer, 0, len(e.RenderLayer) - 1))
+		node.zIndex = def.zIndex
+		node.blendMode = def.blendMode
+		node.ySort = def.ySort
 		if def.kind == .ParticleEmitter && e.Node_Is(node, e.ParticleEmitter) {
 			emitter := cast(^e.ParticleEmitter)node
 			emitter.settings = def.particles
@@ -436,6 +439,16 @@ syncTransforms :: proc(scene: ^SceneDef) {
 	}
 }
 
+// A node's comma-separated groups as a list (temp allocated)
+@(private="file")
+groupList :: proc(groups: string) -> [dynamic]string {
+	list := make([dynamic]string, context.temp_allocator)
+	for name in strings.split(groups, ",", context.temp_allocator) {
+		if trimmed := strings.trim_space(name); trimmed != "" do append(&list, trimmed)
+	}
+	return list
+}
+
 // The editor scene as engine scene data (strings borrowed; temp allocated)
 @(private="file")
 toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
@@ -447,6 +460,8 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			kind = node.kind, name = node.name, parent = node.parent,
 			position = node.position, rotation = node.rotation, scale = node.scale,
 			layer = node.layer, visible = node.visible,
+			processMode = node.processMode, blendMode = node.blendMode, zIndex = node.zIndex, ySort = node.ySort,
+			groups = groupList(node.groups),
 			texture = node.texture, text = node.text, fontSize = node.fontSize, color = node.color,
 			centered = node.centered, zoom = node.zoom, columns = node.columns, rows = node.rows,
 			margin = node.margin, spacing = node.spacing, animations = animationData(node.animations[:]), autoplay = node.autoplay, items = items,

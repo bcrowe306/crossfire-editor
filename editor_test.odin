@@ -298,6 +298,14 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	original.scenes[1].nodes[1].zoom = 2.5
 	original.scenes[1].nodes[2].visible = false
 	original.scenes[1].nodes[2].rotation = 45
+	// Format 13's per-node settings
+	tagged := &original.scenes[1].nodes[1]
+	tagged.processMode = .WhenPaused
+	tagged.blendMode = .Add
+	tagged.zIndex = -3
+	tagged.ySort = true
+	delete(tagged.groups)
+	tagged.groups = strings.clone("enemies,flying")
 
 	testing.expect_value(t, Project_Save(&original), "")
 	loaded, message, _ := Project_Load(dir)
@@ -321,6 +329,8 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 			testing.expectf(t, a.name == b.name && a.kind == b.kind && a.parent == b.parent, "%s/%s: identity", scene.name, a.name)
 			testing.expectf(t, a.position == b.position && a.rotation == b.rotation && a.scale == b.scale, "%s/%s: transform", scene.name, a.name)
 			testing.expectf(t, a.layer == b.layer && a.visible == b.visible, "%s/%s: layer/visible", scene.name, a.name)
+			testing.expectf(t, a.processMode == b.processMode && a.blendMode == b.blendMode && a.zIndex == b.zIndex && a.ySort == b.ySort && a.groups == b.groups,
+				"%s/%s: process, blend, z, y-sort, groups (%v %v %v %v %q)", scene.name, a.name, b.processMode, b.blendMode, b.zIndex, b.ySort, b.groups)
 			testing.expectf(t, a.texture == b.texture && a.columns == b.columns && a.rows == b.rows && animationsEqual(a.animations[:], b.animations[:]) && a.autoplay == b.autoplay, "%s/%s: sprite", scene.name, a.name)
 			if a.kind == .Label {
 				testing.expectf(t, a.text == b.text && a.fontSize == b.fontSize && a.color == b.color && a.centered == b.centered, "%s/%s: label", scene.name, a.name)

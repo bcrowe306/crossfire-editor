@@ -39,6 +39,7 @@ Returns:
 NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy := node
 	copy.name = strings.clone(node.name)
+	copy.groups = strings.clone(node.groups)
 	copy.texture = strings.clone(node.texture)
 	copy.text = strings.clone(node.text)
 	copy.items = make([dynamic]MenuItemDef, 0, len(node.items))

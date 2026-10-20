@@ -324,6 +324,8 @@ NodeField :: enum {
 	Scale_X,
 	Scale_Y,
 	Layer,
+	// Draw order in the layer (format 13)
+	Z_Index,
 	Font_Size,
 	Zoom,
 	Columns,
@@ -373,6 +375,10 @@ NodeTextField :: enum {
 	Joint_Kind,
 	Body_A,
 	Body_B,
+	// Every node (format 13): process mode and blend mode by name, groups comma-separated
+	Process_Mode,
+	Blend_Mode,
+	Groups,
 }
 
 Node_Text_Changed :: struct {
@@ -391,6 +397,8 @@ NodeFlag :: enum {
 	Motor,
 	Spring,
 	Collide_Connected,
+	// Every node: its children draw by their y (format 13)
+	Y_Sort,
 }
 
 // Turns one collision layer (1-64) on or off in the selected node's layers (or its mask)

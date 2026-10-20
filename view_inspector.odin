@@ -347,6 +347,16 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		inspectorRow(ctx, "Visible", skald.checkbox(ctx, node.visible, "",
 			proc(v: bool) -> Msg { return Node_Visibility_Changed(v) },
 			id = skald.hash_id(fmt.tprintf("inspector-visible-%d", key)))),
+		inspectorRow(ctx, "Z index", number(ctx, s, key, .Z_Index, f32(node.zIndex), 1, 0, numberWidth)),
+		inspectorRow(ctx, "Y sort", skald.checkbox(ctx, node.ySort, "", NodeFlag.Y_Sort,
+			proc(flag: NodeFlag, value: bool) -> Msg { return Node_Flag_Changed{flag, value} },
+			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", NodeFlag.Y_Sort, key)))),
+		inspectorRow(ctx, "Blend", enumSelect(ctx, node.blendMode, .Blend_Mode, key, controlWidth)),
+		inspectorRow(ctx, "Process", enumSelect(ctx, node.processMode, .Process_Mode, key, controlWidth)),
+		inspectorRow(ctx, "Groups", skald.text_input(ctx, node.groups, NodeTextField.Groups,
+			proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
+			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", NodeTextField.Groups, key)),
+			width = controlWidth, padding = InspectorFieldPadding(ctx))),
 	)
 
 	// Properties of this node's kind
@@ -619,4 +629,14 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 @(private="file")
 inspectorRowView :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
 	return inspectorRow(ctx, label, control)
+}
+
+// A dropdown of an enum's values for a node setting, sent as Node_Text_Changed{field, name}
+@(private="file")
+enumSelect :: proc(ctx: ^skald.Ctx(Msg), value: $E, field: NodeTextField, key: int, width: f32) -> skald.View {
+	names := make([]string, len(E), context.temp_allocator)
+	for v, i in E do names[i] = fmt.tprintf("%v", v)
+	return skald.select(ctx, fmt.tprintf("%v", value), names, field,
+		proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
+		id = skald.hash_id(fmt.tprintf("inspector-%v-%d", field, key)), width = width)
 }

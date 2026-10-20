@@ -42,6 +42,14 @@ NodeDef :: struct {
 	layer: int,
 	// Invisible nodes, and their children, are not created when the game runs
 	visible: bool,
+	// Format 13 (the engine's Node fields of the same names): whether it updates while the scene
+	// is paused, how it blends, its draw order in its layer, whether its children draw by their y
+	processMode: e.ProcessMode,
+	blendMode: e.BlendMode,
+	zIndex: i32,
+	ySort: bool,
+	// Its groups, comma-separated ("enemies,flying"; "" for none), as the scene file writes them
+	groups: string,
 	// Editor-only: whether its children are shown in the scene tree
 	expanded: bool,
 
@@ -230,6 +238,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		visible = true,
 		expanded = true,
 		texture = strings.clone(""),
+		groups = strings.clone(""),
 		text = strings.clone(kind == .Label ? "Label" : ""),
 		fontSize = defaults.fontSize,
 		color = defaults.color,
@@ -292,6 +301,7 @@ AnimationDef_Default :: proc(name := "default") -> AnimationDef {
 // Frees a node's strings and lists
 NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.name)
+	delete(node.groups)
 	delete(node.texture)
 	delete(node.text)
 	for item in node.items { delete(item.label); delete(item.action) }
@@ -577,6 +587,11 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 			scale = node.scale,
 			layer = node.layer,
 			visible = node.visible,
+			processMode = node.processMode,
+			blendMode = node.blendMode,
+			zIndex = node.zIndex,
+			ySort = node.ySort,
+			groups = strings.join(node.groups[:], ","),
 			expanded = true,
 			texture = strings.clone(node.texture),
 			text = strings.clone(node.text),
