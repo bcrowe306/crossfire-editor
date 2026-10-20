@@ -16,6 +16,9 @@ size = None  # as big as the contents need
 files = [application]
 symlinks = {"Applications": "/Applications"}
 
+# The window's background: an arrow from the app to Applications (tools/macos/make_dmg_background.sh;
+# 1x and 2x in one TIFF), its size the window's
+background = defines.get("background", "assets/dmg/background.tiff")  # noqa: F821
 window_rect = ((200, 120), (600, 320))
 default_view = "icon-view"
 show_status_bar = False

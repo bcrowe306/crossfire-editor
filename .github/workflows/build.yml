@@ -278,6 +278,11 @@ jobs:
     needs: build
     runs-on: macos-15
     steps:
+      - uses: actions/checkout@v4
+        with:
+          path: editor
+      - name: dmgbuild
+        run: python3 -m pip install --user --upgrade dmgbuild || python3 -m pip install --user --upgrade --break-system-packages dmgbuild
       - uses: actions/download-artifact@v4
         with:
           pattern: player-*
@@ -305,8 +310,8 @@ jobs:
           codesign --force --deep -s - "$app"
           codesign --verify --deep --strict "$app"
           mkdir -p combined
-          ln -s /Applications "$work/Applications"
-          hdiutil create -volname "Crossfire Editor" -srcfolder "$work" -ov -format UDZO "combined/$(basename "$dmg")"
+          # The same window as task macos:dmg's (its background, icon places)
+          (cd editor && python3 -m dmgbuild -s tools/macos/dmg_settings.py -D app="$app" -D background="$PWD/assets/dmg/background.tiff" "Crossfire Editor" "$GITHUB_WORKSPACE/combined/$(basename "$dmg")")
       - uses: actions/upload-artifact@v4
         with:
           name: final-dmg

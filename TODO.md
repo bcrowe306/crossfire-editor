@@ -9,6 +9,5 @@ owns it.
 - **macOS bundle signing and notarization** with gon (`brew install mitchellh/gon/gon`, a
   checked-in `.json` config), once an Apple developer account is available: `task
   macos:notarize`, `tools/macos/gon.json.example`, `entitlements.plist`.
-- A disk image background (the volume and app have the Crossfire icon).
 - **The zig experiment**: one linker everywhere, and Linux builds against an old glibc (a build
   made on this Arch machine needs GLIBC 2.43).
