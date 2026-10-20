@@ -1,10 +1,12 @@
 package crossfire_editor
 
+import "base:runtime"
 import "core:fmt"
 import "core:hash"
 import vmem "core:mem/virtual"
 import "core:os"
 import "core:path/filepath"
+import "core:reflect"
 import "core:strings"
 import "gui:skald"
 import e "engine:."
@@ -84,6 +86,7 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 	clearOutput(state)
 	state.exporting.succeeded, state.exporting.failed = 0, 0
 
+	needsEmscripten := false
 	for target in targets {
 		job := new(ExportJob)
 		if err := vmem.arena_init_growing(&job.arena); err != nil {
@@ -99,11 +102,18 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 		if problem == "" && input.odin == "" && (input.hasScripts || input.prebuiltPlayer == "") {
 			problem = "No Odin compiler to build the game with: install one in Settings > Toolchain"
 		}
-		if problem == "" && target == .Web && !os.exists(Export_EmccPath(absolutePath(EMSDK_DIR), context.temp_allocator)) {
-			problem = "The web export needs Emscripten. In the editor's folder, run: task emsdk (about 1 GB, once per machine)"
+		// Emscripten (and SDL_mixer's sources) missing: installed first, then this export runs
+		_, hasEmsdk := Toolchain_EmsdkDir()
+		_, hasMixer := Toolchain_SDLMixerDir()
+		if problem == "" && target == .Web && (!hasEmsdk || !hasMixer) {
+			vmem.arena_destroy(&job.arena)
+			free(job)
+			state.exportAfterEmscripten += {target}
+			needsEmscripten = true
+			continue
 		}
-		if problem == "" && target == .Web && !os.exists(joinPath(SDL_MIXER_DIR, "src", "SDL_mixer.c", allocator = context.temp_allocator)) {
-			problem = "The web export needs the SDL_mixer sources. In the editor's folder, run: task submodules"
+		if problem == "" && target == .Web && Toolchain_WebMixerScript() == "" {
+			problem = fmt.tprintf("The web export needs %s, which this editor doesn't have (releases ship it next to the editor)", WEB_MIXER_SCRIPT)
 		}
 		if problem != "" {
 			logLine(state, .Error, fmt.aprintf("Export %s: %s", EXPORT_TARGETS[target].label, problem))
@@ -113,6 +123,12 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 			continue
 		}
 		append(&state.exporting.jobs, job)
+	}
+	if needsEmscripten {
+		logLine(state, .Info, strings.clone("The web export needs Emscripten: installing it first (the export runs after)"))
+		install := skald.cmd_now(Msg(Toolchain_Emscripten_Requested{}))
+		if !Export_Busy(state) do return install
+		return skald.cmd_batch(install, advance(state))
 	}
 	if !Export_Busy(state) do return {}
 	state.bottomTab = .Output
@@ -180,6 +196,9 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 	_ = os.make_directory_all(WEB_LIB_DIR)
 	webLibDir := absolutePath(WEB_LIB_DIR)
 	engineDir, _ := Toolchain_EngineDir()
+	emsdkDir, _ := Toolchain_EmsdkDir()
+	mixerDir, _ := Toolchain_SDLMixerDir()
+	host, _ := Toolchain_HostTarget()
 	return {
 		target = target,
 		settings = state.project.exports.targets[target],
@@ -191,9 +210,11 @@ exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.al
 		engineDir = strings.clone(engineDir, allocator),
 		odin = strings.clone(Toolchain_Odin(FixedText_String(&state.settings.odinPath)), allocator),
 		prebuiltPlayer = strings.clone(Toolchain_PrebuiltPlayer(target), allocator),
-		emsdkDir = strings.clone(absolutePath(EMSDK_DIR), allocator),
-		mixerDir = strings.clone(absolutePath(SDL_MIXER_DIR), allocator),
-		mixerBuildScript = strings.clone(absolutePath(WEB_MIXER_SCRIPT), allocator),
+		host = host,
+		sdlDLLs = host == .Windows_x64 || host == .Windows_ARM64 ? odinSDLDLLs(Toolchain_Odin(FixedText_String(&state.settings.odinPath)), allocator) : nil,
+		emsdkDir = strings.clone(emsdkDir, allocator),
+		mixerDir = strings.clone(mixerDir, allocator),
+		mixerBuildScript = strings.clone(Toolchain_WebMixerScript(), allocator),
 		webLibDir = strings.clone(webLibDir, allocator),
 		webMixerBuilt = os.exists(joinPath(webLibDir, "libSDL3_mixer.a", allocator = context.temp_allocator)),
 		webBox2DBuilt = os.exists(joinPath(engineDir, "box2d", "lib", "box2d_web.o", allocator = context.temp_allocator)),
@@ -274,6 +295,29 @@ runFileStep :: proc(state: ^State, step: ExportStep) -> string {
 		}
 	case .Make_Folder:
 		if err := os.make_directory_all(step.path); err != nil && !os.is_dir(step.path) do return fmt.tprintf("couldn't create %s: %v", step.path, err)
+	case .Patch_Subsystem:
+		if problem := Export_SetWindowsSubsystem(step.path, gui = true); problem != "" do return problem
+	case .Copy_Libraries:
+		for library in step.files {
+			to := joinPath(step.path, filepath.base(library), allocator = context.temp_allocator)
+			if err := os.copy_file(to, library); err != nil do return fmt.tprintf("couldn't copy %s: %v", library, err)
+		}
+	case .Zip_Folder:
+		files := make([dynamic]ZipSource, context.temp_allocator)
+		top := filepath.base(step.source)
+		walk :: proc(dir, prefix: string, files: ^[dynamic]ZipSource) {
+			handle, err := os.open(dir)
+			if err != nil do return
+			defer os.close(handle)
+			entries, _ := os.read_dir(handle, -1, context.temp_allocator)
+			for entry in entries {
+				name := fmt.tprintf("%s/%s", prefix, entry.name)
+				if entry.type == .Directory do walk(entry.fullpath, name, files)
+				else do append(files, ZipSource{name = name, path = strings.clone(entry.fullpath, context.temp_allocator)})
+			}
+		}
+		walk(step.source, top, &files)
+		if problem := Zip_Write(step.path, files[:]); problem != "" do return fmt.tprintf("the archive: %s", problem)
 	case .Remove_Folder:
 		// Only the editor's own build folder, whatever the plan says
 		if !strings.contains(step.path, "/build/exports/") do return fmt.tprintf("refusing to delete %s", step.path)
@@ -415,4 +459,124 @@ Export_StaticSDLBuilt :: proc(engineDir: string, target: ExportTarget) -> bool {
 	}
 	library := target == .Windows_x64 || target == .Windows_ARM64 ? "sdl3_static.lib" : "libSDL3.a"
 	return os.exists(joinPath(engineDir, "sdl", "lib", folder, library, allocator = context.temp_allocator))
+}
+
+/*
+Marks a Windows executable a GUI program (no console window opens with it) or a console one:
+the Subsystem field of its PE optional header (2 GUI, 3 console). A prebuilt player is a console
+program; Hide console patches its copy.
+
+Returns:
+- "" or what went wrong
+*/
+Export_SetWindowsSubsystem :: proc(path: string, gui: bool) -> string {
+	data, err := os.read_entire_file(path, context.temp_allocator)
+	if err != nil do return fmt.tprintf("couldn't read %s: %v", path, err)
+	if len(data) < 0x40 || data[0] != 'M' || data[1] != 'Z' do return fmt.tprintf("%s isn't a Windows program", path)
+	pe := int(data[0x3C]) | int(data[0x3D]) << 8 | int(data[0x3E]) << 16 | int(data[0x3F]) << 24
+	// "PE\0\0", the 20-byte file header, then the optional header: Subsystem is at its byte 68
+	field := pe + 4 + 20 + 68
+	if pe <= 0 || field + 2 > len(data) || string(data[pe:pe + 4]) != "PE\x00\x00" do return fmt.tprintf("%s has no PE header", path)
+	data[field], data[field + 1] = gui ? 2 : 3, 0
+	if err := os.write_entire_file(path, data); err != nil do return fmt.tprintf("couldn't write %s: %v", path, err)
+	return ""
+}
+
+// The SDL3 DLLs Odin ships for Windows (vendor/sdl3 and its image, ttf, mixer folders, next to
+// the odin program), for games built without the static SDL
+@(private="file")
+odinSDLDLLs :: proc(odin: string, allocator: runtime.Allocator) -> []string {
+	if odin == "" do return nil
+	root := filepath.dir(odin)
+	dlls := make([dynamic]string, allocator)
+	for folder in ([]string{"sdl3", "sdl3/image", "sdl3/ttf", "sdl3/mixer"}) {
+		dir := joinPath(root, "vendor", folder, allocator = context.temp_allocator)
+		handle, err := os.open(dir)
+		if err != nil do continue
+		entries, _ := os.read_dir(handle, -1, context.temp_allocator)
+		os.close(handle)
+		for entry in entries do if strings.has_suffix(strings.to_lower(entry.name, context.temp_allocator), ".dll") {
+			append(&dlls, strings.clone(entry.fullpath, allocator))
+		}
+	}
+	return dlls[:]
+}
+
+/*
+Exports a project without a window (`crossfire-editor <project> --export <target>`): plans it as the
+Export tab would, runs each step (printing what it runs and what the commands print), and returns
+the exit code. A web export installs Emscripten first when it's missing. For CI and scripts.
+
+Inputs:
+- projectDir: The project folder
+- targetName: The target, as the ExportTarget's name (Linux_x64, Windows_x64, macOS_ARM64, Web...)
+- settingsPath: The editor settings to use (the Odin compiler's path)
+
+Returns:
+- 0 when it exported, 1 otherwise (the reason printed)
+*/
+Export_Headless :: proc(projectDir, targetName, settingsPath: string) -> int {
+	target, known := reflect.enum_from_name(ExportTarget, targetName)
+	if !known {
+		names := make([dynamic]string, context.temp_allocator)
+		for t in ExportTarget do append(&names, fmt.tprint(t))
+		fmt.eprintfln("Unknown export target '%s': %s", targetName, strings.join(names[:], ", ", context.temp_allocator))
+		return 1
+	}
+	state: State
+	state.settings, _ = Settings_Load(settingsPath)
+	project, message, _ := Project_Load(projectDir)
+	if message != "" {
+		fmt.eprintfln("Couldn't open %s: %s", projectDir, message)
+		return 1
+	}
+	state.project = project
+	defer Project_Destroy(&state.project)
+	if target == .Web {
+		_, hasEmsdk := Toolchain_EmsdkDir()
+		_, hasMixer := Toolchain_SDLMixerDir()
+		if !hasEmsdk || !hasMixer {
+			fmt.println("Installing Emscripten for the web export (about 1 GB, once)...")
+			if problem := Toolchain_InstallEmscriptenNow(); problem != "" {
+				fmt.eprintfln("Installing Emscripten failed: %s", problem)
+				return 1
+			}
+		}
+	}
+	arena: vmem.Arena
+	if vmem.arena_init_growing(&arena) != nil do return 1
+	defer vmem.arena_destroy(&arena)
+	allocator := vmem.arena_allocator(&arena)
+	input := exportInput(&state, target, allocator)
+	plan, problem := Export_Plan(input, allocator)
+	if problem == "" && input.odin == "" && (input.hasScripts || input.prebuiltPlayer == "") do problem = "no Odin compiler to build the game with"
+	if problem != "" {
+		fmt.eprintfln("Export %s: %s", EXPORT_TARGETS[target].label, problem)
+		return 1
+	}
+	defer delete(state.exporting.captured)
+	for step in plan.steps {
+		fmt.println("--", step.label)
+		if step.kind != .Command {
+			if message := runFileStep(&state, step); message != "" {
+				fmt.eprintfln("Export %s: %s", EXPORT_TARGETS[target].label, message)
+				return 1
+			}
+			continue
+		}
+		fmt.println(strings.join(step.command, " ", context.temp_allocator))
+		result, stdout, stderr, err := os.process_exec({command = step.command, working_dir = step.workingDir}, context.temp_allocator)
+		if len(stdout) > 0 do fmt.print(string(stdout))
+		if len(stderr) > 0 do fmt.eprint(string(stderr))
+		if step.capture {
+			clear(&state.exporting.captured)
+			append(&state.exporting.captured, ..stdout)
+		}
+		if err != nil || result.exit_code != 0 {
+			fmt.eprintfln("Export %s: %s failed", EXPORT_TARGETS[target].label, step.label)
+			return 1
+		}
+	}
+	fmt.printfln("Exported %s to %s%s", EXPORT_TARGETS[target].label, plan.outputDir, plan.archive != "" ? fmt.tprintf(" (and %s)", plan.archive) : "")
+	return 0
 }

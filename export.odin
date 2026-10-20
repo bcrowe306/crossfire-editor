@@ -187,21 +187,65 @@ ExportField_Bool :: proc(t: ^ExportTargetSettings, field: ExportField) -> ^bool 
 }
 
 /*
-Whether a target can be exported from this machine. Desktop targets build only for the OS and CPU
-the editor runs on; Linux x86_64 is the only one done.
+Whether a target can be exported from this machine: the web anywhere; a desktop target when the
+editor runs on it (games are compiled for the machine they're built on), or with that target's
+prebuilt player next to the editor (releases carry every platform's), for projects without
+scripts. Steam and consoles aren't done.
 */
 Export_Implemented :: proc(target: ExportTarget) -> bool {
-	#partial switch target {
-	case .Web:       return true
-	case .Linux_x64: return ODIN_OS == .Linux && ODIN_ARCH == .amd64
-	}
-	return false
+	if target == .Web do return true
+	if !isDesktopTarget(target) do return false
+	host, _ := Toolchain_HostTarget()
+	return target == host || Toolchain_PrebuiltPlayer(target) != ""
 }
 
 // Why a target can't be exported (for the error and the Export tab)
 Export_NotImplementedReason :: proc(target: ExportTarget) -> string {
-	if target == .Linux_x64 do return "Linux x86_64 exports must be made on Linux x86_64 (other machines: later, on CI)"
+	if isDesktopTarget(target) {
+		return fmt.tprintf("%s games are built on %s (or with its prebuilt player, which releases carry, for projects without scripts)", EXPORT_TARGETS[target].label, EXPORT_TARGETS[target].label)
+	}
 	return fmt.tprintf("%s export isn't implemented yet", EXPORT_TARGETS[target].label)
+}
+
+@(private="file")
+isDesktopTarget :: proc(target: ExportTarget) -> bool {
+	#partial switch target {
+	case .Linux_x64, .Linux_ARM64, .Windows_x64, .Windows_ARM64, .macOS_x64, .macOS_ARM64: return true
+	}
+	return false
+}
+
+/*
+The Info.plist of an exported macOS game.
+
+Inputs:
+- name: The app's name and its executable's
+- identifier: Its bundle ID ("" for io.crossfire.<name>)
+*/
+Export_MacInfoPlist :: proc(name, identifier: string, allocator := context.allocator) -> string {
+	id := strings.trim_space(identifier)
+	if id == "" do id = fmt.tprintf("io.crossfire.%s", strings.to_lower(sanitize(name), context.temp_allocator))
+	return fmt.aprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>%s</string>
+	<key>CFBundleExecutable</key>
+	<string>%s</string>
+	<key>CFBundleIdentifier</key>
+	<string>%s</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>
+`, EscapeXML(name), EscapeXML(name), EscapeXML(id), allocator = allocator)
 }
 
 /*
@@ -305,6 +349,12 @@ ExportStepKind :: enum {
 	// Append the engine's data pack to the executable `path`: `files` (relative paths) from
 	// `source`, and `content` as project.xml
 	Append_Pack,
+	// Windows: mark the executable `path` a GUI program (no console window), in its PE header
+	Patch_Subsystem,
+	// Copy `files` (absolute paths) into the folder `path`: SDL's DLLs beside a Windows game
+	Copy_Libraries,
+	// Zip the folder `source` (its name the archive's top folder) into `path`
+	Zip_Folder,
 }
 
 ExportStep :: struct {
@@ -353,6 +403,11 @@ ExportInput :: struct {
 	staticSDL: bool,
 	// A folder the export may use for intermediate files (the editor's build/exports/<project>)
 	workDir: string,
+	// The desktop target the editor runs on (Toolchain_HostTarget): it compiles only for that one;
+	// other desktop targets need their prebuilt player (and a project without scripts)
+	host: ExportTarget,
+	// Windows without the static SDL: the SDL3 DLLs that go beside the game (Odin's own)
+	sdlDLLs: []string,
 }
 
 // A planned export
@@ -377,7 +432,9 @@ Returns:
 */
 Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan: ExportPlan, problem: string) {
 	context.allocator = allocator
-	if !Export_Implemented(input.target) do return {}, Export_NotImplementedReason(input.target)
+	// From the input alone (tests plan any target from any machine): desktop targets are checked
+	// against the host and the prebuilt player below
+	if input.target != .Web && !isDesktopTarget(input.target) do return {}, Export_NotImplementedReason(input.target)
 	settings := input.settings
 	plan.target = input.target
 	plan.outputDir = Export_OutputDir(input.projectDir, input.target, &settings, allocator)
@@ -396,13 +453,95 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 	append(&collections, fmt.aprintf("-collection:engine=%s", input.engineDir))
 	if input.hasScripts do append(&collections, fmt.aprintf("-collection:project=%s", input.projectDir))
 
+	// Games are compiled on the machine they're for; elsewhere, a project without scripts uses the
+	// target's prebuilt player
+	usePrebuilt := !input.hasScripts && input.prebuiltPlayer != ""
+	if isDesktopTarget(input.target) && input.target != input.host && !usePrebuilt {
+		if input.hasScripts do return {}, fmt.tprintf("A project with scripts exports for %s only on %s (its game is compiled there)", EXPORT_TARGETS[input.target].label, EXPORT_TARGETS[input.target].label)
+		return {}, fmt.tprintf("No prebuilt %s player next to the editor (releases carry one for every platform)", EXPORT_TARGETS[input.target].label)
+	}
+
 	#partial switch input.target {
-	case .Linux_x64:
+	case .Windows_x64, .Windows_ARM64:
+		name := Export_Name(&settings, .Executable_Name, input.projectName)
+		if strings.contains_any(name, "/\\:") do return {}, fmt.tprintf("The executable name '%s' can't contain a slash or colon", name)
+		binary := joinPath(plan.outputDir, fmt.tprintf("%s.exe", name))
+		if usePrebuilt {
+			append(&steps, ExportStep{kind = .Copy_File, label = "Copy the prebuilt player", source = strings.clone(input.prebuiltPlayer), path = binary})
+			if settings.hideConsole do append(&steps, ExportStep{kind = .Patch_Subsystem, label = "Hide the console window", path = binary})
+		} else {
+			command := make([dynamic]string)
+			append(&command, odinProgram(input), "build", source)
+			append(&command, ..collections[:])
+			if settings.optimize do append(&command, "-o:speed")
+			if settings.hideConsole do append(&command, "-subsystem:windows")
+			append(&command, fmt.aprintf("-out:%s", binary))
+			append(&steps, ExportStep{kind = .Command, label = "Build the game", command = command[:]})
+			// Without the static SDL, Odin's SDL3 DLLs go beside the game (Windows finds them there)
+			if !input.staticSDL && settings.bundleLibraries && len(input.sdlDLLs) > 0 {
+				dlls := make([]string, len(input.sdlDLLs))
+				for dll, i in input.sdlDLLs do dlls[i] = strings.clone(dll)
+				append(&steps, ExportStep{kind = .Copy_Libraries, label = "Copy the SDL3 DLLs", path = plan.outputDir, files = dlls})
+			}
+		}
+		if settings.singleFile {
+			files := make([]string, len(input.files))
+			for file, i in input.files do files[i] = strings.clone(file)
+			append(&steps, ExportStep{kind = .Append_Pack, label = "Put the project's files inside the game", path = binary,
+				source = input.projectDir, files = files, content = strings.clone(input.projectXML)})
+		} else {
+			append(&steps, copyProjectStep(input, joinPath(plan.outputDir, "data")))
+			append(&steps, projectFileStep(input, joinPath(plan.outputDir, "data")))
+		}
+		if settings.archive {
+			plan.archive = fmt.aprintf("%s.zip", plan.outputDir)
+			append(&steps, ExportStep{kind = .Zip_Folder, label = "Pack the archive", source = plan.outputDir, path = plan.archive})
+		}
+	case .macOS_x64, .macOS_ARM64:
+		// An app: Contents/MacOS/<name>, its files in Contents/Resources/data (a pack appended to
+		// the program would break its code signature)
+		name := Export_Name(&settings, .Executable_Name, input.projectName)
+		if strings.contains_any(name, "/\\:") do return {}, fmt.tprintf("The app name '%s' can't contain a slash or colon", name)
+		if !usePrebuilt && !input.staticSDL do return {}, "macOS games need the engine's static SDL (its tools/build_sdl_static.sh): an app can't rely on Homebrew's"
+		app := joinPath(plan.outputDir, fmt.tprintf("%s.app", name))
+		contents := joinPath(app, "Contents")
+		binary := joinPath(contents, "MacOS", name)
+		append(&steps, ExportStep{kind = .Make_Folder, label = "Create the app", path = joinPath(contents, "MacOS")})
+		if usePrebuilt {
+			append(&steps, ExportStep{kind = .Copy_File, label = "Copy the prebuilt player", source = strings.clone(input.prebuiltPlayer), path = binary})
+		} else {
+			command := make([dynamic]string)
+			append(&command, odinProgram(input), "build", source)
+			append(&command, ..collections[:])
+			if settings.optimize do append(&command, "-o:speed")
+			append(&command, fmt.aprintf("-out:%s", binary))
+			append(&steps, ExportStep{kind = .Command, label = "Build the game", command = command[:]})
+		}
+		append(&steps, ExportStep{kind = .Write_File, label = "Write Info.plist", path = joinPath(contents, "Info.plist"),
+			content = Export_MacInfoPlist(name, FixedText_String(&settings.identifier))})
+		data := joinPath(contents, "Resources", "data")
+		append(&steps, copyProjectStep(input, data))
+		append(&steps, projectFileStep(input, data))
+		// Apple Silicon runs only signed programs: an ad hoc signature, made where codesign is (a
+		// prebuilt player copied elsewhere keeps the one it shipped with)
+		if input.host == .macOS_ARM64 || input.host == .macOS_x64 {
+			sign := make([]string, 6)
+			sign[0], sign[1], sign[2], sign[3], sign[4], sign[5] = "codesign", "--force", "--deep", "-s", "-", app
+			append(&steps, ExportStep{kind = .Command, label = "Sign the app (ad hoc)", command = sign})
+		}
+		if settings.archive {
+			// tar keeps the program executable (a zip from here wouldn't)
+			plan.archive = fmt.aprintf("%s.tar.gz", plan.outputDir)
+			tar := make([]string, 6)
+			tar[0], tar[1], tar[2], tar[3], tar[4], tar[5] = "tar", "-czf", plan.archive, "-C", filepath.dir(plan.outputDir), filepath.base(plan.outputDir)
+			append(&steps, ExportStep{kind = .Command, label = "Pack the archive", command = tar})
+		}
+	case .Linux_x64, .Linux_ARM64:
 		name := Export_Name(&settings, .Executable_Name, input.projectName)
 		if strings.contains_any(name, "/\\") do return {}, fmt.tprintf("The executable name '%s' can't contain a slash", name)
 		binary := joinPath(plan.outputDir, name)
 		bundle := false
-		if !input.hasScripts && input.prebuiltPlayer != "" {
+		if usePrebuilt {
 			// No scripts: the editor's prebuilt player (SDL linked in) is the game, no compiler needed
 			append(&steps, ExportStep{kind = .Copy_File, label = "Copy the prebuilt player", source = strings.clone(input.prebuiltPlayer), path = binary})
 		} else {
@@ -413,6 +552,7 @@ Export_Plan :: proc(input: ExportInput, allocator := context.allocator) -> (plan
 			append(&command, fmt.aprintf("-out:%s", binary))
 			// SDL is linked into the game when the engine's static SDL is built; otherwise its
 			// shared libraries are found in lib/ next to the executable first
+			// (ldd reads only this machine's executables: compiled games are this machine's)
 			bundle = settings.bundleLibraries && !input.staticSDL
 			if bundle do append(&command, "-extra-linker-flags:-Wl,-rpath,$ORIGIN/lib")
 			append(&steps, ExportStep{kind = .Command, label = "Build the game", command = command[:]})

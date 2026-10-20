@@ -150,6 +150,9 @@ State :: struct {
 	codeDialog: CodeDialog,
 	// Settings > Toolchain is installing Odin
 	toolchainInstalling: bool,
+	// Emscripten is being installed (Toolchain_InstallEmscripten); the exports waiting for it
+	emscriptenInstalling: bool,
+	exportAfterEmscripten: bit_set[ExportTarget],
 	// Project archives (project_archive.odin): one being written or unpacked; the archive Open
 	// Project Archive picked, until its folder is chosen (owned)
 	archive: struct {
@@ -406,7 +409,7 @@ logLine :: proc(state: ^State, level: LogLevel, text: string, echo := true) {
 	}
 }
 
-// Command line: crossfire-editor [project folder] [--script <file>] [--settings <file.ini>]
+// Command line: crossfire-editor [project folder] [--export <target>] [--script <file>] [--settings <file.ini>]
 @(private="file")
 Args :: struct {
 	project: string,
@@ -414,6 +417,9 @@ Args :: struct {
 	// The settings file: editor.ini next to the executable by default. Test scripts get "" (the
 	// defaults, never saved) unless --settings names one, so they don't use or change yours
 	settings: string,
+	// --export <target>: export the project to that target without a window, then exit
+	// (Export_Headless: CI, scripts)
+	export: string,
 }
 
 @(private="file")
@@ -427,6 +433,9 @@ parseArgs :: proc() -> Args {
 		} else if os.args[i] == "--settings" && i + 1 < len(os.args) {
 			args.settings = Editor_ArgumentPath(os.args[i + 1])
 			settingsGiven = true
+			i += 1
+		} else if os.args[i] == "--export" && i + 1 < len(os.args) {
+			args.export = os.args[i + 1]
 			i += 1
 		} else if strings.has_prefix(os.args[i], "-psn_") {
 			// Old macOS Finder launches add a process serial number: not a project
@@ -448,6 +457,11 @@ main :: proc() {
 	Editor_SetupBundle()
 	// The app's name and ID (Linux desktops match the window to its .desktop entry by it)
 	Branding_SetAppMetadata()
+
+	// A headless export: no window (export_run.odin)
+	if exportArgs := parseArgs(); exportArgs.export != "" {
+		os.exit(Export_Headless(exportArgs.project, exportArgs.export, exportArgs.settings))
+	}
 
 	// A UI test script drives the editor through injected input (test_driver.odin)
 	if script := parseArgs().script; script != "" {

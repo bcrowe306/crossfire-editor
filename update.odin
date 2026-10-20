@@ -137,6 +137,25 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.toolchainInstalling = true
 		logLine(&out, .Info, fmt.aprintf("Installing Odin %s (about 70 MB)...", ODIN_VERSION))
 		return out, Toolchain_InstallOdin()
+	case Toolchain_Emscripten_Requested:
+		if out.emscriptenInstalling do break
+		out.emscriptenInstalling = true
+		out.bottomTab = .Output
+		out.layout.bottomOpen = true
+		logLine(&out, .Info, fmt.aprintf("Installing Emscripten %s for web exports (about 1 GB, a few minutes; once per machine) into %s...", EMSDK_VERSION, Toolchain_DataDir()))
+		return out, Toolchain_InstallEmscripten()
+	case Toolchain_Emscripten_Finished:
+		out.emscriptenInstalling = false
+		waiting := out.exportAfterEmscripten
+		out.exportAfterEmscripten = {}
+		if v.problem != "" {
+			logLine(&out, .Error, fmt.aprintf("Installing Emscripten failed: %s", v.problem))
+			delete(v.problem)
+			break
+		}
+		logLine(&out, .Info, fmt.aprintf("Installed Emscripten %s", EMSDK_VERSION))
+		// The export that asked for it goes on
+		if waiting != {} do return out, Export_Start(&out, waiting)
 	case Toolchain_Install_Finished:
 		out.toolchainInstalling = false
 		if v.problem != "" {

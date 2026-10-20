@@ -12,11 +12,7 @@ owns it.
 - A disk image background (the volume and app have the Crossfire icon).
 - **Linux and Windows bundles** the same way: Taskfile.linux.yml (an AppImage?) and
   Taskfile.windows.yml (an installer?), with CI calling them as it does for macOS.
-- Windows and macOS **game exports** (exports only build Linux x86_64 so far). macOS games keep
-  their data in the `.app`'s Resources instead of a pack (appending breaks code signing).
 - **Prebuilt players for every platform** in every release archive (each archive has only its
   own platform's today; enough while exports only build for the host).
 - **The zig experiment**: one linker everywhere, and Linux builds against an old glibc (a build
   made on this Arch machine needs GLIBC 2.43).
-- **Download Emscripten for the user** the first time a web export needs it (today: `task emsdk`
-  by hand; a release has no emsdk), and fold the SDL3_mixer web build into it.

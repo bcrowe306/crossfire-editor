@@ -25,6 +25,7 @@
 #     Resources/vulkan/icd.d/MoltenVK_icd.json MoltenVK's manifest, pointing at Frameworks/
 #     Resources/engine/                        the engine's sources and its static libraries
 #                                              (box2d/lib, sdl/lib): games compile against them
+#     Resources/tools/build_web_mixer.sh       builds SDL3_mixer for web exports
 #     Resources/demo_project/                  the demo project (its git-tracked files): copied to
 #                                              ~/Documents/Crossfire Editor on first run
 #
@@ -77,6 +78,9 @@ layout)
 	# The demo project, opened (from a copy the user can edit) when no project is given
 	mkdir -p "$contents/Resources/demo_project"
 	(cd "$here/../../examples/demo_project" && git ls-files . | tar -cf - -T -) | tar -xf - -C "$contents/Resources/demo_project"
+	# Web exports build SDL3_mixer with it (Toolchain_WebMixerScript)
+	mkdir -p "$contents/Resources/tools"
+	cp "$here/../build_web_mixer.sh" "$contents/Resources/tools/"
 	echo "Laid out $APP ($VERSION)"
 	;;
 

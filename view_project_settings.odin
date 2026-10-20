@@ -1,7 +1,6 @@
 package crossfire_editor
 
 import "core:fmt"
-import "core:os"
 import "core:reflect"
 import "core:strings"
 import "gui:skald"
@@ -488,8 +487,8 @@ exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	status, statusColor := "Ready to export from this machine.", th.color.success
 	if !Export_Implemented(target) {
 		status, statusColor = Export_NotImplementedReason(target), th.color.warning
-	} else if target == .Web && !os.exists(Export_EmccPath(absolutePath(EMSDK_DIR), context.temp_allocator)) {
-		status, statusColor = "Needs Emscripten: run `task emsdk` in the editor's folder (about 1 GB, once).", th.color.warning
+	} else if _, hasEmsdk := Toolchain_EmsdkDir(); target == .Web && !hasEmsdk {
+		status, statusColor = "Needs Emscripten: the first web export installs it (about 1 GB, once), or Settings > Toolchain > Install Emscripten.", th.color.warning
 	}
 	append(&rows, skald.text(status, statusColor, th.font.size_sm, max_width = 440))
 	append(&rows, skald.text(info.note, th.color.fg_muted, th.font.size_xs, max_width = 440))

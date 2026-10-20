@@ -17,10 +17,10 @@ click_widget export-target-Web
 scroll_into_view export-settings-scroll-Web export-field-Optimize
 click_widget export-field-Optimize
 
-# A target that isn't implemented says so
+# A target this machine can't build (no prebuilt Windows player here) says why
 click_widget export-target-Windows_x64
 click_widget export-run
-wait_until console_contains Windows x86_64 export isn't implemented yet
+wait_until console_contains No prebuilt Windows x86_64 player
 expect export idle
 
 # Exporting from the dialog applied it (one undo step)

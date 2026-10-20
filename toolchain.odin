@@ -153,6 +153,10 @@ Toolchain_Check :: proc(settings: ^Settings) -> []ToolStatus {
 		append(&list, ToolStatus{"Static SDL", static, static ? joinPath(engine, "sdl", "lib", allocator = context.temp_allocator) : "",
 			static ? "Linked into games: they're one file." : "Games need the SDL3 libraries beside them. Build it with the engine's tools/build_sdl_static.sh (CMake)."})
 	}
+	emsdk, emsdkFound := Toolchain_EmsdkDir()
+	_, mixerFound := Toolchain_SDLMixerDir()
+	append(&list, ToolStatus{"Emscripten", emsdkFound && mixerFound, emsdkFound ? emsdk : "",
+		emsdkFound && mixerFound ? "Web exports link games with it." : "For web exports: Install below (about 1 GB, once), or the first web export installs it."})
 	git, gitFound := Script_FindEditorProgram("git")
 	append(&list, ToolStatus{"Git", gitFound, gitFound ? git : "", gitFound ? "Version control for your projects (the Git tab)." : "Optional: version control in the Git tab. Install it from git-scm.com or your package manager."})
 	ols := Code_FindOLS(FixedText_String(&settings.olsPath))
@@ -231,6 +235,127 @@ findOdinBinary :: proc(root: string) -> string {
 		if entry.type != .Directory do continue
 		candidate := joinPath(entry.fullpath, name, allocator = context.temp_allocator)
 		if os.exists(candidate) && !os.is_dir(candidate) do return candidate
+	}
+	return ""
+}
+
+// EMSCRIPTEN (web exports)
+
+// The Emscripten the editor installs: emsdk's release tag (the third_party/emsdk submodule's)
+EMSDK_VERSION :: "6.0.12"
+// The SDL3_mixer sources web exports build (the third_party/SDL_mixer submodule's tag)
+SDL_MIXER_TAG :: "release-3.2.4"
+
+/*
+The emsdk web exports use: the checkout's submodule when it's installed (`task emsdk`), else the
+one in the editor's data folder (Toolchain_InstallEmscripten).
+
+Returns:
+- The folder (absolute; temp allocated), and whether Emscripten's compiler is there
+*/
+Toolchain_EmsdkDir :: proc() -> (string, bool) {
+	if os.exists(Export_EmccPath(absolutePath(EMSDK_DIR), context.temp_allocator)) do return absolutePath(EMSDK_DIR), true
+	installed := joinPath(Toolchain_DataDir(), "emsdk", EMSDK_VERSION, allocator = context.temp_allocator)
+	return installed, os.exists(Export_EmccPath(installed, context.temp_allocator))
+}
+
+/*
+The SDL3_mixer sources web exports compile: the checkout's submodule, else the copy
+Toolchain_InstallEmscripten downloads into the data folder.
+
+Returns:
+- The folder (absolute; temp allocated), and whether the sources are there
+*/
+Toolchain_SDLMixerDir :: proc() -> (string, bool) {
+	if os.exists(joinPath(SDL_MIXER_DIR, "src", "SDL_mixer.c", allocator = context.temp_allocator)) do return absolutePath(SDL_MIXER_DIR), true
+	downloaded := joinPath(Toolchain_DataDir(), "SDL_mixer", SDL_MIXER_TAG, allocator = context.temp_allocator)
+	return downloaded, os.exists(joinPath(downloaded, "src", "SDL_mixer.c", allocator = context.temp_allocator))
+}
+
+// The script that builds SDL3_mixer for the web: the checkout's, else the one releases ship next
+// to the editor (or in a macOS bundle's Resources). Temp allocated; "" when there's none
+Toolchain_WebMixerScript :: proc() -> string {
+	if os.exists(WEB_MIXER_SCRIPT) do return absolutePath(WEB_MIXER_SCRIPT)
+	if exeDir, err := os.get_executable_directory(context.temp_allocator); err == nil {
+		for candidate in ([]string{joinPath(exeDir, WEB_MIXER_SCRIPT, allocator = context.temp_allocator), joinPath(exeDir, "..", "Resources", WEB_MIXER_SCRIPT, allocator = context.temp_allocator)}) {
+			if os.exists(candidate) do return absolutePath(candidate)
+		}
+	}
+	return ""
+}
+
+// What an Emscripten install did (Toolchain_InstallEmscripten)
+Toolchain_Emscripten_Finished :: struct {
+	// "" when it worked, else what went wrong (heap allocated: update frees it)
+	problem: string,
+}
+
+/*
+Installs what web exports need into the editor's data folder, on a worker thread: emsdk's pinned
+release (downloaded with curl, unpacked with tar), its Emscripten (`emsdk install` and `activate`:
+about 1 GB, a few minutes), and SDL3_mixer's sources. Needs Python (Emscripten does). Sends
+Toolchain_Emscripten_Finished.
+*/
+Toolchain_InstallEmscripten :: proc() -> skald.Command(Msg) {
+	Job :: struct { data: string }
+	return skald.cmd_thread(Msg, Job{strings.clone(Toolchain_DataDir())}, proc(job: Job) -> Msg {
+		defer delete(job.data)
+		problem := installEmscripten(job.data)
+		return Toolchain_Emscripten_Finished{problem = problem == "" ? "" : strings.clone(problem)}
+	})
+}
+
+// Installs Emscripten now, blocking (the headless export): "" or what went wrong (temp allocated)
+Toolchain_InstallEmscriptenNow :: proc() -> string {
+	return installEmscripten(Toolchain_DataDir())
+}
+
+// Toolchain_InstallEmscripten's work (blocks); "" or what went wrong (temp allocated)
+@(private="file")
+installEmscripten :: proc(data: string) -> string {
+	run :: proc(command: []string, folder := "") -> string {
+		state, stdout, stderr, err := os.process_exec({command = command, working_dir = folder}, context.temp_allocator)
+		if err != nil do return fmt.tprintf("couldn't run %s: %v", command[0], err)
+		if state.exit_code != 0 {
+			text := strings.trim_space(string(stderr))
+			if text == "" do text = strings.trim_space(string(stdout))
+			return fmt.tprintf("%s failed: %s", command[0], text)
+		}
+		return ""
+	}
+	// Downloads a GitHub source archive and unpacks it as `folder` (the archive's top folder renamed)
+	fetch :: proc(url, parent, folder: string) -> string {
+		_ = os.make_directory_all(parent)
+		archive := joinPath(parent, "download.tar.gz", allocator = context.temp_allocator)
+		if problem := run({"curl", "-fL", "--silent", "--show-error", "-o", archive, url}); problem != "" do return problem
+		defer os.remove(archive)
+		unpacked := joinPath(parent, "unpacking", allocator = context.temp_allocator)
+		removeAll(unpacked)
+		_ = os.make_directory_all(unpacked)
+		if problem := run({"tar", "-xf", archive, "-C", unpacked}); problem != "" do return problem
+		handle, err := os.open(unpacked)
+		if err != nil do return fmt.tprintf("couldn't read %s", unpacked)
+		entries, _ := os.read_dir(handle, -1, context.temp_allocator)
+		os.close(handle)
+		if len(entries) != 1 || entries[0].type != .Directory do return fmt.tprintf("unexpected archive layout (%s)", url)
+		target := joinPath(parent, folder, allocator = context.temp_allocator)
+		removeAll(target)
+		if err := os.rename(entries[0].fullpath, target); err != nil do return fmt.tprintf("couldn't move %s into place: %v", entries[0].fullpath, err)
+		removeAll(unpacked)
+		return ""
+	}
+	emsdkParent := joinPath(data, "emsdk", allocator = context.temp_allocator)
+	emsdk := joinPath(emsdkParent, EMSDK_VERSION, allocator = context.temp_allocator)
+	if !os.exists(Export_EmccPath(emsdk, context.temp_allocator)) {
+		if problem := fetch(fmt.tprintf("https://github.com/emscripten-core/emsdk/archive/refs/tags/%s.tar.gz", EMSDK_VERSION), emsdkParent, EMSDK_VERSION); problem != "" do return problem
+		tool := ODIN_OS == .Windows ? joinPath(emsdk, "emsdk.bat", allocator = context.temp_allocator) : joinPath(emsdk, "emsdk", allocator = context.temp_allocator)
+		if problem := run({tool, "install", EMSDK_VERSION}, emsdk); problem != "" do return problem
+		if problem := run({tool, "activate", EMSDK_VERSION}, emsdk); problem != "" do return problem
+		if !os.exists(Export_EmccPath(emsdk, context.temp_allocator)) do return "emsdk installed, but its emcc isn't where it should be"
+	}
+	mixerParent := joinPath(data, "SDL_mixer", allocator = context.temp_allocator)
+	if !os.exists(joinPath(mixerParent, SDL_MIXER_TAG, "src", "SDL_mixer.c", allocator = context.temp_allocator)) {
+		if problem := fetch(fmt.tprintf("https://github.com/libsdl-org/SDL_mixer/archive/refs/tags/%s.tar.gz", SDL_MIXER_TAG), mixerParent, SDL_MIXER_TAG); problem != "" do return problem
 	}
 	return ""
 }

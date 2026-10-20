@@ -100,6 +100,10 @@ fi
 mkdir -p "$stage/engine"
 (cd "$engine" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) | tar -xf - -C "$stage/engine"
 
+# Web exports build SDL3_mixer with this script (Toolchain_WebMixerScript: tools/ beside the editor)
+mkdir -p "$stage/tools"
+cp tools/build_web_mixer.sh "$stage/tools/"
+
 # The demo project, where the editor looks for it (Editor_DemoProject: beside the executable)
 (cd "$editor" && git ls-files examples/demo_project | tar -cf - -T -) | tar -xf - -C "$stage"
 test -f "$stage/examples/demo_project/project.xml"

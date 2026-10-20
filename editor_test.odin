@@ -3529,3 +3529,116 @@ every_row_label_has_a_tooltip :: proc(t: ^testing.T) {
 	}
 	free_all(context.temp_allocator)
 }
+
+// Windows and macOS exports: compiled on their own machine, or (no scripts) made anywhere from the
+// target's prebuilt player; the steps each needs
+@(test)
+export_plans_for_windows_and_macos :: proc(t: ^testing.T) {
+	kinds :: proc(plan: ExportPlan) -> bit_set[ExportStepKind] {
+		set: bit_set[ExportStepKind]
+		for step in plan.steps do set += {step.kind}
+		return set
+	}
+	stepOf :: proc(plan: ExportPlan, kind: ExportStepKind) -> (ExportStep, bool) {
+		for step in plan.steps do if step.kind == kind do return step, true
+		return {}, false
+	}
+	// From Linux, without scripts, with Windows' prebuilt player: copied, console hidden, packed
+	win := exportTestInput(.Windows_x64)
+	win.host = .Linux_x64
+	win.prebuiltPlayer = "/editor/prebuilt/windows_x64/player.exe"
+	win.settings.hideConsole = true
+	win.settings.archive = true
+	plan, problem := Export_Plan(win, context.temp_allocator)
+	testing.expect_value(t, problem, "")
+	testing.expect(t, kinds(plan) >= {.Copy_File, .Patch_Subsystem, .Append_Pack, .Zip_Folder} && .Command not_in kinds(plan), "prebuilt, patched, packed, zipped")
+	copy, _ := stepOf(plan, .Copy_File)
+	testing.expect_value(t, copy.path, "/games/Space/export/windows_x64/Space_Game.exe")
+	testing.expect_value(t, plan.archive, "/games/Space/export/windows_x64.zip")
+	// With scripts: only on Windows
+	win.hasScripts = true
+	_, problem = Export_Plan(win, context.temp_allocator)
+	testing.expect(t, problem != "", "scripts need Windows")
+	// On Windows: compiled, a GUI program, Odin's DLLs beside it without the static SDL
+	win.host = .Windows_x64
+	win.sdlDLLs = {"C:/odin/vendor/sdl3/SDL3.dll"}
+	plan, problem = Export_Plan(win, context.temp_allocator)
+	testing.expect_value(t, problem, "")
+	build, _ := stepOf(plan, .Command)
+	testing.expect(t, slice.contains(build.command, "-subsystem:windows"), "no console")
+	dlls, hasDLLs := stepOf(plan, .Copy_Libraries)
+	testing.expect(t, hasDLLs && len(dlls.files) == 1, "the DLLs")
+	win.staticSDL = true
+	plan, _ = Export_Plan(win, context.temp_allocator)
+	testing.expect(t, .Copy_Libraries not_in kinds(plan), "the static SDL needs no DLLs")
+
+	// macOS from Linux, prebuilt: an app with its files in Resources/data, no pack, unsigned here
+	mac := exportTestInput(.macOS_ARM64)
+	mac.host = .Linux_x64
+	mac.prebuiltPlayer = "/editor/prebuilt/macos_arm64/player"
+	mac.settings.archive = true
+	plan, problem = Export_Plan(mac, context.temp_allocator)
+	testing.expect_value(t, problem, "")
+	testing.expect(t, .Append_Pack not_in kinds(plan) && .Command in kinds(plan), "no pack; the archive's tar")
+	copy, _ = stepOf(plan, .Copy_File)
+	testing.expect_value(t, copy.path, "/games/Space/export/macos_arm64/Space_Game.app/Contents/MacOS/Space_Game")
+	plist, _ := stepOf(plan, .Write_File)
+	testing.expect(t, strings.contains(plist.content, "<string>Space_Game</string>") && strings.contains(plist.content, "io.crossfire.space_game"), plist.content)
+	data, _ := stepOf(plan, .Copy_Files)
+	testing.expect_value(t, data.path, "/games/Space/export/macos_arm64/Space_Game.app/Contents/Resources/data")
+	for step in plan.steps do if step.kind == .Command do testing.expect(t, step.command[0] != "codesign", "no codesign off a Mac")
+	// On a Mac: compiled (static SDL needed) and signed
+	mac.host = .macOS_ARM64
+	mac.hasScripts = true
+	_, problem = Export_Plan(mac, context.temp_allocator)
+	testing.expect(t, problem != "", "without the static SDL: refused")
+	mac.staticSDL = true
+	plan, problem = Export_Plan(mac, context.temp_allocator)
+	testing.expect_value(t, problem, "")
+	signed := false
+	for step in plan.steps do if step.kind == .Command && step.command[0] == "codesign" do signed = true
+	testing.expect(t, signed, "signed ad hoc")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+export_patches_the_windows_subsystem :: proc(t: ^testing.T) {
+	os.make_directory("build")
+	path := "build/test_subsystem.exe"
+	defer os.remove(path)
+	// A minimal PE: MZ, e_lfanew at 0x3C pointing at 0x40, "PE\0\0", a file header, an optional
+	// header whose Subsystem (byte 68) says console (3)
+	data := make([]byte, 0x40 + 4 + 20 + 96, context.temp_allocator)
+	data[0], data[1] = 'M', 'Z'
+	data[0x3C] = 0x40
+	copy(data[0x40:], "PE\x00\x00")
+	field := 0x40 + 4 + 20 + 68
+	data[field] = 3
+	_ = os.write_entire_file(path, data)
+	testing.expect_value(t, Export_SetWindowsSubsystem(path, gui = true), "")
+	patched, _ := os.read_entire_file(path, context.temp_allocator)
+	testing.expect_value(t, patched[field], 2)
+	testing.expect(t, Export_SetWindowsSubsystem("build/nope.exe", true) != "", "no file")
+	_ = os.write_entire_file(path, transmute([]byte)string("not a program"))
+	testing.expect(t, Export_SetWindowsSubsystem(path, true) != "", "not a PE")
+	free_all(context.temp_allocator)
+}
+
+// A web export waiting for Emscripten: a failed install drops it (and says why)
+@(test)
+emscripten_install_finishing :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	state.emscriptenInstalling = true
+	state.exportAfterEmscripten = {.Web}
+	{
+		// The failure is logged as an error (which fails a test otherwise)
+		context.logger = log.nil_logger()
+		send(&state, Toolchain_Emscripten_Finished{problem = strings.clone("no network")})
+	}
+	testing.expect(t, !state.emscriptenInstalling && state.exportAfterEmscripten == {}, "done, nothing waiting")
+	found := false
+	for line in state.console do if strings.contains(line.text, "Installing Emscripten failed: no network") do found = true
+	testing.expect(t, found, "the reason is in the Console")
+	free_all(context.temp_allocator)
+}

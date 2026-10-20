@@ -705,6 +705,8 @@ Settings_LDtk_Path_Changed :: distinct string
 Settings_Odin_Path_Changed :: distinct string
 // Settings > Toolchain's Install Odin
 Toolchain_Install_Requested :: struct {}
+// Install Emscripten for web exports (Settings > Toolchain, or a web export that needs it)
+Toolchain_Emscripten_Requested :: struct {}
 // Clicked a shortcut: the next key press binds that slot
 Settings_Capture_Started :: struct {
 	action: Action,
@@ -866,6 +868,8 @@ Msg :: union {
 	Settings_Odin_Path_Changed,
 	Toolchain_Install_Requested,
 	Toolchain_Install_Finished,
+	Toolchain_Emscripten_Requested,
+	Toolchain_Emscripten_Finished,
 	Git_Refresh_Requested,
 	Git_Snapshot_Read,
 	Git_Op_Requested,

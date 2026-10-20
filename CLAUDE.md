@@ -1247,10 +1247,31 @@ layer, frame loop, why each flag) is in the engine's CLAUDE.md, "Web build".
 saving, the dialog and undo) and `tests/ui/export.script`, which really exports the fixture to both
 targets (unoptimized; about 10 s once emsdk's port cache is warm).
 
+**Emscripten for the user** (toolchain.odin): web exports use the checkout's emsdk submodule
+when installed (`task emsdk`), else the data folder's (`Toolchain_EmsdkDir`). A web export
+without one (or without SDL_mixer's sources, `Toolchain_SDLMixerDir`) installs them first
+(`Toolchain_InstallEmscripten`: emsdk's pinned release tarball with curl and tar, `emsdk install`
+/ `activate` (about 1 GB; needs Python), SDL_mixer's tagged sources) and runs once it's done
+(`exportAfterEmscripten`); Settings > Toolchain has Install Emscripten too. Releases ship
+`tools/build_web_mixer.sh` beside the editor (a macOS bundle in Resources/tools;
+`Toolchain_WebMixerScript`). Checked by hand with a build that couldn't see the checkout
+(`EMSDK_DIR`, `SDL_MIXER_DIR` pointed nowhere) and a scratch data folder: installed, built
+SDL3_mixer from the downloaded sources, exported. (A UI script can't wait that long: the driver
+stops scripts after 300 s.)
+
+**Desktop exports on every OS** (`Export_Plan`, from its input: `ExportInput.host`): a desktop
+target is compiled on its own machine, or (a project without scripts) made anywhere from its
+prebuilt player next to the editor (`Export_Implemented`). Windows: `<name>.exe`, Hide console
+(`-subsystem:windows`, or patching a prebuilt player's PE header: `Export_SetWindowsSubsystem`),
+Odin's SDL3 DLLs beside it without the static SDL, the pack appended, a .zip (`Zip_Folder`, the
+editor's zip). macOS: `<name>.app` (Contents/MacOS, Info.plist from `Export_MacInfoPlist`, the
+project in Contents/Resources/data where the engine's player looks: no pack, which would break the
+signature), the static SDL required, `codesign -s -` on a Mac, a .tar.gz (keeps the program
+executable). **Headless:** `crossfire-editor <project> --export <target>` (`Export_Headless`)
+runs a plan without a window (installing Emscripten first for the web); CI exports the UI fixture
+on each OS with it and starts the game with the player's `--quit-after`.
+
 **Future work (decided, not built):**
-- **Download and build Emscripten for the user.** Today `task emsdk` must be run once by hand; the
-  editor should fetch and activate the pinned emsdk itself (with progress in the Output tab) the first
-  time a web export needs it, so users never think about the toolchain.
 - **CI/CD on GitHub Actions:** build the editor and engine on every desktop platform (a runner per
   OS and architecture), run the unit and UI tests, show build statuses, and publish development
   binaries as releases. The other desktop export targets get built there too.

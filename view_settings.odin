@@ -178,6 +178,14 @@ toolchainTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, settingRow(ctx, "", skald.button(ctx, label, Msg(Toolchain_Install_Requested{}), id = skald.hash_id("settings-install-odin"),
 		disabled = s.toolchainInstalling || installed, bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm, padding = {th.spacing.sm, 2})))
 	append(&rows, hint(ctx, fmt.tprintf("Downloads the Odin release the engine uses (about 70 MB, from GitHub) into %s. It still needs the linker above.", Toolchain_DataDir())))
+	_, hasEmsdk := Toolchain_EmsdkDir()
+	_, hasMixer := Toolchain_SDLMixerDir()
+	emscripten := hasEmsdk && hasMixer
+	webLabel := s.emscriptenInstalling ? "Installing..." : emscripten ? fmt.tprintf("Emscripten %s is installed", EMSDK_VERSION) : fmt.tprintf("%s  Install Emscripten %s", ICON_DOWNLOAD, EMSDK_VERSION)
+	append(&rows, skald.spacer(th.spacing.sm), skald.text("Web exports", th.color.fg, th.font.size_md),
+		settingRow(ctx, "", skald.button(ctx, webLabel, Msg(Toolchain_Emscripten_Requested{}), id = skald.hash_id("settings-install-emscripten"),
+			disabled = s.emscriptenInstalling || emscripten, bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm, padding = {th.spacing.sm, 2})),
+		hint(ctx, fmt.tprintf("Downloads Emscripten (about 1 GB; it needs Python) and SDL_mixer's sources into %s. The first web export does it too.", Toolchain_DataDir())))
 	return skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.sm, cross_align = .Stretch),
 		id = skald.hash_id("settings-toolchain-scroll"))
 }

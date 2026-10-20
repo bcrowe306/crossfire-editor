@@ -86,6 +86,25 @@ jobs:
         if: runner.os != 'macOS'
         run: tools/ci/package_editor.sh ${{ matrix.platform }} ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
 
+      # A game exported from the packaged editor, headless (--export), starts and quits cleanly
+      # (the player's --quit-after) on this OS
+      - name: Export a game and run it
+        if: runner.os != 'macOS'
+        run: |
+          project="$RUNNER_TEMP/export-test/game"
+          rm -rf "$RUNNER_TEMP/export-test" && mkdir -p "$RUNNER_TEMP/export-test" && cp -r tests/fixtures/ui_project "$project"
+          # The release archive as a user gets it
+          cd "$RUNNER_TEMP/export-test"
+          if [[ "$RUNNER_OS" == Windows ]]; then 7z x -bso0 "$GITHUB_WORKSPACE"/odin_sdl_editor/dist/crossfire-editor-*.zip; else tar -xzf "$GITHUB_WORKSPACE"/odin_sdl_editor/dist/crossfire-editor-*.tar.gz; fi
+          stage=$(ls -d "$RUNNER_TEMP"/export-test/crossfire-editor-*-${{ matrix.platform }} | head -1)
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            "$stage/crossfire-editor.exe" "$project" --export Windows_x64
+            "$project/export/windows_x64/Asteroids_Demo.exe" --quit-after 3
+          else
+            "$stage/crossfire-editor" "$project" --export Linux_x64
+            "$project/export/linux_x64/Asteroids_Demo" --quit-after 3
+          fi
+
       - uses: actions/upload-artifact@v4
         if: runner.os != 'macOS'
         with:
@@ -108,6 +127,15 @@ jobs:
         env:
           VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
         run: task macos:dist
+
+      - name: Export a macOS game and run it
+        if: runner.os == 'macOS'
+        run: |
+          project="$RUNNER_TEMP/export-test/game"
+          rm -rf "$RUNNER_TEMP/export-test" && mkdir -p "$RUNNER_TEMP/export-test" && cp -r tests/fixtures/ui_project "$project"
+          app=$(ls -d dist/macos/*.app | head -1)
+          "$app/Contents/MacOS/crossfire-editor" "$project" --export macOS_ARM64
+          "$project/export/macos_arm64/Asteroids_Demo.app/Contents/MacOS/Asteroids_Demo" --quit-after 3
 
       - name: Install the disk image and check the bundle
         if: runner.os == 'macOS'
