@@ -85,7 +85,9 @@ Toolchain_EngineDir :: proc() -> (string, bool) {
 
 /*
 A prebuilt player for a desktop target: `prebuilt/<target>/player` (`.exe` for Windows) next to the
-editor. Projects without scripts play and export with it, without compiling.
+editor, or in a macOS bundle's Contents/Resources/prebuilt (where releases put the other
+platforms' players: codesign takes only Mac programs in Contents/MacOS). Projects without scripts
+play and export with it, without compiling.
 
 Returns:
 - Its path, or "" (temp allocated)
@@ -94,8 +96,11 @@ Toolchain_PrebuiltPlayer :: proc(target: ExportTarget) -> string {
 	exeDir, err := os.get_executable_directory(context.temp_allocator)
 	if err != nil do return ""
 	name := target == .Windows_x64 || target == .Windows_ARM64 ? "player.exe" : "player"
-	path := joinPath(exeDir, "prebuilt", Toolchain_TargetFolder(target), name, allocator = context.temp_allocator)
-	return os.exists(path) ? path : ""
+	for root in ([]string{joinPath(exeDir, "prebuilt", allocator = context.temp_allocator), joinPath(exeDir, "..", "Resources", "prebuilt", allocator = context.temp_allocator)}) {
+		path := joinPath(root, Toolchain_TargetFolder(target), name, allocator = context.temp_allocator)
+		if os.exists(path) do return absolutePath(path)
+	}
+	return ""
 }
 
 // A target's folder name for prebuilt players: "linux_x64", "windows_x64", "macos_arm64"

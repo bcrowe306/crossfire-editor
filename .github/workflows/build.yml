@@ -104,6 +104,16 @@ jobs:
             "$stage/crossfire-editor" "$project" --export Linux_x64
             "$project/export/linux_x64/Asteroids_Demo" --quit-after 3
           fi
+          # This platform's prebuilt player, for every release (the combine jobs)
+          mkdir -p "$GITHUB_WORKSPACE/odin_sdl_editor/players"
+          cp -r "$stage"/prebuilt/* "$GITHUB_WORKSPACE/odin_sdl_editor/players/"
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os != 'macOS'
+        with:
+          name: player-${{ matrix.platform }}
+          path: odin_sdl_editor/players/
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         if: runner.os != 'macOS'
@@ -158,14 +168,116 @@ jobs:
           path: odin_sdl_editor/dist/macos/*.dmg
           if-no-files-found: error
 
+      - name: Keep the prebuilt player
+        if: runner.os == 'macOS'
+        run: |
+          app=$(ls -d dist/macos/*.app | head -1)
+          mkdir -p players && cp -r "$app"/Contents/MacOS/prebuilt/* players/
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: player-${{ matrix.platform }}
+          path: odin_sdl_editor/players/
+          if-no-files-found: error
+
+  # Every release carries every platform's prebuilt player, so an editor exports games without
+  # scripts for any desktop OS: the archives get the others' players beside their own...
+  combine:
+    name: Every player in the archives
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: player-*
+          path: players
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: editor-*-x64
+          path: dist
+          merge-multiple: true
+      - name: Add the players
+        run: |
+          chmod +x players/*/player 2>/dev/null || true
+          mkdir -p combined && cd combined
+          for archive in ../dist/*.tar.gz ../dist/*.zip; do
+            [[ -e "$archive" ]] || continue
+            rm -rf work && mkdir work
+            case "$archive" in
+              *.tar.gz) tar -xzf "$archive" -C work ;;
+              *.zip) unzip -q "$archive" -d work ;;
+            esac
+            top=$(ls work)
+            for target in ../players/*; do
+              name=$(basename "$target")
+              [[ -e "work/$top/prebuilt/$name" ]] || cp -r "$target" "work/$top/prebuilt/$name"
+            done
+            case "$archive" in
+              *.tar.gz) tar -czf "$(basename "$archive")" -C work "$top" ;;
+              *.zip) (cd work && zip -qry "../$(basename "$archive")" "$top") ;;
+            esac
+            ls -la "$(basename "$archive")"
+          done
+          rm -rf work
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-archives
+          path: combined/*
+          if-no-files-found: error
+
+  # ...and the macOS app gets them in Contents/Resources/prebuilt (codesign takes only Mac programs
+  # in Contents/MacOS), signed again
+  combine-macos:
+    name: Every player in the macOS app
+    needs: build
+    runs-on: macos-15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: player-*
+          path: players
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: editor-macos-arm64
+          path: dist
+      - name: Add the players and make the disk image again
+        run: |
+          chmod +x players/*/player 2>/dev/null || true
+          dmg=$(ls dist/*.dmg | head -1)
+          mount=$(mktemp -d)
+          hdiutil attach "$dmg" -mountpoint "$mount" -nobrowse -quiet
+          work=$(mktemp -d)
+          cp -R "$mount"/*.app "$work/"
+          hdiutil detach "$mount" -quiet
+          app=$(ls -d "$work"/*.app | head -1)
+          mkdir -p "$app/Contents/Resources/prebuilt"
+          for target in players/*; do
+            name=$(basename "$target")
+            [[ -e "$app/Contents/MacOS/prebuilt/$name" ]] || cp -R "$target" "$app/Contents/Resources/prebuilt/$name"
+          done
+          codesign --force --deep -s - "$app"
+          codesign --verify --deep --strict "$app"
+          mkdir -p combined
+          ln -s /Applications "$work/Applications"
+          hdiutil create -volname "Crossfire Editor" -srcfolder "$work" -ov -format UDZO "combined/$(basename "$dmg")"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-dmg
+          path: combined/*.dmg
+          if-no-files-found: error
+
   release:
     name: Release
-    needs: build
+    needs: [combine, combine-macos]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: final-*
           path: dist
           merge-multiple: true
       - name: Create the release

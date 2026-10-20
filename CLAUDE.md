@@ -1343,6 +1343,15 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
 
 ## CI and releases (`.github/workflows/build.yml`)
 
+**Every release has every platform's prebuilt player:** each build job uploads its player
+(`player-<platform>`); the `combine` job (Ubuntu) adds the others' to the Linux and Windows
+archives (`prebuilt/<target>/`), `combine-macos` (a Mac) to the app's
+`Contents/Resources/prebuilt/` (codesign takes only Mac programs in Contents/MacOS; the app is
+signed again ad hoc) and remakes the disk image; the release publishes those (`final-*`).
+`Toolchain_PrebuiltPlayer` looks in both places, so any release exports games without scripts for
+every desktop OS. Each build job also exports the UI fixture headless and starts the game
+(`--quit-after`).
+
 Pushing a `v*` tag builds and tests on Linux x86_64 (ubuntu-24.04), Windows x86_64 (windows-2022)
 and macOS arm64 (macos-15), then publishes a GitHub release of the three archives if all
 pass (tags with a `-`, like `v0.1.0-dev.1`, make pre-releases). The README's badge shows the

@@ -12,7 +12,5 @@ owns it.
 - A disk image background (the volume and app have the Crossfire icon).
 - **Linux and Windows bundles** the same way: Taskfile.linux.yml (an AppImage?) and
   Taskfile.windows.yml (an installer?), with CI calling them as it does for macOS.
-- **Prebuilt players for every platform** in every release archive (each archive has only its
-  own platform's today; enough while exports only build for the host).
 - **The zig experiment**: one linker everywhere, and Linux builds against an old glibc (a build
   made on this Arch machine needs GLIBC 2.43).
