@@ -265,13 +265,16 @@ of layers 1-16 it's on, and which it collides with), friction, bounce, mass and 
 rays and joints are drawn in the viewport (Shift+C, or the viewport's shapes button, hides them).
 **Scene > Show Collision Shapes in Game** (or Project Settings > Show shapes) makes the game draw
 them when you Play; it's saved with the project, and **exports never draw them**. While a game
-runs from the editor, **F9** shows and hides them. Project Settings also has the world's scale
+runs from the editor, **F9** shows and hides them (and **F10** the engine's debug overlay: frame
+rate, frame times, node and body counts). A CollisionShape marked **One way** is a platform:
+only its top stops what lands on it. Project Settings also has the world's scale
 (pixels per meter), gravity and Smooth motion (moving bodies glide on high-refresh screens).
 
 Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, and to Areas with
 `areaEnter` / `areaExit` (or the bodies' events), and can ask at any time:
 `e.PhysicsBody_IsInArea(body, area)`, `e.PhysicsBody_GetAreas(body)`,
-`e.PhysicsBody_IsTouching(a, b)`.
+`e.PhysicsBody_IsTouching(a, b)`. Queries find bodies anywhere: `e.Physics_RayCast`,
+`e.Physics_QueryPoint` / `QueryRect` / `QueryCircle`, `e.Physics_ShapeCast` (a swept circle).
 
 ## Components
 
@@ -428,6 +431,30 @@ In code: `e.AudioPlayer_Play(player)`, `e.AudioPlayer_Stop`, `e.MusicPlayer_Fade
   get an asset picker in the inspector.
 
 The demo project (`examples/demo_project`, see its README) uses all of these.
+
+## More for scripts
+
+Every node has a **process mode** (pausable, only when paused, always, disabled), a **z index**,
+**y sort** for its children, a **blend mode** and **groups**, set in the inspector. In code:
+
+- **Pausing and time:** `e.Scene_SetPaused`, `e.Game_SetTimeScale` (slow motion), `e.Game_HitStop`,
+  `e.Camera2D_Shake`.
+- **Tweens:** `e.Tween_Create(node)` then `e.Tween_To(tween, &node.position, target, 0.4, .OutBack)`,
+  delays, callbacks, parallel steps, loops.
+- **Groups:** `e.Node_AddToGroup`, `e.Scene_GetGroup(scene, "enemies")`.
+- **Render targets:** `e.RenderTarget_Create`, `e.Scene_DrawToTarget` (minimaps, split screen).
+- **Debug drawing:** `e.Debug_Line` / `Rect` / `Circle` / `Text`, over the scene for a frame or a
+  few seconds.
+- **Localization:** import a CSV table (`key,en,fr` ...: a **Translation** asset); `e.Tr("menu.play")`
+  in code, and Labels and menu items whose text is `@menu.play` translate themselves.
+  **Project Settings > General > Language** picks the starting language (empty: the player's).
+- **Menus** follow the project's `ui_*` actions: keyboard and gamepad alike.
+- **Rebinding:** `e.Input_StartCapture` / `e.Input_GetCapturedBinding`, `e.Input_SetBindings`,
+  `e.Input_SaveBindings` / `LoadBindings`; `e.Input_Rumble` for gamepads.
+- **The window:** Project Settings > General > Window (fullscreen, vsync, high DPI);
+  `e.Game_SetFullscreen` and `e.Game_SetVSync` from an options menu.
+
+The built-in code editor shows every engine procedure's documentation as you type (OLS).
 
 ## Renderer
 

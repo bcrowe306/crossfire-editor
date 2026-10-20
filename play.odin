@@ -266,7 +266,7 @@ startGame :: proc(state: ^State) -> skald.Command(Msg) {
 	projectDir := absolutePath(state.project.rootPath)
 	command := make([dynamic]string, context.temp_allocator)
 	append(&command, playerTarget(state).binary, projectDir)
-	// Developer keys (F9: collision shapes); exported games never get them
+	// Developer keys (F9: collision shapes, F10: the debug overlay); exported games never get them
 	append(&command, "--dev")
 	if playScene != "" {
 		append(&command, "--scene", playScene)

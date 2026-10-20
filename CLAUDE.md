@@ -895,7 +895,8 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   in Game (`Toggle_Physics_Debug`, a `.Project` undo step). Play uses it (the player reads
   project.xml). **Exports never ship it:** they write `data/project.xml` with
   `Export_ProjectXML` (the project with development settings off) instead of copying the file.
-  Play also passes `--dev`, so F9 toggles the shapes while the game runs; exports don't.
+  Play also passes `--dev`, so F9 toggles the shapes while the game runs, and F10 the engine's
+  debug overlay (frame rate, frame times, the scene's counts); exports don't.
   (Older editor.ini files' `play_collision_shapes` is ignored.)
 - The viewport header clips the scene tabs to what its buttons leave (measured with
   `skald.view_size`), so many scenes or a narrow window can't push the buttons out of view.
