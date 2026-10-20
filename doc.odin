@@ -26,4 +26,4 @@ Window layout:
 
 The project model (project.odin) is plain data, independent of Skald and the engine.
 */
-package editor
+package crossfire_editor

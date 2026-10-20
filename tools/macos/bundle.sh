@@ -16,7 +16,7 @@
 #
 #   Crossfire Editor.app/Contents/
 #     Info.plist                               (CFBundleIconFile: Resources/Crossfire.icns)
-#     MacOS/odin_sdl_editor                    the editor (SDL linked in statically)
+#     MacOS/crossfire-editor                     the editor (SDL linked in statically)
 #     MacOS/ols                                the Odin language server
 #     MacOS/prebuilt/<target>/player           the player for projects without scripts
 #     Frameworks/libvulkan.1.dylib             the Vulkan loader (Homebrew's vulkan-loader)
@@ -35,7 +35,7 @@ step=${1:?usage: bundle.sh layout|vulkan|dylibs|sign|check}
 here=$(cd "$(dirname "$0")" && pwd)
 : "${APP:?}" "${VERSION:=0.0.0}" "${BUNDLE_ID:=io.github.bcrowe306.crossfire-editor}" "${APP_NAME:=Crossfire Editor}"
 contents="$APP/Contents"
-executable=odin_sdl_editor
+executable=crossfire-editor
 
 # The bundle's Mach-O files: the executables and the libraries in Frameworks
 machos() {

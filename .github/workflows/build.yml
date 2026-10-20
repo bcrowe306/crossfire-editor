@@ -46,7 +46,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: bcrowe306/odin_sdl_engine
+          repository: bcrowe306/crossfire-engine
           ref: ${{ inputs.engine_ref || 'main' }}
           path: odin_sdl_engine
           submodules: true
@@ -75,12 +75,12 @@ jobs:
           if ! compgen -G "../odin_sdl_engine/sdl/lib/*/libSDL3.a" > /dev/null && ! compgen -G "../odin_sdl_engine/sdl/lib/*/sdl3_static.lib" > /dev/null; then ../odin_sdl_engine/tools/build_sdl_static.sh; fi
 
       - name: Check
-        run: odin check . $COLLECTIONS -vet-unused -vet-packages:editor
+        run: odin check . $COLLECTIONS -vet-unused -vet-packages:crossfire_editor
 
       - name: Test
         # The tests take seconds: a hang (a crashed test thread on Windows) shouldn't hold the runner
         timeout-minutes: 10
-        run: odin test . $COLLECTIONS -vet-unused -vet-packages:editor $ODIN_LINK_FLAGS
+        run: odin test . $COLLECTIONS -vet-unused -vet-packages:crossfire_editor $ODIN_LINK_FLAGS
 
       - name: Package the editor
         if: runner.os != 'macOS'

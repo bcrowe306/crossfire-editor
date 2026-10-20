@@ -54,7 +54,7 @@ for script in "${scripts[@]}"; do
 	rm -rf "$project" "$work/ui_archive"
 	cp -R tests/fixtures/ui_project "$project"
 	cp tests/ui/settings.ini "$work/ui_settings.ini"
-	if "$app/Contents/MacOS/odin_sdl_editor" "$project" --script "$editor/$script" --settings "$work/ui_settings.ini" > "$work/run.log" 2>&1; then
+	if "$app/Contents/MacOS/crossfire-editor" "$project" --script "$editor/$script" --settings "$work/ui_settings.ini" > "$work/run.log" 2>&1; then
 		grep "PASSED" "$work/run.log" || true
 	else
 		failed=$((failed + 1))

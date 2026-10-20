@@ -20,11 +20,3 @@ owns it.
   made on this Arch machine needs GLIBC 2.43).
 - **Download Emscripten for the user** the first time a web export needs it (today: `task emsdk`
   by hand; a release has no emsdk), and fold the SDL3_mixer web build into it.
-
-## Branding (Crossfire)
-
-- Optional, bigger renames: the executable (`odin_sdl_editor` -> `crossfire-editor`), the GitHub
-  repositories, the Odin packages. Only display names, archives, the app bundle, the data folder
-  and the app ID are Crossfire so far.
-
-

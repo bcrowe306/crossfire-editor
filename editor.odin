@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:fmt"
 import "core:log"
@@ -406,7 +406,7 @@ logLine :: proc(state: ^State, level: LogLevel, text: string, echo := true) {
 	}
 }
 
-// Command line: odin_sdl_editor [project folder] [--script <file>] [--settings <file.ini>]
+// Command line: crossfire-editor [project folder] [--script <file>] [--settings <file.ini>]
 @(private="file")
 Args :: struct {
 	project: string,

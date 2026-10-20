@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:encoding/ini"
 import "core:fmt"

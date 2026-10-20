@@ -36,11 +36,11 @@ compgen -G "$engine/sdl/lib/*/sdl3_static.lib" > /dev/null && static=true
 case "$(uname -s)" in
 Linux)
 	if $static; then
-		odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor"
+		odin build . "${flags[@]}" "-out:$stage/crossfire-editor"
 	else
-		odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor" "-extra-linker-flags:-Wl,-rpath,\$ORIGIN/lib"
+		odin build . "${flags[@]}" "-out:$stage/crossfire-editor" "-extra-linker-flags:-Wl,-rpath,\$ORIGIN/lib"
 		mkdir -p "$stage/lib"
-		ldd "$stage/odin_sdl_editor" | awk '/libSDL3/ { print $3 }' | while read -r lib; do cp -L "$lib" "$stage/lib/"; done
+		ldd "$stage/crossfire-editor" | awk '/libSDL3/ { print $3 }' | while read -r lib; do cp -L "$lib" "$stage/lib/"; done
 	fi
 	;;
 Darwin)
@@ -48,13 +48,13 @@ Darwin)
 	# library, so Homebrew's dylibs would win over the static ones (macOS releases use
 	# Taskfile.macos.yml's bundle instead of this archive)
 	if $static; then
-		odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor"
+		odin build . "${flags[@]}" "-out:$stage/crossfire-editor"
 	else
-		odin build . "${flags[@]}" "-out:$stage/odin_sdl_editor" ${ODIN_LINK_FLAGS:-}
+		odin build . "${flags[@]}" "-out:$stage/crossfire-editor" ${ODIN_LINK_FLAGS:-}
 	fi
 	;;
 *)
-	odin build . "${flags[@]}" -resource:crossfire.rc "-out:$stage/odin_sdl_editor.exe"
+	odin build . "${flags[@]}" -resource:crossfire.rc "-out:$stage/crossfire-editor.exe"
 	root=$(odin root)
 	if ! $static; then
 		for d in sdl3 sdl3/image sdl3/ttf sdl3/mixer; do cp "${root%/}/vendor/$d"/*.dll "$stage/"; done
@@ -87,7 +87,7 @@ esac
 
 # Static: neither program may load an SDL library
 if $static && command -v ldd > /dev/null; then
-	for program in "$stage"/odin_sdl_editor* "$stage/prebuilt/$target"/player*; do
+	for program in "$stage"/crossfire-editor* "$stage/prebuilt/$target"/player*; do
 		if ldd "$program" | grep -i "sdl3"; then
 			echo "$program still links SDL dynamically" >&2
 			exit 1
@@ -114,7 +114,7 @@ fi
 cat > "$stage/README.txt" <<TXT
 Crossfire Editor $version ($platform), a development build
 
-    ./odin_sdl_editor [project folder]     (odin_sdl_editor.exe on Windows)
+    ./crossfire-editor [project folder]     (crossfire-editor.exe on Windows)
 
 With no folder it opens the demo project in examples/demo_project, beside the editor: a small
 space game, and a platformer level made in LDtk (the menu's "Forest (LDtk)").

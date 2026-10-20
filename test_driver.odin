@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:encoding/json"
 import "core:fmt"
@@ -19,7 +19,7 @@ import stbi "vendor:stb/image"
 /*
 UI test driver: runs a script that drives the editor through real input.
 
-	odin_sdl_editor [project folder] --script tests/ui/smoke.script
+	crossfire-editor [project folder] --script tests/ui/smoke.script
 
 The script pushes SDL mouse and keyboard events, which reach Skald exactly like a user's input,
 and checks the editor's state. Everything happens inside the editor process: the driver never

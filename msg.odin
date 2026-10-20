@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import e "engine:."
 import "gui:skald"

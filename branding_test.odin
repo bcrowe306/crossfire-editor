@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:testing"
 import sdl "vendor:sdl3"

@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:fmt"
 import "core:mem/virtual"
@@ -35,7 +35,7 @@ Later: diffs of a change, discarding changes, merge conflicts, Git LFS for large
 */
 
 // The .gitignore Initialize writes
-GITIGNORE_DEFAULT :: `# Made by odin_sdl_editor: what a project's repository leaves out
+GITIGNORE_DEFAULT :: `# Made by Crossfire Editor: what a project's repository leaves out
 # Exported games (Project Settings > Export)
 export/
 # Build output
@@ -54,7 +54,7 @@ The .gitattributes Initialize writes: text files keep the editor's line endings 
 so a project checked out on Windows (where git turns LF into CRLF by default) has the files the
 editor writes, and moving between systems shows no changes. Git still detects binary files.
 */
-GITATTRIBUTES_DEFAULT :: `# Made by odin_sdl_editor: text files keep the editor's line endings (LF) on every OS
+GITATTRIBUTES_DEFAULT :: `# Made by Crossfire Editor: text files keep the editor's line endings (LF) on every OS
 * text=auto eol=lf
 `
 

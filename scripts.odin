@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:encoding/json"
 import "core:fmt"
@@ -717,7 +717,7 @@ Scripts_OLSConfig :: proc(project: ^Project) -> string {
 	}
 	return fmt.tprintf(`{{
 	"$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
-	"%s": "odin_sdl_editor: rewritten when the engine or project moves. Delete this line to keep your own edits",
+	"%s": "Crossfire Editor: rewritten when the engine or project moves. Delete this line to keep your own edits",
 	"collections": [
 		{{ "name": "engine", "path": %s }},
 		{{ "name": "project", "path": %s }}

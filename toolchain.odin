@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:fmt"
 import "core:os"
@@ -129,7 +129,7 @@ Toolchain_Check :: proc(settings: ^Settings) -> []ToolStatus {
 
 	engine, engineFound := Toolchain_EngineDir()
 	append(&list, ToolStatus{"Engine sources", engineFound, engineFound ? engine : "",
-		engineFound ? "The engine games are built from." : "Not found at ../odin_sdl_engine or engine/ next to the editor: git clone --recursive https://github.com/bcrowe306/odin_sdl_engine"})
+		engineFound ? "The engine games are built from." : "Not found at ../odin_sdl_engine or engine/ next to the editor: git clone --recursive https://github.com/bcrowe306/crossfire-engine odin_sdl_engine"})
 
 	when ODIN_OS == .Windows {
 		vswhere := "C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"

@@ -1,5 +1,5 @@
 #+build linux, darwin, freebsd, openbsd, netbsd
-package editor
+package crossfire_editor
 
 import "core:sys/posix"
 

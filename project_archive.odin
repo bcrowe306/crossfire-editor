@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:fmt"
 import "core:os"
@@ -355,7 +355,7 @@ ProjectArchive_Open :: proc(state: ^State) -> skald.Command(Msg) {
 }
 
 /*
-Unpacks an archive given on the command line (`odin_sdl_editor game.odinsdl`) next to it, as Open
+Unpacks an archive given on the command line (`crossfire-editor game.odinsdl`) next to it, as Open
 Project Archive would into the archive's folder.
 
 Returns:

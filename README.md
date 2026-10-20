@@ -2,10 +2,10 @@
 
 # Crossfire Editor
 
-[![Build](https://github.com/bcrowe306/odin_sdl_editor/actions/workflows/build.yml/badge.svg)](https://github.com/bcrowe306/odin_sdl_editor/actions/workflows/build.yml)
-[![Engine build](https://github.com/bcrowe306/odin_sdl_engine/actions/workflows/build.yml/badge.svg)](https://github.com/bcrowe306/odin_sdl_engine/actions/workflows/build.yml)
+[![Build](https://github.com/bcrowe306/crossfire-editor/actions/workflows/build.yml/badge.svg)](https://github.com/bcrowe306/crossfire-editor/actions/workflows/build.yml)
+[![Engine build](https://github.com/bcrowe306/crossfire-engine/actions/workflows/build.yml/badge.svg)](https://github.com/bcrowe306/crossfire-engine/actions/workflows/build.yml)
 
-The game editor for the [Crossfire Engine](https://github.com/bcrowe306/odin_sdl_engine)
+The game editor for the [Crossfire Engine](https://github.com/bcrowe306/crossfire-engine)
 (the `odin_sdl_engine` repository), written in [Odin](https://odin-lang.org)
 with the [Skald](https://github.com/bcrowe306/Skald) GUI framework.
 
@@ -23,13 +23,15 @@ not implemented yet).
 - For web exports only: Python 3 and `task emsdk` (Emscripten, about 1 GB, installed into the
   `third_party/emsdk` submodule; it also builds SDL3_mixer from the `third_party/SDL_mixer`
   submodule for game sound).
-- A checkout of [odin_sdl_engine](../odin_sdl_engine). By default it's expected next to this repo
-  (`../odin_sdl_engine`); set `ENGINE_DIR` to use another location.
+- A checkout of the [Crossfire Engine](https://github.com/bcrowe306/crossfire-engine). By default
+  it's expected next to this repo, in a folder named `odin_sdl_engine`; set `ENGINE_DIR` to use
+  another location.
 
 ## Getting started
 
 ```bash
-git clone --recursive <this repo>
+git clone --recursive https://github.com/bcrowe306/crossfire-editor odin_sdl_editor
+git clone --recursive https://github.com/bcrowe306/crossfire-engine odin_sdl_engine
 cd odin_sdl_editor
 task setup    # fetch the Skald submodule, build Odin's STB libraries (once per Odin install)
 task run      # build and run the editor; it opens the demo project
@@ -74,8 +76,8 @@ Run `task` to list them all.
 | `task verify` | `check` + `test` |
 | `task test:ui:fullscreen` | The same in a fullscreen editor, so wide layouts are tested too (`SCRIPT=tests/ui/animation.script` runs one) |
 | `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input (opens the editor window). They use a copy of `tests/fixtures/ui_project` and default settings |
-| `task build` | Debug build into `build/odin_sdl_editor` |
-| `task build:release` | Optimized build into `build/release/odin_sdl_editor` |
+| `task build` | Debug build into `build/crossfire-editor` |
+| `task build:release` | Optimized build into `build/release/crossfire-editor` |
 | `task run` | Build optimized and run. Program arguments go after `--` |
 | `task run:debug` | Build with debug info (unoptimized, several times slower) and run |
 | `task run:fullscreen` | Run fullscreen. Useful on tiling window managers, which shrink the window into a tile |
@@ -88,7 +90,7 @@ The Taskfile passes the flags every build needs:
 - `-collection:gui=Skald`: Skald is imported as `gui:skald`.
 - `-collection:engine=$ENGINE_DIR` and `-define:ENGINE_DIR=...`: the engine is imported as `engine:.`,
   and Play builds the player from it.
-- `-vet-unused -vet-packages:editor`: vet only this package; Skald itself doesn't pass vet.
+- `-vet-unused -vet-packages:crossfire_editor`: vet only this package; Skald itself doesn't pass vet.
 
 ## Layout
 
@@ -518,7 +520,7 @@ and the archive's files point at the copies, so the archive works anywhere (the 
 isn't changed). **Export Project Archive with History...** keeps `.git/` too, so the archive
 carries the project's version history. File > **Open Project Archive...** picks an archive (or a
 zip of a project), then the folder to unpack it into, and opens it. An archive given on the
-command line (`odin_sdl_editor game.odinsdl`) is unpacked next to itself and opened.
+command line (`crossfire-editor game.odinsdl`) is unpacked next to itself and opened.
 
 **Version control:** the bottom panel's **Git** tab (needs [Git](https://git-scm.com)).
 Initialize Repository makes the project folder a repository, with a `.gitignore` that leaves out
@@ -540,7 +542,7 @@ scripts showing most of the engine's features. Its README says what to look at f
 
 Pushing a version tag (`v0.2.0`, or `v0.2.0-dev.1` for a pre-release) builds and tests the editor
 with the engine on Linux x86_64, Windows x86_64 and macOS arm64 (`.github/workflows/build.yml`)
-and, when all three pass, publishes them as a [release](https://github.com/bcrowe306/odin_sdl_editor/releases):
+and, when all three pass, publishes them as a [release](https://github.com/bcrowe306/crossfire-editor/releases):
 one archive per platform with the built editor and the SDL3 libraries it needs (no sources). The
 badges above show the latest build. Play and Export in a release still need Odin (`dev-2026-10`)
 and the engine's sources at `../odin_sdl_engine` (the archive's README.txt says how).

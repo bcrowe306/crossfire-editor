@@ -1,5 +1,5 @@
 #+build !darwin
-package editor
+package crossfire_editor
 
 // Only macOS bundles carry their own Vulkan (bundle_darwin.odin)
 @(private="package")

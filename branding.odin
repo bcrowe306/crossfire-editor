@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import sdl "vendor:sdl3"
 import img "vendor:sdl3/image"

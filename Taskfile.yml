@@ -5,7 +5,7 @@
 version: '3'
 
 vars:
-  NAME: odin_sdl_editor
+  NAME: crossfire-editor
   BUILD_DIR: build
   # Engine checkout: imported as "engine:." and used by Play to build the player.
   # Override with: task run ENGINE_DIR=/path/to/odin_sdl_engine
@@ -26,7 +26,7 @@ vars:
   EMSDK_DIR: third_party/emsdk
   EMSDK_VERSION: 6.0.12
   # Vet only the editor's own package: Skald itself doesn't pass -vet
-  VET: -vet-unused -vet-packages:editor
+  VET: -vet-unused -vet-packages:crossfire_editor
   # Windows: the executable's icon (crossfire.rc)
   ICON_RESOURCE: '{{if eq OS "windows"}}-resource:crossfire.rc{{end}}'
 

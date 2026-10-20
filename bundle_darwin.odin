@@ -1,5 +1,5 @@
 #+build darwin
-package editor
+package crossfire_editor
 
 import "core:os"
 import "core:path/filepath"

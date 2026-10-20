@@ -38,7 +38,7 @@ env:
   BUNDLE_ID: '{{.BUNDLE_ID}}'
   VERSION: '{{.VERSION}}'
   TARGET: '{{.TARGET}}'
-  EDITOR_BIN: '{{.WORK}}/odin_sdl_editor'
+  EDITOR_BIN: '{{.WORK}}/crossfire-editor'
   PLAYER_BIN: '{{.WORK}}/player'
   OLS_BIN: '{{.OLS_BIN}}'
   ENGINE_DIR: '{{.ENGINE_DIR}}'
@@ -62,7 +62,7 @@ tasks:
     deps: [':box2d', ':sdl']
     cmds:
       - mkdir -p {{.WORK}}
-      - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.WORK}}/odin_sdl_editor {{.MACOS_LINK}}
+      - odin build . {{.COLLECTIONS}} {{.VET}} -o:speed -out:{{.WORK}}/crossfire-editor {{.MACOS_LINK}}
 
   player:
     desc: The engine's player (optimized, static SDL), the bundle's prebuilt player

@@ -1,12 +1,15 @@
 # Crossfire Editor
 
-A desktop game editor for the **Crossfire Engine** (the odin_sdl_engine repository).
+A desktop game editor for the **Crossfire Engine** (`bcrowe306/crossfire-engine`, checked out next
+to this one as `odin_sdl_engine/`). This repository is `bcrowe306/crossfire-editor` (renamed
+2026-10-20 from `odin_sdl_editor`; GitHub redirects the old URLs).
 
 **Branding:** the product names are **Crossfire Editor** and **Crossfire Engine**; the logo is
 `assets/icons/crossfire.png` (1024 px, transparent; made from the artwork with the background and
 watermarks removed: see `tools/icons/make_icons.sh`). Use the names in anything users see (window
-title, docs, release titles and archives, the app bundle). The repositories, the Odin package
-names and the executable keep `odin_sdl`.
+title, docs, release titles and archives, the app bundle). The executable is `crossfire-editor`,
+the Odin package `crossfire_editor` (`-vet-packages:crossfire_editor`), the engine's `crossfire`;
+local folder names stay `odin_sdl_editor/` and `odin_sdl_engine/`.
 - **Icons per platform:** the window icon at run time on all of them (`branding.odin`, from
   `assets/icons/crossfire_256.png`); Windows: `crossfire.rc` (at the root, so rc.exe finds
   `assets/icons/crossfire.ico` whichever folder it resolves from) compiled in with `-resource:`
@@ -74,7 +77,7 @@ add it as a task and to the README's command table.
 | `task emsdk` | Install Emscripten into the `third_party/emsdk` submodule (`EMSDK_VERSION`, ~1 GB, once per machine), then `web:mixer`. Web exports need it |
 | `task web:mixer` | Build SDL3_mixer for the web (`tools/build_web_mixer.sh` → `build/web/libSDL3_mixer.a`); exports also build it when it's missing |
 | `task stb` | Build Odin's STB libraries Skald needs (`build_stb.sh`). Skipped when already built for the active Odin install |
-| `task check` | Type-check with `-vet-unused -vet-packages:editor` (Skald itself doesn't pass vet) |
+| `task check` | Type-check with `-vet-unused -vet-packages:crossfire_editor` (Skald itself doesn't pass vet) |
 | `task test` | Unit tests (`editor_test.odin`) |
 | `task test:code-editor` | The built-in code editor's own unit tests (`code_editor/`, its Taskfile) |
 | `task ols` | Build OLS into `code_editor/third_party/ols` (its `ols:build`; skipped when built) |
@@ -168,7 +171,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors; `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
-| `code_editor/` | **The built-in code editor**: an Odin code editor on SDL3 (buffer, keymap, syntax, LSP client, `editor` = package `code_editor`, its own README, tests and Taskfile). Changed here: its `editor` package renamed `code_editor` (Odin package names must be unique: ours is `editor`), and SDL_ttf calls taking `[^]u8` for this Odin |
+| `code_editor/` | **The built-in code editor**: an Odin code editor on SDL3 (buffer, keymap, syntax, LSP client, `editor` = package `code_editor`, its own README, tests and Taskfile). Changed here: its `editor` package renamed `code_editor` (Odin package names must be unique: it was `editor`, ours then; ours is `crossfire_editor` now), and SDL_ttf calls taking `[^]u8` for this Odin |
 | `code_editor_host.odin` | Hosting it in Skald: `CodeEditor` per open file (a `ce.Editor`, a software renderer and surface, uploaded as `CODE_IMAGE` when the pixels change), the SDL event watch feeding it input, focus (`CodeEditor_Frame`, `CODE_EDITOR_PASSTHROUGH`), the bundled font (Liberation Mono), `Code_FindOLS` |
 | `code_tabs.odin` | Code tabs: `Script_Open` (built-in or external), `CodeTabs_Open` / `Close` / `SaveAll`, their messages (`CodeTabs_Update`), the tabs' view, the status line, the close prompt |
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
@@ -1266,7 +1269,7 @@ targets (unoptimized; about 10 s once emsdk's port cache is warm).
 installs the image's app into a temporary folder and runs UI scripts with it. CI's macOS job runs
 the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in the bundle:
 
-	Contents/MacOS/odin_sdl_editor, ols, prebuilt/<target>/player
+	Contents/MacOS/crossfire-editor, ols, prebuilt/<target>/player
 	Contents/Frameworks/   libvulkan.1.dylib, libMoltenVK.dylib, whatever else dylibbundler finds
 	Contents/Resources/    vulkan/icd.d/MoltenVK_icd.json, engine/ (sources, box2d/lib, sdl/lib),
 	                       demo_project/ (the demo's git-tracked files)
@@ -1406,7 +1409,7 @@ Match the engine's style:
 
 ## UI tests (input injection)
 
-`odin_sdl_editor <project> --script <file>` runs a test script inside the editor.
+`crossfire-editor <project> --script <file>` runs a test script inside the editor.
 `test_driver.odin` documents the commands, including:
 - input: `click_widget`, `click_row`, `click_node`, `drag_node`, `scroll`, `key`, `type`
 - `import` (bypasses the native file dialog)
@@ -1474,7 +1477,7 @@ Highlights:
 ## Verifying work
 
 - `task verify` (check + tests) must pass before saying anything works. The vet flags are limited to
-  this package (`-vet-packages:editor`) because Skald itself has unused imports.
+  this package (`-vet-packages:crossfire_editor`) because Skald itself has unused imports.
 - `task test` fails a test that leaks or frees badly (`ODIN_TEST_FAIL_ON_BAD_MEMORY`): drafts
   and dialogs free what they own on close and in `State_Destroy` (`ProjectSettings_Destroy`).
 - Logic (the serializer, model, undo, export command lines) gets `odin test` tests. Pay particular

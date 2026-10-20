@@ -7,7 +7,7 @@
 # --remove takes the entry away.
 #
 # In a release archive this script is beside the editor (crossfire-editor-<version>-linux-x64/);
-# in the repository it's tools/linux/ and the editor is build/release/odin_sdl_editor.
+# in the repository it's tools/linux/ and the editor is build/release/crossfire-editor.
 set -euo pipefail
 id=io.github.bcrowe306.crossfire-editor
 data=${XDG_DATA_HOME:-$HOME/.local/share}
@@ -20,13 +20,13 @@ if [[ "${1:-}" == --remove ]]; then
 	exit 0
 fi
 
-editor=$here/odin_sdl_editor
+editor=$here/crossfire-editor
 icons=$here/icons
 if [[ ! -x "$editor" ]]; then
-	editor=$(cd "$here/../.." && pwd)/build/release/odin_sdl_editor
+	editor=$(cd "$here/../.." && pwd)/build/release/crossfire-editor
 	icons=$(cd "$here/../.." && pwd)/assets/icons
 fi
-[[ -x "$editor" ]] || { echo "No editor beside this script (or build/release/odin_sdl_editor)" >&2; exit 1; }
+[[ -x "$editor" ]] || { echo "No editor beside this script (or build/release/crossfire-editor)" >&2; exit 1; }
 
 for size in 256 1024; do
 	source=$icons/crossfire_256.png

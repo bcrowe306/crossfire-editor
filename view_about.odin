@@ -1,4 +1,4 @@
-package editor
+package crossfire_editor
 
 import "core:fmt"
 import "gui:skald"
@@ -14,9 +14,9 @@ Help > About: the logo, the editor's version (`EDITOR_VERSION`: the release tag 
 EDITOR_VERSION :: #config(EDITOR_VERSION, "dev")
 
 // Where the source and releases are
-EDITOR_REPOSITORY :: "https://github.com/bcrowe306/odin_sdl_editor"
-ENGINE_REPOSITORY :: "https://github.com/bcrowe306/odin_sdl_engine"
-ENGINE_DOCS :: "https://bcrowe306.github.io/odin_sdl_engine/engine/"
+EDITOR_REPOSITORY :: "https://github.com/bcrowe306/crossfire-editor"
+ENGINE_REPOSITORY :: "https://github.com/bcrowe306/crossfire-engine"
+ENGINE_DOCS :: "https://bcrowe306.github.io/crossfire-engine/engine/"
 
 // The logo as a Skald image (uploaded the first time the dialog shows)
 @(private="file")

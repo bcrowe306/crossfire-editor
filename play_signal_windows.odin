@@ -1,5 +1,5 @@
 #+build windows
-package editor
+package crossfire_editor
 
 import "core:fmt"
 
