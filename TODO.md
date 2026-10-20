@@ -4,21 +4,19 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
-## Engine hardening (in progress, in this order)
+## Engine
 
-1. **Done:** correctness, tests, memory (lifecycle fixes and tests, every test under the leak
-   check).
-2. **Done:** optimization, measured (`odin run bench -o:speed`; the engine's CLAUDE.md
-   Performance table has the numbers and what was left alone). Still worth a faster correct
-   software path for LDtk tiles (the headless demo run takes ~3 min).
-3. **Done:** process modes and pausing, time scale, tweens, groups, z-index / y-sort, blend
-   modes, render targets, window settings, physics queries and one-way platforms, debug drawing
-   and overlay, menus by actions and gamepads, localization, input rebinding and rumble.
-4. **API documentation for OLS:** `doc.odin`, every public declaration in Odin core style, a
-   comment on every struct field (OLS shows a comment only on the field right below it), internal
-   plumbing made `@(private)` (except what the editor uses).
+- A faster correct software path for LDtk tiles (SDL's software renderer draws them as separate
+  triangles, correct but slow: the headless demo run takes ~3 min).
 
 ## Editor UI
+
+- **Arrow keys adjust the focused control:** a focused slider, number field, dropdown, checkbox
+  or the like changes its value with the direction keys (Left/Right or Up/Down step it; Shift for
+  bigger steps on numbers), like desktop toolkits.
+- **Opening a component fits it to the viewport.** A component's tab opens at the game area's
+  fit, so a small component (a coin, an enemy) shows tiny; fit the view to the component's own
+  bounds instead (as Frame Selected does for a node).
 
 - **Pan and scroll the viewport.** Scroll horizontally and vertically, not only zoom. A pan tool
   of its own is fine; also a modifier with the wheel (say Shift + wheel pans sideways, Ctrl +
