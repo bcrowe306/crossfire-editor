@@ -200,6 +200,8 @@ Project :: struct {
 	startScene: string,
 	// The language the game starts in (a translation table's; "" for the player's: format 13)
 	locale: string,
+	// The game window's icon: an image asset's path ("" for the engine's, the Crossfire logo: format 13)
+	icon: string,
 	scenes: [dynamic]SceneDef,
 	assets: [dynamic]AssetDef,
 	// Physics: pixels per meter, gravity (px/s²), debug drawing in the game
@@ -471,6 +473,7 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.rootPath)
 	delete(project.startScene)
 	delete(project.locale)
+	delete(project.icon)
 	for f in project.sceneFiles do delete(f)
 	delete(project.sceneFiles)
 	for &g in project.globals do GlobalDef_Destroy(&g)
@@ -511,6 +514,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		background = data.background,
 		startScene = strings.clone(data.startScene),
 		locale = strings.clone(data.locale),
+		icon = strings.clone(data.icon),
 		physics = data.physics,
 		window = data.window,
 		exports = ExportSettings_Default(),

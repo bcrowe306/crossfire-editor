@@ -95,6 +95,7 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	if window.vsync != e.DEFAULT_WINDOW_SETTINGS.vsync do attr(&w, "vsync", window.vsync)
 	if window.highDPI != e.DEFAULT_WINDOW_SETTINGS.highDPI do attr(&w, "highDPI", window.highDPI)
 	if project.locale != "" do attr(&w, "locale", project.locale)
+	if project.icon != "" do attr(&w, "icon", project.icon)
 	endOpen(&w)
 	for &scene in project.scenes {
 		// Components are assets, not scenes

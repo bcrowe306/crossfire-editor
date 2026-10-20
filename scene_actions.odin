@@ -43,6 +43,8 @@ ProjectSettingsDialog :: struct {
 	startScene: string,
 	// Owned: the language the game starts in ("" for the player's)
 	locale: string,
+	// Owned: the window icon's image ("" for the engine's)
+	icon: string,
 	physics: e.PhysicsSettings,
 	window: e.WindowSettings,
 	// Globals tab: a copy of the project's globals (owned), and the one shown
@@ -196,13 +198,14 @@ ProjectSettings_Destroy :: proc(dialog: ^ProjectSettingsDialog) {
 	delete(dialog.name)
 	delete(dialog.startScene)
 	delete(dialog.locale)
+	delete(dialog.icon)
 	for &g in dialog.globals do GlobalDef_Destroy(&g)
 	delete(dialog.globals)
 	for &a in dialog.actions do ActionDef_Destroy(&a)
 	delete(dialog.actions)
 	delete(dialog.newActionName)
 	delete(dialog.renameText)
-	dialog.name, dialog.startScene, dialog.locale, dialog.newActionName, dialog.renameText = "", "", "", "", ""
+	dialog.name, dialog.startScene, dialog.locale, dialog.icon, dialog.newActionName, dialog.renameText = "", "", "", "", "", ""
 	dialog.globals, dialog.actions = nil, nil
 }
 
@@ -223,6 +226,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		background = skald.rgb(u32(c.r) << 16 | u32(c.g) << 8 | u32(c.b)),
 		startScene = strings.clone(p.startScene),
 		locale = strings.clone(p.locale),
+		icon = strings.clone(p.icon),
 		tab = tab,
 		exportTarget = exportTarget,
 		exports = p.exports,
@@ -314,6 +318,9 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 	case Project_Settings_Locale_Changed:
 		delete(dialog.locale)
 		dialog.locale = strings.clone(string(v))
+	case Project_Settings_Icon_Changed:
+		delete(dialog.icon)
+		dialog.icon = strings.clone(string(v) == TEXTURE_NONE ? "" : string(v))
 	case Project_Settings_Applied:
 		applyProjectSettings(state)
 		dialog.open = false
@@ -348,6 +355,10 @@ applyProjectSettings :: proc(state: ^State) {
 	p.scaleMode = dialog.scaleMode
 	p.renderer = dialog.renderer
 	p.window = dialog.window
+	if dialog.icon != p.icon {
+		delete(p.icon)
+		p.icon = strings.clone(dialog.icon)
+	}
 	if locale := strings.trim_space(dialog.locale); locale != p.locale {
 		delete(p.locale)
 		p.locale = strings.clone(locale)

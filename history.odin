@@ -75,6 +75,7 @@ ProjectSnapshot :: struct {
 	name: string,
 	startScene: string,
 	locale: string,
+	icon: string,
 	gameSize: [2]f32,
 	scaleMode: e.ScaleMode,
 	renderer: e.RenderBackend,
@@ -710,6 +711,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		name = strings.clone(p.name),
 		startScene = strings.clone(p.startScene),
 		locale = strings.clone(p.locale),
+		icon = strings.clone(p.icon),
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
 		renderer = p.renderer,
@@ -734,6 +736,7 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	delete(p.name)
 	delete(p.startScene)
 	delete(p.locale)
+	delete(p.icon)
 	// The scenes come back; the components stay as they are, after them
 	components := make([dynamic]SceneDef, context.temp_allocator)
 	for &scene in p.scenes {
@@ -744,6 +747,7 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.name = strings.clone(snapshot.name)
 	p.startScene = strings.clone(snapshot.startScene)
 	p.locale = strings.clone(snapshot.locale)
+	p.icon = strings.clone(snapshot.icon)
 	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
 	p.renderer = snapshot.renderer
 	p.exports = snapshot.exports
@@ -794,6 +798,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.name)
 	delete(snapshot.startScene)
 	delete(snapshot.locale)
+	delete(snapshot.icon)
 	for &scene in snapshot.scenes do SceneDef_Destroy(&scene)
 	delete(snapshot.scenes)
 	for &g in snapshot.globals do GlobalDef_Destroy(&g)
@@ -809,7 +814,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 
 @(private="file")
 projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
-	if a.name != b.name || a.startScene != b.startScene || a.locale != b.locale || a.gameSize != b.gameSize || a.scaleMode != b.scaleMode ||
+	if a.name != b.name || a.startScene != b.startScene || a.locale != b.locale || a.icon != b.icon || a.gameSize != b.gameSize || a.scaleMode != b.scaleMode ||
 	   a.renderer != b.renderer || a.background != b.background || a.exports != b.exports || a.physics != b.physics || a.window != b.window || len(a.scenes) != len(b.scenes) {
 		return false
 	}

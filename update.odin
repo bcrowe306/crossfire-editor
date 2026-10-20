@@ -242,7 +242,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		return out, skald.cmd_batch(Script_Open(&out, path, line), scriptsBuild(&out))
 
 	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Renderer_Changed, Project_Settings_Background_Changed,
-	     Project_Settings_Start_Changed, Project_Settings_Locale_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
+	     Project_Settings_Start_Changed, Project_Settings_Locale_Changed, Project_Settings_Icon_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
 	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:

@@ -13,6 +13,7 @@ wait 0.5
 
 action Open_Project_Settings
 expect project_settings open
+scroll_into_view project-settings-general-scroll project-settings-locale
 click_widget project-settings-locale
 type fr
 click_widget project-settings-apply

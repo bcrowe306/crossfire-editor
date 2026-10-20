@@ -35,7 +35,6 @@ owns it.
 
 ## Branding (Crossfire)
 
-- The engine's player: a window icon for games (the project's own, or Crossfire's by default).
 - Optional, bigger renames: the executable (`odin_sdl_editor` -> `crossfire-editor`), the GitHub
   repositories, the Odin packages. Only display names, archives, the app bundle, the data folder
   and the app ID are Crossfire so far.

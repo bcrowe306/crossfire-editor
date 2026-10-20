@@ -183,6 +183,8 @@ Project_Settings_Background_Changed :: distinct skald.Color
 Project_Settings_Start_Changed :: distinct string
 // The language the game starts in (a translation table's, like "fr"; "" for the player's)
 Project_Settings_Locale_Changed :: distinct string
+// The game window's icon (an image asset's path; TEXTURE_NONE for the engine's)
+Project_Settings_Icon_Changed :: distinct string
 Project_Settings_Size_Changed :: struct {
 	axis: int,
 	value: f64,
@@ -808,6 +810,7 @@ Msg :: union {
 	Project_Settings_Background_Changed,
 	Project_Settings_Start_Changed,
 	Project_Settings_Locale_Changed,
+	Project_Settings_Icon_Changed,
 	Project_Settings_Size_Changed,
 	Project_Settings_Applied,
 	Project_Settings_Cancelled,

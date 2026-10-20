@@ -38,12 +38,19 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 		// The Export tab scrolls inside a fixed height: 400 px, less in a short window, so the
 		// buttons below stay on screen (the title, tabs and footer take about 220 px)
 		exportHeight: f32 = 400
-		if ctx.renderer != nil do exportHeight = clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 400)
+		generalHeight: f32 = 560
+		if ctx.renderer != nil {
+			exportHeight = clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 400)
+			generalHeight = clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 560)
+		}
+		// General scrolls too once it's taller than that (a short, tiled window): the buttons must
+		// stay drawn, or they can't be clicked
+		if d.tab == .General do body = skald.scroll(ctx, {0, 0}, body, id = skald.hash_id("project-settings-general-scroll"))
 		content = skald.col(
 			skald.text("Project Settings", th.color.fg, th.font.size_lg),
 			tabs,
 			skald.divider(ctx),
-			skald.col(skald.flex(1, body), height = d.tab == .General ? 0 : exportHeight, cross_align = .Stretch),
+			skald.col(skald.flex(1, body), height = d.tab == .General ? generalHeight : exportHeight, cross_align = .Stretch),
 			skald.divider(ctx),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
@@ -176,6 +183,7 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id("project-settings-start"), width = 200)),
 		skald.text("The scene the game starts in (Play, and exports). Play Scene (Ctrl+F5) starts in the open scene instead.",
 			th.color.fg_muted, th.font.size_xs, max_width = 420),
+		settingRow(ctx, "Icon", iconSelect(ctx, s, d.icon)),
 		settingRow(ctx, "Language", skald.text_input(ctx, strings.clone(d.locale, context.temp_allocator),
 			proc(v: string) -> Msg { return Project_Settings_Locale_Changed(v) },
 			id = skald.hash_id("project-settings-locale"), width = 120)),
@@ -538,4 +546,15 @@ localeNote :: proc(s: ^State) -> string {
 	for asset in s.project.assets do if asset.kind == .Translation do tables += 1
 	if tables == 0 do return "The language the game starts in, from its translation tables (CSV assets: import one). Empty: the player's system language."
 	return fmt.tprintf("The language the game starts in, as the translation tables name it (%d table%s in the project). Empty: the player's system language when a table has it, else the tables' first.", tables, tables == 1 ? "" : "s")
+}
+
+// The window icon: one of the project's images, or None (the engine's Crossfire logo)
+@(private="file")
+iconSelect :: proc(ctx: ^skald.Ctx(Msg), s: ^State, icon: string) -> skald.View {
+	images := make([dynamic]string, context.temp_allocator)
+	append(&images, TEXTURE_NONE)
+	for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)
+	return skald.select(ctx, icon == "" ? TEXTURE_NONE : strings.clone(icon, context.temp_allocator), images[:],
+		proc(v: string) -> Msg { return Project_Settings_Icon_Changed(v) },
+		id = skald.hash_id("project-settings-icon"), width = 260)
 }

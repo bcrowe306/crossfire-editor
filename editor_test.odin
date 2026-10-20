@@ -308,6 +308,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	tagged.groups = strings.clone("enemies,flying")
 	original.window = {fullscreen = true, vsync = false, highDPI = true}
 	original.locale = strings.clone("fr")
+	original.icon = strings.clone("assets/ship.png")
 	append(&original.assets, AssetDef{strings.clone("i18n/strings.csv"), .Translation})
 
 	testing.expect_value(t, Project_Save(&original), "")
@@ -322,6 +323,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	testing.expect_value(t, loaded.startScene, original.startScene)
 	testing.expect_value(t, loaded.window, original.window)
 	testing.expect_value(t, loaded.locale, "fr")
+	testing.expect_value(t, loaded.icon, "assets/ship.png")
 	testing.expect_value(t, len(loaded.assets), len(original.assets))
 	testing.expect(t, loaded.assets[len(loaded.assets) - 1].kind == .Translation, "a translation table stays one")
 	testing.expect_value(t, len(loaded.scenes), len(original.scenes))

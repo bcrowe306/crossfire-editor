@@ -822,6 +822,10 @@ MyGame/
   `scripts/assets.odin`: scripts use keys, `e.Tr`), and the project's `locale` (Project
   Settings > General > Language, `project-settings-locale`, in the `.Project` snapshot;
   `tests/ui/localization.script`).
+- **Version 13** also: the game window's icon (`Project.icon`, an image asset; Project Settings >
+  General > Icon, `project-settings-icon`; written when set; the engine shows the Crossfire logo
+  without one). The General tab scrolls (`project-settings-general-scroll`) once taller than the
+  window allows, so Apply stays drawn: scripts `scroll_into_view` to its lower rows.
 - **Version 13** also: the project's window (`Project.window`, the engine's `WindowSettings`):
   Project Settings > General's Window checkboxes (`project-settings-window-<field>`,
   `tests/ui/window_settings.script`), in the `.Project` undo snapshot, written when not the

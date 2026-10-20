@@ -126,6 +126,7 @@ fieldTip :: proc(label: string) -> string {
 	case "Renderer":       return "What the game draws with (Auto: the system's choice)."
 	case "Window":         return "How the game's window starts."
 	case "Start scene":    return "The scene the game starts in."
+	case "Icon":           return "The game window's icon (the taskbar's): one of the project's images. None: the Crossfire logo."
 	case "Language":       return "The language the game starts in, as the translation tables name it (empty: the player's)."
 	case "Pixels per meter": return "Physics works in meters: a body of 1 m is this many pixels."
 	case "Show shapes":    return "The game draws its collision shapes when you Play (exports never do; F9 toggles them while playing)."

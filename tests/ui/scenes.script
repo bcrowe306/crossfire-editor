@@ -65,6 +65,7 @@ expect project_settings open
 click_widget project-settings-name
 key ctrl+a
 type Space Game
+scroll_into_view project-settings-general-scroll project-settings-renderer
 click_widget project-settings-renderer
 click_overlay_item 3
 click_widget project-settings-apply
