@@ -159,6 +159,10 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		return {scope = .Node, node = index, label = label, mergeKey = mergeKey}
 	}
 
+	if index, field, ok := SceneSettings_Classify(s, m); ok && index >= 0 && index < len(s.project.scenes) {
+		sceneName := s.project.scenes[index].name
+		return {scope = .Project, label = fmt.tprintf("Change the %s of %s", field, sceneName), mergeKey = key("scene-settings", field, index)}
+	}
 	#partial switch v in m {
 	case Scene_Action:
 		if SceneOp_EditsProject(v.op) do return {scope = .Project, label = sceneOpLabel(s, v)}
@@ -824,7 +828,7 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 		return false
 	}
 	for scene, i in a.scenes {
-		if scene.name != b.scenes[i].name || !nodesEqual(scene.nodes[:], b.scenes[i].nodes[:]) do return false
+		if scene.name != b.scenes[i].name || scene.settings != b.scenes[i].settings || !nodesEqual(scene.nodes[:], b.scenes[i].nodes[:]) do return false
 	}
 	if len(a.globals) != len(b.globals) || len(a.data) != len(b.data) || !actionsEqual(a.actions[:], b.actions[:]) || !busesEqual(a.buses[:], b.buses[:]) do return false
 	for g, i in a.globals do if g.script != b.globals[i].script || !propsEqual(g.props[:], b.globals[i].props[:]) do return false

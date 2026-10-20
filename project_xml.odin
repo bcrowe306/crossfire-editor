@@ -186,6 +186,15 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 	open(&w, root)
 	attr(&w, "formatVersion", e.PROJECT_FORMAT_VERSION)
 	attr(&w, "name", scene.name)
+	// The scene's own settings, only those it has
+	if settings := scene.settings; !Scene_IsComponent(scene) {
+		if settings.screenLayers != {} do attr(&w, "screenLayers", e.FormatScreenLayers(settings.screenLayers, context.temp_allocator))
+		if settings.hasBackground do attr(&w, "background", e.FormatColor(settings.background, context.temp_allocator))
+		if settings.hasGravity {
+			attr(&w, "gravityX", settings.gravity.x)
+			attr(&w, "gravityY", settings.gravity.y)
+		}
+	}
 	endOpen(&w)
 
 	// Nodes are depth-first, so a node's subtree ends where the next node isn't deeper

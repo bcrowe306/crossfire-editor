@@ -1,0 +1,45 @@
+# The browser's scene preview: what's in the scene, its actions, and its own settings (screen
+# layers, background, gravity), saved on the scene file's root and undoable.
+# Run with: task test:ui
+#
+# Browser rows: Scenes (0), MenuScene (1), PlayScene (2), OptionsScene (3)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect widget_visible preview-scene-play true
+
+# Screen layers: layer 8 (the HUD's) is drawn without the camera
+scroll_into_view preview-scene-scroll scene-settings-layer-8
+click_widget scene-settings-layer-8
+expect modified true
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml screenLayers="8"
+# Its own background, then its own gravity
+scroll_into_view preview-scene-scroll scene-settings-background
+click_widget scene-settings-background
+expect widget_visible scene-settings-background-color true
+scroll_into_view preview-scene-scroll scene-settings-gravity
+click_widget scene-settings-gravity
+scroll_into_view preview-scene-scroll scene-settings-gravity-y
+click_widget scene-settings-gravity-y
+key ctrl+a
+type 490
+key RETURN
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml gravityY="490"
+expect project_file_contains scenes/PlayScene.scene.xml background="#
+# Undo takes the gravity back off
+key escape
+key ctrl+z
+key ctrl+z
+key ctrl+s
+expect project_file_lacks scenes/PlayScene.scene.xml gravityY=
+
+# Another scene's preview: Set as Start makes it the start scene
+click_row browser-tree 3
+expect widget_visible preview-scene-start true
+click_widget preview-scene-start
+expect widget_visible preview-scene-start false
+
+quit

@@ -176,6 +176,15 @@ Game code is Odin, in the project's `scripts/` folder, and attaches to nodes:
    (options: `default=`, `min=`, `max=`, `kind=scene`) appear in the inspector after a build.
 3. **Build Scripts** (Ctrl+B) compiles them, which also happens when you Play and when a project
    with scripts opens. Errors show in the Output tab.
+4. **Point a script at other nodes:** drag a node from the scene tree onto the script's code tab.
+   That adds a field like `camera: ^e.Camera2D `export:"default=../Camera"``; the engine sets
+   it to that node before `ready`. In the inspector, each node using the script can pick
+   another node of that type.
+
+Selecting a script in the browser shows what it is (a node script, a global, a data type) and
+the nodes it's attached to; selecting a scene shows what's in it and its own settings: screen
+layers (drawn without the camera, for HUDs and menus), a background color and a gravity of its
+own.
 
 ```odin
 Player :: struct {

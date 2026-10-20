@@ -25,6 +25,8 @@ NumberTarget :: union {
 	GameSizeTarget,
 	PhysicsTarget,
 	GridTarget,
+	// A scene's own gravity (the browser's scene preview): its index and axis
+	SceneGravityTarget,
 	// The Animation panel's selected animation
 	AnimField,
 }
@@ -36,6 +38,11 @@ PhysicsTarget :: enum {
 	Pixels_Per_Meter,
 	Gravity_X,
 	Gravity_Y,
+}
+
+SceneGravityTarget :: struct {
+	scene: int,
+	axis: int,
 }
 
 // Project Settings > Grid's numbers
@@ -139,6 +146,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case GameSizeTarget: return Project_Settings_Size_Changed{int(t), value}
 	case PhysicsTarget:  return Project_Settings_Physics_Changed{t, value}
 	case GridTarget:     return Project_Settings_Grid_Changed{t, value}
+	case SceneGravityTarget: return Scene_Gravity_Changed{t.scene, t.axis, value}
 	case AnimField:      return Anim_Field_Changed{t, value}
 	case ScriptPropTarget:
 		text: string

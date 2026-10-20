@@ -39,8 +39,29 @@ expect code_tabs 0
 # 6 mover.odin)
 double_click_row browser-tree 6
 expect code_tab mover.odin
+# A scene tree node dropped on the code tab becomes a node field (Camera: row 1, its path from
+# Spaceship); saved and built, the inspector picks the node among the scene's cameras, and the
+# game sets it before ready (no warning when it plays, below)
+drag_row_to scene-tree 1 code-editor
+wait_until code_contains true camera: ^e.Camera2D `export:"default=../Camera"` timeout=5
+key ctrl+s
+wait_until scripts Ready timeout=240
+click_row scene-tree 2
+expect selected Spaceship
+scroll_into_view inspector-scroll inspector-prop-camera-2
+expect widget_visible inspector-prop-camera-2 true
 click_widget code-tab-close-0
 expect code_tabs 0
+
+# Selected, its preview tells what it is and where it's used: a click on a node using it opens
+# its scene and selects it
+click_row scene-tree 0
+expect selected World
+click_row browser-tree 6
+expect widget_visible preview-script-usage-0 true
+click_widget preview-script-usage-0
+expect scene PlayScene
+expect selected Spaceship
 
 # The external program instead (the test settings' is `true`): Settings > built-in editor off
 key ctrl+comma
@@ -50,7 +71,8 @@ click_widget settings-builtin-editor
 click_widget settings-save
 scroll_into_view inspector-scroll inspector-open-script
 click_widget inspector-open-script
-expect console_contains Opened mover.odin:20 in true
+# (line 21: the camera field moved the registration down one)
+expect console_contains Opened mover.odin:21 in true
 
 # A program that fails is reported: set it to `false` (exits with code 1) in Settings
 key ctrl+comma
@@ -80,6 +102,9 @@ key ctrl+s
 key F5
 wait_until play Playing timeout=240
 wait_until console_contains 1 scripts registered timeout=30
+# (ready has run by then: node fields are set just before it)
+wait 30
+expect console_lacks Mover.camera
 key shift+F5
 wait_until play Stopped
 

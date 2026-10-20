@@ -18,6 +18,15 @@ expect project_file assets/world/world.ldtk
 expect project_file assets/world/tiles.png
 select_asset assets/world/world.ldtk
 expect widget_visible browser-ldtk-open true
+# A double-click opens it in LDtk (the program set to `true` here, so nothing starts)
+key ctrl+comma
+click_widget settings-tab-Editor
+scroll_into_view settings-editor-scroll settings-ldtk-path
+click_widget settings-ldtk-path
+type true
+click_widget settings-save
+double_click_asset assets/world/world.ldtk
+expect console_contains Opened world.ldtk in LDtk
 
 # A level node, then its file
 key escape

@@ -10,7 +10,8 @@ import e "engine:."
 The control for one exported field (a script's on a node, a global's, a data resource's), by
 its type: number fields, checkbox, text or a scene dropdown, two numbers for vectors, a color
 picker, an enum dropdown, and for asset handles a dropdown of the project's assets of that kind
-(Data fields: of that data type, from the field's `kind=`). It edits the value text in `values`
+(Data fields: of that data type, from the field's `kind=`), and for node fields a dropdown of
+the scene's nodes of that type, as paths from the script's node (node_fields.odin). It edits the value text in `values`
 through `Script_Prop_Changed{target = ...}`.
 
 Widget keys: `inspector-prop-<field>-<key>` (`-x` / `-y` for a vector's parts).
@@ -84,6 +85,14 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 	case .Font:    return choices(ctx, value, assetsOf(s, .Font), payload, id(field, key), controlWidth)
 	case .Data:    return choices(ctx, value, Project_DataOfType(&s.project, field.hint), payload, id(field, key), controlWidth)
 	case .Component: return choices(ctx, value, assetsOf(s, .Component), payload, id(field, key), controlWidth)
+	case .Node:
+		// The scene's nodes that fit, as paths from the script's node (node_fields.odin)
+		scene := &s.project.scenes[s.currentScene]
+		_, onNode := target.(SelectedNodeTarget)
+		if !onNode || s.selectedNode < 0 || s.selectedNode >= len(scene.nodes) {
+			return skald.text(fmt.tprintf("%s (node fields work on node scripts)", value == "" ? "none" : value), th.color.fg_muted, th.font.size_sm, max_width = controlWidth)
+		}
+		return choices(ctx, value, NodeField_Choices(&s.project, scene, s.selectedNode, field.hint), payload, id(field, key), controlWidth)
 	}
 	return skald.text(value, th.color.fg_muted, th.font.size_sm)
 }

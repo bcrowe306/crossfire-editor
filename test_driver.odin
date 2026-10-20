@@ -67,6 +67,9 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 scroll_into_view inspector-scroll inspector-new-script
 	right_click_row <tree key> <row> Right-click a row (opens the scene tree's context menu)
 	click_menu_item <menu key> <i>   Click item i of an open context menu, e.g. scene-tree-menu
+	drag_row_to <tree key> <row> <widget key>
+	                                 Drag a row onto a widget (a scene tree node onto the code tab:
+	                                 code-editor)
 	drag_row <tree key> <from> <to> <before | inside | after>
 	                                 Drag a row onto another row (top quarter, middle, bottom
 	                                 quarter); a `to` past the last row drops below the rows
@@ -101,6 +104,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	type <text>                      Type text into the focused field
 	select_asset <path>              Select an asset in the browser (its folder opened), e.g. a component
 	right_click_asset <path>         Right-click an asset's browser row (its context menu: browser-menu)
+	double_click_asset <path>        Double-click an asset's browser row
 	import <path>                    Import a file as an asset, as if picked in the Import dialog
 	                                 (native file dialogs can't be scripted)
 	quit                             End the script
@@ -587,6 +591,33 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "drag_row_to":
+		if len(args) < 3 {
+			fail(fmt.tprintf("%s: expected a tree key, a row and a widget key", line))
+			return true
+		}
+		rect, ok := widgetRect(ctx, args[0])
+		target, targetOk := widgetRect(ctx, args[2])
+		if !ok || !targetOk {
+			fail(fmt.tprintf("%s: no widget '%s' or '%s' was drawn last frame", line, args[0], args[2]))
+			return true
+		}
+		top := ctx.widgets.states[skald.hash_id(args[0])].last_rect.y
+		from := [2]f32{rect.x + rect.w * 0.5, top + (f32(atoi(args, 1, 0)) + 0.5) * s.settings.rowHeight}
+		if !rowVisible(ctx, args[0], from.y) {
+			fail(fmt.tprintf("%s: row %s is scrolled out of view", line, args[1]))
+			return true
+		}
+		to := [2]f32{target.x + target.w * 0.5, target.y + target.h * 0.5}
+		pushMouse(.MOUSE_MOTION, from)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, from))
+		STEPS :: 6
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, from + (to - from) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, to))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "right_click_row", "drag_row":
 		if len(args) < (command == "drag_row" ? 4 : 2) {
 			fail(fmt.tprintf("%s: expected a tree key and rows", line))
@@ -1049,8 +1080,9 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
-	case "right_click_asset":
-		// The asset's browser row (its folder opened), right-clicked: its context menu
+	case "right_click_asset", "double_click_asset":
+		// The asset's browser row (its folder opened), right-clicked (its context menu) or
+		// double-clicked
 		for asset, i in s.project.assets {
 			if asset.path != rest do continue
 			s.browserOpen[AssetFolder(asset.kind)] = true
@@ -1069,7 +1101,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 					return false
 				}
 				driver.scrollAttempts = 0
-				return runCommand(s, ctx, fmt.tprintf("right_click_row browser-tree %d", r))
+				return runCommand(s, ctx, fmt.tprintf("%s browser-tree %d", command == "right_click_asset" ? "right_click_row" : "double_click_row", r))
 			}
 		}
 		fail(fmt.tprintf("%s: no asset %s", line, rest))

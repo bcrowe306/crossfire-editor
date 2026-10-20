@@ -155,6 +155,9 @@ SceneDef :: struct {
 	opened: bool,
 	// Editor-only, scenes: its viewport tab was closed (they start open; opening it shows it again)
 	tabClosed: bool,
+	// Scenes: their own settings (the engine's: screen layers, background, gravity), written on
+	// the scene file's root. Components have none
+	settings: e.SceneSettings,
 }
 
 AssetKind :: enum {
@@ -574,7 +577,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 			Project_Destroy(&project)
 			return {}, fmt.tprintf("Couldn't load scene %s: %v", sceneFile, sceneErr), nil
 		}
-		scene := SceneDef{name = strings.clone(ref.name)}
+		scene := SceneDef{name = strings.clone(ref.name), settings = sceneData.settings}
 		for node in sceneData.nodes do append(&scene.nodes, NodeDef_FromData(node))
 		e.SceneData_Destroy(&sceneData)
 		append(&project.scenes, scene)

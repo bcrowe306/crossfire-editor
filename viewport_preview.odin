@@ -107,12 +107,12 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	sdl.SetRenderDrawColor(r, 16, 18, 24, 255)
 	sdl.RenderClear(r)
 
-	// The game area in the project's background color, then the scene
+	// The game area in the scene's background color (its own, else the project's), then the scene
 	view := Viewport_Transform(&s.viewport, pixelScale)
 	topLeft := e.Transform2D_Apply(view, {0, 0})
 	bottomRight := e.Transform2D_Apply(view, s.project.gameSize)
 	game := sdl.FRect{topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y}
-	bg := s.project.background
+	bg := SceneSettings_Background(&s.project, &s.project.scenes[s.currentScene])
 	sdl.SetRenderDrawColor(r, bg.r, bg.g, bg.b, 255)
 	sdl.RenderFillRect(r, &game)
 	e.Scene_DrawWithView(preview.scene, r, view, screenLayersUseView = true, positionOnlyScale = s.viewport.zoom * pixelScale)
@@ -145,7 +145,7 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		center = s.viewport.center,
 		zoom = s.viewport.zoom,
 		animationFrame = s.viewport.animate ? s.viewport.animationFrame : -1,
-		background = transmute([4]u8)s.project.background,
+		background = transmute([4]u8)SceneSettings_Background(&s.project, scene),
 	}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	for node in scene.nodes {

@@ -3668,3 +3668,119 @@ emscripten_install_finishing :: proc(t: ^testing.T) {
 	testing.expect(t, found, "the reason is in the Console")
 	free_all(context.temp_allocator)
 }
+
+// Node fields (node_fields.odin), the script and scene previews' facts, and scene settings
+
+@(private="file")
+indexOf :: proc(scene: ^SceneDef, name: string) -> int {
+	for node, i in scene.nodes do if node.name == name do return i
+	return -1
+}
+
+@(test)
+node_paths_and_the_nodes_a_field_takes :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := &state.project.scenes[1] // PlayScene: World/{Camera, Spaceship/ShipLight, Props/...}, HUD/BackMenu
+	ship, light, camera, hud := nodeIndex(scene, "Spaceship"), nodeIndex(scene, "ShipLight"), nodeIndex(scene, "Camera"), nodeIndex(scene, "HUD")
+	path :: proc(scene: ^SceneDef, from, to: int) -> string { return Scene_NodePath(scene, from, to, context.temp_allocator) }
+	testing.expect_value(t, path(scene, ship, light), "ShipLight")
+	testing.expect_value(t, path(scene, light, ship), "..")
+	testing.expect_value(t, path(scene, ship, camera), "../Camera")
+	testing.expect_value(t, path(scene, hud, ship), "../World/Spaceship")
+	testing.expect_value(t, path(scene, light, hud), "../../../HUD")
+	testing.expect_value(t, path(scene, ship, ship), ".")
+	testing.expect_value(t, path(scene, -1, light), "/World/Spaceship/ShipLight")
+
+	// The nodes that fit a field's type, as paths from the script's node (itself first)
+	cameras := NodeField_Choices(&state.project, scene, ship, "Camera2D")
+	testing.expect(t, len(cameras) == 1 && cameras[0] == "../Camera", "the camera")
+	sprites := NodeField_Choices(&state.project, scene, ship, "Sprite")
+	testing.expect(t, len(sprites) >= 1 && sprites[0] == ".", "itself first")
+	testing.expect_value(t, len(NodeField_Choices(&state.project, scene, ship, "Node")), len(scene.nodes))
+	testing.expect_value(t, len(NodeField_Choices(&state.project, scene, ship, "Area")), 0)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+dropping_a_node_writes_a_field_line :: proc(t: ^testing.T) {
+	text := `package scripts
+
+import e "engine:."
+
+Helper :: struct { x: int }
+
+Hero :: struct {
+	using script: e.Script,
+	speed: f32 ` + "`export:\"default=1\"`" + `,
+	camera: ^e.Camera2D,
+}
+`
+	st, ok := NodeField_FindStruct(text)
+	testing.expect(t, ok, "found")
+	testing.expect_value(t, st.name, "Hero")
+	testing.expect_value(t, st.closeLine, 10)
+	testing.expect_value(t, st.engineAlias, "e")
+	_, none := NodeField_FindStruct("package scripts\n\nPoint :: struct {\n\tx: f32,\n}\n")
+	testing.expect(t, !none, "no script struct")
+
+	testing.expect_value(t, NodeField_Name("Camera", st.fields), "camera2")
+	testing.expect_value(t, NodeField_Name("Ship Light 2", st.fields), "shipLight2")
+	testing.expect_value(t, NodeField_Name("3D", st.fields), "n3D")
+
+	state := testState()
+	defer State_Destroy(&state)
+	scene := &state.project.scenes[1]
+	line, name := NodeField_Line(st, &state.project, scene, nodeIndex(scene, "Camera"), nodeIndex(scene, "Spaceship"))
+	testing.expect_value(t, name, "camera2")
+	testing.expect_value(t, line, "\tcamera2: ^e.Camera2D `export:\"default=../Camera\"`\n")
+	line, _ = NodeField_Line(st, &state.project, scene, nodeIndex(scene, "ShipLight"), -1)
+	testing.expect_value(t, line, "\tshipLight: ^e.AnimatedSprite `export:\"default=/World/Spaceship/ShipLight\"`\n")
+
+	// What a file registers, for the script preview
+	info := ScriptFile_Registrations("e.Script_Register(Hero, {})\ne.Data_Register(Stats)\ne.Script_Register(Hero, {})\ne.Script_Register(Coin, {})")
+	testing.expect(t, len(info.scripts) == 2 && info.scripts[0] == "Hero" && info.scripts[1] == "Coin", "scripts, once each")
+	testing.expect(t, len(info.dataTypes) == 1 && info.dataTypes[0] == "Stats", "data types")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+scene_settings_save_load_and_undo :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+
+	// Each edit is an undo step
+	send(&state, Scene_Screen_Layer_Toggled{1, .Layer8})
+	testing.expect_value(t, state.project.scenes[1].settings.screenLayers, bit_set[e.RenderLayer]{.Layer8})
+	send(&state, Action.Undo)
+	testing.expect_value(t, state.project.scenes[1].settings.screenLayers, bit_set[e.RenderLayer]{})
+	send(&state, Action.Redo)
+	// Turned on, they start from the project's
+	send(&state, Scene_Background_Changed{1, true, {}, true})
+	testing.expect_value(t, state.project.scenes[1].settings.background, state.project.background)
+	send(&state, Scene_Background_Changed{1, true, {1, 2, 3, 255}, false})
+	send(&state, Scene_Gravity_Toggled{1, true})
+	testing.expect_value(t, state.project.scenes[1].settings.gravity, state.project.physics.gravity)
+	send(&state, Scene_Gravity_Changed{1, 1, 490})
+	// Components have none
+	send(&state, Scene_Screen_Layer_Toggled{len(state.project.scenes) + 3, .Layer1})
+
+	// Written on the scene's root, read back
+	base, _ := os.temp_directory(context.temp_allocator)
+	dir, _ := filepath.join({base, "editor_test_scene_settings"}, context.temp_allocator)
+	_ = removeAll(dir)
+	defer removeAll(dir)
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone(dir)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	xml := SceneToXML(&state.project.scenes[1], context.temp_allocator)
+	testing.expect(t, strings.contains(xml, `screenLayers="8" background="#010203" gravityX="0" gravityY="490"`), xml)
+	loaded, message, _ := Project_Load(dir)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect_value(t, loaded.scenes[1].settings, e.SceneSettings{
+		screenLayers = {.Layer8}, hasBackground = true, background = {1, 2, 3, 255}, hasGravity = true, gravity = {0, 490},
+	})
+	testing.expect_value(t, loaded.scenes[0].settings, e.SceneSettings{})
+	free_all(context.temp_allocator)
+}

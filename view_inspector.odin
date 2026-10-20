@@ -169,9 +169,14 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 	scene := &s.project.scenes[s.currentScene]
 	target, position, valid := sceneTreeDropTarget(scene, visible, s.treeDrag.node, tree, mouse, rowHeight)
 	valid = valid && overArea
+	// Over the code tab: a field for the node in its script
+	codeArea := ctx.widgets.states[skald.hash_id("code-editor")].last_rect
+	overCode := s.codeTab > 0 && s.treeDrag.active && pointIn(codeArea, mouse)
 	if !ctx.input.mouse_buttons[.Left] {
 		if s.treeDrag.active && valid {
 			skald.send(ctx, Msg(Tree_Drag_Dropped{target = target, position = position}))
+		} else if overCode {
+			skald.send(ctx, Msg(Tree_Drag_Dropped_On_Code{}))
 		} else {
 			skald.send(ctx, Msg(Tree_Drag_Cancelled{}))
 		}
@@ -194,6 +199,13 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 	} else if mouse.y > area.y + area.h - edge && tree.y + tree.h > area.y + area.h {
 		scroll.scroll_y += rowHeight * 0.3
 		skald.send(ctx, Msg(Frame_Requested{}))
+	}
+	if overCode {
+		// What the drop will do, by the pointer
+		label := fmt.tprintf("%s  Add a field for %s", ICON_FILE_CODE, scene.nodes[s.treeDrag.node].name)
+		return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
+			skald.col(skald.text(label, th.color.on_primary, th.font.size_sm), padding = th.spacing.xs, bg = th.color.primary, radius = th.radius.sm),
+			no_shadow = true, pin = true)
 	}
 	if !valid do return none
 

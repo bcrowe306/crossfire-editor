@@ -149,6 +149,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `tree_rows.odin` | Flattens the project into browser and scene tree rows, applying the browser search. Shared by view and update, because Skald's tree reports clicks by row index |
 | `view.odin` | Root layout: menu bar, toolbar, resizable workspace, status bar, remove-asset dialog, panel header helpers |
 | `view_browser.odin` | Left sidebar: project browser (search, tree, collapsible preview panel) |
+| `view_browser_info.odin` | The preview for scripts (`scriptInfoPreview`: what each registered script and data type is, where it's used) and scenes (`scenePreview`: facts, actions, the scene's own settings) |
+| `scene_settings.odin` | A scene's own settings (`SceneDef.settings`, the engine's `e.SceneSettings`): their messages and undo |
+| `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`) |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
 | `viewport_preview.odin` | Engine-rendered preview of the open scene (software renderer → Skald image) |
 | `viewport_math.odin` | Viewport pan/zoom math and drag (move/rotate/scale) math |
@@ -400,6 +403,20 @@ behave (`viewportOnly`, `textChord`).
     keeps frames coming while one plays. Selecting a sound loads it; selecting anything else
     unloads it.
   - If no audio device opens, the preview logs a warning and stays silent.
+  - **Scripts** (`scriptInfoPreview`): each script the file registers (`Script_Register(Name`
+    found in its text: `ScriptFile_Registrations`, no build needed) as a global (in
+    Project Settings > Globals) or a node script with the nodes it's attached to (buttons:
+    `Script_Usage_Clicked` opens the scene or component and selects the node), its fields once
+    built; each data type (`Data_Register(Name`) with its resource count. The file's contents
+    are the code tab's.
+  - **Scenes** (`scenePreview`): start scene, file, nodes by kind, camera, scripts and components
+    used, Open / Play Scene / Set as Start, and the scene's own settings (below).
+  - A double-click opens an LDtk project in LDtk (like Open in LDtk); on a component, its tab.
+- **A scene's own settings** (`SceneDef.settings`, the engine's `e.SceneSettings`, on the scene
+  file's root element; scene_settings.odin): screen layers (drawn without the camera: HUDs,
+  menus), its own background (the viewport draws it too), its own gravity. Each edit is a
+  `.Project` undo step (the snapshot holds every scene; `projectSnapshotsEqual` compares
+  settings). Components have none. Test: `tests/ui/scene_preview.script`.
 - **Import** (Ctrl+I or the + button): Skald's native dialog, which picks one file at a time.
   - `Project_ImportAsset` detects the kind from the extension and copies the file into
     `assets/`, renaming it to `name_1.ext` and so on if the name is taken.
@@ -752,6 +769,18 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Browser: a Scripts folder (only when there are scripts; `State.scriptFiles`, refreshed by
   `Scripts_Refresh`) whose preview shows the file's start and an Open button.
 - Scripts don't run in the viewport (`Scene_Build(..., attachScripts = false)`).
+- **Node fields** (node_fields.odin; the engine sets them before `ready`): an exported pointer
+  to a node type (`camera: ^e.Camera2D `export:"default=../Camera"``) holds a path
+  (`e.Node_FindPath`). The inspector's control is a dropdown of the scene's nodes that fit
+  (`NodeField_Choices`: `e.SceneNodeKind_IsType`, a Component instance counting as its root's
+  kind), as paths from the script's node. **Dropping a scene tree node on a code tab**
+  (`Tree_Drag_Dropped_On_Code`, `sceneTreeMouse`; a label follows the pointer) adds such a
+  field to the file's script struct (`NodeField_FindStruct`: the one with `using script:`),
+  before its closing brace through the code editor's buffer (`CodeEditor_InsertAtLine`: one
+  undo step, no auto-indent), named after the node (`NodeField_Name`), defaulting to its path
+  from the node using the script (the selected one, else the scene's first; none: from the top
+  level). Tests: code_editor.script (the drop), scripts.script (built, the inspector's picker,
+  played without a warning); the driver's `drag_row_to <tree> <row> <widget>`.
 - **Code completion:** `Scripts_WriteOLSConfig` writes `scripts/ols.json` for OLS (the Odin
   language server): collections `engine` (this editor's engine checkout) and `project`. Written
   whenever the script files are refreshed (project open, New Script, Build) and on Open, only when

@@ -2,6 +2,7 @@ package crossfire_editor
 
 import e "engine:."
 import "gui:skald"
+import sdl "vendor:sdl3"
 
 /*
 Commands triggered from the menu bar, toolbar and keyboard shortcuts. Default keys are in
@@ -135,6 +136,8 @@ Tree_Drag_Dropped :: struct {
 }
 // Released anywhere else
 Tree_Drag_Cancelled :: struct {}
+// Released over the code tab: a node field for the dragged node goes into its script (node_fields.odin)
+Tree_Drag_Dropped_On_Code :: struct {}
 
 // Scene management in the project browser (project_scenes.odin)
 SceneOp :: enum {
@@ -153,6 +156,31 @@ Scene_Action :: struct {
 	op: SceneOp,
 	// The scene, or -1 (New and Paste then add at the end)
 	scene: int,
+}
+// The browser's scene preview: one of a scene's own settings (scene_settings.odin)
+Scene_Screen_Layer_Toggled :: struct {
+	scene: int,
+	layer: e.RenderLayer,
+}
+// Its own background color on or off, or the color changed (`fromProject`: start from the project's)
+Scene_Background_Changed :: struct {
+	scene: int,
+	on: bool,
+	color: sdl.Color,
+	fromProject: bool,
+}
+Scene_Gravity_Toggled :: struct {
+	scene: int,
+	on: bool,
+}
+Scene_Gravity_Changed :: struct {
+	scene: int,
+	axis: int,
+	value: f64,
+}
+// The script preview's list of nodes using it: open that scene (or component) and select the node
+Script_Usage_Clicked :: struct {
+	scene, node: int,
 }
 // The browser gained or lost keyboard focus
 Browser_Focus_Changed :: distinct bool
@@ -746,6 +774,11 @@ Add_Node_Kind_Chosen :: distinct NodeKind
 Add_Node_Cancelled :: struct {}
 
 Msg :: union {
+	Scene_Screen_Layer_Toggled,
+	Scene_Background_Changed,
+	Scene_Gravity_Toggled,
+	Scene_Gravity_Changed,
+	Script_Usage_Clicked,
 	Action,
 	Play_Tick,
 	Script_Tick,
@@ -771,6 +804,7 @@ Msg :: union {
 	Tree_Drag_Started,
 	Tree_Drag_Dropped,
 	Tree_Drag_Cancelled,
+	Tree_Drag_Dropped_On_Code,
 	Confirm_Chosen,
 	Code_Tab_Selected,
 	Code_Tab_Close_Requested,

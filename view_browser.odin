@@ -268,10 +268,13 @@ browserMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) {
 		if absolute, err := os.get_absolute_path(path, context.temp_allocator); err == nil do path = absolute
 		skald.send(ctx, Msg(Script_Open_File{file = path, line = 1}))
 	}
-	// A double-click on a component opens it
+	// A double-click on a component opens it; on an LDtk project, it opens in LDtk
 	if ctx.input.mouse_pressed[.Left] && onRow && ctx.input.mouse_click_count[.Left] >= 2 && items[row].kind == .Asset && items[row].index < len(s.project.assets) {
-		if asset := s.project.assets[items[row].index]; asset.kind == .Component {
+		#partial switch asset := s.project.assets[items[row].index]; asset.kind {
+		case .Component:
 			if i := Project_FindComponent(&s.project, asset.path); i >= 0 do skald.send(ctx, Msg(Component_Opened(i)))
+		case .LDtk:
+			skald.send(ctx, Msg(LDtk_Asset_Open_Requested(items[row].index)))
 		}
 	}
 }
@@ -409,9 +412,11 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	previewImageArea = {}
 	content: skald.View
 	if s.browserSelection.kind == .Script && s.browserSelection.index < len(s.scriptFiles) {
-		content = scriptPreview(s, ctx, s.scriptFiles[s.browserSelection.index])
+		content = scriptInfoPreview(s, ctx, s.scriptFiles[s.browserSelection.index])
+	} else if s.browserSelection.kind == .Scene && s.browserSelection.index >= 0 && s.browserSelection.index < len(s.project.scenes) {
+		content = scenePreview(s, ctx, s.browserSelection.index)
 	} else if s.browserSelection.kind != .Asset || s.browserSelection.index >= len(s.project.assets) {
-		content = skald.text("Select an image, sound or script to preview it.", th.color.fg_muted, th.font.size_sm)
+		content = skald.text("Select a scene, image, sound or script to preview it.", th.color.fg_muted, th.font.size_sm)
 	} else {
 		asset := s.project.assets[s.browserSelection.index]
 		path := AssetFilePath(&s.project, asset)
@@ -636,42 +641,4 @@ translationPreview :: proc(ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) 
 		}
 	}
 	return skald.col(..lines[:], spacing = th.spacing.xs)
-}
-
-// A script file's first lines, and a button that opens it in the code editor
-@(private="file")
-scriptPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skald.View {
-	th := ctx.theme
-	path, _ := filepath.join({s.project.rootPath, file}, context.temp_allocator)
-	absolute, err := os.get_absolute_path(path, context.temp_allocator)
-	if err != nil do absolute = path
-	data, readErr := os.read_entire_file(path, context.temp_allocator)
-	lines := make([dynamic]skald.View, context.temp_allocator)
-	if readErr != nil {
-		append(&lines, skald.text(fmt.tprintf("Couldn't read %s", file), th.color.danger, th.font.size_sm))
-	} else {
-		MAX_LINES :: 40
-		count := 0
-		text := string(data)
-		for line in strings.split_lines_iterator(&text) {
-			if count == MAX_LINES {
-				append(&lines, skald.text("...", th.color.fg_muted, th.font.size_xs))
-				break
-			}
-			append(&lines, skald.text(strings.expand_tabs(line, 4, context.temp_allocator), th.color.fg_muted, th.font.size_xs))
-			count += 1
-		}
-	}
-	return skald.col(
-		skald.row(
-			skald.text(fmt.tprintf("%s  %s", ICON_FILE_CODE, filepath.base(file)), th.color.fg, th.font.size_sm),
-			skald.flex(1, skald.spacer(0)),
-			skald.button(ctx, "Open", Msg(Script_Open_File{file = strings.clone(absolute, context.temp_allocator), line = 1}),
-				id = skald.hash_id("preview-open-script"), font_size = th.font.size_sm, padding = {th.spacing.sm, 2}),
-			cross_align = .Center,
-		),
-		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..lines[:], spacing = 0), id = skald.hash_id("preview-script-scroll"))),
-		spacing = th.spacing.xs,
-		cross_align = .Stretch,
-	)
 }

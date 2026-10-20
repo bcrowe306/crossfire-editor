@@ -67,6 +67,22 @@ expect code_dirty false
 expect modified false
 expect project_file_contains scripts/mover.odin // a note
 
+# A scene tree node dropped on the code tab becomes a node field of the script (Camera: row 1),
+# its path from the node the script is on (Spaceship); one undo step in the code. (Saved and
+# built: scripts.script. Not saved here: a build would change the inspector under later steps)
+drag_row_to scene-tree 1 code-editor
+wait_until code_contains true camera: ^e.Camera2D `export:"default=../Camera"` timeout=5
+expect console_contains Added camera to Mover
+expect code_dirty true
+# (the drag focused the scene tree: back to the code)
+click_widget code-editor
+wait_until code_focused true timeout=5
+key ctrl+z
+expect code_contains false camera: ^e.Camera2D
+# (saved again as it was, so the buffer is clean for what follows)
+key ctrl+s
+expect code_dirty false
+
 # Another program changes the file: the unchanged buffer reloads
 touch_project_file scripts/mover.odin // from outside
 wait_until code_contains true // from outside timeout=5

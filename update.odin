@@ -53,6 +53,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := Git_Update(&out, m); handled do return out, command
 	if command, handled := LDtkEdit_Update(&out, m); handled do return out, command
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
+	if SceneSettings_Update(&out, m) do return out, {}
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
 	if command, handled := CodeTabs_Update(&out, m); handled do return out, command
 	if Mixer_Update(&out, m) do return out, {}
@@ -266,7 +267,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Project_Settings_Start_Changed, Project_Settings_Locale_Changed, Project_Settings_Icon_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
-	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Project_Settings_Grid_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
+	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Project_Settings_Grid_Changed, Scene_Screen_Layer_Toggled, Scene_Background_Changed,
+	     Scene_Gravity_Toggled, Scene_Gravity_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)
@@ -542,6 +544,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			out.codeTab = 0
 			openScene(&out, next)
 		}
+	case Script_Usage_Clicked:
+		if v.scene < 0 || v.scene >= len(out.project.scenes) || v.node < 0 || v.node >= len(out.project.scenes[v.scene].nodes) do break
+		if Scene_IsComponent(&out.project.scenes[v.scene]) do out.project.scenes[v.scene].opened = true
+		openScene(&out, v.scene)
+		out.selectedNode = v.node
 	case Component_Opened:
 		if int(v) < 0 || int(v) >= len(out.project.scenes) || !Scene_IsComponent(&out.project.scenes[v]) do break
 		out.project.scenes[v].opened = true
@@ -657,6 +664,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.treeDrag.active = true
 	case Tree_Drag_Cancelled:
 		out.treeDrag = {}
+	case Tree_Drag_Dropped_On_Code:
+		node := out.treeDrag.node
+		out.treeDrag = {}
+		message, added := NodeField_Insert(&out, node)
+		logLine(&out, added ? .Info : .Warning, strings.clone(message))
 	case Tree_Drag_Dropped:
 		scene := &out.project.scenes[out.currentScene]
 		node := out.treeDrag.node

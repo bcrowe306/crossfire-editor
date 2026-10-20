@@ -12,6 +12,7 @@ import sdl "vendor:sdl3"
 import ttf "vendor:sdl3/ttf"
 import stbi "vendor:stb/image"
 import ce "code_editor/editor"
+import cebuf "code_editor/buffer"
 import km "code_editor/keymap"
 import lspc "code_editor/lsp"
 import "code_editor/control"
@@ -316,6 +317,21 @@ CodeEditor_SaveAll :: proc() -> (saved: int, problems: string) {
 CodeEditor_Text :: proc(path: string) -> string {
 	c := CodeEditor_Find(path)
 	return c != nil ? ce.editor_to_string(&c.ed, context.temp_allocator) : ""
+}
+
+/*
+Inserts text at the start of a 0-based line of an open file's buffer, as one undoable edit (not
+typed: no auto-indent or bracket pairing), and tells its language server.
+
+Returns:
+- false when the file isn't open or the line is past its end
+*/
+CodeEditor_InsertAtLine :: proc(path: string, line: int, text: string) -> bool {
+	c := CodeEditor_Find(path)
+	if c == nil || line < 0 || line > cebuf.buffer_line_count(&c.ed.buf) do return false
+	cebuf.buffer_insert_text(&c.ed.buf, {line = line, col = 0}, text)
+	ce.editor_notify_lsp_changed(&c.ed)
+	return true
 }
 
 // Puts the caret on a 1-based line, scrolled into view
