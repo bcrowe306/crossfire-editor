@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project formatVersion="12" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
+<project formatVersion="13" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
 	<scene name="MenuScene" path="scenes/MenuScene.scene.xml"/>
 	<scene name="PlayScene" path="scenes/PlayScene.scene.xml"/>
 	<scene name="OptionsScene" path="scenes/OptionsScene.scene.xml"/>
@@ -43,6 +43,7 @@
 	<asset path="components/boar.component.xml" kind="Component"/>
 	<asset path="components/bee.component.xml" kind="Component"/>
 	<asset path="components/blood.component.xml" kind="Component"/>
+	<asset path="components/coinparticles.component.xml" kind="Component"/>
 	<global script="GameState">
 		<prop name="ship" value="data/scout.data.json"/>
 	</global>

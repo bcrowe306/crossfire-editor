@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="13" name="coinparticles">
+	<node kind="ParticleEmitter" name="ParticleEmitter" x="0" y="0" texture="assets/forest/coin.png">
+		<particles emitting="false" continuous="false" amount="10" lifetime="0.5" burst="0.895" shape="Texture" size="27.63,27.63" rotationVariance="0.445" rotationSpread="209.5" torque="144" torqueVariance="0.956" torqueSpread="386" colorRamp="0.009353299:#ffe664 0.5118924:#ffffff 1:#28282800" angleVariance="1" angleSpread="360" gravityVelocity="0"/>
+		<script name="CoinCollect"/>
+	</node>
+</component>

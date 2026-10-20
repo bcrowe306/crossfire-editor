@@ -14,6 +14,7 @@ PlayerShip :: struct {
 	// Used when the game state has no ship (an asset picker of ShipStats resources)
 	fallback: e.DataAsset `export:"kind=ShipStats"`,
 	stats: ^ShipStats,
+	balloonPingPong: ^e.AnimatedSprite `export:"default=../World/Props/BalloonPingPong"`
 }
 
 @(init)

@@ -37,6 +37,7 @@ COMPONENT_BLOOD :: e.ComponentAsset{"components/blood.component.xml"}
 COMPONENT_BOAR :: e.ComponentAsset{"components/boar.component.xml"}
 COMPONENT_CHEST :: e.ComponentAsset{"components/chest.component.xml"}
 COMPONENT_COIN :: e.ComponentAsset{"components/coin.component.xml"}
+COMPONENT_COINPARTICLES :: e.ComponentAsset{"components/coinparticles.component.xml"}
 COMPONENT_GATE :: e.ComponentAsset{"components/gate.component.xml"}
 COMPONENT_HERO :: e.ComponentAsset{"components/hero.component.xml"}
 COMPONENT_KEY :: e.ComponentAsset{"components/key.component.xml"}
