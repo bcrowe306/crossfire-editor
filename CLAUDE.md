@@ -817,7 +817,9 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   starts for every asset kind with a handle type and for LDtk projects): an exported field of
   its handle type (`TextureAsset`, `SoundAsset`, `MusicAsset`, `FontAsset`, `ComponentAsset`,
   `DataAsset` with `kind=<type>`) defaulting to the asset, with a comment using it (a
-  component: `e.Scene_AddComponent(self.scene, self.coin, position = {0, 0})`); the inspector
+  component: `e.Scene_AddComponent(self.scene, self.coin, position = e.Node_GetWorldPosition(self.node))`:
+  with no parent the position is the world's, and the demo's coin particles once played at the
+  level's corner, off screen, with `{0, 0}`); the inspector
   then picks another per node. scripts.script saves a node as a component and drags it in
   (the driver's `drag_asset_to <path start> <widget>`).
 - **Fields the editor adds end with a comma**, and the field above gets one if it had none

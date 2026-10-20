@@ -3928,7 +3928,7 @@ assets_dropped_on_code_become_fields :: proc(t: ^testing.T) {
 	testing.expect_value(t, AssetField_BaseName("components/coin.component.xml"), "coin")
 	line, name, ok := AssetField_Line(st, &state.project, AssetDef{"components/coin.component.xml", .Component})
 	testing.expect(t, ok && name == "coin2", "a free name")
-	testing.expect_value(t, line, "\t// e.Scene_AddComponent(self.scene, self.coin2, position = {0, 0})\n\tcoin2: e.ComponentAsset `export:\"default=components/coin.component.xml\"`,\n")
+	testing.expect_value(t, line, "\t// e.Scene_AddComponent(self.scene, self.coin2, position = e.Node_GetWorldPosition(self.node))\n\tcoin2: e.ComponentAsset `export:\"default=components/coin.component.xml\"`,\n")
 	line, _, _ = AssetField_Line(st, &state.project, AssetDef{"assets/beep.wav", .Audio})
 	testing.expect(t, strings.contains(line, "beep: e.SoundAsset `export:\"default=assets/beep.wav\"`,") && strings.contains(line, "e.Game_PlaySound(self.game, self.beep)"), line)
 	// A data resource: its type in the tag (the inspector lists resources of that type)

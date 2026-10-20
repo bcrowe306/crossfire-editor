@@ -8,7 +8,7 @@ import "core:strings"
 Dropping a browser asset on a code tab adds a field of its handle type to the script, exported,
 defaulting to the asset, with a comment showing how to use it:
 
-	// e.Scene_AddComponent(self.scene, self.coin, position = {0, 0})
+	// e.Scene_AddComponent(self.scene, self.coin, position = e.Node_GetWorldPosition(self.node))
 	coin: e.ComponentAsset `export:"default=components/coin.component.xml"`,
 
 Images, sounds, music, fonts, components and data resources have handles (the engine's
@@ -54,7 +54,9 @@ AssetField_Line :: proc(st: NodeField_Struct, project: ^Project, asset: AssetDef
 	options := fmt.tprintf("default=%s", asset.path)
 	use: string
 	#partial switch asset.kind {
-	case .Component: use = fmt.tprintf("%s.Scene_AddComponent(self.scene, self.%s, position = {{0, 0}})", a, name)
+	// Where the script's node is: with no parent, the position is in the world (0, 0 is the
+	// level's corner, likely off screen)
+	case .Component: use = fmt.tprintf("%s.Scene_AddComponent(self.scene, self.%s, position = %s.Node_GetWorldPosition(self.node))", a, name, a)
 	case .Audio:     use = fmt.tprintf("%s.Game_PlaySound(self.game, self.%s)", a, name)
 	case .Image:     use = fmt.tprintf("texture := %s.Asset_Texture(self.game, self.%s)", a, name)
 	case .Font:      use = fmt.tprintf("font := %s.Asset_Font(self.game, self.%s, 24)", a, name)
