@@ -43,9 +43,10 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	click_frame <n> [shift]          Click thumbnail n of the Animation panel's frames
 	click_overlay_item <i>           Click button i (top to bottom) of the open popup, e.g. a
 	                                 dropdown's choices after click_widget opened it
-	drag_widget <key> <fx0> <fy0> <fx1> <fy1> [shift]
+	drag_widget <key> <fx0> <fy0> <fx1> <fy1> [shift] [middle | right]
 	                                 Press at one point of a widget (fractions), move to another,
-	                                 release; optionally holding Shift
+	                                 release; optionally holding Shift, with the middle or right
+	                                 button instead of the left
 	click_row <tree key> <row> [ctrl | shift]
 	                                 Click a row of a tree: browser-tree, scene-tree; optionally
 	                                 holding Ctrl or Shift
@@ -531,13 +532,21 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			click(start)
 		} else {
 			end := at(rect, args, 3)
-			shift := len(args) > 5 && args[5] == "shift"
+			shift := false
+			button := sdl.BUTTON_LEFT
+			for option in args[5:] {
+				switch option {
+				case "shift":  shift = true
+				case "middle": button = sdl.BUTTON_MIDDLE
+				case "right":  button = sdl.BUTTON_RIGHT
+				}
+			}
 			pushMouse(.MOUSE_MOTION, start)
 			if shift do pushKey(.KEY_DOWN, {.LSHIFT})
-			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, start))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, start, button))
 			STEPS :: 4
-			for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, start + (end - start) * f32(i) / STEPS))
-			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, end))
+			for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, start + (end - start) * f32(i) / STEPS, button))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, end, button))
 			if shift {
 				release: sdl.Event
 				release.type = .KEY_UP

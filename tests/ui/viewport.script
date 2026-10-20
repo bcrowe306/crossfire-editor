@@ -34,6 +34,19 @@ key ctrl+0
 key ctrl+1
 expect viewport_center 640 360
 key q
+# Middle and right drags pan with any tool, and select nothing
+drag_widget viewport-canvas 0.5 0.5 0.7 0.5 middle
+expect viewport_center_not 640 360
+expect selected none
+key ctrl+0
+key ctrl+1
+expect viewport_center 640 360
+drag_widget viewport-canvas 0.5 0.5 0.5 0.3 right
+expect viewport_center_not 640 360
+expect selected none
+key ctrl+0
+key ctrl+1
+expect viewport_center 640 360
 
 # Tool keys
 key w
