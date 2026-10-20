@@ -23,3 +23,8 @@ examples/*/scripts/ols.json
 # CI packages (tools/ci/package_editor.sh)
 /dist/
 /tools/macos/gon.json
+
+# Signing credentials (tools/macos/signing.env.example; tools/macos/set_signing_secrets.sh)
+.env
+*.p12
+*.p8
