@@ -207,6 +207,9 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		)),
 		skald.text("How the game's window starts: fullscreen at the desktop's resolution, frames in step with the display (vsync), at the display's full pixel density (sharper on high-DPI screens). Games can change fullscreen and vsync while running.",
 			th.color.fg_muted, th.font.size_xs, max_width = 420),
+		settingRow(ctx, "Sound output", audioOutputSelects(ctx, d.audioOutput)),
+		skald.text("The format the game asks its sound device for; the device converts it to what it really is. Stereo at 48 kHz works on every device. \"The device's own\" asks for the device's native format, which fails on outputs SDL can't open that way (some multichannel, Bluetooth or HDMI outputs). If a format won't open, the game tries the others, then other devices, and logs what it got.",
+			th.color.fg_muted, th.font.size_xs, max_width = 420),
 		settingRow(ctx, "Background", skald.color_picker(ctx, d.background,
 			proc(c: skald.Color) -> Msg { return Project_Settings_Background_Changed(c) },
 			id = skald.hash_id("project-settings-background"), width = 160)),
@@ -562,6 +565,25 @@ exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		th.color.fg_muted, th.font.size_xs, max_width = 440))
 	return skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start)
 }
+
+// The sound output's sample rate and channels (keys project-settings-audio-rate, -channels)
+@(private="file")
+audioOutputSelects :: proc(ctx: ^skald.Ctx(Msg), output: e.AudioOutputSettings) -> skald.View {
+	rate := output.frequency == 0 ? AUDIO_OWN : fmt.tprintf("%d Hz", output.frequency)
+	channels := output.channels == 0 ? AUDIO_OWN : output.channels == 1 ? "Mono" : output.channels == 2 ? "Stereo" : fmt.tprintf("%d channels", output.channels)
+	return skald.row(
+		skald.select(ctx, rate, []string{"48000 Hz", "44100 Hz", AUDIO_OWN},
+			proc(v: string) -> Msg { return Project_Settings_Audio_Changed{false, v == AUDIO_OWN ? 0 : v == "44100 Hz" ? 44100 : 48000} },
+			id = skald.hash_id("project-settings-audio-rate"), width = 140),
+		skald.select(ctx, channels, []string{"Stereo", "Mono", AUDIO_OWN},
+			proc(v: string) -> Msg { return Project_Settings_Audio_Changed{true, v == AUDIO_OWN ? 0 : v == "Mono" ? 1 : 2} },
+			id = skald.hash_id("project-settings-audio-channels"), width = 140),
+		spacing = ctx.theme.spacing.sm,
+	)
+}
+
+// The choice for the device's native format
+AUDIO_OWN :: "The device's own"
 
 // One of the window's settings as a checkbox (key project-settings-window-<field>)
 @(private="file")

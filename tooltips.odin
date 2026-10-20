@@ -129,6 +129,8 @@ fieldTip :: proc(label: string) -> string {
 	case "Scaling":        return "How the game's resolution fits the window: letterboxed, stretched, whole multiples, cropped, or not at all."
 	case "Renderer":       return "What the game draws with (Auto: the system's choice)."
 	case "Window":         return "How the game's window starts."
+	case "Sound output":   return "The sample rate and channels the game asks its sound device for (stereo at 48 kHz works everywhere)."
+	case "Audio device":   return "Where Play's game and the editor's previews play their sound (System default, or a device of this computer)."
 	case "Start scene":    return "The scene the game starts in."
 	case "Icon":           return "The game window's icon (the taskbar's): one of the project's images. None: the Crossfire logo."
 	case "Language":       return "The language the game starts in, as the translation tables name it (empty: the player's)."

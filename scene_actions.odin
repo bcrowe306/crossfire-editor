@@ -48,6 +48,8 @@ ProjectSettingsDialog :: struct {
 	icon: string,
 	physics: e.PhysicsSettings,
 	window: e.WindowSettings,
+	// The sound output's format
+	audioOutput: e.AudioOutputSettings,
 	// Grid tab: the viewport grid
 	grid: e.GridSettings,
 	// Globals tab: a copy of the project's globals (owned), and the one shown
@@ -227,6 +229,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		renderer = p.renderer,
 		window = p.window,
 		grid = p.grid,
+		audioOutput = p.audioOutput,
 		background = skald.rgb(u32(c.r) << 16 | u32(c.g) << 8 | u32(c.b)),
 		startScene = strings.clone(p.startScene),
 		locale = strings.clone(p.locale),
@@ -263,6 +266,9 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 		}
 	case Project_Settings_Physics_Debug_Changed:
 		dialog.physics.debugDraw = bool(v)
+	case Project_Settings_Audio_Changed:
+		if v.channels do dialog.audioOutput.channels = clamp(v.value, 0, 8)
+		else do dialog.audioOutput.frequency = max(v.value, 0)
 	case Project_Settings_Grid_Changed:
 		n := int(v.value)
 		switch v.field {
@@ -369,6 +375,7 @@ applyProjectSettings :: proc(state: ^State) {
 	p.renderer = dialog.renderer
 	p.window = dialog.window
 	p.grid = dialog.grid
+	p.audioOutput = dialog.audioOutput
 	if dialog.icon != p.icon {
 		delete(p.icon)
 		p.icon = strings.clone(dialog.icon)

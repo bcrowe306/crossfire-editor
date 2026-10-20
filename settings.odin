@@ -57,6 +57,9 @@ Settings :: struct {
 	// The mouse wheel pans the viewport and Ctrl + wheel zooms (for touchpads); otherwise the
 	// wheel zooms, Shift + wheel pans sideways and Ctrl + wheel up and down
 	wheelPans: bool,
+	// The playback device for Play (the player's --audio-device) and the editor's own previews,
+	// by name ("" for the system's default): a machine's choice, so not the project's
+	audioDevice: FixedText,
 	// Scripts open in the built-in code editor (code tabs), not the program above
 	builtInCodeEditor: bool,
 	// The Odin language server for the built-in editor ("" = found automatically: Code_FindOLS)
@@ -189,6 +192,9 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 				case: problem(&problems, it.section, key, value, "expected true or false")
 				}
 				continue
+			case "audio_device":
+				settings.audioDevice = FixedText_Make(value)
+				continue
 			case "viewport_wheel_pans":
 				switch strings.to_lower(value, context.temp_allocator) {
 				case "true":  settings.wheelPans = true
@@ -257,10 +263,10 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ncode_editor_builtin = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nviewport_wheel_pans = %v\n\n",
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ncode_editor_builtin = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nviewport_wheel_pans = %v\naudio_device = %s\n\n",
 		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit,
 		settings.builtInCodeEditor, FixedText_String(&settings.olsPath), FixedText_String(&settings.odinPath), FixedText_String(&settings.ldtkPath),
-		FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.wheelPans)
+		FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.wheelPans, FixedText_String(&settings.audioDevice))
 	strings.write_string(&b, "[keymap]\n")
 	for chords, action in settings.keymap {
 		fmt.sbprintf(&b, "%v = %s\n", action, Keymap_FormatChords(chords))

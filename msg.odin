@@ -254,6 +254,11 @@ Project_Settings_Physics_Changed :: struct {
 	value: f64,
 }
 Project_Settings_Physics_Debug_Changed :: distinct bool
+// Project Settings > General: the sound output's sample rate, or (channels) its channel count; 0 = the device's
+Project_Settings_Audio_Changed :: struct {
+	channels: bool,
+	value: int,
+}
 // Project Settings > Grid: one of the grid's numbers
 Project_Settings_Grid_Changed :: struct {
 	field: GridTarget,
@@ -766,6 +771,8 @@ Settings_Code_Editor_Picked :: distinct skald.File_Dialog_Result
 Settings_Optimized_Play_Changed :: distinct bool
 // Settings > Editor: the mouse wheel pans the viewport (Ctrl + wheel zooms), for touchpads
 Settings_Wheel_Pans_Changed :: distinct bool
+// Settings > Editor: the playback device for Play and the editor's previews ("" = the default)
+Settings_Audio_Device_Changed :: distinct string
 Settings_Builtin_Editor_Changed :: distinct bool
 Settings_OLS_Path_Changed :: distinct string
 Settings_LDtk_Path_Changed :: distinct string
@@ -907,6 +914,7 @@ Msg :: union {
 	Project_Settings_Physics_Smoothing_Changed,
 	Project_Settings_Window_Changed,
 	Project_Settings_Grid_Changed,
+	Project_Settings_Audio_Changed,
 	New_Script_Kind_Changed,
 	New_Data_Opened,
 	New_Data_Name_Changed,
@@ -952,6 +960,7 @@ Msg :: union {
 	Settings_Builtin_Editor_Changed,
 	Settings_OLS_Path_Changed,
 	Settings_LDtk_Path_Changed,
+	Settings_Audio_Device_Changed,
 	Settings_Odin_Path_Changed,
 	Toolchain_Install_Requested,
 	Toolchain_Install_Finished,

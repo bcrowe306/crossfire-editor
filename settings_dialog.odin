@@ -110,6 +110,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		draft.builtInCodeEditor = bool(v)
 	case Settings_LDtk_Path_Changed:
 		draft.ldtkPath = FixedText_Make(string(v))
+	case Settings_Audio_Device_Changed:
+		draft.audioDevice = FixedText_Make(string(v) == AUDIO_DEFAULT_DEVICE ? "" : string(v))
 	case Settings_OLS_Path_Changed:
 		draft.olsPath = FixedText_Make(string(v))
 	case Settings_Odin_Path_Changed:
@@ -142,6 +144,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
 			draft.codeEditorPath, draft.codeEditorArgs, draft.optimizedPlay = defaults.codeEditorPath, defaults.codeEditorArgs, defaults.optimizedPlay
 			draft.wheelPans = defaults.wheelPans
+			draft.audioDevice = defaults.audioDevice
 			draft.ldtkPath = defaults.ldtkPath
 		case .Keyboard:
 			draft.keymap = defaults.keymap
@@ -153,6 +156,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		dialog.capture = {}
 	case Settings_Applied:
 		state.settings = draft^
+		AudioPreview_SetDevice(FixedText_String(&state.settings.audioDevice))
 		dialog.capture = {}
 		if v.close do dialog.open = false
 		if message := Settings_Save(&state.settings, state.settingsPath); message != "" {

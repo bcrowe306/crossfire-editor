@@ -244,6 +244,8 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Wheel pans", skald.checkbox(ctx, draft.wheelPans, "The wheel pans the viewport; Ctrl + wheel zooms",
 			proc(v: bool) -> Msg { return Settings_Wheel_Pans_Changed(v) },
 			id = skald.hash_id("settings-wheel-pans"))),
+		settingRow(ctx, "Audio device", audioDeviceSelect(ctx, FixedText_String(&draft.audioDevice))),
+		hint(ctx, "Where Play's game and the editor's sound previews play: a device of this computer (exported games use the system's default; players can pick one with --audio-device). If it's missing, the default is used."),
 		hint(ctx, "For touchpads (two-finger scrolling pans). Off: the wheel zooms, Shift + wheel pans sideways, Ctrl + wheel up and down. Sideways scrolling always pans; so do the Pan tool (H), a middle or right drag, and Space + drag."),
 		spacing = th.spacing.sm,
 		padding = th.spacing.sm,
@@ -343,6 +345,20 @@ numberSetting :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: SettingsField, val
 		cross_align = .Center,
 	)
 }
+
+// The playback devices SDL sees, the default first (key settings-audio-device)
+@(private="file")
+audioDeviceSelect :: proc(ctx: ^skald.Ctx(Msg), device: string) -> skald.View {
+	names := make([dynamic]string, context.temp_allocator)
+	append(&names, AUDIO_DEFAULT_DEVICE)
+	append(&names, ..AudioPreview_Devices())
+	current := device == "" ? AUDIO_DEFAULT_DEVICE : strings.clone(device, context.temp_allocator)
+	return skald.select(ctx, current, names[:], proc(v: string) -> Msg { return Settings_Audio_Device_Changed(v) },
+		id = skald.hash_id("settings-audio-device"), width = 300)
+}
+
+// The audio device choice for the system's default
+AUDIO_DEFAULT_DEVICE :: "System default"
 
 @(private="file")
 hint :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {

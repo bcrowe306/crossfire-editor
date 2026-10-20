@@ -310,6 +310,8 @@ init :: proc() -> State {
 	}
 	args := parseArgs()
 	settings, problems := Settings_Load(args.settings)
+	// The previews' sound device (Settings > Editor), opened with the first preview
+	AudioPreview_SetDevice(FixedText_String(&settings.audioDevice))
 	state.settings = settings
 	state.settingsPath = args.settings
 	for problem in problems do logLine(&state, .Warning, fmt.aprintf("Settings: %s", problem))

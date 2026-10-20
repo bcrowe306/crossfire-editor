@@ -70,7 +70,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed, Settings_Audio_Device_Changed:
 		// Handled by SettingsDialog_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
@@ -267,7 +267,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Project_Settings_Start_Changed, Project_Settings_Locale_Changed, Project_Settings_Icon_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
-	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Project_Settings_Grid_Changed, Scene_Screen_Layer_Toggled, Scene_Background_Changed,
+	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Project_Settings_Grid_Changed, Project_Settings_Audio_Changed, Scene_Screen_Layer_Toggled, Scene_Background_Changed,
 	     Scene_Gravity_Toggled, Scene_Gravity_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:

@@ -24,6 +24,8 @@ edited (`AudioPreview_SetRouting`). The browser's previews go to Master.
 AudioPreview :: struct {
 	failed: bool,
 	mixer: ^mix.Mixer,
+	// The device it plays on, by name ("" = the default; owned): Settings > Editor's
+	device: string,
 	track: ^mix.Track,
 	audio: ^mix.Audio,
 	// File the loaded audio came from
@@ -49,6 +51,31 @@ Inputs:
 Returns:
 - An error message, "" on success (temp allocated)
 */
+/*
+The playback device the previews use (Settings > Editor > Audio device; "" for the default). A
+change closes the open device: the next preview opens the new one.
+*/
+AudioPreview_SetDevice :: proc(device: string) {
+	if device == preview.device do return
+	delete(preview.device)
+	preview.device = strings.clone(device)
+	if preview.mixer == nil {
+		preview.failed = false
+		return
+	}
+	AudioPreview_Unload()
+	// Its track and group go with it
+	mix.DestroyMixer(preview.mixer)
+	preview.mixer, preview.track, preview.group = nil, nil, nil
+	preview.failed = false
+}
+
+// The playback devices' names (starts SDL's audio if it isn't; temp allocated)
+AudioPreview_Devices :: proc() -> []string {
+	if .AUDIO not_in sdl.WasInit({.AUDIO}) && !sdl.InitSubSystem({.AUDIO}) do return {}
+	return e.Audio_PlaybackDevices(context.temp_allocator)
+}
+
 AudioPreview_Load :: proc(path: string) -> string {
 	if preview.path == path && preview.audio != nil do return ""
 	AudioPreview_Unload()
@@ -167,7 +194,9 @@ ensureMixer :: proc() -> bool {
 		preview.failed = true
 		return false
 	}
-	preview.mixer = mix.CreateMixerDevice(sdl.AUDIO_DEVICE_DEFAULT_PLAYBACK, nil)
+	// Stereo at 48 kHz on the chosen device, with the engine's fallbacks (the device's own format
+	// failed to open on some outputs: "Unsupported audio channels" on macOS)
+	preview.mixer = e.Audio_OpenMixer({frequency = 48000, channels = 2, device = preview.device})
 	if preview.mixer != nil do preview.track = mix.CreateTrack(preview.mixer)
 	if preview.mixer == nil || preview.track == nil {
 		log.warnf("Audio preview unavailable: %s", sdl.GetError())

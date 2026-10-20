@@ -214,6 +214,9 @@ Project :: struct {
 	physics: e.PhysicsSettings,
 	// The game's window: fullscreen, vsync, high-DPI (format 13)
 	window: e.WindowSettings,
+	// The format the game's sound output asks for (project.xml's audioFrequency, audioChannels;
+	// the engine's AudioOutputSettings, `device` unused: it's the machine's, Settings > Editor)
+	audioOutput: e.AudioOutputSettings,
 	// The viewport grid for this project: cell size, major lines, opacities (format 13's <grid>)
 	grid: e.GridSettings,
 	// Scene files the editor loaded or saved (relative paths), so Save can delete the files of
@@ -528,6 +531,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		physics = data.physics,
 		window = data.window,
 		grid = data.grid,
+		audioOutput = {frequency = data.audioOutput.frequency, channels = data.audioOutput.channels},
 		exports = ExportSettings_Default(),
 	}
 	// Export settings: optional, and a bad line only loses that setting
@@ -709,6 +713,7 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 		physics = e.DEFAULT_PHYSICS,
 		window = e.DEFAULT_WINDOW_SETTINGS,
 		grid = e.DEFAULT_GRID_SETTINGS,
+		audioOutput = e.DEFAULT_AUDIO_OUTPUT,
 		exports = ExportSettings_Default(),
 	}
 	TITLE_COLOR :: sdl.Color{235, 240, 255, 255}

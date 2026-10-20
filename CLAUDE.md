@@ -1238,6 +1238,13 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   beside its meter on the same scale, the level in dB, mute, the name (typed text kept in
   `State.busEdit` until valid: not empty, no edge spaces, unused ignoring case; nodes on it
   follow the name). Each edit is a `.Project` undo step, merged while a fader drags.
+- **The sound device:** the project's output format is Project Settings > General > Sound output
+  (`Project.audioOutput`, the engine's `AudioOutputSettings`: `audioFrequency` / `audioChannels`
+  in project.xml when not stereo 48 kHz; in the `.Project` snapshot); the device is the
+  machine's, Settings > Editor > Audio device (`settings.audioDevice`, `audio_device`, from
+  `AudioPreview_Devices`): Play passes `--audio-device`, and the previews' mixer opens on it
+  with the engine's fallbacks (`e.Audio_OpenMixer`; `AudioPreview_SetDevice` reopens it when it
+  changes). window_settings.script picks Mono and sees the setting.
 - **Meters show the editor's own playback**: Preview plays the node's sound through its bus
   (`Mixer_RoutePreview`, applied again after every Mixer edit, so a fader changes what you hear),
   the browser's previews through Master. The preview's track carries sound × bus gains, its group

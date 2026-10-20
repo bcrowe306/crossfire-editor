@@ -268,6 +268,8 @@ startGame :: proc(state: ^State) -> skald.Command(Msg) {
 	append(&command, playerTarget(state).binary, projectDir)
 	// Developer keys (F9: collision shapes, F10: the debug overlay); exported games never get them
 	append(&command, "--dev")
+	// The machine's sound device (Settings > Editor); exported games use the system's default
+	if device := FixedText_String(&state.settings.audioDevice); device != "" do append(&command, "--audio-device", strings.clone(device, context.temp_allocator))
 	if playScene != "" {
 		append(&command, "--scene", playScene)
 		logLine(state, .Info, fmt.aprintf("Playing %s from scene %s", projectDir, playScene))

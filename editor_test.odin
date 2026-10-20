@@ -308,6 +308,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	tagged.groups = strings.clone("enemies,flying")
 	original.window = {fullscreen = true, vsync = false, highDPI = true}
 	original.grid = {size = {16, 24}, majorEvery = 0, opacity = 12, majorOpacity = 40}
+	original.audioOutput = {frequency = 44100, channels = 1}
 	original.locale = strings.clone("fr")
 	original.icon = strings.clone("assets/ship.png")
 	append(&original.assets, AssetDef{strings.clone("i18n/strings.csv"), .Translation})
@@ -324,6 +325,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	testing.expect_value(t, loaded.startScene, original.startScene)
 	testing.expect_value(t, loaded.window, original.window)
 	testing.expect_value(t, loaded.grid, original.grid)
+	testing.expect_value(t, loaded.audioOutput, original.audioOutput)
 	testing.expect_value(t, loaded.locale, "fr")
 	testing.expect_value(t, loaded.icon, "assets/ship.png")
 	testing.expect_value(t, len(loaded.assets), len(original.assets))
@@ -975,6 +977,7 @@ settings_round_trip_and_overlay :: proc(t: ^testing.T) {
 	settings.keymap[.Delete_Node] = {}
 	settings.builtInCodeEditor = false
 	settings.olsPath = FixedText_Make("/opt/ols/ols")
+	settings.audioDevice = FixedText_Make("USB Audio Interface Out 1-2")
 
 	parsed := Settings_Default()
 	problems := Settings_Parse(&parsed, Settings_ToINI(&settings))
@@ -3937,5 +3940,24 @@ assets_dropped_on_code_become_fields :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(line, "scout: e.DataAsset `export:\"default=data/scout.data.json kind=ShipStats\"`,") && strings.contains(line, "e.Data(ShipStats, self.scout)"), line)
 	_, _, ok = AssetField_Line(st, &state.project, AssetDef{"levels/world.ldtk", .LDtk})
 	testing.expect(t, !ok, "no handle type")
+	free_all(context.temp_allocator)
+}
+
+@(test)
+project_sound_output_settings :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	testing.expect_value(t, state.project.audioOutput, e.DEFAULT_AUDIO_OUTPUT)
+	// Not written while the default
+	testing.expect(t, !strings.contains(ProjectToXML(&state.project, context.temp_allocator), "audioFrequency"), "default: not written")
+	ProjectSettings_Open(&state)
+	send(&state, Project_Settings_Audio_Changed{false, 0})
+	send(&state, Project_Settings_Audio_Changed{true, 1})
+	send(&state, Project_Settings_Applied{})
+	testing.expect_value(t, state.project.audioOutput, e.AudioOutputSettings{frequency = 0, channels = 1})
+	xml := ProjectToXML(&state.project, context.temp_allocator)
+	testing.expect(t, strings.contains(xml, `audioFrequency="0" audioChannels="1"`), xml)
+	send(&state, Action.Undo)
+	testing.expect_value(t, state.project.audioOutput, e.DEFAULT_AUDIO_OUTPUT)
 	free_all(context.temp_allocator)
 }

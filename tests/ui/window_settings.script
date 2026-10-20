@@ -25,4 +25,21 @@ key ctrl+s
 wait_until modified false
 expect project_file_lacks project.xml fullscreen=
 expect project_file_lacks project.xml icon=
+
+# Sound output: mono (stereo at 48 kHz isn't written)
+expect project_file_lacks project.xml audioChannels=
+action Open_Project_Settings
+scroll_into_view project-settings-general-scroll project-settings-audio-channels
+click_widget project-settings-audio-channels
+click_overlay_item 1
+click_widget project-settings-apply
+key ctrl+s
+wait_until modified false
+expect project_file_contains project.xml audioChannels="1"
+# The device for Play and the previews is the machine's: Settings > Editor
+key ctrl+comma
+click_widget settings-tab-Editor
+scroll_into_view settings-editor-scroll settings-audio-device
+expect widget_visible settings-audio-device true
+click_widget settings-cancel
 quit

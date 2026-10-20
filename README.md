@@ -198,6 +198,12 @@ Game code is Odin, in the project's `scripts/` folder, and attaches to nodes:
    which script of the scene listens. The editor adds a handler procedure to that script and
    opens it; it's called whenever the event happens.
 
+**Sound devices.** Games ask for stereo at 48 kHz by default and fall back to other formats and
+devices if one won't open (the console says which device and format it got). Project Settings >
+General > Sound output changes the format; Settings > Editor > Audio device picks the device
+Play and the previews use on this computer. An exported game plays on the system's default
+device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
+
 Selecting a script in the browser shows what it is (a node script, a global, a data type) and
 the nodes it's attached to; selecting a scene shows what's in it and its own settings: screen
 layers (drawn without the camera, for HUDs and menus), a background color and a gravity of its
