@@ -4,6 +4,36 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
+## Engine hardening (in progress, in this order)
+
+1. **Correctness, tests, memory** for Node / Scene / Game / Application: a test for every public
+   lifecycle procedure (create, add, remove, find, reparent, switch, rebuild, destroy and their
+   edge cases), each run under the leak-tracking allocator, keeping the arena-per-lifetime
+   pattern. Known from the audit: removing the camera leaves `scene.camera` dangling;
+   `Scene_Destroy` destroys parents before children and sends no `onExit`; nodes made with
+   `addToScene = false` and never added leak; reparenting across scenes isn't refused; nodes
+   made in an `onEnter` handler can be lost; subscribing or unsubscribing while notifying is
+   unsafe; `Timer` (whole-second durations, nil `start`, `onTick` never sent) and `Ticker`
+   (divide by zero at 0 fps, drift) are broken; game swap and `Game_Destroy` leave dangling
+   pointers; `game.name` leaks.
+2. **Optimization, measured first** (benchmarks: frame breakdown, node churn, LDtk, particles,
+   physics, removals, text): LDtk tile culling by grid and cached vertices, a one-pass draw
+   order, cached world transforms, physics syncing only moved bodies and Box2D's worker
+   threads, `#soa` particles packed to their count with a grid for collisions, cheaper node
+   allocation, O(1) removal and id lookup, `Node` / `PhysicsBody` layout (u8 enums, hot fields
+   first). API changes (EventSubject without proc fields, pooled node storage) only with numbers.
+   Also: LDtk tiles as separate triangles in SDL's software renderer (the fix for vanishing
+   tiles) made software rendering of the forest slow (the headless demo run went to ~3 min);
+   the editor's viewport uses the GPU now, so this hits only the software fallback and headless
+   tests: worth a faster correct path (e.g. drawing static layers to a texture once).
+3. **Features:** pause and process modes and a time scale, tweens, groups/tags, z-index and
+   y-sort, render targets and blend modes, window settings (fullscreen, vsync, HiDPI), physics
+   queries and one-way platforms, a debug overlay, UI navigation by gamepad and actions,
+   localization, input rebinding saved and rumble.
+4. **API documentation for OLS:** `doc.odin`, every public declaration in Odin core style, a
+   comment on every struct field (OLS shows a comment only on the field right below it), internal
+   plumbing made `@(private)` (except what the editor uses).
+
 ## Editor UI
 
 - **Pan and scroll the viewport.** Scroll horizontally and vertically, not only zoom. A pan tool
