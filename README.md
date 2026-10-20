@@ -312,8 +312,8 @@ Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:
    with the entity's name (its LDtk fields set the script's fields with the same name), else a
    rectangle that draws the entity's tile.
 
-While the game runs from Play, saving in LDtk updates it: tiles, collision and backgrounds (entity
-changes show on the next Play). Parallax layers follow the camera, entities draw their tiles as
+While the game runs from Play, saving in LDtk updates it: tiles, collision, backgrounds, layers
+added or removed, and entities placed or deleted (the others keep running where they are). Parallax layers follow the camera, entities draw their tiles as
 LDtk does (cover, stretch, repeat, nine-slice...), and the inspector and browser show pictures of
 the levels. LDtk's internal icons are a commercial pack the engine can't include: put your copy
 (`finalbossblues-icons_full_16.png`) beside the `.ldtk` file to see them.

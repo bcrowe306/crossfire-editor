@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component formatVersion="12" name="bee">
+<component formatVersion="13" name="bee">
 	<node kind="Area" name="Bee" x="0" y="0">
 		<node kind="AnimatedSprite" name="Sprite" x="0" y="0" texture="assets/forest/bee.png" columns="4" rows="3" autoplay="fly">
 			<animation name="fly" start="0" end="3" fps="12" loop="true"/>

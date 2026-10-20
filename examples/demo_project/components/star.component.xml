@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component formatVersion="9" name="star">
+<component formatVersion="13" name="star">
 	<node kind="Area" name="Star" x="0" y="0">
 		<script name="Pickup">
 			<prop name="sound" value="assets/pickup.wav"/>
