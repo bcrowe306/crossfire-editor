@@ -421,6 +421,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.assetDrag.active = true
 	case Asset_Drag_Cancelled:
 		out.assetDrag = {}
+	case Asset_Dropped_On_Code:
+		asset := out.assetDrag.asset
+		out.assetDrag = {}
+		message, added := AssetField_Insert(&out, asset)
+		logLine(&out, added ? .Info : .Warning, strings.clone(message))
 	case Asset_Dropped:
 		asset := out.assetDrag.asset
 		out.assetDrag = {}

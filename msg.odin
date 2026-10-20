@@ -138,6 +138,8 @@ Tree_Drag_Dropped :: struct {
 }
 // Released anywhere else
 Tree_Drag_Cancelled :: struct {}
+// A browser asset released over the code tab: a field of its handle type goes into the script (asset_fields.odin)
+Asset_Dropped_On_Code :: struct {}
 // Released over the code tab: a node field for the dragged node goes into its script (node_fields.odin)
 Tree_Drag_Dropped_On_Code :: struct {}
 
@@ -847,6 +849,7 @@ Msg :: union {
 	Tree_Drag_Dropped,
 	Tree_Drag_Cancelled,
 	Tree_Drag_Dropped_On_Code,
+	Asset_Dropped_On_Code,
 	Confirm_Chosen,
 	Code_Tab_Selected,
 	Code_Tab_Close_Requested,

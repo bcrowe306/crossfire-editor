@@ -352,7 +352,10 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 
 	if ctx.input.mouse_pressed[.Left] && overArea && !skald.mouse_over_overlay(ctx) && row >= 0 && row < len(items) {
 		item := items[row]
-		if item.kind == .Asset && (s.project.assets[item.index].kind == .Image || s.project.assets[item.index].kind == .Component) {
+		// Images and components go into the viewport; every asset with a handle type into a code tab
+		handled := false
+		if item.kind == .Asset do _, handled = AssetField_Type(s.project.assets[item.index].kind)
+		if item.kind == .Asset && (handled || s.project.assets[item.index].kind == .LDtk) {
 			skald.send(ctx, Msg(Asset_Drag_Pressed{asset = item.index, start = mouse}))
 		}
 		return none
@@ -360,7 +363,10 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 	if !s.assetDrag.pressed do return none
 	if !ctx.input.mouse_buttons[.Left] {
 		world, overViewport := ViewportWorldAt(s, ctx, mouse)
-		if s.assetDrag.active && overViewport {
+		codeArea := ctx.widgets.states[skald.hash_id("code-editor")].last_rect
+		if s.assetDrag.active && s.codeTab > 0 && pointIn(codeArea, mouse) {
+			skald.send(ctx, Msg(Asset_Dropped_On_Code{}))
+		} else if s.assetDrag.active && overViewport {
 			skald.send(ctx, Msg(Asset_Dropped{world = world}))
 		} else {
 			skald.send(ctx, Msg(Asset_Drag_Cancelled{}))
@@ -377,7 +383,16 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 	if s.assetDrag.asset >= len(s.project.assets) do return none
 	label := fmt.tprintf("%s  %s", ICON_IMAGE, filepath.base(s.project.assets[s.assetDrag.asset].path))
 	_, overViewport := ViewportWorldAt(s, ctx, mouse)
-	hint := overViewport ? "drop to add a Sprite" : "drag into the viewport"
+	codeArea := ctx.widgets.states[skald.hash_id("code-editor")].last_rect
+	kind := s.project.assets[s.assetDrag.asset].kind
+	hint := "drag into the viewport"
+	switch {
+	case s.codeTab > 0 && pointIn(codeArea, mouse): hint = "drop to add a field to the script"
+	case overViewport && kind == .Component: hint = "drop to add an instance"
+	case overViewport && kind == .Image: hint = "drop to add a Sprite"
+	case overViewport && kind == .LDtk: hint = "drop to add the level"
+	case kind != .Image && kind != .Component && kind != .LDtk: hint = "drag into a script's code tab"
+	}
 	return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
 		skald.col(
 			skald.text(label, th.color.fg, th.font.size_sm),

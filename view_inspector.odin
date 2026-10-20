@@ -291,7 +291,7 @@ visibleDescendants :: proc(scene: ^SceneDef, visible: []int, row: int) -> int {
 	return count
 }
 
-@(private="file")
+@(private)
 pointIn :: proc(r: skald.Rect, p: [2]f32) -> bool {
 	return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h
 }

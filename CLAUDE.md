@@ -152,6 +152,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_browser_info.odin` | The preview for scripts (`scriptInfoPreview`: what each registered script and data type is, where it's used) and scenes (`scenePreview`: facts, actions, the scene's own settings) |
 | `scene_settings.odin` | A scene's own settings (`SceneDef.settings`, the engine's `e.SceneSettings`): their messages and undo |
 | `node_listeners.odin`, `view_inspector_events.odin` | **Listening to node events**: the inspector's Events section (`eventsSection`), the Listen... dialog (`listenerDialogView`), attaching (`Listener_Attach`: the listener on the node, the handler appended to the script's file) |
+| `asset_fields.odin` | A browser asset dropped on a code tab: a field of its handle type (`AssetField_Type`, `AssetField_Line`, `AssetField_Insert`) |
 | `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`) |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
 | `viewport_preview.odin` | Engine-rendered preview of the open scene (software renderer → Skald image) |
@@ -812,6 +813,13 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   `sender := e.Node_GetScript(source, X)` hint, a global's `x := e.Global(X)`. Listeners whose
   event is gone show "(no such event)" once the scripts are built. Tests:
   `scripts_publish_events_in_the_editor`; scripts.script (New Event, build, listen, play).
+- **Assets dropped on a code tab** (asset_fields.odin; the browser's `browserDrag`, which now
+  starts for every asset kind with a handle type and for LDtk projects): an exported field of
+  its handle type (`TextureAsset`, `SoundAsset`, `MusicAsset`, `FontAsset`, `ComponentAsset`,
+  `DataAsset` with `kind=<type>`) defaulting to the asset, with a comment using it (a
+  component: `e.Scene_AddComponent(self.scene, self.coin, position = {0, 0})`); the inspector
+  then picks another per node. scripts.script saves a node as a component and drags it in
+  (the driver's `drag_asset_to <path start> <widget>`).
 - **Fields the editor adds end with a comma**, and the field above gets one if it had none
   (`Struct_MissingComma`): Odin allows no comma only on the last field, so the next insert broke
   the build.

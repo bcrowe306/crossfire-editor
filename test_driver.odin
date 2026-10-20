@@ -106,6 +106,9 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	select_asset <path>              Select an asset in the browser (its folder opened), e.g. a component
 	right_click_asset <path>         Right-click an asset's browser row (its context menu: browser-menu)
 	double_click_asset <path>        Double-click an asset's browser row
+	drag_asset_to <path start> <widget>
+	                                 Drag the first asset whose path starts so onto a widget (a
+	                                 component onto the code tab: code-editor)
 	import <path>                    Import a file as an asset, as if picked in the Import dialog
 	                                 (native file dialogs can't be scripted)
 	quit                             End the script
@@ -1082,11 +1085,13 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
-	case "right_click_asset", "double_click_asset":
-		// The asset's browser row (its folder opened), right-clicked (its context menu) or
-		// double-clicked
+	case "right_click_asset", "double_click_asset", "drag_asset_to":
+		// The asset's browser row (its folder opened), right-clicked (its context menu),
+		// double-clicked, or dragged onto a widget (`drag_asset_to <path start> <widget>`)
+		wanted, widget := rest, ""
+		if command == "drag_asset_to" do wanted, _, widget = strings.partition(rest, " ")
 		for asset, i in s.project.assets {
-			if asset.path != rest do continue
+			if command == "drag_asset_to" ? !strings.has_prefix(asset.path, wanted) : asset.path != rest do continue
 			s.browserOpen[AssetFolder(asset.kind)] = true
 			for row, r in BrowserRows(s) {
 				if row.kind != .Asset || row.index != i do continue
@@ -1103,6 +1108,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 					return false
 				}
 				driver.scrollAttempts = 0
+				if command == "drag_asset_to" do return runCommand(s, ctx, fmt.tprintf("drag_row_to browser-tree %d %s", r, widget))
 				return runCommand(s, ctx, fmt.tprintf("%s browser-tree %d", command == "right_click_asset" ? "right_click_row" : "double_click_row", r))
 			}
 		}

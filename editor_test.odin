@@ -3919,3 +3919,23 @@ scripts_publish_events_in_the_editor :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(xml, `<listener global="GameState" event="script.onScored" target="." handler="onGameStateScored"/>`), xml)
 	free_all(context.temp_allocator)
 }
+
+@(test)
+assets_dropped_on_code_become_fields :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	st := NodeField_Struct{name = "Hero", engineAlias = "e", fields = {"coin"}}
+	testing.expect_value(t, AssetField_BaseName("components/coin.component.xml"), "coin")
+	line, name, ok := AssetField_Line(st, &state.project, AssetDef{"components/coin.component.xml", .Component})
+	testing.expect(t, ok && name == "coin2", "a free name")
+	testing.expect_value(t, line, "\t// e.Scene_AddComponent(self.scene, self.coin2, position = {0, 0})\n\tcoin2: e.ComponentAsset `export:\"default=components/coin.component.xml\"`,\n")
+	line, _, _ = AssetField_Line(st, &state.project, AssetDef{"assets/beep.wav", .Audio})
+	testing.expect(t, strings.contains(line, "beep: e.SoundAsset `export:\"default=assets/beep.wav\"`,") && strings.contains(line, "e.Game_PlaySound(self.game, self.beep)"), line)
+	// A data resource: its type in the tag (the inspector lists resources of that type)
+	append(&state.project.data, DataDef{path = strings.clone("data/scout.data.json"), type = strings.clone("ShipStats")})
+	line, _, _ = AssetField_Line(st, &state.project, AssetDef{"data/scout.data.json", .Data})
+	testing.expect(t, strings.contains(line, "scout: e.DataAsset `export:\"default=data/scout.data.json kind=ShipStats\"`,") && strings.contains(line, "e.Data(ShipStats, self.scout)"), line)
+	_, _, ok = AssetField_Line(st, &state.project, AssetDef{"levels/world.ldtk", .LDtk})
+	testing.expect(t, !ok, "no handle type")
+	free_all(context.temp_allocator)
+}

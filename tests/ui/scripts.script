@@ -94,6 +94,21 @@ expect code_dirty false
 wait 60
 wait_until scripts Ready timeout=240
 wait 30
+# A component dragged from the browser onto the code tab: a ComponentAsset field for
+# e.Scene_AddComponent (ShipLight, row 3, saved as one first)
+right_click_row scene-tree 3
+click_menu_item scene-tree-menu 8
+wait_until components 1 timeout=5
+drag_asset_to components/ code-editor
+wait_until code_contains true : e.ComponentAsset `export:"default=components/ timeout=5
+expect code_contains true e.Scene_AddComponent(self.scene, self.
+# (the drag scrolled the browser to the component: back to the top for the rows below)
+scroll_by browser-scroll 0
+key ctrl+s
+expect code_dirty false
+wait 60
+wait_until scripts Ready timeout=240
+wait 30
 click_widget code-tab-close-0
 expect code_tabs 0
 
@@ -115,9 +130,9 @@ click_widget settings-builtin-editor
 click_widget settings-save
 scroll_into_view inspector-scroll inspector-open-script
 click_widget inspector-open-script
-# (line 23: the camera field and the onPinged event (its comment and field) moved the
-# registration down three)
-expect console_contains Opened mover.odin:23 in true
+# (line 25: the camera field, the onPinged event and the component field (each event and asset
+# field with its comment) moved the registration down five)
+expect console_contains Opened mover.odin:25 in true
 
 # A program that fails is reported: set it to `false` (exits with code 1) in Settings
 key ctrl+comma

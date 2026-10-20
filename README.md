@@ -181,6 +181,11 @@ Game code is Odin, in the project's `scripts/` folder, and attaches to nodes:
    it to that node before `ready`. In the inspector, each node using the script can pick
    another node of that type.
 
+7. **Use an asset from code:** drag a component (or an image, sound, font, music or data
+   resource) from the browser onto the script's code tab. That adds a field for it, like
+   `coin: e.ComponentAsset`, with a line showing its use, `e.Scene_AddComponent(self.scene,
+   self.coin, position = {0, 0})`; each node using the script can pick another in the inspector.
+
 6. **Publish your own events:** in the Events section, **New Event...** adds one to the node's
    script (a name, what it means, what data it carries) with how to fire it. Once built, other
    scripts listen to it like any node event. Global scripts can have events too (Events >
