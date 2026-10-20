@@ -3,7 +3,8 @@
 # itself. Taskfile.macos.yml runs each step (`task macos:app` runs them in order); run one alone
 # with: tools/macos/bundle.sh <step>
 #
-#   layout     the folders, Info.plist, the editor, OLS, the prebuilt player, the engine's sources
+#   layout     the folders, Info.plist, the editor, OLS, the prebuilt player, the engine's sources,
+#              the demo project
 #   vulkan     the Vulkan loader and MoltenVK (dlopened by SDL, so dylibbundler can't see them),
 #              and MoltenVK's driver manifest
 #   dylibs     every non-system dylib the executables and those libraries link, copied into
@@ -24,6 +25,8 @@
 #     Resources/vulkan/icd.d/MoltenVK_icd.json MoltenVK's manifest, pointing at Frameworks/
 #     Resources/engine/                        the engine's sources and its static libraries
 #                                              (box2d/lib, sdl/lib): games compile against them
+#     Resources/demo_project/                  the demo project (its git-tracked files): copied to
+#                                              ~/Documents/Crossfire Editor on first run
 #
 # Environment (Taskfile.macos.yml sets it): APP (the .app path), EDITOR_BIN, PLAYER_BIN, OLS_BIN,
 # ENGINE_DIR, TARGET (macos_arm64...), VERSION, BUNDLE_ID, APP_NAME
@@ -71,6 +74,9 @@ layout)
 	mkdir -p "$contents/Resources/engine"
 	(cd "$ENGINE_DIR" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) |
 		tar -xf - -C "$contents/Resources/engine"
+	# The demo project, opened (from a copy the user can edit) when no project is given
+	mkdir -p "$contents/Resources/demo_project"
+	(cd "$here/../../examples/demo_project" && git ls-files . | tar -cf - -T -) | tar -xf - -C "$contents/Resources/demo_project"
 	echo "Laid out $APP ($VERSION)"
 	;;
 
@@ -154,7 +160,7 @@ check)
 	done
 	for f in "$contents/Info.plist" "$contents/Resources/Crossfire.icns" "$contents/MacOS/ols" "$contents/Frameworks/libvulkan.1.dylib" \
 		"$contents/Frameworks/libMoltenVK.dylib" "$contents/Resources/vulkan/icd.d/MoltenVK_icd.json" \
-		"$contents/Resources/engine/player/main.odin"; do
+		"$contents/Resources/engine/player/main.odin" "$contents/Resources/demo_project/project.xml"; do
 		[[ -e "$f" ]] || { echo "Missing $f" >&2; problems=$((problems + 1)); }
 	done
 	compgen -G "$contents/Resources/engine/sdl/lib/*/libSDL3.a" > /dev/null || { echo "No static SDL in the engine's copy" >&2; problems=$((problems + 1)); }

@@ -8,6 +8,8 @@
 #     exports projects without scripts with no compiler at all
 #   - engine/: the engine's sources (its git-tracked files, without the third_party submodules)
 #     with its built Box2D (box2d/lib) and static SDL (sdl/lib), for games with scripts
+#   - examples/demo_project: the demo project (its git-tracked files), opened when no project is
+#     given
 #   Settings, icons and fonts are built in. The Windows executable has the Crossfire icon
 #   (crossfire.rc); the Linux archive has icons/ and install-desktop-entry.sh (the application
 #   menu entry, with the icon). macOS releases are the app bundle (Taskfile.macos.yml) instead.
@@ -98,6 +100,10 @@ fi
 mkdir -p "$stage/engine"
 (cd "$engine" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) | tar -xf - -C "$stage/engine"
 
+# The demo project, where the editor looks for it (Editor_DemoProject: beside the executable)
+(cd "$editor" && git ls-files examples/demo_project | tar -cf - -T -) | tar -xf - -C "$stage"
+test -f "$stage/examples/demo_project/project.xml"
+
 # Linux: the icon and the application menu entry
 if [[ "$(uname -s)" == Linux ]]; then
 	mkdir -p "$stage/icons"
@@ -110,7 +116,8 @@ Crossfire Editor $version ($platform), a development build
 
     ./odin_sdl_editor [project folder]     (odin_sdl_editor.exe on Windows)
 
-With no folder it opens examples/demo_project in the current folder, creating it if it's missing.
+With no folder it opens the demo project in examples/demo_project, beside the editor: a small
+space game, and a platformer level made in LDtk (the menu's "Forest (LDtk)").
 Linux: ./install-desktop-entry.sh adds it to your application menu, with its icon.
 The editor needs a Vulkan driver (on macOS: brew install molten-vk vulkan-loader).
 

@@ -41,12 +41,22 @@ GameState_Hit :: proc(state: ^GameState) {
 	state.invulnerable = 1.5
 	e.Game_PlaySound(state.game, SOUND_HIT)
 	if state.lives > 0 do return
+	GameState_EndRun(state)
+	state.game->switchScene("MenuScene")
+}
+
+// Ends a run (out of lives, or the forest's chest reached): keeps the high score and saves
+GameState_EndRun :: proc(state: ^GameState) {
 	if state.score > state.highScore {
 		state.highScore = state.score
 		log.infof("New high score: %d", state.highScore)
 	}
 	e.Save_Game()
-	state.game->switchScene("MenuScene")
+}
+
+// Whether a scene is one of the game's levels (a new run starts there, the HUD shows)
+IsLevelScene :: proc(name: string) -> bool {
+	return name == "PlayScene" || name == "ForestScene"
 }
 
 @(init)
@@ -62,9 +72,9 @@ register_GameState :: proc "contextless" () {
 		update = proc(self: ^GameState, _: []sdl.Event, dt: f64) {
 			self.invulnerable = max(self.invulnerable - f32(dt), 0)
 		},
-		// A new run every time the play scene starts
+		// A new run every time a level starts
 		sceneChanged = proc(self: ^GameState, scene: ^e.Scene) {
-			if scene.name == "PlayScene" {
+			if IsLevelScene(scene.name) {
 				self.score = 0
 				self.lives = self.startingLives
 				self.invulnerable = 0

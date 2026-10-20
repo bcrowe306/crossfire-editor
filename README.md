@@ -313,6 +313,10 @@ LDtk does (cover, stretch, repeat, nine-slice...), and the inspector and browser
 the levels. LDtk's internal icons are a commercial pack the engine can't include: put your copy
 (`finalbossblues-icons_full_16.png`) beside the `.ldtk` file to see them.
 
+The demo project's **forest level** (ForestScene, from its menu) uses all of this: a platformer
+with auto-tiled ground, IntGrid collision, parallax trees, and entities (hero, coins, snails, a
+key that opens a gate through an entity reference) that are components with scripts.
+
 In code:
 
 ```odin
@@ -496,8 +500,9 @@ credentials (it never stops to ask for a password).
 
 A project is a folder with `project.xml`, a `scenes/` folder with one XML file per scene, and
 `assets/`. The format is specified in the engine's `project_format.odin`.
-[`examples/demo_project`](examples/demo_project) is a small example with a menu, a play scene with
-sprites and animations, and an options screen. Its images were generated for this repo.
+[`examples/demo_project`](examples/demo_project) is the demo that ships with the editor: a small
+space game (a menu, a play scene, an options screen) and a platformer level made in LDtk, with
+scripts showing most of the engine's features. Its README says what to look at for each.
 
 ## Releases
 
@@ -517,7 +522,8 @@ prebuilt player, the engine's sources and static libraries (games compile agains
 Vulkan loader and MoltenVK. `task macos:verify` installs the disk image's app into a temporary
 folder and runs UI tests with it. Each step is a task of its own (`task --list`); CI runs the
 same ones. From the app, settings live in `~/Library/Application Support/crossfire-editor` and the
-demo project in `~/Documents/Crossfire Editor`.
+demo project in `~/Documents/Crossfire Editor` (copied there from the app on first run). Release
+archives for Linux and Windows have the demo in `examples/demo_project`, beside the editor.
 
 ## Documentation
 

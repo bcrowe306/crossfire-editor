@@ -164,3 +164,46 @@ ldtk_import_brings_outside_files_in :: proc(t: ^testing.T) {
 	testing.expect(t, project != nil && strings.has_suffix(project.tilesets[0].path, "external/tiles.png"), "and reads")
 	free_all(context.temp_allocator)
 }
+
+// The demo that ships with the editor (archives, the macOS bundle) copies and loads with its
+// LDtk level: the scene's LDtkLevel node, its entity components, and the files exports need
+@(test)
+shipped_demo_copies_with_its_level :: proc(t: ^testing.T) {
+	os.make_directory("build")
+	dir := "build/test_shipped_demo"
+	removeAll(dir)
+	defer removeAll(dir)
+	root := joinPath(dir, "demo_project", allocator = context.temp_allocator)
+	testing.expect_value(t, Folder_Copy(DEMO_PROJECT, root), "")
+
+	project, message, _ := Project_Load(root)
+	defer Project_Destroy(&project)
+	testing.expect_value(t, message, "")
+	forest := Project_FindScene(&project, "ForestScene")
+	testing.expect(t, forest >= 0, "the forest scene")
+	if forest < 0 do return
+	level: ^NodeDef
+	for &node in project.scenes[forest].nodes do if node.kind == .LDtkLevel do level = &node
+	testing.expect(t, level != nil, "an LDtkLevel node")
+	if level == nil do return
+	testing.expect_value(t, level.ldtk.file, "assets/forest/forest.ldtk")
+	testing.expect_value(t, level.ldtk.collisionLayer, "Collisions")
+	testing.expect_value(t, len(level.ldtk.entityComponents), 6)
+	for m in level.ldtk.entityComponents {
+		testing.expectf(t, os.exists(joinPath(root, m.component, allocator = context.temp_allocator)), "%s's component %s", m.entity, m.component)
+	}
+
+	// The level's file reads, and an export takes its tilesets and background
+	ldtk, problem := e.LDtk_Load(joinPath(root, level.ldtk.file, allocator = context.temp_allocator))
+	testing.expect_value(t, problem, "")
+	if ldtk != nil {
+		testing.expect(t, e.LDtk_FindLevel(ldtk, "Forest") != nil, "the Forest level")
+		e.LDtk_Destroy(ldtk)
+	}
+	files := LDtkEdit_ExportFiles(&project, context.temp_allocator)
+	for name in ([]string{"assets/forest/tiles.png", "assets/forest/trees.png", "assets/forest/sky.png"}) {
+		found := false
+		for f in files do if f == name do found = true
+		testing.expectf(t, found, "exports take %s (%v)", name, files)
+	}
+}

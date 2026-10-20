@@ -445,11 +445,7 @@ Inputs:
 - project: The project to free
 */
 Project_Destroy :: proc(project: ^Project) {
-	for &scene in project.scenes {
-		for &node in scene.nodes do NodeDef_Destroy(&node)
-		delete(scene.nodes)
-		delete(scene.name)
-	}
+	for &scene in project.scenes do SceneDef_Destroy(&scene)
 	delete(project.scenes)
 	for asset in project.assets do delete(asset.path)
 	delete(project.assets)

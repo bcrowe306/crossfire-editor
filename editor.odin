@@ -304,12 +304,26 @@ init :: proc() -> State {
 		logLine(&state, .Info, fmt.aprintf("Opened '%s' from %s", project.name, root))
 		for warning in warnings do logLine(&state, .Warning, strings.clone(warning))
 	} else if root == Editor_DemoProject() {
-		// First run: write the demo project so it can be played and edited
-		state.project = Project_CreateDemo(root)
-		if saveMessage := Project_Save(&state.project); saveMessage != "" {
-			logLine(&state, .Error, fmt.aprintf("Couldn't create the demo project: %s", saveMessage))
-		} else {
-			logLine(&state, .Info, fmt.aprintf("Created the demo project in %s", root))
+		// First run: the demo shipped with the editor (a bundle's), copied where it can be edited
+		copied := false
+		if shipped := Editor_ShippedDemo(); shipped != "" {
+			if problem := Folder_Copy(shipped, root); problem != "" {
+				logLine(&state, .Error, fmt.aprintf("Couldn't copy the demo project: %s", problem))
+			} else if demo, demoMessage, demoWarnings := Project_Load(root); demoMessage == "" {
+				state.project = demo
+				copied = true
+				logLine(&state, .Info, fmt.aprintf("Copied the demo project to %s", root))
+				for warning in demoWarnings do logLine(&state, .Warning, strings.clone(warning))
+			}
+		}
+		// Without one: write the built-in sample so there's something to play and edit
+		if !copied {
+			state.project = Project_CreateDemo(root)
+			if saveMessage := Project_Save(&state.project); saveMessage != "" {
+				logLine(&state, .Error, fmt.aprintf("Couldn't create the demo project: %s", saveMessage))
+			} else {
+				logLine(&state, .Info, fmt.aprintf("Created the demo project in %s", root))
+			}
 		}
 	} else {
 		// Don't write into a folder the user named; show the demo without saving it

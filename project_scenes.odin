@@ -65,13 +65,13 @@ SceneDef_Clone :: proc(scene: SceneDef) -> SceneDef {
 	return copy
 }
 
-// Frees a scene's name and nodes
+// Frees a scene's name, nodes and component file
 SceneDef_Destroy :: proc(scene: ^SceneDef) {
 	for &node in scene.nodes do NodeDef_Destroy(&node)
 	delete(scene.nodes)
 	delete(scene.name)
-	scene^ = {}
 	delete(scene.component)
+	scene^ = {}
 }
 
 /*

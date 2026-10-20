@@ -1,7 +1,8 @@
 # Asteroids Demo
 
-The editor's sample game: a small space game that shows how the engine's features fit together.
-Open it with `task run` (it's the project the editor opens by default) and press **F5**.
+The editor's sample game: a small space game, and a platformer level made in LDtk, that show how
+the engine's features fit together. Open it with `task run` (it's the project the editor opens by
+default; releases ship it beside the editor) and press **F5**.
 
 **How to play:** from the menu, **Play**. Fly with the arrow keys or WASD, collect the glowing
 stars, and dodge the bouncing rocks: each hit costs a life (with a moment of shields after it).
@@ -27,6 +28,33 @@ physics shapes.
 | **Particles** | PlayScene: the player's **Exhaust** (a ParticleEmitter under it: a continuous stream that fades through the color ramp, left behind in the world as the ship moves), and **Sparks**, a one-shot burst (emitting and continuous off, burst 1) that `pickup.odin` moves to the star and fires with `e.ParticleEmitter_Start`. Select either to see every setting in the inspector |
 | **Labels driven by scripts** | `high_score_label.odin` (menu), `ship_picker.odin` (options) |
 | **Menus that switch scenes** | The menus in MenuScene and OptionsScene (no code) |
+
+## The forest level (LDtk)
+
+From the menu, **Forest (LDtk)**: run with the arrows or A / D, jump with Space, W or Up (hold
+it to jump higher), collect coins, stomp the snails (walking into one costs a life), take the
+key to open the log blocking the way, and reach the chest. Falling into a pit costs a life too.
+Escape goes back to the menu.
+
+The level is `assets/forest/forest.ldtk`, an [LDtk](https://ldtk.io) project: open it with
+**Open in LDtk** (the browser's Levels folder), change it, save, and a running game (Play)
+updates its tiles and collision as you save.
+
+| Feature | Where to look |
+|---|---|
+| **An LDtk level in a scene** | ForestScene's **Level** node (an LDtkLevel): the file, the level, and the IntGrid layer that becomes collision (`Collisions`) |
+| **Auto-layer rules** | The `Collisions` IntGrid layer's rules in LDtk tile the ground: edges, corners, grass on top, planks. Paint ground in LDtk and it tiles itself |
+| **Collision from an IntGrid layer** | The same layer's cells become one StaticBody of merged rectangles, which the hero stands on |
+| **Parallax** | The `NearTrees` and `FarTrees` tile layers have parallax factors (0.3 and 0.6, set in LDtk): they move slower than the level as the camera follows the hero |
+| **Entities as components** | The Level node maps each LDtk entity (Hero, Coin, Snail, Key, Gate, Chest) to a component in `components/`, which the game instances where the entity is |
+| **Scripts named like entities** | `scripts/hero.odin`, `coin.odin`, `snail.odin`, `key.odin` (Key and Gate), `chest.odin`: attached because they're named like the entity, no setup |
+| **LDtk fields set script fields** | The hero's `speed`, each coin's `value` (the one up high is worth 5), each snail's `patrol` (a Point: where it turns back) and `speed`: set per entity in LDtk |
+| **Entity references** | The key's `opens` field points at the gate (an arrow in LDtk); `key.odin` finds the gate with `e.LDtk_EntityRefNode(self.node, "opens")` |
+| **A platformer on a CharacterMover** | `hero.odin`: scripted gravity (the project has none), `e.CharacterMover_Move`, jump buffering and coyote time, short hops, a camera following inside the level's bounds (`e.Camera2D_SetBounds`, `e.Camera2D_Follow`), the sprite mirrored by a negative scale |
+| **Removing nodes** | Coins, squashed snails and the opened gate are removed with `e.Scene_RemoveNode` |
+
+The art and sounds are from two asset packs (see `assets/forest/CREDITS.md`). The editor's
+`tools/demo/make_forest.py` made the first version of the level from them.
 
 `scripts/mover.odin` and TestScene are an earlier experiment (a sprite that drifts right).
 

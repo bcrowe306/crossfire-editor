@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project formatVersion="9" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
+<project formatVersion="11" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
 	<scene name="MenuScene" path="scenes/MenuScene.scene.xml"/>
 	<scene name="PlayScene" path="scenes/PlayScene.scene.xml"/>
 	<scene name="OptionsScene" path="scenes/OptionsScene.scene.xml"/>
 	<scene name="TestScene" path="scenes/TestScene.scene.xml"/>
+	<scene name="ForestScene" path="scenes/ForestScene.scene.xml"/>
 	<asset path="assets/ship.png" kind="Image"/>
 	<asset path="assets/balloons.png" kind="Image"/>
 	<asset path="assets/light.png" kind="Image"/>
@@ -13,6 +14,26 @@
 	<asset path="data/scout.data.json" kind="Data"/>
 	<asset path="data/hauler.data.json" kind="Data"/>
 	<asset path="components/star.component.xml" kind="Component"/>
+	<asset path="assets/forest/hero.png" kind="Image"/>
+	<asset path="assets/forest/snail.png" kind="Image"/>
+	<asset path="assets/forest/coin.png" kind="Image"/>
+	<asset path="assets/forest/key.png" kind="Image"/>
+	<asset path="assets/forest/gate.png" kind="Image"/>
+	<asset path="assets/forest/chest.png" kind="Image"/>
+	<asset path="assets/forest/chest_open.png" kind="Image"/>
+	<asset path="assets/forest/sounds/jump.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/coin.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/stomp.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/key.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/gate.ogg" kind="Audio"/>
+	<asset path="assets/forest/sounds/win.ogg" kind="Audio"/>
+	<asset path="assets/forest/forest.ldtk" kind="LDtk"/>
+	<asset path="components/hero.component.xml" kind="Component"/>
+	<asset path="components/coin.component.xml" kind="Component"/>
+	<asset path="components/snail.component.xml" kind="Component"/>
+	<asset path="components/key.component.xml" kind="Component"/>
+	<asset path="components/gate.component.xml" kind="Component"/>
+	<asset path="components/chest.component.xml" kind="Component"/>
 	<global script="GameState">
 		<prop name="ship" value="data/scout.data.json"/>
 	</global>
@@ -49,5 +70,11 @@
 	<action name="ui_cancel">
 		<key key="Escape"/>
 		<gamepad button="East"/>
+	</action>
+	<action name="jump">
+		<key key="Space"/>
+		<key key="Up"/>
+		<key key="W"/>
+		<gamepad button="South"/>
 	</action>
 </project>

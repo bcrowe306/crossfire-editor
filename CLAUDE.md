@@ -99,8 +99,12 @@ add it as a task and to the README's command table.
 - `task prebuilt` builds this platform's **prebuilt player** (`<engine>/player`, `-o:speed`) into
   `build/prebuilt/<target>/player` and `build/release/prebuilt/...`, next to both editors: projects
   without scripts then play and export without compiling. `run` and the UI test tasks depend on it.
-- `task run -- <project folder>` opens another project. With no argument the editor opens
-  `examples/demo_project`, recreating it from `Project_CreateDemo` if it's missing.
+- `task run -- <project folder>` opens another project. With no argument the editor opens the
+  demo project (`Editor_DemoProject`): `examples/demo_project` beside the executable (release
+  archives ship it there), else in the working folder (a checkout); from a macOS bundle a copy
+  in `~/Documents/Crossfire Editor`, made on first run from the bundle's
+  `Resources/demo_project` (`Editor_ShippedDemo`, `Folder_Copy`). Only when there's no shipped
+  demo to copy does `Project_CreateDemo` write a reduced built-in one.
 - Skald is imported as `import "gui:skald"` (`-collection:gui=Skald`, set by the Taskfile).
 - Runtime needs a Vulkan loader and SDL3 (plus SDL3_image, SDL3_ttf, SDL3_mixer through the engine).
   Per-OS setup is in `Skald/PLATFORMS.md`.
@@ -154,7 +158,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `vcs.odin` | Version control through `git`: `GitSnapshot` / `Git_ReadSnapshot`, `GitOp` / `Git_Commands` / `Git_RunCommands`, `Git_Update` |
 | `view_git.odin` | The bottom panel's Git tab |
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
-| `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject`, `Editor_ArgumentPath` |
+| `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
@@ -197,7 +201,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `editor_test.odin` | Unit tests for the model, XML round trips, transforms, assets, search, viewport math, keymap and update |
 | `tests/ui/*.script` | UI test scripts, run by `task test:ui` |
 | `tests/fixtures/` | Files tests import (`beep.wav`: a generated 1.5 s tone) |
-| `examples/demo_project/` | The demo project: project.xml, scenes/, generated sprite images in assets/ |
+| `examples/demo_project/` | The demo project, shipped with the editor: the Asteroids game and the forest level (ForestScene: an LDtk level, `assets/forest/`, with entity components and scripts). Its README lists what each part demonstrates |
+| `tools/demo/make_forest.py` | Made the forest level from the Legacy-Fantasy and GameSounds packs: copies and cuts the images (a combined hero sheet), copies the sounds, and writes `forest.ldtk` from LDtk's JSON schema (every required key; validated), with auto-layer rules and the tiles they make. Rerun only to start the level over: it's edited in LDtk now |
 
 **Layout rules learned building it:**
 - `skald.split` only sizes its **first** pane. Panels that should keep their size (sidebars, bottom
@@ -951,6 +956,12 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   level), keyed by file, level and the file's modification time. `ldtkThumbnailView` uploads it.
 - **Play reloads** saved LDtk files (the engine's LDtk_WatchFiles in dev runs): tiles, collision
   and backgrounds update in the running game; entity changes need another Play.
+- **The demo's forest level** (ForestScene, `examples/demo_project/assets/forest/forest.ldtk`)
+  uses all of it: auto-layer rules, IntGrid collision, parallax layers, entities mapped to
+  components with scripts named like them, fields, an EntityRef. Test:
+  `shipped_demo_copies_with_its_level` (copied like a bundle's first run, loaded, its files
+  exported). It was checked playing (a headless program driving the hero through each mechanic)
+  and rendered, in the game and as the editor shows it.
 
 ## Input actions (implemented; engine: input.odin)
 
@@ -1161,7 +1172,8 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
 
 	Contents/MacOS/odin_sdl_editor, ols, prebuilt/<target>/player
 	Contents/Frameworks/   libvulkan.1.dylib, libMoltenVK.dylib, whatever else dylibbundler finds
-	Contents/Resources/    vulkan/icd.d/MoltenVK_icd.json, engine/ (sources, box2d/lib, sdl/lib)
+	Contents/Resources/    vulkan/icd.d/MoltenVK_icd.json, engine/ (sources, box2d/lib, sdl/lib),
+	                       demo_project/ (the demo's git-tracked files)
 
 - **Steps** (tools/macos/bundle.sh, one task each): `layout` (Info.plist from Info.plist.in, the
   binaries, the engine's git-tracked files without third_party/), `vulkan` (Homebrew's loader and
@@ -1177,7 +1189,8 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
   bundle's loader and `VK_DRIVER_FILES` / `VK_ICD_FILENAMES` to its MoltenVK manifest (unless set).
 - **A bundle is read-only and starts in `/`:** `Editor_SetupBundle` makes the data folder
   (`Toolchain_DataDir`) the working folder, so Play's and Export's relative `build/` folders land
-  there; settings live there too; the demo project goes to `~/Documents/Crossfire Editor/`.
+  there; settings live there too; the demo project goes to `~/Documents/Crossfire Editor/`
+  (copied from `Resources/demo_project` on first run, since the bundle is read-only).
   Command-line and UI-script paths resolve against the folder the editor was started in
   (`Editor_ArgumentPath`: the driver's `import`, `open_project`, archives). The engine is found in
   `Resources/engine`, OLS beside the executable (`Code_FindOLS`), the prebuilt player in
@@ -1219,8 +1232,8 @@ failed, fixes it and builds again with the next tag.
   `tools/ci/setup.sh` and `tools/build_box2d.sh` set things up. The emsdk submodule isn't
   fetched (desktop builds don't need it).
 - macOS uses the bundling tasks instead (above): its release asset is the `.dmg`.
-- `tools/ci/package_editor.sh` packs the built editor (Linux, Windows) (settings and fonts are built in; the demo
-  is recreated when missing), its SDL3 libraries when SDL isn't static, this platform's prebuilt
+- `tools/ci/package_editor.sh` packs the built editor (Linux, Windows) (settings and fonts are built in), the demo
+  project's git-tracked files in `examples/demo_project` (where `Editor_DemoProject` finds it), its SDL3 libraries when SDL isn't static, this platform's prebuilt
   player (`prebuilt/<target>/player`; SDL DLLs beside both on Windows only without the static SDL,
   which CI now builds there too: `ldd` checks no SDL library is loaded), and the engine's
   sources in `engine/` (git-tracked files without `third_party/`, plus `box2d/lib` and `sdl/lib`;

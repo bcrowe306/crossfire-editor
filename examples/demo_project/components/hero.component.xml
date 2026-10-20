@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="12" name="hero">
+	<node kind="CharacterMover" name="Hero" x="0" y="0">
+		<node kind="AnimatedSprite" name="Sprite" x="0" y="-36" texture="assets/forest/hero.png" columns="15" rows="3" autoplay="idle">
+			<animation name="idle" start="0" end="3" fps="6" loop="true"/>
+			<animation name="run" start="15" end="22" fps="12" loop="true"/>
+			<animation name="jump" start="32" end="35" fps="8" loop="true"/>
+			<animation name="fall" start="38" end="41" fps="10" loop="true"/>
+		</node>
+		<node kind="CollisionShape" name="Body" x="0" y="-20" shape="Capsule" radius="7" height="40"/>
+	</node>
+</component>
