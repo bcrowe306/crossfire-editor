@@ -51,4 +51,13 @@ key shift+UP
 key ctrl+s
 wait_until modified false
 expect project_file_contains scenes/PlayScene.scene.xml zIndex="13"
+
+# A focused dropdown steps with Up and Down while closed (clicked open and closed: it keeps focus)
+scroll_into_view inspector-scroll inspector-Process_Mode-11
+click_widget inspector-Process_Mode-11
+click_widget inspector-Process_Mode-11
+key DOWN
+key ctrl+s
+wait_until modified false
+expect project_file_contains scenes/PlayScene.scene.xml processMode="Always"
 quit

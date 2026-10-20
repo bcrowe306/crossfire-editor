@@ -9,13 +9,6 @@ owns it.
 - A faster correct software path for LDtk tiles (SDL's software renderer draws them as separate
   triangles, correct but slow: the headless demo run takes ~3 min).
 
-## Editor UI
-
-- **Arrow keys change a focused dropdown's choice** (Up/Down while it's closed). Value sliders,
-  number fields, the fader and pan control already step with them, and Skald's slider does; its
-  `select` only opens on Space/Enter, so this one is a change in Skald.
-
-
 ## Builds and releases
 
 - **macOS bundle signing and notarization** with gon (`brew install mitchellh/gon/gon`, a

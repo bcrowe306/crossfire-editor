@@ -255,7 +255,8 @@ Skald is not immediate-mode and not a retained widget tree:
 - **Arrow keys step a focused control** (`arrowSteps` in value_slider.odin: Right/Up +1,
   Left/Down -1, Shift ×10): `valueSlider`'s track (focusable, Tab reaches it; its thumb turns the
   accent color while focused), `numberField` (Up/Down only: Left/Right move the caret), the
-  mixer's `fader` and `panControl`. Tests: node_settings.script, particles.script.
+  mixer's `fader` and `panControl`; Skald's own slider, and its `select` (Up / Down while closed:
+  Skald 5fc513b). Tests: node_settings.script, particles.script.
 - Inspector fields use tight padding (`InspectorFieldPadding`, 2 px vertical) and capped widths
   (`INSPECTOR_MAX_NUMBER_WIDTH` 120, `INSPECTOR_MAX_TEXT_WIDTH` 200). Position and Scale have a link
   toggle (`inspectorLinks`): a change to one axis scales the other by the same ratio
