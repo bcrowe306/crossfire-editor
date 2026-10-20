@@ -286,11 +286,23 @@ exports build engine objects from them. This keeps saving, undo and export deter
 **Rendering** (`viewport_preview.odin`): the open scene is rendered by the engine itself, so
 sprites, animations, text and menus look as they do in the game. Future engine features
 (particles) appear without editor work.
-- The engine draws with SDL's software renderer into a surface, then the view uploads the pixels
-  with `skald.image_update_pixels` (or `image_load_pixels` when the size changes). The image is
-  drawn with `draw_image` inside a canvas.
+- The engine draws with **a GPU renderer of SDL's** (SDL's choice: OpenGL here) owned by a hidden
+  window of the preview's own, into a render-target texture, and the pixels are read back
+  (`RenderReadPixels`); then the view uploads them with `skald.image_update_pixels` (or
+  `image_load_pixels` when the size changes). The image is drawn with `draw_image` inside a
+  canvas. Skald's Vulkan context can't be shared with SDL's renderer, hence the round trip.
+  - **Software fallback:** without SDL video (unit tests, which run on several threads), when no
+    GPU renderer can be made, or with `EDITOR_PREVIEW_SOFTWARE` set, it draws with SDL's software
+    renderer into a surface, as it used to. That path was slower (90% of renders under 40 ms
+    against under 7 ms on the GPU, measured zooming the forest fullscreen) and had its own bugs
+    (the engine's LDtk tiles: cracks, then tiles vanishing after a zoom).
+  - Growing the GPU target keeps the renderer, its game and textures (the software surface
+    still rebuilds them).
+  - Measured then: the Skald upload (~12 ms fullscreen) became the larger cost; making it cheap
+    is the Skald change below.
 - **The upload is the expensive part** (Skald rebuilds mipmaps on the CPU and waits for the GPU on
-  every update: ~4 ms optimized, ~46 ms in a debug build, for a 400x730 px viewport). So:
+  every update: ~4 ms optimized, ~46 ms in a debug build, for a 400x730 px viewport; ~12 ms for
+  a fullscreen 1059x555 one). So:
   - the view only renders and uploads when `Preview_FrameKey` changes (scene, transforms, view,
     size, animation frame); other redraws reuse the image
   - animations run on a timer at `VIEWPORT_ANIMATION_FPS` (30): `Viewport_Tick` schedules the

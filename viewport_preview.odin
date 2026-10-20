@@ -3,6 +3,7 @@ package editor
 import "core:fmt"
 import "core:hash"
 import "core:log"
+import "core:os"
 import "core:strings"
 import "core:time"
 import e "engine:."
@@ -14,21 +15,33 @@ The viewport's live preview: the open scene rendered by the engine itself, so sp
 animations, text and menus look exactly as they do in the game (and future engine features,
 like particles, show up without editor work).
 
-The engine draws with SDL's software renderer into a surface; the view uploads those pixels to a
-Skald image when `Preview_FrameKey` says the picture changed (the upload is the slow part). The preview keeps SDL resources, so it lives here as package state, not
-in `State`:
+The engine draws with a GPU renderer of SDL's (Vulkan, OpenGL...: SDL's choice, as the game
+gets) into a render-target texture, owned by a hidden window of its own, and the pixels are read
+back; the view uploads them to a Skald image when `Preview_FrameKey` says the picture changed.
+Skald draws with Vulkan in a context SDL's renderer can't share, hence the round trip. Without
+SDL video (unit tests), when the GPU renderer can't be made, or with EDITOR_PREVIEW_SOFTWARE
+set, it draws with SDL's software renderer into a surface instead (slower: a whole forest level
+took about 38 ms; and it has had its own bugs, see the engine's LDtk tile drawing).
+The preview keeps SDL resources, so it lives here as package state, not in `State`:
 - The engine scene is rebuilt only when the scene's structure changes (node kinds, textures, text,
   animation settings...), detected with `sceneSignature`.
 - Transforms, visibility and layers are copied to the engine nodes every frame, so dragging is
   cheap and animations don't restart. So are particle settings: an emitter keeps its particles
   while its settings are edited, and one that emits once replays when its particles are gone.
-- The surface only grows, so resizing the panel doesn't reload textures each time.
+- The render target (or surface) only grows; growing the GPU target keeps the renderer, its game
+  and its textures.
 */
 
 @(private="file")
 Preview :: struct {
 	failed: bool,
+	// Software: the surface the renderer draws into
 	surface: ^sdl.Surface,
+	// GPU: the hidden window owning the renderer, the texture it draws into, and whether the GPU
+	// renderer couldn't be made (then software for good)
+	window: ^sdl.Window,
+	target: ^sdl.Texture,
+	gpuFailed: bool,
 	renderer: ^sdl.Renderer,
 	game: ^e.Game,
 	scene: ^e.Scene,
@@ -87,6 +100,7 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	}
 
 	r := preview.renderer
+	if preview.target != nil do sdl.SetRenderTarget(r, preview.target)
 	viewport := sdl.Rect{0, 0, i32(size.x), i32(size.y)}
 	sdl.SetRenderViewport(r, &viewport)
 	sdl.SetRenderClipRect(r, &viewport)
@@ -155,21 +169,35 @@ Preview_IsAnimated :: proc() -> bool {
 	return preview.animated
 }
 
-// Grows the surface (and recreates the renderer for it) when the view gets bigger
+/*
+Makes sure there's something to draw into at least `size` big: the GPU renderer's target (made
+the first time, with its hidden window and game; a bigger target later keeps them), else a
+software renderer's surface (made again, with a new game, when it grows).
+*/
 @(private="file")
 ensureSurface :: proc(size: [2]int) -> bool {
-	if preview.surface != nil && preview.surface.w >= i32(size.x) && preview.surface.h >= i32(size.y) do return true
-
 	// Round up so small resizes don't recreate everything
 	w := (size.x + 255) / 256 * 256
 	h := (size.y + 255) / 256 * 256
-	destroyAll()
-
 	if ttf.WasInit() == 0 && !ttf.Init() {
 		log.errorf("Viewport preview: SDL_ttf init failed: %s", sdl.GetError())
 		preview.failed = true
 		return false
 	}
+
+	if preview.window == nil && !preview.gpuFailed && preview.surface == nil do startGPU()
+	if preview.window != nil {
+		if preview.target != nil && preview.target.w >= i32(size.x) && preview.target.h >= i32(size.y) do return true
+		if preview.target != nil do sdl.DestroyTexture(preview.target)
+		preview.target = sdl.CreateTexture(preview.renderer, .RGBA32, .TARGET, i32(w), i32(h))
+		if preview.target != nil do return true
+		log.warnf("Viewport preview: no %dx%d render target (%s); drawing in software", w, h, sdl.GetError())
+		destroyAll()
+		preview.gpuFailed = true
+	}
+
+	if preview.surface != nil && preview.surface.w >= i32(size.x) && preview.surface.h >= i32(size.y) do return true
+	destroyAll()
 	preview.surface = sdl.CreateSurface(i32(w), i32(h), .RGBA32)
 	if preview.surface != nil do preview.renderer = sdl.CreateSoftwareRenderer(preview.surface)
 	if preview.renderer == nil {
@@ -181,6 +209,41 @@ ensureSurface :: proc(size: [2]int) -> bool {
 	preview.game.renderer = preview.renderer
 	e.ResourceManager_Init(&preview.game.resourceManager, preview.renderer, nil)
 	return true
+}
+
+// The GPU renderer: a hidden window with SDL's choice of renderer, and the game that draws with it.
+// Only with SDL video running (the editor; not unit tests), and not a software renderer (then the
+// surface path is the same thing, cheaper)
+@(private="file")
+startGPU :: proc() {
+	preview.gpuFailed = true
+	if os.get_env("EDITOR_PREVIEW_SOFTWARE", context.temp_allocator) != "" do return
+	if sdl.WasInit({.VIDEO}) == {} do return
+	preview.window = sdl.CreateWindow("Viewport preview", 64, 64, {.HIDDEN})
+	if preview.window == nil {
+		log.warnf("Viewport preview: no hidden window (%s); drawing in software", sdl.GetError())
+		return
+	}
+	preview.renderer = sdl.CreateRenderer(preview.window, nil)
+	name := preview.renderer != nil ? string(sdl.GetRendererName(preview.renderer)) : ""
+	if preview.renderer == nil || name == "software" {
+		log.warnf("Viewport preview: no GPU renderer (%s); drawing in software", preview.renderer == nil ? string(sdl.GetError()) : "SDL chose software")
+		if preview.renderer != nil do sdl.DestroyRenderer(preview.renderer)
+		sdl.DestroyWindow(preview.window)
+		preview.renderer, preview.window = nil, nil
+		return
+	}
+	preview.gpuFailed = false
+	_ = sdl.SetRenderVSync(preview.renderer, 0)
+	log.infof("Viewport preview: drawing with SDL's %s renderer", name)
+	preview.game = new(e.Game)
+	preview.game.renderer = preview.renderer
+	e.ResourceManager_Init(&preview.game.resourceManager, preview.renderer, nil)
+}
+
+// Whether the preview draws on the GPU (tests, the status bar)
+Preview_UsesGPU :: proc() -> bool {
+	return preview.window != nil
 }
 
 // Builds a fresh engine scene from the editor scene
@@ -466,6 +529,24 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 @(private="file")
 copyPixels :: proc(size: [2]int) -> []u8 {
 	surface := preview.surface
+	// GPU: read the target back (RGBA32 rows)
+	readBack: ^sdl.Surface
+	if preview.target != nil {
+		rect := sdl.Rect{0, 0, i32(size.x), i32(size.y)}
+		readBack = sdl.RenderReadPixels(preview.renderer, &rect)
+		if readBack != nil && readBack.format != .RGBA32 {
+			converted := sdl.ConvertSurface(readBack, .RGBA32)
+			sdl.DestroySurface(readBack)
+			readBack = converted
+		}
+		if readBack == nil {
+			log.errorf("Viewport preview: couldn't read the render back: %s", sdl.GetError())
+			resize(&preview.pixels, size.x * size.y * 4)
+			return preview.pixels[:]
+		}
+		surface = readBack
+	}
+	defer if readBack != nil do sdl.DestroySurface(readBack)
 	resize(&preview.pixels, size.x * size.y * 4)
 	src := ([^]u8)(surface.pixels)
 	row := size.x * 4
@@ -593,9 +674,13 @@ destroyAll :: proc() {
 		free(preview.game)
 		preview.game = nil
 	}
+	if preview.target != nil do sdl.DestroyTexture(preview.target)
 	if preview.renderer != nil do sdl.DestroyRenderer(preview.renderer)
+	if preview.window != nil do sdl.DestroyWindow(preview.window)
 	if preview.surface != nil do sdl.DestroySurface(preview.surface)
+	preview.target = nil
 	preview.renderer = nil
+	preview.window = nil
 	preview.surface = nil
 	preview.signature = 0
 	clear(&preview.nodes)
