@@ -1030,7 +1030,8 @@ Component node, and from scripts with `e.Scene_Instantiate(scene, COMPONENT_X)`.
   fits it; one cache per place (`LDtkThumbnailSlot`: the browser's world map, the inspector's
   level), keyed by file, level and the file's modification time. `ldtkThumbnailView` uploads it.
 - **Play reloads** saved LDtk files (the engine's LDtk_WatchFiles in dev runs): tiles, collision
-  and backgrounds update in the running game; entity changes need another Play.
+  and backgrounds update in the running game, layers added or removed appear or go, and
+  entities placed or deleted spawn or go (the others keep running).
 - **The demo's forest level** (ForestScene, `examples/demo_project/assets/forest/forest.ldtk`)
   uses all of it: auto-layer rules, IntGrid collision, parallax layers, entities mapped to
   components with scripts named like them, fields (enemies' patrol, speed, health), an EntityRef.

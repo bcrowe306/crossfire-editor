@@ -39,11 +39,6 @@ owns it.
   repositories, the Odin packages. Only display names, archives, the app bundle, the data folder
   and the app ID are Crossfire so far.
 
-## LDtk levels
-
-- Hot reload of entities and of layers added or removed (Play reloads tiles, collision and
-  backgrounds; entities would need scripts to let go of their nodes).
-
 ## Version control (Git tab)
 
 - Diffs of a change, discarding changes, merge conflicts, Git LFS for large assets, the branch
