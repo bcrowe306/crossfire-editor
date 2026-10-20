@@ -4,11 +4,6 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
-## Engine
-
-- A faster correct software path for LDtk tiles (SDL's software renderer draws them as separate
-  triangles, correct but slow: the headless demo run takes ~3 min).
-
 ## Builds and releases
 
 - **macOS bundle signing and notarization** with gon (`brew install mitchellh/gon/gon`, a
