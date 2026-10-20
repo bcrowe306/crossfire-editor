@@ -816,7 +816,8 @@ What a user needs to build games, so a release works without a checkout or a han
   shows missing; `toolchain <name>: <found|missing>` in the driver). Verified by hand: with no
   odin in PATH (mise's shims removed) and `XDG_DATA_HOME` scratch, Install Odin, then
   `scripts.script` compiles with the installed one (its path in the Output tab).
-- Later: the zig experiment (one linker everywhere, an old glibc target) and the emsdk download.
+- CI's Linux builds link with zig against glibc 2.31 (the engine's `tools/ci/zig_toolchain.sh`;
+  `package_editor.sh` checks the editor and player). Users' own builds still use their linker.
 
 ## Project format (XML)
 
@@ -1368,7 +1369,7 @@ pass (tags with a `-`, like `v0.1.0-dev.1`, make pre-releases). The README's bad
 latest run. The workspace's `ci-fix` skill (`.claude/skills/ci-fix/`) watches a run, finds why it
 failed, fixes it and builds again with the next tag.
 - The engine's `main` is checked out next to the editor (`odin_sdl_engine/`), and its
-  `tools/ci/setup.sh` and `tools/build_box2d.sh` set things up. The emsdk submodule isn't
+  `tools/ci/setup.sh`, `tools/ci/zig_toolchain.sh` (Linux) and `tools/build_box2d.sh` set things up. The emsdk submodule isn't
   fetched (desktop builds don't need it).
 - macOS uses the bundling tasks instead (above): its release asset is the `.dmg`.
 - `tools/ci/package_editor.sh` packs the built editor (Linux, Windows) (settings and fonts are built in), the demo
