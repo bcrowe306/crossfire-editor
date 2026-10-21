@@ -39,6 +39,8 @@ fieldTip :: proc(label: string) -> string {
 	case "Margin":         return "Pixels around the sheet's edge before the first frame."
 	case "Spacing":        return "Pixels between frames (or between items, for menus)."
 	case "Centered":       return "Draws the image centered on the node's position (otherwise its top-left corner is there)."
+	case "First clip":     return "The clip the Animator plays when the scene starts (None: it waits for a script's e.Animator_Play)."
+	case "Clip speed":     return "How fast its clips play: 2 is twice as fast, 0 holds them."
 	case "Starts with":    return "The animation the sprite plays when the scene starts."
 	case "Text":           return "The text shown. Text starting with @ is a translation key (@menu.play), shown in the game's language."
 	case "Font size":      return "Text size in pixels."
@@ -195,4 +197,4 @@ scriptFieldTip :: proc(field: ^ScriptFieldDesc) -> string {
 }
 
 // The bottom panel's tab strip
-BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control."
+BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control. Tiles: paint the selected TileMap. Timeline: the selected Animator's keyframe clips."

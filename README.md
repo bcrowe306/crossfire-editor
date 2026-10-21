@@ -373,6 +373,14 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
+**Keyframe animation:** an **Animator** node plays clips that change other nodes over time:
+position, rotation, scale, tint and opacity, visibility, a label's text, an AnimatedSprite's
+animation, any script field. Edit its clips in the bottom panel's **Timeline** tab: add tracks,
+move the playhead, move the node and press Key; drag keys, pick each key's easing curve, add
+event keys that call your scripts (the Animator's `onEvent`), and play them in the viewport.
+Scripts play clips with `e.Animator_Play`. See the
+[manual's Keyframe animation page](docs/manual/animation.md).
+
 **Animations as assets:** an AnimatedSprite can play an animation asset instead of its own
 animations, so one set of animations (idle, run, jump) is shared by every sprite that needs it.
 An Aseprite file is one as it is: each tag is an animation, with its frames' durations, its

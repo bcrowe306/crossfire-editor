@@ -4,8 +4,8 @@ import "core:fmt"
 import "gui:skald"
 
 /*
-Bottom panel: Console, Output, Animation (view_animation.odin), Mixer (view_mixer.odin) and Git
-(view_git.odin) tabs.
+Bottom panel: Console, Output, Animation (view_animation.odin), Mixer (view_mixer.odin), Git
+(view_git.odin), Tiles (view_tiles.odin) and Timeline (view_timeline.odin) tabs.
 Keyboard shortcuts are listed in Settings > Keyboard (Help > Keyboard Shortcuts opens it). The chevron collapses it to just its header;
 clicking a tab while collapsed opens it again.
 */
@@ -16,15 +16,32 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	labels := make([]string, len(BottomTab), context.temp_allocator)
 	for tab in BottomTab do labels[tab] = fmt.tprintf("%v", tab)
 
-	header := skald.row(
-		skald.tooltip(ctx, skald.tabs(ctx, labels, int(s.bottomTab),
-			proc(index: int) -> Msg { return Bottom_Tab_Changed(index) },
-			id = skald.hash_id("bottom-tabs")), BOTTOM_TABS_TIP, id = skald.hash_id("bottom-tabs-tip")),
-		skald.flex(1, skald.spacer(0)),
+	tabs := skald.tooltip(ctx, skald.tabs(ctx, labels, int(s.bottomTab),
+		proc(index: int) -> Msg { return Bottom_Tab_Changed(index) },
+		id = skald.hash_id("bottom-tabs")), BOTTOM_TABS_TIP, id = skald.hash_id("bottom-tabs-tip"))
+	buttons := skald.row(
 		panelButton(ctx, "clear-log", ICON_TRASH, "Clear", Action.Clear_Console,
 			disabled = !clearable(s)),
 		panelButton(ctx, "toggle-bottom", open ? ICON_CHEVRON_DOWN : ICON_CHEVRON_UP,
 			open ? "Collapse panel (Ctrl+J)" : "Expand panel (Ctrl+J)", Action.Toggle_Bottom_Panel),
+		spacing = th.spacing.xs,
+		cross_align = .Center,
+	)
+	// More tabs than the panel is wide scroll sideways, like the center's: unclipped, the ones
+	// past its edge took clicks meant for the inspector beside it (a dropdown's choice there
+	// switched the tab)
+	left, right := FittedSidebarWidths(&s.layout)
+	panelWidth := s.layout.workspace.x - left - right - DIVIDER * 2
+	tabsWidth, tabsHeight := f32(200), f32(30)
+	if ctx.renderer != nil {
+		tabsWidth = max(panelWidth - skald.view_size(ctx.renderer, buttons).x - th.spacing.xs * 3, 60)
+		tabsHeight = skald.view_size(ctx.renderer, tabs).y
+	}
+	hScroll_Reveal(ctx, "bottom-tabs-scroll", skald.widget_make_sub_id(skald.hash_id("bottom-tabs"), u64(int(s.bottomTab) + 1)))
+	header := skald.row(
+		hScroll(ctx, "bottom-tabs-scroll", tabs, tabsWidth, tabsHeight, thin = true),
+		skald.flex(1, skald.spacer(0)),
+		buttons,
 		spacing = th.spacing.xs,
 		padding = th.spacing.xs,
 		cross_align = .Center,
@@ -40,6 +57,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Mixer:     content = MixerPanel(s, ctx)
 	case .Git:       content = GitPanel(s, ctx)
 	case .Tiles:     content = TilesPanel(s, ctx)
+	case .Timeline:  content = TimelinePanel(s, ctx)
 	}
 
 	return skald.col(

@@ -57,6 +57,9 @@ Preview :: struct {
 	// (`Preview_FrameKey`), and when that was last looked at
 	texturesVersion: int,
 	texturesChecked: time.Tick,
+	// The Timeline's clip was applied last frame: once it isn't, the scene is built again (an
+	// Animator may have changed what the build set, a label's text)
+	timelineApplied: bool,
 }
 
 @(private="file")
@@ -84,6 +87,9 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 
 	scene := &s.project.scenes[s.currentScene]
 	signature := sceneSignature(s, scene)
+	timeline := s.timeline.previewing && s.bottomTab == .Timeline && s.layout.bottomOpen
+	if preview.timelineApplied && !timeline do preview.signature = 0
+	preview.timelineApplied = false
 	if preview.scene == nil || signature != preview.signature {
 		rebuild(s, scene)
 		preview.signature = signature
@@ -105,6 +111,15 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	preview.lastFrame = now
 	if s.viewport.animate && dt > 0 {
 		e.Scene_Update(preview.scene, nil, dt)
+	}
+	// The Timeline's clip at its playhead, over everything else
+	if timeline {
+		if _, index := Timeline_Animator(s); index >= 0 {
+			if node := Preview_Node(index); node != nil && e.Node_Is(node, e.Animator) {
+				e.Animator_Apply(cast(^e.Animator)node, s.timeline.clip, s.timeline.playhead)
+				preview.timelineApplied = true
+			}
+		}
 	}
 
 	r := preview.renderer
@@ -146,6 +161,7 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		animationFrame: int,
 		background: [4]u8,
 		textures: int,
+		timeline: struct { previewing: bool, clip: int, time: f32 },
 	}
 	// Images saved since: read again in place, at most twice a second (a frame only comes when
 	// something happens: coming back to the editor after saving in Aseprite is one)
@@ -164,6 +180,7 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		animationFrame = s.viewport.animate ? s.viewport.animationFrame : -1,
 		background = transmute([4]u8)SceneSettings_Background(&s.project, scene),
 		textures = preview.texturesVersion,
+		timeline = {s.timeline.previewing && s.bottomTab == .Timeline && s.layout.bottomOpen, s.timeline.clip, s.timeline.playhead},
 	}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	for node in scene.nodes {
@@ -292,6 +309,8 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	preview.game.components = nil
 	preview.game.animationSets = nil
 	e.Scene_ProcessQueues(preview.scene)
+	// Animators don't start their clips in the editor: the Timeline shows them
+	for node in created do if node != nil && e.Node_Is(node, e.Animator) do (cast(^e.Animator)node).started = true
 	// One update without time: hitboxes following Aseprite slices take their place (and nothing
 	// moves)
 	e.Scene_Update(preview.scene, nil, 0)
@@ -518,7 +537,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator,
 		})
 	}
 	return data
@@ -552,6 +571,18 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 			for layer in t.painted {
 				fmt.sbprintf(&b, "|%s %d %d %d %d %d ", layer.layer, layer.tileset, layer.x, layer.y, layer.columns, layer.rows)
 				strings.write_bytes(&b, transmute([]u8)mem_slice(layer.tiles[:]))
+			}
+		}
+		// An Animator's clips are read when it's built
+		if node.kind == .Animator {
+			a := node.animator
+			fmt.sbprintf(&b, "|%s %v", a.autoplay, a.speed)
+			for clip in a.clips {
+				fmt.sbprintf(&b, "|%s %v %v", clip.name, clip.length, clip.loop)
+				for track in clip.tracks {
+					fmt.sbprintf(&b, "|%s %s %v", track.node, track.property, track.step)
+					for key in track.keys do fmt.sbprintf(&b, " %v=%s~%v", key.time, key.value, key.ease)
+				}
 			}
 		}
 		// An instance rebuilds when its component changes

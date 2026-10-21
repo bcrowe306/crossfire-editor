@@ -43,6 +43,10 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	click_tile <n>                   Click tile n (1 is the first) of the Tiles panel's palette
 	drag_world x1 y1 x2 y2 [right]   Press at a world point in the viewport, move to another, release
 	paint_cells c1 r1 c2 r2 [right]  A stroke between two cells of the selected TileMap (the Tiles panel's layer)
+	click_timeline <seconds> [track] [double]
+	                                 Click the Timeline's tracks at a time: on the ruler, or on a track's row
+	drag_timeline_key <track> <key> <seconds>
+	                                 Drag a key of the Timeline's clip to a time
 	click_frame <n> [shift]          Click thumbnail n of the Animation panel's frames
 	click_overlay_item <i>           Click button i (top to bottom) of the open popup, e.g. a
 	                                 dropdown's choices after click_widget opened it
@@ -186,6 +190,11 @@ Checks:
 	                             What the viewport built for the selected LDtkLevel node
 	aseprite <layers|pivot|nine|slice> <value | none>
 	                             The selected node's Aseprite settings
+	timeline <clip|clips|tracks|keys|playhead|playing|autoplay> <value>
+	                             The Timeline: its clip's name, clip count, track count, the selected track's key count,
+	                             playhead (2 decimals), playing, the clip the Animator starts with
+	timeline_key <track> <key> <seconds> [value]
+	                             A key of the Timeline's clip (seconds with 2 decimals)
 	tile_tool <Tool>             The Tiles panel's tool (Paint, Erase, Rectangle, Fill, Pick, Terrain)
 	tile_brush <n>               The Tiles panel's brush tile (flips left out)
 	tile <layer> <column> <row> <tile>
@@ -538,6 +547,55 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		STEPS :: 4
 		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
 		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b, button))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "click_timeline", "drag_timeline_key":
+		// Points in the Timeline's tracks canvas (view_timeline.odin's measures)
+		state, ok := ctx.widgets.states[skald.hash_id("timeline-canvas")]
+		clip := Timeline_Clip(s)
+		if !ok || state.last_rect.w <= 0 || clip == nil {
+			fail(fmt.tprintf("%s: the Timeline's tracks weren't drawn last frame", line))
+			return true
+		}
+		r := state.last_rect
+		at :: proc(r: skald.Rect, length, seconds: f32, row: int) -> [2]f32 {
+			y := row < 0 ? f32(TIMELINE_RULER_HEIGHT) * 0.5 : f32(TIMELINE_RULER_HEIGHT) + (f32(row) + 0.5) * TIMELINE_ROW_HEIGHT
+			return {r.x + Timeline_TimeX(timelineCanvasWidth, length, seconds), r.y + y}
+		}
+		if command == "click_timeline" {
+			seconds, _ := strconv.parse_f32(len(args) > 0 ? args[0] : "0")
+			row := len(args) > 1 ? atoi(args, 1, -1) : -1
+			p := at(r, clip.length, seconds, row)
+			if len(args) > 2 && args[2] == "double" {
+				pushMouse(.MOUSE_MOTION, p)
+				queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, p))
+				queueBatch(mouseEvent(.MOUSE_BUTTON_UP, p))
+				second := mouseEvent(.MOUSE_BUTTON_DOWN, p)
+				second.button.clicks = 2
+				queueBatch(second)
+				queueBatch(mouseEvent(.MOUSE_BUTTON_UP, p))
+				driver.waitFrames = INPUT_SETTLE_FRAMES
+			} else {
+				click(p)
+			}
+			report(true, line)
+			return false
+		}
+		track, key := atoi(args, 0, 0), atoi(args, 1, 0)
+		seconds, _ := strconv.parse_f32(len(args) > 2 ? args[2] : "0")
+		if track < 0 || track >= len(clip.tracks) || key < 0 || key >= len(clip.tracks[track].keys) {
+			fail(fmt.tprintf("%s: no key %d on track %d", line, key, track))
+			return true
+		}
+		a := at(r, clip.length, clip.tracks[track].keys[key].time, track)
+		b := at(r, clip.length, seconds, track)
+		pushMouse(.MOUSE_MOTION, a)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, a))
+		STEPS :: 4
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
@@ -1334,6 +1392,39 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return found == strings.trim_space(expected), found
 	case "tile_brush":
 		found = fmt.tprint(s.tilePainter.tile & e.ASEPRITE_TILE_ID)
+	case "timeline":
+		// timeline clip|clips|tracks|playhead|playing|autoplay <value>
+		node, _ := Timeline_Animator(s)
+		if node == nil do return false, "the Timeline shows no Animator"
+		field, _, expected := strings.partition(value, " ")
+		clip := Timeline_Clip(s)
+		switch field {
+		case "clip":     found = clip != nil ? clip.name : "none"
+		case "clips":    found = fmt.tprint(len(node.animator.clips))
+		case "tracks":   found = clip != nil ? fmt.tprint(len(clip.tracks)) : "0"
+		case "playhead": found = fmt.tprintf("%.2f", s.timeline.playhead)
+		case "playing":  found = fmt.tprint(s.timeline.playing)
+		case "autoplay": found = node.animator.autoplay == "" ? "none" : node.animator.autoplay
+		case "keys":
+			t := s.timeline.track
+			found = clip != nil && t >= 0 && t < len(clip.tracks) ? fmt.tprint(len(clip.tracks[t].keys)) : "no track"
+		case: return false, fmt.tprintf("unknown timeline field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "timeline_key":
+		// timeline_key <track> <key> <seconds> <value>
+		clip := Timeline_Clip(s)
+		parts := strings.fields(value, context.temp_allocator)
+		if clip == nil || len(parts) < 3 do return false, "expected a clip, and a track, key and time"
+		track, _ := strconv.parse_int(parts[0])
+		key, _ := strconv.parse_int(parts[1])
+		if track < 0 || track >= len(clip.tracks) || key < 0 || key >= len(clip.tracks[track].keys) do return false, fmt.tprintf("no key %d on track %d", key, track)
+		k := clip.tracks[track].keys[key]
+		found = fmt.tprintf("%.2f %s", k.time, k.value)
+		// Without a value, only the time
+		if len(parts) == 3 do found = fmt.tprintf("%.2f", k.time)
+		want := strings.join(parts[2:], " ", context.temp_allocator)
+		return found == want, found
 	case "tile_tool":
 		found = fmt.tprint(s.tilePainter.tool)
 	case "tile":

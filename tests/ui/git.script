@@ -7,6 +7,8 @@
 wait 5
 # Saved once first: saving writes the fixture's older files in the current format
 key ctrl+s
+# A tiled window's bottom panel is narrow: its tabs scroll sideways (the wheel) to show Git
+wheel_widget bottom-tabs-scroll -5
 click_tab bottom-tabs 4
 expect tab Git
 wait_until git idle

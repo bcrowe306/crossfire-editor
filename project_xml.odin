@@ -216,7 +216,8 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		animations := node.kind == .AnimatedSprite ? node.animations[:] : nil
 		entities := node.kind == .LDtkLevel ? node.ldtk.entityComponents[:] : nil
 		painted := node.kind == .TileMap ? node.tilemap.painted[:] : nil
-		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && len(painted) == 0 && !hasChildren {
+		clips := node.kind == .Animator ? node.animator.clips[:] : nil
+		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -240,6 +241,38 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			attr(&w, "rows", layer.rows)
 			attr(&w, "data", e.TileLayer_Encode(layer.tiles[:], context.temp_allocator))
 			closeEmpty(&w)
+		}
+		// An Animator's clips: tracks of keys (the engine's animator.odin)
+		for clip in clips {
+			open(&w, "clip")
+			attr(&w, "name", clip.name)
+			attr(&w, "length", clip.length)
+			if clip.loop do attr(&w, "loop", true)
+			if len(clip.tracks) == 0 {
+				closeEmpty(&w)
+				continue
+			}
+			endOpen(&w)
+			for track in clip.tracks {
+				open(&w, "track")
+				if track.node != "" do attr(&w, "node", track.node)
+				attr(&w, "property", track.property)
+				if track.step do attr(&w, "step", true)
+				if len(track.keys) == 0 {
+					closeEmpty(&w)
+					continue
+				}
+				endOpen(&w)
+				for key in track.keys {
+					open(&w, "key")
+					attr(&w, "time", key.time)
+					attr(&w, "value", key.value)
+					if key.ease != .Linear do attr(&w, "ease", key.ease)
+					closeEmpty(&w)
+				}
+				close(&w, "track")
+			}
+			close(&w, "clip")
 		}
 		for m in entities {
 			open(&w, "entity")
@@ -524,6 +557,9 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.texture != "" do attr(w, "texture", node.texture)
 	case .Component:
 		attr(w, "component", node.component)
+	case .Animator:
+		if node.animator.autoplay != "" do attr(w, "autoplay", node.animator.autoplay)
+		if node.animator.speed != e.DEFAULT_ANIMATOR_SETTINGS.speed do attr(w, "speed", node.animator.speed)
 	case .TileMap:
 		t := node.tilemap
 		attr(w, "tilemap", t.file)

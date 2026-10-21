@@ -1,0 +1,84 @@
+# Keyframe animation: an Animator under a Label, a clip with a position track keyed from the
+# scene, keys added by double-click and dragged, undo, playing, an event track, autoplay, saved.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+
+# A Label, and an Animator inside it (its tracks' "." is the Label)
+key ctrl+shift+a
+type Label
+click_widget add-node-Label
+expect selected Label
+key ctrl+shift+a
+type Animator
+click_widget add-node-Animator
+expect kind Animator
+scroll_into_view inspector-scroll inspector-animator-timeline-{selected}
+click_widget inspector-animator-timeline-{selected}
+expect tab Timeline
+expect timeline clips 0
+
+# A clip, and a track of the Label's position: its first key at 0
+click_widget timeline-add-clip
+expect timeline clips 1
+expect timeline clip clip
+scroll_into_view timeline-scroll timeline-add-track
+click_widget timeline-add-track
+expect timeline tracks 1
+expect timeline keys 1
+expect timeline_key 0 0 0.00
+
+# The playhead to 1 s, the Label moved, Key: a second key there (one undo step)
+scroll_into_view timeline-scroll timeline-canvas
+click_timeline 1
+expect timeline playhead 1.00
+drag_node Label 40 0
+expect selected Label
+scroll_into_view timeline-scroll timeline-key
+click_widget timeline-key
+expect timeline keys 2
+expect timeline_key 0 1 1.00
+key ctrl+z
+expect timeline keys 1
+key ctrl+y
+expect timeline keys 2
+
+# A double-click on the track keys it there; a key dragged moves (snapped)
+scroll_into_view timeline-scroll timeline-canvas
+click_timeline 0.5 0 double
+expect timeline keys 3
+expect timeline_key 0 1 0.50
+drag_timeline_key 0 1 0.75
+expect timeline_key 0 1 0.75
+key ctrl+z
+expect timeline_key 0 1 0.50
+key ctrl+y
+expect timeline_key 0 1 0.75
+
+# Play: the clip runs to its end and stops
+scroll_into_view timeline-scroll timeline-play
+click_widget timeline-play
+expect timeline playing true
+wait_until timeline playing false
+expect timeline playhead 1.00
+
+# An event track: a key at the playhead, renamed
+scroll_into_view timeline-scroll timeline-add-event-track
+click_widget timeline-add-event-track
+expect timeline tracks 2
+expect timeline_key 1 0 1.00 event1
+scroll_into_view timeline-scroll timeline-key-value
+click_widget timeline-key-value
+key ctrl+a
+type footstep
+expect timeline_key 1 0 1.00 footstep
+
+# The clip it starts with, then saved
+scroll_into_view timeline-scroll timeline-autoplay
+click_widget timeline-autoplay
+expect timeline autoplay clip
+key ctrl+s
+expect modified false

@@ -150,6 +150,9 @@ NodeDef :: struct {
 	ldtk: e.LDtkLevelSettings,
 	// A TileMap's settings (strings owned: tilemap_edit.odin)
 	tilemap: e.TileMapSettings,
+	// An Animator's clips, autoplay and speed (owned: the engine's AnimatorSettings_Clone /
+	// _Destroy; timeline_edit.odin)
+	animator: e.AnimatorSettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -349,6 +352,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		particles = defaults.particles,
 		ldtk = LDtkSettings_Clone(e.DEFAULT_LDTK_LEVEL_SETTINGS),
 		tilemap = TileMapSettings_Clone(e.DEFAULT_TILEMAP_SETTINGS),
+		animator = e.AnimatorSettings_Clone(e.DEFAULT_ANIMATOR_SETTINGS),
 	}
 	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
@@ -406,6 +410,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.nineSlice)
 	delete(node.slice)
 	TileMapSettings_Destroy(&node.tilemap)
+	e.AnimatorSettings_Destroy(&node.animator)
 	delete(node.autoplay)
 	delete(node.component)
 	delete(node.sound)
@@ -807,6 +812,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.audio = node.audio
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
+	def.animator = e.AnimatorSettings_Clone(node.animator)
 	return def
 }
 

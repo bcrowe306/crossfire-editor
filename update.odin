@@ -24,6 +24,10 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	snap: EditSnapshot
 	if info.scope != .None do snap = History_Snapshot(&state, info)
 	out, command := applyMsg(state, m)
+	// The Timeline follows the selected Animator; an edit elsewhere shows the scene as it is
+	// again, not the clip at the playhead
+	if info.scope != .None && !Timeline_IsEdit(m) do out.timeline.previewing = false
+	Timeline_Follow(&out)
 	// The inspector shows a data resource chosen in the browser, until a node is selected
 	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
 	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Data {
@@ -55,6 +59,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := AsepriteEdit_Update(&out, m); handled do return out, command
 	if command, handled := TileMapEdit_Update(&out, m); handled do return out, command
 	if TilePaint_Update(&out, m) do return out, {}
+	if command, handled := Timeline_Update(&out, m); handled do return out, command
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if SceneSettings_Update(&out, m) do return out, {}
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
@@ -81,6 +86,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by TileMapEdit_Update above
 	case Tile_Brush, Tile_Tool_Chosen, Tile_Brush_Chosen, Tile_Layer_Chosen, Tile_Terrain_Chosen, Tile_Tileset_Chosen, Tile_Brush_Turned, Tile_Layer_Added, Tile_Layer_Reverted:
 		// Handled by TilePaint_Update above
+	case Timeline_Changed, Timeline_View, Timeline_Tick, Timeline_Tick_Requested:
+		// Handled by Timeline_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
 	     Anim_Sheet_Texture_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,

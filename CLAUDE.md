@@ -169,6 +169,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `timeline_edit.odin` | **The Timeline** (Animator nodes): `TimelineEditor` (the Animator edited, playhead, selection), `Timeline_Changed` (edits: node steps on the Animator) / `Timeline_View` (panel only), `Timeline_Update`, `Timeline_Follow`, track paths (`Timeline_ResolvePath`, `Timeline_PathTo`), `Timeline_Properties`, `Timeline_NodeValue` (what Key records) |
+| `view_timeline.odin` | The bottom panel's Timeline tab (`TimelinePanel`: clip and transport toolbars, the tracks canvas with the ruler, keys and playhead, the key editor) and the Animator's inspector rows (`animatorInspectorRows`) |
 | `tile_paint.odin` | **Tile painting**: `TilePainter` (tool, brush, layer, terrain), its messages, `TilePaint_Update` (strokes, fills, terrains, growing grids, copying file layers), `TilePaint_CellAt` |
 | `view_tiles.odin` | The bottom panel's Tiles tab: layer and tileset choices, tools, flips, the tile palette (`TilesPanel`) |
 | `docs/manual/` | **The user manual**: a page per feature for users new to the editor (`README.md` lists them). Help > User Manual (F1, `Manual_Open`: `MANUAL_URL` + page) and panels' Manual buttons open it. **Every new feature gets a page here** |
@@ -280,6 +282,11 @@ Skald is not immediate-mode and not a retained widget tree:
   **Every inspector row must fit `controlWidth`**: it happened twice (the link button, then the
   script Open button beside a dropdown held at its minimum width). Put extra buttons on their own
   row, and check a new button with a UI click in a narrow window.
+- **A tab strip wider than its panel must scroll (`hScroll`), not overflow:** the bottom panel's
+  tabs ran past the panel into the inspector beside it in a tiled window, unclipped, and a
+  dropdown's choice there also clicked the tab under it (mixer.script caught it once Tiles and
+  Timeline made seven tabs). The bottom tabs scroll sideways like the center's
+  (`bottom-tabs-scroll`; a UI script wheels it to reach a tab out of view).
 - **A closed dialog must build no content** (`closedDialog`, at the top of every dialog view):
   Skald hit-tests a widget by its rect from the last frame it was *built* in, not drawn, so a
   closed dialog's buttons stayed clickable where they had been (a viewport click where the Add
@@ -1336,6 +1343,41 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## Keyframe animation: the Timeline (implemented, `timeline_edit.odin`, `view_timeline.odin`; engine: animator.odin)
+
+`timeline_edit.odin`'s doc comment describes it; what the code relies on:
+- **Model:** `NodeDef.animator` is the engine's `e.AnimatorSettings` (clips of tracks of keys,
+  values as text; owned: `e.AnimatorSettings_Clone` / `_Destroy` / `_Equal`, in NodeDef_Make,
+  NodeDef_Destroy, Clone, load and `NodeDef_Equal`). The writer puts `autoplay` / `speed` on the
+  node and `<clip>` / `<track>` / `<key>` children. The preview's rebuild signature includes every
+  key (the engine parses clips when it builds).
+- **Which Animator:** `TimelineEditor.node` follows the selection when an Animator is selected
+  (`Timeline_Follow`, after every message in `update`) and stays when another node is selected,
+  so targets can be moved and keyed. `Timeline_Animator` checks it's still an Animator of the
+  open scene.
+- **Undo:** `Timeline_Changed` is a `.Node` step on the Animator's index (not the selection's);
+  `Key_Moved` is sticky per `history.gesture` (bumped by `Timeline_View{.Drag_Begin}`), typing a
+  key value or a number merges, a clip name applies once valid (`Name_Typed`, typed text kept in
+  `nameEdit`). `Timeline_IsEdit` tells them apart from other edits.
+- **Viewport:** Animators don't autoplay there (`rebuild` sets `started`). While the Timeline tab
+  shows and `previewing` (set by scrubbing, playing, selecting keys, Timeline edits; cleared by
+  any other undoable edit), `Preview_Render` applies the clip at the playhead after the update
+  (`e.Animator_Apply`); when it stops, the scene is built again (an Animator may have changed
+  what the build set). `Preview_FrameKey` includes the playhead. Playing ticks at `TIMELINE_FPS`
+  (`Timeline_Tick`, only while the tab shows and the window is focused). Animators have no
+  viewport marker and no handles and aren't picked (they'd cover what they animate).
+- **Tracks** store paths from the Animator's parent (`Timeline_PathTo` = `Scene_NodePath` from
+  the parent; `Timeline_ResolvePath` reads them as the engine's `trackTarget`). Key records the
+  NodeDef's value (`Timeline_NodeValue`; tint and opacity are white / 1: scene files have no
+  tint), a script field's stored prop or its catalog default.
+- **The canvas** (`tracksCanvas`) handles the mouse from last frame's rect like the Tiles palette;
+  its names' column shrinks in a narrow panel (`Timeline_NameWidth`: the tiled window's panel is
+  narrow, and a canvas wider than the scroll put the end of the clip out of reach).
+- Tests: `animators_are_edited_in_the_timeline` (paths, follow, tracks, Key, undo, a sticky drag,
+  events, names, the viewport at the playhead, save and load), `tests/ui/timeline.script`
+  (driver: `click_timeline <s> [track] [double]`, `drag_timeline_key`; checks `timeline <field>`,
+  `timeline_key`). User guide: `docs/manual/animation.md`.
 
 ## Sound and the Mixer (implemented; the engine's audio_nodes.odin)
 

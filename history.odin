@@ -248,6 +248,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isAnim := v.target.(AnimField); isAnim && hasSelection {
 			return node(selected, fmt.tprintf("Change an animation of %s", name), key("anim", field, s.currentScene, selected, s.animEditor.selected))
 		}
+		if field, isTimeline := v.target.(TimelineNumber); isTimeline {
+			if _, i := Timeline_Animator(s); i >= 0 do return node(i, fmt.tprintf("Change the %v in the clips of %s", field, scene.nodes[i].name), key("timeline-number", field, i, s.timeline.clip, s.timeline.track, s.timeline.key))
+		}
 		if prop, isProp := v.target.(ScriptPropTarget); isProp && hasSelection {
 			return node(selected, fmt.tprintf("Change %s of %s", prop.name, name), key("prop", prop.name, s.currentScene, selected))
 		}
@@ -304,6 +307,22 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		// Typing collision values merges into one step
 		if v.field == .Collision_Values do return node(selected, fmt.tprintf("Change the collision values of %s", name), key("ldtk-values", s.currentScene, selected))
 		return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
+	// The Timeline: its Animator's clips (not necessarily the selected node); a key drag is one
+	// step, typing a number or a clip name merges
+	case Timeline_Changed:
+		if _, i := Timeline_Animator(s); i >= 0 {
+			label := fmt.tprintf("%s in the clips of %s", timelineOpLabel(v.op), scene.nodes[i].name)
+			if v.op == .Key_Moved {
+				info := node(i, label, key("timeline-drag", s.history.gesture))
+				info.sticky = true
+				return info
+			}
+			return node(i, label, v.op == .Key_Value ? key("timeline-value", i, s.timeline.track, s.timeline.key) : 0)
+		}
+	case Timeline_View:
+		if _, i := Timeline_Animator(s); i >= 0 && v.op == .Name_Typed {
+			return node(i, fmt.tprintf("Rename a clip of %s", scene.nodes[i].name), key("timeline-name", i, s.timeline.clip))
+		}
 	// Painting tiles: a stroke (press to release) is one step
 	case Tile_Brush:
 		if hasSelection && v.phase != .Hover {
@@ -699,7 +718,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) {
+	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
@@ -922,4 +941,28 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if len(a.animationSets) != len(b.animationSets) do return false
 	for set, i in a.animationSets do if !AnimationSetDef_Equal(set, b.animationSets[i]) do return false
 	return true
+}
+
+// What a Timeline edit does, for undo's label ("Add a key")
+@(private="file")
+timelineOpLabel :: proc(op: TimelineOp) -> string {
+	switch op {
+	case .Clip_Added: return "Add a clip"
+	case .Clip_Removed: return "Remove a clip"
+	case .Clip_Renamed: return "Rename a clip"
+	case .Clip_Length: return "Change a clip's length"
+	case .Clip_Loop: return "Change a clip's looping"
+	case .Clip_Autoplay, .Autoplay_Named: return "Change the clip it starts with"
+	case .Speed: return "Change the speed"
+	case .Track_Added: return "Add a track"
+	case .Track_Removed: return "Remove a track"
+	case .Track_Step: return "Change a track's stepping"
+	case .Key_Added: return "Add a key"
+	case .Keys_Recorded: return "Key every track"
+	case .Key_Removed: return "Remove a key"
+	case .Key_Time, .Key_Moved: return "Move a key"
+	case .Key_Value: return "Change a key's value"
+	case .Key_Ease: return "Change a key's curve"
+	}
+	return "Change"
 }

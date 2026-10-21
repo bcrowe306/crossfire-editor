@@ -41,6 +41,7 @@ ICON_CIRCLE_INFO :: "\uf05a"
 // A filled circle: a tab with unsaved changes
 ICON_CIRCLE      :: "\uf111"
 ICON_GRID        :: "\uf00a"
+ICON_STOPWATCH   :: "\uf2f2"
 ICON_MAGNET      :: "\uf076"
 ICON_LINK        :: "\uf0c1"
 ICON_FILE_CODE   :: "\uf1c9"
@@ -106,6 +107,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .MusicPlayer:    return ICON_MUSIC
 	case .LDtkLevel:      return ICON_MAP
 	case .TileMap:        return ICON_GRID
+	case .Animator:       return ICON_STOPWATCH
 	}
 	return ICON_CUBE
 }

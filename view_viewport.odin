@@ -285,7 +285,7 @@ ViewportNodesInRect :: proc(s: ^State, lo, hi: [2]f32) -> []int {
 	scene := &s.project.scenes[s.currentScene]
 	hits := make([dynamic]int, context.temp_allocator)
 	for shape, i in nodeShapes(s, scene) {
-		if !shape.visible do continue
+		if !shape.visible || scene.nodes[i].kind == .Animator do continue
 		inside := false
 		if shape.hasBounds {
 			// Axis-aligned overlap of the bounds' extent with the box
@@ -463,7 +463,7 @@ toolDragMode :: proc(tool: Tool) -> DragMode {
 gizmoHit :: proc(s: ^State, shapes: []NodeShape, mouseView, mouseWorld: [2]f32) -> DragMode {
 	if s.selectedNode < 0 || s.selectedNode >= len(shapes) do return .None
 	shape := shapes[s.selectedNode]
-	if !shape.visible do return .None
+	if !shape.visible || s.project.scenes[s.currentScene].nodes[s.selectedNode].kind == .Animator do return .None
 	v := &s.viewport
 	origin := Viewport_WorldToView(v, shape.world.origin)
 
@@ -494,7 +494,8 @@ pickNode :: proc(s: ^State, shapes: []NodeShape, mouseView, mouseWorld: [2]f32) 
 	scene := &s.project.scenes[s.currentScene]
 	best, bestLayer := -1, -1
 	for shape, i in shapes {
-		if !shape.visible || scene.nodes[i].layer < bestLayer do continue
+		// Animators aren't in the world: picked in the scene tree
+		if !shape.visible || scene.nodes[i].layer < bestLayer || scene.nodes[i].kind == .Animator do continue
 		if hitsShape(&s.viewport, shape, mouseView, mouseWorld) {
 			// Later nodes draw on top within a layer
 			best, bestLayer = i, scene.nodes[i].layer
@@ -659,6 +660,8 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				skald.draw_ring(r, origin, node.audio.maxDistance * v.zoom, 1, faint, aa = true)
 				skald.draw_circle(r, origin, MARKER_RADIUS, color, aa = true)
 				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+			case node.kind == .Animator:
+				// Not in the world: no marker (it would cover what it animates)
 			case !shape.hasBounds:
 				// Nodes that draw nothing get a marker so they can be seen and picked
 				skald.draw_circle(r, origin, MARKER_RADIUS, kindColor(node.kind), aa = true)
@@ -671,7 +674,8 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 			if node == s.selectedNode || node >= len(data.shapes) || !data.shapes[node].visible do continue
 			drawOutline(r, p.bounds, v, data.shapes[node], th.color.primary)
 		}
-		if s.selectedNode >= 0 && s.selectedNode < len(data.shapes) && data.shapes[s.selectedNode].visible {
+		// An Animator isn't in the world: no handles (they'd cover what it animates)
+		if s.selectedNode >= 0 && s.selectedNode < len(data.shapes) && data.shapes[s.selectedNode].visible && scene.nodes[s.selectedNode].kind != .Animator {
 			drawSelection(r, p.bounds, s, data.shapes[s.selectedNode], th)
 		}
 		// Painting tiles: the cell under the mouse, a rectangle being dragged
@@ -979,6 +983,8 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .LDtkLevel:      return skald.rgb(0xff8a5b)
 	// Aseprite's images, toward green
 	case .TileMap:        return skald.rgb(0x6cd9a8)
+	// Animation's purple, lighter
+	case .Animator:       return skald.rgb(0xd2a8ff)
 	}
 	return skald.rgb(0xffffff)
 }

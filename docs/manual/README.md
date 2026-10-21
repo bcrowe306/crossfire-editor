@@ -11,9 +11,10 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 
 | Page | What it covers |
 |---|---|
+| [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
 | [Tilemaps](tilemaps.md) | TileMap nodes: drawing levels from tiles, painting them in the editor, terrains (autotiling), collision from tiles, animated tiles, changing tiles from scripts |
 
-More pages arrive with each feature (keyframe animation, the UI system, lighting, pathfinding,
+More pages arrive with each feature (the UI system, lighting, pathfinding,
 the live game view, scene transitions, state machines, parallax and cameras), and pages for the
 older features follow.
 
@@ -28,7 +29,8 @@ older features follow.
   settings.
 - **Browser**: the panel on the left listing the project's scenes and assets.
 - **Viewport**: the picture of the scene in the middle, where nodes are placed.
-- **Bottom panel**: the tabs under the viewport (Console, Output, Animation, Mixer, Git, Tiles).
+- **Bottom panel**: the tabs under the viewport (Console, Output, Animation, Mixer, Git, Tiles,
+  Timeline).
   Ctrl+J shows or hides it.
 - **Play** (F5): runs the game in its own window, the way players will see it.
 - **Undo** (Ctrl+Z) and **Redo** (Ctrl+Shift+Z): every edit in a scene can be taken back.

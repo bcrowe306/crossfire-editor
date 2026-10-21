@@ -10,9 +10,6 @@ The features most 2D engines have that this one doesn't, as the user listed them
 (shaders deferred) are being built one per dev release, in this order; each gets a user guide in
 `docs/manual/`. Remove an item here once it's built.
 
-2. **Keyframe animation of any property** (an AnimationPlayer-like timeline): position, rotation,
-   scale, color, opacity, script fields, method calls at times; for cutscenes, UI transitions,
-   juice.
 3. **A UI system**: containers and layout (rows, columns, grids, margins, anchors, scaling to the
    screen), more controls (panels with 9-patches, progress bars, text fields, scroll lists, image
    buttons, rich text), themes.

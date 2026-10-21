@@ -46,6 +46,8 @@ BottomTab :: enum {
 	Git,
 	// Painting the selected TileMap (view_tiles.odin)
 	Tiles,
+	// An Animator's keyframe clips (view_timeline.odin)
+	Timeline,
 }
 
 LogLevel :: enum {
@@ -198,6 +200,8 @@ State :: struct {
 	animEditor: AnimEditor,
 	// The Tiles panel: the brush, tool and layer painted (tile_paint.odin)
 	tilePainter: TilePainter,
+	// The Timeline tab: the Animator it edits, the playhead (timeline_edit.odin)
+	timeline: TimelineEditor,
 	// The Mixer tab: a bus name being typed (its index, the text; owned), kept until it's valid
 	busEdit: struct {
 		index: int,
@@ -306,6 +310,7 @@ init :: proc() -> State {
 	state := State{
 		currentScene = 0,
 		selectedNode = -1,
+		timeline = {node = -1, track = -1, key = -1},
 
 		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true},
 		browserSelection = {kind = .None},
@@ -390,6 +395,7 @@ State_Destroy :: proc(state: ^State) {
 	LDtkEdit_Destroy()
 	AsepriteEdit_Destroy()
 	TilePainter_Destroy(&state.tilePainter)
+	TimelineEditor_Destroy(&state.timeline)
 	for line in state.console do delete(line.text)
 	delete(state.console)
 	for line in state.output do delete(line.text)
