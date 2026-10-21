@@ -153,6 +153,16 @@ CompletionItem :: struct {
 	// command.command to run after accepting (e.g. OLS asks for
 	// "editor.action.triggerParameterHints" after inserting `name($0)`).
 	command:         string `json:"-"`,
+	// additionalTextEdits: edits elsewhere applied with it, in the document
+	// as it was before accepting (OLS adds `import "core:fmt"` to a package
+	// it completes). Owned by the client.
+	additional_edits: [dynamic]Additional_Edit `json:"-"`,
+}
+
+// One of a completion item's additionalTextEdits.
+Additional_Edit :: struct {
+	range:    Range,
+	new_text: string,
 }
 
 // CompletionItemKind values from the LSP spec (the subset worth labeling).

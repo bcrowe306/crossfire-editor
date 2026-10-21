@@ -358,10 +358,10 @@ Doc_Line :: struct {
 // completion_doc_lines turns the selected item's detail + documentation
 // into display lines: markdown fences become highlighted code lines,
 // headings/emphasis markers are stripped, prose is wrapped.
-completion_doc_lines :: proc(item: lspc.CompletionItem) -> []Doc_Line {
+completion_doc_lines :: proc(item: lspc.CompletionItem, cols := COMPLETION_DOC_COLS, max_lines := COMPLETION_DOC_MAX_LINES) -> []Doc_Line {
 	out := make([dynamic]Doc_Line, context.temp_allocator)
 	if len(item.detail) > 0 {
-		for w in wrap_text(item.detail, COMPLETION_DOC_COLS) {
+		for w in wrap_code(item.detail, cols) {
 			append(&out, Doc_Line{w, true})
 		}
 	}
@@ -378,7 +378,8 @@ completion_doc_lines :: proc(item: lspc.CompletionItem) -> []Doc_Line {
 				continue
 			}
 			if in_code {
-				append(&out, Doc_Line{line, true})
+				// A long signature wraps too (it ran off the editor)
+				for w in wrap_code(line, cols) do append(&out, Doc_Line{w, true})
 				continue
 			}
 			if item.doc_markdown && strings.trim_space(line) == "---" {
@@ -390,7 +391,7 @@ completion_doc_lines :: proc(item: lspc.CompletionItem) -> []Doc_Line {
 				l, _ = strings.remove_all(l, "`", context.temp_allocator)
 				l, _ = strings.remove_all(l, "**", context.temp_allocator)
 			}
-			for w in wrap_text(l, COMPLETION_DOC_COLS) {
+			for w in wrap_text(l, cols) {
 				append(&out, Doc_Line{w, false})
 			}
 		}
@@ -399,9 +400,9 @@ completion_doc_lines :: proc(item: lspc.CompletionItem) -> []Doc_Line {
 	for len(out) > 0 && len(strings.trim_space(out[len(out) - 1].text)) == 0 {
 		pop(&out)
 	}
-	if len(out) > COMPLETION_DOC_MAX_LINES {
-		resize(&out, COMPLETION_DOC_MAX_LINES)
-		out[COMPLETION_DOC_MAX_LINES - 1] = Doc_Line{"…", false}
+	if len(out) > max_lines {
+		resize(&out, max_lines)
+		out[max_lines - 1] = Doc_Line{"…", false}
 	}
 	return out[:]
 }
@@ -414,7 +415,7 @@ editor_completion_doc_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, lines: []
 	if !layout.completion_visible || !has {
 		return
 	}
-	lines = completion_doc_lines(item)
+	lines = completion_doc_lines(item, popup_max_cols(ed, COMPLETION_DOC_COLS))
 	if len(lines) == 0 {
 		return
 	}
@@ -451,6 +452,49 @@ render_completion_docs :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.
 		}
 		draw_code_line(ed, renderer, font, theme, l.text, x, y)
 	}
+}
+
+// popup_max_cols is how wide a popup's text may be: the text area's width
+// (less a margin), at most `cap`, at least 20 columns.
+popup_max_cols :: proc(ed: ^Editor, cap: int) -> int {
+	return clamp(ed.visible_cols - 2, 20, cap)
+}
+
+// wrap_code wraps a line of code at `cols` runes: after a space (", "
+// between parameters) in the line's last two thirds where there is one,
+// else mid-token, continuation lines indented by SIGNATURE_INDENT past the
+// line's own indentation (temp-allocated).
+wrap_code :: proc(line: string, cols: int) -> []string {
+	out := make([dynamic]string, context.temp_allocator)
+	trimmed := strings.trim_right_space(line)
+	if text_cols(trimmed) <= cols {
+		append(&out, trimmed)
+		return out[:]
+	}
+	lead := len(trimmed) - len(strings.trim_left_space(trimmed))
+	indent := strings.concatenate({trimmed[:lead], "    "}, context.temp_allocator)
+	runes := utf8.string_to_runes(trimmed, context.temp_allocator)
+	start := 0
+	first := true
+	for start < len(runes) {
+		prefix := first ? "" : indent
+		room := max(cols - text_cols(prefix), 8)
+		end := min(start + room, len(runes))
+		if end < len(runes) {
+			for i := end; i > start + room / 3; i -= 1 {
+				if runes[i - 1] == ' ' {
+					end = i
+					break
+				}
+			}
+		}
+		piece := strings.trim_right_space(utf8.runes_to_string(runes[start:end], context.temp_allocator))
+		append(&out, strings.concatenate({prefix, piece}, context.temp_allocator))
+		start = end
+		for start < len(runes) && runes[start] == ' ' do start += 1
+		first = false
+	}
+	return out[:]
 }
 
 // draw_code_line draws one line of code with the editor's syntax colours.

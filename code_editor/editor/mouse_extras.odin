@@ -298,13 +298,18 @@ editor_hide_hover :: proc(ed: ^Editor) {
 	ed.hover.requested = false
 }
 
+// The hover tooltip is at most this many columns wide (less in a narrow editor)
+HOVER_MAX_COLS :: 100
+
 // editor_hover_layout places the hover tooltip above the hovered cell
 // (below when there's no room).
 editor_hover_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, lines: []Doc_Line, ok: bool) {
 	if !ed.hover.visible || !ed.lsp_enabled || editor_completion_visible(ed) {
 		return
 	}
-	lines = completion_doc_lines(lspc.CompletionItem{documentation = ed.lsp.last_hover, doc_markdown = ed.lsp.last_hover_markdown})
+	// As wide as the text area allows (100 columns at most), as many lines as half the view
+	lines = completion_doc_lines(lspc.CompletionItem{documentation = ed.lsp.last_hover, doc_markdown = ed.lsp.last_hover_markdown},
+		popup_max_cols(ed, HOVER_MAX_COLS), max(COMPLETION_DOC_MAX_LINES, editor_text_rows(ed) / 2))
 	if len(lines) == 0 {
 		return
 	}

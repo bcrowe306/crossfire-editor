@@ -9,6 +9,7 @@ package code_editor
 import buf "../buffer"
 import lspc "../lsp"
 import syn "../syntax"
+import "core:slice"
 import "core:strings"
 
 COMPLETION_MAX_VISIBLE :: 10
@@ -408,11 +409,43 @@ editor_accept_completion :: proc(ed: ^Editor) -> bool {
 	b := &ed.buf
 	c.sel.active = false
 	end := c.pos
+	// The item's other edits (an import it brings in), in the document as it was: those after
+	// the completion now, those before it after it, moving the caret with them
+	Pending :: struct { start, end: buf.Position, text: string }
+	before := make([dynamic]Pending, context.temp_allocator)
+	after := make([dynamic]Pending, context.temp_allocator)
+	for e in item.additional_edits {
+		to_pos :: proc(b: ^buf.Buffer, p: lspc.Position) -> buf.Position {
+			line := clamp(p.line, 0, buf.buffer_line_count(b) - 1)
+			return {line, lspc.utf16_col_to_byte(buf.buffer_line_str(b, line), p.character)}
+		}
+		p := Pending{to_pos(b, e.range.start), to_pos(b, e.range.end), strings.clone(e.new_text, context.temp_allocator)}
+		if buf.position_less(p.start, start) do append(&before, p)
+		else do append(&after, p)
+	}
+	// Last first, so earlier positions stay right
+	later :: proc(a, b: Pending) -> bool { return buf.position_less(b.start, a.start) }
+	slice.sort_by(before[:], later)
+	slice.sort_by(after[:], later)
+	extra := buf.buffer_next_group(b)
+	apply :: proc(b: ^buf.Buffer, p: Pending, group: int) -> buf.Change {
+		if buf.position_less(p.start, p.end) do buf.buffer_delete_range(b, p.start, p.end, group)
+		new_end := p.start
+		if len(p.text) > 0 do new_end = buf.buffer_insert_text(b, p.start, p.text, group)
+		return {start = p.start, old_end = p.end, new_end = new_end}
+	}
+	for p in after do apply(b, p, extra)
+	defer for p in before {
+		ch := apply(b, p, extra)
+		cursor := editor_primary_cursor(ed)
+		cursor.pos = buf.position_after_change(cursor.pos, ch)
+		editor_ensure_cursor_visible(ed)
+	}
 	editor_close_completion(ed)
 	if item.is_snippet {
 		editor_insert_snippet(ed, start, end, text)
 	} else {
-		group := buf.buffer_next_group(b)
+		group := extra
 		if start.col < end.col {
 			buf.buffer_delete_range(b, start, end, group)
 		}

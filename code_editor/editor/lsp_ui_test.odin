@@ -426,3 +426,28 @@ test_mouse_click_accounts_for_gutter_and_origin :: proc(t: ^testing.T) {
 		testing.expect_value(t, ed.buf.cursors[0].pos, buf.Position{1, 3})
 	})
 }
+
+// OLS completes a package that isn't imported with an additionalTextEdit adding the import
+// (what Zed applies on Tab): accepting it inserts both, the caret staying after the completion
+@(test)
+test_accepting_a_package_imports_it :: proc(t: ^testing.T) {
+	run_leak_free(t, proc(t: ^testing.T) {
+		ed := make_lsp_test_editor("package scripts\n\nmain :: proc() {\n\t\n}\n")
+		defer editor_destroy(&ed)
+		clear(&ed.buf.cursors)
+		append(&ed.buf.cursors, buf.Cursor{pos = {3, 1}})
+		_ = editor_run_action(&ed, .TriggerCompletion)
+		editor_update(&ed)
+		fake_completion_response(&ed, `{"label":"fmt","kind":9,"insertText":"fmt","additionalTextEdits":[{"range":{"start":{"line":1,"character":0},"end":{"line":1,"character":0}},"newText":"import \"core:fmt\"\n"}]}`)
+		editor_update(&ed)
+		testing.expect(t, editor_completion_visible(&ed), "the package is offered")
+		type_and_update(&ed, "fm")
+		key_and_update(&ed, sdl.K_TAB)
+
+		text := buf.buffer_to_string(&ed.buf, context.temp_allocator)
+		testing.expect_value(t, text, "package scripts\nimport \"core:fmt\"\n\nmain :: proc() {\n\tfmt\n}\n")
+		testing.expect_value(t, ed.buf.cursors[0].pos, buf.Position{4, 4}) // after "fmt", a line further down
+		editor_apply_action(&ed, .Undo)
+		testing.expect_value(t, buf.buffer_to_string(&ed.buf, context.temp_allocator), "package scripts\n\nmain :: proc() {\n\tfm\n}\n")
+	})
+}

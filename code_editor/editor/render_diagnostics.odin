@@ -171,7 +171,7 @@ editor_diag_tooltip_layout :: proc(ed: ^Editor) -> (layout: Diag_Tooltip_Layout,
 		if len(d.source) > 0 {
 			msg = strings.concatenate({msg, "  (", d.source, ")"}, context.temp_allocator)
 		}
-		for w, j in wrap_text(msg, DIAG_TOOLTIP_MAX_COLS) {
+		for w, j in wrap_text(msg, popup_max_cols(ed, DIAG_TOOLTIP_MAX_COLS)) {
 			append(&lines, Tip_Line{text = w, color_of = d.severity, label = j == 0})
 			widest = max(widest, text_cols(w))
 		}

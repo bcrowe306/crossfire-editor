@@ -440,6 +440,17 @@ deferred `didOpen` once `initialize` has completed, pushes a full-text
   columns, breaking after spaces, continuation lines indented), the active
   parameter highlighted across the break.
 
+Accepting a completion applies its `additionalTextEdits` too, as one undo step
+with it: OLS completes a package that isn't imported (`fmt`) with the `import`
+line it needs, which goes in at the top while the caret stays after the
+completion (`test_accepting_a_package_imports_it`).
+
+Popups wrap to the editor's width (`popup_max_cols`): the hover (at most 100
+columns, half the view tall), the completion docs, the diagnostics tooltip, the
+signature help. Code lines wrap too (`wrap_code`: after a space where it can,
+continuation lines indented), so a long signature in a hover's code block stays
+on screen.
+
 Document sync is incremental when the server asks for it (OLS does). A host
 that changes the buffer itself and calls `editor_notify_lsp_changed` sends the
 whole text, and the incremental edits queued for it are dropped (they'd be

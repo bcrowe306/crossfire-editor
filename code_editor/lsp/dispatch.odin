@@ -214,6 +214,8 @@ client_clear_completion :: proc(c: ^Client) {
 		delete(item.filter_text, c.allocator)
 		delete(item.documentation, c.allocator)
 		delete(item.command, c.allocator)
+		for e in item.additional_edits do delete(e.new_text, c.allocator)
+		delete(item.additional_edits)
 	}
 	clear(&c.last_completion)
 }
@@ -289,6 +291,16 @@ client_store_completion :: proc(c: ^Client, result: json.Value) {
 		}
 		if cmd, ok := json_object_get(item, "command"); ok {
 			ci.command = json_clone_string_field(c, cmd, "command")
+		}
+		if edits_val, ok := json_object_get(item, "additionalTextEdits"); ok {
+			if edits, is_array := edits_val.(json.Array); is_array {
+				ci.additional_edits = make([dynamic]Additional_Edit, 0, len(edits), c.allocator)
+				for e in edits {
+					range_val, has_range := json_object_get(e, "range")
+					if !has_range do continue
+					append(&ci.additional_edits, Additional_Edit{parse_range(range_val), json_clone_string_field(c, e, "newText")})
+				}
+			}
 		}
 		// A textEdit (plain TextEdit or InsertReplaceEdit) overrides
 		// insertText per the spec.

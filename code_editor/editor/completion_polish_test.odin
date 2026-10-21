@@ -171,3 +171,26 @@ test_snippet_lines_take_insertion_indent :: proc(t: ^testing.T) {
 		testing.expect_value(t, ed.buf.cursors[0].pos, buf.Position{1, 2})
 	})
 }
+
+// Popups wrap to the editor's width: a long signature in a hover's code block too (it ran off
+// the editor), its continuation lines indented, nothing lost
+@(test)
+test_popup_text_wraps_to_the_editor :: proc(t: ^testing.T) {
+	long := "Scene_AddComponent :: proc(scene: ^Scene, component: ComponentAsset, parent: ^Node = nil, position: [2]f32 = {}) -> ^Node"
+	lines := wrap_code(long, 40)
+	testing.expect(t, len(lines) > 1, "wrapped")
+	joined := strings.builder_make(context.temp_allocator)
+	for l, i in lines {
+		testing.expectf(t, text_cols(l) <= 40, "line %d fits: %q", i, l)
+		if i > 0 do testing.expect(t, strings.has_prefix(l, "    "), "indented")
+		strings.write_string(&joined, strings.trim_space(l))
+		strings.write_byte(&joined, ' ')
+	}
+	testing.expect_value(t, strings.trim_space(strings.to_string(joined)), long)
+	testing.expect_value(t, len(wrap_code("x := 1", 40)), 1)
+
+	// The hover: markdown with the signature in a code block and prose, in a 30-column editor
+	item := lspc.CompletionItem{documentation = strings.concatenate({"```odin\n", long, "\n```\nAdds an instance of a component to a scene: its whole node tree, built like a scene file's."}, context.temp_allocator), doc_markdown = true}
+	for l in completion_doc_lines(item, 30, 40) do testing.expectf(t, text_cols(l.text) <= 30, "fits 30 columns: %q", l.text)
+	free_all(context.temp_allocator)
+}
