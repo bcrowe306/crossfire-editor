@@ -175,6 +175,7 @@ Like `Scene_PasteSubtree`, returning every inserted root (temp allocated).
 */
 Scene_PasteNodes :: proc(scene: ^SceneDef, nodes: []NodeDef, parent: int) -> []int {
 	if len(nodes) == 0 do return nil
+	parent := Scene_ParentFor(scene, parent)
 	at := len(scene.nodes)
 	if parent >= 0 {
 		at = parent + 1 + Scene_DescendantCount(scene, parent)
@@ -235,6 +236,8 @@ Returns:
 Scene_DuplicateNode :: proc(scene: ^SceneDef, index: int) -> int {
 	nodes := Scene_CopySubtree(scene, index, context.temp_allocator)
 	defer Subtree_Destroy(&nodes)
+	// A component's root: the copy goes under it (a component has one root), as its last child
+	if index == 0 && Scene_IsComponent(scene) do return insertSubtree(scene, nodes[:], 0, len(nodes))[0]
 	return insertSubtree(scene, nodes[:], scene.nodes[index].parent, index + len(nodes))[0]
 }
 
@@ -265,7 +268,8 @@ Scene_UniqueNodeName :: proc(scene: ^SceneDef, name: string) -> string {
 
 /*
 Whether a node can be moved to a place in the tree. A node can't go inside its own subtree, and
-dropping it next to or into itself does nothing.
+dropping it next to or into itself does nothing. In a component nothing goes beside the root (the
+top level holds only it).
 
 Inputs:
 - scene: The scene
@@ -278,6 +282,7 @@ Returns:
 */
 Scene_CanMoveNode :: proc(scene: ^SceneDef, node, target: int, position: DropPosition) -> bool {
 	if node < 0 || node >= len(scene.nodes) do return false
+	if Scene_IsComponent(scene) && (target < 0 || (position != .Inside && scene.nodes[target].parent < 0)) do return false
 	if target < 0 do return true
 	if target >= len(scene.nodes) do return false
 	// The target is the node or one of its descendants
@@ -418,6 +423,7 @@ Returns:
 Scene_AddSpriteAt :: proc(scene: ^SceneDef, texture: string, parent: int, world: [2]f32) -> int {
 	parent := parent
 	if parent >= len(scene.nodes) do parent = -1
+	parent = Scene_ParentFor(scene, parent)
 	base := filepath.stem(filepath.base(texture))
 	index := Scene_InsertNode(scene, Scene_UniqueNodeName(scene, base == "" ? "Sprite" : base), .Sprite, parent)
 	node := &scene.nodes[index]

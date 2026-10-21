@@ -55,6 +55,7 @@ Project_LoadComponent :: proc(rootPath, path: string) -> (SceneDef, string) {
 	if err != nil do return scene, fmt.tprintf("Couldn't read component %s", path)
 	data, parseErr := e.ParseComponent(string(text), context.temp_allocator)
 	if parseErr != .None do return scene, fmt.tprintf("%s isn't a component (%v)", path, parseErr)
+	// One root: the engine's parser reads nodes beside it (older editors added them) under it
 	for node in data.nodes do append(&scene.nodes, NodeDef_FromData(node))
 	return scene, ""
 }
@@ -169,6 +170,7 @@ Scene_AddInstanceAt :: proc(project: ^Project, sceneIndex: int, path: string, pa
 	if Component_Contains(project, path, scene.component) do return -1, fmt.tprintf("%s holds %s: it can't go inside it", ComponentName(path), scene.name)
 	parent := parent
 	if parent >= len(scene.nodes) do parent = -1
+	parent = Scene_ParentFor(scene, parent)
 	index := Scene_InsertNode(scene, Scene_UniqueNodeName(scene, ComponentName(path)), .Component, parent)
 	node := &scene.nodes[index]
 	delete(node.component)

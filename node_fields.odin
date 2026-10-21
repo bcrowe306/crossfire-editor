@@ -217,9 +217,30 @@ NodeField_Line :: proc(st: NodeField_Struct, project: ^Project, scene: ^SceneDef
 }
 
 /*
+The node a script's node fields are paths from: the selected node if it uses the script, else
+the scene's first that does; none: a component's root (the script runs on its instance's root, or
+on an LDtk entity's, named like it), or in a scene -1 (a path from the top level).
+
+Inputs:
+- scene: The scene or component
+- script: The script's name
+- selected: The selected node (-1 for none)
+
+Returns:
+- The node's index, or -1
+*/
+NodeField_From :: proc(scene: ^SceneDef, script: string, selected: int) -> int {
+	if selected >= 0 && selected < len(scene.nodes) && scene.nodes[selected].script == script do return selected
+	for &n, i in scene.nodes do if n.script == script do return i
+	if Scene_IsComponent(scene) && len(scene.nodes) > 0 do return 0
+	return -1
+}
+
+/*
 Adds a node field for a node of the open scene to the script shown in the code tab: a pointer
 of the node's type, defaulting to the node's path from the script's node (the selected node if
-it uses this script, else the scene's first that does; none: a path from the top level). The
+it uses this script, else the scene's first that does; none: a component's root, or in a scene a
+path from the top level). The
 engine sets it before `ready`. The edit is the code editor's (undoable, unsaved until saved).
 
 Returns:
@@ -232,15 +253,7 @@ NodeField_Insert :: proc(state: ^State, node: int) -> (message: string, ok: bool
 	path := state.codeTabs[state.codeTab - 1]
 	st, found := NodeField_FindStruct(CodeEditor_Text(path))
 	if !found do return fmt.tprintf("%s has no script struct (a struct with `using script: e.Script`)", path), false
-	from := -1
-	if state.selectedNode >= 0 && state.selectedNode < len(scene.nodes) && scene.nodes[state.selectedNode].script == st.name {
-		from = state.selectedNode
-	} else {
-		for &n, i in scene.nodes do if n.script == st.name {
-			from = i
-			break
-		}
-	}
+	from := NodeField_From(scene, st.name, state.selectedNode)
 	line, name := NodeField_Line(st, &state.project, scene, node, from)
 	// The field above needs a comma now that another follows it
 	if at, col, needed := Struct_MissingComma(CodeEditor_Text(path), st.closeLine); needed do CodeEditor_InsertAt(path, at, col, ",")

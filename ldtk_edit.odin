@@ -573,6 +573,7 @@ Returns:
 Scene_AddLDtkAt :: proc(scene: ^SceneDef, path: string, parent: int, world: [2]f32) -> int {
 	parent := parent
 	if parent >= len(scene.nodes) do parent = -1
+	parent = Scene_ParentFor(scene, parent)
 	index := Scene_InsertNode(scene, Scene_UniqueNodeName(scene, "Level"), .LDtkLevel, parent)
 	node := &scene.nodes[index]
 	delete(node.ldtk.file)

@@ -1088,6 +1088,14 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   `Component_Close_Chosen`): Save writes it; Don't Save reloads it from its file and drops its
   undo steps (`History_DropScene`); scenes don't ask (closing their tab keeps them in the
   project). components.script: the driver's `close_current_tab`, check `scene_dirty`.
+- **One root:** nothing goes beside a component's root. With nothing selected, Add Node, drops
+  and Paste put nodes under it (`Scene_ParentFor`, in `Scene_InsertNode`, `Scene_PasteNodes`,
+  the `*At` adders), duplicating the root puts the copy under it, and the tree refuses moves
+  beside it (`Scene_CanMoveNode`). Files with nodes beside it load with them under it (the
+  engine's parser). A node dropped on a code tab gets a path from the root when no node of the
+  component has the script (`NodeField_From`: it runs on the instance's root, or on the LDtk
+  entity's named like it); the path was from the top level, which the game never found.
+  `components_keep_one_root`, `components_with_nodes_beside_the_root_load_with_them_under_it`.
 - **Making one:** Save as Component (scene tree menu, Action.Save_As_Component): the subtree is
   written as a component (root at the origin) and the node becomes an instance with its
   transform (a `.Scene` undo step; the component stays). Browser > Components > New Component

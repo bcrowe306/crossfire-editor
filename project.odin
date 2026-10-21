@@ -425,12 +425,14 @@ Inputs:
 - scene: The scene
 - name: Node name; copied
 - kind: Node type
-- parent: Parent node index, or -1 for a top-level node
+- parent: Parent node index, or -1 for a top-level node (in a component that has a root: under
+  the root, its only top-level node)
 
 Returns:
 - The new node's index
 */
 Scene_InsertNode :: proc(scene: ^SceneDef, name: string, kind: NodeKind, parent: int) -> int {
+	parent := Scene_ParentFor(scene, parent)
 	// Insert after the parent's whole subtree, so the new node becomes its last child
 	at := len(scene.nodes)
 	if parent >= 0 {
@@ -450,6 +452,22 @@ Scene_InsertNode :: proc(scene: ^SceneDef, name: string, kind: NodeKind, parent:
 		if scene.nodes[i].parent >= at do scene.nodes[i].parent += 1
 	}
 	return at
+}
+
+/*
+Where a node meant for the top level goes: there in a scene, under the root in a component (it
+has one root: the engine builds only that one as the instance, so a node beside it would be lost).
+
+Inputs:
+- scene: The scene or component
+- parent: The parent asked for (-1: the top level)
+
+Returns:
+- The parent to use
+*/
+Scene_ParentFor :: proc(scene: ^SceneDef, parent: int) -> int {
+	if parent < 0 && Scene_IsComponent(scene) && len(scene.nodes) > 0 do return 0
+	return parent
 }
 
 /*
