@@ -461,6 +461,8 @@ NodeTextField :: enum {
 	Color,
 	// The AnimatedSprite animation it starts with ("" or ANIMATION_FIRST: the first)
 	Autoplay,
+	// The animation asset an AnimatedSprite plays (ANIMATION_OWN: its own animations)
+	Animation_Set,
 	// A Component node's component (its file; TEXTURE_NONE for none)
 	Component,
 	// A sound node's sound or music asset (TEXTURE_NONE for none), and its bus (a name; Master is "")
@@ -677,7 +679,20 @@ AnimField :: enum {
 	Start,
 	End,
 	FPS,
+	// An animation asset's grid (a node's own grid is its NodeFields)
+	Columns,
+	Rows,
+	Margin,
+	Spacing,
 }
+// An animation asset's sheet image (TEXTURE_NONE for none)
+Anim_Sheet_Texture_Changed :: distinct string
+// The browser shows an animation asset in the Animation panel (its path; "": the selected sprite's)
+Anim_Asset_Shown :: distinct string
+// The inspector's Save as Animation Asset: the selected sprite's own animations become an asset it uses
+Anim_Set_From_Node :: struct {}
+// The browser's New Animations: an empty animation asset, shown in the Animation panel
+Anim_Set_New :: struct {}
 Anim_Field_Changed :: struct {
 	field: AnimField,
 	value: f64,
@@ -1060,6 +1075,10 @@ Msg :: union {
 	Input_Capture_Cancelled,
 	Input_Device_Changed,
 	Anim_Selected,
+	Anim_Sheet_Texture_Changed,
+	Anim_Asset_Shown,
+	Anim_Set_From_Node,
+	Anim_Set_New,
 	Anim_Added,
 	Anim_Duplicated,
 	Anim_Removed,

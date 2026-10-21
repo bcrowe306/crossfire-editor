@@ -135,6 +135,10 @@ Checks:
 	browser_rows <count>         Rows the project browser shows (after search filtering)
 	preview <image | audio | font | data | component | none>   What the browser's preview panel shows
 	components <count>           Components in the project
+	anim_source <None | Node | Set path | Aseprite path>
+	                             What the Animation panel shows
+	animation_set <path | none>  The selected AnimatedSprite's animation asset
+	animation_sets <n>           The project's animation assets (.anim.xml)
 	kind <NodeKind | none>       The selected node's kind
 	texture <path | none>        The selected node's texture
 	preview_visible <true | false>   The image preview got usable space (at least 32 x 32)
@@ -1464,13 +1468,22 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		}
 		return found == strings.trim_space(expected), found
 	case "animations":
-		if selected == nil || selected.kind != .AnimatedSprite do return false, "no AnimatedSprite selected"
-		found = fmt.tprint(len(selected.animations))
+		// What the Animation panel shows: the sprite's own, or its asset's
+		src := AnimEdit_Source(s)
+		if src.kind == .None do return false, "no animations shown"
+		found = fmt.tprint(len(src.animations^))
+	case "anim_source":
+		src := AnimEdit_Source(s)
+		found = src.path == "" ? fmt.tprint(src.kind) : fmt.tprintf("%v %s", src.kind, src.path)
+	case "animation_set":
+		found = selected != nil && selected.animationSet != "" ? selected.animationSet : "none"
+	case "animation_sets":
+		found = fmt.tprint(len(s.project.animationSets))
 	case "animation":
-		node, animation, _ := AnimEdit_Selection(s)
+		src, animation, _ := AnimEdit_Selection(s)
 		if animation == nil do return false, "no animation selected"
 		field, _, expected := strings.partition(value, " ")
-		start, end := AnimationDef_Range(animation^, max(node.columns * node.rows, 1))
+		start, end := AnimationDef_Range(animation^, max(src.columns^ * src.rows^, 1))
 		switch field {
 		case "name":  found = animation.name
 		case "start": found = fmt.tprint(start)
@@ -1485,7 +1498,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		if selected == nil do return false, "nothing selected"
 		found = selected.autoplay == "" ? "none" : selected.autoplay
 	case "sheet_loaded":
-		found = selected != nil ? fmt.tprint(AnimationPanel_SheetLoaded(s, selected.texture)) : "false"
+		src := AnimEdit_Source(s)
+		found = src.kind != .None ? fmt.tprint(AnimationPanel_SheetLoaded(s, src.texture^)) : "false"
 	case "input_actions":
 		found = fmt.tprint(len(s.project.actions))
 	case "draft_input_actions":

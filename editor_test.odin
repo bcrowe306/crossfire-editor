@@ -27,7 +27,7 @@ testState :: proc() -> State {
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
@@ -2758,7 +2758,7 @@ slider_values_are_short_text :: proc(t: ^testing.T) {
 
 @(test)
 animation_frames_over_time :: proc(t: ^testing.T) {
-	walk := AnimationDef{"walk", 2, 5, 10, true, .Forward}
+	walk := AnimationDef{name = "walk", start = 2, end = 5, fps = 10, loop = true, playMode = .Forward}
 	// 4 frames at 10 fps: a frame every 0.1 s, looping
 	testing.expect_value(t, AnimationDef_FrameAt(walk, 8, 0), 2)
 	testing.expect_value(t, AnimationDef_FrameAt(walk, 8, 0.25), 4)
@@ -2777,9 +2777,9 @@ animation_frames_over_time :: proc(t: ^testing.T) {
 	for &f, i in frames do f = AnimationDef_FrameAt(ping, 8, f64(i) * 0.1 + 0.01)
 	testing.expect_value(t, frames, [8]int{2, 3, 4, 5, 4, 3, 2, 3})
 	// end -1: to the last cell; out of the sheet: kept inside it
-	start, end := AnimationDef_Range({"all", 0, -1, 8, true, .Forward}, 6)
+	start, end := AnimationDef_Range({name = "all", start = 0, end = -1, fps = 8, loop = true, playMode = .Forward}, 6)
 	testing.expect_value(t, [2]int{start, end}, [2]int{0, 5})
-	start, end = AnimationDef_Range({"far", 9, 20, 8, true, .Forward}, 6)
+	start, end = AnimationDef_Range({name = "far", start = 9, end = 20, fps = 8, loop = true, playMode = .Forward}, 6)
 	testing.expect_value(t, [2]int{start, end}, [2]int{5, 5})
 }
 
@@ -2848,7 +2848,7 @@ animations_round_trip :: proc(t: ^testing.T) {
 	scene := &project.scenes[1]
 	hero := &scene.nodes[nodeIndex(scene, "Balloon")]
 	hero.margin, hero.spacing = 1, 2
-	append(&hero.animations, AnimationDef{strings.clone("pop"), 2, 3, 15, false, .PingPong})
+	append(&hero.animations, AnimationDef{name = strings.clone("pop"), start = 2, end = 3, fps = 15, loop = false, playMode = .PingPong})
 	delete(hero.autoplay)
 	hero.autoplay = strings.clone("pop")
 
@@ -2873,7 +2873,7 @@ animations_round_trip :: proc(t: ^testing.T) {
 	testing.expect_value(t, message2, "")
 	fan := again.scenes[0].nodes[0]
 	testing.expect_value(t, len(fan.animations), 1)
-	testing.expect_value(t, fan.animations[0], AnimationDef{"default", 0, -1, 6, false, .Reverse})
+	testing.expect(t, AnimationDef_Equal(fan.animations[0], AnimationDef{name = "default", start = 0, end = -1, fps = 6, loop = false, playMode = .Reverse}), "fan's default animation")
 	free_all(context.temp_allocator)
 }
 

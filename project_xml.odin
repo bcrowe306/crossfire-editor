@@ -48,6 +48,7 @@ Project_Save :: proc(project: ^Project) -> string {
 	// Scenes renamed or removed since the last save: delete their old files
 	Project_CleanSceneFiles(project)
 	if message := Project_SaveData(project); message != "" do return message
+	if message := Project_SaveAnimationSets(project); message != "" do return message
 	// The typed asset constants for scripts follow the asset list
 	if message := Scripts_WriteAssetsFile(project); message != "" do return message
 
@@ -219,17 +220,8 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			continue
 		}
 		endOpen(&w)
-		// An AnimatedSprite's animations: `fps` always, the rest when not the default
-		for a in animations {
-			open(&w, "animation")
-			attr(&w, "name", a.name)
-			attr(&w, "start", a.start)
-			attr(&w, "end", a.end)
-			attr(&w, "fps", a.fps)
-			if a.loop do attr(&w, "loop", true)
-			if a.playMode != .Forward do attr(&w, "playMode", a.playMode)
-			closeEmpty(&w)
-		}
+		// An AnimatedSprite's animations
+		for a in animations do writeAnimation(&w, a)
 		if len(particles) > 0 {
 			open(&w, "particles")
 			for pair in particles do attr(&w, pair.name, pair.value)
@@ -316,6 +308,49 @@ EscapeXML :: proc(text: string, allocator := context.allocator) -> string {
 
 // WRITER
 
+/*
+An `.anim.xml` file's text (an animation asset): the sheet on the root element, an `<animation>`
+per animation. Deterministic, like scene files.
+*/
+AnimationSetToXML :: proc(set: ^AnimationSetDef, allocator := context.allocator) -> string {
+	w := xmlWriter(allocator)
+	open(&w, "animations")
+	attr(&w, "formatVersion", e.PROJECT_FORMAT_VERSION)
+	if set.texture != "" do attr(&w, "texture", set.texture)
+	attr(&w, "columns", set.columns)
+	attr(&w, "rows", set.rows)
+	if set.margin != 0 do attr(&w, "margin", set.margin)
+	if set.spacing != 0 do attr(&w, "spacing", set.spacing)
+	if set.autoplay != "" do attr(&w, "autoplay", set.autoplay)
+	if len(set.animations) == 0 {
+		closeEmpty(&w)
+	} else {
+		endOpen(&w)
+		for a in set.animations do writeAnimation(&w, a)
+		close(&w, "animations")
+	}
+	return strings.to_string(w.builder)
+}
+
+// An `<animation>`: `fps` always, the rest when not the default (durations in milliseconds)
+@(private="file")
+writeAnimation :: proc(w: ^XMLWriter, a: AnimationDef) {
+	open(w, "animation")
+	attr(w, "name", a.name)
+	attr(w, "start", a.start)
+	attr(w, "end", a.end)
+	attr(w, "fps", a.fps)
+	if a.loop do attr(w, "loop", true)
+	if a.playMode != .Forward do attr(w, "playMode", a.playMode)
+	if a.repeat > 0 do attr(w, "repeat", a.repeat)
+	if len(a.durations) > 0 {
+		b := strings.builder_make(context.temp_allocator)
+		for d, i in a.durations do fmt.sbprintf(&b, "%s%v", i > 0 ? " " : "", f32(int(d * 1000 * 1000 + 0.5)) / 1000)
+		attr(w, "durations", strings.to_string(b))
+	}
+	closeEmpty(w)
+}
+
 @(private="file")
 XMLWriter :: struct {
 	builder: strings.Builder,
@@ -391,6 +426,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.margin != 0 do attr(w, "margin", node.margin)
 		if node.spacing != 0 do attr(w, "spacing", node.spacing)
 		if node.autoplay != "" do attr(w, "autoplay", node.autoplay)
+		if node.animationSet != "" do attr(w, "animations", node.animationSet)
 	case .Label:
 		attr(w, "text", node.text)
 		attr(w, "fontSize", node.fontSize)

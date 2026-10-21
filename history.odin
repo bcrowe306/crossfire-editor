@@ -2,6 +2,7 @@ package crossfire_editor
 
 import "core:fmt"
 import "core:hash"
+import "core:path/filepath"
 import "core:slice"
 import "core:strings"
 import "core:time"
@@ -88,6 +89,8 @@ ProjectSnapshot :: struct {
 	audioOutput: e.AudioOutputSettings,
 	globals: [dynamic]GlobalDef,
 	data: [dynamic]DataDef,
+	// Animation assets' sheets and animations, by file
+	animationSets: [dynamic]AnimationSetDef,
 	actions: [dynamic]ActionDef,
 	buses: [dynamic]BusDef,
 	// The scene open at the time, shown again on undo/redo
@@ -164,7 +167,25 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		sceneName := s.project.scenes[index].name
 		return {scope = .Project, label = fmt.tprintf("Change the %s of %s", field, sceneName), mergeKey = key("scene-settings", field, index)}
 	}
+	// The Animation panel on an animation asset: a project step (the snapshot holds every set);
+	// an Aseprite file's animations are read only
+	if AnimEdit_IsEdit(m) {
+		src := AnimEdit_Source(s)
+		#partial switch src.kind {
+		case .Set:
+			field := ""
+			if f, isField := m.(Anim_Field_Changed); isField do field = fmt.tprint(f.field)
+			if n, isNumber := m.(Number_Text_Changed); isNumber do field = fmt.tprint(n.target)
+			_, typing := m.(Anim_Name_Typed)
+			merge := field != "" || typing ? key("anim-set", src.path, field, typing, s.animEditor.selected) : 0
+			return {scope = .Project, label = fmt.tprintf("Change the animations in %s", filepath.base(src.path)), mergeKey = merge}
+		case .Aseprite, .None:
+			return {}
+		}
+	}
 	#partial switch v in m {
+	case Anim_Set_From_Node:
+		if hasSelection do return node(selected, fmt.tprintf("Save the animations of %s as an asset", name))
 	case Listener_Target_Chosen:
 		if d := s.listenerDialog; d.node >= 0 && d.node < len(scene.nodes) do return node(d.node, fmt.tprintf("Listen to %s's %s", scene.nodes[d.node].name, d.event))
 	case Global_Listen_Requested:
@@ -568,9 +589,16 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	// The scene list itself: restore it whole, then show the scene that was open
 	if change, isProject := command.change.(ProjectChange); isProject {
 		snapshot := undo ? &change.before : &change.after
+		// The selection stays when the step didn't touch the open scene's nodes (an animation
+		// asset's edit: the Animation panel keeps showing it)
+		openBefore := s.currentScene
+		nodesBefore := s.currentScene < len(s.project.scenes) ? cloneNodes(s.project.scenes[s.currentScene].nodes[:]) : nil
+		defer destroyNodes(&nodesBefore)
 		restoreProjectSnapshot(s, snapshot)
 		s.currentScene = clamp(snapshot.currentScene, 0, len(s.project.scenes) - 1)
-		s.selectedNode = -1
+		kept := undo ? command.selectionBefore : command.selectionAfter
+		same := s.currentScene == openBefore && nodesEqual(nodesBefore[:], s.project.scenes[s.currentScene].nodes[:])
+		s.selectedNode = same && kept >= 0 && kept < len(s.project.scenes[s.currentScene].nodes) ? kept : -1
 		clear(&s.selection)
 		s.viewport.drag = {}
 		s.treeDrag = {}
@@ -637,7 +665,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.groups != b.groups ||
 	   a.texture != b.texture || a.text != b.text || a.fontSize != b.fontSize || a.color != b.color ||
 	   a.centered != b.centered || a.zoom != b.zoom || a.columns != b.columns || a.rows != b.rows ||
-	   a.margin != b.margin || a.spacing != b.spacing || a.autoplay != b.autoplay || !animationsEqual(a.animations[:], b.animations[:]) ||
+	   a.margin != b.margin || a.spacing != b.spacing || a.autoplay != b.autoplay || !animationsEqual(a.animations[:], b.animations[:]) || a.animationSet != b.animationSet ||
 	   len(a.items) != len(b.items) ||
 	   a.script != b.script || len(a.props) != len(b.props) ||
 	   a.collisionLayer != b.collisionLayer || a.collisionMask != b.collisionMask || a.friction != b.friction ||
@@ -665,7 +693,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 // Whether two animation lists are the same
 animationsEqual :: proc(a, b: []AnimationDef) -> bool {
 	if len(a) != len(b) do return false
-	for x, i in a do if x != b[i] do return false
+	for x, i in a do if !AnimationDef_Equal(x, b[i]) do return false
 	return true
 }
 
@@ -743,6 +771,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for &scene in p.scenes do if !Scene_IsComponent(&scene) do append(&snapshot.scenes, SceneDef_Clone(scene))
 	for g in p.globals do append(&snapshot.globals, GlobalDef_Clone(g))
 	for d in p.data do append(&snapshot.data, DataDef_Clone(d))
+	for set in p.animationSets do append(&snapshot.animationSets, AnimationSetDef_Clone(set))
 	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
 	for b in p.buses do append(&snapshot.buses, BusDef{strings.clone(b.name), b.volume, b.pan, b.mute})
 	return snapshot
@@ -788,6 +817,13 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 		if i < 0 do continue
 		DataDef_Destroy(&p.data[i])
 		p.data[i] = DataDef_Clone(d)
+	}
+	// Animation assets by file, the same way
+	for set in snapshot.animationSets {
+		i := Project_FindAnimationSet(p, set.path)
+		if i < 0 do continue
+		AnimationSetDef_Destroy(&p.animationSets[i])
+		p.animationSets[i] = AnimationSetDef_Clone(set)
 	}
 	for scene in snapshot.scenes do append(&p.scenes, SceneDef_Clone(scene))
 	append(&p.scenes, ..components[:])
@@ -842,6 +878,8 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.globals)
 	for &d in snapshot.data do DataDef_Destroy(&d)
 	delete(snapshot.data)
+	for &set in snapshot.animationSets do AnimationSetDef_Destroy(&set)
+	delete(snapshot.animationSets)
 	for &a in snapshot.actions do ActionDef_Destroy(&a)
 	delete(snapshot.actions)
 	for b in snapshot.buses do delete(b.name)
@@ -861,5 +899,7 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if len(a.globals) != len(b.globals) || len(a.data) != len(b.data) || !actionsEqual(a.actions[:], b.actions[:]) || !busesEqual(a.buses[:], b.buses[:]) do return false
 	for g, i in a.globals do if g.script != b.globals[i].script || !propsEqual(g.props[:], b.globals[i].props[:]) do return false
 	for d, i in a.data do if d.path != b.data[i].path || d.type != b.data[i].type || !propsEqual(d.values[:], b.data[i].values[:]) do return false
+	if len(a.animationSets) != len(b.animationSets) do return false
+	for set, i in a.animationSets do if !AnimationSetDef_Equal(set, b.animationSets[i]) do return false
 	return true
 }

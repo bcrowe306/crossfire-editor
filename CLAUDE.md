@@ -205,7 +205,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
 | `view_inspector_audio.odin` | The inspector's sound node settings (`audioInspectorRows`): sound or music, bus, Open Mixer, volume / pitch / pan sliders, loop, autostart, a 2D player's range and falloff, music's fades, Preview |
 | `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with, frames, FPS, loop, mode, the sheet's image and grid; groups in a `wrap_row`) over the preview and the sheet's frame thumbnails (`frameStrip`, cells drawn from the sheet uploaded once with stb_image); one scroll for all |
-| `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimationDef_FrameAt` (the frame at a time, as the engine plays it), `AnimationDef_Range`, unique names |
+| `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimationDef_FrameAt` / `StepAt` (the frame at a time, as the engine plays it, durations too), `AnimationDef_Range`, unique names, `AnimEdit_IsEdit` |
+| `animation_sets_edit.odin` | **Animation assets**: `AnimationSetDef` (`.anim.xml`, `Project.animationSets`: load, save when changed, make: `Project_CreateAnimationSet`), `AnimationDef` / set clone, equal and engine conversions, an Aseprite file's tags as a set (`AsepriteEdit_AnimationSet`), the panel's `AnimSource` (`AnimEdit_Source`), the browser preview, `Scene_AddAnimatedSpriteAt` |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
 | `editor_test.odin` | Unit tests for the model, XML round trips, transforms, assets, search, viewport math, keymap and update |
@@ -1155,8 +1156,10 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   `tests/ui/aseprite.script` (import, preview, Open in Aseprite, drag in, save, Play; driver
   check `texture`). Fixtures: `tests/fixtures/aseprite/` (Aseprite's MIT test sprites, its
   LICENSE beside them).
-- **Next (decided):** animation assets (a set of named clips; an .aseprite file's tags are one) and
-  TileMap nodes from Aseprite tilemap layers, with collision from tile properties.
+- **Animations:** an Aseprite file is an animation asset as it is (its tags; see the Animation
+  editor's "Animation assets").
+- **Next (decided):** TileMap nodes from Aseprite tilemap layers, with collision from tile
+  properties.
 
 ## LDtk levels (implemented, `ldtk_edit.odin`; engine: ldtk.odin, ldtk_nodes.odin)
 
@@ -1244,6 +1247,33 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   `click_overlay_item` picks the choices of the last popup, inside a dialog too).
 
 ## Animation editor (implemented, `view_animation.odin`, `animation_edit.odin`)
+
+**Animation assets** (animation_sets_edit.odin; the engine's animation_sets.odin): an
+AnimatedSprite plays its own animations or an animation asset's (`NodeDef.animationSet`, the
+inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite file (its tags).
+- **The panel edits an `AnimSource`** (`AnimEdit_Source`): the set the browser shows in it
+  (`AnimEditor.asset`: an asset's Edit Animations, an Aseprite preview's Animations; Back to the
+  sprite clears it), else the selected sprite's set, else its own. Every message goes through the
+  source's pointers; a set's grid is `AnimField.Columns`... (a node's stays its NodeFields) and
+  its sheet `Anim_Sheet_Texture_Changed`. Aseprite's are read only (edits are dropped).
+- **Undo:** edits to a set are `.Project` steps (History_Classify checks `AnimEdit_IsEdit` first;
+  the snapshot holds every set, restored by file like data resources); a project step that
+  doesn't touch the open scene's nodes keeps the selection, so the panel keeps showing it.
+- **Making one:** the inspector's Save as Animation Asset (`Anim_Set_From_Node`: the sprite's own
+  sheet and animations go into `animations/<name>.anim.xml`, the sprite uses it; the node's step
+  is undone, the file stays), or the browser's New Animations (`Anim_Set_New`, an empty one).
+  The browser's Animations folder shows once there's one (row counts in tests stay put).
+- **Using one:** the inspector's Animations choice, dragging the asset into the viewport (an
+  AnimatedSprite: `Scene_AddAnimatedSpriteAt`), or scripts: `ANIMATION_X` constants (an Aseprite
+  file gets both `TEXTURE_X` and `ANIMATION_X`), `e.AnimatedSprite_UseAnimations`, fields of type
+  `e.AnimationAsset` (a picker of both kinds).
+- **Viewport:** the preview game gets the in-memory sets and the Aseprite files' (parsed by the
+  editor) before each build (`provideComponents`), and the rebuild signature includes a set's
+  text or an Aseprite file's time.
+- **Durations** (Aseprite frames each have one) and `repeat` round-trip; the panel shows them
+  (`AnimationDef_StepAt` previews them) but doesn't edit them yet.
+- Tests: `animation_assets_are_made_saved_edited_and_undone`, `tests/ui/animation_assets.script`
+  (driver checks `anim_source`, `animation_set`, `animation_sets`).
 
 - **Model:** an AnimatedSprite's sheet is `texture`, `columns` x `rows`, `margin`, `spacing`; its
   `animations` (`AnimationDef`: name, start, end (-1 = last cell), fps, loop, play mode; at least

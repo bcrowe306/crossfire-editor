@@ -75,6 +75,8 @@ BrowserFolder :: enum {
 	Levels,
 	// Translation tables (the engine's localization.odin)
 	Translations,
+	// Animation assets (animation_sets_edit.odin)
+	Animations,
 }
 
 /*
@@ -301,7 +303,7 @@ init :: proc() -> State {
 		currentScene = 0,
 		selectedNode = -1,
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},
@@ -394,6 +396,7 @@ State_Destroy :: proc(state: ^State) {
 	if state.hasSceneClipboard do SceneDef_Destroy(&state.sceneClipboard)
 	ProjectSettings_Destroy(&state.projectSettings)
 	delete(state.animEditor.nameText)
+	delete(state.animEditor.asset)
 	Editor_ForgetProcesses()
 	delete(state.numberEdit.text)
 	delete(state.session.newProject.name)

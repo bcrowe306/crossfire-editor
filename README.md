@@ -344,6 +344,14 @@ frames, layers and tags, and **Open in Aseprite** (or a double-click) starts Ase
 its path in Settings > Editor if `aseprite` isn't in PATH. Save in Aseprite and the viewport, and
 a game running from Play, show the new pixels.
 
+**Animations as assets:** an AnimatedSprite can play an animation asset instead of its own
+animations, so one set of animations (idle, run, jump) is shared by every sprite that needs it.
+An Aseprite file is one as it is: each tag is an animation, with its frames' durations, its
+direction (forward, reverse, ping-pong) and its repeats. Pick it in the AnimatedSprite's
+**Animations**, or drag it into the viewport. A sprite's own animations become an asset with
+**Save as Animation Asset**, and the Animation panel edits it; scripts switch sprites with
+`e.AnimatedSprite_UseAnimations(sprite, ANIMATION_HERO)`.
+
 ## LDtk levels
 
 Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:

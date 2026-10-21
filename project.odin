@@ -72,6 +72,8 @@ NodeDef :: struct {
 	spacing: f32,
 	animations: [dynamic]AnimationDef,
 	autoplay: string,
+	// An animation asset it plays instead of its own sheet and animations ("" for its own; owned)
+	animationSet: string,
 	// Menu
 	items: [dynamic]MenuItemDef,
 	// Any kind: the script attached to it ("" for none) and its exported field values, as text
@@ -217,6 +219,8 @@ AssetKind :: enum {
 	LDtk,
 	// A translation table (`.csv`, the engine's localization.odin): the game loads every one
 	Translation,
+	// An animation asset (`.anim.xml`, animation_sets_edit.odin): animations AnimatedSprites share
+	Animation,
 }
 
 /*
@@ -266,6 +270,8 @@ Project :: struct {
 	// Global scripts, in start order, and data resources (project_data.odin)
 	globals: [dynamic]GlobalDef,
 	data: [dynamic]DataDef,
+	// Animation assets (`.anim.xml` files: animation_sets_edit.odin), one per asset of kind Animation
+	animationSets: [dynamic]AnimationSetDef,
 	// Input actions, in order (input_actions.odin)
 	actions: [dynamic]ActionDef,
 	// Mix buses (mixer.odin): Master first, always
@@ -351,11 +357,15 @@ AnimationDef :: struct {
 	fps: f32,
 	loop: bool,
 	playMode: e.AnimationPlayMode,
+	// Seconds per frame, overriding fps (Aseprite's frames each have their own; owned)
+	durations: [dynamic]f32,
+	// Times a non-looping animation plays (0 or 1: once)
+	repeat: int,
 }
 
 // The animation a new AnimatedSprite gets: every cell, looping (name owned)
 AnimationDef_Default :: proc(name := "default") -> AnimationDef {
-	return {strings.clone(name), 0, -1, e.DEFAULT_SCENE_NODE.fps, true, .Forward}
+	return {name = strings.clone(name), start = 0, end = -1, fps = e.DEFAULT_SCENE_NODE.fps, loop = true, playMode = .Forward}
 }
 
 // Frees a node's strings and lists
@@ -374,8 +384,9 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.points)
 	delete(node.bodyA)
 	delete(node.bodyB)
-	for a in node.animations do delete(a.name)
+	for &a in node.animations do AnimationDef_Destroy(&a)
 	delete(node.animations)
+	delete(node.animationSet)
 	delete(node.autoplay)
 	delete(node.component)
 	delete(node.sound)
@@ -553,6 +564,8 @@ Project_Destroy :: proc(project: ^Project) {
 	for b in project.buses do delete(b.name)
 	delete(project.buses)
 	for &d in project.data do DataDef_Destroy(&d)
+	for &set in project.animationSets do AnimationSetDef_Destroy(&set)
+	delete(project.animationSets)
 	delete(project.data)
 	project^ = {}
 }
@@ -609,6 +622,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "Component": kind = .Component
 		case "LDtk": kind = .LDtk
 		case "Translation": kind = .Translation
+		case "Animation": kind = .Animation
 		}
 		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
 		// A data resource's values come from its file
@@ -622,6 +636,17 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				def = DataDef{path = strings.clone(asset.path), type = strings.clone("")}
 			}
 			append(&project.data, def)
+		}
+		// An animation asset's sheet and animations come from its file
+		if kind == .Animation {
+			set, problem := Project_LoadAnimationSet(rootPath, asset.path)
+			if problem != "" {
+				list := make([dynamic]string, context.temp_allocator)
+				append(&list, ..warnings)
+				append(&list, problem)
+				warnings = list[:]
+			}
+			append(&project.animationSets, set)
 		}
 	}
 	project.buses = Buses_FromData(data.buses[:])
@@ -732,9 +757,11 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 		}
 		append(&def.points, ..node.points[:])
 		if node.kind == .AnimatedSprite {
-			for a in node.animations do append(&def.animations, AnimationDef{strings.clone(a.name), a.start, a.end, a.fps, a.loop, a.playMode})
-			// Files before format 7: one animation of every cell, at the node's speed
-			if len(def.animations) == 0 do append(&def.animations, AnimationDef{strings.clone("default"), 0, -1, node.fps, node.loop, node.playMode})
+			for a in node.animations do append(&def.animations, AnimationDef_FromData(a))
+			// Files before format 7: one animation of every cell, at the node's speed (not with an
+			// animation asset: its animations are the asset's)
+			if len(def.animations) == 0 && node.animationSet == "" do append(&def.animations, AnimationDef{name = strings.clone("default"), start = 0, end = -1, fps = node.fps, loop = node.loop, playMode = node.playMode})
+			def.animationSet = strings.clone(node.animationSet)
 		}
 		for item in node.items {
 			append(&def.items, MenuItemDef{strings.clone(item.label), strings.clone(item.action)})

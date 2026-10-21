@@ -415,23 +415,52 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Sprite:
 		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth)))
 	case .AnimatedSprite:
-		// The animations themselves are edited in the bottom panel's Animation tab
+		// The animations themselves are edited in the bottom panel's Animation tab; they're the
+		// sprite's own, or an animation asset's (an .anim.xml file, or an Aseprite file's tags)
+		sets := make([dynamic]string, context.temp_allocator)
+		append(&sets, ANIMATION_OWN)
+		for asset in s.project.assets do if Asset_IsAnimations(asset) do append(&sets, asset.path)
+		append(&rows, inspectorRow(ctx, "Animations", skald.select(ctx, node.animationSet == "" ? ANIMATION_OWN : node.animationSet, sets[:], NodeTextField.Animation_Set, onText,
+			id = skald.hash_id(fmt.tprintf("inspector-animation-set-%d", key)), width = controlWidth)))
+		// The animations it plays: its own, or the asset's
+		animations := node.animations[:]
+		if node.animationSet != "" {
+			animations = nil
+			if i := Project_FindAnimationSet(&s.project, node.animationSet); i >= 0 {
+				animations = s.project.animationSets[i].animations[:]
+			} else if set := AsepriteEdit_AnimationSet(s.project.rootPath, node.animationSet); set != nil {
+				animations = set.animations[:]
+			} else {
+				append(&rows, skald.text(fmt.tprintf("%s can't be read.", node.animationSet), th.color.warning, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+			}
+		}
 		choices := make([dynamic]string, context.temp_allocator)
 		append(&choices, ANIMATION_FIRST)
-		for a in node.animations do append(&choices, a.name)
+		for a in animations do append(&choices, a.name)
 		editButton := skald.button(ctx, fmt.tprintf("%s  Edit Animations", ICON_FILM), Msg(Bottom_Tab_Changed(int(BottomTab.Animation))),
 			id = skald.hash_id(fmt.tprintf("inspector-edit-animations-%d", key)),
 			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		if node.animationSet == "" {
+			append(&rows,
+				inspectorRow(ctx, "Sheet", textureSelect(ctx, s, key, node.texture, controlWidth)),
+				inspectorRow(ctx, "Columns", number(ctx, s, key, .Columns, f32(node.columns), 1, 0, numberWidth, 1, 64)),
+				inspectorRow(ctx, "Rows", number(ctx, s, key, .Rows, f32(node.rows), 1, 0, numberWidth, 1, 64)),
+				inspectorRow(ctx, "Margin", number(ctx, s, key, .Margin, node.margin, 1, 0, numberWidth, 0, 1000)),
+				inspectorRow(ctx, "Spacing", number(ctx, s, key, .Spacing, node.spacing, 1, 0, numberWidth, 0, 1000)),
+			)
+		}
 		append(&rows,
-			inspectorRow(ctx, "Sheet", textureSelect(ctx, s, key, node.texture, controlWidth)),
-			inspectorRow(ctx, "Columns", number(ctx, s, key, .Columns, f32(node.columns), 1, 0, numberWidth, 1, 64)),
-			inspectorRow(ctx, "Rows", number(ctx, s, key, .Rows, f32(node.rows), 1, 0, numberWidth, 1, 64)),
-			inspectorRow(ctx, "Margin", number(ctx, s, key, .Margin, node.margin, 1, 0, numberWidth, 0, 1000)),
-			inspectorRow(ctx, "Spacing", number(ctx, s, key, .Spacing, node.spacing, 1, 0, numberWidth, 0, 1000)),
 			inspectorRow(ctx, "Starts with", skald.select(ctx, node.autoplay == "" ? ANIMATION_FIRST : node.autoplay, choices[:], NodeTextField.Autoplay, onText,
 				id = skald.hash_id(fmt.tprintf("inspector-autoplay-%d", key)), width = controlWidth)),
-			inspectorRow(ctx, fmt.tprintf("%d animation%s", len(node.animations), len(node.animations) == 1 ? "" : "s"), editButton),
+			inspectorRow(ctx, fmt.tprintf("%d animation%s", len(animations), len(animations) == 1 ? "" : "s"), editButton),
 		)
+		// Its own animations, shared: an asset other sprites can use (the button on its own row:
+		// it doesn't fit beside a label in a narrow inspector)
+		if node.animationSet == "" {
+			append(&rows, skald.button(ctx, fmt.tprintf("%s  Save as Animation Asset", ICON_FILM), Msg(Anim_Set_From_Node{}),
+				id = skald.hash_id(fmt.tprintf("inspector-save-animations-%d", key)),
+				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+		}
 	case .Label:
 		append(&rows,
 			inspectorRow(ctx, "Text", textField(ctx, key, .Text, node.text, controlWidth)),

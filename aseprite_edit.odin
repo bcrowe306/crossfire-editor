@@ -124,9 +124,15 @@ AsepriteEdit_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, i
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
 	// First, so a short preview panel still shows it
-	append(&rows, skald.button(ctx, fmt.tprintf("%s  Open in Aseprite", ICON_IMAGE), Msg(Aseprite_Asset_Open_Requested(index)),
-		id = skald.hash_id("browser-aseprite-open"), bg = th.color.surface, fg = th.color.fg,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+	append(&rows, skald.row(
+		skald.button(ctx, fmt.tprintf("%s  Open in Aseprite", ICON_IMAGE), Msg(Aseprite_Asset_Open_Requested(index)),
+			id = skald.hash_id("browser-aseprite-open"), bg = th.color.surface, fg = th.color.fg,
+			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+		skald.button(ctx, fmt.tprintf("%s  Animations", ICON_FILM), Msg(Anim_Asset_Shown(asset.path)),
+			id = skald.hash_id("browser-aseprite-animations"), bg = th.color.surface, fg = th.color.fg,
+			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+		spacing = th.spacing.xs,
+	))
 	picture: skald.View
 	if ase == nil {
 		append(&rows, skald.text(fmt.tprintf("%s couldn't be read as an Aseprite file.", asset.path), th.color.danger, th.font.size_xs, max_width = previewTextWidth))
@@ -162,7 +168,7 @@ AsepriteEdit_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, i
 			append(&layers, e.Aseprite_LayerShown(ase, i) ? layer.name : fmt.tprintf("%s (hidden)", layer.name))
 		}
 		append(&rows, skald.text(fmt.tprintf("Layers: %s", strings.join(layers[:], ", ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
-		append(&rows, skald.text("Used as an image, it's the first frame with every visible layer.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, skald.text("Used as an image, it's the first frame with every visible layer; as an AnimatedSprite's animations, its tags.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
 	}
 	return skald.col(
 		skald.flex(3, picture),
@@ -200,11 +206,17 @@ Returns:
 - The pixels (temp allocated), the size, and false if it can't be read
 */
 Image_LoadRGBA :: proc(path: string) -> (pixels: []u8, width, height: int, ok: bool) {
-	if e.Aseprite_IsFile(path) {
-		ase, err := e.Aseprite_Load(path)
+	// An Aseprite sheet (`<file>#sheet`, an animation asset's): every frame on a grid
+	file := strings.trim_suffix(path, e.ASEPRITE_SHEET_SUFFIX)
+	if e.Aseprite_IsFile(file) {
+		ase, err := e.Aseprite_Load(file)
 		if err != .None do return
 		defer e.Aseprite_Destroy(ase)
 		if ase.width <= 0 || ase.height <= 0 do return
+		if file != path {
+			sheet, columns, rows := e.Aseprite_SheetPixels(ase, context.temp_allocator)
+			return sheet, columns * ase.width, rows * ase.height, true
+		}
 		return e.Aseprite_FramePixels(ase, 0, context.temp_allocator), ase.width, ase.height, true
 	}
 	w, h, channels: i32

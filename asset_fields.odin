@@ -24,6 +24,7 @@ AssetField_Type :: proc(kind: AssetKind) -> (type: string, ok: bool) {
 	case .Font:      return "FontAsset", true
 	case .Component: return "ComponentAsset", true
 	case .Data:      return "DataAsset", true
+	case .Animation: return "AnimationAsset", true
 	}
 	return "", false
 }
@@ -61,6 +62,7 @@ AssetField_Line :: proc(st: NodeField_Struct, project: ^Project, asset: AssetDef
 	case .Image:     use = fmt.tprintf("texture := %s.Asset_Texture(self.game, self.%s)", a, name)
 	case .Font:      use = fmt.tprintf("font := %s.Asset_Font(self.game, self.%s, 24)", a, name)
 	case .Music:     use = fmt.tprintf("%s.AudioPlayer_SetSound(player, self.%s.path) (a MusicPlayer)", a, name)
+	case .Animation: use = fmt.tprintf("%s.AnimatedSprite_UseAnimations(sprite, self.%s) (an AnimatedSprite)", a, name)
 	case .Data:
 		dataType := "T"
 		if i := Project_FindData(project, asset.path); i >= 0 && project.data[i].type != "" {

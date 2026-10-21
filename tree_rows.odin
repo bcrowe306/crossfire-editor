@@ -63,6 +63,8 @@ BrowserRows :: proc(state: ^State) -> []BrowserItem {
 
 		// While searching, only folders with matches are shown, and they're shown open
 		if search != "" && len(contents) == 0 do continue
+		// Animation assets: once the project has one (made from a sprite: Save as Animation Asset)
+		if folder == .Animations && len(state.project.animationSets) == 0 do continue
 		append(&rows, BrowserItem{kind = .Folder, folder = folder})
 		if search != "" || state.browserOpen[folder] do append(&rows, ..contents[:])
 	}
@@ -91,6 +93,7 @@ AssetFolder :: proc(kind: AssetKind) -> BrowserFolder {
 	case .Component: return .Components
 	case .LDtk: return .Levels
 	case .Translation: return .Translations
+	case .Animation: return .Animations
 	}
 	return .Images
 }

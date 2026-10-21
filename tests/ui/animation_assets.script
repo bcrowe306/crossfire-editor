@@ -1,0 +1,77 @@
+# Animation assets: a sprite's own animations saved as one it plays, edited in the Animation panel
+# (undone), an Aseprite file's tags as another sprite's animations (read only), dragged into the
+# viewport, saved and played.
+# Run with: task test:ui
+#
+# PlayScene's rows: World, Camera, Spaceship, ShipLight, Props, Balloon (node 5, a 4x1 sheet)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 5
+expect selected Balloon
+expect anim_source Node
+
+# Its own animations become an asset it plays
+scroll_into_view inspector-scroll inspector-save-animations-5
+click_widget inspector-save-animations-5
+expect animation_set animations/balloon.anim.xml
+expect animation_sets 1
+expect project_file animations/balloon.anim.xml
+expect anim_source Set animations/balloon.anim.xml
+
+# Edited in the panel: a project step, undone
+scroll_into_view inspector-scroll inspector-edit-animations-5
+click_widget inspector-edit-animations-5
+expect tab Animation
+wait_until sheet_loaded true
+scroll_into_view animation-scroll animation-add
+click_widget animation-add
+expect animations 2
+key ctrl+z
+expect animations 1
+expect selected Balloon
+key ctrl+y
+expect animations 2
+
+# An Aseprite file's tags: another sprite's animations, read only
+import tests/fixtures/aseprite/tags3.aseprite
+select_asset assets/tags3.aseprite
+click_widget browser-aseprite-animations
+expect anim_source Aseprite assets/tags3.aseprite
+expect animations 3
+expect widget_visible animation-aseprite-open true
+scroll_into_view animation-scroll animation-asset-close
+click_widget animation-asset-close
+expect anim_source Set animations/balloon.anim.xml
+key escape
+drag_asset_to assets/tags3 viewport-canvas
+expect kind Sprite
+key ctrl+z
+# As an animation asset: an AnimatedSprite playing the balloon's animations
+select_asset animations/balloon.anim.xml
+expect widget_visible browser-animations-edit true
+key escape
+drag_asset_to animations/balloon viewport-canvas
+expect kind AnimatedSprite
+expect animation_set animations/balloon.anim.xml
+# Switched to the Aseprite file's tags in the inspector
+# (its choices: its own, balloon.anim.xml, then tags3.aseprite)
+scroll_into_view inspector-scroll inspector-animation-set-{selected}
+click_widget inspector-animation-set-{selected}
+click_overlay_item 2
+expect animation_set assets/tags3.aseprite
+expect anim_source Aseprite assets/tags3.aseprite
+
+# Saved and played
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml animations="animations/balloon.anim.xml"
+expect project_file_contains scenes/PlayScene.scene.xml animations="assets/tags3.aseprite"
+expect project_file_contains project.xml kind="Animation"
+action Play_Scene
+wait_until play Playing
+wait 3
+expect console_lacks Couldn't
+expect console_lacks has no animation
+key shift+F5
+wait_until play Stopped

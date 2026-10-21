@@ -226,22 +226,29 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		case .Data:  prefix, type = "DATA", "DataAsset"
 		case .Component: prefix, type = "COMPONENT", "ComponentAsset"
 		case .LDtk:  prefix, type = "LDTK", "LDtkAsset"
+		case .Animation: prefix, type = "ANIMATION", "AnimationAsset"
 		// Games load every table themselves; scripts use their keys
 		case .Translation: continue
 		}
 		stem := asset.kind == .Data ? DataName(asset.path) : asset.kind == .Component ? ComponentName(asset.path) : filepath.stem(filepath.base(asset.path))
-		name := fmt.tprintf("%s_%s", prefix, strings.to_upper(sanitize(stem), context.temp_allocator))
-		if n := used[name]; n > 0 {
-			used[name] = n + 1
-			name = fmt.tprintf("%s_%d", name, n + 1)
-		} else {
-			used[name] = 1
-		}
+		if asset.kind == .Animation do stem = strings.trim_suffix(filepath.base(asset.path), ANIMATION_EXTENSION)
 		comment := ""
 		if asset.kind == .Data {
 			if i := Project_FindData(project, asset.path); i >= 0 do comment = fmt.tprintf("  // %s", project.data[i].type)
 		}
-		fmt.sbprintf(&b, "%s :: e.%s{{%q}%s\n", name, type, asset.path, comment)
+		// An Aseprite file is an image and animations (its tags) both
+		kinds := [2][2]string{{prefix, type}, {}}
+		if asset.kind == .Image && e.Aseprite_IsFile(asset.path) do kinds[1] = {"ANIMATION", "AnimationAsset"}
+		for k in kinds do if k[0] != "" {
+			name := fmt.tprintf("%s_%s", k[0], strings.to_upper(sanitize(stem), context.temp_allocator))
+			if n := used[name]; n > 0 {
+				used[name] = n + 1
+				name = fmt.tprintf("%s_%d", name, n + 1)
+			} else {
+				used[name] = 1
+			}
+			fmt.sbprintf(&b, "%s :: e.%s{{%q}%s\n", name, k[1], asset.path, comment)
+		}
 	}
 	// The input actions' names (Project Settings > Input): e.Input_IsActionPressed(ACTION_JUMP)
 	if len(project.actions) > 0 do strings.write_string(&b, "\n")

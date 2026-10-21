@@ -56,11 +56,8 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.points = make([dynamic][2]f32, 0, len(node.points))
 	append(&copy.points, ..node.points[:])
 	copy.animations = make([dynamic]AnimationDef, 0, len(node.animations))
-	for a in node.animations {
-		clone := a
-		clone.name = strings.clone(a.name)
-		append(&copy.animations, clone)
-	}
+	for a in node.animations do append(&copy.animations, AnimationDef_Clone(a))
+	copy.animationSet = strings.clone(node.animationSet)
 	copy.autoplay = strings.clone(node.autoplay)
 	copy.component = strings.clone(node.component)
 	copy.ldtk = LDtkSettings_Clone(node.ldtk)

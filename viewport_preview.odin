@@ -288,6 +288,7 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	forgetChangedLDtk(s, preview.game)
 	created := e.Scene_Build(preview.scene, &data, s.project.rootPath, attachScripts = false)
 	preview.game.components = nil
+	preview.game.animationSets = nil
 	e.Scene_ProcessQueues(preview.scene)
 
 	clear(&preview.nodes)
@@ -327,6 +328,16 @@ provideComponents :: proc(s: ^State, game: ^e.Game) {
 		if !Scene_IsComponent(&scene) || len(scene.nodes) == 0 do continue
 		data := toSceneData(&scene)
 		game.components[scene.component] = new_clone(data, context.temp_allocator)
+	}
+	// Animation assets as they are in memory (unsaved edits show), and Aseprite files' (parsed
+	// once by the editor, not into the game's memory on every rebuild)
+	game.animationSets = make(map[string]^e.AnimationSetData, context.temp_allocator)
+	for &set in s.project.animationSets do game.animationSets[set.path] = new_clone(AnimationSetDef_ToData(&set), context.temp_allocator)
+	for scene in s.project.scenes do for node in scene.nodes {
+		if node.animationSet == "" || node.animationSet in game.animationSets || !e.Aseprite_IsFile(node.animationSet) do continue
+		if set := AsepriteEdit_AnimationSet(s.project.rootPath, node.animationSet); set != nil {
+			game.animationSets[node.animationSet] = new_clone(AnimationSetDef_ToData(set), context.temp_allocator)
+		}
 	}
 }
 
@@ -387,6 +398,7 @@ Preview_RenderComponent :: proc(s: ^State, sceneIndex: int, size: [2]int) -> (pi
 	provideComponents(s, t.game)
 	e.Scene_Build(scene, &data, s.project.rootPath, attachScripts = false)
 	t.game.components = nil
+	t.game.animationSets = nil
 	e.Scene_ProcessQueues(scene)
 
 	// Everything it draws, in its own space, fitted with a margin
@@ -485,7 +497,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			groups = groupList(node.groups),
 			texture = node.texture, text = node.text, fontSize = node.fontSize, color = node.color,
 			centered = node.centered, zoom = node.zoom, columns = node.columns, rows = node.rows,
-			margin = node.margin, spacing = node.spacing, animations = animationData(node.animations[:]), autoplay = node.autoplay, items = items,
+			margin = node.margin, spacing = node.spacing, animations = animationData(node.animations[:]), autoplay = node.autoplay, animationSet = node.animationSet, items = items,
 			collisionLayer = node.collisionLayer, collisionMask = node.collisionMask,
 			friction = node.friction, restitution = node.restitution, density = node.density,
 			gravityScale = node.gravityScale, linearDamping = node.linearDamping, angularDamping = node.angularDamping,
@@ -507,7 +519,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 @(private="file")
 animationData :: proc(animations: []AnimationDef) -> [dynamic]e.AnimationData {
 	list := make([dynamic]e.AnimationData, 0, len(animations), context.temp_allocator)
-	for a in animations do append(&list, e.AnimationData{a.name, a.start, a.end, a.fps, a.loop, a.playMode})
+	for a in animations do append(&list, AnimationDef_ToData(a))
 	return list
 }
 
@@ -540,7 +552,16 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_f32(&b, node.spacing, 'g')
 		strings.write_string(&b, node.autoplay)
 		for a in node.animations {
-			fmt.sbprintf(&b, "|%s %d %d %v %v %v", a.name, a.start, a.end, a.fps, a.loop, a.playMode)
+			fmt.sbprintf(&b, "|%s %d %d %v %v %v %d %v", a.name, a.start, a.end, a.fps, a.loop, a.playMode, a.repeat, a.durations[:])
+		}
+		// An animation asset: what it holds (an Aseprite file's: its time)
+		if node.animationSet != "" {
+			strings.write_string(&b, node.animationSet)
+			if i := Project_FindAnimationSet(&s.project, node.animationSet); i >= 0 {
+				strings.write_string(&b, AnimationSetToXML(&s.project.animationSets[i], context.temp_allocator))
+			} else {
+				fmt.sbprintf(&b, "%v", ldtkModified(joinPath(s.project.rootPath, node.animationSet, allocator = context.temp_allocator)))
+			}
 		}
 		for item in node.items {
 			strings.write_string(&b, item.label)

@@ -34,6 +34,7 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), DATA_EXTENSION) do return .Data, true
 	case ".xml":
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), COMPONENT_EXTENSION) do return .Component, true
+		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), ANIMATION_EXTENSION) do return .Animation, true
 	case ".ldtk":
 		return .LDtk, true
 	case ".csv":
@@ -102,6 +103,14 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 		if problem != "" do return -1, problem
 		append(&project.data, def)
 	}
+	if kind == .Animation {
+		set, problem := Project_LoadAnimationSet(project.rootPath, relative)
+		if problem != "" {
+			AnimationSetDef_Destroy(&set)
+			return -1, problem
+		}
+		append(&project.animationSets, set)
+	}
 	append(&project.assets, AssetDef{strings.clone(relative), kind})
 	return len(project.assets) - 1, ""
 }
@@ -133,6 +142,10 @@ Project_RemoveAsset :: proc(project: ^Project, index: int, deleteFile: bool) -> 
 	if d := Project_FindData(project, asset.path); d >= 0 {
 		DataDef_Destroy(&project.data[d])
 		ordered_remove(&project.data, d)
+	}
+	if a := Project_FindAnimationSet(project, asset.path); a >= 0 {
+		AnimationSetDef_Destroy(&project.animationSets[a])
+		ordered_remove(&project.animationSets, a)
 	}
 	// A component's SceneDef (the caller moves the viewport off it first)
 	if c := Project_FindComponent(project, asset.path); c >= 0 {

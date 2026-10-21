@@ -85,6 +85,11 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 	case .Font:    return choices(ctx, value, assetsOf(s, .Font), payload, id(field, key), controlWidth)
 	case .Data:    return choices(ctx, value, Project_DataOfType(&s.project, field.hint), payload, id(field, key), controlWidth)
 	case .Component: return choices(ctx, value, assetsOf(s, .Component), payload, id(field, key), controlWidth)
+	case .Animation:
+		// Animation files and Aseprite files (their tags)
+		paths := make([dynamic]string, context.temp_allocator)
+		for asset in s.project.assets do if Asset_IsAnimations(asset) do append(&paths, asset.path)
+		return choices(ctx, value, paths[:], payload, id(field, key), controlWidth)
 	case .Node:
 		// The scene's nodes that fit, as paths from the script's node (node_fields.odin)
 		scene := &s.project.scenes[s.currentScene]

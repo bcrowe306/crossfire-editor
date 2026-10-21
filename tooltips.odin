@@ -33,6 +33,7 @@ fieldTip :: proc(label: string) -> string {
 	// Drawing
 	case "Texture":        return "The image the node draws (an asset of kind Image)."
 	case "Sheet":          return "The sprite sheet the animations' frames come from."
+	case "Animations":     return "Its own animations, or an animation asset's (an .anim.xml file, or an Aseprite file's tags) that other sprites can share."
 	case "Columns":        return "How many frames across the sprite sheet."
 	case "Rows":           return "How many frames down the sprite sheet."
 	case "Margin":         return "Pixels around the sheet's edge before the first frame."

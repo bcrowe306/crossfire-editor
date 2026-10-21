@@ -202,7 +202,13 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			case .Music: add(&labels, "Use as a Sound", Msg(Asset_Kind_Changed{selection.index, .Audio}))
 			case .LDtk: add(&labels, "Open in LDtk", Msg(LDtk_Asset_Open_Requested(selection.index)))
 			case .Image:
-				if e.Aseprite_IsFile(s.project.assets[selection.index].path) do add(&labels, "Open in Aseprite", Msg(Aseprite_Asset_Open_Requested(selection.index)))
+				if path := s.project.assets[selection.index].path; e.Aseprite_IsFile(path) {
+					add(&labels, "Open in Aseprite", Msg(Aseprite_Asset_Open_Requested(selection.index)))
+					add(&labels, "Show Its Animations", Msg(Anim_Asset_Shown(path)))
+				}
+			case .Animation:
+				add(&labels, "Edit Animations", Msg(Anim_Asset_Shown(s.project.assets[selection.index].path)))
+				add(&labels, "New Animations", Msg(Anim_Set_New{}))
 			case .Font, .Data, .Component, .Translation:
 			}
 		}
@@ -220,6 +226,10 @@ browserMenuItems :: proc(s: ^State) -> []string {
 		}
 		if selection.kind == .Folder && selection.folder == .Components {
 			add(&labels, "New Component", Msg(Component_New{}))
+			break
+		}
+		if selection.kind == .Folder && selection.folder == .Animations {
+			add(&labels, "New Animations", Msg(Anim_Set_New{}))
 			break
 		}
 		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
@@ -461,6 +471,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			)
 		case .Component:
 			content = componentPreview(s, ctx, asset)
+		case .Animation:
+			content = AnimationSet_Preview(s, ctx, asset)
 		case .LDtk:
 			content = ldtkPreview(s, ctx, asset, path)
 		case .Translation:
@@ -635,6 +647,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Component: return ICON_CUBES
 	case .LDtk:  return ICON_MAP
 	case .Translation: return ICON_GLOBE
+	case .Animation: return ICON_FILM
 	}
 	return ICON_FILE
 }

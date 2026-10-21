@@ -77,6 +77,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by AsepriteEdit_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
+	     Anim_Sheet_Texture_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,
 	     Anim_Loop_Changed, Anim_Mode_Changed, Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Playback_Toggled,
 	     Anim_Tick, Anim_Tick_Requested:
 		// Handled by AnimEdit_Update above
@@ -434,6 +435,15 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.assetDrag = {}
 		if asset >= 0 && asset < len(out.project.assets) && out.project.assets[asset].kind == .Component {
 			addInstance(&out, out.project.assets[asset].path, v.world)
+			break
+		}
+		// An animation asset: an AnimatedSprite playing it
+		if asset >= 0 && asset < len(out.project.assets) && out.project.assets[asset].kind == .Animation {
+			path := out.project.assets[asset].path
+			scene := &out.project.scenes[out.currentScene]
+			index := Scene_AddAnimatedSpriteAt(scene, path, out.selectedNode, v.world)
+			out.selectedNode = index
+			logLine(&out, .Info, fmt.aprintf("Added %s, playing %s", scene.nodes[index].name, filepath.base(path)))
 			break
 		}
 		if asset >= 0 && asset < len(out.project.assets) && out.project.assets[asset].kind == .LDtk {
@@ -872,6 +882,14 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Autoplay:
 			delete(node.autoplay)
 			node.autoplay = strings.clone(v.value == ANIMATION_FIRST ? "" : v.value)
+		case .Animation_Set:
+			delete(node.animationSet)
+			node.animationSet = strings.clone(v.value == ANIMATION_OWN ? "" : v.value)
+			// Its own animations again: at least one
+			if node.animationSet == "" && len(node.animations) == 0 do append(&node.animations, AnimationDef_Default())
+			// The panel follows the sprite
+			delete(out.animEditor.asset)
+			out.animEditor.asset = strings.clone("")
 		case .Shape:
 			if shape, ok := reflect.enum_from_name(e.CollisionShapeKind, v.value); ok do node.shape = shape
 		case .Process_Mode:
