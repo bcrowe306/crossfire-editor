@@ -1169,6 +1169,17 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   time. Tests: `tilemaps_in_the_editor`, `tests/ui/tilemap.script` (driver checks `tilemap`,
   `tilemap_built`); the fixture `tests/fixtures/aseprite/tilemap.aseprite` is ours
   (`make_tilemap.py`).
+- **Slices, layers, events** (aseprite_edit.odin's `asepriteSpriteRows`, `sliceShapeRows`; the
+  engine's aseprite_nodes.odin): a Sprite or AnimatedSprite showing an Aseprite file
+  (`AsepriteEdit_NodeSource`) gets layer checkboxes (`Aseprite_Layer_Toggled`, ticking from what's
+  drawn, the last stays: `AsepriteEdit_ToggleLayer`), a Pivot slice (slices with a pivot), a
+  Sprite a 9-patch (slices with a center) and its size; an AnimatedSprite lists its frame events
+  (the Animation panel too). A CollisionShape near one (`AsepriteEdit_ShapeSprite`, the engine's
+  rule) gets a Slice choice: a hitbox. The viewport runs one zero-time update after each rebuild
+  so hitboxes take their place, and `syncTransforms` leaves them alone; it reloads saved
+  Aseprite files' slices (`e.Game_ReloadChangedAseprites`). TileMaps: Animate and Tag. Tests:
+  `aseprite_slices_layers_and_events_in_the_editor`, `tests/ui/aseprite_features.script` (driver
+  check `aseprite`); fixtures `features.aseprite`, `tilemap_animated.aseprite` (Aseprite's).
 - **Later (decided):** painting tilemaps in the editor, writing the same data.
 
 ## LDtk levels (implemented, `ldtk_edit.odin`; engine: ldtk.odin, ldtk_nodes.odin)

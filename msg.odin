@@ -452,6 +452,9 @@ NodeField :: enum {
 	Max_Motor,
 	Hertz,
 	Damping,
+	// A Sprite's 9-patch size (aseprite_edit.odin)
+	Nine_Width,
+	Nine_Height,
 }
 
 // Text properties. Play_Mode carries the enum value's name; Color carries #rrggbb
@@ -463,6 +466,11 @@ NodeTextField :: enum {
 	Autoplay,
 	// The animation asset an AnimatedSprite plays (ANIMATION_OWN: its own animations)
 	Animation_Set,
+	// Aseprite slices: a sprite's pivot slice, a Sprite's 9-patch slice, a CollisionShape's
+	// slice (SLICE_NONE for none; aseprite_edit.odin)
+	Pivot_Slice,
+	Nine_Slice,
+	Slice,
 	// A Component node's component (its file; TEXTURE_NONE for none)
 	Component,
 	// A sound node's sound or music asset (TEXTURE_NONE for none), and its bus (a name; Master is "")
@@ -1009,6 +1017,7 @@ Msg :: union {
 	LDtk_Open_Requested,
 	LDtk_Asset_Open_Requested,
 	Aseprite_Asset_Open_Requested,
+	Aseprite_Layer_Toggled,
 	Settings_Capture_Started,
 	Settings_Key_Captured,
 	Settings_Capture_Cancelled,

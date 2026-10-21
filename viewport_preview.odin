@@ -152,6 +152,8 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 	if preview.game != nil && time.tick_since(preview.texturesChecked) > TEXTURE_CHECK_INTERVAL {
 		preview.texturesChecked = time.tick_now()
 		if e.ResourceManager_ReloadChangedTextures(&preview.game.resourceManager) > 0 do preview.texturesVersion += 1
+		// Slices and events from Aseprite files saved since
+		e.Game_ReloadChangedAseprites(preview.game)
 	}
 	key := State{
 		signature = sceneSignature(s, scene),
@@ -290,6 +292,9 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	preview.game.components = nil
 	preview.game.animationSets = nil
 	e.Scene_ProcessQueues(preview.scene)
+	// One update without time: hitboxes following Aseprite slices take their place (and nothing
+	// moves)
+	e.Scene_Update(preview.scene, nil, 0)
 
 	clear(&preview.nodes)
 	append(&preview.nodes, ..created)
@@ -451,9 +456,12 @@ syncTransforms :: proc(scene: ^SceneDef) {
 	for &def, i in scene.nodes {
 		if i >= len(preview.nodes) || preview.nodes[i] == nil do continue
 		node := preview.nodes[i]
-		node.position = def.position
-		node.rotation = def.rotation
-		node.scale = def.scale
+		// A hitbox following an Aseprite slice places itself (aseprite_nodes.odin)
+		if def.kind != .CollisionShape || def.slice == "" {
+			node.position = def.position
+			node.rotation = def.rotation
+			node.scale = def.scale
+		}
 		node.visible = def.visible
 		node.layer = e.RenderLayer(clamp(def.layer, 0, len(e.RenderLayer) - 1))
 		node.zIndex = def.zIndex
@@ -498,6 +506,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			texture = node.texture, text = node.text, fontSize = node.fontSize, color = node.color,
 			centered = node.centered, zoom = node.zoom, columns = node.columns, rows = node.rows,
 			margin = node.margin, spacing = node.spacing, animations = animationData(node.animations[:]), autoplay = node.autoplay, animationSet = node.animationSet, items = items,
+			asepriteLayers = node.asepriteLayers, pivotSlice = node.pivotSlice, nineSlice = node.nineSlice, nineSize = node.nineSize, slice = node.slice,
 			collisionLayer = node.collisionLayer, collisionMask = node.collisionMask,
 			friction = node.friction, restitution = node.restitution, density = node.density,
 			gravityScale = node.gravityScale, linearDamping = node.linearDamping, angularDamping = node.angularDamping,
@@ -556,6 +565,7 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_f32(&b, node.margin, 'g')
 		strings.write_f32(&b, node.spacing, 'g')
 		strings.write_string(&b, node.autoplay)
+		fmt.sbprintf(&b, "|%s|%s|%s|%v|%s", node.asepriteLayers, node.pivotSlice, node.nineSlice, node.nineSize, node.slice)
 		for a in node.animations {
 			fmt.sbprintf(&b, "|%s %d %d %v %v %v %d %v", a.name, a.start, a.end, a.fps, a.loop, a.playMode, a.repeat, a.durations[:])
 		}
@@ -742,6 +752,7 @@ thumbnailTarget :: proc(t: ^Thumbnail, size: [2]int) -> bool {
 thumbnailDestroy :: proc(t: ^Thumbnail) {
 	if t.game != nil {
 		e.Game_ForgetLDtk(t.game)
+		e.Game_ForgetAseprites(t.game)
 		t.game.resourceManager->destroy()
 		free(t.game)
 	}
@@ -776,6 +787,7 @@ destroyAll :: proc() {
 	}
 	if preview.game != nil {
 		e.Game_ForgetLDtk(preview.game)
+		e.Game_ForgetAseprites(preview.game)
 		preview.game.resourceManager->destroy()
 		free(preview.game)
 		preview.game = nil

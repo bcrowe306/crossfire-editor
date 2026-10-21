@@ -107,6 +107,12 @@ fieldTip :: proc(label: string) -> string {
 	case "Entities":       return "LDtk entities become nodes: their components, or scripts named like them."
 	case "Tilemap file":   return "The Aseprite file whose tilemap layers the node draws."
 	case "Frame":          return "The frame of the Aseprite file its tilemaps come from."
+	case "Animate":        return "Plays the Aseprite file's frames (or a tag's) at their durations."
+	case "Tag":            return "The Aseprite tag whose frames it plays."
+	case "Pivot slice":    return "An Aseprite slice whose pivot is put on the node's origin, frame by frame."
+	case "9-patch":        return "An Aseprite 9-patch slice drawn stretched: the corners keep their size."
+	case "9-patch size":   return "The 9-patch's width and height in pixels (0: the slice's own)."
+	case "Slice":          return "An Aseprite slice of its sprite whose rectangle it takes, frame by frame (a hitbox)."
 	case "Tile collision": return "Tiles with a collision property in Aseprite (solid, one-way, area) become physics bodies."
 	case "Smooth tiles":   return "Linear filtering for the tiles (off: crisp pixel art)."
 	// Settings

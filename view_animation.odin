@@ -192,11 +192,16 @@ animationDetails :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 		for d in animation.durations do append(&ms, fmt.tprintf("%.0f", d * 1000))
 		timing = fmt.tprintf("Durations (ms): %s", strings.join(ms[:], " ", context.temp_allocator))
 	}
+	// Its frames' events (animation.onFrameEvent): an Aseprite file's from its cels
+	events := make([dynamic]string, context.temp_allocator)
+	for event, i in animation.events do if event != "" do append(&events, fmt.tprintf("frame %d: %s", start + i, event))
+	eventText := len(events) > 0 ? fmt.tprintf("Events (animation.onFrameEvent): %s", strings.join(events[:], "; ", context.temp_allocator)) : ""
 	if src.readOnly {
 		groups := make([dynamic]skald.View, context.temp_allocator)
 		repeat := animation.loop ? "loops" : animation.repeat > 1 ? fmt.tprintf("plays %d times", animation.repeat) : "plays once"
 		append(&groups, skald.text(fmt.tprintf("Frames %d to %d · %v · %s", start, end, animation.playMode, repeat), th.color.fg_muted, th.font.size_xs))
 		if timing != "" do append(&groups, skald.text(timing, th.color.fg_muted, th.font.size_xs))
+		if eventText != "" do append(&groups, skald.text(eventText, th.color.fg_muted, th.font.size_xs))
 		return groups[:]
 	}
 	modes := make([]string, len(e.AnimationPlayMode), context.temp_allocator)
@@ -213,6 +218,7 @@ animationDetails :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 			id = skald.hash_id(fmt.tprintf("animation-mode-%d", key)), width = 110),
 	)
 	if timing != "" do append(&groups, skald.text(fmt.tprintf("%s (they set the speed, not FPS)", timing), th.color.fg_muted, th.font.size_xs))
+	if eventText != "" do append(&groups, skald.text(eventText, th.color.fg_muted, th.font.size_xs))
 	return groups[:]
 }
 

@@ -348,6 +348,11 @@ writeAnimation :: proc(w: ^XMLWriter, a: AnimationDef) {
 		for d, i in a.durations do fmt.sbprintf(&b, "%s%v", i > 0 ? " " : "", f32(int(d * 1000 * 1000 + 0.5)) / 1000)
 		attr(w, "durations", strings.to_string(b))
 	}
+	if len(a.events) > 0 {
+		any := false
+		for event in a.events do if event != "" do any = true
+		if any do attr(w, "events", strings.join(a.events[:], ";", context.temp_allocator))
+	}
 	closeEmpty(w)
 }
 
@@ -419,6 +424,13 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 	switch node.kind {
 	case .Sprite:
 		attr(w, "texture", node.texture)
+		if node.asepriteLayers != "" do attr(w, "layers", node.asepriteLayers)
+		if node.pivotSlice != "" do attr(w, "pivotSlice", node.pivotSlice)
+		if node.nineSlice != "" {
+			attr(w, "nineSlice", node.nineSlice)
+			if node.nineSize.x > 0 do attr(w, "nineWidth", node.nineSize.x)
+			if node.nineSize.y > 0 do attr(w, "nineHeight", node.nineSize.y)
+		}
 	case .AnimatedSprite:
 		attr(w, "texture", node.texture)
 		attr(w, "columns", node.columns)
@@ -427,6 +439,8 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.spacing != 0 do attr(w, "spacing", node.spacing)
 		if node.autoplay != "" do attr(w, "autoplay", node.autoplay)
 		if node.animationSet != "" do attr(w, "animations", node.animationSet)
+		if node.asepriteLayers != "" do attr(w, "layers", node.asepriteLayers)
+		if node.pivotSlice != "" do attr(w, "pivotSlice", node.pivotSlice)
 	case .Label:
 		attr(w, "text", node.text)
 		attr(w, "fontSize", node.fontSize)
@@ -468,6 +482,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		}
 		if node.disabled do attr(w, "disabled", true)
 		if node.oneWay do attr(w, "oneWay", true)
+		if node.slice != "" do attr(w, "slice", node.slice)
 	case .RayCast:
 		attr(w, "targetX", node.target.x)
 		attr(w, "targetY", node.target.y)
@@ -502,6 +517,8 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if t.frame != 0 do attr(w, "frame", t.frame)
 		if t.layers != "" do attr(w, "layers", t.layers)
 		if !t.collision do attr(w, "tileCollision", false)
+		if t.animate do attr(w, "animate", true)
+		if t.tag != "" do attr(w, "tag", t.tag)
 		// The generated bodies'
 		if t.collision {
 			if node.collisionLayer != e.DEFAULT_SCENE_NODE.collisionLayer do attr(w, "collisionLayer", e.FormatPhysicsLayers(node.collisionLayer, context.temp_allocator))

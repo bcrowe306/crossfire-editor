@@ -74,6 +74,15 @@ NodeDef :: struct {
 	autoplay: string,
 	// An animation asset it plays instead of its own sheet and animations ("" for its own; owned)
 	animationSet: string,
+	// Sprite, AnimatedSprite showing an Aseprite file: the layers drawn ("" every visible one),
+	// the slice whose pivot is on the origin; a Sprite's 9-patch slice and size (owned;
+	// aseprite_edit.odin)
+	asepriteLayers: string,
+	pivotSlice: string,
+	nineSlice: string,
+	nineSize: [2]f32,
+	// CollisionShape: the Aseprite slice of its sprite it follows ("" for none; owned)
+	slice: string,
 	// Menu
 	items: [dynamic]MenuItemDef,
 	// Any kind: the script attached to it ("" for none) and its exported field values, as text
@@ -364,6 +373,8 @@ AnimationDef :: struct {
 	durations: [dynamic]f32,
 	// Times a non-looping animation plays (0 or 1: once)
 	repeat: int,
+	// Each frame's events, comma-separated ("" none; an Aseprite file's from its cels; owned)
+	events: [dynamic]string,
 }
 
 // The animation a new AnimatedSprite gets: every cell, looping (name owned)
@@ -390,6 +401,10 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	for &a in node.animations do AnimationDef_Destroy(&a)
 	delete(node.animations)
 	delete(node.animationSet)
+	delete(node.asepriteLayers)
+	delete(node.pivotSlice)
+	delete(node.nineSlice)
+	delete(node.slice)
 	TileMapSettings_Destroy(&node.tilemap)
 	delete(node.autoplay)
 	delete(node.component)
@@ -766,6 +781,17 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 			// animation asset: its animations are the asset's)
 			if len(def.animations) == 0 && node.animationSet == "" do append(&def.animations, AnimationDef{name = strings.clone("default"), start = 0, end = -1, fps = node.fps, loop = node.loop, playMode = node.playMode})
 			def.animationSet = strings.clone(node.animationSet)
+		}
+		if node.kind == .Sprite || node.kind == .AnimatedSprite {
+			def.asepriteLayers = strings.clone(node.asepriteLayers)
+			def.pivotSlice = strings.clone(node.pivotSlice)
+		}
+		if node.kind == .Sprite {
+			def.nineSlice = strings.clone(node.nineSlice)
+			def.nineSize = node.nineSize
+		}
+		if node.kind == .CollisionShape {
+			def.slice = strings.clone(node.slice)
 		}
 		for item in node.items {
 			append(&def.items, MenuItemDef{strings.clone(item.label), strings.clone(item.action)})

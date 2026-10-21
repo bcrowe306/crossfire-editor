@@ -81,6 +81,9 @@ AsepriteEdit_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool)
 	case Aseprite_Asset_Open_Requested:
 		if int(v) < 0 || int(v) >= len(state.project.assets) do return {}, true
 		return AsepriteEdit_Open(state, state.project.assets[v].path), true
+	case Aseprite_Layer_Toggled:
+		toggleLayer(state, v)
+		return {}, true
 	}
 	return {}, false
 }
@@ -229,4 +232,170 @@ Image_LoadRGBA :: proc(path: string) -> (pixels: []u8, width, height: int, ok: b
 	pixels = make([]u8, int(w) * int(h) * 4, context.temp_allocator)
 	copy(pixels, loaded[:w * h * 4])
 	return pixels, int(w), int(h), true
+}
+
+// The slice choices' "none" (stored as "")
+SLICE_NONE :: "(none)"
+
+// A sprite's Aseprite layer ticked or not in the inspector (the layer's name)
+Aseprite_Layer_Toggled :: struct {
+	name: string,
+	on: bool,
+}
+
+/*
+The Aseprite file a node shows (relative to the project), "" when it doesn't: a Sprite's
+texture, an AnimatedSprite's animation asset or its own sheet.
+*/
+AsepriteEdit_NodeSource :: proc(node: ^NodeDef) -> string {
+	#partial switch node.kind {
+	case .Sprite:
+		if e.Aseprite_IsFile(node.texture) do return node.texture
+	case .AnimatedSprite:
+		if node.animationSet != "" do return e.Aseprite_IsFile(node.animationSet) ? node.animationSet : ""
+		if e.Aseprite_IsFile(node.texture) do return node.texture
+	}
+	return ""
+}
+
+/*
+The sprite a slice-following CollisionShape takes its slice from, as the engine finds it: the
+nearest ancestor showing an Aseprite file, or such a sprite among an ancestor's children.
+
+Returns:
+- The sprite's index, or -1
+*/
+AsepriteEdit_ShapeSprite :: proc(scene: ^SceneDef, shape: int) -> int {
+	for at := scene.nodes[shape].parent; at >= 0; at = scene.nodes[at].parent {
+		if AsepriteEdit_NodeSource(&scene.nodes[at]) != "" do return at
+		for &n, i in scene.nodes do if i != shape && n.parent == at && AsepriteEdit_NodeSource(&n) != "" do return i
+	}
+	return -1
+}
+
+/*
+Ticks a layer on or off in a layers setting ("" = every visible layer): from the layers drawn
+now, in the file's order; the last one stays.
+
+Returns:
+- The new setting (owned), and false when it would draw no layer
+*/
+AsepriteEdit_ToggleLayer :: proc(ase: ^e.Aseprite, setting, name: string, on: bool) -> (string, bool) {
+	drawn := e.Aseprite_LayersNamed(ase, setting)
+	names := make([dynamic]string, context.temp_allocator)
+	for layer, i in ase.layers {
+		if layer.type == .Group do continue
+		now := setting == "" ? e.Aseprite_LayerShown(ase, i) : slice_contains(drawn, i)
+		if layer.name == name do now = on
+		if now do append(&names, layer.name)
+	}
+	if len(names) == 0 do return "", false
+	return strings.join(names[:], ","), true
+}
+
+@(private="file")
+slice_contains :: proc(list: []int, value: int) -> bool {
+	for v in list do if v == value do return true
+	return false
+}
+
+// Handles Aseprite_Layer_Toggled on the selected node (from AsepriteEdit_Update)
+@(private="file")
+toggleLayer :: proc(state: ^State, v: Aseprite_Layer_Toggled) {
+	node := selectedNode(state)
+	if node == nil do return
+	path := AsepriteEdit_NodeSource(node)
+	ase := AsepriteEdit_File(state.project.rootPath, path)
+	if ase == nil do return
+	setting, ok := AsepriteEdit_ToggleLayer(ase, node.asepriteLayers, v.name, v.on)
+	if !ok {
+		logLine(state, .Warning, fmt.aprintf("%s keeps %s: it draws at least one layer", node.name, v.name))
+		return
+	}
+	delete(node.asepriteLayers)
+	node.asepriteLayers = setting
+}
+
+/*
+The inspector's rows for a Sprite or AnimatedSprite showing an Aseprite file: its layers (ticked:
+drawn), the pivot slice, a Sprite's 9-patch slice and size, an AnimatedSprite's frame events.
+*/
+asepriteSpriteRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	th := ctx.theme
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	path := AsepriteEdit_NodeSource(node)
+	if path == "" do return rows[:]
+	ase := AsepriteEdit_File(s.project.rootPath, path)
+	if ase == nil do return rows[:]
+	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
+	append(&rows, skald.text(fmt.tprintf("%s  Aseprite: %s", ICON_IMAGE, filepath.base(path)), th.color.fg, th.font.size_sm, max_width = width))
+	// Layers: ticked are drawn (none named: every visible one)
+	drawn := e.Aseprite_LayersNamed(ase, node.asepriteLayers)
+	for layer, i in ase.layers do if layer.type != .Group {
+		on := node.asepriteLayers == "" ? e.Aseprite_LayerShown(ase, i) : slice_contains(drawn, i)
+		name := strings.clone(layer.name, context.temp_allocator)
+		append(&rows, skald.checkbox(ctx, on, layer.visible ? name : fmt.tprintf("%s (hidden in Aseprite)", name), name,
+			proc(name: string, on: bool) -> Msg { return Aseprite_Layer_Toggled{name, on} },
+			id = skald.hash_id(fmt.tprintf("inspector-aseprite-layer-%s-%d", layer.name, key))))
+	}
+	// Slices: with a pivot, for the pivot; with a center, for a Sprite's 9-patch
+	pivots := make([dynamic]string, context.temp_allocator)
+	nines := make([dynamic]string, context.temp_allocator)
+	append(&pivots, SLICE_NONE)
+	append(&nines, SLICE_NONE)
+	for slice in ase.slices {
+		if slice.hasPivot do append(&pivots, slice.name)
+		if slice.nineSlice do append(&nines, slice.name)
+	}
+	if len(pivots) > 1 || node.pivotSlice != "" {
+		append(&rows, inspectorRow(ctx, "Pivot slice", skald.select(ctx, node.pivotSlice == "" ? SLICE_NONE : node.pivotSlice, pivots[:], NodeTextField.Pivot_Slice, onText,
+			id = skald.hash_id(fmt.tprintf("inspector-pivot-slice-%d", key)), width = controlWidth)))
+	}
+	if node.kind == .Sprite && (len(nines) > 1 || node.nineSlice != "") {
+		append(&rows, inspectorRow(ctx, "9-patch", skald.select(ctx, node.nineSlice == "" ? SLICE_NONE : node.nineSlice, nines[:], NodeTextField.Nine_Slice, onText,
+			id = skald.hash_id(fmt.tprintf("inspector-nine-slice-%d", key)), width = controlWidth)))
+		if node.nineSlice != "" {
+			half := max((controlWidth - th.spacing.xs) * 0.5, 50)
+			append(&rows, inspectorRow(ctx, "9-patch size", skald.row(
+				numberField(ctx, s, fmt.tprintf("inspector-Nine_Width-%d", key), NodeField.Nine_Width, f64(node.nineSize.x), 1, 0, half, 0, 10000),
+				numberField(ctx, s, fmt.tprintf("inspector-Nine_Height-%d", key), NodeField.Nine_Height, f64(node.nineSize.y), 1, 0, half, 0, 10000),
+				spacing = th.spacing.xs)))
+			append(&rows, skald.text("0: the slice's own size. The corners keep their size; the edges and middle stretch.", th.color.fg_muted, th.font.size_xs, max_width = width))
+		}
+	}
+	// Frame events (cels' text or `event` property), for listeners of animation.onFrameEvent
+	if node.kind == .AnimatedSprite {
+		events := make([dynamic]string, context.temp_allocator)
+		for f in 0..<len(ase.frames) do if text := e.Aseprite_FrameEvents(ase, f); text != "" do append(&events, fmt.tprintf("frame %d: %s", f, text))
+		if len(events) > 0 {
+			append(&rows, skald.text(fmt.tprintf("Frame events (animation.onFrameEvent): %s", strings.join(events[:], "; ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = width))
+		}
+	}
+	return rows[:]
+}
+
+/*
+A CollisionShape's Slice row: the slices of the sprite it follows (`AsepriteEdit_ShapeSprite`),
+and what it does.
+*/
+sliceShapeRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth: f32) -> []skald.View {
+	th := ctx.theme
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	scene := &s.project.scenes[s.currentScene]
+	sprite := AsepriteEdit_ShapeSprite(scene, s.selectedNode)
+	if sprite < 0 && node.slice == "" do return rows[:]
+	choices := make([dynamic]string, context.temp_allocator)
+	append(&choices, SLICE_NONE)
+	if sprite >= 0 {
+		if ase := AsepriteEdit_File(s.project.rootPath, AsepriteEdit_NodeSource(&scene.nodes[sprite])); ase != nil {
+			for slice in ase.slices do append(&choices, slice.name)
+		}
+	}
+	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
+	append(&rows, inspectorRow(ctx, "Slice", skald.select(ctx, node.slice == "" ? SLICE_NONE : node.slice, choices[:], NodeTextField.Slice, onText,
+		id = skald.hash_id(fmt.tprintf("inspector-slice-%d", key)), width = controlWidth)))
+	note := sprite >= 0 ? fmt.tprintf("Follows %s's Aseprite slice frame by frame (a hitbox); off where it's hidden.", scene.nodes[sprite].name) : "No sprite showing an Aseprite file near it: the slice does nothing."
+	append(&rows, skald.text(note, sprite >= 0 ? th.color.fg_muted : th.color.warning, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+	return rows[:]
 }

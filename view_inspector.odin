@@ -414,6 +414,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Node2D:
 	case .Sprite:
 		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth)))
+		append(&rows, ..asepriteSpriteRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .AnimatedSprite:
 		// The animations themselves are edited in the bottom panel's Animation tab; they're the
 		// sprite's own, or an animation asset's (an .anim.xml file, or an Aseprite file's tags)
@@ -454,6 +455,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				id = skald.hash_id(fmt.tprintf("inspector-autoplay-%d", key)), width = controlWidth)),
 			inspectorRow(ctx, fmt.tprintf("%d animation%s", len(animations), len(animations) == 1 ? "" : "s"), editButton),
 		)
+		append(&rows, ..asepriteSpriteRows(ctx, s, node, key, controlWidth, numberWidth))
 		// Its own animations, shared: an asset other sprites can use (the button on its own row:
 		// it doesn't fit beside a label in a narrow inspector)
 		if node.animationSet == "" {
@@ -472,6 +474,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, inspectorRow(ctx, "Zoom", number(ctx, s, key, .Zoom, node.zoom, 0.1, 2, numberWidth, 0.05, 20)))
 	case .StaticBody, .DynamicBody, .CharacterMover, .Area, .CollisionShape, .RayCast, .Joint:
 		append(&rows, ..physicsInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		if node.kind == .CollisionShape do append(&rows, ..sliceShapeRows(ctx, s, node, key, controlWidth))
 	case .ParticleEmitter:
 		append(&rows, ..particleInspectorRows(ctx, s, node, key, controlWidth))
 	case .AudioPlayer, .AudioPlayer2D, .MusicPlayer:

@@ -74,7 +74,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
 	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed, Settings_Aseprite_Path_Changed, Settings_Audio_Device_Changed:
 		// Handled by SettingsDialog_Update above
-	case Aseprite_Asset_Open_Requested:
+	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
 	case TileMap_Setting_Changed:
 		// Handled by TileMapEdit_Update above
@@ -860,6 +860,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Max_Motor:       node.maxMotor = max(value, 0)
 		case .Hertz:           node.hertz = max(value, 0)
 		case .Damping:         node.dampingRatio = max(value, 0)
+		case .Nine_Width:      node.nineSize.x = max(value, 0)
+		case .Nine_Height:     node.nineSize.y = max(value, 0)
 		}
 	case Node_Text_Changed:
 		node := selectedNode(&out)
@@ -892,6 +894,17 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Autoplay:
 			delete(node.autoplay)
 			node.autoplay = strings.clone(v.value == ANIMATION_FIRST ? "" : v.value)
+		case .Pivot_Slice:
+			delete(node.pivotSlice)
+			node.pivotSlice = strings.clone(v.value == SLICE_NONE ? "" : v.value)
+		case .Nine_Slice:
+			delete(node.nineSlice)
+			node.nineSlice = strings.clone(v.value == SLICE_NONE ? "" : v.value)
+		case .Slice:
+			delete(node.slice)
+			node.slice = strings.clone(v.value == SLICE_NONE ? "" : v.value)
+			// A slice's rectangle: the shape is a rectangle
+			if node.slice != "" do node.shape = .Rectangle
 		case .Animation_Set:
 			delete(node.animationSet)
 			node.animationSet = strings.clone(v.value == ANIMATION_OWN ? "" : v.value)

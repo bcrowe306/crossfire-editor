@@ -304,6 +304,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		// Typing collision values merges into one step
 		if v.field == .Collision_Values do return node(selected, fmt.tprintf("Change the collision values of %s", name), key("ldtk-values", s.currentScene, selected))
 		return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
+	case Aseprite_Layer_Toggled:
+		if hasSelection do return node(selected, fmt.tprintf("Change the layers %s draws", name))
 	case TileMap_Setting_Changed:
 		if !hasSelection do break
 		// Typing a frame merges into one step
@@ -428,6 +430,7 @@ fieldLabel :: proc(field: NodeField) -> string {
 	case .Max_Motor:   return "motor strength"
 	case .Hertz:       return "spring stiffness"
 	case .Damping:     return "spring damping"
+	case .Nine_Width, .Nine_Height: return "9-patch size"
 	}
 	return "property"
 }
@@ -671,6 +674,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.texture != b.texture || a.text != b.text || a.fontSize != b.fontSize || a.color != b.color ||
 	   a.centered != b.centered || a.zoom != b.zoom || a.columns != b.columns || a.rows != b.rows ||
 	   a.margin != b.margin || a.spacing != b.spacing || a.autoplay != b.autoplay || !animationsEqual(a.animations[:], b.animations[:]) || a.animationSet != b.animationSet ||
+	   a.asepriteLayers != b.asepriteLayers || a.pivotSlice != b.pivotSlice || a.nineSlice != b.nineSlice || a.nineSize != b.nineSize || a.slice != b.slice ||
 	   len(a.items) != len(b.items) ||
 	   a.script != b.script || len(a.props) != len(b.props) ||
 	   a.collisionLayer != b.collisionLayer || a.collisionMask != b.collisionMask || a.friction != b.friction ||

@@ -1,0 +1,54 @@
+# Aseprite's slices, layers and events: a Sprite of a file drawing one layer, its pivot slice, a
+# hitbox (a CollisionShape under it) following a slice; saved and played.
+# Run with: task test:ui
+#
+# The fixture (tests/fixtures/aseprite/features.aseprite, made by Aseprite): layers Body, Sword and
+# a hidden "events" layer; slices hitbox, feet (a pivot), panel (a 9-patch)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+expect selected none
+
+import tests/fixtures/aseprite/features.aseprite
+drag_asset_to assets/features viewport-canvas
+expect kind Sprite
+expect aseprite layers none
+
+# Body unticked: only the sword is drawn
+scroll_into_view inspector-scroll inspector-aseprite-layer-Body-{selected}
+click_widget inspector-aseprite-layer-Body-{selected}
+expect aseprite layers Sword
+key ctrl+z
+expect aseprite layers none
+key ctrl+y
+expect aseprite layers Sword
+
+# Its pivot: the feet slice's (choices: none, feet)
+scroll_into_view inspector-scroll inspector-pivot-slice-{selected}
+click_widget inspector-pivot-slice-{selected}
+click_overlay_item 1
+expect aseprite pivot feet
+
+# A hitbox under it, following the hitbox slice (choices: none, hitbox, feet, panel)
+key ctrl+shift+a
+type CollisionShape
+click_widget add-node-CollisionShape
+expect kind CollisionShape
+scroll_into_view inspector-scroll inspector-slice-{selected}
+click_widget inspector-slice-{selected}
+click_overlay_item 1
+expect aseprite slice hitbox
+
+# Saved and played
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml layers="Sword"
+expect project_file_contains scenes/PlayScene.scene.xml pivotSlice="feet"
+expect project_file_contains scenes/PlayScene.scene.xml slice="hitbox"
+action Play_Scene
+wait_until play Playing
+wait 3
+expect console_lacks Couldn't read
+key shift+F5
+wait_until play Stopped

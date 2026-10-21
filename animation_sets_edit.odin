@@ -48,6 +48,8 @@ AnimationDef_Clone :: proc(a: AnimationDef) -> AnimationDef {
 	copy.name = strings.clone(a.name)
 	copy.durations = make([dynamic]f32, 0, len(a.durations))
 	append(&copy.durations, ..a.durations[:])
+	copy.events = make([dynamic]string, 0, len(a.events))
+	for event in a.events do append(&copy.events, strings.clone(event))
 	return copy
 }
 
@@ -55,12 +57,16 @@ AnimationDef_Clone :: proc(a: AnimationDef) -> AnimationDef {
 AnimationDef_Destroy :: proc(a: ^AnimationDef) {
 	delete(a.name)
 	delete(a.durations)
+	for event in a.events do delete(event)
+	delete(a.events)
 }
 
 // Whether two animations are the same
 AnimationDef_Equal :: proc(a, b: AnimationDef) -> bool {
 	if a.name != b.name || a.start != b.start || a.end != b.end || a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || a.repeat != b.repeat || len(a.durations) != len(b.durations) do return false
 	for d, i in a.durations do if d != b.durations[i] do return false
+	if len(a.events) != len(b.events) do return false
+	for event, i in a.events do if event != b.events[i] do return false
 	return true
 }
 
@@ -69,12 +75,14 @@ AnimationDef_FromData :: proc(a: e.AnimationData) -> AnimationDef {
 	def := AnimationDef{name = strings.clone(a.name), start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, repeat = a.repeat}
 	def.durations = make([dynamic]f32, 0, len(a.durations))
 	append(&def.durations, ..a.durations[:])
+	def.events = make([dynamic]string, 0, len(a.events))
+	for event in a.events do append(&def.events, strings.clone(event))
 	return def
 }
 
 // The editor's animation as the engine's (its name and durations borrowed)
 AnimationDef_ToData :: proc(a: AnimationDef) -> e.AnimationData {
-	return {name = a.name, start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, durations = a.durations, repeat = a.repeat}
+	return {name = a.name, start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, durations = a.durations, repeat = a.repeat, events = a.events}
 }
 
 // A copy of a set (owning everything)

@@ -181,6 +181,8 @@ Checks:
 	console_lacks <text>         No Console line contains the text
 	ldtk_preview <levels> <entities> <shapes>
 	                             What the viewport built for the selected LDtkLevel node
+	aseprite <layers|pivot|nine|slice> <value | none>
+	                             The selected node's Aseprite settings
 	tilemap <file|frame|layers|collision> <value>
 	                             The selected TileMap's settings (layers "all": every visible one)
 	tilemap_built <layers> <shapes> <areas>
@@ -1235,6 +1237,19 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		shapes := 0
 		for view in level.views do for child in view.children do if child.name == "Collision" do shapes += len(child.children)
 		found = fmt.tprintf("%d %d %d", len(level.views), len(level.spawned), shapes)
+	case "aseprite":
+		// The selected node's Aseprite settings: aseprite layers|pivot|nine|slice <value> ("none")
+		if selected == nil do return false, "nothing selected"
+		field, _, expected := strings.partition(value, " ")
+		pick :: proc(v: string) -> string { return v == "" ? "none" : v }
+		switch field {
+		case "layers": found = pick(selected.asepriteLayers)
+		case "pivot":  found = pick(selected.pivotSlice)
+		case "nine":   found = pick(selected.nineSlice)
+		case "slice":  found = pick(selected.slice)
+		case: return false, fmt.tprintf("unknown aseprite field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
 	case "tilemap":
 		// The selected TileMap's settings: tilemap file|frame|layers|collision <value>
 		if selected == nil || selected.kind != .TileMap do return false, "no TileMap selected"

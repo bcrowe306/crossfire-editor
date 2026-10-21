@@ -34,7 +34,13 @@ TileMapSettingField :: enum {
 	Layer,
 	// Collision from the tiles' properties (flag)
 	Collision,
+	// Plays its frames (flag), and which tag (text; TILEMAP_ALL_FRAMES for every frame)
+	Animate,
+	Tag,
 }
+
+// The Tag choice meaning every frame
+TILEMAP_ALL_FRAMES :: "(every frame)"
 
 TileMap_Setting_Changed :: struct {
 	field: TileMapSettingField,
@@ -48,6 +54,7 @@ TileMapSettings_Clone :: proc(settings: e.TileMapSettings) -> e.TileMapSettings 
 	copy := settings
 	copy.file = strings.clone(settings.file)
 	copy.layers = strings.clone(settings.layers)
+	copy.tag = strings.clone(settings.tag)
 	return copy
 }
 
@@ -55,6 +62,7 @@ TileMapSettings_Clone :: proc(settings: e.TileMapSettings) -> e.TileMapSettings 
 TileMapSettings_Destroy :: proc(settings: ^e.TileMapSettings) {
 	delete(settings.file)
 	delete(settings.layers)
+	delete(settings.tag)
 }
 
 // Whether an Aseprite file has tilemap layers (what a TileMap draws)
@@ -89,6 +97,11 @@ TileMapEdit_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 		settings.frame = max(int(v.value), 0)
 	case .Collision:
 		settings.collision = v.flag
+	case .Animate:
+		settings.animate = v.flag
+	case .Tag:
+		delete(settings.tag)
+		settings.tag = strings.clone(v.text == TILEMAP_ALL_FRAMES ? "" : v.text)
 	case .Layer:
 		// From the layers it builds now (none named: every visible one), with this one ticked or not
 		ase := AsepriteEdit_File(state.project.rootPath, settings.file)
@@ -195,6 +208,20 @@ tileMapInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 		return rows[:]
 	}
 	if settings.layers == "" do append(&rows, small(ctx, "None ticked: every layer visible in Aseprite.", th.color.fg_muted, width))
+	// Playing its frames (or a tag's): water, torches
+	if len(ase.frames) > 1 {
+		append(&rows, inspectorRow(ctx, "Animate", skald.checkbox(ctx, settings.animate, "", proc(on: bool) -> Msg { return TileMap_Setting_Changed{field = .Animate, flag = on} },
+			id = skald.hash_id(fmt.tprintf("inspector-tilemap-animate-%d", key)))))
+		if settings.animate {
+			tags := make([dynamic]string, context.temp_allocator)
+			append(&tags, TILEMAP_ALL_FRAMES)
+			for tag in ase.tags do append(&tags, tag.name)
+			append(&rows, inspectorRow(ctx, "Tag", skald.select(ctx, settings.tag == "" ? TILEMAP_ALL_FRAMES : settings.tag, tags[:],
+				proc(v: string) -> Msg { return TileMap_Setting_Changed{field = .Tag, text = v} },
+				id = skald.hash_id(fmt.tprintf("inspector-tilemap-tag-%d", key)), width = controlWidth)))
+			append(&rows, small(ctx, "Plays at the frames' durations; collision stays on its frame's tiles.", th.color.fg_muted, width))
+		}
+	}
 	append(&rows, inspectorRow(ctx, "Tile collision", skald.checkbox(ctx, settings.collision, "", proc(on: bool) -> Msg { return TileMap_Setting_Changed{field = .Collision, flag = on} },
 		id = skald.hash_id(fmt.tprintf("inspector-tilemap-collision-%d", key)))))
 	if settings.collision {

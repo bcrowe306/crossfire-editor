@@ -351,6 +351,20 @@ bodies: solid and one-way tiles one StaticBody, area tiles an Area per name. The
 which layers it draws and shows how many tiles of each layer collide. Scripts read tiles with
 `e.TileMap_TileAt` and `e.TileMap_TileProperty`.
 
+**Gameplay data from Aseprite:**
+- **Hitboxes:** add a CollisionShape near a Sprite or AnimatedSprite of an Aseprite file and pick
+  a **Slice**: the shape takes the slice's rectangle frame by frame (and turns off where it's
+  hidden), mirrored with the sprite.
+- **Pivots and 9-patches:** a sprite's **Pivot slice** puts that slice's pivot on its origin; a
+  Sprite's **9-patch** stretches a 9-patch slice to a size, for UI panels.
+- **Frame events:** type text in a cel's User Data in Aseprite (or give it an `event` property),
+  on any layer, even a hidden "events" layer: when the frame plays, the AnimatedSprite's
+  `animation.onFrameEvent` fires with that name (listen to it from the inspector's Events).
+- **Layers:** tick the layers a sprite draws, so a body and its sword can be separate nodes.
+- **Animated tilemaps:** a TileMap's **Animate** plays the file's frames (or a tag's).
+- **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
+  (`e.TileMap_CellAt` finds the cell under a point); collision follows.
+
 **Animations as assets:** an AnimatedSprite can play an animation asset instead of its own
 animations, so one set of animations (idle, run, jump) is shared by every sprite that needs it.
 An Aseprite file is one as it is: each tag is an animation, with its frames' durations, its
