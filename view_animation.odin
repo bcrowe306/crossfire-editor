@@ -4,7 +4,6 @@ import "core:fmt"
 import "core:strings"
 import "gui:skald"
 import e "engine:."
-import stbi "vendor:stb/image"
 
 /*
 The Animation panel (the bottom panel's Animation tab): the animation editor for the selected
@@ -303,7 +302,8 @@ SheetImage :: struct {
 sheets: map[string]SheetImage
 
 /*
-The node's sprite sheet as a Skald image, loaded (with stb_image) and uploaded the first time.
+The node's sprite sheet as a Skald image, loaded (`Image_LoadRGBA`: stb_image, or the engine for
+Aseprite files) and uploaded the first time.
 */
 @(private="file")
 sheetImage :: proc(ctx: ^skald.Ctx(Msg), s: ^State, texture: string) -> SheetImage {
@@ -311,12 +311,9 @@ sheetImage :: proc(ctx: ^skald.Ctx(Msg), s: ^State, texture: string) -> SheetIma
 	path := joinPath(s.project.rootPath, texture, allocator = context.temp_allocator)
 	if image, known := sheets[path]; known do return image
 	image: SheetImage
-	w, h, channels: i32
-	pixels := stbi.load(strings.clone_to_cstring(path, context.temp_allocator), &w, &h, &channels, 4)
-	if pixels != nil {
-		defer stbi.image_free(pixels)
+	if pixels, w, h, ok := Image_LoadRGBA(path); ok {
 		name := fmt.aprintf("animation-sheet:%s", path)
-		if skald.image_load_pixels(ctx.renderer, name, u32(w), u32(h), pixels[:w * h * 4]) {
+		if skald.image_load_pixels(ctx.renderer, name, u32(w), u32(h), pixels) {
 			image = {name, {f32(w), f32(h)}}
 		} else {
 			delete(name)

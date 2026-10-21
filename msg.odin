@@ -782,6 +782,8 @@ Settings_Audio_Device_Changed :: distinct string
 Settings_Builtin_Editor_Changed :: distinct bool
 Settings_OLS_Path_Changed :: distinct string
 Settings_LDtk_Path_Changed :: distinct string
+// Settings > Editor > Aseprite program typed
+Settings_Aseprite_Path_Changed :: distinct string
 Settings_Odin_Path_Changed :: distinct string
 // Settings > Toolchain's Install Odin
 Toolchain_Install_Requested :: struct {}
@@ -969,6 +971,7 @@ Msg :: union {
 	Settings_Builtin_Editor_Changed,
 	Settings_OLS_Path_Changed,
 	Settings_LDtk_Path_Changed,
+	Settings_Aseprite_Path_Changed,
 	Settings_Audio_Device_Changed,
 	Settings_Odin_Path_Changed,
 	Toolchain_Install_Requested,
@@ -989,6 +992,7 @@ Msg :: union {
 	LDtk_Level_Picked,
 	LDtk_Open_Requested,
 	LDtk_Asset_Open_Requested,
+	Aseprite_Asset_Open_Requested,
 	Settings_Capture_Started,
 	Settings_Key_Captured,
 	Settings_Capture_Cancelled,

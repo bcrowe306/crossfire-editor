@@ -221,6 +221,10 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			proc(v: string) -> Msg { return Settings_LDtk_Path_Changed(v) },
 			id = skald.hash_id("settings-ldtk-path"), width = 300, placeholder = "ldtk in PATH")),
 		hint(ctx, "The level editor (ldtk.io) that an LDtkLevel node's Open in LDtk starts."),
+		settingRow(ctx, "Aseprite program", skald.text_input(ctx, strings.clone(FixedText_String(&draft.asepritePath), context.temp_allocator),
+			proc(v: string) -> Msg { return Settings_Aseprite_Path_Changed(v) },
+			id = skald.hash_id("settings-aseprite-path"), width = 300, placeholder = "aseprite in PATH")),
+		hint(ctx, "The pixel art editor (aseprite.org) that Open in Aseprite starts on .aseprite files. Steam's copy works: point this at its aseprite program."),
 		// Copies: the draft is inside this frame's copy of the state, which is gone by the time
 		// Skald draws the fields (they showed garbage, and editing saved garbage)
 		settingRow(ctx, "External program", skald.row(

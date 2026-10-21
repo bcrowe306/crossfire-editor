@@ -53,10 +53,18 @@ Preview :: struct {
 	pixels: [dynamic]u8,
 	// The LDtk files the game read, and their modification times then (forgetChangedLDtk)
 	ldtkModified: map[string]time.Time,
+	// Bumped when image files saved since (in Aseprite, an image editor) were read again
+	// (`Preview_FrameKey`), and when that was last looked at
+	texturesVersion: int,
+	texturesChecked: time.Tick,
 }
 
 @(private="file")
 preview: Preview
+
+// How often the viewport looks for image files saved since it read them
+@(private="file")
+TEXTURE_CHECK_INTERVAL :: 500 * time.Millisecond
 
 /*
 Renders the open scene and returns its pixels: RGBA8, `size.x * size.y * 4` bytes, valid until the
@@ -137,6 +145,13 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		zoom: f32,
 		animationFrame: int,
 		background: [4]u8,
+		textures: int,
+	}
+	// Images saved since: read again in place, at most twice a second (a frame only comes when
+	// something happens: coming back to the editor after saving in Aseprite is one)
+	if preview.game != nil && time.tick_since(preview.texturesChecked) > TEXTURE_CHECK_INTERVAL {
+		preview.texturesChecked = time.tick_now()
+		if e.ResourceManager_ReloadChangedTextures(&preview.game.resourceManager) > 0 do preview.texturesVersion += 1
 	}
 	key := State{
 		signature = sceneSignature(s, scene),
@@ -146,6 +161,7 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		zoom = s.viewport.zoom,
 		animationFrame = s.viewport.animate ? s.viewport.animationFrame : -1,
 		background = transmute([4]u8)SceneSettings_Background(&s.project, scene),
+		textures = preview.texturesVersion,
 	}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	for node in scene.nodes {

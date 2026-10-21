@@ -68,6 +68,8 @@ Settings :: struct {
 	odinPath: FixedText,
 	// The LDtk level editor, for Open in LDtk ("" = ldtk in PATH: ldtk_edit.odin)
 	ldtkPath: FixedText,
+	// The Aseprite pixel art editor, for Open in Aseprite ("" = aseprite in PATH: aseprite_edit.odin)
+	asepritePath: FixedText,
 
 	// [keymap]
 	keymap: Keymap,
@@ -178,6 +180,9 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 			case "ldtk_path":
 				settings.ldtkPath = FixedText_Make(value)
 				continue
+			case "aseprite_path":
+				settings.asepritePath = FixedText_Make(value)
+				continue
 			case "code_editor_builtin":
 				switch strings.to_lower(value, context.temp_allocator) {
 				case "true":  settings.builtInCodeEditor = true
@@ -263,10 +268,10 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ncode_editor_builtin = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nviewport_wheel_pans = %v\naudio_device = %s\n\n",
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ncode_editor_builtin = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\naseprite_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nviewport_wheel_pans = %v\naudio_device = %s\n\n",
 		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit,
 		settings.builtInCodeEditor, FixedText_String(&settings.olsPath), FixedText_String(&settings.odinPath), FixedText_String(&settings.ldtkPath),
-		FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.wheelPans, FixedText_String(&settings.audioDevice))
+		FixedText_String(&settings.asepritePath), FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.wheelPans, FixedText_String(&settings.audioDevice))
 	strings.write_string(&b, "[keymap]\n")
 	for chords, action in settings.keymap {
 		fmt.sbprintf(&b, "%v = %s\n", action, Keymap_FormatChords(chords))

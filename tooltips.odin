@@ -123,6 +123,7 @@ fieldTip :: proc(label: string) -> string {
 	case "Language server": return "OLS, the Odin language server, for completion and errors in the built-in editor (empty: found automatically)."
 	case "Odin program":   return "The Odin compiler games with scripts are built with (empty: found automatically)."
 	case "LDtk program":   return "The LDtk level editor, for Open in LDtk."
+	case "Aseprite program": return "The Aseprite pixel art editor, for Open in Aseprite."
 	case "Optimized Play": return "Builds games for Play with -o:speed: faster games, slower builds."
 	case "Wheel pans":     return "The mouse wheel pans the viewport and Ctrl + wheel zooms (for touchpads)."
 	// Project Settings

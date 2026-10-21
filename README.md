@@ -334,6 +334,16 @@ becomes an *instance* of it. Then:
 - A one-shot ParticleEmitter tells when it's done: subscribe to its `onFinished` event (the demo's
   blood removes itself that way).
 
+## Aseprite
+
+Pixel art drawn in [Aseprite](https://www.aseprite.org) works as it is: import the `.aseprite`
+(or `.ase`) file and use it anywhere an image goes (a Sprite's texture, a particle texture, a
+script's `e.TextureAsset` field). The engine draws its first frame with every visible layer, the
+way Aseprite shows it (layer opacity, blend modes, groups). The browser's preview lists its
+frames, layers and tags, and **Open in Aseprite** (or a double-click) starts Aseprite on it; set
+its path in Settings > Editor if `aseprite` isn't in PATH. Save in Aseprite and the viewport, and
+a game running from Play, show the new pixels.
+
 ## LDtk levels
 
 Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:

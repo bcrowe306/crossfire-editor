@@ -110,6 +110,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		draft.builtInCodeEditor = bool(v)
 	case Settings_LDtk_Path_Changed:
 		draft.ldtkPath = FixedText_Make(string(v))
+	case Settings_Aseprite_Path_Changed:
+		draft.asepritePath = FixedText_Make(string(v))
 	case Settings_Audio_Device_Changed:
 		draft.audioDevice = FixedText_Make(string(v) == AUDIO_DEFAULT_DEVICE ? "" : string(v))
 	case Settings_OLS_Path_Changed:
@@ -146,6 +148,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.wheelPans = defaults.wheelPans
 			draft.audioDevice = defaults.audioDevice
 			draft.ldtkPath = defaults.ldtkPath
+			draft.asepritePath = defaults.asepritePath
 		case .Keyboard:
 			draft.keymap = defaults.keymap
 		case .Toolchain:

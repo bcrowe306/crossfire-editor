@@ -201,7 +201,9 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			case .Audio: add(&labels, "Use as Music (streamed)", Msg(Asset_Kind_Changed{selection.index, .Music}))
 			case .Music: add(&labels, "Use as a Sound", Msg(Asset_Kind_Changed{selection.index, .Audio}))
 			case .LDtk: add(&labels, "Open in LDtk", Msg(LDtk_Asset_Open_Requested(selection.index)))
-			case .Image, .Font, .Data, .Component, .Translation:
+			case .Image:
+				if e.Aseprite_IsFile(s.project.assets[selection.index].path) do add(&labels, "Open in Aseprite", Msg(Aseprite_Asset_Open_Requested(selection.index)))
+			case .Font, .Data, .Component, .Translation:
 			}
 		}
 		add(&labels, "Remove from Project...", Msg(Action.Remove_Asset))
@@ -270,13 +272,16 @@ browserMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) {
 		if absolute, err := os.get_absolute_path(path, context.temp_allocator); err == nil do path = absolute
 		skald.send(ctx, Msg(Script_Open_File{file = path, line = 1}))
 	}
-	// A double-click on a component opens it; on an LDtk project, it opens in LDtk
+	// A double-click on a component opens it; on an LDtk project, it opens in LDtk; on an Aseprite
+	// file, in Aseprite
 	if ctx.input.mouse_pressed[.Left] && onRow && ctx.input.mouse_click_count[.Left] >= 2 && items[row].kind == .Asset && items[row].index < len(s.project.assets) {
 		#partial switch asset := s.project.assets[items[row].index]; asset.kind {
 		case .Component:
 			if i := Project_FindComponent(&s.project, asset.path); i >= 0 do skald.send(ctx, Msg(Component_Opened(i)))
 		case .LDtk:
 			skald.send(ctx, Msg(LDtk_Asset_Open_Requested(items[row].index)))
+		case .Image:
+			if e.Aseprite_IsFile(asset.path) do skald.send(ctx, Msg(Aseprite_Asset_Open_Requested(items[row].index)))
 		}
 	}
 }
@@ -443,7 +448,9 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		asset := s.project.assets[s.browserSelection.index]
 		path := AssetFilePath(&s.project, asset)
 		switch asset.kind {
-		case .Image: content = imagePreview(s, ctx, asset, path)
+		case .Image:
+			if e.Aseprite_IsFile(asset.path) do content = AsepriteEdit_Preview(s, ctx, asset, s.browserSelection.index)
+			else do content = imagePreview(s, ctx, asset, path)
 		case .Audio, .Music: content = audioPreview(s, ctx, asset, path)
 		case .Font:
 			content = skald.col(
@@ -603,7 +610,6 @@ audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 }
 
 // "96 x 96  ·  3.2 KB"
-@(private="file")
 fileInfo :: proc(path, dimensions: string) -> string {
 	size := ""
 	if info, err := os.stat(path, context.temp_allocator); err == nil {

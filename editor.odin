@@ -382,6 +382,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.archive.openPath)
 	GitState_Destroy(&state.git)
 	LDtkEdit_Destroy()
+	AsepriteEdit_Destroy()
 	for line in state.console do delete(line.text)
 	delete(state.console)
 	for line in state.output do delete(line.text)

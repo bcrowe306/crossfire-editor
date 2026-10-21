@@ -168,6 +168,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_about.odin` | Help > About: the logo (the built-in 256 px icon, uploaded once), `EDITOR_VERSION` (`-define:EDITOR_VERSION`: the Taskfile's `git describe`, CI's tag), Odin's version, links (opened with `sdl.OpenURL`); `tests/ui/about.script` |
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
+| `aseprite_edit.odin` | Aseprite files: the parsed-file cache (`AsepriteEdit_File`), the browser preview (`AsepriteEdit_Preview`, `AsepriteEdit_Summary`), Open in Aseprite (`AsepriteEdit_Open`, Settings > Editor > Aseprite program), `Image_LoadRGBA` (any image, Aseprite files through the engine) |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
@@ -1135,6 +1136,27 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   `kind`, `preview component`), `components_rename_and_make_unique`.
 - The browser's inline rename scrolls its row back into view when it's out of view (focusing the
   tree scrolls the browser to its top, which hid the field and left the rename stuck).
+
+## Aseprite files (implemented: images; `aseprite_edit.odin`; engine: aseprite.odin)
+
+`aseprite_edit.odin`'s doc comment describes it; what the code relies on:
+- **Images:** `.aseprite` / `.ase` are assets of kind Image (`AssetKindForPath`, the import
+  filter), so every texture field, picker and drop takes them. The engine draws their first frame
+  with every visible layer (its resource manager), in the viewport, Play and exports alike (the
+  web build too: the reader is pure Odin).
+- **Anything the editor decodes itself** goes through `Image_LoadRGBA` (the Animation panel's
+  sheet), not stb_image, which can't read them; Skald's `skald.image` can't either, so the
+  browser preview uploads the engine's composite (`aseprite-preview`, keyed by path and time).
+- **Saved in Aseprite:** the viewport re-reads changed textures at most twice a second when it
+  draws (`Preview_FrameKey`: the engine's `ResourceManager_ReloadChangedTextures`, which updates
+  textures in place; `texturesVersion` makes a new frame); a game run with Play does the same
+  (development runs). Any image, not only Aseprite's. A file that changes size waits for a rebuild.
+- Tests: `aseprite_files_are_images_in_the_editor` (import, parse, viewport pixels, saved over);
+  `tests/ui/aseprite.script` (import, preview, Open in Aseprite, drag in, save, Play; driver
+  check `texture`). Fixtures: `tests/fixtures/aseprite/` (Aseprite's MIT test sprites, its
+  LICENSE beside them).
+- **Next (decided):** animation assets (a set of named clips; an .aseprite file's tags are one) and
+  TileMap nodes from Aseprite tilemap layers, with collision from tile properties.
 
 ## LDtk levels (implemented, `ldtk_edit.odin`; engine: ldtk.odin, ldtk_nodes.odin)
 

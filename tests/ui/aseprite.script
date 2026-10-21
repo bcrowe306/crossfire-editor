@@ -1,0 +1,46 @@
+# Aseprite files: imported as an image, previewed, opened in Aseprite, dragged into the viewport
+# as a Sprite, saved and played.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+expect selected none
+
+# Imported: an image, with its own preview
+import tests/fixtures/aseprite/tags3.aseprite
+expect project_file assets/tags3.aseprite
+select_asset assets/tags3.aseprite
+expect preview_visible true
+expect widget_visible browser-aseprite-open true
+
+# Open in Aseprite (the program set to `true` here, so nothing starts): a double-click, and the
+# preview's button
+key ctrl+comma
+click_widget settings-tab-Editor
+scroll_into_view settings-editor-scroll settings-aseprite-path
+click_widget settings-aseprite-path
+type true
+click_widget settings-save
+double_click_asset assets/tags3.aseprite
+expect console_contains Opened tags3.aseprite in Aseprite
+select_asset assets/tags3.aseprite
+click_widget browser-aseprite-open
+expect console_contains Opened tags3.aseprite in Aseprite
+
+# Dragged into the viewport: a Sprite showing it, saved with the scene
+key escape
+drag_asset_to assets/tags3 viewport-canvas
+expect kind Sprite
+expect texture assets/tags3.aseprite
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml texture="assets/tags3.aseprite"
+
+# It plays: the player reads Aseprite files too
+action Play_Scene
+wait_until play Playing
+wait 3
+expect console_lacks Error loading texture
+key shift+F5
+wait_until play Stopped

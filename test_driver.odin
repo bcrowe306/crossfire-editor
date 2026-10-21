@@ -136,6 +136,7 @@ Checks:
 	preview <image | audio | font | data | component | none>   What the browser's preview panel shows
 	components <count>           Components in the project
 	kind <NodeKind | none>       The selected node's kind
+	texture <path | none>        The selected node's texture
 	preview_visible <true | false>   The image preview got usable space (at least 32 x 32)
 	audio <playing | stopped>    Sound preview playback
 	dialog <open | closed>       The remove-asset dialog
@@ -1210,6 +1211,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(count)
 	case "kind":
 		found = selected != nil ? fmt.tprint(selected.kind) : "none"
+	case "texture":
+		found = selected != nil ? selected.texture : "none"
 	case "preview_visible":
 		found = fmt.tprint(previewImageArea.x >= 32 && previewImageArea.y >= 32)
 		if found != value do return false, fmt.tprintf("%s: the picture is %v, the window %v, the workspace %v", found, previewImageArea,

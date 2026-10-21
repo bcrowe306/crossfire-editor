@@ -24,7 +24,7 @@ Returns:
 AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 	ext := strings.to_lower(filepath.ext(path), context.temp_allocator)
 	switch ext {
-	case ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga", ".webp", ".qoi":
+	case ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga", ".webp", ".qoi", ".aseprite", ".ase":
 		return .Image, true
 	case ".wav", ".ogg", ".mp3", ".flac":
 		return .Audio, true
@@ -43,7 +43,7 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 }
 
 // Extensions for the import dialog's filters (semicolon-separated, no dots)
-IMPORT_IMAGE_PATTERN :: "png;jpg;jpeg;bmp;gif;tga;webp;qoi"
+IMPORT_IMAGE_PATTERN :: "png;jpg;jpeg;bmp;gif;tga;webp;qoi;aseprite;ase"
 IMPORT_AUDIO_PATTERN :: "wav;ogg;mp3;flac"
 IMPORT_FONT_PATTERN  :: "ttf;otf"
 IMPORT_LDTK_PATTERN  :: "ldtk"
