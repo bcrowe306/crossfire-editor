@@ -164,6 +164,11 @@ State :: struct {
 	// The Git tab (vcs.odin)
 	git: GitState,
 	// Closing a tab with unsaved changes: the prompt
+	// Closing a component's tab with unsaved changes asks (view_project_dialogs.odin): which one
+	componentClose: struct {
+		open: bool,
+		scene: int,
+	},
 	codeClose: struct {
 		open: bool,
 		index: int,

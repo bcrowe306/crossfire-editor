@@ -1079,6 +1079,15 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   undo snapshot (scenes only; components are assets: made and removed with their files, like data
   resources). Loaded from the assets after the scenes (`Project_LoadComponent`); written by
   `Project_Save` (`SceneToXML` writes a `<component>` root for them).
+- **Unsaved changes show on the tab** (scenes' and components': a filled circle beside the
+  icon, `ICON_CIRCLE`): `Scene_IsDirty` compares the hash of what it would save (`Scene_Hash`,
+  its SceneToXML) with the one taken when it was loaded or written (`Scene_MarkSaved`: load,
+  Project_Save, Project_WriteComponent; clones keep it, so a project undo doesn't fake a change),
+  once per history version. Ctrl+S saves them in place (Project_Save writes every component).
+  **Closing a component's tab with unsaved changes asks** (`componentClose`,
+  `Component_Close_Chosen`): Save writes it; Don't Save reloads it from its file and drops its
+  undo steps (`History_DropScene`); scenes don't ask (closing their tab keeps them in the
+  project). components.script: the driver's `close_current_tab`, check `scene_dirty`.
 - **Making one:** Save as Component (scene tree menu, Action.Save_As_Component): the subtree is
   written as a component (root at the origin) and the node becomes an instance with its
   transform (a `.Scene` undo step; the component stays). Browser > Components > New Component

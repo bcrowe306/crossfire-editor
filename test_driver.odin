@@ -53,6 +53,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	double_click_row <tree key> <row>   Double-click a row
 	click_tab <tabs key> <index>     Click a tab of a skald.tabs strip (the center panel's tabs are
 	                                 widgets: scene-tab-<i>, scene-tab-close-<i>, code-tab-<i>, ...)
+	close_current_tab                Click the × of the open scene's or component's tab
 	touch_project_file <path> <text> Append a line to a project file (made if missing), as another
 	                                 program would
 	save_code_render <file.png>      Save the shown code tab's render (its own pixels, not the screen)
@@ -116,6 +117,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 Checks:
 
 	scene <name>                 Scene open in the viewport
+	scene_dirty <true | false>   The open scene or component has unsaved changes (its tab's dot)
 	selected <name | none>       Selected node
 	parent <name | none>         The selected node's parent
 	nodes <count>                Nodes in the open scene
@@ -819,6 +821,14 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "close_current_tab":
+		// Clicks the × of the open scene's (or component's) tab, wherever it is in the strip
+		for scene, i in ViewportTabScenes(s) do if scene == s.currentScene {
+			return runCommand(s, ctx, fmt.tprintf("click_widget scene-tab-close-%d", i))
+		}
+		fail(fmt.tprintf("%s: the open scene has no tab", line))
+		return true
+
 	case "touch_project_file":
 		// Another program changes a project file: appends a line, with a modification time a
 		// second ahead (so a change in the same second as the last write still shows)
@@ -1152,6 +1162,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	selected := s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) ? &scene.nodes[s.selectedNode] : nil
 
 	switch name {
+	case "scene_dirty":
+		// The open scene's (or component's) unsaved changes, as its tab's dot shows them
+		found = fmt.tprint(Scene_IsDirty(s, s.currentScene))
+		return found == strings.trim_space(value), found
 	case "scene":
 		found = scene.name
 	case "selected":

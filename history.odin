@@ -797,6 +797,23 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 A component's SceneDef was removed from the project's list (its asset removed): steps that edit
 it go, and steps for the documents after it follow their new index.
 */
+// Drops the undo and redo steps of one scene (its contents were replaced: a component reloaded
+// from its file), keeping the others' indices
+History_DropScene :: proc(h: ^History, index: int) {
+	drop :: proc(list: ^[dynamic]UndoCommand, index: int) {
+		#reverse for &command, i in list {
+			if _, isProject := command.change.(ProjectChange); isProject do continue
+			if command.scene == index {
+				destroyCommand(&command)
+				ordered_remove(list, i)
+			}
+		}
+	}
+	drop(&h.undo, index)
+	drop(&h.redo, index)
+	h.version += 1
+}
+
 History_SceneRemoved :: proc(h: ^History, index: int) {
 	fix :: proc(list: ^[dynamic]UndoCommand, index: int) {
 		#reverse for &command, i in list {

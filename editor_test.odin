@@ -3990,3 +3990,49 @@ ldtk_inspector_says_what_entities_become :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(lines[0], "component coin (mapped)"), lines[0])
 	free_all(context.temp_allocator)
 }
+
+@(test)
+component_tabs_show_and_ask_about_unsaved_changes :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	dir := tempDir("editor_test_component_save")
+	defer removeAll(dir)
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone(dir)
+	index, problem := Project_NewComponent(&state.project, "ship", .Sprite)
+	testing.expect_value(t, problem, "")
+	state.project.scenes[index].opened = true
+	testing.expect(t, !Scene_IsDirty(&state, index), "just written: clean")
+	tab := -1
+	for scene, i in ViewportTabScenes(&state) do if scene == index do tab = i
+	if !testing.expect(t, tab >= 0, "its tab") do return
+
+	// An edit: dirty; closing asks; Don't Save puts the file's back
+	edit :: proc(state: ^State, index: int) {
+		Scene_InsertNode(&state.project.scenes[index], "Gun", .Node2D, 0)
+		state.history.version += 1
+	}
+	edit(&state, index)
+	testing.expect(t, Scene_IsDirty(&state, index), "edited: dirty")
+	send(&state, Scene_Tab_Closed(tab))
+	testing.expect(t, state.componentClose.open && state.project.scenes[index].opened, "asks, still open")
+	send(&state, Component_Close_Chosen(.Discard))
+	testing.expect_value(t, len(state.project.scenes[index].nodes), 1)
+	testing.expect(t, !Scene_IsDirty(&state, index) && !state.project.scenes[index].opened, "back to the file, closed")
+
+	// Again, and Save: written in place
+	state.project.scenes[index].opened = true
+	edit(&state, index)
+	for scene, i in ViewportTabScenes(&state) do if scene == index do tab = i
+	send(&state, Scene_Tab_Closed(tab))
+	send(&state, Component_Close_Chosen(.Save))
+	data, _ := os.read_entire_file(filepath.join({dir, state.project.scenes[index].component}, context.temp_allocator) or_else "", context.temp_allocator)
+	testing.expect(t, strings.contains(string(data), `name="Gun"`), "saved")
+	testing.expect(t, !Scene_IsDirty(&state, index) && !state.project.scenes[index].opened, "clean, closed")
+	// A clean one closes without asking
+	state.project.scenes[index].opened = true
+	for scene, i in ViewportTabScenes(&state) do if scene == index do tab = i
+	send(&state, Scene_Tab_Closed(tab))
+	testing.expect(t, !state.componentClose.open && !state.project.scenes[index].opened, "no question")
+	free_all(context.temp_allocator)
+}

@@ -38,6 +38,8 @@ ICON_LIST        :: "\uf03a"
 ICON_SITEMAP     :: "\uf0e8"
 ICON_FILE_LINES  :: "\uf15c"
 ICON_CIRCLE_INFO :: "\uf05a"
+// A filled circle: a tab with unsaved changes
+ICON_CIRCLE      :: "\uf111"
 ICON_GRID        :: "\uf00a"
 ICON_MAGNET      :: "\uf076"
 ICON_LINK        :: "\uf0c1"

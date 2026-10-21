@@ -351,6 +351,8 @@ Confirm_Chosen :: distinct ConfirmChoice
 Code_Tab_Selected :: distinct int
 Code_Tab_Close_Requested :: distinct int
 Code_Close_Chosen :: distinct ConfirmChoice
+// The close prompt of a component's tab with unsaved changes: save it, throw them away, cancel
+Component_Close_Chosen :: distinct ConfirmChoice
 // The open file asks for another (Go to Definition): 0-based line and character (owned by the frame)
 Code_Open_Requested :: struct {
 	path: string,
@@ -862,6 +864,7 @@ Msg :: union {
 	Tree_Drag_Dropped,
 	Tree_Drag_Cancelled,
 	Tree_Drag_Dropped_On_Code,
+	Component_Close_Chosen,
 	Asset_Dropped_On_Code,
 	Confirm_Chosen,
 	Code_Tab_Selected,

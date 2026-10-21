@@ -43,6 +43,7 @@ Project_Save :: proc(project: ^Project) -> string {
 		if err := os.write_entire_file(path, SceneToXML(&scene, context.temp_allocator)); err != nil {
 			return fmt.tprintf("Couldn't write %s: %v", path, err)
 		}
+		Scene_MarkSaved(&scene)
 	}
 	// Scenes renamed or removed since the last save: delete their old files
 	Project_CleanSceneFiles(project)

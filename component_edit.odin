@@ -66,6 +66,7 @@ Project_WriteComponent :: proc(project: ^Project, scene: ^SceneDef) -> string {
 	if err := os.write_entire_file(full, SceneToXML(scene, context.temp_allocator)); err != nil {
 		return fmt.tprintf("Couldn't write %s: %v", scene.component, err)
 	}
+	Scene_MarkSaved(scene)
 	return ""
 }
 

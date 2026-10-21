@@ -1,6 +1,7 @@
 package crossfire_editor
 
 import "core:fmt"
+import "core:hash"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
@@ -161,6 +162,44 @@ SceneDef :: struct {
 	// Scenes: their own settings (the engine's: screen layers, background, gravity), written on
 	// the scene file's root. Components have none
 	settings: e.SceneSettings,
+	// Editor-only: a hash of its file's text as last loaded or saved (`Scene_MarkSaved`), and
+	// whether it differs now, worked out once per history version (`Scene_IsDirty`)
+	savedHash: u64,
+	dirtyVersion: int,
+	dirtyKnown, dirty: bool,
+}
+
+// A hash of the text a scene or component saves as
+Scene_Hash :: proc(scene: ^SceneDef) -> u64 {
+	text := SceneToXML(scene, context.temp_allocator)
+	return hash.fnv64a(transmute([]u8)text)
+}
+
+// Notes that a scene's file now has what it holds (loaded, or just written)
+Scene_MarkSaved :: proc(scene: ^SceneDef) {
+	scene.savedHash = Scene_Hash(scene)
+	scene.dirtyKnown = false
+}
+
+/*
+Whether a scene or component has changes its file doesn't (its tab shows a dot; closing a
+component's tab asks). Worked out from its saved text once per history version.
+
+Inputs:
+- state: The editor state
+- index: The scene's index in the project
+
+Returns:
+- true when it has unsaved changes
+*/
+Scene_IsDirty :: proc(state: ^State, index: int) -> bool {
+	if index < 0 || index >= len(state.project.scenes) do return false
+	scene := &state.project.scenes[index]
+	if !scene.dirtyKnown || scene.dirtyVersion != state.history.version {
+		scene.dirty = Scene_Hash(scene) != scene.savedHash
+		scene.dirtyVersion, scene.dirtyKnown = state.history.version, true
+	}
+	return scene.dirty
 }
 
 AssetKind :: enum {
@@ -592,6 +631,8 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		append(&project.scenes, scene)
 		append(&project.sceneFiles, strings.clone(ref.path))
 	}
+	// What the files have: unchanged scenes show no dot
+	for &scene in project.scenes do Scene_MarkSaved(&scene)
 	// Components: edited like scenes, after them in the list (component_edit.odin)
 	for asset in project.assets {
 		if asset.kind != .Component do continue
@@ -602,6 +643,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 			append(&list, problem)
 			warnings = list[:]
 		}
+		Scene_MarkSaved(&scene)
 		append(&project.scenes, scene)
 	}
 	return project, "", warnings

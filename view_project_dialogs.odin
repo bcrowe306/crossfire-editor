@@ -232,3 +232,35 @@ newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		width = 440,
 	)
 }
+
+// A component's tab closing with unsaved changes: save it, throw them away, or keep it open
+componentCloseDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	if !s.componentClose.open do return closedDialog(ctx, "component-close-dialog")
+	th := ctx.theme
+	name := ""
+	if i := s.componentClose.scene; i >= 0 && i < len(s.project.scenes) do name = s.project.scenes[i].component
+	return skald.dialog(ctx,
+		open = true,
+		on_dismiss = proc() -> Msg { return Component_Close_Chosen(.Cancel) },
+		content = skald.col(
+			skald.text(fmt.tprintf("Save changes to %s?", name), th.color.fg, th.font.size_lg, max_width = 400),
+			skald.text("Don't Save puts the component back as its file has it (instances everywhere follow); its undo steps go.", th.color.fg_muted, th.font.size_sm, max_width = 400),
+			skald.spacer(th.spacing.sm),
+			skald.row(
+				skald.button(ctx, "Cancel", Msg(Component_Close_Chosen(.Cancel)), id = skald.hash_id("component-close-cancel"),
+					bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm),
+				skald.flex(1, skald.spacer(0)),
+				skald.button(ctx, "Don't Save", Msg(Component_Close_Chosen(.Discard)), id = skald.hash_id("component-close-discard"),
+					bg = th.color.danger, fg = th.color.on_primary, font_size = th.font.size_sm),
+				skald.button(ctx, "Save", Msg(Component_Close_Chosen(.Save)), id = skald.hash_id("component-close-save"),
+					font_size = th.font.size_sm),
+				spacing = th.spacing.sm,
+			),
+			spacing = th.spacing.xs,
+			padding = th.spacing.lg,
+			cross_align = .Stretch,
+		),
+		id = skald.hash_id("component-close-dialog"),
+		initial_focus = skald.hash_id("component-close-save"),
+	)
+}

@@ -539,15 +539,45 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Scene_Tab_Closed:
 		tabs := ViewportTabScenes(&out)
 		if int(v) < 0 || int(v) >= len(tabs) || len(tabs) < 2 do break
-		index := tabs[v]
+		// A component with unsaved changes asks first (a scene stays in the project: its changes
+		// are saved with it)
+		if Scene_IsComponent(&out.project.scenes[tabs[v]]) && Scene_IsDirty(&out, tabs[v]) {
+			out.componentClose = {open = true, scene = tabs[v]}
+			break
+		}
+		closeSceneTab(&out, tabs[v])
+	case Component_Close_Chosen:
+		index := out.componentClose.scene
+		out.componentClose = {}
+		if index < 0 || index >= len(out.project.scenes) || !Scene_IsComponent(&out.project.scenes[index]) do break
 		scene := &out.project.scenes[index]
-		if Scene_IsComponent(scene) do scene.opened = false
-		else do scene.tabClosed = true
-		// The tab that shows closes: its neighbour shows instead
-		if index == out.currentScene {
-			next := int(v) + 1 < len(tabs) ? tabs[v + 1] : tabs[v - 1]
-			out.codeTab = 0
-			openScene(&out, next)
+		switch ConfirmChoice(v) {
+		case .Save:
+			if message := Project_WriteComponent(&out.project, scene); message != "" {
+				logLine(&out, .Error, strings.clone(message))
+				break
+			}
+			logLine(&out, .Info, fmt.aprintf("Saved %s", scene.component))
+			closeSceneTab(&out, index)
+		case .Discard:
+			// Back to its file; its undo steps go (they'd undo into what was thrown away)
+			reloaded, problem := Project_LoadComponent(out.project.rootPath, scene.component)
+			if problem != "" {
+				SceneDef_Destroy(&reloaded)
+				logLine(&out, .Error, strings.clone(problem))
+				break
+			}
+			for &node in scene.nodes do NodeDef_Destroy(&node)
+			delete(scene.nodes)
+			scene.nodes = reloaded.nodes
+			delete(reloaded.name)
+			delete(reloaded.component)
+			Scene_MarkSaved(scene)
+			History_DropScene(&out.history, index)
+			if index == out.currentScene do out.selectedNode = -1
+			logLine(&out, .Info, fmt.aprintf("%s: changes thrown away", scene.component))
+			closeSceneTab(&out, index)
+		case .Cancel:
 		}
 	case Listener_Dialog_Opened:
 		delete(out.listenerDialog.event)
@@ -1139,6 +1169,23 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 }
 
 // Shows another scene in the viewport, clearing the selection
+// Closes a scene's or component's viewport tab (the scene stays in the project); the tab that
+// shows closes and its neighbour shows instead
+closeSceneTab :: proc(state: ^State, index: int) {
+	tabs := ViewportTabScenes(state)
+	at := -1
+	for t, i in tabs do if t == index do at = i
+	if at < 0 || len(tabs) < 2 do return
+	scene := &state.project.scenes[index]
+	if Scene_IsComponent(scene) do scene.opened = false
+	else do scene.tabClosed = true
+	if index == state.currentScene {
+		next := at + 1 < len(tabs) ? tabs[at + 1] : tabs[at - 1]
+		state.codeTab = 0
+		openScene(state, next)
+	}
+}
+
 openScene :: proc(state: ^State, index: int) {
 	if index < 0 || index >= len(state.project.scenes) || index == state.currentScene do return
 	state.currentScene = index

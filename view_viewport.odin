@@ -177,10 +177,15 @@ centerTabs :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width: f32) -> skald.View {
 	closable := len(tabScenes) > 1
 	for index, i in tabScenes {
 		scene := &s.project.scenes[index]
-		label := Scene_IsComponent(scene) ? fmt.tprintf("%s %s", ICON_CUBES, scene.name) : scene.name
+		// A filled circle beside the icon: unsaved changes (Ctrl+S saves them)
+		dirty := Scene_IsDirty(s, index)
+		mark := dirty ? fmt.tprintf("%s ", ICON_CIRCLE) : ""
+		label := Scene_IsComponent(scene) ? fmt.tprintf("%s %s%s", ICON_CUBES, mark, scene.name) : fmt.tprintf("%s%s", mark, scene.name)
 		shown := index == s.currentScene && CodeTabs_Active(s) == ""
 		if shown do active = i
-		append(&views, editorTab(ctx, label, Scene_IsComponent(scene) ? scene.component : fmt.tprintf("Scene %s", scene.name), shown,
+		tip := Scene_IsComponent(scene) ? scene.component : fmt.tprintf("Scene %s", scene.name)
+		if dirty do tip = fmt.tprintf("%s (unsaved changes: Ctrl+S saves)", tip)
+		append(&views, editorTab(ctx, label, tip, shown,
 			Msg(Scene_Tab_Changed(i)), Msg(Scene_Tab_Closed(i)), fmt.tprintf("scene-tab-%d", i), closable))
 	}
 	append(&views, ..CodeTabs_View(s, ctx))

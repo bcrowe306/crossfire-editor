@@ -94,4 +94,19 @@ expect nodes 1
 key ctrl+s
 wait_until modified false
 expect project_file_contains components/sprite.component.xml kind="Sprite" name="Sprite"
+expect scene_dirty false
+
+# An edit marks its tab (a dot); closing it asks: Cancel keeps it, Save writes it in place
+key ctrl+shift+a
+type Node2D
+key RETURN
+expect scene_dirty true
+close_current_tab
+expect widget_visible component-close-save true
+click_widget component-close-cancel
+expect scene sprite
+close_current_tab
+click_widget component-close-save
+expect project_file_contains components/sprite.component.xml kind="Node2D"
+expect scene_dirty false
 quit
