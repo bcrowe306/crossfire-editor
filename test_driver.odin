@@ -40,6 +40,9 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	click_offset <key> <dx> <dy> [shift]
 	                                 Click dx, dy pixels from a widget's top left (e.g. a thumbnail
 	                                 of animation-frames), optionally holding Shift
+	click_tile <n>                   Click tile n (1 is the first) of the Tiles panel's palette
+	drag_world x1 y1 x2 y2 [right]   Press at a world point in the viewport, move to another, release
+	paint_cells c1 r1 c2 r2 [right]  A stroke between two cells of the selected TileMap (the Tiles panel's layer)
 	click_frame <n> [shift]          Click thumbnail n of the Animation panel's frames
 	click_overlay_item <i>           Click button i (top to bottom) of the open popup, e.g. a
 	                                 dropdown's choices after click_widget opened it
@@ -183,6 +186,10 @@ Checks:
 	                             What the viewport built for the selected LDtkLevel node
 	aseprite <layers|pivot|nine|slice> <value | none>
 	                             The selected node's Aseprite settings
+	tile_tool <Tool>             The Tiles panel's tool (Paint, Erase, Rectangle, Fill, Pick, Terrain)
+	tile_brush <n>               The Tiles panel's brush tile (flips left out)
+	tile <layer> <column> <row> <tile>
+	                             A cell of the selected TileMap (painted, else the file's; flips left out)
 	tilemap <file|frame|layers|collision> <value>
 	                             The selected TileMap's settings (layers "all": every visible one)
 	tilemap_built <layers> <shapes> <areas>
@@ -498,6 +505,68 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		}
 		point := [2]f32{state.last_rect.x + f32(atoi(args, 1, 0)), state.last_rect.y + f32(atoi(args, 2, 0))}
 		click(point, len(args) > 3 && args[3] == "shift" ? {.LSHIFT} : {})
+		report(true, line)
+		return false
+
+	case "click_tile":
+		// A tile of the Tiles panel's palette (view_tiles.odin)
+		state, ok := ctx.widgets.states[skald.hash_id("tiles-palette")]
+		if !ok || state.last_rect.w <= 0 {
+			fail(fmt.tprintf("%s: the tile palette wasn't drawn last frame", line))
+			return true
+		}
+		offset := TilesPanel_TileCenter(atoi(args, 0, 1))
+		click({state.last_rect.x + offset.x, state.last_rect.y + offset.y}, {})
+		report(true, line)
+		return false
+
+	case "drag_world":
+		// drag_world x1 y1 x2 y2 [right]: press at a world point, move to another, release
+		if len(args) < 4 {
+			fail(fmt.tprintf("%s: expected x1 y1 x2 y2", line))
+			return true
+		}
+		a, okA := ViewportWorldToWindow(s, ctx, {f32(atoi(args, 0, 0)), f32(atoi(args, 1, 0))})
+		b, okB := ViewportWorldToWindow(s, ctx, {f32(atoi(args, 2, 0)), f32(atoi(args, 3, 0))})
+		if !okA || !okB {
+			fail(fmt.tprintf("%s: the viewport hasn't been drawn", line))
+			return true
+		}
+		button := len(args) > 4 && args[4] == "right" ? sdl.BUTTON_RIGHT : sdl.BUTTON_LEFT
+		pushMouse(.MOUSE_MOTION, a)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, a, button))
+		STEPS :: 4
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b, button))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "paint_cells":
+		// paint_cells c1 r1 c2 r2 [right]: a stroke from one cell's center to another's, in the
+		// selected TileMap's layer the Tiles panel paints
+		node, ase := TilePaint_Node(s)
+		if node == nil || len(args) < 4 {
+			fail(fmt.tprintf("%s: expected the Tiles tab showing a TileMap, and c1 r1 c2 r2", line))
+			return true
+		}
+		layer := TilePaint_Layer(s, node, ase)
+		center :: proc(s: ^State, node: ^NodeDef, ase: ^e.Aseprite, layer: string, c: [2]int) -> [2]f32 {
+			lo, hi, _ := TilePaint_CellsRect(s, node, ase, layer, c, c)
+			return (lo + hi) * 0.5
+		}
+		a, okA := ViewportWorldToWindow(s, ctx, center(s, node, ase, layer, {atoi(args, 0, 0), atoi(args, 1, 0)}))
+		b, okB := ViewportWorldToWindow(s, ctx, center(s, node, ase, layer, {atoi(args, 2, 0), atoi(args, 3, 0)}))
+		if !okA || !okB {
+			fail(fmt.tprintf("%s: the viewport hasn't been drawn", line))
+			return true
+		}
+		button := len(args) > 4 && args[4] == "right" ? sdl.BUTTON_RIGHT : sdl.BUTTON_LEFT
+		pushMouse(.MOUSE_MOTION, a)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, a, button))
+		for i in 1..=4 do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / 4))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b, button))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 
@@ -1263,6 +1332,23 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case: return false, fmt.tprintf("unknown tilemap field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
+	case "tile_brush":
+		found = fmt.tprint(s.tilePainter.tile & e.ASEPRITE_TILE_ID)
+	case "tile_tool":
+		found = fmt.tprint(s.tilePainter.tool)
+	case "tile":
+		// tile <layer> <column> <row> <value>: a cell of the selected TileMap, painted or the file's
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 4 do return false, "expected a layer, column, row and value"
+		scene := &s.project.scenes[s.currentScene]
+		if s.selectedNode < 0 || s.selectedNode >= len(scene.nodes) || scene.nodes[s.selectedNode].kind != .TileMap do return false, "no TileMap selected"
+		node := &scene.nodes[s.selectedNode]
+		ase := AsepriteEdit_File(s.project.rootPath, node.tilemap.file)
+		if ase == nil do return false, "its file can't be read"
+		column, _ := strconv.parse_int(parts[1])
+		row, _ := strconv.parse_int(parts[2])
+		found = fmt.tprint(TilePaint_TileAt(node, ase, parts[0], column, row) & e.ASEPRITE_TILE_ID)
+		return found == parts[3], found
 	case "tilemap_built":
 		// What the viewport built for the selected TileMap: layers, solid and one-way shapes, areas
 		engineNode := Preview_Node(s.selectedNode)

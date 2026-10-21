@@ -76,7 +76,7 @@ tilemaps_in_the_editor :: proc(t: ^testing.T) {
 	loaded, message, _ := Project_Load(root)
 	defer Project_Destroy(&loaded)
 	testing.expect_value(t, message, "")
-	testing.expect_value(t, loaded.scenes[0].nodes[at].tilemap, state.project.scenes[0].nodes[at].tilemap)
+	testing.expect(t, TileMapSettings_Equal(loaded.scenes[0].nodes[at].tilemap, state.project.scenes[0].nodes[at].tilemap), "the same settings")
 
 	// Drawn in the viewport: the red half of a solid tile, at 1:1 from the node's corner
 	state.viewport = {center = {18, 24}, zoom = 1, size = {16, 8}}

@@ -44,6 +44,8 @@ BottomTab :: enum {
 	Mixer,
 	// Version control (view_git.odin)
 	Git,
+	// Painting the selected TileMap (view_tiles.odin)
+	Tiles,
 }
 
 LogLevel :: enum {
@@ -194,6 +196,8 @@ State :: struct {
 	aboutOpen: bool,
 	// The Animation panel (view_animation.odin)
 	animEditor: AnimEditor,
+	// The Tiles panel: the brush, tool and layer painted (tile_paint.odin)
+	tilePainter: TilePainter,
 	// The Mixer tab: a bus name being typed (its index, the text; owned), kept until it's valid
 	busEdit: struct {
 		index: int,
@@ -385,6 +389,7 @@ State_Destroy :: proc(state: ^State) {
 	GitState_Destroy(&state.git)
 	LDtkEdit_Destroy()
 	AsepriteEdit_Destroy()
+	TilePainter_Destroy(&state.tilePainter)
 	for line in state.console do delete(line.text)
 	delete(state.console)
 	for line in state.output do delete(line.text)

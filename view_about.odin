@@ -77,6 +77,21 @@ aboutDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 }
 
+/*
+The user manual (docs/manual in the editor's repository), where it's published: its contents, or
+one of its pages ("tilemaps" for docs/manual/tilemaps.md). Help > User Manual (F1) and the panels'
+Manual buttons open it in the system's browser.
+*/
+MANUAL_URL :: "https://github.com/bcrowe306/crossfire-editor/blob/main/docs/manual/"
+
+// Opens the manual's contents ("") or a page of it in the browser
+Manual_Open :: proc(page: string) {
+	About_OpenLink(page == "" ? MANUAL_URL + "README.md" : fmt.tprintf("%s%s.md", MANUAL_URL, page))
+}
+
+// A panel's link to its manual page
+Manual_Opened :: distinct string
+
 // Opens a link from the About dialog (SDL hands it to the system's browser)
 About_OpenLink :: proc(url: string) {
 	_ = sdl.OpenURL(fmt.ctprintf("%s", url))

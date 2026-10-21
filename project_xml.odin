@@ -215,7 +215,8 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		particles := node.kind == .ParticleEmitter ? e.FormatParticleSettings(node.particles) : nil
 		animations := node.kind == .AnimatedSprite ? node.animations[:] : nil
 		entities := node.kind == .LDtkLevel ? node.ldtk.entityComponents[:] : nil
-		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && !hasChildren {
+		painted := node.kind == .TileMap ? node.tilemap.painted[:] : nil
+		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && len(painted) == 0 && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -228,6 +229,18 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			closeEmpty(&w)
 		}
 		// An LDtkLevel's entity rules: only what isn't Auto
+		// A TileMap's painted layers: their tiles in base64 (the engine's TileLayer_Encode)
+		for layer in painted {
+			open(&w, "tiles")
+			attr(&w, "layer", layer.layer)
+			if layer.tileset != 0 do attr(&w, "tileset", layer.tileset)
+			if layer.x != 0 do attr(&w, "x", layer.x)
+			if layer.y != 0 do attr(&w, "y", layer.y)
+			attr(&w, "columns", layer.columns)
+			attr(&w, "rows", layer.rows)
+			attr(&w, "data", e.TileLayer_Encode(layer.tiles[:], context.temp_allocator))
+			closeEmpty(&w)
+		}
 		for m in entities {
 			open(&w, "entity")
 			attr(&w, "name", m.entity)

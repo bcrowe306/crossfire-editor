@@ -304,6 +304,17 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		// Typing collision values merges into one step
 		if v.field == .Collision_Values do return node(selected, fmt.tprintf("Change the collision values of %s", name), key("ldtk-values", s.currentScene, selected))
 		return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
+	// Painting tiles: a stroke (press to release) is one step
+	case Tile_Brush:
+		if hasSelection && v.phase != .Hover {
+			info := node(selected, fmt.tprintf("Paint the tiles of %s", name), key("tiles", s.history.gesture + (v.phase == .Begin ? 1 : 0)))
+			info.sticky = true
+			return info
+		}
+	case Tile_Layer_Added:
+		if hasSelection do return node(selected, fmt.tprintf("Add a tile layer to %s", name))
+	case Tile_Layer_Reverted:
+		if hasSelection do return node(selected, fmt.tprintf("Use the file's tiles in %s", name))
 	case Aseprite_Layer_Toggled:
 		if hasSelection do return node(selected, fmt.tprintf("Change the layers %s draws", name))
 	case TileMap_Setting_Changed:
@@ -688,7 +699,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || a.tilemap != b.tilemap {
+	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false

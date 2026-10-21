@@ -47,6 +47,8 @@ Action :: enum {
 	Toggle_Bottom_Panel,
 	Clear_Console,
 	About,
+	// Help > User Manual: the manual's contents in the browser (docs/manual)
+	User_Manual,
 
 	// Viewport tools
 	Tool_Select,
@@ -975,6 +977,7 @@ Msg :: union {
 	Rename_Cancelled,
 	Frame_Requested,
 	About_Closed,
+	Manual_Opened,
 	About_Link_Opened,
 	Viewport_Content_Measured,
 	Asset_Drag_Pressed,
@@ -1013,6 +1016,15 @@ Msg :: union {
 	Git_Remote_URL_Changed,
 	LDtk_Setting_Changed,
 	TileMap_Setting_Changed,
+	Tile_Brush,
+	Tile_Tool_Chosen,
+	Tile_Brush_Chosen,
+	Tile_Layer_Chosen,
+	Tile_Terrain_Chosen,
+	Tile_Tileset_Chosen,
+	Tile_Brush_Turned,
+	Tile_Layer_Added,
+	Tile_Layer_Reverted,
 	LDtk_Level_Picked,
 	LDtk_Open_Requested,
 	LDtk_Asset_Open_Requested,

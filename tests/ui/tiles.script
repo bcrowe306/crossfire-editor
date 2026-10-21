@@ -1,0 +1,71 @@
+# Painting tilemaps: an Aseprite tileset's TileMap painted in the viewport with the Tiles panel's
+# tools (paint, erase, rectangle, fill, terrain), strokes undone, saved and played.
+# Run with: task test:ui
+#
+# The fixture (tests/fixtures/aseprite/terrain.aseprite, made by Aseprite): a "Ground" tilemap of
+# 4 x 4 tiles of 4 x 4 px; tile i+1 is the grass for the edges in i's bits (N, E, S, W), 17 dirt
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+
+import tests/fixtures/aseprite/terrain.aseprite
+drag_asset_to assets/terrain viewport-canvas
+expect kind TileMap
+# Framed (F), so cells are big enough to hit
+key f
+scroll_into_view inspector-scroll inspector-tilemap-paint-{selected}
+click_widget inspector-tilemap-paint-{selected}
+expect tab Tiles
+expect tile Ground 0 0 1
+
+# Dirt from the palette, a stroke across two cells: one undo step
+scroll_into_view tiles-scroll tiles-palette
+click_tile 17
+expect tile_brush 17
+paint_cells 0 0 1 0
+expect tile Ground 0 0 17
+expect tile Ground 1 0 17
+key ctrl+z
+expect tile Ground 0 0 1
+expect tile Ground 1 0 2
+key ctrl+y
+expect tile Ground 1 0 17
+
+# Right erases
+paint_cells 3 3 3 3 right
+expect tile Ground 3 3 0
+
+# A rectangle, then fill it
+scroll_into_view tiles-scroll tiles-tool-Rectangle
+click_widget tiles-tool-Rectangle
+expect tile_tool Rectangle
+paint_cells 0 2 1 3
+expect tile Ground 1 3 17
+scroll_into_view tiles-scroll tiles-palette
+click_tile 5
+expect tile_brush 5
+scroll_into_view tiles-scroll tiles-tool-Fill
+click_widget tiles-tool-Fill
+expect tile_tool Fill
+paint_cells 0 2 0 2
+expect tile Ground 1 3 5
+
+# Terrain: grass on the erased cell joins its grass neighbours (N and W are the file's grass,
+# E and S off the grid count as grass): the tile for all four edges
+scroll_into_view tiles-scroll tiles-tool-Terrain
+click_widget tiles-tool-Terrain
+expect tile_tool Terrain
+paint_cells 3 3 3 3
+expect tile Ground 3 3 16
+
+# Saved and played
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml <tiles layer="Ground"
+action Play_Scene
+wait_until play Playing
+wait 3
+expect console_lacks couldn't read
+key shift+F5
+wait_until play Stopped

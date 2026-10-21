@@ -115,6 +115,6 @@ aseprite_slices_layers_and_events_in_the_editor :: proc(t: ^testing.T) {
 	a, b := &loaded.scenes[0].nodes, &state.project.scenes[0].nodes
 	testing.expect(t, a[sprite].asepriteLayers == b[sprite].asepriteLayers && a[sprite].pivotSlice == b[sprite].pivotSlice, "the sprite")
 	testing.expect_value(t, a[shape].slice, "hitbox")
-	testing.expect_value(t, a[water].tilemap, b[water].tilemap)
+	testing.expect(t, TileMapSettings_Equal(a[water].tilemap, b[water].tilemap), "the TileMap")
 	free_all(context.temp_allocator)
 }

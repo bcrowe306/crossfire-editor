@@ -351,6 +351,14 @@ bodies: solid and one-way tiles one StaticBody, area tiles an Area per name. The
 which layers it draws and shows how many tiles of each layer collide. Scripts read tiles with
 `e.TileMap_TileAt` and `e.TileMap_TileProperty`.
 
+**Painting tiles:** select a TileMap and press **Paint Tiles** (the bottom panel's Tiles tab): pick
+a tile from the palette and paint, erase, fill rectangles, flood fill or pick tiles in the
+viewport, flipped and rotated, on the file's layers or new layers of the scene's own. **Terrains**
+(autotiling): give a tileset's tiles `terrain` and `mask` properties in Aseprite, and the Terrain
+tool chooses each cell's edge and corner tile from its neighbours (`e.TileMap_SetTerrain` from
+code). The Aseprite file is never changed: painted layers are stored in the scene. The
+[user manual's Tilemaps page](docs/manual/tilemaps.md) explains it step by step.
+
 **Gameplay data from Aseprite:**
 - **Hitboxes:** add a CollisionShape near a Sprite or AnimatedSprite of an Aseprite file and pick
   a **Slice**: the shape takes the slice's rectangle frame by frame (and turns off where it's
@@ -639,7 +647,8 @@ archives for Linux and Windows have the demo in `examples/demo_project`, beside 
 
 ## Documentation
 
-Source code uses Odin-style doc comments; `odin doc .` prints them. Contributor and design notes,
+The **user manual** ([docs/manual](docs/manual/README.md)) explains each feature step by step for
+people new to the editor; Help > User Manual (F1) opens it. Source code uses Odin-style doc comments; `odin doc .` prints them. Contributor and design notes,
 including the planned project format and export targets, are in [CLAUDE.md](CLAUDE.md).
 
 ## License

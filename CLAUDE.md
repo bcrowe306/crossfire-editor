@@ -169,6 +169,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `tile_paint.odin` | **Tile painting**: `TilePainter` (tool, brush, layer, terrain), its messages, `TilePaint_Update` (strokes, fills, terrains, growing grids, copying file layers), `TilePaint_CellAt` |
+| `view_tiles.odin` | The bottom panel's Tiles tab: layer and tileset choices, tools, flips, the tile palette (`TilesPanel`) |
+| `docs/manual/` | **The user manual**: a page per feature for users new to the editor (`README.md` lists them). Help > User Manual (F1, `Manual_Open`: `MANUAL_URL` + page) and panels' Manual buttons open it. **Every new feature gets a page here** |
 | `aseprite_edit.odin` | Aseprite files: the parsed-file cache (`AsepriteEdit_File`), the browser preview (`AsepriteEdit_Preview`, `AsepriteEdit_Summary`), Open in Aseprite (`AsepriteEdit_Open`, Settings > Editor > Aseprite program), `Image_LoadRGBA` (any image, Aseprite files through the engine) |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
@@ -1180,7 +1183,20 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   Aseprite files' slices (`e.Game_ReloadChangedAseprites`). TileMaps: Animate and Tag. Tests:
   `aseprite_slices_layers_and_events_in_the_editor`, `tests/ui/aseprite_features.script` (driver
   check `aseprite`); fixtures `features.aseprite`, `tilemap_animated.aseprite` (Aseprite's).
-- **Later (decided):** painting tilemaps in the editor, writing the same data.
+- **Painting tiles** (tile_paint.odin: `TilePainter`, `TilePaint_Update`; view_tiles.odin: the
+  bottom panel's **Tiles** tab, `TilesPanel`; the inspector's Paint Tiles opens it): while the tab
+  shows and a TileMap is selected, viewport presses are `Tile_Brush` strokes (Begin / Move / End,
+  Hover; right button erases; Space or middle drag still pans), before node drags. Tools Paint,
+  Erase, Rectangle, Fill, Pick, Terrain; the brush is a tile value with flips (`Tile_Brush_Turned`).
+  The first stroke on a file layer copies its cel into `TileMapSettings.painted` (the engine's
+  `TileLayerData`; `<tiles>` children in the scene file); painting outside a grid grows it (left
+  and up move its x / y). +Layer adds a layer of the scene's own; Use the File's Tiles drops a
+  painted copy. Each stroke is one sticky undo step (keyed by `history.gesture`, bumped at Begin);
+  equality is `TileMapSettings_Equal`. The rebuild signature includes the painted bytes.
+  Terrains are the engine's (`e.TileGrid_PaintTerrain`). Tests: `tile_paint_test.odin`,
+  `tests/ui/tiles.script` (driver: `click_tile`, `drag_world`, `paint_cells`; checks `tile`,
+  `tile_brush`, `tile_tool`); fixture `tests/fixtures/aseprite/terrain.aseprite` (the engine's
+  conformance file). User guide: `docs/manual/tilemaps.md`.
 
 ## LDtk levels (implemented, `ldtk_edit.odin`; engine: ldtk.odin, ldtk_nodes.odin)
 

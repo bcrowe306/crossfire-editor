@@ -10,9 +10,6 @@ The features most 2D engines have that this one doesn't, as the user listed them
 (shaders deferred) are being built one per dev release, in this order; each gets a user guide in
 `docs/manual/`. Remove an item here once it's built.
 
-1. **Tilemap painting in the editor**: a tile palette, brushes (paint, erase, rectangle, fill,
-   pick), flips and rotation, and autotiling (terrains: edge and corner tiles chosen from their
-   neighbours), writing the same tile data the engine reads.
 2. **Keyframe animation of any property** (an AnimationPlayer-like timeline): position, rotation,
    scale, color, opacity, script fields, method calls at times; for cutscenes, UI transitions,
    juice.

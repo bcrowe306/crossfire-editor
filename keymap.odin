@@ -69,6 +69,7 @@ ACTION_LABELS := [Action]string{
 	.Select_All = "Select all nodes", .Toggle_Grid = "Show/hide grid", .Toggle_Snap = "Snap to grid", .Toggle_Collision_Shapes = "Show/hide collision shapes", .Toggle_Physics_Debug = "Show collision shapes in the game (development)", .Play = "Play", .Pause = "Pause",
 	.Stop = "Stop", .Toggle_Bottom_Panel = "Toggle bottom panel", .Clear_Console = "Clear console",
 	.About = "About",
+	.User_Manual = "User Manual",
 	.Tool_Select = "Select tool", .Tool_Move = "Move tool", .Tool_Rotate = "Rotate tool",
 	.Tool_Scale = "Scale tool", .Tool_Pan = "Pan tool", .Frame_Selected = "Frame selected node", .View_Fit = "Fit game area",
 	.Zoom_In = "Zoom in", .Zoom_Out = "Zoom out", .Zoom_100 = "Zoom to 100%",

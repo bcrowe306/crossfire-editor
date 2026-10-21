@@ -547,7 +547,12 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		// A TileMap: its settings, and its file's time (saved in Aseprite)
 		if node.kind == .TileMap {
 			t := node.tilemap
-			fmt.sbprintf(&b, "|%s %d %s %v %v", t.file, t.frame, t.layers, t.collision, ldtkModified(joinPath(s.project.rootPath, t.file, allocator = context.temp_allocator)))
+			fmt.sbprintf(&b, "|%s %d %s %v %v %v %s", t.file, t.frame, t.layers, t.collision, t.animate, ldtkModified(joinPath(s.project.rootPath, t.file, allocator = context.temp_allocator)), t.tag)
+			// Painted tiles: a rebuild for every stroke step
+			for layer in t.painted {
+				fmt.sbprintf(&b, "|%s %d %d %d %d %d ", layer.layer, layer.tileset, layer.x, layer.y, layer.columns, layer.rows)
+				strings.write_bytes(&b, transmute([]u8)mem_slice(layer.tiles[:]))
+			}
 		}
 		// An instance rebuilds when its component changes
 		if node.kind == .Component {
@@ -802,4 +807,10 @@ destroyAll :: proc() {
 	preview.surface = nil
 	preview.signature = 0
 	clear(&preview.nodes)
+}
+
+// A slice's bytes (for hashing)
+@(private="file")
+mem_slice :: proc(tiles: []u32) -> []u8 {
+	return ([^]u8)(raw_data(tiles))[:len(tiles) * 4]
 }

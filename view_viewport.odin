@@ -313,6 +313,19 @@ ViewportWorldAt :: proc(s: ^State, ctx: ^skald.Ctx(Msg), window: [2]f32) -> ([2]
 }
 
 /*
+Where a world point is drawn, in window coordinates (last frame's layout). Test scripts paint
+tiles with it (`drag_world`).
+
+Returns:
+- The position, and false when the viewport hasn't been laid out yet
+*/
+ViewportWorldToWindow :: proc(s: ^State, ctx: ^skald.Ctx(Msg), world: [2]f32) -> ([2]f32, bool) {
+	rect := lastRect(ctx, skald.hash_id("viewport-canvas"))
+	if rect.w <= 0 || s.viewport.zoom <= 0 do return {}, false
+	return viewToWindow(rect, Viewport_WorldToView(&s.viewport, world)), true
+}
+
+/*
 Where a node's center is drawn, in window coordinates, using last frame's layout. Test scripts
 use it to click nodes (`click_node`).
 
@@ -341,6 +354,15 @@ handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Wid
 	hovered := inView && skald.widget_hovered(ctx, canvasId) && !skald.mouse_over_overlay(ctx)
 	drag := &v.drag
 
+	// Painting tiles (the Tiles tab shows, a TileMap selected: tile_paint.odin): a stroke follows the
+	// mouse anywhere until its button is released
+	painting, _ := TilePaint_Node(s)
+	if painting != nil && s.tilePainter.stroking {
+		if input.mouse_delta != {} do skald.send(ctx, Msg(Tile_Brush{world = mouseWorld, phase = .Move}))
+		if input.mouse_released[.Left] || input.mouse_released[.Right] do skald.send(ctx, Msg(Tile_Brush{world = mouseWorld, phase = .End}))
+		return
+	}
+
 	// An active drag follows the mouse anywhere, even outside the view
 	if drag.mode != .None {
 		released := input.mouse_released[.Left] || input.mouse_released[.Middle] || input.mouse_released[.Right]
@@ -361,6 +383,14 @@ handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Wid
 	}
 
 	spaceHeld := .Space in input.keys_down && !IsTyping(ctx)
+	if painting != nil && !spaceHeld {
+		// Left paints with the tool, right erases; middle still pans (below)
+		if input.mouse_pressed[.Left] || input.mouse_pressed[.Right] {
+			skald.send(ctx, Msg(Tile_Brush{world = mouseWorld, phase = .Begin, erase = input.mouse_pressed[.Right]}))
+			return
+		}
+		if input.mouse_delta != {} do skald.send(ctx, Msg(Tile_Brush{world = mouseWorld, phase = .Hover}))
+	}
 	panTool := s.tool == .Pan && input.mouse_pressed[.Left]
 	if input.mouse_pressed[.Middle] || input.mouse_pressed[.Right] || (input.mouse_pressed[.Left] && spaceHeld) || panTool {
 		skald.send(ctx, Viewport_Drag_Begin{mode = .Pan, node = -1, mouse = mouseWorld})
@@ -643,6 +673,22 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 		}
 		if s.selectedNode >= 0 && s.selectedNode < len(data.shapes) && data.shapes[s.selectedNode].visible {
 			drawSelection(r, p.bounds, s, data.shapes[s.selectedNode], th)
+		}
+		// Painting tiles: the cell under the mouse, a rectangle being dragged
+		if node, ase := TilePaint_Node(s); node != nil && s.tilePainter.hovering {
+			layer := TilePaint_Layer(s, node, ase)
+			tp := s.tilePainter
+			from, to := tp.hover, tp.hover
+			if tp.stroking && tp.tool == .Rectangle do from = tp.start
+			if a, b, ok := TilePaint_CellsRect(s, node, ase, layer, from, to); ok {
+				wa, wb := toWindow(p.bounds, v, a), toWindow(p.bounds, v, b)
+				box := skald.Rect{min(wa.x, wb.x), min(wa.y, wb.y), abs(wb.x - wa.x), abs(wb.y - wa.y)}
+				color := tp.erasing || tp.tool == .Erase ? th.color.danger : th.color.primary
+				fill := color
+				fill[3] = 0.18
+				skald.draw_rect(r, box, fill)
+				skald.draw_rect_outline(r, box, 1, color)
+			}
 		}
 		if v.drag.mode == .Box {
 			a := toWindow(p.bounds, v, v.drag.startMouse)

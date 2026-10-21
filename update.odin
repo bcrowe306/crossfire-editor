@@ -54,6 +54,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := LDtkEdit_Update(&out, m); handled do return out, command
 	if command, handled := AsepriteEdit_Update(&out, m); handled do return out, command
 	if command, handled := TileMapEdit_Update(&out, m); handled do return out, command
+	if TilePaint_Update(&out, m) do return out, {}
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if SceneSettings_Update(&out, m) do return out, {}
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
@@ -78,6 +79,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by AsepriteEdit_Update above
 	case TileMap_Setting_Changed:
 		// Handled by TileMapEdit_Update above
+	case Tile_Brush, Tile_Tool_Chosen, Tile_Brush_Chosen, Tile_Layer_Chosen, Tile_Terrain_Chosen, Tile_Tileset_Chosen, Tile_Brush_Turned, Tile_Layer_Added, Tile_Layer_Reverted:
+		// Handled by TilePaint_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
 	     Anim_Sheet_Texture_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,
@@ -416,6 +419,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.aboutOpen = false
 	case About_Link_Opened:
 		About_OpenLink(string(v))
+	case Manual_Opened:
+		Manual_Open(string(v))
 	case Frame_Requested:
 	case Quit_Without_Asking:
 		playStop(&out)
@@ -1208,6 +1213,8 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		return out, Export_Start(&out, enabled)
 	case .About:
 		out.aboutOpen = true
+	case .User_Manual:
+		Manual_Open("")
 	}
 	return out, {}
 }

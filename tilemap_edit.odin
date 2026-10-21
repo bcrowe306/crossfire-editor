@@ -55,6 +55,8 @@ TileMapSettings_Clone :: proc(settings: e.TileMapSettings) -> e.TileMapSettings 
 	copy.file = strings.clone(settings.file)
 	copy.layers = strings.clone(settings.layers)
 	copy.tag = strings.clone(settings.tag)
+	copy.painted = make([dynamic]e.TileLayerData, 0, len(settings.painted))
+	for layer in settings.painted do append(&copy.painted, e.TileLayerData_Clone(layer))
 	return copy
 }
 
@@ -63,6 +65,16 @@ TileMapSettings_Destroy :: proc(settings: ^e.TileMapSettings) {
 	delete(settings.file)
 	delete(settings.layers)
 	delete(settings.tag)
+	for &layer in settings.painted do e.TileLayerData_Destroy(&layer)
+	delete(settings.painted)
+}
+
+// Whether two TileMaps' settings are the same (painted tiles included)
+TileMapSettings_Equal :: proc(a, b: e.TileMapSettings) -> bool {
+	if a.file != b.file || a.frame != b.frame || a.layers != b.layers || a.collision != b.collision || a.animate != b.animate || a.tag != b.tag do return false
+	if len(a.painted) != len(b.painted) do return false
+	for layer, i in a.painted do if !e.TileLayerData_Equal(layer, b.painted[i]) do return false
+	return true
 }
 
 // Whether an Aseprite file has tilemap layers (what a TileMap draws)
@@ -188,6 +200,15 @@ tileMapInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 	if ase == nil {
 		append(&rows, small(ctx, fmt.tprintf("%s can't be read.", settings.file), th.color.warning, width))
 		return rows[:]
+	}
+	// Painting it: the bottom panel's Tiles tab (view_tiles.odin)
+	append(&rows, skald.button(ctx, fmt.tprintf("%s  Paint Tiles", ICON_GRID), Msg(Bottom_Tab_Changed(int(BottomTab.Tiles))),
+		id = skald.hash_id(fmt.tprintf("inspector-tilemap-paint-%d", key)), bg = th.color.surface, fg = th.color.fg,
+		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+	if len(settings.painted) > 0 {
+		names := make([dynamic]string, context.temp_allocator)
+		for p in settings.painted do append(&names, p.layer)
+		append(&rows, small(ctx, fmt.tprintf("Painted here: %s (the scene's tiles, not the file's)", strings.join(names[:], ", ", context.temp_allocator)), th.color.fg_muted, width))
 	}
 	if len(ase.frames) > 1 {
 		append(&rows, inspectorRow(ctx, "Frame", numberField(ctx, s, fmt.tprintf("inspector-tilemap-frame-%d", key), TileMapFrameTarget{}, f64(settings.frame), 1, 0, numberWidth, 0, f64(len(ase.frames) - 1))))
