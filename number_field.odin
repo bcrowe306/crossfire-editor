@@ -29,6 +29,8 @@ NumberTarget :: union {
 	SceneGravityTarget,
 	// The Animation panel's selected animation
 	AnimField,
+	// The selected TileMap's frame
+	TileMapFrameTarget,
 }
 
 GameSizeTarget :: distinct int
@@ -148,6 +150,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case GridTarget:     return Project_Settings_Grid_Changed{t, value}
 	case SceneGravityTarget: return Scene_Gravity_Changed{t.scene, t.axis, value}
 	case AnimField:      return Anim_Field_Changed{t, value}
+	case TileMapFrameTarget: return TileMap_Setting_Changed{field = .Frame, value = value}
 	case ScriptPropTarget:
 		text: string
 		switch {

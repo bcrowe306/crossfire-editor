@@ -931,6 +931,8 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .AudioPlayer, .AudioPlayer2D, .MusicPlayer: return skald.rgb(0xf08fd8)
 	// The browser's Levels orange
 	case .LDtkLevel:      return skald.rgb(0xff8a5b)
+	// Aseprite's images, toward green
+	case .TileMap:        return skald.rgb(0x6cd9a8)
 	}
 	return skald.rgb(0xffffff)
 }

@@ -181,6 +181,10 @@ Checks:
 	console_lacks <text>         No Console line contains the text
 	ldtk_preview <levels> <entities> <shapes>
 	                             What the viewport built for the selected LDtkLevel node
+	tilemap <file|frame|layers|collision> <value>
+	                             The selected TileMap's settings (layers "all": every visible one)
+	tilemap_built <layers> <shapes> <areas>
+	                             What the viewport built for it: layers, solid and one-way shapes, Areas
 	ldtk_areas <name> <shapes>[, ...] | none
 	                             The Areas its collision values made (name, shapes)
 	git <idle | busy>            Whether the Git tab runs a command or reads the repository
@@ -1231,6 +1235,30 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		shapes := 0
 		for view in level.views do for child in view.children do if child.name == "Collision" do shapes += len(child.children)
 		found = fmt.tprintf("%d %d %d", len(level.views), len(level.spawned), shapes)
+	case "tilemap":
+		// The selected TileMap's settings: tilemap file|frame|layers|collision <value>
+		if selected == nil || selected.kind != .TileMap do return false, "no TileMap selected"
+		field, _, expected := strings.partition(value, " ")
+		t := selected.tilemap
+		switch field {
+		case "file":      found = t.file
+		case "frame":     found = fmt.tprint(t.frame)
+		case "layers":    found = t.layers == "" ? "all" : t.layers
+		case "collision": found = fmt.tprint(t.collision)
+		case: return false, fmt.tprintf("unknown tilemap field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "tilemap_built":
+		// What the viewport built for the selected TileMap: layers, solid and one-way shapes, areas
+		engineNode := Preview_Node(s.selectedNode)
+		if engineNode == nil || !e.Node_Is(engineNode, e.TileMapNode) do return false, "the selected node isn't a built TileMap"
+		tilemap := cast(^e.TileMapNode)engineNode
+		shapes, areas := 0, 0
+		for child in tilemap.children {
+			if child.name == "Collision" do shapes += len(child.children)
+			if e.Node_Is(child, e.Area) do areas += 1
+		}
+		found = fmt.tprintf("%d %d %d", len(tilemap.tileLayers), shapes, areas)
 	case "ldtk_areas":
 		// The Areas the selected LDtkLevel node's collision values made: "<name> <shapes>", or "none"
 		engineNode := Preview_Node(s.selectedNode)

@@ -509,7 +509,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap,
 		})
 	}
 	return data
@@ -535,6 +535,11 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_int(&b, node.parent)
 		// A level rebuilds when its settings change, or its file does (saved in LDtk)
 		if node.kind == .LDtkLevel do LDtkSettings_Signature(&b, s.project.rootPath, &node.ldtk)
+		// A TileMap: its settings, and its file's time (saved in Aseprite)
+		if node.kind == .TileMap {
+			t := node.tilemap
+			fmt.sbprintf(&b, "|%s %d %s %v %v", t.file, t.frame, t.layers, t.collision, ldtkModified(joinPath(s.project.rootPath, t.file, allocator = context.temp_allocator)))
+		}
 		// An instance rebuilds when its component changes
 		if node.kind == .Component {
 			strings.write_string(&b, node.component)

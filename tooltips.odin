@@ -105,6 +105,9 @@ fieldTip :: proc(label: string) -> string {
 	case "Becomes":        return "What the entity type's nodes are: Auto (its component if mapped, else code's, else its rectangle), a component, code (e.LDtk_RegisterEntity), its rectangle, or nothing."
 	case "Runs":           return "The script its nodes run: Auto (the one named like the entity, unless its component has one), none, or another."
 	case "Entities":       return "LDtk entities become nodes: their components, or scripts named like them."
+	case "Tilemap file":   return "The Aseprite file whose tilemap layers the node draws."
+	case "Frame":          return "The frame of the Aseprite file its tilemaps come from."
+	case "Tile collision": return "Tiles with a collision property in Aseprite (solid, one-way, area) become physics bodies."
 	case "Smooth tiles":   return "Linear filtering for the tiles (off: crisp pixel art)."
 	// Settings
 	case "Theme":          return "Dark or light editor colors."

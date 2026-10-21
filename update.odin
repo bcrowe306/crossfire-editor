@@ -53,6 +53,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := Git_Update(&out, m); handled do return out, command
 	if command, handled := LDtkEdit_Update(&out, m); handled do return out, command
 	if command, handled := AsepriteEdit_Update(&out, m); handled do return out, command
+	if command, handled := TileMapEdit_Update(&out, m); handled do return out, command
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if SceneSettings_Update(&out, m) do return out, {}
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
@@ -75,6 +76,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by SettingsDialog_Update above
 	case Aseprite_Asset_Open_Requested:
 		// Handled by AsepriteEdit_Update above
+	case TileMap_Setting_Changed:
+		// Handled by TileMapEdit_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
 	     Anim_Sheet_Texture_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,
@@ -453,6 +456,13 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			break
 		}
 		if asset < 0 || asset >= len(out.project.assets) || out.project.assets[asset].kind != .Image do break
+		// An Aseprite file with tilemap layers: a TileMap of them
+		if path := out.project.assets[asset].path; TileMapEdit_HasTilemaps(out.project.rootPath, path) {
+			index := Scene_AddTileMapAt(&out.project.scenes[out.currentScene], path, out.selectedNode, v.world)
+			out.selectedNode = index
+			logLine(&out, .Info, fmt.aprintf("Added %s, the tilemaps of %s", out.project.scenes[out.currentScene].nodes[index].name, filepath.base(path)))
+			break
+		}
 		index := Scene_AddSpriteAt(&out.project.scenes[out.currentScene], out.project.assets[asset].path, out.selectedNode, v.world)
 		out.selectedNode = index
 		logLine(&out, .Info, fmt.aprintf("Added %s", out.project.scenes[out.currentScene].nodes[index].name))

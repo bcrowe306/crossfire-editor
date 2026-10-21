@@ -169,6 +169,9 @@ AsepriteEdit_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, i
 		}
 		append(&rows, skald.text(fmt.tprintf("Layers: %s", strings.join(layers[:], ", ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
 		append(&rows, skald.text("Used as an image, it's the first frame with every visible layer; as an AnimatedSprite's animations, its tags.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		if TileMapEdit_HasTilemaps(s.project.rootPath, asset.path) {
+			append(&rows, skald.text("It has tilemap layers: drag it into the viewport for a TileMap of them.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		}
 	}
 	return skald.col(
 		skald.flex(3, picture),

@@ -478,6 +478,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..audioInspectorRows(ctx, s, node, key, controlWidth))
 	case .LDtkLevel:
 		append(&rows, ..ldtkInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+	case .TileMap:
+		append(&rows, ..tileMapInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Component:
 		// The component it's an instance of; its own fields are the component's (Open edits them)
 		choices := make([dynamic]string, context.temp_allocator)

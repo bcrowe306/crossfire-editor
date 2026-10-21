@@ -221,8 +221,9 @@ browser_opens_scenes_and_toggles_folders :: proc(t: ^testing.T) {
 
 	send(&state, Browser_Toggled(0))
 	testing.expect_value(t, state.browserOpen[.Scenes], false)
-	// Only Images is open, with 3 images; the Scripts folder is hidden (the project has no scripts)
-	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) - 1 + 3)
+	// Only Images is open, with 3 images; the Scripts and Animations folders are hidden (the
+	// project has no scripts, no animation assets)
+	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) - 2 + 3)
 }
 
 @(test)

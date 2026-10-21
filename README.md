@@ -344,6 +344,13 @@ frames, layers and tags, and **Open in Aseprite** (or a double-click) starts Ase
 its path in Settings > Editor if `aseprite` isn't in PATH. Save in Aseprite and the viewport, and
 a game running from Play, show the new pixels.
 
+**Tilemaps:** draw tilemaps in Aseprite (Layer > New > New Tilemap Layer) and drag the file into
+the viewport: a **TileMap** node draws its tilemap layers. Give tiles a `collision` property in
+Aseprite (`solid`, `one-way` or `area`, or an `area` name such as `spikes`) and they become physics
+bodies: solid and one-way tiles one StaticBody, area tiles an Area per name. The inspector picks
+which layers it draws and shows how many tiles of each layer collide. Scripts read tiles with
+`e.TileMap_TileAt` and `e.TileMap_TileProperty`.
+
 **Animations as assets:** an AnimatedSprite can play an animation asset instead of its own
 animations, so one set of animations (idle, run, jump) is shared by every sprite that needs it.
 An Aseprite file is one as it is: each tag is an animation, with its frames' durations, its

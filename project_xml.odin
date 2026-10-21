@@ -496,6 +496,19 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.texture != "" do attr(w, "texture", node.texture)
 	case .Component:
 		attr(w, "component", node.component)
+	case .TileMap:
+		t := node.tilemap
+		attr(w, "tilemap", t.file)
+		if t.frame != 0 do attr(w, "frame", t.frame)
+		if t.layers != "" do attr(w, "layers", t.layers)
+		if !t.collision do attr(w, "tileCollision", false)
+		// The generated bodies'
+		if t.collision {
+			if node.collisionLayer != e.DEFAULT_SCENE_NODE.collisionLayer do attr(w, "collisionLayer", e.FormatPhysicsLayers(node.collisionLayer, context.temp_allocator))
+			if node.collisionMask != e.DEFAULT_SCENE_NODE.collisionMask do attr(w, "collisionMask", e.FormatPhysicsLayers(node.collisionMask, context.temp_allocator))
+			if node.friction != e.DEFAULT_SCENE_NODE.friction do attr(w, "friction", node.friction)
+			if node.restitution != e.DEFAULT_SCENE_NODE.restitution do attr(w, "restitution", node.restitution)
+		}
 	case .LDtkLevel:
 		l, d := node.ldtk, e.DEFAULT_LDTK_LEVEL_SETTINGS
 		attr(w, "ldtk", l.file)

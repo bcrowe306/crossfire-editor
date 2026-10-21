@@ -105,6 +105,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .AudioPlayer2D:  return ICON_LOCATION
 	case .MusicPlayer:    return ICON_MUSIC
 	case .LDtkLevel:      return ICON_MAP
+	case .TileMap:        return ICON_GRID
 	}
 	return ICON_CUBE
 }

@@ -168,6 +168,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_about.odin` | Help > About: the logo (the built-in 256 px icon, uploaded once), `EDITOR_VERSION` (`-define:EDITOR_VERSION`: the Taskfile's `git describe`, CI's tag), Odin's version, links (opened with `sdl.OpenURL`); `tests/ui/about.script` |
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
+| `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
 | `aseprite_edit.odin` | Aseprite files: the parsed-file cache (`AsepriteEdit_File`), the browser preview (`AsepriteEdit_Preview`, `AsepriteEdit_Summary`), Open in Aseprite (`AsepriteEdit_Open`, Settings > Editor > Aseprite program), `Image_LoadRGBA` (any image, Aseprite files through the engine) |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
@@ -1158,8 +1159,17 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   LICENSE beside them).
 - **Animations:** an Aseprite file is an animation asset as it is (its tags; see the Animation
   editor's "Animation assets").
-- **Next (decided):** TileMap nodes from Aseprite tilemap layers, with collision from tile
-  properties.
+- **TileMaps** (tilemap_edit.odin; the engine's tilemap.odin): a TileMap node draws an Aseprite
+  file's tilemap layers, with collision from its tiles' properties (`collision` = solid / one-way
+  / area, or an `area` name, set in Aseprite's tile properties). Dropping a file that has tilemap
+  layers adds one (`TileMapEdit_HasTilemaps`); otherwise a Sprite. The inspector ticks layers:
+  with none named every visible one is built, and ticking or unticking starts from what's built
+  (the last one can't go). Each layer's line counts its solid, one-way and area tiles by the
+  engine's rules (`e.TileMap_TileCollision`). The viewport's rebuild signature includes the file's
+  time. Tests: `tilemaps_in_the_editor`, `tests/ui/tilemap.script` (driver checks `tilemap`,
+  `tilemap_built`); the fixture `tests/fixtures/aseprite/tilemap.aseprite` is ours
+  (`make_tilemap.py`).
+- **Later (decided):** painting tilemaps in the editor, writing the same data.
 
 ## LDtk levels (implemented, `ldtk_edit.odin`; engine: ldtk.odin, ldtk_nodes.odin)
 

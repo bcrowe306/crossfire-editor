@@ -139,6 +139,8 @@ NodeDef :: struct {
 	audio: e.AudioSettings,
 	// LDtkLevel (ldtk_edit.odin): the .ldtk file, the level, collision, entity components... (owned)
 	ldtk: e.LDtkLevelSettings,
+	// A TileMap's settings (strings owned: tilemap_edit.odin)
+	tilemap: e.TileMapSettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -337,6 +339,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		dampingRatio = defaults.dampingRatio,
 		particles = defaults.particles,
 		ldtk = LDtkSettings_Clone(e.DEFAULT_LDTK_LEVEL_SETTINGS),
+		tilemap = TileMapSettings_Clone(e.DEFAULT_TILEMAP_SETTINGS),
 	}
 	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
@@ -387,6 +390,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	for &a in node.animations do AnimationDef_Destroy(&a)
 	delete(node.animations)
 	delete(node.animationSet)
+	TileMapSettings_Destroy(&node.tilemap)
 	delete(node.autoplay)
 	delete(node.component)
 	delete(node.sound)
@@ -776,6 +780,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.bus = strings.clone(node.bus)
 	def.audio = node.audio
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
+	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	return def
 }
 
