@@ -1170,6 +1170,16 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   (`LDtk_Entity_Framed`). ldtk.script clicks one; `ldtk_inspector_says_what_entities_become`.
 - **Collision settings:** with a collision layer, the inspector shows the generated body's
   layers, mask, friction and bounce (`bodySurfaceRows`, shared with body nodes).
+- **Entity rules and collision kinds** (the engine's `LDtkEntityRule`, `LDtkCollisionKind`): per
+  entity type a **Becomes** select (`Entity_Make`: Auto, Its rectangle, Code, Nothing, then the
+  project's components; `LDTK_MAKE_LABELS`) and a **Runs** select (`Entity_Script`: Auto, No
+  script, the catalog's scripts; a named one the catalog lacks stays listed); rules that say
+  nothing are dropped (`ldtkDropDefaultRules`), so Auto writes no `<entity>`. Per IntGrid value
+  of the collision layer a kind select (`Collision_Value_Kind`, `LDTK_KIND_LABELS`):
+  `LDtkEdit_SetCollisionKind` rewrites the three lists from every value's kind (all solid: no
+  lists; none solid: `collisionValues="0"`). `Entity_Component` and `Collision_Values` stay for
+  older messages. Tests: `ldtk_entity_rules_and_collision_kinds_in_the_inspector`; ldtk.script
+  (the driver's `ldtk_areas`).
 - **Thumbnails:** `Preview_RenderLDtk` builds an LDtkLevel node in its own software renderer and
   fits it; one cache per place (`LDtkThumbnailSlot`: the browser's world map, the inspector's
   level), keyed by file, level and the file's modification time. `ldtkThumbnailView` uploads it.

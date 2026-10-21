@@ -235,11 +235,14 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			for pair in particles do attr(&w, pair.name, pair.value)
 			closeEmpty(&w)
 		}
-		// An LDtkLevel's entity components
+		// An LDtkLevel's entity rules: only what isn't Auto
 		for m in entities {
 			open(&w, "entity")
 			attr(&w, "name", m.entity)
-			attr(&w, "component", m.component)
+			if m.component != "" do attr(&w, "component", m.component)
+			if m.make != .Auto do attr(&w, "make", m.make)
+			if m.script != "" do attr(&w, "script", m.script)
+			if m.noScript do attr(&w, "noScript", true)
 			closeEmpty(&w)
 		}
 		// Scripts listening to its events
@@ -464,11 +467,16 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if l.allLevels do attr(w, "allLevels", true)
 		if l.collisionLayer != "" {
 			attr(w, "intGridCollision", l.collisionLayer)
-			if len(l.collisionValues) > 0 {
-				values := strings.builder_make(context.temp_allocator)
-				for v, i in l.collisionValues do fmt.sbprintf(&values, "%s%d", i > 0 ? " " : "", v)
-				attr(w, "collisionValues", strings.to_string(values))
+			// Solid, one-way and area values, each list only when it has some
+			list :: proc(w: ^XMLWriter, key: string, values: []int) {
+				if len(values) == 0 do return
+				b := strings.builder_make(context.temp_allocator)
+				for v, i in values do fmt.sbprintf(&b, "%s%d", i > 0 ? " " : "", v)
+				attr(w, key, strings.to_string(b))
 			}
+			list(w, "collisionValues", l.collisionValues[:])
+			list(w, "oneWayValues", l.oneWayValues[:])
+			list(w, "areaValues", l.areaValues[:])
 			// The generated StaticBody's
 			if node.collisionLayer != e.DEFAULT_SCENE_NODE.collisionLayer do attr(w, "collisionLayer", e.FormatPhysicsLayers(node.collisionLayer, context.temp_allocator))
 			if node.collisionMask != e.DEFAULT_SCENE_NODE.collisionMask do attr(w, "collisionMask", e.FormatPhysicsLayers(node.collisionMask, context.temp_allocator))

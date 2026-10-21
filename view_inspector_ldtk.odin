@@ -90,9 +90,14 @@ ldtkBuildRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, project: ^e.LDtkProject, 
 			for v in layer.intGrid do if v != 0 do cells += 1
 			drawn := len(layer.tiles) > 0 ? fmt.tprintf("its rules' %d tiles drawn", len(layer.tiles)) : "its values' colors drawn"
 			if layer.identifier == settings.collisionLayer {
-				solid := 0
-				for v in layer.intGrid do if e.LDtk_IsCollisionValue(settings.collisionValues[:], int(v)) do solid += 1
-				what = fmt.tprintf("IntGrid: %s; COLLISION from %d of its %d cells (%s)", drawn, solid, cells, collisionValuesText(project, &layer, settings))
+				counts: [e.LDtkCollisionKind]int
+				for v in layer.intGrid do counts[e.LDtk_CollisionKind(settings, int(v))] += 1
+				made := make([dynamic]string, context.temp_allocator)
+				if counts[.Solid] > 0 do append(&made, fmt.tprintf("%d solid", counts[.Solid]))
+				if counts[.One_Way] > 0 do append(&made, fmt.tprintf("%d one-way", counts[.One_Way]))
+				if counts[.Area] > 0 do append(&made, fmt.tprintf("%d in areas", counts[.Area]))
+				if len(made) == 0 do append(&made, "none")
+				what = fmt.tprintf("IntGrid: %s; COLLISION: %s of its %d cells (%s)", drawn, strings.join(made[:], ", ", context.temp_allocator), cells, collisionValuesText(project, &layer, settings))
 			} else {
 				what = fmt.tprintf("IntGrid: %s; %d cells, no collision (pick it as Collision above)", drawn, cells)
 			}
@@ -109,16 +114,17 @@ ldtkBuildRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, project: ^e.LDtkProject, 
 	return rows[:]
 }
 
-// The collision values with their LDtk names: "1 Walls, 2 Platforms" (every value when none listed)
+// The collision values with their LDtk names and kinds: "1 Walls solid, 2 Platforms one-way"
 @(private="file")
 collisionValuesText :: proc(project: ^e.LDtkProject, layer: ^e.LDtkLayer, settings: ^e.LDtkLevelSettings) -> string {
 	def := e.LDtk_FindLayerDef(project, layer.identifier)
-	if def == nil do return "every value"
+	if def == nil do return "every value solid"
+	KIND_WORDS := [e.LDtkCollisionKind]string{.None = "nothing", .Solid = "solid", .One_Way = "one-way", .Area = "an Area"}
 	parts := make([dynamic]string, context.temp_allocator)
-	for v in def.intGridValues do if e.LDtk_IsCollisionValue(settings.collisionValues[:], v.value) {
-		append(&parts, v.identifier != "" ? fmt.tprintf("%d %s", v.value, v.identifier) : fmt.tprint(v.value))
+	for v in def.intGridValues {
+		name := v.identifier != "" ? fmt.tprintf("%d %s", v.value, v.identifier) : fmt.tprint(v.value)
+		append(&parts, fmt.tprintf("%s %s", name, KIND_WORDS[e.LDtk_CollisionKind(settings, v.value)]))
 	}
-	if len(settings.collisionValues) == 0 do return fmt.tprintf("every value: %s", strings.join(parts[:], ", ", context.temp_allocator))
 	return strings.join(parts[:], ", ", context.temp_allocator)
 }
 
@@ -131,24 +137,40 @@ Returns:
 */
 LDtkEdit_EntityPlan :: proc(s: ^State, settings: ^e.LDtkLevelSettings, identifier: string, sample: ^e.LDtkEntity) -> (lines: []string, bare: bool) {
 	out := make([dynamic]string, context.temp_allocator)
-	component := e.LDtk_EntityComponent(settings, identifier)
+	rule := e.LDtk_EntityRule(settings, identifier)
+	made := e.LDtk_EntityMade(settings, identifier)
 	script := ""
 	scriptWhy := ""
-	if component != "" {
-		append(&out, fmt.tprintf("→ component %s (mapped)", ComponentName(component)))
+	componentScript := false
+	switch made {
+	case .Skip:
+		append(&out, "→ nothing: its entities aren't made")
+		return out[:], false
+	case .Component:
+		component := e.LDtk_EntityComponent(settings, identifier)
+		append(&out, fmt.tprintf("→ component %s (%s)", ComponentName(component), rule.make == .Auto ? "mapped" : "chosen"))
 		if i := Project_FindComponent(&s.project, component); i >= 0 && len(s.project.scenes[i].nodes) > 0 {
 			script = NodeDef_Script(&s.project, &s.project.scenes[i].nodes[0])
-			if script != "" do scriptWhy = "the component's"
+			if script != "" do scriptWhy, componentScript = "the component's", true
 		}
-	} else {
-		append(&out, "→ its rectangle and tile (nothing mapped; code can make it instead: e.LDtk_RegisterEntity)")
+	case .Code:
+		append(&out, "→ what code makes (e.LDtk_RegisterEntity); its rectangle, with a warning, if nothing registered it")
+	case .Auto, .Rectangle:
+		if rule.make == .Rectangle do append(&out, "→ its rectangle and tile (chosen)")
+		else do append(&out, "→ its rectangle and tile (nothing mapped; code can make it instead: e.LDtk_RegisterEntity)")
 	}
-	if script == "" && ScriptCatalog_Find(&s.scripts, identifier) != nil {
-		script, scriptWhy = identifier, "named like the entity"
+	if !componentScript {
+		name, chosen := e.LDtk_EntityScript(settings, identifier, false)
+		if name != "" && (chosen || ScriptCatalog_Find(&s.scripts, name) != nil) {
+			script, scriptWhy = name, chosen ? "chosen" : "named like the entity"
+		}
 	}
 	switch {
 	case script != "":
-		append(&out, fmt.tprintf("   runs script %s (%s)", script, scriptWhy))
+		missing := s.scripts.status == .Ready && ScriptCatalog_Find(&s.scripts, script) == nil
+		append(&out, fmt.tprintf("   runs script %s (%s)%s", script, scriptWhy, missing ? ", but no script has that name" : ""))
+	case rule.noScript:
+		append(&out, "   no script (chosen)")
 	case s.scripts.status != .Ready && len(s.scriptFiles) > 0:
 		append(&out, fmt.tprintf("   a script named %s would run on it (build the scripts to see)", identifier))
 	case:
@@ -169,7 +191,8 @@ LDtkEdit_EntityPlan :: proc(s: ^State, settings: ^e.LDtkLevelSettings, identifie
 		}
 		append(&out, fmt.tprintf("   fields: %s", strings.join(parts[:], ", ", context.temp_allocator)))
 	}
-	return out[:], component == "" && script == ""
+	// A bare rectangle chosen on purpose isn't worth a warning
+	return out[:], made != .Component && made != .Code && script == "" && rule.make == .Auto && !rule.noScript
 }
 
 // The level's entities: each with its position (in the node) and fields; a click frames it

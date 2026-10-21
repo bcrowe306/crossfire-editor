@@ -345,10 +345,13 @@ Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:
 2. **Drag it into the viewport**, or add an **LDtkLevel** node and pick the file. The viewport
    shows the level as the game draws it, and follows LDtk's saves.
 3. In the inspector, pick the **level** (or **Whole world**: every level at its place), the
-   IntGrid layer that becomes **collision** (and which values; the cells are merged into a few
-   rectangles of one StaticBody), and what each **entity** becomes: a component, else the script
-   with the entity's name (its LDtk fields set the script's fields with the same name), else a
-   rectangle that draws the entity's tile.
+   IntGrid layer that becomes **collision** and what each of its values is: solid, a one-way
+   platform, an Area (a trigger named after the value, like "Spikes"), or nothing (the cells are
+   merged into a few rectangles). For each **entity** type pick what it **becomes** (Auto: its
+   component, else what code makes with `e.LDtk_RegisterEntity`, else a rectangle that draws its
+   tile; or one of those on purpose, or nothing) and the script it **runs** (Auto: the one named
+   like the entity; or another, or none). Its LDtk fields set the script's fields with the same
+   name.
 
 While the game runs from Play, saving in LDtk updates it: tiles, collision, backgrounds, layers
 added or removed, and entities placed or deleted (the others keep running where they are). Parallax layers follow the camera, entities draw their tiles as

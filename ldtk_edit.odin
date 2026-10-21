@@ -29,9 +29,10 @@ LDtk in the editor (the engine side: the engine's ldtk.odin and ldtk_nodes.odin)
 - **Exports** ship the files an LDtk asset needs along with it (`LDtkEdit_ExportFiles`).
 
 Widget keys: `inspector-ldtk-file-<node>`, `inspector-ldtk-level-<node>`, `inspector-ldtk-all-<node>`,
-`inspector-ldtk-collision-<node>`, `inspector-ldtk-values-<node>`, `inspector-ldtk-entities-<node>`,
-`inspector-ldtk-background-<node>`, `inspector-ldtk-smooth-<node>`, `inspector-ldtk-component-<entity>-<node>`,
-`inspector-ldtk-open-<node>`.
+`inspector-ldtk-collision-<node>`, `inspector-ldtk-value-<value>-<node>` (what an IntGrid value becomes),
+`inspector-ldtk-entities-<node>`, `inspector-ldtk-background-<node>`, `inspector-ldtk-smooth-<node>`,
+`inspector-ldtk-component-<entity>-<node>` (what it becomes), `inspector-ldtk-script-<entity>-<node>`
+(the script it runs), `inspector-ldtk-open-<node>`.
 */
 
 // What an LDtk_Setting_Changed message changes
@@ -46,6 +47,30 @@ LDtkSettingField :: enum {
 	Smooth_Tiles,
 	// The component entities named `name` become (text; "" for none)
 	Entity_Component,
+	// What entities named `name` become (text: a LDTK_MAKE_LABELS label, or a component's path)
+	Entity_Make,
+	// The script they run (text: LDTK_SCRIPT_AUTO, LDTK_SCRIPT_NONE or a script's name)
+	Entity_Script,
+	// What the collision layer's value `name` becomes (text: a LDTK_KIND_LABELS label)
+	Collision_Value_Kind,
+}
+
+// The inspector's choices of what an entity type becomes (with the project's components after)
+LDTK_MAKE_LABELS := [e.LDtkEntityMake]string{
+	.Auto      = "Auto",
+	.Component = "",
+	.Code      = "Code (LDtk_RegisterEntity)",
+	.Rectangle = "Its rectangle",
+	.Skip      = "Nothing (skipped)",
+}
+LDTK_SCRIPT_AUTO :: "Auto (named like it)"
+LDTK_SCRIPT_NONE :: "No script"
+// The inspector's choices of what a collision value becomes
+LDTK_KIND_LABELS := [e.LDtkCollisionKind]string{
+	.None    = "Nothing",
+	.Solid   = "Solid",
+	.One_Way = "One-way platform",
+	.Area    = "Area (a trigger)",
 }
 
 // An LDtkLevel node's setting, from the inspector (strings only live for the frame)
@@ -133,8 +158,12 @@ LDtkSettings_Clone :: proc(settings: e.LDtkLevelSettings) -> e.LDtkLevelSettings
 	result.collisionLayer = strings.clone(settings.collisionLayer)
 	result.collisionValues = make([dynamic]int)
 	append(&result.collisionValues, ..settings.collisionValues[:])
+	result.oneWayValues = make([dynamic]int)
+	append(&result.oneWayValues, ..settings.oneWayValues[:])
+	result.areaValues = make([dynamic]int)
+	append(&result.areaValues, ..settings.areaValues[:])
 	result.entityComponents = make([dynamic]e.LDtkEntityComponent)
-	for m in settings.entityComponents do append(&result.entityComponents, e.LDtkEntityComponent{strings.clone(m.entity), strings.clone(m.component)})
+	for m in settings.entityComponents do append(&result.entityComponents, e.LDtkEntityComponent{strings.clone(m.entity), strings.clone(m.component), m.make, strings.clone(m.script), m.noScript})
 	return result
 }
 
@@ -142,7 +171,8 @@ LDtkSettings_Clone :: proc(settings: e.LDtkLevelSettings) -> e.LDtkLevelSettings
 LDtkSettings_Equal :: proc(a, b: e.LDtkLevelSettings) -> bool {
 	if a.file != b.file || a.level != b.level || a.allLevels != b.allLevels || a.collisionLayer != b.collisionLayer ||
 	   a.spawnEntities != b.spawnEntities || a.background != b.background || a.smoothTiles != b.smoothTiles ||
-	   !slice.equal(a.collisionValues[:], b.collisionValues[:]) || len(a.entityComponents) != len(b.entityComponents) {
+	   !slice.equal(a.collisionValues[:], b.collisionValues[:]) || !slice.equal(a.oneWayValues[:], b.oneWayValues[:]) ||
+	   !slice.equal(a.areaValues[:], b.areaValues[:]) || len(a.entityComponents) != len(b.entityComponents) {
 		return false
 	}
 	for m, i in a.entityComponents do if m != b.entityComponents[i] do return false
@@ -212,19 +242,46 @@ LDtkEdit_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		case .Smooth_Tiles:
 			settings.smoothTiles = v.flag
 		case .Entity_Component:
-			component := v.text == TEXTURE_NONE ? "" : v.text
-			for &m, i in settings.entityComponents {
-				if m.entity != v.name do continue
-				delete(m.component)
-				if component == "" {
-					delete(m.entity)
-					ordered_remove(&settings.entityComponents, i)
-				} else {
-					m.component = strings.clone(component)
+			rule := ldtkRule(settings, v.name)
+			delete(rule.component)
+			rule.component = strings.clone(v.text == TEXTURE_NONE ? "" : v.text)
+			if rule.component != "" && rule.make != .Auto do rule.make = .Component
+			ldtkDropDefaultRules(settings)
+		case .Entity_Make:
+			rule := ldtkRule(settings, v.name)
+			found := false
+			for label, make in LDTK_MAKE_LABELS do if label != "" && label == v.text {
+				rule.make = make
+				found = true
+				// Auto keeps no component: the mapped one would make it a component again
+				if make != .Component {
+					delete(rule.component)
+					rule.component = ""
 				}
-				return {}, true
 			}
-			if component != "" do append(&settings.entityComponents, e.LDtkEntityComponent{strings.clone(v.name), strings.clone(component)})
+			// A component's path
+			if !found {
+				rule.make = .Component
+				delete(rule.component)
+				rule.component = strings.clone(v.text)
+			}
+			ldtkDropDefaultRules(settings)
+		case .Entity_Script:
+			rule := ldtkRule(settings, v.name)
+			delete(rule.script)
+			rule.script, rule.noScript = "", false
+			switch v.text {
+			case LDTK_SCRIPT_AUTO:
+			case LDTK_SCRIPT_NONE: rule.noScript = true
+			case: rule.script = strings.clone(v.text)
+			}
+			ldtkDropDefaultRules(settings)
+		case .Collision_Value_Kind:
+			value, ok := strconv.parse_int(v.name)
+			if !ok do break
+			kind := e.LDtkCollisionKind.None
+			for label, k in LDTK_KIND_LABELS do if label == v.text do kind = k
+			LDtkEdit_SetCollisionKind(state, settings, value, kind)
 		}
 	case LDtk_Asset_Open_Requested:
 		if int(v) < 0 || int(v) >= len(state.project.assets) do return {}, true
@@ -315,13 +372,16 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 	append(&rows, inspectorRow(ctx, "Collision", skald.select(ctx, settings.collisionLayer == "" ? LDTK_NO_LAYER : settings.collisionLayer, layers[:],
 		LDtkSettingField.Collision_Layer, onText, id = skald.hash_id(fmt.tprintf("inspector-ldtk-collision-%d", key)), width = controlWidth)))
 	if def := e.LDtk_FindLayerDef(project, settings.collisionLayer); def != nil {
-		values := strings.builder_make(context.temp_allocator)
-		for v, i in settings.collisionValues do fmt.sbprintf(&values, "%s%d", i > 0 ? " " : "", v)
-		append(&rows, inspectorRow(ctx, "Values", skald.text_input(ctx, strings.to_string(values), LDtkSettingField.Collision_Values, onText,
-			id = skald.hash_id(fmt.tprintf("inspector-ldtk-values-%d", key)), width = controlWidth, placeholder = "every value")))
-		names := strings.builder_make(context.temp_allocator)
-		for v, i in def.intGridValues do fmt.sbprintf(&names, "%s%d = %s", i > 0 ? ", " : "", v.value, v.identifier == "" ? "(unnamed)" : v.identifier)
-		append(&rows, small(ctx, fmt.tprintf("Cells with these values become a StaticBody (%s)", strings.to_string(names)), th.color.fg_muted))
+		// What each value becomes
+		kinds := make([dynamic]string, context.temp_allocator)
+		for label in LDTK_KIND_LABELS do append(&kinds, label)
+		for v in def.intGridValues {
+			label := v.identifier != "" ? fmt.tprintf("%d %s", v.value, v.identifier) : fmt.tprintf("Value %d", v.value)
+			append(&rows, inspectorRow(ctx, label, skald.select(ctx, LDTK_KIND_LABELS[e.LDtk_CollisionKind(settings, v.value)], kinds[:], fmt.tprint(v.value),
+				proc(value: string, kind: string) -> Msg { return LDtk_Setting_Changed{field = .Collision_Value_Kind, text = kind, name = value} },
+				id = skald.hash_id(fmt.tprintf("inspector-ldtk-value-%d-%d", v.value, key)), width = controlWidth)))
+		}
+		append(&rows, small(ctx, "Solid and one-way cells become one StaticBody; each area value an Area named after it.", th.color.fg_muted))
 		// The StaticBody's layers, what it collides with, its surface
 		append(&rows, ..bodySurfaceRows(ctx, s, node, key, controlWidth, numberWidth))
 	}
@@ -336,9 +396,14 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 
 	// What each entity type becomes and why, with its component choice
 	if settings.spawnEntities && len(project.entities) > 0 {
-		components := make([dynamic]string, context.temp_allocator)
-		append(&components, TEXTURE_NONE)
-		for asset in s.project.assets do if asset.kind == .Component do append(&components, asset.path)
+		// What it becomes: the choices, then the project's components
+		makes := make([dynamic]string, context.temp_allocator)
+		for m in ([]e.LDtkEntityMake{.Auto, .Rectangle, .Code, .Skip}) do append(&makes, LDTK_MAKE_LABELS[m])
+		for asset in s.project.assets do if asset.kind == .Component do append(&makes, asset.path)
+		// The script it runs
+		scripts := make([dynamic]string, context.temp_allocator)
+		append(&scripts, LDTK_SCRIPT_AUTO, LDTK_SCRIPT_NONE)
+		for desc in s.scripts.scripts do append(&scripts, desc.name)
 		// How many of each, in the levels built, and one to read its fields from
 		placed, _ := e.LDtk_PlacedLevels(project, settings^, context.temp_allocator)
 		counts := make(map[string]int, context.temp_allocator)
@@ -349,11 +414,25 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 		}
 		append(&rows, skald.text(fmt.tprintf("%s  Entities", ICON_CUBES), th.color.fg, th.font.size_sm))
 		for def in project.entities {
-			current := TEXTURE_NONE
-			for m in settings.entityComponents do if m.entity == def.identifier do current = m.component
-			append(&rows, inspectorRow(ctx, fmt.tprintf("%s ×%d", def.identifier, counts[def.identifier]), skald.select(ctx, current, components[:], strings.clone(def.identifier, context.temp_allocator),
-				proc(entity: string, value: string) -> Msg { return LDtk_Setting_Changed{field = .Entity_Component, text = value, name = entity} },
+			rule := e.LDtk_EntityRule(settings, def.identifier)
+			becomes := rule.component != "" && (rule.make == .Auto || rule.make == .Component) ? rule.component : LDTK_MAKE_LABELS[rule.make == .Component ? .Auto : rule.make]
+			runs := rule.noScript ? LDTK_SCRIPT_NONE : (rule.script != "" ? rule.script : LDTK_SCRIPT_AUTO)
+			// A script the catalog doesn't know (not built yet) stays choosable
+			choices := scripts[:]
+			if !slice.contains(choices, runs) {
+				more := make([dynamic]string, context.temp_allocator)
+				append(&more, ..choices)
+				append(&more, runs)
+				choices = more[:]
+			}
+			entity := strings.clone(def.identifier, context.temp_allocator)
+			append(&rows, skald.text(fmt.tprintf("%s ×%d", def.identifier, counts[def.identifier]), th.color.fg, th.font.size_sm))
+			append(&rows, inspectorRow(ctx, "Becomes", skald.select(ctx, becomes, makes[:], entity,
+				proc(entity: string, value: string) -> Msg { return LDtk_Setting_Changed{field = .Entity_Make, text = value, name = entity} },
 				id = skald.hash_id(fmt.tprintf("inspector-ldtk-component-%s-%d", def.identifier, key)), width = controlWidth)))
+			append(&rows, inspectorRow(ctx, "Runs", skald.select(ctx, runs, choices, entity,
+				proc(entity: string, value: string) -> Msg { return LDtk_Setting_Changed{field = .Entity_Script, text = value, name = entity} },
+				id = skald.hash_id(fmt.tprintf("inspector-ldtk-script-%s-%d", def.identifier, key)), width = controlWidth)))
 			lines, bare := LDtkEdit_EntityPlan(s, settings, def.identifier, samples[def.identifier])
 			for line in lines do append(&rows, skald.text(line, bare ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = width))
 		}
@@ -561,4 +640,61 @@ ldtkThumbnailView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, slot: LDtkThumbnailSl
 	})
 	if height <= 0 do return skald.flex(1, picture)
 	return skald.col(picture, width = width, height = height)
+}
+
+// The node's rule for an entity type, added (Auto) when it has none
+@(private="file")
+ldtkRule :: proc(settings: ^e.LDtkLevelSettings, entity: string) -> ^e.LDtkEntityRule {
+	for &m in settings.entityComponents do if m.entity == entity do return &m
+	append(&settings.entityComponents, e.LDtkEntityRule{entity = strings.clone(entity)})
+	return &settings.entityComponents[len(settings.entityComponents) - 1]
+}
+
+// Drops the rules that say nothing (Auto, no component, no script): the scene file stays short
+@(private="file")
+ldtkDropDefaultRules :: proc(settings: ^e.LDtkLevelSettings) {
+	#reverse for m, i in settings.entityComponents {
+		if m.make != .Auto || m.component != "" || m.script != "" || m.noScript do continue
+		delete(m.entity)
+		delete(m.component)
+		delete(m.script)
+		ordered_remove(&settings.entityComponents, i)
+	}
+}
+
+/*
+Sets what a value of the collision layer becomes, keeping the others as they are now: the lists
+(`collisionValues` solid, `oneWayValues`, `areaValues`) are written out from every value's kind.
+When every value is solid, no list is kept (the engine's default: every value solid).
+
+Inputs:
+- state: The editor state (the project's LDtk file, for the layer's values)
+- settings: The LDtkLevel node's settings
+- value: The IntGrid value
+- kind: What it becomes
+*/
+LDtkEdit_SetCollisionKind :: proc(state: ^State, settings: ^e.LDtkLevelSettings, value: int, kind: e.LDtkCollisionKind) {
+	project := LDtkEdit_Project(state.project.rootPath, settings.file)
+	def := project != nil ? e.LDtk_FindLayerDef(project, settings.collisionLayer) : nil
+	values := make([dynamic]int, context.temp_allocator)
+	if def != nil do for v in def.intGridValues do append(&values, v.value)
+	if !slice.contains(values[:], value) do append(&values, value)
+	kinds := make([]e.LDtkCollisionKind, len(values), context.temp_allocator)
+	for v, i in values do kinds[i] = v == value ? kind : e.LDtk_CollisionKind(settings, v)
+	clear(&settings.collisionValues)
+	clear(&settings.oneWayValues)
+	clear(&settings.areaValues)
+	allSolid := true
+	for v, i in values {
+		switch kinds[i] {
+		case .Solid:   append(&settings.collisionValues, v)
+		case .One_Way: append(&settings.oneWayValues, v)
+		case .Area:    append(&settings.areaValues, v)
+		case .None:
+		}
+		if kinds[i] != .Solid do allSolid = false
+	}
+	if allSolid do clear(&settings.collisionValues)
+	// None solid: an empty list would make every other value solid, so "0" (the empty cell) alone
+	if len(settings.collisionValues) == 0 && !allSolid do append(&settings.collisionValues, 0)
 }

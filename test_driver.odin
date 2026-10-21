@@ -176,6 +176,8 @@ Checks:
 	console_lacks <text>         No Console line contains the text
 	ldtk_preview <levels> <entities> <shapes>
 	                             What the viewport built for the selected LDtkLevel node
+	ldtk_areas <name> <shapes>[, ...] | none
+	                             The Areas its collision values made (name, shapes)
 	git <idle | busy>            Whether the Git tab runs a command or reads the repository
 	git_state <Unknown | Missing | Not_Repo | Repo>
 	git_branch <name>            The project's branch
@@ -1222,6 +1224,14 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		shapes := 0
 		for view in level.views do for child in view.children do if child.name == "Collision" do shapes += len(child.children)
 		found = fmt.tprintf("%d %d %d", len(level.views), len(level.spawned), shapes)
+	case "ldtk_areas":
+		// The Areas the selected LDtkLevel node's collision values made: "<name> <shapes>", or "none"
+		engineNode := Preview_Node(s.selectedNode)
+		if engineNode == nil || !e.Node_Is(engineNode, e.LDtkLevelNode) do return false, "the selected node isn't a built LDtkLevel"
+		level := cast(^e.LDtkLevelNode)engineNode
+		parts := make([dynamic]string, context.temp_allocator)
+		for view in level.views do for child in view.children do if e.Node_Is(child, e.Area) do append(&parts, fmt.tprintf("%s %d", child.name, len(child.children)))
+		found = len(parts) > 0 ? strings.join(parts[:], ", ", context.temp_allocator) : "none"
 	case "dialog":
 		found = s.removeConfirm.open ? "open" : "closed"
 	case "add_dialog":

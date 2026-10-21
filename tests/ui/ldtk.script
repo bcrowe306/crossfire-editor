@@ -80,6 +80,37 @@ expect ldtk_level first
 key ctrl+y
 expect ldtk_level Level_0
 
+# Per entity type what it becomes: the coins skipped (2 of the 3 entities), then back to Auto
+scroll_into_view inspector-scroll inspector-ldtk-component-Coin-11
+click_widget inspector-ldtk-component-Coin-11
+click_overlay_item 3
+wait 3
+expect ldtk_preview 1 1 3
+# Its script: none
+scroll_into_view inspector-scroll inspector-ldtk-script-Player-11
+click_widget inspector-ldtk-script-Player-11
+click_overlay_item 1
+# Per IntGrid value what it becomes: the walls an Area named after the value, not solid
+scroll_into_view inspector-scroll inspector-ldtk-value-1-11
+click_widget inspector-ldtk-value-1-11
+click_overlay_item 3
+wait 3
+expect ldtk_areas wall 3
+expect ldtk_preview 1 1 0
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml make="Skip"
+expect project_file_contains scenes/PlayScene.scene.xml noScript="true"
+expect project_file_contains scenes/PlayScene.scene.xml areaValues="1"
+key ctrl+z
+wait 3
+expect ldtk_areas none
+expect ldtk_preview 1 1 3
+scroll_into_view inspector-scroll inspector-ldtk-component-Coin-11
+click_widget inspector-ldtk-component-Coin-11
+click_overlay_item 0
+wait 3
+expect ldtk_preview 1 3 3
+
 # Saved with its settings
 key ctrl+s
 expect project_file_contains scenes/PlayScene.scene.xml kind="LDtkLevel"

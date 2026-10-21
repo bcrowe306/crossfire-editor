@@ -207,3 +207,79 @@ shipped_demo_copies_with_its_level :: proc(t: ^testing.T) {
 		testing.expectf(t, found, "exports take %s (%v)", name, files)
 	}
 }
+
+// Per entity type, what it becomes and the script it runs; per IntGrid value, what it becomes.
+// Each choice is an undo step, saved and loaded back; Auto choices leave nothing in the file
+@(test)
+ldtk_entity_rules_and_collision_kinds_in_the_inspector :: proc(t: ^testing.T) {
+	os.make_directory("build")
+	dir := "build/test_ldtk_rules"
+	removeAll(dir)
+	defer removeAll(dir)
+	os.make_directory(dir)
+	root := joinPath(dir, "Game", allocator = context.temp_allocator)
+	state := ldtkState(root)
+	defer State_Destroy(&state)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	index, problem := Project_ImportAsset(&state.project, "tests/fixtures/ldtk/world.ldtk")
+	testing.expect_value(t, problem, "")
+	if index < 0 do return
+	path := state.project.assets[index].path
+	nodeAt := Scene_AddLDtkAt(&state.project.scenes[0], path, -1, {})
+	state.selectedNode = nodeAt
+	settings :: proc(state: ^State, at: int) -> ^e.LDtkLevelSettings { return &state.project.scenes[0].nodes[at].ldtk }
+
+	// Entities: Coin skipped, Player a rectangle running no script, then a named script
+	sendTo(&state, LDtk_Setting_Changed{field = .Entity_Make, name = "Coin", text = LDTK_MAKE_LABELS[.Skip]})
+	sendTo(&state, LDtk_Setting_Changed{field = .Entity_Make, name = "Player", text = LDTK_MAKE_LABELS[.Rectangle]})
+	sendTo(&state, LDtk_Setting_Changed{field = .Entity_Script, name = "Player", text = LDTK_SCRIPT_NONE})
+	testing.expect_value(t, e.LDtk_EntityMade(settings(&state, nodeAt), "Coin"), e.LDtkEntityMake.Skip)
+	testing.expect_value(t, e.LDtk_EntityMade(settings(&state, nodeAt), "Player"), e.LDtkEntityMake.Rectangle)
+	name, _ := e.LDtk_EntityScript(settings(&state, nodeAt), "Player", false)
+	testing.expect_value(t, name, "")
+	lines, bare := LDtkEdit_EntityPlan(&state, settings(&state, nodeAt), "Coin", nil)
+	testing.expect(t, len(lines) == 1 && strings.contains(lines[0], "nothing") && !bare, "skipped")
+	_, bare = LDtkEdit_EntityPlan(&state, settings(&state, nodeAt), "Player", nil)
+	testing.expect(t, !bare, "a rectangle without a script, chosen: no warning")
+	sendTo(&state, LDtk_Setting_Changed{field = .Entity_Script, name = "Player", text = "Hero"})
+	name, _ = e.LDtk_EntityScript(settings(&state, nodeAt), "Player", false)
+	testing.expect_value(t, name, "Hero")
+	// A component chosen; undo takes it back to the rectangle
+	sendTo(&state, LDtk_Setting_Changed{field = .Entity_Make, name = "Player", text = "components/hero.component.xml"})
+	testing.expect_value(t, e.LDtk_EntityComponent(settings(&state, nodeAt), "Player"), "components/hero.component.xml")
+	sendTo(&state, Action.Undo)
+	testing.expect_value(t, e.LDtk_EntityMade(settings(&state, nodeAt), "Player"), e.LDtkEntityMake.Rectangle)
+	sendTo(&state, Action.Redo)
+
+	// Collision: the Walls' value 1 an Area, then one-way; all solid again leaves no list
+	sendTo(&state, LDtk_Setting_Changed{field = .Collision_Layer, text = "Walls"})
+	sendTo(&state, LDtk_Setting_Changed{field = .Collision_Value_Kind, name = "1", text = LDTK_KIND_LABELS[.Area]})
+	testing.expect_value(t, e.LDtk_CollisionKind(settings(&state, nodeAt), 1), e.LDtkCollisionKind.Area)
+	testing.expect_value(t, len(settings(&state, nodeAt).collisionValues), 1)
+	testing.expect_value(t, settings(&state, nodeAt).collisionValues[0], 0)
+	sendTo(&state, LDtk_Setting_Changed{field = .Collision_Value_Kind, name = "1", text = LDTK_KIND_LABELS[.One_Way]})
+	testing.expect_value(t, e.LDtk_CollisionKind(settings(&state, nodeAt), 1), e.LDtkCollisionKind.One_Way)
+	testing.expect_value(t, len(settings(&state, nodeAt).areaValues), 0)
+
+	// Saved and loaded: the same rules
+	xml := SceneToXML(&state.project.scenes[0], context.temp_allocator)
+	testing.expect(t, strings.contains(xml, `<entity name="Coin" make="Skip"/>`), xml)
+	testing.expect(t, strings.contains(xml, `<entity name="Player" component="components/hero.component.xml" make="Component" script="Hero"/>`), xml)
+	testing.expect(t, strings.contains(xml, `collisionValues="0"`) && strings.contains(xml, `oneWayValues="1"`), xml)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	loaded, message, _ := Project_Load(root)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	if len(loaded.scenes) > 0 && nodeAt < len(loaded.scenes[0].nodes) {
+		testing.expect(t, LDtkSettings_Equal(loaded.scenes[0].nodes[nodeAt].ldtk, settings(&state, nodeAt)^), "round trip")
+	}
+
+	// Back to Auto: the rules and lists go
+	sendTo(&state, LDtk_Setting_Changed{field = .Collision_Value_Kind, name = "1", text = LDTK_KIND_LABELS[.Solid]})
+	sendTo(&state, LDtk_Setting_Changed{field = .Entity_Make, name = "Coin", text = LDTK_MAKE_LABELS[.Auto]})
+	sendTo(&state, LDtk_Setting_Changed{field = .Entity_Make, name = "Player", text = LDTK_MAKE_LABELS[.Auto]})
+	sendTo(&state, LDtk_Setting_Changed{field = .Entity_Script, name = "Player", text = LDTK_SCRIPT_AUTO})
+	testing.expect_value(t, len(settings(&state, nodeAt).entityComponents), 0)
+	testing.expect_value(t, len(settings(&state, nodeAt).collisionValues) + len(settings(&state, nodeAt).oneWayValues), 0)
+	free_all(context.temp_allocator)
+}

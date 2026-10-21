@@ -101,7 +101,8 @@ fieldTip :: proc(label: string) -> string {
 	case "Level":          return "Which level of the LDtk project to show."
 	case "Whole world":    return "Shows every level of the world, laid out as in LDtk."
 	case "Collision":      return "The IntGrid layer whose cells become collision (a static body)."
-	case "Values":         return "Which IntGrid values are solid (all when empty)."
+	case "Becomes":        return "What the entity type's nodes are: Auto (its component if mapped, else code's, else its rectangle), a component, code (e.LDtk_RegisterEntity), its rectangle, or nothing."
+	case "Runs":           return "The script its nodes run: Auto (the one named like the entity, unless its component has one), none, or another."
 	case "Entities":       return "LDtk entities become nodes: their components, or scripts named like them."
 	case "Smooth tiles":   return "Linear filtering for the tiles (off: crisp pixel art)."
 	// Settings

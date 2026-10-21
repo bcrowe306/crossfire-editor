@@ -3985,7 +3985,7 @@ ldtk_inspector_says_what_entities_become :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(joined, "runs script Coin (named like the entity)"), joined)
 	testing.expect(t, strings.contains(joined, "fields: Value → Coin.value, glow_color (no script field)"), joined)
 	// Mapped to a component: that's what it becomes
-	append(&settings.entityComponents, e.LDtkEntityComponent{"Coin", "components/coin.component.xml"})
+	append(&settings.entityComponents, e.LDtkEntityComponent{entity = "Coin", component = "components/coin.component.xml"})
 	lines, _ = LDtkEdit_EntityPlan(&state, &settings, "Coin", &sample)
 	testing.expect(t, strings.contains(lines[0], "component coin (mapped)"), lines[0])
 	free_all(context.temp_allocator)
