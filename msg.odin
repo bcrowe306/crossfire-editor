@@ -196,6 +196,10 @@ Listener_Removed :: struct {
 	node, index: int,
 }
 Inspector_Events_Toggled :: struct {}
+// The LDtkLevel inspector: its entity list shown or hidden; an entity clicked (centers the viewport
+// on its world position)
+LDtk_Instances_Toggled :: struct {}
+LDtk_Entity_Framed :: distinct [2]f32
 // The Events section's Globals: the node's script listens to a global's event (strings only
 // valid while handling the message)
 Global_Listen_Requested :: struct {
@@ -823,6 +827,8 @@ Msg :: union {
 	Listener_Target_Chosen,
 	Listener_Removed,
 	Inspector_Events_Toggled,
+	LDtk_Instances_Toggled,
+	LDtk_Entity_Framed,
 	Global_Listen_Requested,
 	New_Event_Opened,
 	New_Event_Name_Changed,

@@ -1150,6 +1150,15 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   shapes through the driver's `ldtk_preview`, undo, save, Play). The fixture
   `tests/fixtures/ldtk/` (a one-level project with a generated 32x32 tileset) is ours, written
   for the tests: LDtk's own samples have third-party art.
+- **What the inspector tells about the level** (view_inspector_ldtk.odin, read-only, every rule
+  the engine's own): the level (size in pixels and cells, world position, background,
+  neighbours, its LDtk fields; each level's line for a whole world), how it's built (every
+  layer bottom first: drawn tiles, auto-layer tiles, IntGrid colors, the collision layer with
+  how many cells and which values by name, entities on or off; parallax, opacity, hidden),
+  each entity type (count, the component choice, what it becomes and why: `LDtkEdit_EntityPlan`;
+  a bare rectangle without a script is a warning; which LDtk field sets which script field), and
+  a list of every entity (position, fields) whose rows center the viewport on it
+  (`LDtk_Entity_Framed`). ldtk.script clicks one; `ldtk_inspector_says_what_entities_become`.
 - **Collision settings:** with a collision layer, the inspector shows the generated body's
   layers, mask, friction and bounce (`bodySurfaceRows`, shared with body nodes).
 - **Thumbnails:** `Preview_RenderLDtk` builds an LDtkLevel node in its own software renderer and

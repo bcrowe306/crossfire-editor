@@ -218,6 +218,8 @@ State :: struct {
 	// The inspector's Listen... dialog (node_listeners.odin) and whether its Events section is open
 	listenerDialog: ListenerDialog,
 	inspectorEventsOpen: bool,
+	// The LDtkLevel inspector's list of the level's entities is shown
+	ldtkInstancesOpen: bool,
 	// The New Event dialog (new_event.odin)
 	newEvent: NewEventDialog,
 	newScript: struct {

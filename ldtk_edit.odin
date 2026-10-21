@@ -303,11 +303,9 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 	if level == nil {
 		if settings.level != "" do append(&rows, small(ctx, fmt.tprintf("%s has no level '%s'.", settings.file, settings.level), th.color.warning))
 	} else {
-		entities := 0
-		for l in level.layers do entities += len(l.entities)
-		append(&rows, small(ctx, fmt.tprintf("%s: %.0f x %.0f px, %d layers, %d entities", level.identifier, level.size.x, level.size.y, len(level.layers), entities), th.color.fg_muted))
-		// What it builds: the level (or the world), as the viewport shows it
+		// What it builds: the level (or the world), as the viewport shows it, and what it is
 		append(&rows, ldtkThumbnailView(ctx, s, .Inspector, settings.file, settings.level, settings.allLevels, 260, 120))
+		append(&rows, ..ldtkLevelRows(ctx, s, project, settings, controlWidth + INSPECTOR_LABEL_WIDTH))
 	}
 
 	// Collision from an IntGrid layer
@@ -332,22 +330,35 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 		inspectorRow(ctx, "Background", flag(ctx, key, "background", .Background, settings.background)),
 		inspectorRow(ctx, "Smooth tiles", flag(ctx, key, "smooth", .Smooth_Tiles, settings.smoothTiles)),
 	)
+	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	// How the engine builds it: each layer and what it becomes
+	append(&rows, ..ldtkBuildRows(ctx, s, project, settings, width))
 
-	// What each entity becomes: a component, else a script named like it, else a rectangle
+	// What each entity type becomes and why, with its component choice
 	if settings.spawnEntities && len(project.entities) > 0 {
 		components := make([dynamic]string, context.temp_allocator)
 		append(&components, TEXTURE_NONE)
 		for asset in s.project.assets do if asset.kind == .Component do append(&components, asset.path)
-		append(&rows, skald.text("Entity components", th.color.fg, th.font.size_sm))
+		// How many of each, in the levels built, and one to read its fields from
+		placed, _ := e.LDtk_PlacedLevels(project, settings^, context.temp_allocator)
+		counts := make(map[string]int, context.temp_allocator)
+		samples := make(map[string]^e.LDtkEntity, context.temp_allocator)
+		for p in placed do for l in p.level.layers do for &entity in l.entities {
+			counts[entity.identifier] += 1
+			if entity.identifier not_in samples do samples[entity.identifier] = &entity
+		}
+		append(&rows, skald.text(fmt.tprintf("%s  Entities", ICON_CUBES), th.color.fg, th.font.size_sm))
 		for def in project.entities {
 			current := TEXTURE_NONE
 			for m in settings.entityComponents do if m.entity == def.identifier do current = m.component
-			append(&rows, inspectorRow(ctx, def.identifier, skald.select(ctx, current, components[:], strings.clone(def.identifier, context.temp_allocator),
+			append(&rows, inspectorRow(ctx, fmt.tprintf("%s ×%d", def.identifier, counts[def.identifier]), skald.select(ctx, current, components[:], strings.clone(def.identifier, context.temp_allocator),
 				proc(entity: string, value: string) -> Msg { return LDtk_Setting_Changed{field = .Entity_Component, text = value, name = entity} },
 				id = skald.hash_id(fmt.tprintf("inspector-ldtk-component-%s-%d", def.identifier, key)), width = controlWidth)))
+			lines, bare := LDtkEdit_EntityPlan(s, settings, def.identifier, samples[def.identifier])
+			for line in lines do append(&rows, skald.text(line, bare ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = width))
 		}
-		append(&rows, small(ctx, "Without a component, an entity gets the script with its name, if there's one; its LDtk fields set the script's fields of the same name.", th.color.fg_muted))
 	}
+	append(&rows, ..ldtkInstanceRows(ctx, s, s.selectedNode, project, settings, width))
 	return rows[:]
 }
 

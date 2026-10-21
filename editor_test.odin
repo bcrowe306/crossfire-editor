@@ -3961,3 +3961,32 @@ project_sound_output_settings :: proc(t: ^testing.T) {
 	testing.expect_value(t, state.project.audioOutput, e.DEFAULT_AUDIO_OUTPUT)
 	free_all(context.temp_allocator)
 }
+
+@(test)
+ldtk_inspector_says_what_entities_become :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	settings: e.LDtkLevelSettings
+	settings.entityComponents = make([dynamic]e.LDtkEntityComponent, context.temp_allocator)
+	sample := e.LDtkEntity{identifier = "Coin", fields = {{identifier = "Value"}, {identifier = "glow_color"}}}
+
+	// Nothing mapped and no script: its rectangle, a warning
+	state.scripts.status = .Ready
+	lines, bare := LDtkEdit_EntityPlan(&state, &settings, "Coin", &sample)
+	testing.expect(t, bare && strings.contains(lines[0], "rectangle"), "a bare rectangle")
+	// A script named like it: it runs, its fields matched like the engine does
+	fields := make([dynamic]ScriptFieldDesc, context.temp_allocator)
+	append(&fields, ScriptFieldDesc{name = "value"})
+	append(&state.scripts.scripts, ScriptDesc{name = strings.clone("Coin"), fields = fields})
+	defer { delete(state.scripts.scripts[0].name); clear(&state.scripts.scripts) }
+	lines, bare = LDtkEdit_EntityPlan(&state, &settings, "Coin", &sample)
+	testing.expect(t, !bare, "not bare")
+	joined := strings.join(lines, "\n", context.temp_allocator)
+	testing.expect(t, strings.contains(joined, "runs script Coin (named like the entity)"), joined)
+	testing.expect(t, strings.contains(joined, "fields: Value → Coin.value, glow_color (no script field)"), joined)
+	// Mapped to a component: that's what it becomes
+	append(&settings.entityComponents, e.LDtkEntityComponent{"Coin", "components/coin.component.xml"})
+	lines, _ = LDtkEdit_EntityPlan(&state, &settings, "Coin", &sample)
+	testing.expect(t, strings.contains(lines[0], "component coin (mapped)"), lines[0])
+	free_all(context.temp_allocator)
+}

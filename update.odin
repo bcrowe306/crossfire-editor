@@ -566,6 +566,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		ordered_remove(&scene.nodes[v.node].listeners, v.index)
 	case Inspector_Events_Toggled:
 		out.inspectorEventsOpen = !out.inspectorEventsOpen
+	case LDtk_Instances_Toggled:
+		out.ldtkInstancesOpen = !out.ldtkInstancesOpen
+	case LDtk_Entity_Framed:
+		out.viewport.center = cast([2]f32)v
 	case Global_Listen_Requested:
 		message, attached := Listener_Connect(&out, v.node, v.node, v.event, v.global)
 		logLine(&out, attached ? .Info : .Warning, strings.clone(message))

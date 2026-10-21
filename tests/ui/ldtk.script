@@ -50,6 +50,15 @@ expect ldtk_preview 1 3 3
 # The body it becomes: its layers, what it collides with, its surface
 scroll_into_view inspector-scroll inspector-Friction-11
 expect widget_visible inspector-Friction-11 true
+# What's in the level: its entities, a click centers the view on one (Player, in the fixture)
+key ctrl+0
+key ctrl+1
+expect viewport_center 640 360
+scroll_into_view inspector-scroll inspector-ldtk-instances-toggle
+click_widget inspector-ldtk-instances-toggle
+scroll_into_view inspector-scroll inspector-ldtk-entity-0
+click_widget inspector-ldtk-entity-0
+expect viewport_center_not 640 360
 
 # Without entities; undo brings them back
 scroll_into_view inspector-scroll inspector-ldtk-entities-11
