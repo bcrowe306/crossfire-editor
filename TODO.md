@@ -4,6 +4,67 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
+## Common engine features (2026-10-21)
+
+The features most 2D engines have that this one doesn't, as the user listed them. The first ten
+(shaders deferred) are being built one per dev release, in this order; each gets a user guide in
+`docs/manual/`. Remove an item here once it's built.
+
+1. **Tilemap painting in the editor**: a tile palette, brushes (paint, erase, rectangle, fill,
+   pick), flips and rotation, and autotiling (terrains: edge and corner tiles chosen from their
+   neighbours), writing the same tile data the engine reads.
+2. **Keyframe animation of any property** (an AnimationPlayer-like timeline): position, rotation,
+   scale, color, opacity, script fields, method calls at times; for cutscenes, UI transitions,
+   juice.
+3. **A UI system**: containers and layout (rows, columns, grids, margins, anchors, scaling to the
+   screen), more controls (panels with 9-patches, progress bars, text fields, scroll lists, image
+   buttons, rich text), themes.
+4. **Shaders and post-processing** (deferred by the user): custom fragment shaders on sprites
+   (hit flash, outline, dissolve, palette swap) and screen effects (CRT, bloom, grading). Check
+   what SDL's GPU renderer allows first, across platforms and the web; the software renderer
+   can't run them.
+5. **2D lighting**: point and spot lights, light masks, shadows from occluders, normal-mapped
+   sprites.
+6. **Pathfinding and navigation**: A* on grids (tilemaps, LDtk IntGrid), navigation regions,
+   agents steering around obstacles.
+7. **A live view of the running game**: the editor showing the running game's scene tree and
+   values (editable), a profiler (frame time per system, draw calls), pause and step a frame.
+8. **Scene transitions and stacking**: fades and wipes, background loading with a loading
+   screen, scenes over others (a pause menu, a HUD).
+9. **State machines**: for gameplay (idle, run, jump, attack) and animation (which animation
+   from the state, transitions), with an editor graph.
+10. **Parallax and camera tools**: parallax backgrounds outside LDtk, camera limit zones and
+    rooms, smooth zoom, multiple viewports (split screen, minimaps, picture in picture).
+11. **Hot reload of scripts**, more than one script per node, custom node types from game code.
+12. **Asset import settings**: per-texture filtering and atlas packing, audio conversion,
+    bitmap / MSDF fonts.
+13. **Trails and lines**: trail renderers, line nodes (ropes, lasers); GPU particles maybe.
+14. **Collision from sprites** (polygons from an image's alpha) and shared physics materials.
+15. **Skeletal animation**: Spine / DragonBones import, or simple bones and IK.
+16. **Audio effects** on buses (reverb, low-pass, echo), music crossfades, adaptive layers.
+17. **A dialogue system**: branching dialogue data and a typewriter text box (Yarn / Ink style).
+18. **More platforms**: Android, iOS, touch input and virtual joysticks; Steam achievements and
+    cloud saves.
+19. **Editor plugins**: tool scripts running in the editor, custom inspectors, import plugins.
+20. **Multiplayer**: local multiplayer helpers; online later, maybe.
+
+## Documentation
+
+- **The user manual** (`docs/manual/`, started 2026-10-21 with the features above): published
+  with the API docs on GitHub Pages and opened from the editor (Help > Manual: the page for
+  what's selected). Older features still need their pages (scenes, nodes, scripts, physics,
+  particles, sound, LDtk, Aseprite, components, export...).
+
+## Editor viewport
+
+- **Skald GPU rendering for the viewport** (the user's question, 2026-10-21): the engine draws
+  with SDL's renderer into a hidden window's texture, read back and uploaded to Skald (~0.6 ms an
+  upload fullscreen). A viewport that renders continuously (animations, particles, scripts
+  always live) needs measuring first: the readback stalls the GPU each frame, and the editor
+  otherwise draws only when something changes. Options: keep the round trip with a "live" toggle
+  and a frame cap, paused when unfocused; or let Skald draw the engine's frames itself (a
+  textured-quad API, or Vulkan interop with SDL's GPU renderer). Ask before changing Skald.
+
 ## Builds and releases
 
 - **macOS bundle signing and notarization**, deferred until the version 1 release (decided
