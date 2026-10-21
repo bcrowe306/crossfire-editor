@@ -209,6 +209,8 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			case .Animation:
 				add(&labels, "Edit Animations", Msg(Anim_Asset_Shown(s.project.assets[selection.index].path)))
 				add(&labels, "New Animations", Msg(Anim_Set_New{}))
+			case .Theme:
+				add(&labels, "New Theme", Msg(Theme_Created{}))
 			case .Font, .Data, .Component, .Translation:
 			}
 		}
@@ -232,8 +234,13 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			add(&labels, "New Animations", Msg(Anim_Set_New{}))
 			break
 		}
+		if selection.kind == .Folder && selection.folder == .Themes {
+			add(&labels, "New Theme", Msg(Theme_Created{}))
+			break
+		}
 		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
 		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste Scene", .Paste_Node), Msg(Scene_Action{.Paste, -1}))
+		add(&labels, "New UI Theme", Msg(Theme_Created{}))
 	}
 	return labels[:]
 }
@@ -473,6 +480,13 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			content = componentPreview(s, ctx, asset)
 		case .Animation:
 			content = AnimationSet_Preview(s, ctx, asset)
+		case .Theme:
+			isProject := s.project.uiTheme == asset.path
+			content = skald.col(
+				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(isProject ? "The project's UI theme; edit it in the inspector" : "A UI theme; edit it in the inspector", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+				spacing = th.spacing.xs,
+			)
 		case .LDtk:
 			content = ldtkPreview(s, ctx, asset, path)
 		case .Translation:
@@ -648,6 +662,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .LDtk:  return ICON_MAP
 	case .Translation: return ICON_GLOBE
 	case .Animation: return ICON_FILM
+	case .Theme: return ICON_PALETTE
 	}
 	return ICON_FILE
 }

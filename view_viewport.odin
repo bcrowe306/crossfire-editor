@@ -985,6 +985,8 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .TileMap:        return skald.rgb(0x6cd9a8)
 	// Animation's purple, lighter
 	case .Animator:       return skald.rgb(0xd2a8ff)
+	// UI: the Label's green, bluer
+	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText: return skald.rgb(0x7ed6d0)
 	}
 	return skald.rgb(0xffffff)
 }

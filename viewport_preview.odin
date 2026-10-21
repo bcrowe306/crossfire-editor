@@ -86,6 +86,7 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	if !ensureSurface(size) do return nil, false
 
 	scene := &s.project.scenes[s.currentScene]
+	syncThemes(s, preview.game)
 	signature := sceneSignature(s, scene)
 	timeline := s.timeline.previewing && s.bottomTab == .Timeline && s.layout.bottomOpen
 	if preview.timelineApplied && !timeline do preview.signature = 0
@@ -476,7 +477,10 @@ syncTransforms :: proc(scene: ^SceneDef) {
 		if i >= len(preview.nodes) || preview.nodes[i] == nil do continue
 		node := preview.nodes[i]
 		// A hitbox following an Aseprite slice places itself (aseprite_nodes.odin)
-		if def.kind != .CollisionShape || def.slice == "" {
+		if NodeKind_IsControl(def.kind) && e.Node_IsControl(node) {
+			// A UI control's position is its layout's: the editor's moves its offset
+			(cast(^e.Control)node).offset = def.position
+		} else if def.kind != .CollisionShape || def.slice == "" {
 			node.position = def.position
 			node.rotation = def.rotation
 			node.scale = def.scale
@@ -537,7 +541,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui,
 		})
 	}
 	return data
@@ -573,6 +577,8 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 				strings.write_bytes(&b, transmute([]u8)mem_slice(layer.tiles[:]))
 			}
 		}
+		// A UI control's settings, text and image are read when it's built
+		if NodeKind_IsControl(node.kind) do fmt.sbprintf(&b, "|%v %s %s %s %s %s", node.ui, node.ui.theme, node.ui.placeholder, node.ui.action, node.text, node.texture)
 		// An Animator's clips are read when it's built
 		if node.kind == .Animator {
 			a := node.animator
@@ -809,6 +815,13 @@ Preview_Destroy :: proc() {
 	delete(preview.nodes)
 	for path in preview.ldtkModified do delete(path)
 	delete(preview.ldtkModified)
+	for path, data in previewThemes {
+		delete(path)
+		delete(data.font)
+		free(data)
+	}
+	delete(previewThemes)
+	previewThemes = nil
 	preview = {}
 	thumbnailDestroy(&thumbnail)
 	for &t in ldtkThumbnails do thumbnailDestroy(&t)
@@ -824,6 +837,8 @@ destroyAll :: proc() {
 	if preview.game != nil {
 		e.Game_ForgetLDtk(preview.game)
 		e.Game_ForgetAseprites(preview.game)
+		// Its themes are the preview's (previewThemes)
+		delete(preview.game.themes)
 		preview.game.resourceManager->destroy()
 		free(preview.game)
 		preview.game = nil
@@ -844,4 +859,34 @@ destroyAll :: proc() {
 @(private="file")
 mem_slice :: proc(tiles: []u32) -> []u8 {
 	return ([^]u8)(raw_data(tiles))[:len(tiles) * 4]
+}
+
+// The project's themes as the preview game reads them (controls look them up as they draw): one
+// entry per file, kept and updated in place, so a font's resolved path is made only when it
+// changes. Package state like `preview`
+@(private="file")
+previewThemes: map[string]^e.ThemeData
+
+// Gives the preview game the themes as they are in memory (unsaved edits show) and the project's
+@(private="file")
+syncThemes :: proc(s: ^State, game: ^e.Game) {
+	if game == nil do return
+	for &t in s.project.themes {
+		data, found := previewThemes[t.path]
+		if !found {
+			data = new(e.ThemeData)
+			previewThemes[strings.clone(t.path)] = data
+		}
+		data.theme = t.theme
+		if data.font != t.font {
+			delete(data.font)
+			data.font = strings.clone(t.font)
+			data.fontPath = ""
+		}
+	}
+	// The game reads them through its own map (not owned by it: cleared before it's destroyed)
+	if game.themes == nil do game.themes = make(map[string]^e.ThemeData)
+	clear(&game.themes)
+	for path, data in previewThemes do if Project_FindTheme(&s.project, path) >= 0 do game.themes[path] = data
+	game.uiTheme = s.project.uiTheme
 }

@@ -195,6 +195,11 @@ Checks:
 	                             playhead (2 decimals), playing, the clip the Animator starts with
 	timeline_key <track> <key> <seconds> [value]
 	                             A key of the Timeline's clip (seconds with 2 decimals)
+	ui <layout|anchor|text|action|width|height|theme> <value>
+	                             The selected UI control's settings ("none" for empty text)
+	themes <count>               The project's UI themes
+	theme <field> <value>        A field of the theme the inspector shows (an e.UITheme field's name)
+	ui_theme <path | none>       The project's UI theme
 	tile_tool <Tool>             The Tiles panel's tool (Paint, Erase, Rectangle, Fill, Pick, Terrain)
 	tile_brush <n>               The Tiles panel's brush tile (flips left out)
 	tile <layer> <column> <row> <tile>
@@ -1425,6 +1430,33 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		if len(parts) == 3 do found = fmt.tprintf("%.2f", k.time)
 		want := strings.join(parts[2:], " ", context.temp_allocator)
 		return found == want, found
+	case "ui":
+		if selected == nil || !NodeKind_IsControl(selected.kind) do return false, "no UI control selected"
+		field, _, expected := strings.partition(value, " ")
+		u := selected.ui
+		pick :: proc(v: string) -> string { return v == "" ? "none" : v }
+		switch field {
+		case "layout": found = fmt.tprint(u.layout)
+		case "anchor": found = fmt.tprint(u.anchor)
+		case "text":   found = pick(selected.text)
+		case "action": found = pick(u.action)
+		case "width":  found = fmt.tprint(u.size.x)
+		case "height": found = fmt.tprint(u.size.y)
+		case "theme":  found = pick(u.theme)
+		case: return false, fmt.tprintf("unknown ui field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "themes":
+		found = fmt.tprint(len(s.project.themes))
+	case "theme":
+		if s.themeSelection < 0 || s.themeSelection >= len(s.project.themes) do return false, "the inspector shows no theme"
+		field, _, expected := strings.partition(value, " ")
+		v, known := e.UITheme_Get(s.project.themes[s.themeSelection].theme, field)
+		if !known do return false, fmt.tprintf("no theme field '%s'", field)
+		found = v
+		return found == strings.trim_space(expected), found
+	case "ui_theme":
+		found = s.project.uiTheme == "" ? "none" : s.project.uiTheme
 	case "tile_tool":
 		found = fmt.tprint(s.tilePainter.tool)
 	case "tile":

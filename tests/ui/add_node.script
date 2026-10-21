@@ -58,6 +58,12 @@ key down
 key down
 key down
 key down
+key down
+key down
+key down
+key down
+key down
+key down
 wait_until widget_visible add-node-MusicPlayer true
 expect widget_visible add-node-Node2D false
 key up

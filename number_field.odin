@@ -33,6 +33,8 @@ NumberTarget :: union {
 	TileMapFrameTarget,
 	// The Timeline's clip length, speed and key time
 	TimelineNumber,
+	// The selected UI control's numbers
+	UINumberTarget,
 }
 
 GameSizeTarget :: distinct int
@@ -153,6 +155,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case SceneGravityTarget: return Scene_Gravity_Changed{t.scene, t.axis, value}
 	case AnimField:      return Anim_Field_Changed{t, value}
 	case TileMapFrameTarget: return TileMap_Setting_Changed{field = .Frame, value = value}
+	case UINumberTarget: return UI_Setting_Changed{field = UIField(t), value = value}
 	case TimelineNumber:
 		ops := [TimelineNumber]TimelineOp{.Length = .Clip_Length, .Speed = .Speed, .Key_Time = .Key_Time}
 		return Timeline_Changed{op = ops[t], number = f32(value)}

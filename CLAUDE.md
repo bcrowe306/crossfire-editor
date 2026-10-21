@@ -169,6 +169,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `ui_edit.odin` | **UI controls** (Panel, Button, ProgressBar, TextField, ScrollBox, RichText): `NodeDef.ui` (the engine's `e.UISettings`), `UI_Setting_Changed` / `UIEdit_Update`, the inspector's rows (`uiInspectorRows`), `NodeKind_IsControl` |
+| `theme_edit.odin` | **UI themes** (`.theme.xml` assets, kind Theme): `ThemeDef`, `Project.themes` / `uiTheme`, load / save / create, the theme inspector (`themeInspector`, `State.themeSelection`), `Theme_*` messages |
 | `timeline_edit.odin` | **The Timeline** (Animator nodes): `TimelineEditor` (the Animator edited, playhead, selection), `Timeline_Changed` (edits: node steps on the Animator) / `Timeline_View` (panel only), `Timeline_Update`, `Timeline_Follow`, track paths (`Timeline_ResolvePath`, `Timeline_PathTo`), `Timeline_Properties`, `Timeline_NodeValue` (what Key records) |
 | `view_timeline.odin` | The bottom panel's Timeline tab (`TimelinePanel`: clip and transport toolbars, the tracks canvas with the ruler, keys and playhead, the key editor) and the Animator's inspector rows (`animatorInspectorRows`) |
 | `tile_paint.odin` | **Tile painting**: `TilePainter` (tool, brush, layer, terrain), its messages, `TilePaint_Update` (strokes, fills, terrains, growing grids, copying file layers), `TilePaint_CellAt` |
@@ -1343,6 +1345,32 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## UI controls and themes (implemented, `ui_edit.odin`, `theme_edit.odin`; engine: ui_controls.odin, ui_theme.odin)
+
+Their files' doc comments describe them; what the code relies on:
+- **Controls** are node kinds whose settings are `NodeDef.ui` (`e.UISettings`; clone / destroy
+  through the engine, `UISettings_Equal`), their text and image the usual `text` / `texture`.
+  One message, `UI_Setting_Changed{field, value, text, flag}` (numbers through `UINumberTarget`),
+  a node step merged per field while typing. The writer writes their attributes only for UI
+  kinds (the parser reads them only for UI kinds: an AnimatedSprite's `columns` once leaked
+  into its `ui`).
+- **The viewport** builds them with the engine, which lays them out against the game area (the
+  preview game's size). Their `position` is the layout's, so `syncTransforms` hands
+  `NodeDef.position` to `Control.offset`. The rebuild signature includes their settings, text
+  and image. The inspector says when a parent's layout places a control.
+- **Themes** are files (`Project.themes`, loaded with the project and imports, written by
+  `Project_SaveThemes` in `Project_Save`) edited as `.Project` steps (the snapshot holds them and
+  `uiTheme`); the theme inspector shows when the browser selects one (`themeSelection`, set in
+  `update` like `dataSelection`). The preview game reads them through `syncThemes` (one
+  `e.ThemeData` per file kept in `previewThemes`, updated in place each render, so a font's
+  resolved path is made only when it changes; the game's `themes` map is cleared before it's
+  freed). `Theme_Created{forSelected}` (a control's New Theme button) gives the control the
+  new theme and is a node step (the file stays).
+- **Labels** differ from other kinds' where the meaning differs ("Grid columns", "Gap", "Edge
+  margin", "Can't be used", "UI theme"): tooltips are per label.
+- Tests: `ui_controls_and_themes_in_the_editor`, `tests/ui/ui_controls.script` (driver checks
+  `ui <field>`, `themes`, `theme <field>`, `ui_theme`). User guide: `docs/manual/ui.md`.
 
 ## Keyframe animation: the Timeline (implemented, `timeline_edit.odin`, `view_timeline.odin`; engine: animator.odin)
 

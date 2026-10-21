@@ -153,6 +153,8 @@ NodeDef :: struct {
 	// An Animator's clips, autoplay and speed (owned: the engine's AnimatorSettings_Clone /
 	// _Destroy; timeline_edit.odin)
 	animator: e.AnimatorSettings,
+	// A UI control's settings (owned strings: the engine's UISettings_Clone / _Destroy; ui_edit.odin)
+	ui: e.UISettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -235,6 +237,8 @@ AssetKind :: enum {
 	Translation,
 	// An animation asset (`.anim.xml`, animation_sets_edit.odin): animations AnimatedSprites share
 	Animation,
+	// A UI theme (`.theme.xml`, theme_edit.odin): how UI controls look
+	Theme,
 }
 
 /*
@@ -286,6 +290,9 @@ Project :: struct {
 	data: [dynamic]DataDef,
 	// Animation assets (`.anim.xml` files: animation_sets_edit.odin), one per asset of kind Animation
 	animationSets: [dynamic]AnimationSetDef,
+	// UI themes (`.theme.xml` assets: theme_edit.odin), and the project's (`uiTheme`; "" none)
+	themes: [dynamic]ThemeDef,
+	uiTheme: string,
 	// Input actions, in order (input_actions.odin)
 	actions: [dynamic]ActionDef,
 	// Mix buses (mixer.odin): Master first, always
@@ -353,6 +360,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		ldtk = LDtkSettings_Clone(e.DEFAULT_LDTK_LEVEL_SETTINGS),
 		tilemap = TileMapSettings_Clone(e.DEFAULT_TILEMAP_SETTINGS),
 		animator = e.AnimatorSettings_Clone(e.DEFAULT_ANIMATOR_SETTINGS),
+		ui = e.UISettings_Clone(e.DEFAULT_UI_SETTINGS),
 	}
 	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
@@ -411,6 +419,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.slice)
 	TileMapSettings_Destroy(&node.tilemap)
 	e.AnimatorSettings_Destroy(&node.animator)
+	e.UISettings_Destroy(&node.ui)
 	delete(node.autoplay)
 	delete(node.component)
 	delete(node.sound)
@@ -590,6 +599,9 @@ Project_Destroy :: proc(project: ^Project) {
 	for &d in project.data do DataDef_Destroy(&d)
 	for &set in project.animationSets do AnimationSetDef_Destroy(&set)
 	delete(project.animationSets)
+	for &t in project.themes do ThemeDef_Destroy(&t)
+	delete(project.themes)
+	delete(project.uiTheme)
 	delete(project.data)
 	project^ = {}
 }
@@ -621,6 +633,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		background = data.background,
 		startScene = strings.clone(data.startScene),
 		locale = strings.clone(data.locale),
+		uiTheme = strings.clone(data.uiTheme),
 		icon = strings.clone(data.icon),
 		physics = data.physics,
 		window = data.window,
@@ -647,6 +660,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "LDtk": kind = .LDtk
 		case "Translation": kind = .Translation
 		case "Animation": kind = .Animation
+		case "Theme": kind = .Theme
 		}
 		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
 		// A data resource's values come from its file
@@ -671,6 +685,17 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				warnings = list[:]
 			}
 			append(&project.animationSets, set)
+		}
+		// A theme's font and values come from its file
+		if kind == .Theme {
+			theme, problem := Project_LoadTheme(rootPath, asset.path)
+			if problem != "" {
+				list := make([dynamic]string, context.temp_allocator)
+				append(&list, ..warnings)
+				append(&list, problem)
+				warnings = list[:]
+			}
+			append(&project.themes, theme)
 		}
 	}
 	project.buses = Buses_FromData(data.buses[:])
@@ -813,6 +838,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)
+	def.ui = e.UISettings_Clone(node.ui)
 	return def
 }
 

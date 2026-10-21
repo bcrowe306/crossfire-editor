@@ -35,6 +35,13 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	}
 	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.dataSelection = -1
 	if out.dataSelection >= len(out.project.data) do out.dataSelection = -1
+	// The inspector shows a theme chosen in the browser, the same way
+	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
+	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Theme {
+		out.themeSelection = Project_FindTheme(&out.project, out.project.assets[out.browserSelection.index].path)
+	}
+	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.themeSelection = -1
+	if out.themeSelection >= len(out.project.themes) do out.themeSelection = -1
 	// Anything that opens another scene shows it (not a code tab), in its tab
 	if out.currentScene != state.currentScene {
 		out.codeTab = 0
@@ -60,6 +67,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := TileMapEdit_Update(&out, m); handled do return out, command
 	if TilePaint_Update(&out, m) do return out, {}
 	if command, handled := Timeline_Update(&out, m); handled do return out, command
+	if UIEdit_Update(&out, m) do return out, {}
+	if ThemeEdit_Update(&out, m) do return out, {}
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if SceneSettings_Update(&out, m) do return out, {}
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
@@ -88,6 +97,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by TilePaint_Update above
 	case Timeline_Changed, Timeline_View, Timeline_Tick, Timeline_Tick_Requested:
 		// Handled by Timeline_Update above
+	case UI_Setting_Changed, Theme_Field_Changed, Theme_Font_Changed, Theme_Created, Theme_Project_Set:
+		// Handled by UIEdit_Update and ThemeEdit_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
 	     Anim_Sheet_Texture_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,

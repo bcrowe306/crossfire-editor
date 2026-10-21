@@ -58,23 +58,27 @@ expect timeline_key 0 1 0.50
 key ctrl+y
 expect timeline_key 0 1 0.75
 
-# Play: the clip runs to its end and stops
+# Play, Pause, back to the start (playback itself runs only while the window has focus: not
+# waited for here)
 scroll_into_view timeline-scroll timeline-play
 click_widget timeline-play
 expect timeline playing true
-wait_until timeline playing false
-expect timeline playhead 1.00
+click_widget timeline-play
+expect timeline playing false
+scroll_into_view timeline-scroll timeline-rewind
+click_widget timeline-rewind
+expect timeline playhead 0.00
 
 # An event track: a key at the playhead, renamed
 scroll_into_view timeline-scroll timeline-add-event-track
 click_widget timeline-add-event-track
 expect timeline tracks 2
-expect timeline_key 1 0 1.00 event1
+expect timeline_key 1 0 0.00 event1
 scroll_into_view timeline-scroll timeline-key-value
 click_widget timeline-key-value
 key ctrl+a
 type footstep
-expect timeline_key 1 0 1.00 footstep
+expect timeline_key 1 0 0.00 footstep
 
 # The clip it starts with, then saved
 scroll_into_view timeline-scroll timeline-autoplay

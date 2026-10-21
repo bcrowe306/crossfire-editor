@@ -49,6 +49,7 @@ Project_Save :: proc(project: ^Project) -> string {
 	Project_CleanSceneFiles(project)
 	if message := Project_SaveData(project); message != "" do return message
 	if message := Project_SaveAnimationSets(project); message != "" do return message
+	if message := Project_SaveThemes(project); message != "" do return message
 	// The typed asset constants for scripts follow the asset list
 	if message := Scripts_WriteAssetsFile(project); message != "" do return message
 
@@ -100,6 +101,7 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	if project.audioOutput.frequency != e.DEFAULT_AUDIO_OUTPUT.frequency do attr(&w, "audioFrequency", project.audioOutput.frequency)
 	if project.audioOutput.channels != e.DEFAULT_AUDIO_OUTPUT.channels do attr(&w, "audioChannels", project.audioOutput.channels)
 	if project.locale != "" do attr(&w, "locale", project.locale)
+	if project.uiTheme != "" do attr(&w, "uiTheme", project.uiTheme)
 	if project.icon != "" do attr(&w, "icon", project.icon)
 	endOpen(&w)
 	for &scene in project.scenes {
@@ -557,6 +559,34 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.texture != "" do attr(w, "texture", node.texture)
 	case .Component:
 		attr(w, "component", node.component)
+	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:
+		u, d := node.ui, e.DEFAULT_UI_SETTINGS
+		if node.kind != .Panel && node.kind != .ScrollBox && node.text != "" do attr(w, "text", node.text)
+		if node.texture != "" && node.kind != .TextField && node.kind != .RichText do attr(w, "texture", node.texture)
+		if u.size.x != 0 do attr(w, "width", u.size.x)
+		if u.size.y != 0 do attr(w, "height", u.size.y)
+		if u.anchor != d.anchor do attr(w, "anchor", u.anchor)
+		if u.margin != d.margin do attr(w, "margin", u.margin)
+		if u.layout != d.layout do attr(w, "layout", u.layout)
+		if u.align != d.align do attr(w, "align", u.align)
+		if u.justify != d.justify do attr(w, "justify", u.justify)
+		if u.columns != d.columns do attr(w, "columns", u.columns)
+		if u.padding != d.padding do attr(w, "padding", u.padding)
+		if u.spacing != d.spacing do attr(w, "spacing", u.spacing)
+		if u.expand do attr(w, "expand", true)
+		if u.disabled do attr(w, "disabled", true)
+		if u.value != d.value do attr(w, "value", u.value)
+		if u.minValue != d.minValue do attr(w, "min", u.minValue)
+		if u.maxValue != d.maxValue do attr(w, "max", u.maxValue)
+		if u.direction != d.direction do attr(w, "direction", u.direction)
+		if u.showValue do attr(w, "showValue", true)
+		if u.maxLength != 0 do attr(w, "maxLength", u.maxLength)
+		if u.patchMargins != {} do attr(w, "patchMargins", fmt.tprintf("%v %v %v %v", u.patchMargins[0], u.patchMargins[1], u.patchMargins[2], u.patchMargins[3]))
+		if u.textSize != 0 do attr(w, "textSize", u.textSize)
+		if u.textAlign != d.textAlign do attr(w, "textAlign", u.textAlign)
+		if u.theme != "" do attr(w, "theme", u.theme)
+		if u.placeholder != "" do attr(w, "placeholder", u.placeholder)
+		if u.action != "" do attr(w, "action", u.action)
 	case .Animator:
 		if node.animator.autoplay != "" do attr(w, "autoplay", node.animator.autoplay)
 		if node.animator.speed != e.DEFAULT_ANIMATOR_SETTINGS.speed do attr(w, "speed", node.animator.speed)

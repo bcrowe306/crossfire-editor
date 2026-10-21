@@ -373,6 +373,15 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
+**UI controls:** build menus, HUDs and dialogs from **Panel** (arranges controls in a row,
+column or grid), **Button**, **ProgressBar**, **TextField**, **ScrollBox** and **RichText** (colors
+and sizes with `[color=...]` / `[size=...]` tags) nodes. Anchors keep them in the screen's corners
+or middle at any window size; **themes** (`.theme.xml` assets, edited in the inspector: colors,
+sizes, a font) style a control and everything in it, or the whole project; images stretch as
+9-patches. Players use them with the mouse, the keyboard or a gamepad (the `ui_*` actions move the
+focus); buttons switch scenes or quit by themselves and tell scripts they were pressed. See the
+[manual's UI page](docs/manual/ui.md).
+
 **Keyframe animation:** an **Animator** node plays clips that change other nodes over time:
 position, rotation, scale, tint and opacity, visibility, a label's text, an AnimatedSprite's
 animation, any script field. Edit its clips in the bottom panel's **Timeline** tab: add tracks,

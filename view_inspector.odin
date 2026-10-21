@@ -303,6 +303,15 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	header := panelHeader(ctx, ICON_CIRCLE_INFO, "Inspector")
 	Scroll_RevealClicked(ctx, "inspector-scroll")
 
+	if s.themeSelection >= 0 && s.themeSelection < len(s.project.themes) {
+		return skald.col(
+			header,
+			skald.divider(ctx),
+			skald.flex(1, skald.scroll(ctx, {0, 0}, themeInspector(s, ctx), id = skald.hash_id("inspector-scroll"))),
+			cross_align = .Stretch,
+			bg = th.color.bg,
+		)
+	}
 	if s.dataSelection >= 0 && s.dataSelection < len(s.project.data) {
 		return skald.col(
 			header,
@@ -485,6 +494,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..tileMapInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Animator:
 		append(&rows, ..animatorInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:
+		append(&rows, ..uiInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Component:
 		// The component it's an instance of; its own fields are the component's (Open edits them)
 		choices := make([dynamic]string, context.temp_allocator)

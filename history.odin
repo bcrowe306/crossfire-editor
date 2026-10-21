@@ -91,6 +91,9 @@ ProjectSnapshot :: struct {
 	data: [dynamic]DataDef,
 	// Animation assets' sheets and animations, by file
 	animationSets: [dynamic]AnimationSetDef,
+	// UI themes by file, and the project's
+	themes: [dynamic]ThemeDef,
+	uiTheme: string,
 	actions: [dynamic]ActionDef,
 	buses: [dynamic]BusDef,
 	// The scene open at the time, shown again on undo/redo
@@ -251,6 +254,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isTimeline := v.target.(TimelineNumber); isTimeline {
 			if _, i := Timeline_Animator(s); i >= 0 do return node(i, fmt.tprintf("Change the %v in the clips of %s", field, scene.nodes[i].name), key("timeline-number", field, i, s.timeline.clip, s.timeline.track, s.timeline.key))
 		}
+		if field, isUI := v.target.(UINumberTarget); isUI && hasSelection {
+			return node(selected, fmt.tprintf("Change %v of %s", UIField(field), name), key("ui", UIField(field), s.currentScene, selected))
+		}
 		if prop, isProp := v.target.(ScriptPropTarget); isProp && hasSelection {
 			return node(selected, fmt.tprintf("Change %s of %s", prop.name, name), key("prop", prop.name, s.currentScene, selected))
 		}
@@ -277,6 +283,26 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change the frames of an animation of %s", name))
 	case Anim_Autoplay_Set:
 		if hasSelection do return node(selected, fmt.tprintf("Change the first animation of %s", name))
+	// UI controls: typing and number fields merge per setting
+	case UI_Setting_Changed:
+		if hasSelection {
+			merge: u64 = 0
+			#partial switch v.field {
+			case .Placeholder, .Width, .Height, .Margin, .Columns, .Padding, .Spacing, .Value, .Min, .Max, .Max_Length, .Patch_Left, .Patch_Top, .Patch_Right, .Patch_Bottom, .Text_Size:
+				merge = key("ui", v.field, s.currentScene, selected)
+			}
+			return node(selected, fmt.tprintf("Change %v of %s", v.field, name), merge)
+		}
+	// Themes: project steps (their files are assets); a slider's drag merges
+	case Theme_Field_Changed:
+		return {scope = .Project, label = fmt.tprintf("Change a theme's %s", v.field), mergeKey = key("theme", v.field, s.themeSelection)}
+	case Theme_Font_Changed:
+		return {scope = .Project, label = "Change a theme's font"}
+	case Theme_Project_Set:
+		return {scope = .Project, label = "Change the project's theme"}
+	// The file stays (an asset); undo takes the control's choice back
+	case Theme_Created:
+		if v.forSelected && hasSelection do return node(selected, fmt.tprintf("Give %s a new theme", name))
 	case Particle_Field_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", particleLabel(v.name), name), key("particle", v.name, s.currentScene, selected))
 	case Particle_Axis_Changed:
@@ -718,7 +744,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) {
+	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
@@ -794,6 +820,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		name = strings.clone(p.name),
 		startScene = strings.clone(p.startScene),
 		locale = strings.clone(p.locale),
+		uiTheme = strings.clone(p.uiTheme),
 		icon = strings.clone(p.icon),
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
@@ -811,6 +838,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for g in p.globals do append(&snapshot.globals, GlobalDef_Clone(g))
 	for d in p.data do append(&snapshot.data, DataDef_Clone(d))
 	for set in p.animationSets do append(&snapshot.animationSets, AnimationSetDef_Clone(set))
+	for t in p.themes do append(&snapshot.themes, ThemeDef_Clone(t))
 	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
 	for b in p.buses do append(&snapshot.buses, BusDef{strings.clone(b.name), b.volume, b.pan, b.mute})
 	return snapshot
@@ -833,6 +861,8 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.name = strings.clone(snapshot.name)
 	p.startScene = strings.clone(snapshot.startScene)
 	p.locale = strings.clone(snapshot.locale)
+	delete(p.uiTheme)
+	p.uiTheme = strings.clone(snapshot.uiTheme)
 	p.icon = strings.clone(snapshot.icon)
 	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
 	p.renderer = snapshot.renderer
@@ -863,6 +893,13 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 		if i < 0 do continue
 		AnimationSetDef_Destroy(&p.animationSets[i])
 		p.animationSets[i] = AnimationSetDef_Clone(set)
+	}
+	// Themes by file, the same way
+	for t in snapshot.themes {
+		i := Project_FindTheme(p, t.path)
+		if i < 0 do continue
+		ThemeDef_Destroy(&p.themes[i])
+		p.themes[i] = ThemeDef_Clone(t)
 	}
 	for scene in snapshot.scenes do append(&p.scenes, SceneDef_Clone(scene))
 	append(&p.scenes, ..components[:])
@@ -919,6 +956,9 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.data)
 	for &set in snapshot.animationSets do AnimationSetDef_Destroy(&set)
 	delete(snapshot.animationSets)
+	for &t in snapshot.themes do ThemeDef_Destroy(&t)
+	delete(snapshot.themes)
+	delete(snapshot.uiTheme)
 	for &a in snapshot.actions do ActionDef_Destroy(&a)
 	delete(snapshot.actions)
 	for b in snapshot.buses do delete(b.name)
@@ -940,6 +980,8 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	for d, i in a.data do if d.path != b.data[i].path || d.type != b.data[i].type || !propsEqual(d.values[:], b.data[i].values[:]) do return false
 	if len(a.animationSets) != len(b.animationSets) do return false
 	for set, i in a.animationSets do if !AnimationSetDef_Equal(set, b.animationSets[i]) do return false
+	if a.uiTheme != b.uiTheme || len(a.themes) != len(b.themes) do return false
+	for t, i in a.themes do if !ThemeDef_Equal(t, b.themes[i]) do return false
 	return true
 }
 

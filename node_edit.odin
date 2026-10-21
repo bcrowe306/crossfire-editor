@@ -67,6 +67,7 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.ldtk = LDtkSettings_Clone(node.ldtk)
 	copy.tilemap = TileMapSettings_Clone(node.tilemap)
 	copy.animator = e.AnimatorSettings_Clone(node.animator)
+	copy.ui = e.UISettings_Clone(node.ui)
 	copy.sound = strings.clone(node.sound)
 	copy.bus = strings.clone(node.bus)
 	return copy

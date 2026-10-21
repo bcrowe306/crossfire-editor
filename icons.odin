@@ -42,6 +42,13 @@ ICON_CIRCLE_INFO :: "\uf05a"
 ICON_CIRCLE      :: "\uf111"
 ICON_GRID        :: "\uf00a"
 ICON_STOPWATCH   :: "\uf2f2"
+ICON_PALETTE     :: "\uf53f"
+ICON_SQUARE_FULL :: "\uf45c"
+ICON_HAND_POINTER :: "\uf25a"
+ICON_BARS_PROGRESS :: "\uf828"
+ICON_I_CURSOR    :: "\uf246"
+ICON_SCROLL      :: "\uf70e"
+ICON_PARAGRAPH   :: "\uf1dd"
 ICON_MAGNET      :: "\uf076"
 ICON_LINK        :: "\uf0c1"
 ICON_FILE_CODE   :: "\uf1c9"
@@ -108,6 +115,12 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .LDtkLevel:      return ICON_MAP
 	case .TileMap:        return ICON_GRID
 	case .Animator:       return ICON_STOPWATCH
+	case .Panel:          return ICON_SQUARE_FULL
+	case .Button:         return ICON_HAND_POINTER
+	case .ProgressBar:    return ICON_BARS_PROGRESS
+	case .TextField:      return ICON_I_CURSOR
+	case .ScrollBox:      return ICON_SCROLL
+	case .RichText:       return ICON_PARAGRAPH
 	}
 	return ICON_CUBE
 }

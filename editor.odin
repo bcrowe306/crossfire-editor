@@ -81,6 +81,8 @@ BrowserFolder :: enum {
 	Translations,
 	// Animation assets (animation_sets_edit.odin)
 	Animations,
+	// UI themes (theme_edit.odin)
+	Themes,
 }
 
 /*
@@ -252,6 +254,8 @@ State :: struct {
 	// The data resource the inspector shows (index into project.data), -1 for none: chosen in
 	// the browser, cleared when a node is selected
 	dataSelection: int,
+	// The theme the inspector shows (an index into project.themes; -1 none), chosen in the browser
+	themeSelection: int,
 	session: SessionState,
 	// Copied or cut nodes: one subtree, parents relative to the list (see node_edit.odin)
 	clipboard: [dynamic]NodeDef,
@@ -312,9 +316,10 @@ init :: proc() -> State {
 		selectedNode = -1,
 		timeline = {node = -1, track = -1, key = -1},
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
+		themeSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},
 		layout = {
 			leftWidth = 240,

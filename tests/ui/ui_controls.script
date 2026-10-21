@@ -1,0 +1,72 @@
+# UI controls: a Panel laid out as a centered column, a Button in it with text, an action and a
+# width, a theme made for it from the inspector, edited, made the project's, undone, saved.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+
+# A Panel: a column in the middle of the screen
+key ctrl+shift+a
+type Panel
+click_widget add-node-Panel
+expect kind Panel
+scroll_into_view inspector-scroll inspector-ui-Layout-{selected}
+click_widget inspector-ui-Layout-{selected}
+click_overlay_item 2
+expect ui layout Column
+scroll_into_view inspector-scroll inspector-ui-Anchor-{selected}
+click_widget inspector-ui-Anchor-{selected}
+click_overlay_item 4
+expect ui anchor Center
+key ctrl+z
+expect ui anchor Top_Left
+key ctrl+y
+expect ui anchor Center
+
+# A Button in it: its text, what it does, its width
+key ctrl+shift+a
+type Button
+click_widget add-node-Button
+expect kind Button
+scroll_into_view inspector-scroll inspector-Text-{selected}
+click_widget inspector-Text-{selected}
+key ctrl+a
+type Start
+expect ui text Start
+scroll_into_view inspector-scroll inspector-ui-Action-{selected}
+click_widget inspector-ui-Action-{selected}
+click_overlay_item 1
+expect ui action quit
+scroll_into_view inspector-scroll inspector-ui-Width-{selected}
+click_widget inspector-ui-Width-{selected}
+key ctrl+a
+type 160
+key RETURN
+expect ui width 160
+
+# A theme of its own, from the inspector: made and chosen
+scroll_into_view inspector-scroll inspector-ui-new-theme-{selected}
+click_widget inspector-ui-new-theme-{selected}
+expect themes 1
+expect ui theme themes/theme.theme.xml
+
+# Edited in the inspector once selected in the browser
+select_asset themes/theme.theme.xml
+scroll_into_view inspector-scroll theme-textSize-value
+click_widget theme-textSize-value
+key ctrl+a
+type 28
+key RETURN
+expect theme textSize 28
+scroll_into_view inspector-scroll theme-project
+click_widget theme-project
+expect ui_theme themes/theme.theme.xml
+key ctrl+z
+expect ui_theme none
+key ctrl+y
+expect ui_theme themes/theme.theme.xml
+
+key ctrl+s
+expect modified false
