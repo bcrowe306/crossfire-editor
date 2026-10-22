@@ -522,6 +522,9 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..touchInspectorRows(ctx, s, node, key, controlWidth))
 	case .ScreenEffect:
 		append(&rows, ..shaderInspectorRows(ctx, s, node, key, controlWidth))
+	case .Line2D, .Trail2D:
+		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth)))
+		append(&rows, ..lineInspectorRows(ctx, s, node, key, controlWidth))
 	case .Light2D, .LightOccluder:
 		append(&rows, ..lightInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:

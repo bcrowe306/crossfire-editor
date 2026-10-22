@@ -175,6 +175,9 @@ NodeDef :: struct {
 	shaderParams: [dynamic]ScriptPropDef,
 	// ScreenEffect: it covers the screen layers too
 	effectScreenLayers: bool,
+	// Line2D and Trail2D: the engine's `e.LineSettings` (a plain value; a line's points are
+	// `points`, its image `texture`): line_edit.odin
+	line: e.LineSettings,
 	// A StateMachine's states, transitions and parameters (owned: state_machine_edit.odin)
 	stateMachine: e.StateMachineSettings,
 	// ParallaxLayer, CameraZone, CameraView settings (plain) and a CameraView's camera (owned):
@@ -407,6 +410,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		cameraTools = e.DEFAULT_CAMERA_TOOL_SETTINGS,
 		touch = e.TouchControl_Defaults(kind),
 		effectScreenLayers = true,
+		line = e.DEFAULT_LINE_SETTINGS,
 	}
 	// A NavRegion covers a screenful to begin with; a StateMachine has a first state
 	if kind == .NavRegion do node.shapeSize = {640, 360}
@@ -930,6 +934,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.shader = strings.clone(node.shader)
 	for p in node.shaderParams do append(&def.shaderParams, ScriptPropDef{strings.clone(p.name), strings.clone(p.value)})
 	def.effectScreenLayers = node.effectScreenLayers
+	def.line = node.line
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)

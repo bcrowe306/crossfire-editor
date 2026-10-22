@@ -1,0 +1,70 @@
+# Lines, trails and GPU particles: a Line2D's points typed (the viewport draws it), its width
+# dragged, round joints, closed, undo; a Trail2D under a node; a ParticleEmitter switched to the
+# GPU (the viewport draws with the GPU renderer then); saved; played.
+# Run with: task test:ui (and task test:ui:fullscreen)
+#
+# PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect viewport_has_color #ffffff 0 false
+
+# A white line across the middle of the game area
+key escape
+key ctrl+shift+a
+type Line2D
+key RETURN
+expect selected Line2D
+scroll_into_view inspector-scroll inspector-points-11
+click_widget inspector-points-11
+key ctrl+a
+type 400,300 900,300 900,500
+key RETURN
+wait_until viewport_has_color #ffffff 0 true timeout=5
+scroll_into_view inspector-scroll inspector-line-Width-11
+drag_widget inspector-line-Width-11 0.5 0.5 1.5 0.5
+scroll_into_view inspector-scroll inspector-line-Joint-11
+click_widget inspector-line-Joint-11
+click_overlay_item 1
+scroll_into_view inspector-scroll inspector-line-Closed-11
+click_widget inspector-line-Closed-11
+key ctrl+z
+key ctrl+shift+z
+
+# A trail under the ship (it draws only while its parent moves: in Play)
+select_node Spaceship
+key ctrl+shift+a
+type Trail2D
+key RETURN
+expect selected Trail2D
+expect parent Spaceship
+scroll_into_view inspector-scroll inspector-line-Lifetime-{selected}
+drag_widget inspector-line-Lifetime-{selected} 0.5 0.5 0.8 0.5
+
+# Particles on the GPU: the viewport switches to the GPU renderer
+key escape
+key ctrl+shift+a
+type ParticleEmitter
+key RETURN
+expect selected ParticleEmitter
+expect render_path shared
+scroll_into_view inspector-scroll inspector-particle-gpu-{selected}
+click_widget inspector-particle-gpu-{selected}
+expect particle gpu true
+wait_until render_path effects timeout=5
+
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml points="400,300 900,300 900,500"
+expect project_file_contains scenes/PlayScene.scene.xml lineWidth="100"
+expect project_file_contains scenes/PlayScene.scene.xml joint="Round"
+expect project_file_contains scenes/PlayScene.scene.xml closed="true"
+expect project_file_contains scenes/PlayScene.scene.xml kind="Trail2D"
+expect project_file_contains scenes/PlayScene.scene.xml gpu="true"
+expect project_file_contains project.xml shaders="true"
+
+key ctrl+F5
+wait_until play Playing timeout=120
+wait_until console_contains Renderer: gpu timeout=10
+key shift+F5
+wait_until play Stopped

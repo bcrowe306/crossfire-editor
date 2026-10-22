@@ -15,8 +15,6 @@ dev release, each tested, documented and removed from here when done.
 12. **Asset import settings**: per-texture filtering and atlas packing, audio conversion,
     bitmap / MSDF fonts. Decided: audio conversion runs ffmpeg when it's installed; MSDF fonts
     with msdfgen built from source (a submodule, like Box2D and SDL); BMFont bitmap fonts too.
-13. **Trails and lines**: trail renderers, line nodes (ropes, lasers), and GPU particles
-    (decided: yes, on SDL_GPU, GPU backend only, the CPU emitter as the fallback).
 15. **Skeletal animation**. Decided: the engine's own bones, skinned sprites and IK, edited in
     the editor and keyed with the Timeline, **plus** DragonBones JSON import (not Spine: its
     runtime license).

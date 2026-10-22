@@ -85,6 +85,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if UIEdit_Update(&out, m) do return out, {}
 	if LightEdit_Update(&out, m) do return out, {}
 	if TouchEdit_Update(&out, m) do return out, {}
+	if LineEdit_Update(&out, m) do return out, {}
 	if command, handled := ShaderEdit_Update(&out, m); handled do return out, command
 	if NavEdit_Update(&out, m) do return out, {}
 	if Live_Update(&out, m) do return out, {}
@@ -134,7 +135,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by States_Update above
 	case Live_Command, Live_Selected, Live_Property_Edited:
 		// Handled by Live_Update above
-	case Light_Setting_Changed, Scene_Lighting_Changed, Touch_Setting_Changed, Node_Shader_Changed, Node_Shader_Param_Changed, Shader_New_Requested:
+	case Light_Setting_Changed, Scene_Lighting_Changed, Touch_Setting_Changed, Line_Setting_Changed, Node_Shader_Changed, Node_Shader_Param_Changed, Shader_New_Requested:
 		// Handled by LightEdit_Update above
 	case UI_Setting_Changed, Theme_Field_Changed, Theme_Font_Changed, Theme_Created, Theme_Project_Set, Material_Field_Changed, Material_Created, Trace_Setting_Changed, Trace_Sprite_Chosen, Collision_Traced:
 		// Handled by UIEdit_Update and ThemeEdit_Update above

@@ -205,6 +205,12 @@ General > Sound output changes the format; Settings > Editor > Audio device pick
 Play and the previews use on this computer. An exported game plays on the system's default
 device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
 
+**Lines, trails and GPU particles.** Line2D nodes draw thick lines through points (ropes,
+lasers, paths: color gradients, round joints and caps, loops, textures); Trail2D nodes leave a
+tapering, fading ribbon behind their parent. A ParticleEmitter's **On the GPU** runs up to
+200 000 particles on the graphics card. User guide:
+[docs/manual/lines_and_trails.md](docs/manual/lines_and_trails.md).
+
 **Shaders and screen effects.** A node's Shader section gives it a built-in effect (hit flash,
 outline, dissolve, palette swap) or your own GLSL shader (New Shader; compiled on save), with its
 parameters as sliders and colors; a ScreenEffect node puts CRT, bloom or color grading over the

@@ -97,7 +97,8 @@ Toolchain_ShaderTools :: proc() -> (e.ShaderTools, bool) {
 
 // Whether any scene or component uses a shader (a node's, or a ScreenEffect)
 Project_UsesShaders :: proc(project: ^Project) -> bool {
-	for &scene in project.scenes do for &n in scene.nodes do if n.shader != "" || n.kind == .ScreenEffect do return true
+	// GPU particles need the GPU renderer too
+	for &scene in project.scenes do for &n in scene.nodes do if n.shader != "" || n.kind == .ScreenEffect || (n.kind == .ParticleEmitter && n.particles.gpu) do return true
 	return false
 }
 

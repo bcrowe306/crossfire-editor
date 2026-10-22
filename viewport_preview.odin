@@ -364,7 +364,7 @@ startEffects :: proc() {
 
 // Whether a scene uses shaders (a node's, or a ScreenEffect): the preview then runs them
 Preview_SceneUsesShaders :: proc(scene: ^SceneDef) -> bool {
-	for &n in scene.nodes do if n.shader != "" || n.kind == .ScreenEffect do return true
+	for &n in scene.nodes do if n.shader != "" || n.kind == .ScreenEffect || (n.kind == .ParticleEmitter && n.particles.gpu) do return true
 	return false
 }
 
@@ -624,6 +624,13 @@ syncTransforms :: proc(scene: ^SceneDef) {
 			region.settings = def.nav
 			region.size = def.shapeSize
 		}
+		// A line's points and look, a trail's look, follow edits at once
+		if def.kind == .Line2D && e.Node_Is(node, e.Line2D) {
+			l := cast(^e.Line2D)node
+			l.settings = def.line
+			e.Line2D_SetPoints(l, def.points[:])
+		}
+		if def.kind == .Trail2D && e.Node_Is(node, e.Trail2D) do (cast(^e.Trail2D)node).settings = def.line
 		// A touch control's look follows edits at once
 		if NodeKind_IsTouchControl(def.kind) && (e.Node_Is(node, e.VirtualJoystick) || e.Node_Is(node, e.TouchButton)) do (cast(^e.TouchControl)node).settings = def.touch
 		// Shader parameters follow edits at once: the shader's defaults, then the node's values
@@ -697,7 +704,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav, stateMachine = node.stateMachine, cameraTools = node.cameraTools, viewCamera = node.viewCamera, touch = node.touch, touchActions = node.touchActions, shader = node.shader, shaderParams = shaderParamData(node.shaderParams[:]), effectScreenLayers = node.effectScreenLayers,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav, stateMachine = node.stateMachine, cameraTools = node.cameraTools, viewCamera = node.viewCamera, touch = node.touch, touchActions = node.touchActions, shader = node.shader, shaderParams = shaderParamData(node.shaderParams[:]), effectScreenLayers = node.effectScreenLayers, line = node.line,
 		})
 	}
 	return data

@@ -200,8 +200,8 @@ layerGrid :: proc(ctx: ^skald.Ctx(Msg), key: int, mask: bool, bits: u64, width: 
 	return skald.col(rows[0], rows[1], spacing = gap)
 }
 
-// A text box for "x,y x,y" points that keeps what's typed until it parses (like a number field)
-@(private="file")
+// A text box for "x,y x,y" points that keeps what's typed until it parses (like a number field);
+// shapes' and lines' (line_edit.odin)
 pointsField :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, points: [][2]f32, width: f32) -> skald.View {
 	id := skald.hash_id(fmt.tprintf("inspector-points-%d", key))
 	focused := skald.widget_has_focus(ctx, id)

@@ -223,6 +223,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `mixer.odin` | Mix buses: `BusDef`, `Buses_FromData` (Master first), names (`BusNameProblem`), `Bus_NodeCount`, `isSoundKind`, the Mixer's messages (`Mixer_Update`) |
 | `view_mixer.odin` | The Mixer tab (`MixerPanel`, built in `skald.sized`), like a DAW's: a channel strip per bus (node count, remove, pan, fader beside its level meter, dB, mute, name at the bottom), scrolling sideways; Master pinned on the right, + beside it |
 | `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
+| `line_edit.odin` | **Lines and trails**: `NodeDef.line` (`e.LineSettings`; a line's points are `points`, shared `pointsField`), `Line_Setting_Changed` (node steps), the Line2D / Trail2D inspector rows (`lineInspectorRows`) |
 | `shader_edit.odin` | **Shaders**: `NodeDef.shader` / `shaderParams`, the Shader section and ScreenEffect rows (`shaderInspectorRows`), `Node_Shader_Changed` / `Node_Shader_Param_Changed` / `Shader_New_Requested`, Shader assets (`.frag`, `shaderPreview`), compiling (`Shaders_Compile`, `ShaderEdit_Watch`, `Toolchain_ShaderTools`), `Project_UsesShaders` |
 | `touch_edit.odin` | **Touch controls**: `NodeDef.touch` (`e.TouchControlSettings`) and `touchActions` (comma-separated, owned), `Touch_Setting_Changed` (node steps), the VirtualJoystick / TouchButton inspector rows (`touchInspectorRows`), `NodeKind_IsTouchControl` |
 | `players_edit.odin` | **Local players**: `Project.players` (`e.PlayerSettings`, `joinAction` owned: `PlayerSettings_Clone`), Project Settings > Input's Local players rows (`playersSettingRows`, `Players_Setting_Changed` on the draft) |
@@ -1461,6 +1462,21 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/shaders.script` (the hit flash seen in the render, undo, New Shader compiled on
   save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
   `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
+
+## Lines, trails and GPU particles (implemented, `line_edit.odin`; engine: lines.odin, gpu_particles.odin)
+
+- `NodeDef.line` is plain (`==`); the writer puts a line's `points` and the settings that differ
+  from `e.DEFAULT_LINE_SETTINGS`. `syncTransforms` copies a line's settings and points, a
+  trail's settings, every frame (no rebuild). Trails draw nothing in the viewport (nothing
+  moves there).
+- GPU particles are two particle settings (`gpu`, `gpuAmount`), so the particle inspector shows
+  them with no editor change; a scene with a GPU emitter counts as using shaders
+  (`Preview_SceneUsesShaders`, `Project_UsesShaders`): the viewport draws it with the GPU
+  renderer, and Auto picks it in games.
+- Tests: `lines_and_trails_in_the_editor`, `tests/ui/lines.script` (typed points seen in the
+  render, width, joints, closed, undo, a trail under a node, an emitter switched to the GPU and
+  `render_path effects`, Play: `Renderer: gpu`; checked with Vulkan validation). User guide:
+  `docs/manual/lines_and_trails.md`.
 
 ## Touch controls, Steam and local players (implemented, `touch_edit.odin`, `steam_edit.odin`; engine: touch.odin, steam.odin)
 

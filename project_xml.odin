@@ -662,6 +662,22 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			if n.avoidRadius != d.avoidRadius do attr(w, "avoidRadius", n.avoidRadius)
 			if n.autoMove != d.autoMove do attr(w, "autoMove", n.autoMove)
 		}
+	case .Line2D, .Trail2D:
+		// line_edit.odin: a line's points, the image, the settings that aren't the defaults
+		l, d := node.line, e.DEFAULT_LINE_SETTINGS
+		if node.kind == .Line2D && len(node.points) > 0 do attr(w, "points", e.FormatPoints(node.points[:], context.temp_allocator))
+		if node.texture != "" do attr(w, "texture", node.texture)
+		if l.width != d.width do attr(w, "lineWidth", l.width)
+		if l.endWidth != d.endWidth do attr(w, "endWidth", l.endWidth)
+		if l.color != d.color do attr(w, "lineColor", e.FormatColor(l.color, context.temp_allocator))
+		if l.endColor != d.endColor do attr(w, "endColor", e.FormatColor(l.endColor, context.temp_allocator))
+		if l.joint != d.joint do attr(w, "joint", l.joint)
+		if l.roundCaps != d.roundCaps do attr(w, "roundCaps", l.roundCaps)
+		if l.closed != d.closed do attr(w, "closed", l.closed)
+		if l.textureMode != d.textureMode do attr(w, "textureMode", l.textureMode)
+		if l.lifetime != d.lifetime do attr(w, "lifetime", l.lifetime)
+		if l.minDistance != d.minDistance do attr(w, "minDistance", l.minDistance)
+		if l.emitting != d.emitting do attr(w, "emitting", l.emitting)
 	case .VirtualJoystick, .TouchButton:
 		// touch_edit.odin; a button's label is `text`
 		t, d := node.touch, e.TouchControl_Defaults(node.kind)

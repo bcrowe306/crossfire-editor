@@ -1051,6 +1051,7 @@ Msg :: union {
 	UI_Setting_Changed,
 	Light_Setting_Changed,
 	Touch_Setting_Changed,
+	Line_Setting_Changed,
 	Node_Shader_Changed,
 	Node_Shader_Param_Changed,
 	Shader_New_Requested,

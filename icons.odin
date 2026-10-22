@@ -22,6 +22,8 @@ ICON_SCALE       :: "\uf424"
 ICON_HAND        :: "\uf256"
 ICON_GAMEPAD     :: "\uf11b"
 ICON_WAND        :: "\uf0d0"
+ICON_PEN         :: "\uf304"
+ICON_WIND        :: "\uf72e"
 ICON_CIRCLE_DOT  :: "\uf192"
 ICON_PLAY        :: "\uf04b"
 ICON_PAUSE       :: "\uf04c"
@@ -142,6 +144,8 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .VirtualJoystick: return ICON_GAMEPAD
 	case .TouchButton:    return ICON_CIRCLE_DOT
 	case .ScreenEffect:   return ICON_WAND
+	case .Line2D:         return ICON_PEN
+	case .Trail2D:        return ICON_WIND
 	}
 	return ICON_CUBE
 }
