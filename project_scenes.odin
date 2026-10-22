@@ -144,13 +144,30 @@ Project_RenameScene :: proc(project: ^Project, index: int, name: string, catalog
 		project.startScene = strings.clone(name)
 		references += 1
 	}
-	oldAction := fmt.tprintf("scene:%s", old)
+	if project.loadingScene == old {
+		delete(project.loadingScene)
+		project.loadingScene = strings.clone(name)
+		references += 1
+	}
+	// Actions that go to it or open it over others (Menu items, Buttons)
+	renamed :: proc(action, old, name: string) -> (string, bool) {
+		for prefix in ([2]string{"scene:", "push:"}) {
+			if action == fmt.tprintf("%s%s", prefix, old) do return fmt.aprintf("%s%s", prefix, name), true
+		}
+		return "", false
+	}
 	for &scene in project.scenes {
 		for &node in scene.nodes {
 			for &item in node.items {
-				if item.action != oldAction do continue
-				delete(item.action)
-				item.action = fmt.aprintf("scene:%s", name)
+				if action, ok := renamed(item.action, old, name); ok {
+					delete(item.action)
+					item.action = action
+					references += 1
+				}
+			}
+			if action, ok := renamed(node.ui.action, old, name); ok {
+				delete(node.ui.action)
+				node.ui.action = action
 				references += 1
 			}
 			desc := ScriptCatalog_Find(catalog, node.script)
@@ -190,6 +207,10 @@ Project_RemoveScene :: proc(project: ^Project, index: int) -> (danglingReference
 	if project.startScene == name {
 		delete(project.startScene)
 		project.startScene = strings.clone(project.scenes[Project_FirstScene(project)].name)
+	}
+	if project.loadingScene == name {
+		delete(project.loadingScene)
+		project.loadingScene = strings.clone("")
 	}
 	action := fmt.tprintf("scene:%s", name)
 	for &scene in project.scenes do for &node in scene.nodes do for item in node.items do if item.action == action do danglingReferences += 1

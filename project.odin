@@ -298,6 +298,9 @@ Project :: struct {
 	// UI themes (`.theme.xml` assets: theme_edit.odin), and the project's (`uiTheme`; "" none)
 	themes: [dynamic]ThemeDef,
 	uiTheme: string,
+	// How scene changes look, and the loading scene ("" none; owned): scene_flow_edit.odin
+	transition: e.Transition,
+	loadingScene: string,
 	// Input actions, in order (input_actions.odin)
 	actions: [dynamic]ActionDef,
 	// Mix buses (mixer.odin): Master first, always
@@ -611,6 +614,7 @@ Project_Destroy :: proc(project: ^Project) {
 	for &t in project.themes do ThemeDef_Destroy(&t)
 	delete(project.themes)
 	delete(project.uiTheme)
+	delete(project.loadingScene)
 	delete(project.data)
 	project^ = {}
 }
@@ -643,6 +647,8 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		startScene = strings.clone(data.startScene),
 		locale = strings.clone(data.locale),
 		uiTheme = strings.clone(data.uiTheme),
+		transition = data.transition,
+		loadingScene = strings.clone(data.loadingScene),
 		icon = strings.clone(data.icon),
 		physics = data.physics,
 		window = data.window,

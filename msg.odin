@@ -946,6 +946,8 @@ Msg :: union {
 	Project_Settings_Icon_Changed,
 	Project_Settings_Size_Changed,
 	Project_Settings_Applied,
+	Project_Settings_Transition_Changed,
+	Project_Settings_Loading_Changed,
 	Project_Settings_Cancelled,
 	Project_Settings_Physics_Changed,
 	Project_Settings_Physics_Debug_Changed,

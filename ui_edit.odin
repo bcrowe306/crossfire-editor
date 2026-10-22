@@ -40,6 +40,7 @@ UIField :: enum {
 	Max,
 	Direction,
 	Show_Value,
+	Show_Loading,
 	Max_Length,
 	Patch_Left,
 	Patch_Top,
@@ -126,6 +127,7 @@ UIEdit_Update :: proc(s: ^State, m: Msg) -> bool {
 	case .Expand: u.expand = v.flag
 	case .Disabled: u.disabled = v.flag
 	case .Show_Value: u.showValue = v.flag
+	case .Show_Loading: u.showLoading = v.flag
 	case .Anchor: if x, found := enumFrom(v.text, e.UIAnchor); found do u.anchor = x
 	case .Layout: if x, found := enumFrom(v.text, e.UILayout); found do u.layout = x
 	case .Align: if x, found := enumFrom(v.text, e.UIAlign); found do u.align = x
@@ -145,7 +147,9 @@ uiActionFromChoice :: proc(choice: string) -> string {
 	switch {
 	case choice == UI_ACTION_NONE: return ""
 	case choice == "Quit the game": return "quit"
+	case choice == "Close this (back to the scene under it)": return "pop"
 	case strings.has_prefix(choice, "Go to "): return fmt.tprintf("scene:%s", choice[len("Go to "):])
+	case strings.has_prefix(choice, "Open ") && strings.has_suffix(choice, " over this"): return fmt.tprintf("push:%s", choice[len("Open "):len(choice) - len(" over this")])
 	}
 	return choice
 }
@@ -155,7 +159,9 @@ uiActionChoice :: proc(action: string) -> string {
 	switch {
 	case action == "": return UI_ACTION_NONE
 	case action == "quit": return "Quit the game"
+	case action == "pop": return "Close this (back to the scene under it)"
 	case strings.has_prefix(action, "scene:"): return fmt.tprintf("Go to %s", action[len("scene:"):])
+	case strings.has_prefix(action, "push:"): return fmt.tprintf("Open %s over this", action[len("push:"):])
 	}
 	return action
 }
@@ -226,8 +232,9 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 		append(&rows, inspectorRow(ctx, "Text", skald.text_input(ctx, node.text, NodeTextField.Text, onText,
 			id = skald.hash_id(fmt.tprintf("inspector-Text-%d", key)), width = controlWidth, padding = InspectorFieldPadding(ctx))))
 		actions := make([dynamic]string, context.temp_allocator)
-		append(&actions, UI_ACTION_NONE, "Quit the game")
+		append(&actions, UI_ACTION_NONE, "Quit the game", "Close this (back to the scene under it)")
 		for name in Project_SceneNames(&s.project) do append(&actions, fmt.tprintf("Go to %s", name))
+		for name in Project_SceneNames(&s.project) do append(&actions, fmt.tprintf("Open %s over this", name))
 		append(&rows, inspectorRow(ctx, "Action", choice(ctx, key, .Action, uiActionChoice(u.action), actions[:], controlWidth)))
 		append(&rows, inspectorRow(ctx, "Can't be used", check(ctx, key, .Disabled, u.disabled)))
 		append(&rows, inspectorRow(ctx, "Text align", enumChoice(ctx, key, .Text_Align, u.textAlign, controlWidth)))
@@ -237,6 +244,7 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 		append(&rows, inspectorRow(ctx, "Max", number(ctx, s, key, .Max, u.maxValue, 1, 2, numberWidth)))
 		append(&rows, inspectorRow(ctx, "Fills toward", enumChoice(ctx, key, .Direction, u.direction, controlWidth)))
 		append(&rows, inspectorRow(ctx, "Show percent", check(ctx, key, .Show_Value, u.showValue)))
+		append(&rows, inspectorRow(ctx, "Shows loading", check(ctx, key, .Show_Loading, u.showLoading)))
 	case .TextField:
 		append(&rows, inspectorRow(ctx, "Text", skald.text_input(ctx, node.text, NodeTextField.Text, onText,
 			id = skald.hash_id(fmt.tprintf("inspector-Text-%d", key)), width = controlWidth, padding = InspectorFieldPadding(ctx))))

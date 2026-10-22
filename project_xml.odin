@@ -102,6 +102,12 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	if project.audioOutput.channels != e.DEFAULT_AUDIO_OUTPUT.channels do attr(&w, "audioChannels", project.audioOutput.channels)
 	if project.locale != "" do attr(&w, "locale", project.locale)
 	if project.uiTheme != "" do attr(&w, "uiTheme", project.uiTheme)
+	if t, d := project.transition, e.DEFAULT_TRANSITION; t != d {
+		attr(&w, "transition", t.kind)
+		if t.duration != d.duration do attr(&w, "transitionTime", t.duration)
+		if t.color != d.color do attr(&w, "transitionColor", e.FormatColor(t.color, context.temp_allocator))
+	}
+	if project.loadingScene != "" do attr(&w, "loadingScene", project.loadingScene)
 	if project.icon != "" do attr(&w, "icon", project.icon)
 	endOpen(&w)
 	for &scene in project.scenes {
@@ -595,6 +601,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if u.maxValue != d.maxValue do attr(w, "max", u.maxValue)
 		if u.direction != d.direction do attr(w, "direction", u.direction)
 		if u.showValue do attr(w, "showValue", true)
+		if u.showLoading do attr(w, "showLoading", true)
 		if u.maxLength != 0 do attr(w, "maxLength", u.maxLength)
 		if u.patchMargins != {} do attr(w, "patchMargins", fmt.tprintf("%v %v %v %v", u.patchMargins[0], u.patchMargins[1], u.patchMargins[2], u.patchMargins[3]))
 		if u.textSize != 0 do attr(w, "textSize", u.textSize)

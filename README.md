@@ -373,6 +373,12 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
+**Scene changes:** Project Settings > General sets how scenes change: a fade, a wipe or a closing
+circle, its time and color. A Button can open a scene **over** the playing one (a pause menu: the
+level waits under it) and close it again; with a **loading scene**, scenes are built when
+entered, behind it, while a ProgressBar shows the loading. Scripts: `e.Game_ChangeScene`,
+`e.Game_PushScene`, `e.Game_PopScene`. See the [manual's scene changes page](docs/manual/scene_changes.md).
+
 **The Live tab:** while a game runs from Play, the bottom panel's **Live** tab shows it: pause it
 and step it a frame at a time, see its frame times (update, physics and draw, with a graph), list
 the running scene's nodes (those scripts made too) and change their values while it plays. Pause

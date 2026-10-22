@@ -12,6 +12,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 | Page | What it covers |
 |---|---|
 | [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
+| [Scene changes](scene_changes.md) | Transitions between scenes (fades, wipes, a circle), scenes opened over others (pause menus, HUDs), loading screens, scene changes in scripts |
 | [The Live tab](live.md) | The game running from Play, seen from the editor: pause and step a frame, frame times (update, physics, draw), the running scene's nodes and their values, changed while it plays |
 | [Pathfinding and navigation](navigation.md) | NavRegion grids blocked by walls, NavAgents finding paths (A*) and walking characters along them around each other; doors, chasing, events |
 | [2D lighting](lighting.md) | Lit scenes: an ambient light, point and spot lights, shadows from occluders and static bodies, editing in the dark, lights in scripts and animations |

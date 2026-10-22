@@ -169,6 +169,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `scene_flow_edit.odin` | **Scene changes**: `Project.transition` / `loadingScene`, Project Settings > General's rows (`sceneFlowSettingRows`, on the dialog's draft), `Project_Settings_Transition_Changed` / `_Loading_Changed` |
 | `live_edit.odin` | **The live view**: `LiveView` (`State.live`: the running game's tree, chosen node's properties, stats, frame-time history), `Live_Send` (to the game's stdin), `Live_Ingest` (its `@@live` replies), `Live_Update`, `Live_Reset` |
 | `view_live.odin` | The bottom panel's Live tab (`LivePanel`): pause / step, stats and the frame-time graph, the nodes, the chosen node's fields (side by side, or stacked in a narrow panel) |
 | `nav_edit.odin` | **Navigation**: `NodeDef.nav` (`e.NavSettings`; a region's area is `shapeSize`), `Nav_Setting_Changed` (`NavNumberTarget`), the NavRegion and NavAgent inspector rows (`navInspectorRows`) |
@@ -1349,6 +1350,19 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## Scene changes (implemented, `scene_flow_edit.odin`; engine: scene_flow.odin)
+
+- `Project.transition` (plain) and `loadingScene` (owned) are on the Project Settings draft
+  (`ProjectSettingsDialog.transition`, `loadingScene`), applied with the rest, in the `.Project`
+  snapshot, written on project.xml's root when set.
+- Button actions offer **Open <Scene> over this** (`push:<Name>`) and **Close this** (`pop`) besides
+  Go to and Quit (`uiActionChoice` / `uiActionFromChoice`); `Project_RenameScene` renames
+  `scene:` and `push:` actions of Menu items and Buttons, and the loading scene;
+  `Project_RemoveScene` clears the loading scene. A ProgressBar's **Shows loading**
+  (`UIField.Show_Loading`).
+- Tests: `scene_changes_in_the_editor`, `tests/ui/scene_flow.script` (project.xml checked with
+  `project_file_contains`). User guide: `docs/manual/scene_changes.md`.
 
 ## The live view (implemented, `live_edit.odin`, `view_live.odin`; engine: live.odin)
 

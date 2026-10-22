@@ -219,6 +219,7 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.text("The scene the game starts in (Play, and exports). Play Scene (Ctrl+F5) starts in the open scene instead.",
 			th.color.fg_muted, th.font.size_xs, max_width = 420),
 		settingRow(ctx, "Icon", iconSelect(ctx, s, d.icon)),
+		skald.col(..sceneFlowSettingRows(ctx, s), spacing = th.spacing.sm, cross_align = .Stretch),
 		settingRow(ctx, "Language", skald.text_input(ctx, strings.clone(d.locale, context.temp_allocator),
 			proc(v: string) -> Msg { return Project_Settings_Locale_Changed(v) },
 			id = skald.hash_id("project-settings-locale"), width = 120)),

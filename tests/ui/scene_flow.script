@@ -1,0 +1,46 @@
+# Scene changes: Project Settings > General's scene change (a fade, its time) and loading scene,
+# applied, saved to project.xml, undone; a Button that opens a scene over the playing one.
+# Run with: task test:ui
+
+wait 5
+action Open_Project_Settings
+expect project_settings open
+scroll_into_view project-settings-general-scroll project-settings-transition
+click_widget project-settings-transition
+click_overlay_item 1
+scroll_into_view project-settings-general-scroll project-settings-transition-time
+click_widget project-settings-transition-time
+key ctrl+a
+type 0.8
+key RETURN
+scroll_into_view project-settings-general-scroll project-settings-loading
+click_widget project-settings-loading
+click_overlay_item 1
+click_widget project-settings-apply
+key ctrl+s
+wait_until modified false
+expect project_file_contains project.xml transition="Fade" transitionTime="0.8"
+expect project_file_contains project.xml loadingScene="
+key ctrl+z
+key ctrl+s
+wait_until modified false
+expect project_file_lacks project.xml transition=
+expect project_file_lacks project.xml loadingScene=
+
+# A Button opening a scene over this one
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+key ctrl+shift+a
+type Button
+click_widget add-node-Button
+expect kind Button
+scroll_into_view inspector-scroll inspector-ui-Action-{selected}
+click_widget inspector-ui-Action-{selected}
+click_overlay_item 3
+expect ui action scene:MenuScene
+click_widget inspector-ui-Action-{selected}
+click_overlay_item 6
+expect ui action push:MenuScene
+key ctrl+s
+expect modified false

@@ -46,6 +46,9 @@ ProjectSettingsDialog :: struct {
 	locale: string,
 	// Owned: the window icon's image ("" for the engine's)
 	icon: string,
+	// Scene changes: the transition, and the loading scene (owned; "" none)
+	transition: e.Transition,
+	loadingScene: string,
 	physics: e.PhysicsSettings,
 	window: e.WindowSettings,
 	// The sound output's format
@@ -204,6 +207,8 @@ ProjectSettings_Destroy :: proc(dialog: ^ProjectSettingsDialog) {
 	delete(dialog.startScene)
 	delete(dialog.locale)
 	delete(dialog.icon)
+	delete(dialog.loadingScene)
+	dialog.loadingScene = ""
 	for &g in dialog.globals do GlobalDef_Destroy(&g)
 	delete(dialog.globals)
 	for &a in dialog.actions do ActionDef_Destroy(&a)
@@ -234,6 +239,8 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		startScene = strings.clone(p.startScene),
 		locale = strings.clone(p.locale),
 		icon = strings.clone(p.icon),
+		transition = p.transition,
+		loadingScene = strings.clone(p.loadingScene),
 		tab = tab,
 		exportTarget = exportTarget,
 		exports = p.exports,
@@ -379,6 +386,11 @@ applyProjectSettings :: proc(state: ^State) {
 	if dialog.icon != p.icon {
 		delete(p.icon)
 		p.icon = strings.clone(dialog.icon)
+	}
+	p.transition = dialog.transition
+	if dialog.loadingScene != p.loadingScene {
+		delete(p.loadingScene)
+		p.loadingScene = strings.clone(dialog.loadingScene)
 	}
 	if locale := strings.trim_space(dialog.locale); locale != p.locale {
 		delete(p.locale)

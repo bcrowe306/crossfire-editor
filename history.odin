@@ -94,6 +94,8 @@ ProjectSnapshot :: struct {
 	// UI themes by file, and the project's
 	themes: [dynamic]ThemeDef,
 	uiTheme: string,
+	transition: e.Transition,
+	loadingScene: string,
 	actions: [dynamic]ActionDef,
 	buses: [dynamic]BusDef,
 	// The scene open at the time, shown again on undo/redo
@@ -830,6 +832,8 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		startScene = strings.clone(p.startScene),
 		locale = strings.clone(p.locale),
 		uiTheme = strings.clone(p.uiTheme),
+		transition = p.transition,
+		loadingScene = strings.clone(p.loadingScene),
 		icon = strings.clone(p.icon),
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
@@ -872,6 +876,9 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.locale = strings.clone(snapshot.locale)
 	delete(p.uiTheme)
 	p.uiTheme = strings.clone(snapshot.uiTheme)
+	p.transition = snapshot.transition
+	delete(p.loadingScene)
+	p.loadingScene = strings.clone(snapshot.loadingScene)
 	p.icon = strings.clone(snapshot.icon)
 	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
 	p.renderer = snapshot.renderer
@@ -968,6 +975,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	for &t in snapshot.themes do ThemeDef_Destroy(&t)
 	delete(snapshot.themes)
 	delete(snapshot.uiTheme)
+	delete(snapshot.loadingScene)
 	for &a in snapshot.actions do ActionDef_Destroy(&a)
 	delete(snapshot.actions)
 	for b in snapshot.buses do delete(b.name)
@@ -989,7 +997,7 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	for d, i in a.data do if d.path != b.data[i].path || d.type != b.data[i].type || !propsEqual(d.values[:], b.data[i].values[:]) do return false
 	if len(a.animationSets) != len(b.animationSets) do return false
 	for set, i in a.animationSets do if !AnimationSetDef_Equal(set, b.animationSets[i]) do return false
-	if a.uiTheme != b.uiTheme || len(a.themes) != len(b.themes) do return false
+	if a.uiTheme != b.uiTheme || len(a.themes) != len(b.themes) || a.transition != b.transition || a.loadingScene != b.loadingScene do return false
 	for t, i in a.themes do if !ThemeDef_Equal(t, b.themes[i]) do return false
 	return true
 }
