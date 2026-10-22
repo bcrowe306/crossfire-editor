@@ -314,7 +314,10 @@ A hosted editor can be a short or narrow pane, so every overlay fits the visible
   through them; their offset is kept per thing shown (`Popup_Scroll`), so showing another item
   starts at the top.
 - **The problems / references panel** is `editor_panel_rows` tall (8 rows, fewer in a short view)
-  and scrolls; **tool windows** (key bindings, colour theme) show scrollbars, and Utilities scrolls.
+  and scrolls; **tool windows** (key bindings, colour theme) show scrollbars, and Utilities and the
+  colour theme's right pane (the selected colour and its sliders, `theme_pane_rect`) scroll, the
+  wheel over the pane scrolling it and Tab bringing a channel's slider into view. Clipping inside
+  them (`clip_push` / `clip_pop`) keeps the host's clip rect.
 
 Tests: `overlay_scroll_test.odin` (short and narrow views).
 

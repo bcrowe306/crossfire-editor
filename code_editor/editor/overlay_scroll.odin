@@ -134,3 +134,30 @@ place_popup :: proc(ed: ^Editor, lines: int, anchor_top, anchor_bottom: f32, pre
 	y = above ? anchor_top - 2 - h : anchor_bottom + 2
 	return
 }
+
+// Saved_Clip is the clip rect in force before clip_push (the host's, when it set one).
+Saved_Clip :: struct {
+	rect: sdl.Rect,
+	had:  bool,
+}
+
+// clip_push limits drawing to `rect`, within the clip already set (a host drawing the editor into
+// part of a texture sets one); clip_pop puts the earlier clip back.
+clip_push :: proc(renderer: ^sdl.Renderer, rect: sdl.FRect) -> Saved_Clip {
+	saved: Saved_Clip
+	saved.had = sdl.RenderClipEnabled(renderer)
+	if saved.had {
+		sdl.GetRenderClipRect(renderer, &saved.rect)
+	}
+	clip := sdl.Rect{i32(rect.x), i32(rect.y), i32(rect.w), i32(rect.h)}
+	if saved.had {
+		_ = sdl.GetRectIntersection(clip, saved.rect, &clip)
+	}
+	sdl.SetRenderClipRect(renderer, &clip)
+	return saved
+}
+
+clip_pop :: proc(renderer: ^sdl.Renderer, saved: Saved_Clip) {
+	saved := saved
+	sdl.SetRenderClipRect(renderer, &saved.rect if saved.had else nil)
+}

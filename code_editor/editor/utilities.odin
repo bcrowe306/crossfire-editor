@@ -250,16 +250,7 @@ render_utilities :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, 
 	content, content_rows := utilities_content_rect(ed)
 	scroll := overlay_scroll_clamp(ed.utilities.scroll, utilities_content_rows(ed), content_rows)
 	y -= f32(scroll) * ed.char_h
-	host_clip: sdl.Rect
-	host_clipped := sdl.RenderClipEnabled(renderer)
-	if host_clipped {
-		sdl.GetRenderClipRect(renderer, &host_clip)
-	}
-	clip := sdl.Rect{i32(content.x), i32(content.y), i32(content.w), i32(content.h)}
-	if host_clipped {
-		_ = sdl.GetRectIntersection(clip, host_clip, &clip)
-	}
-	sdl.SetRenderClipRect(renderer, &clip)
+	saved_clip := clip_push(renderer, content)
 	draw_text(renderer, font, "Language server (OLS)", area.x + ed.char_w, y, theme.header_text, ed.char_h)
 	y += ed.char_h
 	for line, i in editor_lsp_info(ed) {
@@ -304,7 +295,7 @@ render_utilities :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, 
 	}
 	draw_text(renderer, font, "Files:", x, sy + 2 * ed.char_h, theme.popup_text_dim, ed.char_h)
 	draw_text(renderer, font, strings.join(files[:], ", ", context.temp_allocator) if len(files) > 0 else "none yet", x + 13 * ed.char_w, sy + 2 * ed.char_h, theme.text_default, ed.char_h)
-	sdl.SetRenderClipRect(renderer, &host_clip if host_clipped else nil)
+	clip_pop(renderer, saved_clip)
 	render_overlay_scrollbar(renderer, content, utilities_content_rows(ed), content_rows, scroll, theme)
 	render_window_footer(ed, renderer, font, theme, "Up/Down choose · Enter or click run · Esc close")
 }

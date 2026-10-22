@@ -231,3 +231,33 @@ test_popups_fit_a_narrow_view :: proc(t: ^testing.T) {
 		testing.expect(t, popup_max_cols(&ed, 100) <= ed.visible_cols - 2, "text popups wrap to the view")
 	})
 }
+
+@(test)
+test_theme_editor_pane_scrolls_in_a_short_window :: proc(t: ^testing.T) {
+	run_leak_free(t, proc(t: ^testing.T) {
+		ed := make_mouse_test_editor("a")
+		defer editor_destroy(&ed)
+		ed.visible_cols = 80
+		ed.visible_rows = 6
+		editor_show_window(&ed, .Theme)
+		pane, rows := theme_pane_rect(&ed)
+		testing.expect(t, rows < THEME_PANE_ROWS, "the pane is taller than the window leaves it")
+		// The alpha slider is below the pane until the pane scrolls (the wheel over it)
+		alpha := editor_theme_slider_rect(&ed, 3)
+		testing.expect(t, alpha.y + alpha.h > pane.y + pane.h, "the alpha slider is out of view")
+		mouse_wheel(&ed, pane.x + 20, pane.y + 5, 0, -3)
+		testing.expect(t, ed.theme_editor.pane_scroll > 0, "the wheel over the pane scrolls it")
+		testing.expect_value(t, ed.theme_editor.scroll, 0) // not the colour list
+		alpha = editor_theme_slider_rect(&ed, 3)
+		testing.expect(t, alpha.y >= pane.y && alpha.y + alpha.h <= pane.y + pane.h + 0.5, "now it shows")
+		// A click on it sets the channel
+		mouse_click(&ed, alpha.x + alpha.w / 2, alpha.y + alpha.h / 2)
+		testing.expect_value(t, ed.theme_editor.channel, 3)
+		editor_theme_release(&ed)
+		// Tab to a channel brings its slider into view
+		ed.theme_editor.pane_scroll = THEME_PANE_ROWS
+		editor_theme_handle_key(&ed, {key = .Tab})
+		r := editor_theme_slider_rect(&ed, ed.theme_editor.channel)
+		testing.expect(t, r.y >= pane.y && r.y + r.h <= pane.y + pane.h + 0.5, "the channel's slider shows")
+	})
+}

@@ -24,6 +24,8 @@ Theme_Editor :: struct {
 	base:     Theme_Preset, // the preset the theme is based on
 	selected: int,          // Theme field index
 	scroll:   int,
+	// The right pane's first row shown, when the window is too short for it (it scrolls)
+	pane_scroll: int,
 	channel:  int,          // 0..3 = R, G, B, A
 	editing:  bool,         // typing a hex value
 	hex:      strings.Builder,
@@ -141,6 +143,9 @@ editor_theme_handle_key :: proc(ed: ^Editor, chord: km.Chord) -> bool {
 		t.selected = n - 1
 	case .Tab:
 		t.channel = (t.channel + (3 if .Shift in chord.mods else 1)) % 4
+		// Its slider comes into view in a short window
+		_, pane_rows := theme_pane_rect(ed)
+		t.pane_scroll = overlay_scroll_reveal(theme_pane_scroll(ed), 5 + t.channel, THEME_PANE_ROWS, pane_rows)
 	case .Left, .Right:
 		v := int(channel_ptr(editor_theme_selected_color(ed), t.channel)^)
 		editor_theme_set_channel(ed, t.channel, v + (step if chord.key == .Right else -step))
@@ -200,20 +205,43 @@ editor_theme_row_at :: proc(ed: ^Editor, x, y: f32) -> int {
 	return i
 }
 
-// editor_theme_slider_rect is the track of a channel slider.
+// The right pane's rows: the colour's name, its swatch and hex, a gap, the four channel sliders
+THEME_PANE_ROWS :: 9
+
+// theme_pane_rect is the right pane (the selected colour, its sliders, the preview) and how many
+// rows of it show: in a short window fewer than THEME_PANE_ROWS, and it scrolls.
+theme_pane_rect :: proc(ed: ^Editor) -> (rect: sdl.FRect, rows: int) {
+	area := editor_area_rect(ed)
+	top, _ := editor_theme_layout(ed)
+	x := area.x + theme_list_width(ed) + 1
+	bottom := area.y + area.h - 2 * ed.char_h
+	rect = {x, top, area.x + area.w - x, max(bottom - top, ed.char_h)}
+	return rect, max(int(rect.h / ed.char_h), 1)
+}
+
+// theme_pane_scroll is the right pane's scroll, kept within what the window leaves it.
+@(private)
+theme_pane_scroll :: proc(ed: ^Editor) -> int {
+	_, rows := theme_pane_rect(ed)
+	return overlay_scroll_clamp(ed.theme_editor.pane_scroll, THEME_PANE_ROWS, rows)
+}
+
+// editor_theme_slider_rect is the track of a channel slider (where the pane is scrolled to).
 editor_theme_slider_rect :: proc(ed: ^Editor, ch: int) -> sdl.FRect {
 	area := editor_area_rect(ed)
 	top, _ := editor_theme_layout(ed)
 	px := area.x + theme_list_width(ed) + 2 * ed.char_w
 	pw := area.x + area.w - px - ed.char_w
-	y := top + f32(5 + ch) * ed.char_h
+	y := top + f32(5 + ch - theme_pane_scroll(ed)) * ed.char_h
 	return {px + 3 * ed.char_w, y, pw - 9 * ed.char_w, ed.char_h}
 }
 
 editor_theme_click :: proc(ed: ^Editor, x, y: f32) {
 	t := &ed.theme_editor
+	pane, _ := theme_pane_rect(ed)
 	for ch in 0 ..< 4 {
-		if r := editor_theme_slider_rect(ed, ch); in_rect(r, x, y) {
+		// Only a slider the pane shows (scrolled out of it, it's clipped away)
+		if r := editor_theme_slider_rect(ed, ch); in_rect(r, x, y) && in_rect(pane, x, y) {
 			t.channel, t.drag = ch, ch
 			editor_theme_drag(ed, x, y)
 			return
@@ -244,6 +272,11 @@ editor_theme_release :: proc(ed: ^Editor) {
 
 editor_theme_scroll :: proc(ed: ^Editor, lines: int) {
 	t := &ed.theme_editor
+	// Over the right pane the wheel scrolls it; over the list, the list
+	if pane, pane_rows := theme_pane_rect(ed); ed.mouse.x >= pane.x {
+		t.pane_scroll = overlay_scroll_clamp(theme_pane_scroll(ed) + lines, THEME_PANE_ROWS, pane_rows)
+		return
+	}
 	_, rows := editor_theme_layout(ed)
 	t.scroll = clamp(t.scroll + lines, 0, max(0, theme_field_count() - rows))
 }
@@ -324,14 +357,18 @@ render_theme_editor :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 	fill_rect(renderer, {area.x + list_w, top, 1, f32(rows) * ed.char_h}, theme.popup_border)
 	render_overlay_scrollbar(renderer, {area.x, top, list_w, f32(rows) * ed.char_h}, len(names), rows, t.scroll, theme)
 
-	// Selected colour: name, big swatch, hex, sliders.
+	// Selected colour: name, big swatch, hex, sliders. In a short window the pane scrolls (it's
+	// clipped to its rect; the sliders' rects follow the scroll)
+	pane, pane_rows := theme_pane_rect(ed)
+	pane_clip := clip_push(renderer, pane)
+	ptop := top - f32(theme_pane_scroll(ed)) * ed.char_h
 	px := area.x + list_w + 2 * ed.char_w
 	pw := area.x + area.w - px - ed.char_w
 	sel := editor_theme_selected_color(ed)^
-	draw_text(renderer, font, theme_field_title(names[t.selected]), px, top, theme.header_text, ed.char_h)
-	draw_swatch(renderer, {px, top + ed.char_h + 4, 8 * ed.char_w, 3 * ed.char_h - 8}, sel, theme)
+	draw_text(renderer, font, theme_field_title(names[t.selected]), px, ptop, theme.header_text, ed.char_h)
+	draw_swatch(renderer, {px, ptop + ed.char_h + 4, 8 * ed.char_w, 3 * ed.char_h - 8}, sel, theme)
 	hx := px + 10 * ed.char_w
-	hy := top + 2 * ed.char_h
+	hy := ptop + 2 * ed.char_h
 	if t.editing {
 		fill_rect(renderer, {hx - 4, hy, 12 * ed.char_w, ed.char_h}, theme.gutter_bg)
 		s := strings.concatenate({"#", strings.to_string(t.hex)}, context.temp_allocator)
@@ -357,7 +394,7 @@ render_theme_editor :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 
 	// Live preview of the text colours.
 	// As many lines as fit above the footer.
-	py := top + 9.5 * ed.char_h
+	py := ptop + 9.5 * ed.char_h
 	lines := THEME_PREVIEW
 	fit := int((area.y + area.h - 2 * ed.char_h - py - 12) / ed.char_h)
 	lines = lines[:clamp(fit, 0, len(lines))]
@@ -365,9 +402,9 @@ render_theme_editor :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 	if len(lines) >= 3 {
 		box := sdl.FRect{px, py, pw, ph}
 		fill_rect(renderer, box, theme.background)
-		clip := sdl.Rect{i32(px), i32(py), i32(pw), i32(ph)}
-		sdl.SetRenderClipRect(renderer, &clip)
-		defer sdl.SetRenderClipRect(renderer, nil)
+		// Within the pane's clip (and the host's): the earlier clip is put back after
+		preview_clip := clip_push(renderer, box)
+		defer clip_pop(renderer, preview_clip)
 		fill_rect(renderer, {px, py, 4 * ed.char_w, ph}, theme.gutter_bg)
 		state := syn.LINE_STATE_NORMAL
 		for line, li in lines {
@@ -391,5 +428,7 @@ render_theme_editor :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 			}
 		}
 	}
+	clip_pop(renderer, pane_clip)
+	render_overlay_scrollbar(renderer, pane, THEME_PANE_ROWS, pane_rows, theme_pane_scroll(ed), theme)
 	render_window_footer(ed, renderer, font, theme, "Up/Down colour · Tab channel · Left/Right adjust (Shift x16) · Enter hex · Del reset · P preset · Esc close")
 }

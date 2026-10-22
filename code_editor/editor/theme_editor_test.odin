@@ -73,7 +73,10 @@ test_theme_editor_edits_and_persists :: proc(t: ^testing.T) {
 		key_and_update(&ed, sdl.K_RETURN)
 		testing.expect(t, !ed.theme_editor.editing, "applied")
 
-		// A slider drag sets a channel from the pointer.
+		// A slider drag sets a channel from the pointer (the 10-row editor is short: the pane
+		// scrolls down to the alpha slider first)
+		pane, _ := theme_pane_rect(&ed)
+		mouse_wheel(&ed, pane.x + 20, pane.y + 5, 0, -3)
 		r := editor_theme_slider_rect(&ed, 3)
 		mouse_click(&ed, r.x + r.w / 2, r.y + r.h / 2)
 		testing.expect(t, abs(int(ed.theme.text_keyword.a) - 128) <= 1, "alpha ~ half")
