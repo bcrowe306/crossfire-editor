@@ -656,6 +656,8 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		}
 	}
 	drainEvents()
+	// Settings > Editor > Auto-close
+	c.ed.auto_close_pairs = s.settings.autoClosePairs
 	// The shared language server follows the file that shows
 	takeServer(c)
 	// It learns of script files changed on disk whenever the code shows, not only on Code_Tick:

@@ -70,6 +70,9 @@ Editor :: struct {
 	tab_width:   int,
 	// Tab indents with a tab character (Odin's style, odinfmt's) instead of spaces
 	indent_with_tabs: bool,
+	// Brackets and quotes close themselves as they're typed, Backspace removes an empty pair,
+	// Enter between brackets opens an indented line (buffer's autopairs.odin). On by default
+	auto_close_pairs: bool,
 	visible_rows: int,
 	visible_cols: int,
 
@@ -123,6 +126,7 @@ editor_init :: proc(
 		visible_rows = 32,
 		visible_cols = 80,
 		tab_width    = DEFAULT_TAB_WIDTH,
+		auto_close_pairs = true,
 		line_spacing = DEFAULT_LINE_SPACING,
 		show_header  = true,
 	}

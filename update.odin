@@ -94,7 +94,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed, Settings_Aseprite_Path_Changed, Settings_Audio_Device_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_Auto_Close_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed, Settings_Aseprite_Path_Changed, Settings_Audio_Device_Changed:
 		// Handled by SettingsDialog_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above

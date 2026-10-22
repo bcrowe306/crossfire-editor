@@ -31,7 +31,10 @@ editor_handle_event :: proc(ed: ^Editor, ev: sdl.Event) -> bool {
 			return true
 		}
 		if len(text) > 0 {
-			editor_insert_text(ed, text)
+			// One typed bracket or quote: its pair's rules (buffer's autopairs.odin)
+			if !editor_type_paired(ed, text) {
+				editor_insert_text(ed, text)
+			}
 			editor_ensure_cursor_visible(ed)
 			editor_after_text_input(ed, text)
 			return true

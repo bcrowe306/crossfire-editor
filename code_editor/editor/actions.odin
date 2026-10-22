@@ -4,6 +4,7 @@
 package code_editor
 
 import buf "../buffer"
+import "core:strings"
 import km "../keymap"
 
 // editor_apply_action executes a non-text-insertion action (navigation,
@@ -56,7 +57,10 @@ editor_apply_action :: proc(ed: ^Editor, action: km.Action) -> bool {
 		return true
 
 	case .Backspace:
-		buf.buffer_backspace(b)
+		// Between an empty pair, both go
+		if !(ed.auto_close_pairs && buf.buffer_backspace_pair(b)) {
+			buf.buffer_backspace(b)
+		}
 		return true
 	case .BackspaceWord:
 		buf.buffer_backspace(b, word_mode = true)
@@ -68,7 +72,11 @@ editor_apply_action :: proc(ed: ^Editor, action: km.Action) -> bool {
 		buf.buffer_delete_forward(b, word_mode = true)
 		return true
 	case .Newline:
-		buf.buffer_newline(b)
+		if ed.auto_close_pairs {
+			buf.buffer_newline_paired(b, ed.indent_with_tabs)
+		} else {
+			buf.buffer_newline(b)
+		}
 		return true
 	case .IndentOrTab:
 		buf.buffer_indent(b, ed.indent_with_tabs)
@@ -269,4 +277,19 @@ editor_add_cursor :: proc(ed: ^Editor, dir: int) {
 // text-input events and programmatic insertion).
 editor_insert_text :: proc(ed: ^Editor, text: string) {
 	buf.buffer_type_text(&ed.buf, text)
+}
+
+// editor_pair_rules is how brackets and quotes pair up in this file: `<` pairs anywhere in markup
+// (XML, HTML), else only after a word (`Map<`): it's "less than" in code
+editor_pair_rules :: proc(ed: ^Editor) -> buf.Pair_Rules {
+	path := strings.to_lower(ed.buf.file_path, context.temp_allocator)
+	markup := false
+	for ext in ([]string{".xml", ".html", ".htm", ".svg", ".xhtml"}) do if strings.has_suffix(path, ext) do markup = true
+	return {markup = markup}
+}
+
+// editor_type_paired types one bracket or quote with its pair's rules (when auto-closing is on);
+// false when `text` isn't one: type it as usual
+editor_type_paired :: proc(ed: ^Editor, text: string) -> bool {
+	return ed.auto_close_pairs && len(text) == 1 && buf.buffer_type_paired(&ed.buf, text[0], editor_pair_rules(ed))
 }

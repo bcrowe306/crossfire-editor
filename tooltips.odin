@@ -187,6 +187,7 @@ fieldTip :: proc(label: string) -> string {
 	case "Major lines every": return "A more opaque grid line every this many cells, dividing the grid into blocks. 0: none."
 	case "Line opacity":   return "How opaque the grid's lines are, in percent."
 	case "Major line opacity": return "How opaque the grid's major lines are, in percent."
+	case "Auto-close":     return "The built-in code editor closes brackets and quotes as you type them (like most code editors)."
 	case "Code editor":    return "Open scripts in the built-in code editor, or in the external program below."
 	case "External program": return "The program that opens scripts when the built-in editor is off: a path, or a name found in PATH."
 	case "Arguments":      return "The external program's arguments: {file} and {line} are replaced, {folder} is the scripts folder."

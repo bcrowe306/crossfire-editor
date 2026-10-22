@@ -108,6 +108,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		draft.wheelPans = bool(v)
 	case Settings_Builtin_Editor_Changed:
 		draft.builtInCodeEditor = bool(v)
+	case Settings_Auto_Close_Changed:
+		draft.autoClosePairs = bool(v)
 	case Settings_LDtk_Path_Changed:
 		draft.ldtkPath = FixedText_Make(string(v))
 	case Settings_Aseprite_Path_Changed:
@@ -146,6 +148,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
 			draft.codeEditorPath, draft.codeEditorArgs, draft.optimizedPlay = defaults.codeEditorPath, defaults.codeEditorArgs, defaults.optimizedPlay
 			draft.wheelPans = defaults.wheelPans
+			draft.autoClosePairs = defaults.autoClosePairs
 			draft.audioDevice = defaults.audioDevice
 			draft.ldtkPath = defaults.ldtkPath
 			draft.asepritePath = defaults.asepritePath

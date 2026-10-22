@@ -73,6 +73,22 @@ type gadget_probe :: proc(g: ^Gadget) { g.
 wait_until code_completion_has power timeout=20
 key ESCAPE
 
+# Brackets and quotes close as they're typed (Settings > Editor > Auto-close); typing the closer
+# steps over it; Backspace between an empty pair removes both
+key ctrl+END
+key RETURN
+type pairs := f("a", [1
+expect code_contains true pairs := f("a", [1])
+type ])
+expect code_contains true pairs := f("a", [1])
+expect code_contains false [1])])
+type ,(
+expect code_contains true [1]),()
+key BACKSPACE
+expect code_contains true [1]),
+expect code_contains false [1]),(
+key ESCAPE
+
 # Ctrl+S saves the script (and the project)
 key ctrl+s
 expect code_dirty false

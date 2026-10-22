@@ -813,6 +813,7 @@ Settings_Wheel_Pans_Changed :: distinct bool
 // Settings > Editor: the playback device for Play and the editor's previews ("" = the default)
 Settings_Audio_Device_Changed :: distinct string
 Settings_Builtin_Editor_Changed :: distinct bool
+Settings_Auto_Close_Changed :: distinct bool
 Settings_OLS_Path_Changed :: distinct string
 Settings_LDtk_Path_Changed :: distinct string
 // Settings > Editor > Aseprite program typed
@@ -1007,6 +1008,7 @@ Msg :: union {
 	Settings_Optimized_Play_Changed,
 	Settings_Wheel_Pans_Changed,
 	Settings_Builtin_Editor_Changed,
+	Settings_Auto_Close_Changed,
 	Settings_OLS_Path_Changed,
 	Settings_LDtk_Path_Changed,
 	Settings_Aseprite_Path_Changed,
