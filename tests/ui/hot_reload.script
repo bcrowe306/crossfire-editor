@@ -1,0 +1,57 @@
+# Hot reload: a script saved while the game plays builds the game again in the background, then
+# restarts it where it was (the same scene, a node's script field changed in the running game
+# carried over). Builds the project's own player twice (unoptimized: a few seconds each).
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+
+# A script on the Spaceship (New Script writes scripts/mover.odin and builds)
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Mover
+click_widget new-script-create
+expect script Mover
+wait_until scripts Ready timeout=240
+click_widget code-tab-close-0
+expect code_tabs 0
+
+# Play this scene, and change the script's field in the running game (the project isn't changed)
+key ctrl+s
+key ctrl+F5
+wait_until play Playing timeout=240
+wait_until live connected true timeout=30
+wait_until live nodes > 0 timeout=10
+live_select Spaceship
+wait_until live prop script.speed 100 timeout=10
+send Live_Property_Edited script.speed 250
+wait_until live prop script.speed 250 timeout=10
+
+# The script changes on disk while it plays (another editor saving it): built beside the game,
+# which goes on meanwhile
+touch_project_file scripts/mover.odin // Changed while the game plays
+wait_until console_contains Hot reload: scripts changed timeout=10
+expect play Playing
+wait_until console_contains Hot reload: restarting the game where it was timeout=240
+wait_until console_contains Hot reload: restored timeout=30
+expect console_lacks nodes not restored
+expect console_lacks didn't save its state
+expect play Playing
+
+# The new game has the field's value from the old one
+wait_until live connected true timeout=30
+wait_until live nodes > 0 timeout=10
+live_select Spaceship
+wait_until live prop script.speed 250 timeout=10
+
+# A script that doesn't build: the game goes on with the old code
+touch_project_file scripts/mover.odin this isn't Odin
+wait_until console_contains the scripts don't build timeout=240
+expect play Playing
+
+key shift+F5
+wait_until play Stopped
+quit

@@ -93,7 +93,11 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 	case .Node:
 		// The scene's nodes that fit, as paths from the script's node (node_fields.odin)
 		scene := &s.project.scenes[s.currentScene]
-		_, onNode := target.(SelectedNodeTarget)
+		onNode := false
+		switch _ in target {
+		case SelectedNodeTarget, NodeScriptTarget, NodeCustomTarget: onNode = true
+		case DraftGlobalTarget, DataTarget:
+		}
 		if !onNode || s.selectedNode < 0 || s.selectedNode >= len(scene.nodes) {
 			return skald.text(fmt.tprintf("%s (node fields work on node scripts)", value == "" ? "none" : value), th.color.fg_muted, th.font.size_sm, max_width = controlWidth)
 		}

@@ -34,10 +34,27 @@ key escape
 expect add_dialog closed
 
 # Grouped by category in a scroll: the last kind (Sound's MusicPlayer) starts out of view, and
-# Down scrolls the highlight into view
+# Down scrolls the highlight into view (more presses than kinds: the highlight stops at the last,
+# so new kinds don't move it)
 key ctrl+shift+a
 expect widget_visible add-node-Node2D true
 expect widget_visible add-node-MusicPlayer false
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
+key down
 key down
 key down
 key down

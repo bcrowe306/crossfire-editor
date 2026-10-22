@@ -25,6 +25,12 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 	own := e.SceneNodeKind_Events(NodeDef_BuiltKind(&s.project, node))
 	script := NodeDef_Script(&s.project, node)
 	scriptEvents := Script_Events(s, script)
+	// Its more scripts and its node type publish events too (node_scripts_edit.odin)
+	others := make([dynamic]string, context.temp_allocator)
+	if node.customKind != "" do append(&others, node.customKind)
+	for extra in node.moreScripts do append(&others, extra.name)
+	otherCount := 0
+	for name in others do otherCount += len(Script_Events(s, name))
 	open := s.inspectorEventsOpen || len(node.listeners) > 0
 	small :: proc(ctx: ^skald.Ctx(Msg), label, key: string, msg: Msg) -> skald.View {
 		th := ctx.theme
@@ -35,7 +41,7 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
 	}
 	append(&rows, skald.row(
-		skald.text(fmt.tprintf("%s  Events (%d)", ICON_LINK, len(own) + len(scriptEvents)), th.color.fg, th.font.size_sm),
+		skald.text(fmt.tprintf("%s  Events (%d)", ICON_LINK, len(own) + len(scriptEvents) + otherCount), th.color.fg, th.font.size_sm),
 		skald.flex(1, skald.spacer(0)),
 		len(node.listeners) > 0 ? skald.View(skald.View_Spacer{size = 0}) : small(ctx, open ? "Hide" : "Show", "inspector-events-toggle", Msg(Inspector_Events_Toggled{})),
 		cross_align = .Center,
@@ -72,6 +78,18 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 		if ScriptCatalog_Find(&s.scripts, script) == nil do append(&rows, muted(ctx, fmt.tprintf("Build the scripts (Ctrl+B) to see %s's events.", script), width))
 		for ev in scriptEvents {
 			event(ctx, s, &rows, &shown, node, ev, "", Event_ShortName(ev.name), fmt.tprintf("inspector-event-listen-%s", ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width)
+		}
+	}
+	// Its node type's and more scripts' events ("script.x" too: the game looks in each)
+	for name in others {
+		append(&rows, skald.row(
+			skald.text(fmt.tprintf("%s  %s", ICON_CODE, name), th.color.fg, th.font.size_xs),
+			skald.flex(1, skald.spacer(0)),
+			small(ctx, "New Event...", fmt.tprintf("inspector-new-event-%s", name), Msg(New_Event_Opened(name))),
+			cross_align = .Center,
+		))
+		for ev in Script_Events(s, name) {
+			event(ctx, s, &rows, &shown, node, ev, "", Event_ShortName(ev.name), fmt.tprintf("inspector-event-listen-%s-%s", name, ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width)
 		}
 	}
 	// The globals' events: this node's script listens (stored on this node)

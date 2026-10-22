@@ -430,7 +430,13 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 
 	append(&rows, skald.divider(ctx))
+	// A node type of the project's code: its own fields (node_scripts_edit.odin)
+	if node.customKind != "" {
+		append(&rows, ..nodeTypeRows(ctx, s, node, key, controlWidth, numberWidth))
+		append(&rows, skald.divider(ctx))
+	}
 	append(&rows, ..scriptSection(ctx, s, node, key, controlWidth, numberWidth))
+	append(&rows, ..moreScriptsRows(ctx, s, node, key, controlWidth, numberWidth))
 	append(&rows, skald.divider(ctx))
 	append(&rows, ..eventsSection(ctx, s, node, controlWidth))
 

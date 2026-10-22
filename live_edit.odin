@@ -142,6 +142,10 @@ Live_Ingest :: proc(s: ^State, text: string) {
 			o := p.(json.Object) or_continue
 			append(&live.properties, LiveProperty{strings.clone(str(o, "name")), strings.clone(str(o, "value"))})
 		}
+	case "snapshot":
+		// Hot reload: the game wrote its state (play_reload.odin)
+		ok, _ := object["ok"].(json.Boolean)
+		playReloadSnapshotTaken(s, bool(ok))
 	case "set":
 		ok, _ := object["ok"].(json.Boolean)
 		if !ok do logLine(s, .Warning, fmt.aprintf("Live: %s isn't a value of %s", live.edits[str(object, "property")], str(object, "property")))

@@ -51,7 +51,8 @@ expect modified true
 key escape
 key ctrl+shift+a
 type Joint
-key RETURN
+# Its row (Line2D's description mentions joints too, and comes first)
+click_widget add-node-Joint
 expect selected Joint
 expect nodes 14
 

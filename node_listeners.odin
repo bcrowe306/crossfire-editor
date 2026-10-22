@@ -150,6 +150,7 @@ NodeDef_Script :: proc(project: ^Project, node: ^NodeDef) -> string {
 // A built script's events (the catalog's; none before a build)
 Script_Events :: proc(state: ^State, script: string) -> []e.NodeEventInfo {
 	if desc := ScriptCatalog_Find(&state.scripts, script); desc != nil do return desc.events[:]
+	if desc := ScriptCatalog_FindNodeType(&state.scripts, script); desc != nil do return desc.events[:]
 	return nil
 }
 

@@ -67,6 +67,8 @@ PlaySession :: struct {
 	stdin: ^os.File,
 	// Output received since the last newline
 	partial: [dynamic]u8,
+	// Hot reload: the build running beside the game (play_reload.odin)
+	reload: PlayReload,
 }
 
 // Sent every PLAY_POLL_SECONDS while a build or game is running
@@ -145,15 +147,10 @@ buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 		state.scripts.status = .Failed
 		return {}
 	}
-	engineDir, _ := Toolchain_EngineDir()
-	command := make([dynamic]string, context.temp_allocator)
-	append(&command, odin, "build", target.source, fmt.tprintf("-collection:engine=%s", engineDir))
-	if target.project != "" do append(&command, fmt.tprintf("-collection:project=%s", target.project))
-	if state.settings.optimizedPlay do append(&command, "-o:speed")
-	append(&command, fmt.tprintf("-out:%s", target.binary))
-	outputLine(state, .Info, fmt.aprintf("$ %s", strings.join(command[:], " ", context.temp_allocator)))
+	command := playerBuildCommand(state, odin, target, target.binary)
+	outputLine(state, .Info, fmt.aprintf("$ %s", strings.join(command, " ", context.temp_allocator)))
 
-	if !startProcess(state, command[:], "") {
+	if !startProcess(state, command, "") {
 		state.scripts.status = .Failed
 		return {}
 	}
@@ -162,6 +159,18 @@ buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 	state.bottomTab = .Output
 	state.layout.bottomOpen = true
 	return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Play_Tick{}))
+}
+
+// The command building a player target into `binary` (temp allocated)
+@(private="package")
+playerBuildCommand :: proc(state: ^State, odin: string, target: PlayerTarget, binary: string) -> []string {
+	engineDir, _ := Toolchain_EngineDir()
+	command := make([dynamic]string, context.temp_allocator)
+	append(&command, odin, "build", target.source, fmt.tprintf("-collection:engine=%s", engineDir))
+	if target.project != "" do append(&command, fmt.tprintf("-collection:project=%s", target.project))
+	if state.settings.optimizedPlay do append(&command, "-o:speed")
+	append(&command, fmt.tprintf("-out:%s", binary))
+	return command[:]
 }
 
 // After a build: describe a project player's scripts, then play (if that's the purpose)
@@ -210,6 +219,10 @@ playStop :: proc(state: ^State) {
 playTick :: proc(state: ^State) -> skald.Command(Msg) {
 	if state.play.stage == .None do return {}
 	drainOutput(state)
+	// Hot reload: its build beside the game, and the restart (play_reload.odin)
+	if state.play.stage == .Running {
+		if command, restarted := playReloadTick(state); restarted do return command
+	}
 
 	status, err := os.process_wait(state.play.process, 0)
 	if err == os.General_Error.Timeout || (err == nil && !status.exited) {
@@ -240,20 +253,9 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 		state.play.purpose = purpose
 		return afterBuild(state)
 	case .Describing:
-		scripts, dataTypes, ok := ScriptCatalog_ParseAll(string(described[:]))
+		ok := takeDescription(state, string(described[:]), status.exit_code)
 		delete(described)
-		if status.exit_code != 0 || !ok {
-			ScriptCatalog_Clear(&ScriptCatalog{scripts = scripts, dataTypes = dataTypes})
-			state.scripts.status = .Failed
-			logLine(state, .Error, fmt.aprintf("Couldn't read the project's scripts (exit code %d)", status.exit_code))
-			return {}
-		}
-		ScriptCatalog_Clear(&state.scripts)
-		state.scripts.scripts = scripts
-		state.scripts.dataTypes = dataTypes
-		state.scripts.status = .Ready
-		outputLine(state, .Info, fmt.aprintf("%d script%s: %s", len(scripts), len(scripts) == 1 ? "" : "s", scriptNames(scripts[:])))
-		if len(dataTypes) > 0 do outputLine(state, .Info, fmt.aprintf("%d data type%s: %s", len(dataTypes), len(dataTypes) == 1 ? "" : "s", scriptNames(dataTypes[:])))
+		if !ok do return {}
 		if purpose == .Play do return startGame(state)
 	case .Running:
 		level := status.exit_code == 0 ? LogLevel.Info : LogLevel.Error
@@ -263,9 +265,38 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 	return {}
 }
 
-// Runs the built player on the saved project
-@(private="file")
-startGame :: proc(state: ^State) -> skald.Command(Msg) {
+/*
+Takes what `--describe-scripts` printed into the script catalog.
+
+Returns:
+- false (logged, the catalog failed) when the player failed or printed something else
+*/
+@(private="package")
+takeDescription :: proc(state: ^State, described: string, exitCode: int) -> bool {
+	scripts, dataTypes, nodeTypes, ok := ScriptCatalog_ParseAll(described)
+	if exitCode != 0 || !ok {
+		ScriptCatalog_Clear(&ScriptCatalog{scripts = scripts, dataTypes = dataTypes, nodeTypes = nodeTypes})
+		state.scripts.status = .Failed
+		logLine(state, .Error, fmt.aprintf("Couldn't read the project's scripts (exit code %d)", exitCode))
+		return false
+	}
+	ScriptCatalog_Clear(&state.scripts)
+	state.scripts.scripts = scripts
+	state.scripts.dataTypes = dataTypes
+	state.scripts.nodeTypes = nodeTypes
+	state.scripts.status = .Ready
+	outputLine(state, .Info, fmt.aprintf("%d script%s: %s", len(scripts), len(scripts) == 1 ? "" : "s", scriptNames(scripts[:])))
+	if len(dataTypes) > 0 do outputLine(state, .Info, fmt.aprintf("%d data type%s: %s", len(dataTypes), len(dataTypes) == 1 ? "" : "s", scriptNames(dataTypes[:])))
+	if len(nodeTypes) > 0 do outputLine(state, .Info, fmt.aprintf("%d node type%s: %s", len(nodeTypes), len(nodeTypes) == 1 ? "" : "s", scriptNames(nodeTypes[:])))
+	return true
+}
+
+/*
+Runs the built player on the saved project. restore: a snapshot file to start from (hot reload:
+its scene, globals and nodes), else the start scene or Play Scene's
+*/
+@(private="package")
+startGame :: proc(state: ^State, restore := "") -> skald.Command(Msg) {
 	projectDir := absolutePath(state.project.rootPath)
 	command := make([dynamic]string, context.temp_allocator)
 	append(&command, playerTarget(state).binary, projectDir)
@@ -275,7 +306,9 @@ startGame :: proc(state: ^State) -> skald.Command(Msg) {
 	append(&command, "--live")
 	// The machine's sound device (Settings > Editor); exported games use the system's default
 	if device := FixedText_String(&state.settings.audioDevice); device != "" do append(&command, "--audio-device", strings.clone(device, context.temp_allocator))
-	if playScene != "" {
+	if restore != "" {
+		append(&command, "--restore", restore)
+	} else if playScene != "" {
 		append(&command, "--scene", playScene)
 		logLine(state, .Info, fmt.aprintf("Playing %s from scene %s", projectDir, playScene))
 	} else {
@@ -286,6 +319,7 @@ startGame :: proc(state: ^State) -> skald.Command(Msg) {
 		return {}
 	}
 	Live_Send(state, "watch")
+	playReloadStarted(state)
 	state.play.stage = .Running
 	state.playState = .Playing
 	state.bottomTab = .Console
@@ -324,7 +358,7 @@ startProcess :: proc(state: ^State, command: []string, workingDir: string, live 
 
 // Moves complete lines from the pipe to the Output (building) or Console (running) tab.
 // flush also sends a final line without a newline
-@(private="file")
+@(private="package")
 drainOutput :: proc(state: ^State, flush := false) {
 	session := &state.play
 	if session.pipe == nil do return
@@ -372,8 +406,9 @@ emitLine :: proc(state: ^State, line: string) {
 	}
 }
 
-@(private="file")
+@(private="package")
 endSession :: proc(state: ^State) {
+	playReloadAbort(state)
 	if state.play.pipe != nil do os.close(state.play.pipe)
 	if state.play.stdin != nil do os.close(state.play.stdin)
 	state.live.connected = false
@@ -391,7 +426,7 @@ GameSignal :: enum {
 }
 
 // What to build for the open project, and where (paths absolute, temp allocated)
-@(private="file")
+@(private="package")
 PlayerTarget :: struct {
 	// Package folder to build
 	source: string,
@@ -404,7 +439,7 @@ PlayerTarget :: struct {
 	prebuilt: bool,
 }
 
-@(private="file")
+@(private="package")
 playerTarget :: proc(state: ^State) -> PlayerTarget {
 	engineDir, _ := Toolchain_EngineDir()
 	if !Project_HasScripts(&state.project) {
@@ -477,7 +512,7 @@ scriptNames :: proc(scripts: []ScriptDesc) -> string {
 	return len(names) == 0 ? "none" : strings.join(names[:], ", ", context.temp_allocator)
 }
 
-@(private="file")
+@(private="package")
 newestSource :: proc(dir: string) -> time.Time {
 	newest: time.Time
 	entries, err := os.read_all_directory_by_path(dir, context.temp_allocator)

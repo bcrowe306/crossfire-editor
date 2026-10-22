@@ -146,6 +146,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `assets.odin` | Importing (copy into `assets/`), removing, usage counts, asset kinds by extension |
 | `audio_preview.odin` | Sound playback for the preview panel (SDL3_mixer; package state) |
 | `play.odin` | Play mode: save, build the player, run it as a child process, stream output, pause/stop |
+| `play_reload.odin` | **Hot reload**: `PlayReload` (`PlaySession.reload`): scripts newer than the running game rebuild `player-reload` beside it, describe it, ask the game for a `snapshot` over the live link, restart it with `--restore` (`playReloadTick`, from `playTick`); `settings.hotReload` |
+| `node_scripts_edit.odin` | **Several scripts per node and node types of game code**: `NodeDef.moreScripts` / `customKind` / `customProps`, `Node_Script_Added` / `_Removed` / `_Open`, `NodeScriptTarget` / `NodeCustomTarget` (PropTarget), `AddNode_Entries` (Add Node's "Your node types"), `NodeDef_Codes` (what a node runs, in the engine's order), the inspector's rows (`moreScriptsRows`, `nodeTypeRows`) |
 | `tree_rows.odin` | Flattens the project into browser and scene tree rows, applying the browser search. Shared by view and update, because Skald's tree reports clicks by row index |
 | `view.odin` | Root layout: menu bar, toolbar, resizable workspace, status bar, remove-asset dialog, panel header helpers |
 | `view_browser.odin` | Left sidebar: project browser (search, tree, collapsible preview panel) |
@@ -933,6 +935,39 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   arguments open `{folder}` (the scripts folder) as the workspace: `{folder} {file}:{line}`.
   Checked with a headless LSP session against Zed's OLS: 0 completions after `e.` without the
   file, 268 (the engine's procedures) with it, and 0 when the open folder is the project root.
+
+- **Several scripts per node** (node_scripts_edit.odin; the engine's `node.moreScripts`): the
+  first stays `NodeDef.script` / `props`; **Add script** (`inspector-add-script-<i>`, once it has
+  one and the catalog has others) appends `NodeScriptDef`s (name + props, owned: clone, destroy,
+  equal, load, writer: one `<script>` each, in order). Their fields edit through
+  `NodeScriptTarget(i)`; Open / × per script. Choosing None for the first promotes the next
+  (`NodeDef_RemoveFirstScript`); choosing one of the more scripts as the first moves it. Script
+  usages, the scene preview's list, scene renames, node-field drops (`NodeDef_Runs`), the
+  Events section (each script's and the node type's events, New Event... per script) and the
+  Timeline's `script.x` properties (`NodeDef_Codes`: node type, first, more; the first with the
+  field) see all of them. Listen... still puts the handler in the first script's file.
+- **Node types of game code** (`e.NodeType_Register`): the catalog's `nodeTypes`
+  (`ScriptCatalog_ParseAll`'s third list, `ScriptDesc.base`), Add Node's last group "Your node
+  types" (`AddNode_Entries`, `Add_Node_Type_Chosen`; New Component too). The node is its base
+  kind with `customKind` set, so the viewport, inspector and writer treat it as the base; the
+  writer writes `kind="<Type>" baseKind="<Base>"` and `<prop>` children (`customProps`, edited
+  through `NodeCustomTarget`, the inspector's section above Script). Tests:
+  `several_scripts_and_node_types_in_the_editor`, `tests/ui/node_types.script` (real code built:
+  Add Node, fields, Add script, undo, played; driver checks `node_type`, `more_scripts`,
+  `script_prop`; `write_project_file` makes missing folders).
+
+**Hot reload** (play_reload.odin; Settings > Editor > Hot reload, `hot_reload`, on by default):
+while a project player runs, `playReloadTick` looks at the scripts folder every half second.
+A script newer than the game's build starts a build of `<player>-reload` beside the running one
+(the game goes on; output to the Output tab; a failed build is logged and the game keeps the old
+code), then `--describe-scripts` on it (the catalog follows), then `snapshot <file>` over the live
+link (`Live_Ingest`'s `snapshot` reply; PLAY_RELOAD_WAIT seconds, else it restarts fresh), then
+stops the game, renames the new binary over the old and `startGame(state, restore)` (no
+`--scene`: the snapshot's). The restarted game's `built` is the newest source when the build
+started, so saves during a build reload again. `endSession` aborts a reload's process. Test:
+`tests/ui/hot_reload.script` (a live edit of a script field survives the reload; a broken save
+leaves the game running; driver `live_select <name>`, check `live prop <name> <value>`, `send
+Live_Property_Edited`).
 
 Both are child processes (`core:os` `process_start` with a pipe). A `Play_Tick` message every 0.1 s
 (`skald.cmd_delay`) drains the pipe and checks for exit with `process_wait(…, 0)`, so there are no
@@ -2122,7 +2157,8 @@ Highlights:
   code generation.
 - **Game code is written in Odin, not a scripting language.** Lua (`vendor:lua`) stays out unless
   modding support is wanted.
-- **Scripts attach to built-in nodes, one per node** (2026-10-16). A project's `scripts/` package is
+- **Scripts attach to nodes, several per node** (2026-10-16; several since 2026-10-22, with node
+  types of game code and hot reload by restarting with the game's state: the user's choice). A project's `scripts/` package is
   compiled into a per-project player; each script registers itself (`e.Script_Register` from an
   `@(init) proc "contextless"`), scene files attach it by name, and the editor learns its exported
   fields from `player --describe-scripts`. See "Scripts" above and the engine's `script.odin`.
@@ -2133,10 +2169,10 @@ Highlights:
   ("zed is already running"); only its command-line tool can (`zed` in Zed's installs, `zeditor` in
   Arch's package; the user's `~/.local/bin/zed` is a symlink to the app). `Script_ZedCLIFor`
   detects the app (through symlinks) and Open uses the CLI instead; Settings warns.
-- **Deferred, decided to do later:** custom node kinds registered by game code (a struct embedding
-  e.g. `e.Sprite`, used as `kind="Player"`); more than one script per node; hot reload of scripts
-  (a shared library via `core:dynlib`, development builds only; exports link statically); and, much
-  later, a lightweight built-in code editor using OLS (the Odin language server) for small scripts.
+- **Built since:** node types registered by game code (`kind="Player" baseKind="Sprite"`), several
+  scripts per node, hot reload (a rebuild and a restart with the game's state, not a shared
+  library: the state would need to survive a code change either way), and the built-in code
+  editor using OLS.
 - **Node transforms are relative to the parent**, with UI nodes (Label, Menu) following position only.
   The camera is a node.
 

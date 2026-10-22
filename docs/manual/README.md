@@ -11,6 +11,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 
 | Page | What it covers |
 |---|---|
+| [Several scripts, node types and hot reload](scripts_node_types_hot_reload.md) | More than one script on a node, node types of your own made in code (a Player that is a Sprite), changing scripts while the game plays |
 | [Projects](projects.md) | Making, opening and saving a project; recent projects in the File menu; Save Project As (a copy somewhere else); project archives; unsaved changes |
 | [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
 | [Lines, trails and GPU particles](lines_and_trails.md) | Line2D (ropes, lasers, paths), Trail2D (ribbons behind moving things), ParticleEmitters running tens of thousands of particles on the GPU |

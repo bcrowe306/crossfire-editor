@@ -243,6 +243,10 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			}
 		case DraftGlobalTarget:
 			// The dialog's draft: Apply is the undo step
+		case NodeScriptTarget:
+			if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", v.name, name), key("prop-more", int(t), v.name, s.currentScene, selected))
+		case NodeCustomTarget:
+			if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", v.name, name), key("prop-custom", v.name, s.currentScene, selected))
 		}
 	case New_Script_Created:
 		if hasSelection do return node(selected, fmt.tprintf("Attach a new script to %s", name))
@@ -274,7 +278,7 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			return node(selected, fmt.tprintf("Change %v of %s", UIField(field), name), key("ui", UIField(field), s.currentScene, selected))
 		}
 		if prop, isProp := v.target.(ScriptPropTarget); isProp && hasSelection {
-			return node(selected, fmt.tprintf("Change %s of %s", prop.name, name), key("prop", prop.name, s.currentScene, selected))
+			return node(selected, fmt.tprintf("Change %s of %s", prop.name, name), key("prop", prop.name, fmt.tprint(prop.target), s.currentScene, selected))
 		}
 	case Node_Text_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("text", v.field, s.currentScene, selected))
@@ -466,8 +470,13 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	// Collision from sprite: traced shapes replace the body's earlier ones (collision_trace_edit.odin)
 	case Collision_Traced:
 		if hasSelection do return {scope = .Scene, label = fmt.tprintf("Make collision for %s from its sprite", name)}
-	case Add_Node_Confirmed, Add_Node_Kind_Chosen:
+	case Add_Node_Confirmed, Add_Node_Kind_Chosen, Add_Node_Type_Chosen:
 		return {scope = .Scene, label = "Add node"}
+	// More scripts on a node (node_scripts_edit.odin)
+	case Node_Script_Added:
+		if hasSelection && string(v) != "" do return node(selected, fmt.tprintf("Attach %s to %s", string(v), name))
+	case Node_Script_Removed:
+		if hasSelection do return node(selected, fmt.tprintf("Remove a script from %s", name))
 	case Asset_Dropped:
 		asset := s.assetDrag.asset
 		if asset >= 0 && asset < len(s.project.assets) && s.project.assets[asset].kind == .LDtk do return {scope = .Scene, label = "Add level"}
@@ -812,6 +821,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.asepriteLayers != b.asepriteLayers || a.pivotSlice != b.pivotSlice || a.nineSlice != b.nineSlice || a.nineSize != b.nineSize || a.slice != b.slice ||
 	   len(a.items) != len(b.items) ||
 	   a.script != b.script || len(a.props) != len(b.props) ||
+	   !NodeScripts_Equal(a.moreScripts[:], b.moreScripts[:]) || a.customKind != b.customKind || !propsEqual(a.customProps[:], b.customProps[:]) ||
 	   a.collisionLayer != b.collisionLayer || a.collisionMask != b.collisionMask || a.friction != b.friction ||
 	   a.restitution != b.restitution || a.density != b.density || a.gravityScale != b.gravityScale ||
 	   a.linearDamping != b.linearDamping || a.angularDamping != b.angularDamping || a.fixedRotation != b.fixedRotation ||

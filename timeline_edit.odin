@@ -301,9 +301,15 @@ Timeline_Properties :: proc(s: ^State, node: ^NodeDef, allocator := context.allo
 	list := make([dynamic]string, allocator)
 	type := e.SCENE_NODE_TYPES[NodeDef_BuiltKind(&s.project, node)]
 	for p in e.ANIMATOR_PROPERTIES do if e.Animator_TypeHasProperty(type, p) do append(&list, p.name)
-	if desc := ScriptCatalog_Find(&s.scripts, NodeDef_Script(&s.project, node)); desc != nil {
-		for f in desc.fields do if _, ok := e.Animator_ScriptFieldKind(f.type); ok {
-			append(&list, fmt.aprintf("%s%s", e.ANIMATOR_SCRIPT_PREFIX, f.name, allocator = allocator))
+	// Every script's fields (its node type's, its scripts'), once each
+	for code in NodeDef_Codes(s, node) do if code.desc != nil {
+		for f in code.desc.fields do if _, ok := e.Animator_ScriptFieldKind(f.type); ok {
+			name := fmt.aprintf("%s%s", e.ANIMATOR_SCRIPT_PREFIX, f.name, allocator = allocator)
+			if slice.contains(list[:], name) {
+				delete(name, allocator)
+				continue
+			}
+			append(&list, name)
 		}
 	}
 	return list[:]
@@ -361,9 +367,12 @@ Timeline_NodeValue :: proc(s: ^State, node: ^NodeDef, property: string, allocato
 	case:
 		if !strings.has_prefix(property, e.ANIMATOR_SCRIPT_PREFIX) do return "", false
 		field := property[len(e.ANIMATOR_SCRIPT_PREFIX):]
-		for p in node.props do if p.name == field do return strings.clone(p.value, allocator), true
-		if desc := ScriptCatalog_Find(&s.scripts, NodeDef_Script(&s.project, node)); desc != nil {
-			for f in desc.fields do if f.name == field do return strings.clone(f.defaultValue, allocator), true
+		// The first code with the field (the engine's order), its value or its default
+		for code in NodeDef_Codes(s, node) {
+			for p in code.props do if p.name == field do return strings.clone(p.value, allocator), true
+			if code.desc != nil {
+				for f in code.desc.fields do if f.name == field do return strings.clone(f.defaultValue, allocator), true
+			}
 		}
 		return "", false
 	}

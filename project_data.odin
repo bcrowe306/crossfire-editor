@@ -52,6 +52,10 @@ PropTarget :: union #no_nil {
 	DraftGlobalTarget,
 	// A data resource, by index into Project.data
 	DataTarget,
+	// One of the selected node's more scripts, by index (node_scripts_edit.odin)
+	NodeScriptTarget,
+	// The selected node's own fields, as a node type of game code
+	NodeCustomTarget,
 }
 
 SelectedNodeTarget :: struct {}

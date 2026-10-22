@@ -10,14 +10,15 @@ import e "engine:."
 The Add Node dialog: a search box over the list of node kinds the engine supports.
 
 	search    filters by kind name, description or category; focused when the dialog opens
-	list      the matching kinds under their category's header (icon, name, description), in a
-	          scroll as tall as the window allows; click to add
+	list      the matching kinds under their category's header (icon, name, description), then the
+	          node types of the project's code (node_scripts_edit.odin), in a scroll as tall as the
+	          window allows; click to add
 	footer    where the node goes (child of the selection, or top-level)
 
 Keys: Up / Down move the highlight (the list scrolls to keep it in view), Enter adds the
 highlighted kind, Escape closes.
 Widget keys for UI tests: `add-node-dialog`, `add-node-search`, `add-node-scroll`,
-`add-node-<Kind>`.
+`add-node-<Kind>` (a node type of the project's code: `add-node-<Type>`).
 */
 addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
@@ -45,16 +46,17 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	headerHeight := math.ceil(th.font.size_sm * 1.35 + th.spacing.sm * 2)
 	ROW_SPACING :: f32(2)
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	kinds := AddNode_Kinds(s.addNode.search)
+	entries := AddNode_Entries(s.addNode.search, &s.scripts)
 	y: f32 = 0
 	highlightTop: f32 = -1
-	category := e.SceneNodeCategory(-1)
-	for kind, i in kinds {
-		info := e.SCENE_NODE_KINDS[kind]
-		if info.category != category {
-			category = info.category
+	// The header over each run of entries: a category's name, or the project's node types'
+	header := ""
+	for entry, i in entries {
+		entryHeader := entry.custom != "" ? ADD_NODE_TYPES_HEADER : e.SCENE_NODE_CATEGORY_NAMES[e.SCENE_NODE_KINDS[entry.kind].category]
+		if entryHeader != header {
+			header = entryHeader
 			append(&rows, skald.col(
-				skald.text(e.SCENE_NODE_CATEGORY_NAMES[category], th.color.fg_muted, th.font.size_sm),
+				skald.text(header, th.color.fg_muted, th.font.size_sm),
 				height = headerHeight,
 				padding = th.spacing.sm,
 				main_align = .End,
@@ -63,7 +65,8 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 		if i == s.addNode.highlight do highlightTop = y
 		y += rowHeight + ROW_SPACING
-		id := skald.hash_id(fmt.tprintf("add-node-%v", kind))
+		label := entry.custom != "" ? entry.custom : fmt.tprintf("%v", entry.kind)
+		id := skald.hash_id(fmt.tprintf("add-node-%s", label))
 		highlighted := i == s.addNode.highlight
 		bg := th.color.bg
 		if highlighted do bg = th.color.primary
@@ -71,8 +74,8 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		fg := highlighted ? th.color.on_primary : th.color.fg
 		muted := highlighted ? th.color.on_primary : th.color.fg_muted
 		row := skald.col(
-			skald.text(fmt.tprintf("%s  %v", NodeKindIcon(kind), kind), fg, th.font.size_md),
-			skald.text(info.description, muted, th.font.size_xs),
+			skald.text(fmt.tprintf("%s  %s", NodeKindIcon(entry.kind), label), fg, th.font.size_md),
+			skald.text(entry.description, muted, th.font.size_xs),
 			height = rowHeight,
 			spacing = 2,
 			padding = th.spacing.sm,
@@ -80,9 +83,10 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			bg = bg,
 			radius = th.radius.sm,
 		)
-		append(&rows, skald.clickable(ctx, row, Msg(Add_Node_Kind_Chosen(kind)), id = id, focusable = false))
+		msg := entry.custom != "" ? Msg(Add_Node_Type_Chosen(entry.custom)) : Msg(Add_Node_Kind_Chosen(entry.kind))
+		append(&rows, skald.clickable(ctx, row, msg, id = id, focusable = false))
 	}
-	if len(kinds) == 0 {
+	if len(entries) == 0 {
 		append(&rows, skald.text(fmt.tprintf("No node types match '%s'", s.addNode.search), th.color.fg_muted, th.font.size_sm))
 	}
 

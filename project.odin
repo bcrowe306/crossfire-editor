@@ -89,6 +89,14 @@ NodeDef :: struct {
 	// (scripts.odin). Values for fields the script doesn't have are kept, not shown
 	script: string,
 	props: [dynamic]ScriptPropDef,
+	// Any kind: more scripts after `script`, one of each (the engine runs them in this order;
+	// owned): the inspector's More scripts
+	moreScripts: [dynamic]NodeScriptDef,
+	// A node type game code registers (the engine's `e.NodeType_Register`: a struct embedding
+	// `kind`'s type), "" for none: the node is built as it, `kind` being its base. Written
+	// `kind="Player" baseKind="Sprite"`. Its exported fields' values are `customProps` (owned)
+	customKind: string,
+	customProps: [dynamic]ScriptPropDef,
 	// Any kind: scripts listening to its events (the engine's `<listener event target handler/>`;
 	// strings owned; node_events.odin): the inspector's Events section
 	listeners: [dynamic]e.NodeListenerData,
@@ -190,6 +198,47 @@ NodeDef :: struct {
 ScriptPropDef :: struct {
 	name: string,
 	value: string,
+}
+
+// One of a node's more scripts (`NodeDef.moreScripts`): its name and field values (owned)
+NodeScriptDef :: struct {
+	name: string,
+	props: [dynamic]ScriptPropDef,
+}
+
+// A copy of a list of field values (owned)
+Props_Clone :: proc(props: []ScriptPropDef) -> [dynamic]ScriptPropDef {
+	copy := make([dynamic]ScriptPropDef, 0, len(props))
+	for p in props do append(&copy, ScriptPropDef{strings.clone(p.name), strings.clone(p.value)})
+	return copy
+}
+
+// Frees a list of field values
+Props_Destroy :: proc(props: ^[dynamic]ScriptPropDef) {
+	for p in props { delete(p.name); delete(p.value) }
+	delete(props^)
+	props^ = {}
+}
+
+// A copy of a node's more scripts (owned)
+NodeScripts_Clone :: proc(scripts: []NodeScriptDef) -> [dynamic]NodeScriptDef {
+	copy := make([dynamic]NodeScriptDef, 0, len(scripts))
+	for s in scripts do append(&copy, NodeScriptDef{strings.clone(s.name), Props_Clone(s.props[:])})
+	return copy
+}
+
+// Frees a node's more scripts
+NodeScripts_Destroy :: proc(scripts: ^[dynamic]NodeScriptDef) {
+	for &s in scripts { delete(s.name); Props_Destroy(&s.props) }
+	delete(scripts^)
+	scripts^ = {}
+}
+
+// Whether two nodes' more scripts are the same
+NodeScripts_Equal :: proc(a, b: []NodeScriptDef) -> bool {
+	if len(a) != len(b) do return false
+	for s, i in a do if s.name != b[i].name || !propsEqual(s.props[:], b[i].props[:]) do return false
+	return true
 }
 
 /*
@@ -461,6 +510,9 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.script)
 	for prop in node.props { delete(prop.name); delete(prop.value) }
 	delete(node.props)
+	NodeScripts_Destroy(&node.moreScripts)
+	delete(node.customKind)
+	Props_Destroy(&node.customProps)
 	for l in node.listeners { delete(l.event); delete(l.target); delete(l.handler); delete(l.global) }
 	delete(node.listeners)
 	delete(node.points)
@@ -917,6 +969,13 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 		for prop in node.props {
 			append(&def.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
 		}
+		for extra in node.moreScripts {
+			more := NodeScriptDef{name = strings.clone(extra.name)}
+			for prop in extra.props do append(&more.props, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
+			append(&def.moreScripts, more)
+		}
+		def.customKind = strings.clone(node.customKind)
+		for prop in node.customProps do append(&def.customProps, ScriptPropDef{strings.clone(prop.name), strings.clone(prop.value)})
 		for l in node.listeners do append(&def.listeners, Listener_Clone(l))
 	def.component = strings.clone(node.component)
 	def.sound = strings.clone(node.sound)

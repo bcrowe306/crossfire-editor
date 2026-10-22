@@ -812,6 +812,7 @@ Settings_Code_Editor_Args_Changed :: distinct string
 Settings_Code_Editor_Browse :: struct {}
 Settings_Code_Editor_Picked :: distinct skald.File_Dialog_Result
 Settings_Optimized_Play_Changed :: distinct bool
+Settings_Hot_Reload_Changed :: distinct bool
 // Settings > Editor: the mouse wheel pans the viewport (Ctrl + wheel zooms), for touchpads
 Settings_Wheel_Pans_Changed :: distinct bool
 // Settings > Editor: the playback device for Play and the editor's previews ("" = the default)
@@ -856,6 +857,8 @@ Add_Node_Highlight_Moved :: distinct int
 Add_Node_Confirmed :: struct {}
 // Add this kind (a click on its row)
 Add_Node_Kind_Chosen :: distinct NodeKind
+// Add a node type of the project's code (a click on its row: its name, for the frame)
+Add_Node_Type_Chosen :: distinct string
 Add_Node_Cancelled :: struct {}
 
 Msg :: union {
@@ -1014,6 +1017,7 @@ Msg :: union {
 	Settings_Code_Editor_Browse,
 	Settings_Code_Editor_Picked,
 	Settings_Optimized_Play_Changed,
+	Settings_Hot_Reload_Changed,
 	Settings_Wheel_Pans_Changed,
 	Settings_Builtin_Editor_Changed,
 	Settings_Auto_Close_Changed,
@@ -1092,7 +1096,11 @@ Msg :: union {
 	Add_Node_Highlight_Moved,
 	Add_Node_Confirmed,
 	Add_Node_Kind_Chosen,
+	Add_Node_Type_Chosen,
 	Add_Node_Cancelled,
+	Node_Script_Added,
+	Node_Script_Removed,
+	Node_Script_Open,
 	Browser_Body_Measured,
 	Preview_Tick,
 	Left_Resized,

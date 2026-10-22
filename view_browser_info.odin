@@ -70,7 +70,7 @@ ScriptUsage :: struct {
 // Every node, in scenes and components, with a script attached
 Script_Usages :: proc(project: ^Project, script: string) -> []ScriptUsage {
 	found := make([dynamic]ScriptUsage, context.temp_allocator)
-	for &scene, i in project.scenes do for node, j in scene.nodes do if node.script == script do append(&found, ScriptUsage{i, j})
+	for &scene, i in project.scenes do for &node, j in scene.nodes do if NodeDef_Runs(&node, script) do append(&found, ScriptUsage{i, j})
 	return found[:]
 }
 
@@ -196,6 +196,8 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 	components := make([dynamic]string, context.temp_allocator)
 	for node in scene.nodes {
 		if node.script != "" && !slice.contains(scripts[:], node.script) do append(&scripts, node.script)
+		for extra in node.moreScripts do if !slice.contains(scripts[:], extra.name) do append(&scripts, extra.name)
+		if node.customKind != "" && !slice.contains(scripts[:], node.customKind) do append(&scripts, node.customKind)
 		if node.kind == .Component && node.component != "" {
 			name := ComponentName(node.component)
 			if !slice.contains(components[:], name) do append(&components, name)

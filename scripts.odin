@@ -36,6 +36,9 @@ ScriptCatalog :: struct {
 	scripts: [dynamic]ScriptDesc,
 	// Registered data types (the engine's data.odin): their fields, like scripts'
 	dataTypes: [dynamic]ScriptDesc,
+	// Node types game code registers (the engine's custom_nodes.odin: `e.NodeType_Register`),
+	// each with its base kind (`ScriptDesc.base`) and fields
+	nodeTypes: [dynamic]ScriptDesc,
 }
 
 ScriptCatalogStatus :: enum {
@@ -55,6 +58,8 @@ ScriptDesc :: struct {
 	fields: [dynamic]ScriptFieldDesc,
 	// The events it publishes ("script.onX": the engine's tagged EventSubject fields; offset unused)
 	events: [dynamic]e.NodeEventInfo,
+	// A node type's built-in kind (what it embeds); unused for scripts and data types
+	base: NodeKind,
 }
 
 ScriptFieldDesc :: struct {
@@ -75,26 +80,30 @@ Returns:
 - The scripts (owned; free with `ScriptCatalog_Clear`), and whether the text was valid
 */
 ScriptCatalog_Parse :: proc(text: string) -> ([dynamic]ScriptDesc, bool) {
-	scripts, _, ok := ScriptCatalog_ParseAll(text)
+	scripts, dataTypes, nodeTypes, ok := ScriptCatalog_ParseAll(text)
+	scriptDescs_Destroy(&dataTypes)
+	scriptDescs_Destroy(&nodeTypes)
 	return scripts, ok
 }
 
 /*
-Reads the JSON `player --describe-scripts` prints: the scripts and the data types.
+Reads the JSON `player --describe-scripts` prints: the scripts, the data types and the node
+types.
 
 Returns:
-- Both lists (owned), and whether the text was valid
+- The three lists (owned), and whether the text was valid
 */
-ScriptCatalog_ParseAll :: proc(text: string) -> (scripts, dataTypes: [dynamic]ScriptDesc, ok: bool) {
+ScriptCatalog_ParseAll :: proc(text: string) -> (scripts, dataTypes, nodeTypes: [dynamic]ScriptDesc, ok: bool) {
 	scripts = make([dynamic]ScriptDesc)
 	dataTypes = make([dynamic]ScriptDesc)
+	nodeTypes = make([dynamic]ScriptDesc)
 	// The JSON is the last line that starts with '{' (the player may log before it)
 	start := strings.last_index(text, "{\"scripts\"")
-	if start < 0 do return scripts, dataTypes, false
+	if start < 0 do return scripts, dataTypes, nodeTypes, false
 	value, err := json.parse_string(text[start:], allocator = context.temp_allocator)
-	if err != .None do return scripts, dataTypes, false
+	if err != .None do return scripts, dataTypes, nodeTypes, false
 	root, isObject := value.(json.Object)
-	if !isObject do return scripts, dataTypes, false
+	if !isObject do return scripts, dataTypes, nodeTypes, false
 	read :: proc(list: json.Array, into: ^[dynamic]ScriptDesc) {
 		for item in list {
 			obj, isItem := item.(json.Object)
@@ -104,6 +113,7 @@ ScriptCatalog_ParseAll :: proc(text: string) -> (scripts, dataTypes: [dynamic]Sc
 				file = strings.clone(jsonString(obj, "file")),
 				line = int(jsonNumber(obj, "line").? or_else 0),
 			}
+			for kind in NodeKind do if fmt.tprint(kind) == jsonString(obj, "base") do desc.base = kind
 			fields, _ := obj["fields"].(json.Array)
 			for f in fields {
 				fo, isField := f.(json.Object)
@@ -137,11 +147,15 @@ ScriptCatalog_ParseAll :: proc(text: string) -> (scripts, dataTypes: [dynamic]Sc
 	read(list, &scripts)
 	data, _ := root["data"].(json.Array)
 	read(data, &dataTypes)
-	return scripts, dataTypes, true
+	types, _ := root["nodeTypes"].(json.Array)
+	read(types, &nodeTypes)
+	return scripts, dataTypes, nodeTypes, true
 }
 
 // Frees the catalog's scripts and data types
 ScriptCatalog_Clear :: proc(catalog: ^ScriptCatalog) {
+	scriptDescs_Destroy(&catalog.nodeTypes)
+	catalog.nodeTypes = {}
 	scriptDescs_Destroy(&catalog.dataTypes)
 	catalog.dataTypes = {}
 	scriptDescs_Destroy(&catalog.scripts)
@@ -176,6 +190,12 @@ ScriptCatalog_FindData :: proc(catalog: ^ScriptCatalog, name: string) -> ^Script
 // The described script with that name, or nil
 ScriptCatalog_Find :: proc(catalog: ^ScriptCatalog, name: string) -> ^ScriptDesc {
 	for &script in catalog.scripts do if script.name == name do return &script
+	return nil
+}
+
+// The described node type with that name, or nil
+ScriptCatalog_FindNodeType :: proc(catalog: ^ScriptCatalog, name: string) -> ^ScriptDesc {
+	for &t in catalog.nodeTypes do if t.name == name do return &t
 	return nil
 }
 
@@ -639,6 +659,7 @@ Returns:
 */
 Script_Location :: proc(state: ^State, name: string) -> (string, int) {
 	if desc := ScriptCatalog_Find(&state.scripts, name); desc != nil && desc.file != "" do return desc.file, desc.line
+	if desc := ScriptCatalog_FindNodeType(&state.scripts, name); desc != nil && desc.file != "" do return desc.file, desc.line
 	path, _ := filepath.join({state.project.rootPath, ScriptFileFor(name)}, context.temp_allocator)
 	absolute, err := os.get_absolute_path(path, context.temp_allocator)
 	return err == nil ? absolute : path, 1

@@ -194,7 +194,14 @@ Game code is Odin, in the project's `scripts/` folder, and attaches to nodes:
    scripts listen to it like any node event. Global scripts can have events too (Events >
    Globals > + Event); any node's script can listen to them.
 
-5. **React to a node's events:** in the inspector's **Events** section (a sprite finished its
+5. **Several scripts, node types, hot reload:** once a node has a script, **Add script** gives it
+   more (each with its own fields; they run in order). A struct of your code that embeds a
+   built-in node (`using sprite: e.Sprite`), registered with `e.NodeType_Register`, is a node
+   type of its own: Add Node lists it under "Your node types". Save a script while the game plays
+   and it rebuilds and restarts where it was (Settings > Editor > Hot reload). User guide:
+   [docs/manual/scripts_node_types_hot_reload.md](docs/manual/scripts_node_types_hot_reload.md).
+
+6. **React to a node's events:** in the inspector's **Events** section (a sprite finished its
    animation, a body landed, a button was pressed...), click **Listen...** next to one and pick
    which script of the scene listens. The editor adds a handler procedure to that script and
    opens it; it's called whenever the event happens.

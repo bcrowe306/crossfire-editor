@@ -85,6 +85,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if UIEdit_Update(&out, m) do return out, {}
 	if LightEdit_Update(&out, m) do return out, {}
 	if TouchEdit_Update(&out, m) do return out, {}
+	if command, handled := NodeScripts_Update(&out, m); handled do return out, command
 	if LineEdit_Update(&out, m) do return out, {}
 	if command, handled := ShaderEdit_Update(&out, m); handled do return out, command
 	if NavEdit_Update(&out, m) do return out, {}
@@ -115,8 +116,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Export_Requested:
 		return out, Export_Start(&out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
-	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_Auto_Close_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed, Settings_Aseprite_Path_Changed, Settings_Audio_Device_Changed:
+	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Hot_Reload_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_Auto_Close_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed, Settings_Aseprite_Path_Changed, Settings_Audio_Device_Changed:
 		// Handled by SettingsDialog_Update above
+	case Node_Script_Added, Node_Script_Removed, Node_Script_Open:
+		// Handled by NodeScripts_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
 	case TileMap_Setting_Changed:
@@ -251,6 +254,19 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if node == nil do break
 		name := string(v) == TEXTURE_NONE ? "" : string(v)
 		if name == node.script do break
+		// None: the next of its more scripts becomes the first (node_scripts_edit.odin)
+		if name == "" {
+			NodeDef_RemoveFirstScript(node)
+			logLine(&out, .Info, fmt.aprintf("Removed the script from %s", node.name))
+			break
+		}
+		// One of its more scripts chosen as the first: it isn't there twice
+		for extra, i in node.moreScripts do if extra.name == name {
+			delete(extra.name)
+			Props_Destroy(&node.moreScripts[i].props)
+			ordered_remove(&node.moreScripts, i)
+			break
+		}
 		delete(node.script)
 		node.script = strings.clone(name)
 		// Values belonged to the old script
@@ -294,6 +310,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			if int(t) >= 0 && int(t) < len(globals) do Props_Set(&globals[t].props, v.name, v.value, v.defaultValue)
 		case DataTarget:
 			if int(t) >= 0 && int(t) < len(out.project.data) do Props_Set(&out.project.data[t].values, v.name, v.value, v.defaultValue)
+		case NodeScriptTarget:
+			if node := selectedNode(&out); node != nil && int(t) >= 0 && int(t) < len(node.moreScripts) do Props_Set(&node.moreScripts[t].props, v.name, v.value, v.defaultValue)
+		case NodeCustomTarget:
+			if node := selectedNode(&out); node != nil do Props_Set(&node.customProps, v.name, v.value, v.defaultValue)
 		}
 	case Script_Open_File:
 		return out, Script_Open(&out, v.file, v.line)
@@ -539,13 +559,15 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.addNode.search = strings.clone(string(v))
 		out.addNode.highlight = 0
 	case Add_Node_Highlight_Moved:
-		count := len(AddNode_Kinds(out.addNode.search))
+		count := len(AddNode_Entries(out.addNode.search, &out.scripts))
 		if count > 0 do out.addNode.highlight = clamp(out.addNode.highlight + int(v), 0, count - 1)
 	case Add_Node_Confirmed:
-		kinds := AddNode_Kinds(out.addNode.search)
-		if out.addNode.highlight < len(kinds) do addNodeChosen(&out, kinds[out.addNode.highlight])
+		entries := AddNode_Entries(out.addNode.search, &out.scripts)
+		if out.addNode.highlight < len(entries) do addNodeChosen(&out, entries[out.addNode.highlight].kind, entries[out.addNode.highlight].custom)
 	case Add_Node_Kind_Chosen:
 		addNodeChosen(&out, NodeKind(v))
+	case Add_Node_Type_Chosen:
+		if t := ScriptCatalog_FindNodeType(&out.scripts, string(v)); t != nil do addNodeChosen(&out, t.base, t.name)
 	case Add_Node_Cancelled:
 		out.addNode.open = false
 
@@ -1377,23 +1399,25 @@ addInstance :: proc(state: ^State, path: string, world: [2]f32) {
 // Adds a node from the Add Node dialog and closes it
 // The Add Node dialog's choice (a click or Enter): a node for the scene, or a new component's root
 @(private="file")
-addNodeChosen :: proc(state: ^State, kind: NodeKind) {
+addNodeChosen :: proc(state: ^State, kind: NodeKind, custom := "") {
 	if state.addNode.forComponent {
 		state.addNode.open = false
-		newComponent(state, kind)
+		newComponent(state, kind, custom)
 	} else {
-		addNodeOfKind(state, kind)
+		addNodeOfKind(state, kind, custom)
 	}
 }
 
 // A new component with a root of `kind`, named after it, opened in its tab (New Component)
 @(private="file")
-newComponent :: proc(state: ^State, kind: NodeKind) {
-	index, message := Project_NewComponent(&state.project, fmt.tprint(kind), kind)
+newComponent :: proc(state: ^State, kind: NodeKind, custom := "") {
+	index, message := Project_NewComponent(&state.project, custom != "" ? custom : fmt.tprint(kind), kind)
 	if message != "" {
 		logLine(state, .Error, fmt.aprintf("Couldn't make a component: %s", message))
 		return
 	}
+	// A node type of the project's code: the root is one
+	if custom != "" && len(state.project.scenes[index].nodes) > 0 do state.project.scenes[index].nodes[0].customKind = strings.clone(custom)
 	state.session.assetsChanged = true
 	state.project.scenes[index].opened = true
 	openScene(state, index)
@@ -1403,8 +1427,8 @@ newComponent :: proc(state: ^State, kind: NodeKind) {
 }
 
 @(private="file")
-addNodeOfKind :: proc(state: ^State, kind: NodeKind) {
-	index := AddNode_Create(state, kind)
+addNodeOfKind :: proc(state: ^State, kind: NodeKind, custom := "") {
+	index := AddNode_Create(state, kind, custom)
 	state.addNode.open = false
 	scene := &state.project.scenes[state.currentScene]
 	logLine(state, .Info, fmt.aprintf("Added %s to %s", scene.nodes[index].name, scene.name))

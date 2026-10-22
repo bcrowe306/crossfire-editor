@@ -212,6 +212,8 @@ fieldTip :: proc(label: string) -> string {
 	case "LDtk program":   return "The LDtk level editor, for Open in LDtk."
 	case "Aseprite program": return "The Aseprite pixel art editor, for Open in Aseprite."
 	case "Optimized Play": return "Builds games for Play with -o:speed: faster games, slower builds."
+	case "Add script": return "Attach another script: the node runs each one's code, in order."
+	case "Hot reload": return "Scripts saved while playing rebuild the game, which restarts where it was."
 	case "Wheel pans":     return "The mouse wheel pans the viewport and Ctrl + wheel zooms (for touchpads)."
 	// Project Settings
 	case "Resolution":     return "The game's size in pixels: all drawing and positions use it, scaled to the window."

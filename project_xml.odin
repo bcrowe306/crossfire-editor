@@ -278,7 +278,7 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		clips := node.kind == .Animator ? node.animator.clips[:] : nil
 		machine := node.kind == .StateMachine ? &node.stateMachine : nil
 		layers := node.kind == .MusicPlayer ? node.musicLayers[:] : nil
-		if len(node.items) == 0 && len(node.shaderParams) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(layers) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
+		if len(node.items) == 0 && len(node.shaderParams) == 0 && node.script == "" && len(node.moreScripts) == 0 && len(node.customProps) == 0 && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(layers) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -400,22 +400,32 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			attr(&w, "action", item.action)
 			closeEmpty(&w)
 		}
-		if node.script != "" {
-			open(&w, "script")
-			attr(&w, "name", node.script)
-			if len(node.props) == 0 {
-				closeEmpty(&w)
-			} else {
-				endOpen(&w)
-				for prop in node.props {
-					open(&w, "prop")
-					attr(&w, "name", prop.name)
-					attr(&w, "value", prop.value)
-					closeEmpty(&w)
-				}
-				close(&w, "script")
-			}
+		// A custom node type's own field values (`<prop>` children of the node)
+		for prop in node.customProps {
+			open(&w, "prop")
+			attr(&w, "name", prop.name)
+			attr(&w, "value", prop.value)
+			closeEmpty(&w)
 		}
+		// Its scripts, in order: the first, then the more scripts
+		writeScript :: proc(w: ^XMLWriter, name: string, props: []ScriptPropDef) {
+			open(w, "script")
+			attr(w, "name", name)
+			if len(props) == 0 {
+				closeEmpty(w)
+				return
+			}
+			endOpen(w)
+			for prop in props {
+				open(w, "prop")
+				attr(w, "name", prop.name)
+				attr(w, "value", prop.value)
+				closeEmpty(w)
+			}
+			close(w, "script")
+		}
+		if node.script != "" do writeScript(&w, node.script, node.props[:])
+		for extra in node.moreScripts do writeScript(&w, extra.name, extra.props[:])
 		if hasChildren {
 			append(&open_nodes, i)
 		} else {
@@ -554,7 +564,13 @@ attr :: proc(w: ^XMLWriter, key: string, value: any) {
 writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 	defaults := e.DEFAULT_SCENE_NODE
 	open(w, "node")
-	attr(w, "kind", node.kind)
+	// A custom node type: its name, and the built-in kind it's built on
+	if node.customKind != "" {
+		attr(w, "kind", node.customKind)
+		attr(w, "baseKind", node.kind)
+	} else {
+		attr(w, "kind", node.kind)
+	}
 	attr(w, "name", node.name)
 	attr(w, "x", node.position.x)
 	attr(w, "y", node.position.y)

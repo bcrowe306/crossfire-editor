@@ -2605,7 +2605,7 @@ globals_dialog_and_data_edits :: proc(t: ^testing.T) {
 	testing.expect_value(t, state.dataSelection, -1)
 
 	// The catalog lists data types
-	scripts, dataTypes, ok := ScriptCatalog_ParseAll(`{"scripts": [], "data": [{"name": "EnemyStats", "file": "a.odin", "line": 3, "fields": [{"name": "health", "type": "Int", "default": "10", "hint": ""}, {"name": "sprite", "type": "Texture", "default": "", "hint": ""}]}]}`)
+	scripts, dataTypes, _, ok := ScriptCatalog_ParseAll(`{"scripts": [], "data": [{"name": "EnemyStats", "file": "a.odin", "line": 3, "fields": [{"name": "health", "type": "Int", "default": "10", "hint": ""}, {"name": "sprite", "type": "Texture", "default": "", "hint": ""}]}]}`)
 	catalog := ScriptCatalog{scripts = scripts, dataTypes = dataTypes}
 	defer ScriptCatalog_Clear(&catalog)
 	testing.expect(t, ok && len(dataTypes) == 1 && len(dataTypes[0].fields) == 2 && dataTypes[0].fields[1].type == .Texture)
@@ -3857,7 +3857,7 @@ listeners_from_the_inspector :: proc(t: ^testing.T) {
 @(test)
 scripts_publish_events_in_the_editor :: proc(t: ^testing.T) {
 	// The catalog lists a script's events
-	scripts, dataTypes, ok := ScriptCatalog_ParseAll(`{"scripts": [{"name": "Hero", "file": "hero.odin", "line": 9, "fields": [], "events": [{"name": "script.onPinged", "description": "It was pinged", "data": "text := data.(string)"}]}, {"name": "GameState", "file": "game_state.odin", "line": 9, "fields": [], "events": [{"name": "script.onScored", "description": "The score changed", "data": "value := data.(int)"}]}], "data": []}`)
+	scripts, dataTypes, _, ok := ScriptCatalog_ParseAll(`{"scripts": [{"name": "Hero", "file": "hero.odin", "line": 9, "fields": [], "events": [{"name": "script.onPinged", "description": "It was pinged", "data": "text := data.(string)"}]}, {"name": "GameState", "file": "game_state.odin", "line": 9, "fields": [], "events": [{"name": "script.onScored", "description": "The score changed", "data": "value := data.(int)"}]}], "data": []}`)
 	testing.expect(t, ok && len(scripts) == 2 && len(scripts[0].events) == 1, "events parsed")
 	testing.expect_value(t, scripts[0].events[0].name, "script.onPinged")
 	testing.expect_value(t, scripts[0].events[0].dataHint, "text := data.(string)")

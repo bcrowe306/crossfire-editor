@@ -230,8 +230,8 @@ Returns:
 - The node's index, or -1
 */
 NodeField_From :: proc(scene: ^SceneDef, script: string, selected: int) -> int {
-	if selected >= 0 && selected < len(scene.nodes) && scene.nodes[selected].script == script do return selected
-	for &n, i in scene.nodes do if n.script == script do return i
+	if selected >= 0 && selected < len(scene.nodes) && NodeDef_Runs(&scene.nodes[selected], script) do return selected
+	for &n, i in scene.nodes do if NodeDef_Runs(&n, script) do return i
 	if Scene_IsComponent(scene) && len(scene.nodes) > 0 do return 0
 	return -1
 }

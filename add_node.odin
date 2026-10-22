@@ -1,6 +1,7 @@
 package crossfire_editor
 
 import "core:fmt"
+import "core:strings"
 import e "engine:."
 
 /*
@@ -57,16 +58,19 @@ the selection.
 Inputs:
 - state: The editor state
 - kind: The node kind to add
+- custom: A node type of the project's code built on `kind` ("" for none): the node is one, and
+  named after it
 
 Returns:
 - The new node's index
 */
-AddNode_Create :: proc(state: ^State, kind: NodeKind) -> int {
+AddNode_Create :: proc(state: ^State, kind: NodeKind, custom := "") -> int {
 	scene := &state.project.scenes[state.currentScene]
 	parent := state.selectedNode
 	if parent < 0 || parent >= len(scene.nodes) do parent = -1
 
-	index := Scene_InsertNode(scene, Scene_UniqueNodeName(scene, fmt.tprintf("%v", kind)), kind, parent)
+	index := Scene_InsertNode(scene, Scene_UniqueNodeName(scene, custom != "" ? custom : fmt.tprintf("%v", kind)), kind, parent)
+	if custom != "" do scene.nodes[index].customKind = strings.clone(custom)
 	state.selectedNode = index
 	return index
 }

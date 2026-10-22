@@ -170,18 +170,24 @@ Project_RenameScene :: proc(project: ^Project, index: int, name: string, catalog
 				node.ui.action = action
 				references += 1
 			}
-			desc := ScriptCatalog_Find(catalog, node.script)
-			if desc == nil do continue
-			for &prop in node.props {
-				if prop.value != old do continue
-				for field in desc.fields {
-					if field.name == prop.name && field.hint == "scene" {
-						delete(prop.value)
-						prop.value = strings.clone(name)
-						references += 1
+			// Scene fields of its scripts and its node type
+			renameIn :: proc(desc: ^ScriptDesc, props: []ScriptPropDef, old, name: string) -> (references: int) {
+				if desc == nil do return
+				for &prop in props {
+					if prop.value != old do continue
+					for field in desc.fields {
+						if field.name == prop.name && field.hint == "scene" {
+							delete(prop.value)
+							prop.value = strings.clone(name)
+							references += 1
+						}
 					}
 				}
+				return
 			}
+			references += renameIn(ScriptCatalog_Find(catalog, node.script), node.props[:], old, name)
+			for extra in node.moreScripts do references += renameIn(ScriptCatalog_Find(catalog, extra.name), extra.props[:], old, name)
+			if node.customKind != "" do references += renameIn(ScriptCatalog_FindNodeType(catalog, node.customKind), node.customProps[:], old, name)
 		}
 	}
 	return references, ""

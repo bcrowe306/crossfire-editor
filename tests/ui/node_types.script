@@ -1,0 +1,60 @@
+# Node types and several scripts on a node: a project's code registers a node type (a Sprite with
+# its own code) and two scripts; Add Node lists the type, the inspector edits its field and both
+# scripts' fields, and the game runs them all. Builds the project's own player.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+
+# The code, as another editor would write it, then built (Ctrl+B)
+write_project_file scripts/player.odin package scripts\n\nimport "core:log"\nimport e "engine:."\n\n// A node type: a Sprite with its own code and fields\nPlayer :: struct {\n\tusing sprite: e.Sprite,\n\tlives: int `export:"default=3"`,\n}\n\n// Two scripts for the same node\nHealth :: struct {\n\tusing script: e.Script,\n\thp: int `export:"default=10"`,\n}\n\nBlinker :: struct {\n\tusing script: e.Script,\n\trate: int `export:"default=2"`,\n}\n\n@(init)\nregisterPlayer :: proc "contextless" () {\n\te.NodeType_Register(Player, .Sprite, {\n\t\tready = proc(self: ^Player) { log.infof("Player ready with %d lives", self.lives) },\n\t})\n\te.Script_Register(Health, {\n\t\tready = proc(self: ^Health) { log.infof("Health ready with %d hp", self.hp) },\n\t})\n\te.Script_Register(Blinker, {\n\t\tready = proc(self: ^Blinker) { log.infof("Blinker ready at rate %d", self.rate) },\n\t})\n}\n
+key ctrl+b
+wait_until scripts Ready timeout=240
+expect output_contains 1 node type: Player
+
+# Add Node lists it under "Your node types"
+key ctrl+shift+a
+expect add_dialog open
+type Player
+click_widget add-node-Player
+expect add_dialog closed
+expect selected Player
+expect kind Sprite
+expect node_type Player
+
+# Its own field, in the inspector
+scroll_into_view inspector-scroll inspector-prop-lives-{selected}-type-inc
+click_widget inspector-prop-lives-{selected}-type-inc
+expect script_prop Player lives 4
+
+# A first script, then another from the Add script dropdown
+send Node_Script_Added Health
+expect script Health
+scroll_into_view inspector-scroll inspector-add-script-{selected}
+click_widget inspector-add-script-{selected}
+click_overlay_item 1
+expect more_scripts Blinker
+scroll_into_view inspector-scroll inspector-prop-rate-{selected}-0-inc
+click_widget inspector-prop-rate-{selected}-0-inc
+expect script_prop Blinker rate 3
+key ctrl+z
+expect script_prop Blinker rate (default)
+key ctrl+y
+expect script_prop Blinker rate 3
+
+# The game runs the node type and both scripts with their values
+key ctrl+s
+key ctrl+F5
+wait_until play Playing timeout=240
+wait_until console_contains Player ready with 4 lives timeout=30
+wait_until console_contains Health ready with 10 hp timeout=10
+wait_until console_contains Blinker ready at rate 3 timeout=10
+key shift+F5
+wait_until play Stopped
+
+# Removing the second script
+scroll_into_view inspector-scroll inspector-more-script-0-remove
+click_widget inspector-more-script-0-remove
+expect more_scripts none
+quit

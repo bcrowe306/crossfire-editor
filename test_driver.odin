@@ -67,6 +67,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 program would
 	save_code_render <file.png>      Save the shown code tab's render (its own pixels, not the screen)
 	write_project_file <path> <text> Write a project file ("\n", "\t"), as another program would
+	live_select <node name>          Choose a node of the running game in the Live tab
 	code_dialog_pick <path>          Answer the code editor's Open / Save As dialog with a project path
 	save_viewport_render <png>       Write the viewport's last render (the engine's pixels, never the
 	                                 screen) to a file, to look at
@@ -211,6 +212,12 @@ Checks:
 	live <connected|paused|nodes|properties|selected> <value>
 	                             The Live tab's view of the running game (counts for nodes and
 	                             properties; selected: true when a node is chosen)
+	live prop <name> <value>     The chosen node's property as the running game sent it
+	node_type <name | none>      The selected node's node type of the project's code
+	more_scripts <a,b | none>    The selected node's more scripts (after its first)
+	script_prop <script> <field> <value>
+	                             A value stored for one of the selected node's scripts or its node
+	                             type ("(default)" when not set)
 	scene_lit <true | false>     The open scene's lighting is on
 	light <kind|energy|radius|angle|shadows> <value>
 	traced <node> <n | > n>       The traced CollisionShapes (named Traced...) under a node
@@ -1012,6 +1019,8 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		text, _ = strings.replace_all(text, "\\n", "\n", context.temp_allocator)
 		text, _ = strings.replace_all(text, "\\t", "\t", context.temp_allocator)
 		path := joinPath(s.project.rootPath, file, allocator = context.temp_allocator)
+		// Its folder too (scripts/ in a project without scripts)
+		_ = os.make_directory_all(filepath.dir(path))
 		if os.write_entire_file(path, transmute([]byte)text) != nil {
 			fail(fmt.tprintf("%s: can't write %s", line, path))
 			return true
@@ -1047,6 +1056,18 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return runCommand(s, ctx, fmt.tprintf("click_widget scene-tab-close-%d", i))
 		}
 		fail(fmt.tprintf("%s: the open scene has no tab", line))
+		return true
+
+	case "live_select":
+		// Chooses a node of the running game in the Live tab by its name (its rows' order changes
+		// with the game's tree)
+		for n in s.live.nodes do if n.name == rest {
+			skald.send(ctx, Msg(Live_Selected(strings.clone(n.id, context.temp_allocator))))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+			report(true, line)
+			return false
+		}
+		fail(fmt.tprintf("%s: the game has no node named %s", line, rest))
 		return true
 
 	case "touch_project_file":
@@ -1183,6 +1204,11 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			msg = Code_Open_Requested{path = Editor_ArgumentPath(value)}
 		case "Git_Switch_Branch":
 			msg = Git_Op_Requested{op = .Switch_Branch, arg = strings.clone(value, context.temp_allocator)}
+		case "Node_Script_Added":     msg = Node_Script_Added(strings.clone(value, context.temp_allocator))
+		case "Live_Property_Edited":
+			// "<property> <value>", as typed in the Live tab for the chosen node
+			name, _, text := strings.partition(value, " ")
+			msg = Live_Property_Edited{name = strings.clone(name, context.temp_allocator), text = strings.clone(text, context.temp_allocator)}
 		}
 		if msg == nil {
 			fail(fmt.tprintf("%s: unknown message or value", line))
@@ -1596,6 +1622,12 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "nodes":      found = fmt.tprint(len(s.live.nodes))
 		case "properties": found = fmt.tprint(len(s.live.properties))
 		case "selected":   found = fmt.tprint(s.live.selected != "")
+		case "prop":
+			// "live prop <name> <value>": the chosen node's property as the game sent it
+			name, _, want := strings.partition(expected, " ")
+			found = "(none)"
+			for p in s.live.properties do if p.name == name do found = p.value
+			return found == strings.trim_space(want), found
 		case: return false, fmt.tprintf("unknown live field '%s'", field)
 		}
 		// Counts: "> n" passes for more than n
@@ -1727,6 +1759,29 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = selected.script == "" ? "none" : selected.script
 	case "scripts":
 		found = fmt.tprint(s.scripts.status)
+	case "node_type":
+		// The selected node's node type of the project's code ("none")
+		if selected == nil do return false, "nothing selected"
+		found = selected.customKind == "" ? "none" : selected.customKind
+	case "more_scripts":
+		// The selected node's more scripts, comma-separated ("none")
+		if selected == nil do return false, "nothing selected"
+		names := make([dynamic]string, context.temp_allocator)
+		for extra in selected.moreScripts do append(&names, extra.name)
+		found = len(names) == 0 ? "none" : strings.join(names[:], ",", context.temp_allocator)
+	case "script_prop":
+		// "script_prop <script or node type> <field> <value>": a value stored for one of the
+		// selected node's more scripts or its node type ("(default)" when not set)
+		if selected == nil do return false, "nothing selected"
+		owner, _, rest := strings.partition(value, " ")
+		field, _, expected := strings.partition(rest, " ")
+		props: []ScriptPropDef
+		if owner == selected.customKind do props = selected.customProps[:]
+		if owner == selected.script do props = selected.props[:]
+		for extra in selected.moreScripts do if extra.name == owner do props = extra.props[:]
+		found = "(default)"
+		for p in props do if p.name == field do found = p.value
+		return found == strings.trim_space(expected), found
 	case "prop":
 		if selected == nil do return false, "nothing selected"
 		propName, _, expected := strings.partition(value, " ")

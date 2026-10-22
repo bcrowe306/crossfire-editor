@@ -6,12 +6,11 @@ owns it.
 
 ## Common engine features (2026-10-21)
 
-The features most 2D engines have that this one doesn't, as the user listed them. Items 1-10
-(shaders deferred) were built one per dev release (2026-10-21/22), each with a user guide in
+The features most 2D engines have that this one doesn't, as the user listed them. Items 1-11,
+13, 14, 16 and 18 were built one per dev release (2026-10-21/22), each with a user guide in
 `docs/manual/`. The rest are being built now (decisions of 2026-10-22, below each item), one per
 dev release, each tested, documented and removed from here when done.
 
-11. **Hot reload of scripts**, more than one script per node, custom node types from game code.
 12. **Asset import settings**: per-texture filtering and atlas packing, audio conversion,
     bitmap / MSDF fonts. Decided: audio conversion runs ffmpeg when it's installed; MSDF fonts
     with msdfgen built from source (a submodule, like Box2D and SDL); BMFont bitmap fonts too.
