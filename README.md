@@ -373,6 +373,13 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
+**Pathfinding:** a **NavRegion** node covers the area characters walk in with a grid, blocked
+wherever static bodies are (a tilemap's or LDtk level's walls count); a **NavAgent** inside a
+character finds the shortest way through it (A*, straightened) with `e.NavAgent_SetTarget` and
+walks its character there, around walls and around other agents, then fires `onArrived`. Select a
+region to see its blocked cells in the viewport. See the
+[manual's navigation page](docs/manual/navigation.md).
+
 **2D lighting:** tick a scene's **Lit** setting (its settings, in the browser's scene preview)
 and it's dark but for its ambient light and its **Light2D** nodes: point or spot lights with a
 color, energy and reach. **LightOccluder** nodes (or, with one more tick, the static bodies'

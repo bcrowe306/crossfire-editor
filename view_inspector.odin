@@ -494,6 +494,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..tileMapInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Animator:
 		append(&rows, ..animatorInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+	case .NavRegion, .NavAgent:
+		append(&rows, ..navInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Light2D, .LightOccluder:
 		append(&rows, ..lightInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:

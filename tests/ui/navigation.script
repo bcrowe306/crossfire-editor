@@ -1,0 +1,43 @@
+# Navigation: a NavRegion's area, cell size and diagonal moves, a NavAgent's speed and whether it
+# moves its parent, undo, saved.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+
+key ctrl+shift+a
+type NavRegion
+click_widget add-node-NavRegion
+expect kind NavRegion
+expect nav width 640
+scroll_into_view inspector-scroll inspector-nav-Cell_Size-{selected}
+click_widget inspector-nav-Cell_Size-{selected}
+key ctrl+a
+type 24
+key RETURN
+expect nav cellSize 24
+scroll_into_view inspector-scroll inspector-nav-Diagonal-{selected}
+click_widget inspector-nav-Diagonal-{selected}
+expect nav diagonal false
+key ctrl+z
+expect nav diagonal true
+
+key escape
+key ctrl+shift+a
+type NavAgent
+click_widget add-node-NavAgent
+expect kind NavAgent
+scroll_into_view inspector-scroll inspector-nav-Speed-{selected}
+click_widget inspector-nav-Speed-{selected}
+key ctrl+a
+type 150
+key RETURN
+expect nav speed 150
+scroll_into_view inspector-scroll inspector-nav-Auto_Move-{selected}
+click_widget inspector-nav-Auto_Move-{selected}
+expect nav autoMove false
+
+key ctrl+s
+expect modified false

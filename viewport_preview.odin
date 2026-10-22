@@ -96,6 +96,10 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 		preview.signature = signature
 	}
 	syncTransforms(scene)
+	// A selected NavRegion's grid, from the walls as they are now (the viewport shades its blocked cells)
+	if s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) && scene.nodes[s.selectedNode].kind == .NavRegion {
+		if node := Preview_Node(s.selectedNode); node != nil && e.Node_Is(node, e.NavRegion) do e.NavRegion_Rebuild(cast(^e.NavRegion)node)
+	}
 	// The scene's lighting, unless the viewport shows it unlit
 	ambient := scene.settings.ambient.a > 0 ? scene.settings.ambient : e.DEFAULT_AMBIENT
 	e.Scene_SetLighting(preview.scene, scene.settings.lighting && !s.viewport.unlit, ambient, scene.settings.bodyShadows)
@@ -480,6 +484,12 @@ syncTransforms :: proc(scene: ^SceneDef) {
 		if i >= len(preview.nodes) || preview.nodes[i] == nil do continue
 		node := preview.nodes[i]
 		// A hitbox following an Aseprite slice places itself (aseprite_nodes.odin)
+		// A region's settings and area follow edits at once
+		if def.kind == .NavRegion && e.Node_Is(node, e.NavRegion) {
+			region := cast(^e.NavRegion)node
+			region.settings = def.nav
+			region.size = def.shapeSize
+		}
 		// A light's settings follow edits at once (no rebuild)
 		if def.kind == .Light2D && e.Node_Is(node, e.Light2D) do (cast(^e.Light2D)node).settings = def.light
 		if NodeKind_IsControl(def.kind) && e.Node_IsControl(node) {
@@ -546,7 +556,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav,
 		})
 	}
 	return data

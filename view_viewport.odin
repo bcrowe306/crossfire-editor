@@ -636,6 +636,29 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				// Hidden (Toggle_Collision_Shapes); still pickable by their bounds
 			case node.kind == .Joint:
 				drawJoint(r, p.bounds, v, scene, i, data.shapes[:], th)
+			case node.kind == .NavRegion:
+				// Its area, and (selected) its blocked cells
+				color := kindColor(.NavRegion)
+				corners := [4][2]f32{{0, 0}, {node.shapeSize.x, 0}, node.shapeSize, {0, node.shapeSize.y}}
+				for c, k in corners {
+					a := toWindow(p.bounds, v, e.Transform2D_Apply(shape.world, c))
+					b := toWindow(p.bounds, v, e.Transform2D_Apply(shape.world, corners[(k + 1) % 4]))
+					skald.draw_polyline(r, {a, b}, 1, color, aa = true)
+				}
+				if i == s.selectedNode {
+					if built := Preview_Node(i); built != nil && e.Node_Is(built, e.NavRegion) {
+						grid := &(cast(^e.NavRegion)built).grid
+						shade := skald.Color{1, 0.3, 0.3, 0.3}
+						for blocked, cell in grid.blocked {
+							if !blocked do continue
+							w := grid.origin + [2]f32{f32(cell % grid.columns), f32(cell / grid.columns)} * grid.cellSize
+							a := toWindow(p.bounds, v, w)
+							b := toWindow(p.bounds, v, w + grid.cellSize)
+							skald.draw_rect(r, {a.x, a.y, b.x - a.x, b.y - a.y}, shade)
+						}
+					}
+				}
+				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case node.kind == .LightOccluder:
 				drawCollisionShape(r, p.bounds, v, &node, shape.world, kindColor(.LightOccluder))
 				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
@@ -1001,6 +1024,8 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .Animator:       return skald.rgb(0xd2a8ff)
 	// Lights: warm yellow; occluders: their shadow's gray
 	case .Light2D:        return skald.rgb(0xffd36b)
+	// Navigation: a path's green
+	case .NavRegion, .NavAgent: return skald.rgb(0x8be07a)
 	case .LightOccluder:  return skald.rgb(0x9aa0b4)
 	// UI: the Label's green, bluer
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText: return skald.rgb(0x7ed6d0)

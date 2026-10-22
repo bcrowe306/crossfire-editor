@@ -254,6 +254,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isTimeline := v.target.(TimelineNumber); isTimeline {
 			if _, i := Timeline_Animator(s); i >= 0 do return node(i, fmt.tprintf("Change the %v in the clips of %s", field, scene.nodes[i].name), key("timeline-number", field, i, s.timeline.clip, s.timeline.track, s.timeline.key))
 		}
+		if field, isNav := v.target.(NavNumberTarget); isNav && hasSelection {
+			return node(selected, fmt.tprintf("Change %v of %s", NavField(field), name), key("nav", NavField(field), s.currentScene, selected))
+		}
 		if field, isUI := v.target.(UINumberTarget); isUI && hasSelection {
 			return node(selected, fmt.tprintf("Change %v of %s", UIField(field), name), key("ui", UIField(field), s.currentScene, selected))
 		}
@@ -283,6 +286,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change the frames of an animation of %s", name))
 	case Anim_Autoplay_Set:
 		if hasSelection do return node(selected, fmt.tprintf("Change the first animation of %s", name))
+	// Navigation: typing a number merges
+	case Nav_Setting_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
 	// Lights: a slider's drag merges
 	case Light_Setting_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change the %v of %s", v.field, name), v.field == .Energy || v.field == .Radius || v.field == .Angle ? key("light", v.field, s.currentScene, selected) : 0)
@@ -747,7 +753,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light {
+	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false

@@ -524,6 +524,20 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.slice != "" do attr(w, "slice", node.slice)
 	case .LightOccluder:
 		writeShape(w, node)
+	case .NavRegion, .NavAgent:
+		n, d := node.nav, e.DEFAULT_NAV_SETTINGS
+		if node.kind == .NavRegion {
+			attr(w, "width", node.shapeSize.x)
+			attr(w, "height", node.shapeSize.y)
+			if n.cellSize != d.cellSize do attr(w, "cellSize", n.cellSize)
+			if n.agentRadius != d.agentRadius do attr(w, "agentRadius", n.agentRadius)
+			if n.diagonal != d.diagonal do attr(w, "diagonal", n.diagonal)
+		} else {
+			if n.speed != d.speed do attr(w, "speed", n.speed)
+			if n.arriveDistance != d.arriveDistance do attr(w, "arriveDistance", n.arriveDistance)
+			if n.avoidRadius != d.avoidRadius do attr(w, "avoidRadius", n.avoidRadius)
+			if n.autoMove != d.autoMove do attr(w, "autoMove", n.autoMove)
+		}
 	case .Light2D:
 		l, d := node.light, e.DEFAULT_LIGHT_SETTINGS
 		if l.kind != d.kind do attr(w, "lightKind", l.kind)

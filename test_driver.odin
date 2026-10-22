@@ -197,6 +197,8 @@ Checks:
 	                             A key of the Timeline's clip (seconds with 2 decimals)
 	ui <layout|anchor|text|action|width|height|theme> <value>
 	                             The selected UI control's settings ("none" for empty text)
+	nav <cellSize|agentRadius|diagonal|speed|autoMove|width> <value>
+	                             The selected NavRegion's or NavAgent's settings
 	scene_lit <true | false>     The open scene's lighting is on
 	light <kind|energy|radius|angle|shadows> <value>
 	                             The selected Light2D's settings
@@ -1448,6 +1450,20 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "height": found = fmt.tprint(u.size.y)
 		case "theme":  found = pick(u.theme)
 		case: return false, fmt.tprintf("unknown ui field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "nav":
+		if selected == nil || (selected.kind != .NavRegion && selected.kind != .NavAgent) do return false, "no NavRegion or NavAgent selected"
+		field, _, expected := strings.partition(value, " ")
+		n := selected.nav
+		switch field {
+		case "cellSize":    found = fmt.tprint(n.cellSize)
+		case "agentRadius": found = fmt.tprint(n.agentRadius)
+		case "diagonal":    found = fmt.tprint(n.diagonal)
+		case "speed":       found = fmt.tprint(n.speed)
+		case "autoMove":    found = fmt.tprint(n.autoMove)
+		case "width":       found = fmt.tprint(selected.shapeSize.x)
+		case: return false, fmt.tprintf("unknown nav field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
 	case "scene_lit":

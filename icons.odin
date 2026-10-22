@@ -44,6 +44,8 @@ ICON_GRID        :: "\uf00a"
 ICON_STOPWATCH   :: "\uf2f2"
 ICON_PALETTE     :: "\uf53f"
 ICON_LIGHTBULB   :: "\uf0eb"
+ICON_ROUTE       :: "\uf4d7"
+ICON_PERSON_WALKING :: "\uf554"
 ICON_SHADOW      :: "\uf5c7"
 ICON_SQUARE_FULL :: "\uf45c"
 ICON_HAND_POINTER :: "\uf25a"
@@ -125,6 +127,8 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .RichText:       return ICON_PARAGRAPH
 	case .Light2D:        return ICON_LIGHTBULB
 	case .LightOccluder:  return ICON_SHADOW
+	case .NavRegion:      return ICON_ROUTE
+	case .NavAgent:       return ICON_PERSON_WALKING
 	}
 	return ICON_CUBE
 }

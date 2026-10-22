@@ -1030,6 +1030,7 @@ Msg :: union {
 	Timeline_Changed,
 	UI_Setting_Changed,
 	Light_Setting_Changed,
+	Nav_Setting_Changed,
 	Scene_Lighting_Changed,
 	Theme_Field_Changed,
 	Theme_Font_Changed,

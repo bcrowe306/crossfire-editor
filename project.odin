@@ -157,6 +157,9 @@ NodeDef :: struct {
 	ui: e.UISettings,
 	// A Light2D's settings (a plain value: light_edit.odin)
 	light: e.LightSettings,
+	// A NavRegion's or NavAgent's settings (a plain value: nav_edit.odin); a region's area is
+	// shapeSize
+	nav: e.NavSettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -364,7 +367,10 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		animator = e.AnimatorSettings_Clone(e.DEFAULT_ANIMATOR_SETTINGS),
 		ui = e.UISettings_Clone(e.DEFAULT_UI_SETTINGS),
 		light = e.DEFAULT_LIGHT_SETTINGS,
+		nav = e.DEFAULT_NAV_SETTINGS,
 	}
+	// A NavRegion covers a screenful to begin with
+	if kind == .NavRegion do node.shapeSize = {640, 360}
 	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
 		append(&node.items, MenuItemDef{strings.clone("Button"), strings.clone("quit")})
@@ -839,6 +845,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.bus = strings.clone(node.bus)
 	def.audio = node.audio
 	def.light = node.light
+	def.nav = node.nav
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)
