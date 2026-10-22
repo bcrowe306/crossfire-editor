@@ -1,0 +1,76 @@
+# Skeletons: a Skeleton2D with two bones added from the inspector, a SkinnedMesh made over a
+# picture and bound to them, an IK chain aimed at a target, undo; a DragonBones file imported as a
+# component, added to the scene and played.
+# Run with: task test:ui (and task test:ui:fullscreen)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+
+# A skeleton (top level) and two bones, the second at the first's tip
+key escape
+key ctrl+shift+a
+type Skeleton2D
+click_widget add-node-Skeleton2D
+expect kind Skeleton2D
+scroll_into_view inspector-scroll inspector-bone-add-{selected}
+click_widget inspector-bone-add-{selected}
+expect kind Bone2D
+expect selected Bone
+scroll_into_view inspector-scroll inspector-bone-add-{selected}
+click_widget inspector-bone-add-{selected}
+expect selected Bone2
+key ctrl+z
+expect selected Bone
+key ctrl+y
+
+# A mesh over the ship's picture, bound to the bones
+select_node Skeleton2D
+key ctrl+shift+a
+type SkinnedMesh
+click_widget add-node-SkinnedMesh
+expect kind SkinnedMesh
+send Node_Texture assets/ship.png
+scroll_into_view inspector-scroll inspector-mesh-make-{selected}
+click_widget inspector-mesh-make-{selected}
+expect console_contains points and
+scroll_into_view inspector-scroll inspector-mesh-bind-{selected}
+click_widget inspector-mesh-bind-{selected}
+expect console_contains bound to 2 bones
+
+# An IK chain reaching for a target (the dropdowns: none, then the scene's bones / nodes)
+select_node Skeleton2D
+key ctrl+shift+a
+type IKChain
+click_widget add-node-IKChain
+expect kind IKChain
+scroll_into_view inspector-scroll inspector-skel-IK_Tip-{selected}
+click_widget inspector-skel-IK_Tip-{selected}
+click_overlay_item 2
+scroll_into_view inspector-scroll inspector-skel-IK_Target-{selected}
+click_widget inspector-skel-IK_Target-{selected}
+click_overlay_item 1
+expect project_file_lacks scenes/PlayScene.scene.xml IKChain
+
+# A DragonBones file: a component and its atlas
+import tests/fixtures/dragonbones/Robot_ske.json
+expect components 1
+expect asset atlases/robot.atlas.xml exists
+expect console_contains Imported Robot_ske.json
+select_asset components/robot.component.xml
+click_widget component-add
+
+# Saved and played
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml kind="IKChain"
+expect project_file_contains scenes/PlayScene.scene.xml ikTip="../Bone/Bone2"
+expect project_file_contains scenes/PlayScene.scene.xml <mesh vertices=
+expect project_file_contains components/robot.component.xml kind="Bone2D"
+key ctrl+F5
+wait_until play Playing timeout=240
+wait 3
+expect console_lacks has no region
+expect console_lacks Couldn't
+key shift+F5
+wait_until play Stopped
+quit

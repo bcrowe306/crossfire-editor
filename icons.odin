@@ -20,6 +20,11 @@ ICON_MOVE        :: "\uf047"
 ICON_ROTATE      :: "\uf2f1"
 ICON_SCALE       :: "\uf424"
 ICON_HAND        :: "\uf256"
+// Skeletons (skeleton_edit.odin)
+ICON_BONE        :: "\uf5d7"
+ICON_PERSON      :: "\uf183"
+ICON_DRAW_POLYGON :: "\uf5ee"
+ICON_CROSSHAIRS  :: "\uf05b"
 ICON_GAMEPAD     :: "\uf11b"
 ICON_WAND        :: "\uf0d0"
 ICON_PEN         :: "\uf304"
@@ -145,6 +150,10 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .TouchButton:    return ICON_CIRCLE_DOT
 	case .ScreenEffect:   return ICON_WAND
 	case .Line2D:         return ICON_PEN
+	case .Skeleton2D:     return ICON_PERSON
+	case .Bone2D:         return ICON_BONE
+	case .SkinnedMesh:    return ICON_DRAW_POLYGON
+	case .IKChain:        return ICON_CROSSHAIRS
 	case .Trail2D:        return ICON_WIND
 	}
 	return ICON_CUBE

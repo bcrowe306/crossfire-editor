@@ -1,0 +1,4 @@
+{"name": "Robot", "imagePath": "Robot_tex.png", "width": 64, "height": 64, "SubTexture": [
+	{"name": "torso", "x": 0, "y": 0, "width": 24, "height": 40},
+	{"name": "hand", "x": 32, "y": 0, "width": 12, "height": 12}
+]}

@@ -2,6 +2,7 @@ package crossfire_editor
 
 import "core:log"
 import "core:os"
+import "core:path/filepath"
 import "core:strings"
 import "core:testing"
 import e "engine:."
@@ -35,14 +36,8 @@ writePNG :: proc(path: string, size: [2]int, color: [4]u8) {
 	pixels := make([]u8, size.x * size.y * 4, context.temp_allocator)
 	color := color
 	for i in 0 ..< size.x * size.y do copy(pixels[i * 4:][:4], color[:])
-	_ = os.make_directory_all(dirOf(path))
+	_ = os.make_directory_all(filepath.dir(path))
 	_ = stbi.write_png(strings.clone_to_cstring(path, context.temp_allocator), i32(size.x), i32(size.y), 4, raw_data(pixels), i32(size.x * 4))
-}
-
-@(private="file")
-dirOf :: proc(path: string) -> string {
-	i := strings.last_index_byte(path, '/')
-	return i < 0 ? "." : path[:i]
 }
 
 @(test)

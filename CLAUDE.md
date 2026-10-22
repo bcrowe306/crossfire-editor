@@ -147,6 +147,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `audio_preview.odin` | Sound playback for the preview panel (SDL3_mixer; package state) |
 | `play.odin` | Play mode: save, build the player, run it as a child process, stream output, pause/stop |
 | `play_reload.odin` | **Hot reload**: `PlayReload` (`PlaySession.reload`): scripts newer than the running game rebuild `player-reload` beside it, describe it, ask the game for a `snapshot` over the live link, restart it with `--restore` (`playReloadTick`, from `playTick`); `settings.hotReload` |
+| `skeleton_edit.odin` | **Skeletons**: `NodeDef.boneLength` / `mesh` / `ik` / `ikTip` / `ikTarget`, `Skeleton_Setting_Changed`, `Skeleton_Bone_Added`, `Mesh_Made` (`Mesh_FromPicture`: a grid, empty cells dropped), `Mesh_Bound` (`Mesh_AutoWeights`: nearest bones' segments, inverse square, up to 4), the inspector's rows (`skeletonInspectorRows`), `DragonBones_Import` (a `_ske.json` into a component and an atlas) |
 | `asset_import_edit.odin` | **Import settings**: `AssetDef.filter` / `msdf`, `Project.textureFilter` (Project Settings > General > Image filtering), `Asset_Filter_Changed` / `Asset_MSDF_Changed` / `Font_MSDF_Make_Requested`, `Fonts_MakeMSDF` (save, Play, exports), `Fonts_ExportFiles`, the previews' rows (`imageImportRows`, `fontPreview`, `audioImportRows`), sound conversion with ffmpeg (`Audio_Convert` on a worker, `Audio_ConvertFile`, `Audio_Converted`: references follow; `AUDIO_CONVERT_EXTENSIONS` converted on import), `Toolchain_FFmpeg` |
 | `atlas_edit.odin` | **Texture atlases**: `AtlasDef` (`Project.atlases`, asset kind Atlas, `atlases/`), `Project_CreateAtlas` (the browser's New Atlas), `Atlas_PackFiles` (packs with `e.Atlas_Pack`, writes the PNG and `.atlas.xml` on every edit), `atlasInspector` (`State.atlasSelection`), `atlasPreview`, Sprites' `NodeDef.region` (the Region row) |
 | `node_scripts_edit.odin` | **Several scripts per node and node types of game code**: `NodeDef.moreScripts` / `customKind` / `customProps`, `Node_Script_Added` / `_Removed` / `_Open`, `NodeScriptTarget` / `NodeCustomTarget` (PropTarget), `AddNode_Entries` (Add Node's "Your node types"), `NodeDef_Codes` (what a node runs, in the engine's order), the inspector's rows (`moreScriptsRows`, `nodeTypeRows`) |
@@ -1499,6 +1500,34 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/shaders.script` (the hit flash seen in the render, undo, New Shader compiled on
   save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
   `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
+
+## Skeletons (implemented, `skeleton_edit.odin`; engine: skeleton.odin, dragonbones.odin)
+
+- `NodeDef.mesh` is the engine's `e.MeshData` (owned: `e.MeshData_Clone` / `_Destroy` / `_Equal`
+  in Clone, Destroy, FromData, `NodeDef_Equal`); the writer puts a `<mesh>` child (FormatPoints,
+  FormatTriangles, FormatWeights; weights rounded to thousandths so files read back equal),
+  `boneLength`, the `ik*` attributes. The preview rebuilds on mesh, IK paths and bone lengths
+  (`sceneSignature`).
+- **The scene's pose is the rest pose:** `Skeleton_PreviewBind` (viewport_preview.odin) binds
+  every preview mesh after `syncTransforms`, so editing bones never bends a mesh; the Timeline's
+  clip at the playhead does, and IK, solved in the preview after the Timeline
+  (`e.Scene_SolveIK`), so dragging a target shows at once. The engine nodes' bones are restored
+  from the NodeDefs every frame.
+- Overlays (`drawSkeletonNode` in view_viewport.odin): every bone a wedge, an IK chain's line from
+  its solved tip to a crosshair on its target, the selected mesh's deformed triangles. Bones have
+  no bounds: they're picked in the scene tree.
+- Labels "Mesh columns" / "Mesh rows" (not "Grid columns": a Panel's), "Tip bone", "IK target",
+  "Bones", "Bend", "Solve", "Length". Make Mesh's grid size is editor state (`meshGrid`), not
+  an undo step.
+- **DragonBones:** `AssetKindForPath` takes `_ske.json` as a component; `importAsset` (and
+  `Project_ImportAsset`) call `DragonBones_Import`: the atlas picture copied to
+  `atlases/<name>.png`, the `.atlas.xml` written and added (`Project.atlases`), the converted
+  nodes (`NodeDef_FromData`) written as a component (root named after it); warnings to the
+  Console.
+- Tests: `skeletons_in_the_editor` (bones, a mesh made and bound, IK solved in the preview, saved
+  and read back), `dragonbones_files_import_as_components`, `tests/ui/skeleton.script` (Add Bone,
+  Make Mesh, Bind, IK dropdowns, a DragonBones import added and played); fixture
+  `tests/fixtures/dragonbones/` (ours). User guide: `docs/manual/skeletal_animation.md`.
 
 ## Import settings, atlases and fonts (implemented, `asset_import_edit.odin`, `atlas_edit.odin`; engine: asset_import.odin, atlas.odin, fonts.odin)
 

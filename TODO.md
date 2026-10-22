@@ -6,14 +6,11 @@ owns it.
 
 ## Common engine features (2026-10-21)
 
-The features most 2D engines have that this one doesn't, as the user listed them. Items 1-14,
-16 and 18 were built one per dev release (2026-10-21/22), each with a user guide in
+The features most 2D engines have that this one doesn't, as the user listed them. Items 1-16
+and 18 were built one per dev release (2026-10-21/22), each with a user guide in
 `docs/manual/`. The rest are being built now (decisions of 2026-10-22, below each item), one per
 dev release, each tested, documented and removed from here when done.
 
-15. **Skeletal animation**. Decided: the engine's own bones, skinned sprites and IK, edited in
-    the editor and keyed with the Timeline, **plus** DragonBones JSON import (not Spine: its
-    runtime license).
 17. **A dialogue system**. Decided: an own dialogue asset with a graph editor (like the States
     tab) and a typewriter text box node, **plus** importing `.yarn` (Yarn Spinner) files into it.
 19. **Editor plugins**: tool scripts, custom inspectors, import plugins. Decided: Odin packages

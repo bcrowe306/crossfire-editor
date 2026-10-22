@@ -37,6 +37,8 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		return .Font, true
 	case ".json":
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), DATA_EXTENSION) do return .Data, true
+		// A DragonBones skeleton: imported as a component (skeleton_edit.odin)
+		if DragonBones_IsSkeleton(path) do return .Component, true
 	case ".xml":
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), COMPONENT_EXTENSION) do return .Component, true
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), ANIMATION_EXTENSION) do return .Animation, true
@@ -87,6 +89,10 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 
 	// Already inside the project: reference it where it is
 	relative := ""
+	if DragonBones_IsSkeleton(source) {
+		index, _, problem := DragonBones_Import(project, source)
+		return index, problem
+	}
 	if rel, err := filepath.rel(root, absSource, context.temp_allocator); err == nil && !strings.has_prefix(rel, "..") {
 		relative = toSlashes(rel)
 	} else if kind == .LDtk {

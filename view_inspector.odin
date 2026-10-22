@@ -548,6 +548,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Line2D, .Trail2D:
 		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth)))
 		append(&rows, ..lineInspectorRows(ctx, s, node, key, controlWidth))
+	case .Skeleton2D, .Bone2D, .SkinnedMesh, .IKChain:
+		append(&rows, ..skeletonInspectorRows(ctx, s, node, key, controlWidth, numberWidth, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth, atlases = true))))
 	case .Light2D, .LightOccluder:
 		append(&rows, ..lightInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:

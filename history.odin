@@ -333,6 +333,17 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s's shader", v.name, name), key("shader-param", v.name, s.currentScene, selected))
 	case Shader_New_Requested:
 		if v.forSelected && hasSelection do return node(selected, fmt.tprintf("Give %s a new shader", name))
+	case Skeleton_Setting_Changed:
+		// The mesh grid is the editor's, not the node's (skeleton_edit.odin)
+		if v.field == .Mesh_Columns || v.field == .Mesh_Rows do break
+		number := v.field == .Bone_Length || v.field == .IK_Length
+		if hasSelection do return node(selected, fmt.tprintf("Change the %v of %s", v.field, name), number ? key("skeleton", v.field, s.currentScene, selected) : 0)
+	case Skeleton_Bone_Added:
+		if hasSelection do return {scope = .Scene, label = fmt.tprintf("Add a bone to %s", name)}
+	case Mesh_Made:
+		if hasSelection do return node(selected, fmt.tprintf("Make the mesh of %s", name))
+	case Mesh_Bound:
+		if hasSelection do return node(selected, fmt.tprintf("Bind %s to its bones", name))
 	case Line_Setting_Changed:
 		// Sliders merge while dragged (line_edit.odin)
 		number := v.field == .Width || v.field == .End_Width || v.field == .End_Opacity || v.field == .Lifetime || v.field == .Min_Distance
@@ -835,7 +846,8 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
 	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera || a.touch != b.touch || a.touchActions != b.touchActions ||
-	   a.shader != b.shader || !propsEqual(a.shaderParams[:], b.shaderParams[:]) || a.effectScreenLayers != b.effectScreenLayers || a.line != b.line {
+	   a.shader != b.shader || !propsEqual(a.shaderParams[:], b.shaderParams[:]) || a.effectScreenLayers != b.effectScreenLayers || a.line != b.line ||
+	   a.boneLength != b.boneLength || !e.MeshData_Equal(a.mesh, b.mesh) || a.ik != b.ik || a.ikTip != b.ikTip || a.ikTarget != b.ikTarget {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false

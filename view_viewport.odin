@@ -657,6 +657,9 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				// Hidden (Toggle_Collision_Shapes); still pickable by their bounds
 			case node.kind == .Joint:
 				drawJoint(r, p.bounds, v, scene, i, data.shapes[:], th)
+			case node.kind == .Bone2D || node.kind == .IKChain || node.kind == .SkinnedMesh || node.kind == .Skeleton2D:
+				// Bones as wedges, an IK chain's reach, a selected mesh's triangles (skeleton_edit.odin)
+				drawSkeletonNode(r, p.bounds, v, scene, i, shape.world, i == s.selectedNode, th)
 			case node.kind == .CameraZone || node.kind == .CameraView:
 				// Their rectangle (a view's is drawn by the engine too)
 				color := kindColor(node.kind)
@@ -1060,6 +1063,7 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .VirtualJoystick, .TouchButton: return skald.rgb(0x7ad3ff)
 	case .ScreenEffect: return skald.rgb(0xe08bff)
 	case .Line2D, .Trail2D: return skald.rgb(0xff9d5c)
+	case .Skeleton2D, .Bone2D, .SkinnedMesh, .IKChain: return skald.rgb(0xe8c39e)
 	// State machines: the Animator's purple, bluer
 	case .StateMachine:   return skald.rgb(0xa8b4ff)
 	// Camera tools: the Camera's amber
@@ -1121,4 +1125,74 @@ insideQuad :: proc(p: [2]f32, quad: [4][2]f32) -> bool {
 		else if (cross > 0) != (sign > 0) do return false
 	}
 	return true
+}
+
+// A skeleton node's overlay: a bone's wedge (origin to tip), an IK chain's line to its target, a
+// selected SkinnedMesh's triangles as they bend now, a skeleton's marker
+@(private="file")
+drawSkeletonNode :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, scene: ^SceneDef, index: int, world: e.Transform2D, selected: bool, th: ^skald.Theme) {
+	node := &scene.nodes[index]
+	toWindow :: proc(canvas: skald.Rect, v: ^ViewportState, p: [2]f32) -> [2]f32 {
+		return viewToWindow(canvas, Viewport_WorldToView(v, p))
+	}
+	color := kindColor(node.kind)
+	if !selected do color[3] = 0.7
+	origin := toWindow(canvas, v, world.origin)
+	switch node.kind {
+	case .Bone2D:
+		length := max(node.boneLength, 4)
+		tip := toWindow(canvas, v, e.Transform2D_Apply(world, {length, 0}))
+		side := toWindow(canvas, v, e.Transform2D_Apply(world, {length * 0.2, length * 0.12})) - origin
+		other := toWindow(canvas, v, e.Transform2D_Apply(world, {length * 0.2, -length * 0.12})) - origin
+		a, b := origin + side, origin + other
+		fill := color
+		fill[3] = selected ? 0.45 : 0.25
+		skald.draw_triangles(r, {origin, a, tip, origin, tip, b}, fill)
+		skald.draw_polyline(r, {origin, a, tip, b, origin}, selected ? 2 : 1, color, aa = true)
+		skald.draw_circle(r, origin, 3, color, aa = true)
+		if selected do drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(.Bone2D), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+	case .IKChain:
+		tip := Scene_ResolvePath(scene, index, node.ikTip)
+		target := Scene_ResolvePath(scene, index, node.ikTarget)
+		if target >= 0 {
+			worlds := Scene_WorldTransforms(scene)
+			at := toWindow(canvas, v, worlds[target].origin)
+			if tip >= 0 {
+				// The tip as the preview solved it
+				end := worlds[tip].origin
+				if built := Preview_Node(tip); built != nil && e.Node_Is(built, e.Bone2D) do end = e.Bone2D_Tip(cast(^e.Bone2D)built)
+				faint := color
+				faint[3] = 0.5
+				skald.draw_polyline(r, {toWindow(canvas, v, end), at}, 1, faint, aa = true)
+			}
+			skald.draw_ring(r, at, 7, selected ? 2 : 1, color, aa = true)
+			skald.draw_polyline(r, {at - {10, 0}, at + {10, 0}}, 1, color, aa = true)
+			skald.draw_polyline(r, {at - {0, 10}, at + {0, 10}}, 1, color, aa = true)
+		}
+		if selected do drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(.IKChain), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+	case .SkinnedMesh:
+		if !selected do break
+		built := Preview_Node(index)
+		if built == nil || !e.Node_Is(built, e.SkinnedMesh) do break
+		mesh := cast(^e.SkinnedMesh)built
+		points := e.SkinnedMesh_Deform(mesh)
+		meshWorld := e.Node_GetWorldTransform(mesh)
+		for t := 0; t + 2 < len(mesh.mesh.triangles); t += 3 {
+			ok := true
+			for k in 0 ..< 3 do if int(mesh.mesh.triangles[t + k]) >= len(points) do ok = false
+			if !ok do continue
+			a := toWindow(canvas, v, e.Transform2D_Apply(meshWorld, points[mesh.mesh.triangles[t]]))
+			b := toWindow(canvas, v, e.Transform2D_Apply(meshWorld, points[mesh.mesh.triangles[t + 1]]))
+			c := toWindow(canvas, v, e.Transform2D_Apply(meshWorld, points[mesh.mesh.triangles[t + 2]]))
+			skald.draw_polyline(r, {a, b, c, a}, 1, color, aa = true)
+		}
+		for p in points do skald.draw_circle(r, toWindow(canvas, v, e.Transform2D_Apply(meshWorld, p)), 2, color, aa = true)
+	case .Skeleton2D:
+		skald.draw_circle(r, origin, MARKER_RADIUS, color, aa = true)
+		drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(.Skeleton2D), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+	case .Node2D, .Sprite, .AnimatedSprite, .Camera, .Label, .Menu, .StaticBody, .DynamicBody, .CharacterMover, .Area,
+	     .CollisionShape, .RayCast, .Joint, .ParticleEmitter, .Component, .AudioPlayer, .AudioPlayer2D, .MusicPlayer,
+	     .LDtkLevel, .TileMap, .Animator, .Light2D, .LightOccluder, .NavRegion, .NavAgent, .StateMachine, .ParallaxLayer, .CameraZone, .CameraView,
+	     .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .VirtualJoystick, .TouchButton, .ScreenEffect, .Line2D, .Trail2D:
+	}
 }

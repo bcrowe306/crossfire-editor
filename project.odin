@@ -188,6 +188,12 @@ NodeDef :: struct {
 	// Line2D and Trail2D: the engine's `e.LineSettings` (a plain value; a line's points are
 	// `points`, its image `texture`): line_edit.odin
 	line: e.LineSettings,
+	// Skeletons (skeleton_edit.odin): a Bone2D's length; a SkinnedMesh's mesh (owned: its
+	// `texture` / `region` are the picture); an IKChain's settings and paths (owned)
+	boneLength: f32,
+	mesh: e.MeshData,
+	ik: e.IKSettings,
+	ikTip, ikTarget: string,
 	// A StateMachine's states, transitions and parameters (owned: state_machine_edit.odin)
 	stateMachine: e.StateMachineSettings,
 	// ParallaxLayer, CameraZone, CameraView settings (plain) and a CameraView's camera (owned):
@@ -473,6 +479,10 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		touch = e.TouchControl_Defaults(kind),
 		effectScreenLayers = true,
 		line = e.DEFAULT_LINE_SETTINGS,
+		boneLength = defaults.boneLength,
+		ik = defaults.ik,
+		ikTip = strings.clone(""),
+		ikTarget = strings.clone(""),
 	}
 	// A NavRegion covers a screenful to begin with; a StateMachine has a first state
 	if kind == .NavRegion do node.shapeSize = {640, 360}
@@ -529,6 +539,9 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	for l in node.listeners { delete(l.event); delete(l.target); delete(l.handler); delete(l.global) }
 	delete(node.listeners)
 	delete(node.points)
+	e.MeshData_Destroy(&node.mesh)
+	delete(node.ikTip)
+	delete(node.ikTarget)
 	delete(node.bodyA)
 	delete(node.bodyB)
 	for &a in node.animations do AnimationDef_Destroy(&a)
@@ -1024,6 +1037,11 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	for p in node.shaderParams do append(&def.shaderParams, ScriptPropDef{strings.clone(p.name), strings.clone(p.value)})
 	def.effectScreenLayers = node.effectScreenLayers
 	def.line = node.line
+	def.boneLength = node.boneLength
+	def.mesh = e.MeshData_Clone(node.mesh)
+	def.ik = node.ik
+	def.ikTip = strings.clone(node.ikTip)
+	def.ikTarget = strings.clone(node.ikTarget)
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)

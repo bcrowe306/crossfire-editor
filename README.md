@@ -212,6 +212,11 @@ General > Sound output changes the format; Settings > Editor > Audio device pick
 Play and the previews use on this computer. An exported game plays on the system's default
 device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
 
+**Skeletal animation.** Skeleton2D and Bone2D nodes (Add Bone builds a chain) animated in the
+Timeline; SkinnedMesh bends one picture over bones (Make Mesh, Bind to Bones); IKChain turns bones
+toward a target; importing a DragonBones `_ske.json` makes a component and an atlas. User guide:
+[docs/manual/skeletal_animation.md](docs/manual/skeletal_animation.md).
+
 **Import settings, atlases and fonts.** Each image chooses smooth or pixel-art filtering (or the
 project's, Project Settings > General > Image filtering); New Atlas packs images into one picture
 that Sprites draw regions of; `.fnt` bitmap fonts work like any font, and a TrueType font can be

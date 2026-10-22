@@ -118,6 +118,9 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 		preview.signature = signature
 	}
 	syncTransforms(scene)
+	// Skeletons: the scene's pose is the rest pose, so meshes bind to it as it is now (moving a bone
+	// in the editor doesn't bend them; the Timeline and IK do: skeleton_edit.odin)
+	Skeleton_PreviewBind(scene)
 	// A selected NavRegion's grid, from the walls as they are now (the viewport shades its blocked cells)
 	if s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) && scene.nodes[s.selectedNode].kind == .NavRegion {
 		if node := Preview_Node(s.selectedNode); node != nil && e.Node_Is(node, e.NavRegion) do e.NavRegion_Rebuild(cast(^e.NavRegion)node)
@@ -151,6 +154,8 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 			}
 		}
 	}
+	// IK chains reach for their targets, after the Timeline's pose (a target dragged shows at once)
+	if len(preview.scene.ikChains) > 0 do e.Scene_SolveIK(preview.scene)
 
 	r := preview.renderer
 	viewport := sdl.Rect{0, 0, i32(size.x), i32(size.y)}
@@ -386,6 +391,15 @@ Preview_AtlasChanged :: proc(path, imagePath: string) {
 	// Its memory is the game's (freed with it)
 	if path in game.atlases do delete_key(&game.atlases, path)
 	game.resourceManager->unloadTexture(imagePath)
+}
+
+// Binds the preview's skinned meshes to their bones as the scene has them (its rest pose), so
+// moving bones in the editor doesn't bend them (skeleton_edit.odin)
+Skeleton_PreviewBind :: proc(scene: ^SceneDef) {
+	for &def, i in scene.nodes {
+		if def.kind != .SkinnedMesh || i >= len(preview.nodes) || preview.nodes[i] == nil do continue
+		if e.Node_Is(preview.nodes[i], e.SkinnedMesh) do _ = e.SkinnedMesh_Bind(cast(^e.SkinnedMesh)preview.nodes[i])
+	}
 }
 
 // A font's MSDF atlas was made again (asset_import_edit.odin): the preview reads it next time
@@ -743,6 +757,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
 				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav, stateMachine = node.stateMachine, cameraTools = node.cameraTools, viewCamera = node.viewCamera, touch = node.touch, touchActions = node.touchActions, shader = node.shader, shaderParams = shaderParamData(node.shaderParams[:]), effectScreenLayers = node.effectScreenLayers, line = node.line,
+				boneLength = node.boneLength, mesh = node.mesh, ik = node.ik, ikTip = node.ikTip, ikTarget = node.ikTarget,
 		})
 	}
 	return data
@@ -766,6 +781,13 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_byte(&b, '|')
 		strings.write_int(&b, int(node.kind))
 		strings.write_int(&b, node.parent)
+		// A mesh, its picture and an IK chain's paths are built in (skeleton_edit.odin)
+		if node.kind == .SkinnedMesh || node.kind == .IKChain || node.kind == .Bone2D {
+			fmt.sbprintf(&b, "|%s|%s|%d|%d|%d|%d|%s|%s|%v|%v", node.texture, node.region, len(node.mesh.vertices), len(node.mesh.triangles), len(node.mesh.bones), hash.fnv64a(transmute([]u8)e.FormatWeights(node.mesh.weights[:])), node.ikTip, node.ikTarget, node.ik, node.boneLength)
+			for v in node.mesh.vertices do fmt.sbprintf(&b, "%v", v)
+			for v in node.mesh.uvs do fmt.sbprintf(&b, "%v", v)
+			for v in node.mesh.bones do strings.write_string(&b, v)
+		}
 		// A level rebuilds when its settings change, or its file does (saved in LDtk)
 		if node.kind == .LDtkLevel do LDtkSettings_Signature(&b, s.project.rootPath, &node.ldtk)
 		// A TileMap: its settings, and its file's time (saved in Aseprite)

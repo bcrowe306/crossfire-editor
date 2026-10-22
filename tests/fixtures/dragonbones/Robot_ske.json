@@ -1,0 +1,23 @@
+{"frameRate": 24, "name": "Robot", "version": "5.5", "compatibleVersion": "5.5", "armature": [{
+	"type": "Armature", "frameRate": 24, "name": "Robot",
+	"bone": [
+		{"name": "root"},
+		{"name": "body", "parent": "root", "length": 40, "transform": {"x": 0, "y": 0, "skX": -90, "skY": -90}},
+		{"name": "arm", "parent": "body", "length": 30, "transform": {"x": 30, "y": 10, "skX": 90, "skY": 90}}
+	],
+	"slot": [{"name": "torso", "parent": "body"}, {"name": "hand", "parent": "arm"}],
+	"skin": [{"slot": [
+		{"name": "torso", "display": [{"type": "mesh", "name": "torso", "width": 24, "height": 40,
+			"vertices": [-12, -40, 12, -40, 12, 0, -12, 0], "uvs": [0, 0, 1, 0, 1, 1, 0, 1], "triangles": [0, 1, 2, 0, 2, 3],
+			"weights": [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1], "slotPose": [1, 0, 0, 1, 0, 0]}]},
+		{"name": "hand", "display": [{"name": "hand", "transform": {"x": 30, "y": 0}}]}
+	]}],
+	"animation": [{"name": "wave", "duration": 24, "playTimes": 0,
+		"bone": [{"name": "arm", "rotateFrame": [
+			{"duration": 12, "tweenEasing": 0, "rotate": 0},
+			{"duration": 12, "tweenEasing": 0, "rotate": -60},
+			{"duration": 0, "rotate": 0}
+		]}]
+	}],
+	"defaultActions": [{"gotoAndPlay": "wave"}]
+}]}

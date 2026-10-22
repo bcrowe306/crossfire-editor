@@ -282,7 +282,7 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		clips := node.kind == .Animator ? node.animator.clips[:] : nil
 		machine := node.kind == .StateMachine ? &node.stateMachine : nil
 		layers := node.kind == .MusicPlayer ? node.musicLayers[:] : nil
-		if len(node.items) == 0 && len(node.shaderParams) == 0 && node.script == "" && len(node.moreScripts) == 0 && len(node.customProps) == 0 && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(layers) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
+		if len(node.items) == 0 && len(node.shaderParams) == 0 && !(node.kind == .SkinnedMesh && len(node.mesh.vertices) > 0) && node.script == "" && len(node.moreScripts) == 0 && len(node.customProps) == 0 && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(layers) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -402,6 +402,17 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			open(&w, "item")
 			attr(&w, "label", item.label)
 			attr(&w, "action", item.action)
+			closeEmpty(&w)
+		}
+		// A SkinnedMesh's mesh (skeleton_edit.odin; the engine's skeleton.odin)
+		if node.kind == .SkinnedMesh && len(node.mesh.vertices) > 0 {
+			m := &node.mesh
+			open(&w, "mesh")
+			attr(&w, "vertices", e.FormatPoints(m.vertices[:], context.temp_allocator))
+			if len(m.uvs) > 0 do attr(&w, "uvs", e.FormatPoints(m.uvs[:], context.temp_allocator))
+			if len(m.triangles) > 0 do attr(&w, "triangles", e.FormatTriangles(m.triangles[:]))
+			if len(m.bones) > 0 do attr(&w, "bones", strings.join(m.bones[:], ",", context.temp_allocator))
+			if len(m.weights) > 0 do attr(&w, "weights", e.FormatWeights(m.weights[:]))
 			closeEmpty(&w)
 		}
 		// A custom node type's own field values (`<prop>` children of the node)
@@ -683,6 +694,18 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			if n.avoidRadius != d.avoidRadius do attr(w, "avoidRadius", n.avoidRadius)
 			if n.autoMove != d.autoMove do attr(w, "autoMove", n.autoMove)
 		}
+	case .Skeleton2D:
+	case .Bone2D:
+		if node.boneLength != defaults.boneLength do attr(w, "boneLength", node.boneLength)
+	case .SkinnedMesh:
+		if node.texture != "" do attr(w, "texture", node.texture)
+		if node.region != "" do attr(w, "region", node.region)
+	case .IKChain:
+		if node.ikTip != "" do attr(w, "ikTip", node.ikTip)
+		if node.ikTarget != "" do attr(w, "ikTarget", node.ikTarget)
+		if node.ik.length != defaults.ik.length do attr(w, "ikLength", node.ik.length)
+		if node.ik.bendPositive != defaults.ik.bendPositive do attr(w, "ikBend", node.ik.bendPositive ? "positive" : "negative")
+		if node.ik.enabled != defaults.ik.enabled do attr(w, "ikEnabled", node.ik.enabled)
 	case .Line2D, .Trail2D:
 		// line_edit.odin: a line's points, the image, the settings that aren't the defaults
 		l, d := node.line, e.DEFAULT_LINE_SETTINGS
