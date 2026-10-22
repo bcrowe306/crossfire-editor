@@ -1,7 +1,7 @@
 ---
 title: Asset import settings, atlases and fonts
 description: Choose smooth or pixel-art filtering for images, pack images into texture atlases, use bitmap fonts and fonts that stay sharp at any size, and convert sounds to Ogg Vorbis.
-order: 19
+order: 31
 ---
 
 # Asset import settings, atlases and fonts
@@ -93,7 +93,8 @@ Generator and many others write.
    project or not.
 2. Import the `.fnt` (Ctrl+I). If it was outside the project, copy its page images next to it in
    `assets/` too: the preview says when one is missing.
-3. Choose it as a Label's, Button's or Menu's font like any other font.
+3. Choose it wherever a font is chosen: a UI theme's font, a DialogueBox's Box font, or a script
+   field of type `e.FontAsset`.
 
 The preview tells its size and how many letters it has. Drawn at its own size, or 2x, 3x..., the
 letters are pixel-exact; letters the font doesn't have are left out. Kerning pairs in the file are
@@ -111,7 +112,8 @@ text from it with a shader that rebuilds sharp edges at any size and angle.
 2. Tick **Sharp at any size (MSDF)**. The editor makes its atlas (`<font>.msdf.bmp` and
    `<font>.msdf.json` beside it) with **msdf-atlas-gen**, and makes it again when the font file
    changes (on save, before Play and before exports). **Make Atlas** makes it now.
-3. Nothing else changes: Labels and Buttons using the font draw from the atlas.
+3. Nothing else changes: text using the font (UI themes, DialogueBoxes, scripts) draws from the
+   atlas.
 
 Good to know:
 

@@ -1,7 +1,7 @@
 ---
 title: Shaders and screen effects
 description: Change how nodes are drawn with built-in effects (hit flash, outline, dissolve, palette swap) or your own GLSL shaders, and put CRT, bloom or color grading over the whole screen.
-order: 16
+order: 20
 ---
 
 # Shaders and screen effects

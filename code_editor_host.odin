@@ -68,7 +68,7 @@ CODE_FONT_SIZE :: f32(14)
 CODE_FONT :: #load("assets/fonts/LiberationMono-Regular.ttf", []byte)
 
 // The editor's own actions that still work while the code editor has the keyboard
-CODE_EDITOR_PASSTHROUGH :: bit_set[Action]{.Save_Project, .Play, .Play_Scene, .Pause, .Stop, .Build_Scripts, .Quit, .Toggle_Bottom_Panel, .Open_Settings, .Export}
+CODE_EDITOR_PASSTHROUGH :: bit_set[Action]{.Save_Project, .Play, .Play_Scene, .Pause, .Stop, .Build_Scripts, .Quit, .Toggle_Bottom_Panel, .Open_Settings, .Export, .Close_Code_Tab}
 
 // One open file
 CodeEditor :: struct {

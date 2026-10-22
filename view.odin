@@ -32,6 +32,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if len(state.scriptFiles) > 0 && !state.scriptsAutoBuilt && state.play.stage == .None {
 		skald.send(ctx, Msg(Scripts_Auto_Build{}))
 	}
+	// Plugins are built and loaded while the project has a plugins/ folder (plugin_host.odin)
+	if !state.pluginsTicking && Plugins_Present(&state) do skald.send(ctx, Msg(Plugins_Tick{}))
 	Session_UpdateTitle(&state)
 	Branding_SetWindowIcon()
 	Git_View_Tick(&state, ctx)

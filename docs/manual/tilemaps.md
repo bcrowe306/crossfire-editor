@@ -1,3 +1,9 @@
+---
+title: Tilemaps
+description: "Levels drawn from tiles: TileMap nodes from Aseprite tilesets, painting tiles in the editor, terrains, tile collision."
+order: 17
+---
+
 # Tilemaps
 
 A **tilemap** draws a level from small square pictures, **tiles**, laid out on a grid: grass,

@@ -1,7 +1,7 @@
 ---
 title: Lines, trails and GPU particles
 description: Draw thick lines through points (ropes, lasers, paths), leave trails behind moving things (sword swings, dashes, comets), and run tens of thousands of particles on the graphics card.
-order: 17
+order: 12
 ---
 
 # Lines, trails and GPU particles

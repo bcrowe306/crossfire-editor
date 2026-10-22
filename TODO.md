@@ -4,25 +4,6 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
-## Common engine features (2026-10-21)
-
-The features most 2D engines have that this one doesn't, as the user listed them. Items 1-18
-were built one per dev release (2026-10-21/22), each with a user guide in
-`docs/manual/`. The rest are being built now (decisions of 2026-10-22, below each item), one per
-dev release, each tested, documented and removed from here when done.
-
-19. **Editor plugins**: tool scripts, custom inspectors, import plugins. Decided: Odin packages
-    in the project, built by the editor into a shared library against a plugin API, reloaded
-    when they change.
-
-## Documentation
-
-- **The user manual** (`docs/manual/`, started 2026-10-21): pages for the older features
-  (scenes and nodes, scripts, physics, particles, sound, LDtk, Aseprite, components, export...).
-  Decided (2026-10-22): written as one item now. **The docs will later become a static site
-  built with Astro**: every page Markdown with YAML frontmatter (title, description, order),
-  plain relative links, no GitHub-only syntax.
-
 ## Later (decided not to build yet)
 
 - **Shader editing in the code editor** (asked 2026-10-22, for later). `.frag` files open in code

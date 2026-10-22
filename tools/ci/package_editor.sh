@@ -116,6 +116,9 @@ fi
 mkdir -p "$stage/engine"
 (cd "$engine" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) | tar -xf - -C "$stage/engine"
 
+# The plugin API projects' editor plugins are built against (Toolchain_PluginAPI: beside the editor)
+mkdir -p "$stage/plugin_api"
+cp "$editor"/plugin_api/*.odin "$stage/plugin_api/"
 # The shader compilers (Toolchain_ShaderTools: shader_tools/<os>_<arch>/ beside the editor)
 for dir in "$engine"/shader_tools/*_*/; do
 	[[ "$(basename "$dir")" == build ]] && continue

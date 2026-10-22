@@ -54,6 +54,8 @@ BottomTab :: enum {
 	States,
 	// A dialogue's nodes and steps (view_dialogue.odin)
 	Dialogue,
+	// The project's editor plugins (view_plugins.odin)
+	Plugins,
 }
 
 LogLevel :: enum {
@@ -282,6 +284,8 @@ State :: struct {
 	atlasSelection: int,
 	// The Dialogue tab's dialogue and selection (dialogue_edit.odin)
 	dialogue: DialogueEditor,
+	// Plugins_Tick is scheduled (plugin_host.odin: while the project has a plugins/ folder)
+	pluginsTicking: bool,
 	// Collision from sprite's settings (collision_trace_edit.odin; view state)
 	trace: TraceSettings,
 	// The bus the inspector shows the effects of (an index into project.buses; -1 none), opened
@@ -562,6 +566,8 @@ main :: proc() {
 		on_close_request = proc() -> Msg { return Msg(Action.Quit) },
 		// Before Skald destroys its GPU device: what was made on it (gpu_share.odin)
 		on_shutdown = proc() {
+			// Plugins' libraries and a build in progress (plugin_host.odin)
+			Plugins_Unload()
 			Preview_Destroy()
 			CodeEditor_Shutdown()
 			SharedGPU_Shutdown()

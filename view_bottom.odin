@@ -61,6 +61,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Live:      content = LivePanel(s, ctx)
 	case .States:    content = StatesPanel(s, ctx)
 	case .Dialogue:  content = DialoguePanel(s, ctx)
+	case .Plugins:   content = PluginsPanel(s, ctx)
 	}
 
 	return skald.col(

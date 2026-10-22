@@ -7,7 +7,7 @@ import e "engine:."
 /*
 The inspector's sound node settings (AudioPlayer, AudioPlayer2D, MusicPlayer): the sound (or
 music) asset, the bus, volume, pitch and pan, loop and autostart, the hearing range of a 2D
-player, music's fades, and Preview (the sound as the node plays it, without its bus).
+player, music's fades, and Preview (the sound as the node plays it, through its bus).
 
 Widget keys: `inspector-sound-<node>`, `inspector-bus-<node>`, `inspector-open-mixer-<node>`, `inspector-audio-<Field>-<node>`
 (sliders), `inspector-audio-<Flag>-<node>`, `inspector-audio-preview-<node>`.
@@ -83,7 +83,7 @@ audioInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 		Msg(Audio_Preview_Requested(!playing)), id = skald.hash_id(fmt.tprintf("inspector-audio-preview-%d", key)),
 		disabled = path == "", bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2},
 		font_size = th.font.size_xs, radius = th.radius.sm)
-	append(&rows, inspectorRow(ctx, "", skald.tooltip(ctx, preview, "Plays it with this node's volume, pitch and pan (not its bus)",
+	append(&rows, inspectorRow(ctx, "", skald.tooltip(ctx, preview, "Plays it with this node's volume, pitch and pan, through its bus",
 		id = skald.hash_id(fmt.tprintf("inspector-audio-preview-tip-%d", key)))))
 	return rows[:]
 }

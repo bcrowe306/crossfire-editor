@@ -1,3 +1,9 @@
+---
+title: The UI system
+description: Panels, buttons, progress bars, text fields, scroll boxes and rich text for menus and HUDs, with layouts and themes.
+order: 21
+---
+
 # The UI system: menus, HUDs and dialogs
 
 The **UI controls** are nodes for the parts of a game that aren't the world: a title menu, a

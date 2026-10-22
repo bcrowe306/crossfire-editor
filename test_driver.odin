@@ -67,6 +67,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 program would
 	save_code_render <file.png>      Save the shown code tab's render (its own pixels, not the screen)
 	write_project_file <path> <text> Write a project file ("\n", "\t"), as another program would
+	copy_into_project <file> <project path>
+	                                 Copy a file into the project (its folders made)
 	live_select <node name>          Choose a node of the running game in the Live tab
 	code_dialog_pick <path>          Answer the code editor's Open / Save As dialog with a project path
 	save_viewport_render <png>       Write the viewport's last render (the engine's pixels, never the
@@ -219,6 +221,8 @@ Checks:
 	atlas <regions|padding|filter> <value>
 	                             The atlas the inspector shows
 	region <name | none>         The selected Sprite's atlas region
+	plugin <folder> <Waiting|Building|Loaded|Failed>
+	                             A project plugin's state (plugin_host.odin)
 	dialogue <shown | nodes | start | node | steps | step <i> <text|speaker|kind|options|target>> <value>
 	                             The Dialogue tab's dialogue and its selected node
 	node_type <name | none>      The selected node's node type of the project's code
@@ -1066,6 +1070,20 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		fail(fmt.tprintf("%s: the open scene has no tab", line))
 		return true
 
+	case "copy_into_project":
+		// "copy_into_project <file> <project path>": a file (from the editor's folder) into the
+		// project, its folders made, as another program would put it there
+		from, _, to := strings.partition(rest, " ")
+		dest := joinPath(s.project.rootPath, strings.trim_space(to), allocator = context.temp_allocator)
+		_ = os.make_directory_all(filepath.dir(dest))
+		data, readErr := os.read_entire_file(Editor_ArgumentPath(from), context.temp_allocator)
+		if readErr != nil || os.write_entire_file(dest, data) != nil {
+			fail(fmt.tprintf("%s: can't copy %s to %s", line, from, dest))
+			return true
+		}
+		report(true, line)
+		return false
+
 	case "live_select":
 		// Chooses a node of the running game in the Live tab by its name (its rows' order changes
 		// with the game's tree)
@@ -1214,6 +1232,9 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			msg = Git_Op_Requested{op = .Switch_Branch, arg = strings.clone(value, context.temp_allocator)}
 		case "Node_Script_Added":     msg = Node_Script_Added(strings.clone(value, context.temp_allocator))
 		case "Atlas_Created":         msg = Atlas_Created{}
+		// A bottom tab by its name (the strip scrolls in a narrow window)
+		case "Bottom_Tab":
+			if tab, ok := reflect.enum_from_name(BottomTab, value); ok do msg = Bottom_Tab_Changed(int(tab))
 		case "Dialogue_Created":      msg = Dialogue_Created{}
 		case "Dialogue_Select_Node":  if i, ok := strconv.parse_int(value); ok do msg = Dialogue_View{op = .Select_Node, index = i}
 		// A node's texture or region as its dropdown would set it (atlas_edit.odin)
@@ -1806,6 +1827,12 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "filter":  found = fmt.tprint(a.filter)
 		case: return false, fmt.tprintf("unknown atlas field '%s'", field)
 		}
+		return found == strings.trim_space(expected), found
+	case "plugin":
+		// "plugin <folder> <Waiting|Building|Loaded|Failed>"
+		folder, _, expected := strings.partition(value, " ")
+		found = "missing"
+		for p in Plugins_List() do if p.folder == folder do found = fmt.tprint(p.status)
 		return found == strings.trim_space(expected), found
 	case "dialogue":
 		// "dialogue <shown | nodes | start | steps | node | step <i> <text|speaker|kind|options>> <value>":

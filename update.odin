@@ -110,6 +110,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if AtlasEdit_Update(&out, m) do return out, {}
 	if SkeletonEdit_Update(&out, m) do return out, {}
 	if DialogueEdit_Update(&out, m) do return out, {}
+	if command, handled := Plugins_Update(&out, m); handled do return out, command
 	if DialogueBoxEdit_Update(&out, m) do return out, {}
 	if LineEdit_Update(&out, m) do return out, {}
 	if command, handled := ShaderEdit_Update(&out, m); handled do return out, command
@@ -153,6 +154,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by SkeletonEdit_Update above
 	case Dialogue_Changed, Dialogue_View, Dialogue_Created, DialogueBox_Setting_Changed:
 		// Handled by DialogueEdit_Update and DialogueBoxEdit_Update above
+	case Plugins_Tick, Plugin_Command_Run, Plugin_Row_Changed, Plugin_New_Requested, Plugins_Rebuild_Requested:
+		// Handled by Plugins_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
 	case TileMap_Setting_Changed:
@@ -1400,6 +1403,21 @@ selectedNode :: proc(state: ^State) -> ^NodeDef {
 // Imports a file and selects it in the browser
 @(private="package")
 importAsset :: proc(state: ^State, path: string) {
+	// A plugin's importer takes its extensions first (plugin_host.odin)
+	if handled, asset, problem := Plugins_Import(state, path); handled {
+		if problem != "" {
+			logLine(state, .Error, fmt.aprintf("Import failed: %s", problem))
+			return
+		}
+		state.session.assetsChanged = true
+		logLine(state, .Info, fmt.aprintf("Imported %s as %s (a plugin's importer)", filepath.base(path), asset))
+		if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, strings.clone(message))
+		for a, i in state.project.assets do if a.path == asset {
+			state.browserOpen[AssetFolder(a.kind)] = true
+			selectAsset(state, i)
+		}
+		return
+	}
 	// A Yarn Spinner file: a dialogue (dialogue_edit.odin), and what wasn't converted
 	if Yarn_IsFile(path) {
 		index, warnings, problem := Yarn_Import(&state.project, path)

@@ -1,0 +1,56 @@
+# Editor plugins: the sample plugin (tests/fixtures/plugins/grid_tools) put into the project is
+# built and loaded; its command arranges a node's children (undone, redone), its inspector row
+# snaps a sprite, its importer turns a CSV into a dialogue; New Plugin's template is built too.
+# Run with: task test:ui (and task test:ui:fullscreen)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+copy_into_project tests/fixtures/plugins/grid_tools/grid_tools.odin plugins/grid_tools/grid_tools.odin
+wait_until plugin grid_tools Loaded timeout=120
+expect console_contains Plugin Grid Tools loaded
+send Bottom_Tab Plugins
+expect tab Plugins
+
+# A node with two sprites, arranged by the plugin's command
+key escape
+key ctrl+shift+a
+type Node2D
+key RETURN
+expect selected Node2D
+key ctrl+shift+a
+type Sprite
+key RETURN
+expect selected Sprite
+select_node Node2D
+key ctrl+shift+a
+type Sprite
+key RETURN
+expect selected Sprite2
+select_node Node2D
+click_widget plugin-0-command-0
+expect console_contains Arranged 2 nodes
+select_node Sprite2
+expect field x 48
+key ctrl+z
+select_node Sprite2
+expect field x 0
+key ctrl+shift+z
+select_node Sprite2
+expect field x 48
+
+# Its inspector rows for a Sprite: Snap to the Grid (cells of 32)
+scroll_into_view inspector-scroll plugin-row-0-0-snap
+click_widget plugin-row-0-0-snap
+expect field x 64
+
+# Its importer: a CSV of lines into a dialogue
+import tests/fixtures/plugins/talk.csv
+expect asset dialogues/talk.dialogue.xml exists
+expect console_contains a plugin's importer
+
+# New Plugin: its template, built and loaded
+click_widget plugins-new
+wait_until plugin my_plugin Loaded timeout=120
+expect file_exists plugins/my_plugin/my_plugin.odin
+quit

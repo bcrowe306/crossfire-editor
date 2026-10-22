@@ -1,3 +1,9 @@
+---
+title: The Live tab
+description: "Watch and change the game running from Play: its nodes and values, frame times, pause and step a frame."
+order: 32
+---
+
 # The Live tab: the running game, as it plays
 
 When you press **Play** (F5), your game runs in its own window. The bottom panel's **Live** tab

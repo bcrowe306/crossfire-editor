@@ -1,3 +1,9 @@
+---
+title: Keyframe animation
+description: "Animate any node's properties over time with Animator nodes and the Timeline: clips, tracks, keys, curves and events."
+order: 22
+---
+
 # Keyframe animation (Animator and the Timeline)
 
 An **Animator** node changes other nodes' properties over time: it moves, turns and scales them,

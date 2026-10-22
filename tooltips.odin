@@ -337,4 +337,4 @@ scriptFieldTip :: proc(field: ^ScriptFieldDesc) -> string {
 }
 
 // The bottom panel's tab strip
-BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control. Tiles: paint the selected TileMap. Timeline: the selected Animator's keyframe clips. Live: the game running from Play: pause, step, frame times, its nodes' values. States: the selected StateMachine's graph. Dialogue: a conversation's nodes and lines."
+BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control. Tiles: paint the selected TileMap. Timeline: the selected Animator's keyframe clips. Live: the game running from Play: pause, step, frame times, its nodes' values. States: the selected StateMachine's graph. Dialogue: a conversation's nodes and lines. Plugins: the project's editor plugins and their commands."

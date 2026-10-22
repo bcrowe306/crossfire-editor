@@ -147,6 +147,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `audio_preview.odin` | Sound playback for the preview panel (SDL3_mixer; package state) |
 | `play.odin` | Play mode: save, build the player, run it as a child process, stream output, pause/stop |
 | `play_reload.odin` | **Hot reload**: `PlayReload` (`PlaySession.reload`): scripts newer than the running game rebuild `player-reload` beside it, describe it, ask the game for a `snapshot` over the live link, restart it with `--restore` (`playReloadTick`, from `playTick`); `settings.hotReload` |
+| `plugin_host.odin` | **Editor plugins**: `PluginsState` (package state: the project's `plugins/<name>/` folders, a build process, loaded libraries), `Plugins_Tick` (find, build with `-build-mode:shared` and the `plugin_api` collection, load with `core:dynlib`, reload on changes), the `Host` procedures (`pluginState`), `Plugin_Command_Run` / `Plugin_Row_Changed` (`.Project` undo steps), `Plugins_Import`, `Plugins_InspectorRows`, `Plugin_Create` (`PLUGIN_TEMPLATE`), `Toolchain_PluginAPI` |
+| `view_plugins.odin` | The bottom panel's **Plugins** tab (`PluginsPanel`: each plugin's state, commands, importers, inspectors) and plugins' inspector rows (`pluginInspectorRows`) |
+| `plugin_api/` | **The plugin API** (package `crossfire_plugin`): `Plugin`, `Command`, `Importer`, `Inspector`, `InspectorRow`, `Host`, `PLUGIN_API_VERSION`; plugins import it as the `plugin_api` collection, the editor by relative path; releases ship it beside the editor (macOS: Resources/plugin_api) |
 | `dialogue_edit.odin` | **Dialogues**: `DialogueDef` (`Project.dialogues`, asset kind Dialogue, `dialogues/`), `Project_CreateDialogue` / `SaveDialogues`, `Yarn_Import`, `DialogueEditor` (`State.dialogue`: the shown dialogue, node, step, drag), `Dialogue_Changed` (every edit: a `.Project` step) / `Dialogue_View`, DialogueBox's `NodeDef.dialogue` / `dialogueStart` / `dialogueBox` and rows (`dialogueBoxRows`, `DialogueBox_Setting_Changed`), `Dialogue_ProvideToGame` |
 | `view_dialogue.odin` | The bottom panel's **Dialogue** tab (`DialoguePanel`): the dialogue's graph (`dialogueGraph`: boxes with their first line, arrows for jumps and options), the selected node's steps and options as rows, + step buttons |
 | `skeleton_edit.odin` | **Skeletons**: `NodeDef.boneLength` / `mesh` / `ik` / `ikTip` / `ikTarget`, `Skeleton_Setting_Changed`, `Skeleton_Bone_Added`, `Mesh_Made` (`Mesh_FromPicture`: a grid, empty cells dropped), `Mesh_Bound` (`Mesh_AutoWeights`: nearest bones' segments, inverse square, up to 4), the inspector's rows (`skeletonInspectorRows`), `DragonBones_Import` (a `_ske.json` into a component and an atlas) |
@@ -193,7 +196,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_timeline.odin` | The bottom panel's Timeline tab (`TimelinePanel`: clip and transport toolbars, the tracks canvas with the ruler, keys and playhead, the key editor) and the Animator's inspector rows (`animatorInspectorRows`) |
 | `tile_paint.odin` | **Tile painting**: `TilePainter` (tool, brush, layer, terrain), its messages, `TilePaint_Update` (strokes, fills, terrains, growing grids, copying file layers), `TilePaint_CellAt` |
 | `view_tiles.odin` | The bottom panel's Tiles tab: layer and tileset choices, tools, flips, the tile palette (`TilesPanel`) |
-| `docs/manual/` | **The user manual**: a page per feature for users new to the editor (`README.md` lists them). Help > User Manual (F1, `Manual_Open`: `MANUAL_URL` + page) and panels' Manual buttons open it. **Every new feature gets a page here** |
+| `docs/manual/` | **The user manual**: a page per feature for users new to the editor (`README.md` lists them in reading order). Help > User Manual (F1, `Manual_Open`: `MANUAL_URL` + page) and panels' Manual buttons open it. **Every new feature gets a page here.** Pages are ready for a static site (Astro, later): YAML frontmatter `title` / `description` (quoted when they hold `: `) / `order` (the reading order, unique, README 0; a new page takes its place and the ones after it move up), plain relative links, no GitHub-only syntax (no `> [!NOTE]`, no `<details>`), a Questions section at the end, examples that compile |
 | `aseprite_edit.odin` | Aseprite files: the parsed-file cache (`AsepriteEdit_File`), the browser preview (`AsepriteEdit_Preview`, `AsepriteEdit_Summary`), Open in Aseprite (`AsepriteEdit_Open`, Settings > Editor > Aseprite program), `Image_LoadRGBA` (any image, Aseprite files through the engine) |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
@@ -1502,6 +1505,30 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/shaders.script` (the hit flash seen in the render, undo, New Shader compiled on
   save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
   `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
+
+## Editor plugins (implemented, `plugin_host.odin`, `view_plugins.odin`, `plugin_api/`)
+
+- **Odin calling convention across the boundary:** the editor and its plugins are built by the
+  same Odin, so plugin procedures (and the Host's) are plain Odin procs: they get the caller's
+  `context` (allocators), default parameters work. A plugin's returned slices must be
+  package-level (a literal inside the entry proc is on its stack: Odin refuses it).
+- **Everything a plugin gives is copied** on load (names, extensions, targets); procedure pointers
+  point into the library, so a reload clears the records before `dynlib.unload_library`. Each
+  build goes to a new file (`<name>-<n>.so`): a loaded library can't be overwritten on Windows,
+  and Linux's dlopen returns the already-loaded handle for the same path.
+- **The tick** (`Plugins_Tick`, 0.5 s) starts from the view when the project has `plugins/`
+  (`State.pluginsTicking`), handles a project change (unloads, starts over), builds one plugin at a
+  time (`newestSource` of its folder against its last build), loads when its build ends. Build
+  output goes to the Output tab.
+- **Host procedures** read and change the editor state through `pluginState` (set by `pluginCall`
+  before every call). Inspector rows are asked during `view` on its state copy: rows must only
+  read. Commands and row changes run in `update` and are `.Project` steps.
+- **Importers** take their extensions before the editor's own importers (`importAsset`).
+- Tests: `plugins_build_load_and_run` (the sample plugin built and loaded, its command undone, its
+  rows and importer, the template built, a reload after a change; needs Odin),
+  `tests/ui/plugins.script` (driver `copy_into_project`, `send Bottom_Tab <Tab>`, check `plugin
+  <folder> <state>`); fixture `tests/fixtures/plugins/` (grid_tools, talk.csv). User guide:
+  `docs/manual/plugins.md`.
 
 ## Dialogue (implemented, `dialogue_edit.odin`, `view_dialogue.odin`; engine: dialogue.odin, yarn.odin, dialogue_box.odin)
 

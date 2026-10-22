@@ -26,6 +26,7 @@
 #     Resources/engine/                        the engine's sources and its static libraries
 #                                              (box2d/lib, sdl/lib): games compile against them
 #     Resources/tools/build_web_mixer.sh       builds SDL3_mixer for web exports
+#     Resources/plugin_api/                    the API editor plugins are built against
 #     Resources/demo_project/                  the demo project (its git-tracked files): copied to
 #                                              ~/Documents/Crossfire Editor on first run
 #
@@ -82,6 +83,9 @@ layout)
 	mkdir -p "$contents/Resources/engine"
 	(cd "$ENGINE_DIR" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) |
 		tar -xf - -C "$contents/Resources/engine"
+	# The plugin API editor plugins are built against (Toolchain_PluginAPI: Resources/plugin_api)
+	mkdir -p "$contents/Resources/plugin_api"
+	cp "$here"/../../plugin_api/*.odin "$contents/Resources/plugin_api/"
 	# The demo project, opened (from a copy the user can edit) when no project is given
 	mkdir -p "$contents/Resources/demo_project"
 	(cd "$here/../../examples/demo_project" && git ls-files . | tar -cf - -T -) | tar -xf - -C "$contents/Resources/demo_project"

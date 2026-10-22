@@ -1,3 +1,9 @@
+---
+title: State machines
+description: "StateMachine nodes and the States tab: what a character is doing, the conditions that change it, and the animation each state plays."
+order: 23
+---
+
 # State machines
 
 A **state machine** keeps track of what something is doing, one thing at a time: a character is

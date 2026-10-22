@@ -589,6 +589,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	// Its shader (shader_edit.odin; a ScreenEffect's are its own rows above)
 	if node.kind != .ScreenEffect && NodeKind_TakesShader(node.kind) do append(&rows, ..shaderInspectorRows(ctx, s, node, key, controlWidth))
+	// Rows plugins add (plugin_host.odin)
+	append(&rows, ..pluginInspectorRows(ctx, s, controlWidth))
 
 	fields := skald.col(..rows[:],
 		spacing = th.spacing.sm,

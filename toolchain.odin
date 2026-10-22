@@ -170,6 +170,8 @@ Toolchain_Check :: proc(settings: ^Settings) -> []ToolStatus {
 		shadersFound ? "Compiles the project's GLSL shaders (glslang and SDL_shadercross)." : "For your own shaders (the built-in effects need nothing): the engine's tools/build_shader_tools.sh builds them; releases have them."})
 	append(&list, ToolStatus{"Font tool", shadersFound && shaderTools.msdfAtlasGen != "", shaderTools.msdfAtlasGen,
 		shadersFound && shaderTools.msdfAtlasGen != "" ? "Makes MSDF atlases for fonts set to stay sharp at any size (msdf-atlas-gen)." : "For fonts set to stay sharp at any size: msdf-atlas-gen, built with the shader tools (the engine's tools/build_shader_tools.sh); releases have it."})
+	pluginAPI, apiFound := Toolchain_PluginAPI()
+	append(&list, ToolStatus{"Plugin API", apiFound, pluginAPI, apiFound ? "What the project's editor plugins (plugins/) are built against." : "The plugin_api sources aren't beside the editor: plugins can't be built."})
 	ffmpeg := Toolchain_FFmpeg()
 	append(&list, ToolStatus{"ffmpeg", ffmpeg != "", ffmpeg, ffmpeg != "" ? "Converts sounds to Ogg Vorbis (Convert in a sound's preview, and imports of other formats)." : "Optional: converting sounds (m4a, aac, opus... to Ogg Vorbis). Install it from ffmpeg.org or your package manager."})
 	ols := Code_FindOLS(FixedText_String(&settings.olsPath))

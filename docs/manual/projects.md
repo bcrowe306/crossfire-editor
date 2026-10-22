@@ -1,3 +1,9 @@
+---
+title: Projects
+description: "Make, open, save and copy projects: your game's folder, recent projects, Save Project As and project archives."
+order: 2
+---
+
 # Projects: making, opening, saving and copying them
 
 A **project** is your game's folder. Everything the game needs is inside it:

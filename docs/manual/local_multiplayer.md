@@ -1,7 +1,7 @@
 ---
 title: Local multiplayer
 description: Let several people play on one computer, each joining with a gamepad or the keyboard and reading the input actions from their own device, with split-screen views.
-order: 15
+order: 29
 ---
 
 # Local multiplayer

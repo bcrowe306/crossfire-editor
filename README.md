@@ -212,6 +212,11 @@ General > Sound output changes the format; Settings > Editor > Audio device pick
 Play and the previews use on this computer. An exported game plays on the system's default
 device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
 
+**Editor plugins.** Odin packages in a project's `plugins/` folder, built and loaded by the editor
+(and again when saved): commands in the Plugins tab, importers for other file formats, extra
+inspector rows. New Plugin writes one to start from. User guide:
+[docs/manual/plugins.md](docs/manual/plugins.md).
+
 **Dialogue.** New Dialogue makes a conversation edited in the Dialogue tab (nodes of lines,
 options, jumps, variables and commands, with conditions); importing a Yarn Spinner `.yarn` file
 converts it; a DialogueBox node shows it in the game, typing each line out. User guide:

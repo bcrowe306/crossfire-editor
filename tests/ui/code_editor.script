@@ -172,13 +172,15 @@ click_widget inspector-open-script
 expect code_tabs 2
 expect code_tab mover.odin
 
-# Closing a tab with unsaved changes asks: Cancel keeps it, Don't Save closes it
+# Closing a tab with unsaved changes asks: Cancel keeps it, Don't Save closes it. Ctrl+W
+# closes it while typing in the code too (a passthrough shortcut)
 click_widget code-tab-1
 expect code_tab blinker.odin
 wait_until code_focused true timeout=5
 type // unsaved
 expect code_dirty true
-click_widget code-tab-close-1
+expect code_focused true
+key ctrl+w
 expect code_close_dialog open
 click_widget code-close-cancel
 expect code_tabs 2

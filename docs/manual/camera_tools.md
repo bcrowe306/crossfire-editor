@@ -1,3 +1,9 @@
+---
+title: Camera tools
+description: Parallax backgrounds, rooms the camera stays in, smooth zoom, and camera views for split screen and minimaps.
+order: 18
+---
+
 # Camera tools: parallax, rooms, zoom, split screen
 
 The camera decides what part of the world the player sees (a **Camera** node: put it inside the

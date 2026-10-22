@@ -1,3 +1,9 @@
+---
+title: Pathfinding and navigation
+description: "Navigation regions and agents: characters finding their way around walls with A* paths."
+order: 26
+---
+
 # Pathfinding and navigation
 
 Navigation lets characters find their way: a guard walking to the player around the furniture, a

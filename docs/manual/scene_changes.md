@@ -1,3 +1,9 @@
+---
+title: Scene changes
+description: Transitions between scenes, scenes opened over others like pause menus, and loading screens.
+order: 27
+---
+
 # Scene changes: transitions, pause menus, loading screens
 
 A game moves between scenes: from the title to the first level, from level to level, to a game

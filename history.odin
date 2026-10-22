@@ -337,6 +337,11 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if v.forSelected && hasSelection do return node(selected, fmt.tprintf("Give %s a new shader", name))
 	// The Dialogue tab: a project step (the snapshot holds every dialogue); typing merges per
 	// field, a node's drag per gesture (dialogue_edit.odin)
+	// A plugin's command or inspector row: whatever it changes in the project is one step
+	case Plugin_Command_Run:
+		return {scope = .Project, label = "Run a plugin's command"}
+	case Plugin_Row_Changed:
+		return {scope = .Project, label = "Change a plugin's inspector row", mergeKey = key("plugin-row", v.plugin, v.inspector, v.node, v.id)}
 	case Dialogue_Changed:
 		if Dialogue_Shown(s) == nil do break
 		merge: u64 = 0

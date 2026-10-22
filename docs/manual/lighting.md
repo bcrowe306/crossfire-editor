@@ -1,3 +1,9 @@
+---
+title: 2D lighting
+description: Dark scenes lit by point and spot lights, with shadows cast by occluders and walls.
+order: 19
+---
+
 # 2D lighting
 
 Lighting makes a scene dark and lights it with **lights**: a torch flickering in a cave, a street
