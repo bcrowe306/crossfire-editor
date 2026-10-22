@@ -1306,8 +1306,12 @@ shortcut_text_round_trips :: proc(t: ^testing.T) {
 		for mods in ([]skald.Modifiers{{}, {.Ctrl}, {.Ctrl, .Shift}, {.Alt, .Super}}) {
 			chord := skald.Shortcut{key, mods}
 			if chord == {} do continue
-			parsed, ok := Shortcut_Parse(skald.shortcut_format(chord))
-			testing.expectf(t, ok && parsed == chord, "%v didn't round trip (%s)", chord, skald.shortcut_format(chord))
+			// Files use the same names everywhere; the Mac's names (Option, Cmd) read back too
+			for mac in ([]bool{false, true}) {
+				text := skald.shortcut_format_for(chord, mac)
+				parsed, ok := Shortcut_Parse(text)
+				testing.expectf(t, ok && parsed == chord, "%v didn't round trip (%s)", chord, text)
+			}
 		}
 	}
 	_, ok := Shortcut_Parse("Backspace")

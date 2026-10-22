@@ -348,12 +348,14 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 // "Ctrl+Shift+Z | Ctrl+Y", or "" when unbound (temp allocated)
 Keymap_FormatChords :: proc(chords: [KEYMAP_SLOTS]skald.Shortcut) -> string {
 	parts := make([dynamic]string, context.temp_allocator)
-	for chord in chords do if chord != {} do append(&parts, skald.shortcut_format(chord))
+	// The same names on every platform (Skald's shortcut_format names keys the Mac way on a Mac)
+	for chord in chords do if chord != {} do append(&parts, skald.shortcut_format_for(chord, false))
 	return strings.join(parts[:], " | ", context.temp_allocator)
 }
 
 /*
-Reads a chord written the way `skald.shortcut_format` writes it: "Ctrl+Shift+A", "Del", "Ctrl+=".
+Reads a chord written the way `Keymap_FormatChords` writes it: "Ctrl+Shift+A", "Del", "Ctrl+=" (the
+Mac's names, Cmd and Option, read too).
 Modifier and key names are case-insensitive; Skald's key enum names ("Delete", "N0") also work.
 
 Returns:
@@ -369,14 +371,14 @@ Shortcut_Parse :: proc(text: string) -> (skald.Shortcut, bool) {
 		switch strings.to_lower(rest[:plus], context.temp_allocator) {
 		case "ctrl", "control": chord.mods += {.Ctrl}
 		case "shift": chord.mods += {.Shift}
-		case "alt": chord.mods += {.Alt}
+		case "alt", "option": chord.mods += {.Alt}
 		case "super", "cmd", "win": chord.mods += {.Super}
 		case: return {}, false
 		}
 		rest = rest[plus + 1:]
 	}
 	for key in skald.Key {
-		if strings.equal_fold(rest, skald.shortcut_format({key, {.Ctrl}})[len("Ctrl+"):]) ||
+		if strings.equal_fold(rest, skald.shortcut_format_for({key, {.Ctrl}}, false)[len("Ctrl+"):]) ||
 		   strings.equal_fold(rest, fmt.tprintf("%v", key)) {
 			chord.key = key
 			if chord == {} do return {}, false
