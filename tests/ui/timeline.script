@@ -58,8 +58,11 @@ expect timeline_key 0 1 0.50
 key ctrl+y
 expect timeline_key 0 1 0.75
 
-# Play, Pause, back to the start (playback itself runs only while the window has focus: not
-# waited for here)
+# Play, Pause, back to the start. Playback runs only while the window has focus, so the clip
+# loops meanwhile: a clip that isn't looping ends by itself within a second (it's 1 s long), and
+# the second click then started it again (the fullscreen window, focused, failed that way)
+scroll_into_view timeline-scroll timeline-loop
+click_widget timeline-loop
 scroll_into_view timeline-scroll timeline-play
 click_widget timeline-play
 expect timeline playing true
@@ -68,6 +71,8 @@ expect timeline playing false
 scroll_into_view timeline-scroll timeline-rewind
 click_widget timeline-rewind
 expect timeline playhead 0.00
+scroll_into_view timeline-scroll timeline-loop
+click_widget timeline-loop
 
 # An event track: a key at the playhead, renamed
 scroll_into_view timeline-scroll timeline-add-event-track

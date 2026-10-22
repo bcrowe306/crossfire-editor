@@ -8,6 +8,7 @@ import buf "../buffer"
 import syn "../syntax"
 import "core:fmt"
 import "core:strings"
+import "core:sync"
 import "core:unicode/utf8"
 import sdl "vendor:sdl3"
 import ttf "vendor:sdl3/ttf"
@@ -414,6 +415,16 @@ render_cursors_on_line :: proc(ed: ^Editor, renderer: ^sdl.Renderer, line: int, 
 // row_h (scaled down if a fallback font's glyph is wider than the box).
 @(private)
 draw_glyph_centered :: proc(renderer: ^sdl.Renderer, font: ^ttf.Font, text: string, x, y, cell_w, row_h: f32, color: sdl.Color) {
+	// Through the glyph atlas when it fits the box (the usual case)
+	if t := atlas_text(renderer, font, text, color); t != nil {
+		defer ttf.DestroyText(t)
+		w, h: i32
+		ttf.GetTextSize(t, &w, &h)
+		if f32(w) <= cell_w + 1 && f32(h) <= row_h {
+			ttf.DrawRendererText(t, x + f32(int((cell_w - f32(w)) / 2)), y + f32(int((row_h - f32(h)) / 2)))
+			return
+		}
+	}
 	cstr := strings.clone_to_cstring(text, context.temp_allocator)
 	surface := ttf.RenderText_Blended(font, ([^]u8)(cstr), len(text), color)
 	if surface == nil {
@@ -442,6 +453,17 @@ draw_text :: proc(renderer: ^sdl.Renderer, font: ^ttf.Font, text: string, x, y: 
 	if len(text) == 0 {
 		return
 	}
+	if t := atlas_text(renderer, font, text, color); t != nil {
+		defer ttf.DestroyText(t)
+		w, h: i32
+		ttf.GetTextSize(t, &w, &h)
+		top := y
+		if row_h > 0 {
+			top = y + f32(int((row_h - f32(h)) / 2))
+		}
+		ttf.DrawRendererText(t, x, top)
+		return
+	}
 	cstr := strings.clone_to_cstring(text, context.temp_allocator)
 	surface := ttf.RenderText_Blended(font, ([^]u8)(cstr), len(text), color)
 	if surface == nil {
@@ -459,4 +481,65 @@ draw_text :: proc(renderer: ^sdl.Renderer, font: ^ttf.Font, text: string, x, y: 
 	}
 	dst := sdl.FRect{x, top, f32(surface.w), f32(surface.h)}
 	sdl.RenderTexture(renderer, texture, nil, &dst)
+}
+
+// Glyph atlases, one per renderer (SDL_ttf's renderer text engine), keyed by the renderer's
+// properties ID (never reused, unlike its address). Text drawn through them uploads each glyph
+// once: drawing a texture per run of text was cheap on a software renderer, but a GPU renderer
+// uploads (and, SDL's Vulkan one, waits for) every texture.
+@(private="file")
+text_engines: struct {
+	lock: sync.Mutex,
+	by_renderer: map[sdl.PropertiesID]^ttf.TextEngine,
+}
+
+// atlas_text makes `text` as a TTF_Text in `renderer`'s glyph atlas, colored; nil when there's no
+// atlas (the caller then draws it the old way). The caller destroys it (ttf.DestroyText).
+@(private)
+atlas_text :: proc(renderer: ^sdl.Renderer, font: ^ttf.Font, text: string, color: sdl.Color) -> ^ttf.Text {
+	id := sdl.GetRendererProperties(renderer)
+	if id == 0 {
+		return nil
+	}
+	engine: ^ttf.TextEngine
+	{
+		sync.guard(&text_engines.lock)
+		found, ok := text_engines.by_renderer[id]
+		if !ok {
+			found = ttf.CreateRendererTextEngine(renderer)
+			text_engines.by_renderer[id] = found
+		}
+		engine = found
+	}
+	if engine == nil {
+		return nil
+	}
+	t := ttf.CreateText(engine, font, raw_data(text), len(text))
+	if t == nil {
+		return nil
+	}
+	ttf.SetTextColor(t, color.r, color.g, color.b, color.a)
+	return t
+}
+
+/*
+editor_forget_renderer frees the glyph atlas text was drawn with on `renderer`. Call it before
+destroying a renderer an editor drew with (editor_render).
+*/
+editor_forget_renderer :: proc(renderer: ^sdl.Renderer) {
+	if renderer == nil {
+		return
+	}
+	id := sdl.GetRendererProperties(renderer)
+	sync.guard(&text_engines.lock)
+	if engine, ok := text_engines.by_renderer[id]; ok {
+		if engine != nil {
+			ttf.DestroyRendererTextEngine(engine)
+		}
+		delete_key(&text_engines.by_renderer, id)
+	}
+	if len(text_engines.by_renderer) == 0 {
+		delete(text_engines.by_renderer)
+		text_engines.by_renderer = nil
+	}
 }

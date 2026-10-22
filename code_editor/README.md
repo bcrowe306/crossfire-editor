@@ -88,6 +88,15 @@ ed.editor_update(&editor)           // polls LSP responses, drains injected even
 ed.editor_render(&editor, renderer, font, x, y) // uses editor.theme (editor_set_theme)
 ```
 
+Text is drawn through SDL_ttf's renderer text engine: one glyph atlas per renderer, made on
+first use, so each glyph is uploaded once (a GPU renderer, such as SDL's Vulkan one, would
+otherwise upload and wait for a texture per run of text). Free it before destroying the renderer:
+
+```odin
+ed.editor_forget_renderer(renderer)
+sdl.DestroyRenderer(renderer)
+```
+
 Save/load is a plain API the host drives explicitly — there is no global
 editor state, so multiple `Editor` instances can coexist (e.g. multiple open
 tabs/panes), each owning its own buffer, keymap, and (optionally) its own

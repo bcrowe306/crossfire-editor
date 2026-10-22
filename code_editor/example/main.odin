@@ -258,6 +258,8 @@ main :: proc() {
 	}
 	defer sdl.DestroyWindow(window)
 	defer sdl.DestroyRenderer(renderer)
+	// Its glyph atlas goes first (deferred calls run last-first)
+	defer ed.editor_forget_renderer(renderer)
 
 	font_path := find_font_path()
 	font: ^ttf.Font

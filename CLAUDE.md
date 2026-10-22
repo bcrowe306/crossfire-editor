@@ -155,7 +155,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `asset_fields.odin` | A browser asset dropped on a code tab: a field of its handle type (`AssetField_Type`, `AssetField_Line`, `AssetField_Insert`) |
 | `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`) |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
-| `viewport_preview.odin` | Engine-rendered preview of the open scene (software renderer → Skald image) |
+| `viewport_preview.odin` | Engine-rendered preview of the open scene (the shared GPU renderer straight into a Skald image; fallbacks: a GPU readback, software) |
+| `gpu_share.odin` | **The shared GPU renderer**: SDL's Vulkan renderer on Skald's device (`SharedGPU_Renderer`, `SharedGPU_Shutdown`), `GPUTarget` (a Skald `image_create_target` image as an SDL render target: `_Ensure`, `_Begin` / `_End`, `_Draw`, `_ReadPixels` for tests), used by the viewport and the code tabs |
 | `viewport_math.odin` | Viewport pan/zoom math and drag (move/rotate/scale) math |
 | `add_node.odin` | Add Node dialog logic: `AddNode_Kinds` (search over the engine's `SCENE_NODE_KINDS`), `AddNode_Create` (parent, unique name) |
 | `node_edit.odin` | Subtree copy/paste/duplicate, `Scene_MoveNode` (reorder and reparent keeping the world transform), unique names |
@@ -194,7 +195,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
 | `code_editor/` | **The built-in code editor**: an Odin code editor on SDL3 (buffer, keymap, syntax, LSP client, `editor` = package `code_editor`, its own README, tests and Taskfile). Changed here: its `editor` package renamed `code_editor` (Odin package names must be unique: it was `editor`, ours then; ours is `crossfire_editor` now), and SDL_ttf calls taking `[^]u8` for this Odin |
-| `code_editor_host.odin` | Hosting it in Skald: `CodeEditor` per open file (a `ce.Editor`, a software renderer and surface, uploaded as `CODE_IMAGE` when the pixels change), the SDL event watch feeding it input, focus (`CodeEditor_Frame`, `CODE_EDITOR_PASSTHROUGH`), the bundled font (Liberation Mono), `Code_FindOLS` |
+| `code_editor_host.odin` | Hosting it in Skald: `CodeEditor` per open file (a `ce.Editor`), the shown one drawn by the shared GPU renderer into `CODE_IMAGE` (else a software renderer and surface, uploaded when the pixels change), the SDL event watch feeding it input, focus (`CodeEditor_Frame`, `CODE_EDITOR_PASSTHROUGH`), the bundled font (Liberation Mono), `Code_FindOLS` |
 | `code_tabs.odin` | Code tabs: `Script_Open` (built-in or external), `CodeTabs_Open` / `Close` / `SaveAll`, their messages (`CodeTabs_Update`), the tabs' view, the status line, the close prompt |
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
 | `project_scenes.odin` | Scene list operations: add, copy, rename (updating references), remove, start scene, names; deleting old scene files on save |
@@ -327,14 +328,33 @@ exports build engine objects from them. This keeps saving, undo and export deter
 
 ### Viewport (implemented)
 
-**Rendering** (`viewport_preview.odin`): the open scene is rendered by the engine itself, so
-sprites, animations, text and menus look as they do in the game. Future engine features
-(particles) appear without editor work.
-- The engine draws with **a GPU renderer of SDL's** (SDL's choice: OpenGL here) owned by a hidden
-  window of the preview's own, into a render-target texture, and the pixels are read back
-  (`RenderReadPixels`); then the view uploads them with `skald.image_update_pixels` (or
-  `image_load_pixels` when the size changes). The image is drawn with `draw_image` inside a
-  canvas. Skald's Vulkan context can't be shared with SDL's renderer, hence the round trip.
+**Rendering** (`viewport_preview.odin`, `gpu_share.odin`): the open scene is rendered by the
+engine itself, so sprites, animations, text and menus look as they do in the game. Future engine
+features (particles) appear without editor work.
+- **On Skald's own GPU device, with no copy** (gpu_share.odin, 2026-10-22): SDL's Vulkan
+  renderer is made on Skald's instance, device and queue (`skald.renderer_vulkan_handles`, SDL's
+  `PROP_RENDERER_CREATE_VULKAN_*`; a hidden `{.HIDDEN, .VULKAN}` window it never presents to) and
+  draws into a Skald image (`skald.image_create_target`, wrapped as an SDL render target through
+  `PROP_TEXTURE_CREATE_VULKAN_TEXTURE_NUMBER`): `GPUTarget`. The canvas draws its used corner
+  (`GPUTarget_Draw`: `draw_image_region(..., inset = false)`; targets only grow, rounded to 256).
+  `Preview_Render` returns no pixels then (`Preview_Shared`). Drawing goes between
+  `GPUTarget_Begin` / `GPUTarget_End`: End sets SDL's target back to the window, which moves the
+  image to SHADER_READ_ONLY_OPTIMAL with a barrier and submits (SDL waits for its queue), and
+  making it the target again starts with a barrier from fragment-shader reads: Skald's contract
+  for target images, so no per-frame barrier on Skald's side. Everything is on the main thread,
+  so the shared queue is never used twice at once. **SDL's resources must go before Skald's
+  device:** `App.on_shutdown` (a Skald addition) runs `Preview_Destroy`, `CodeEditor_Shutdown`,
+  `SharedGPU_Shutdown`. Measured (debug build, fullscreen 1059 x 555): a viewport render 1.7 ms
+  median against 4.0 ms with the readback; pixel-identical to the OpenGL readback (the driver's
+  `save_viewport_render`, read back on demand: `Viewport_LastRender`). Check: `render_path` in
+  viewport.script. Skald's own test `image_target_shows_what_sdl_draws` renders a Skald view of
+  such an image off screen and checks SDL's colors.
+- **Fallbacks:** without it (`EDITOR_GPU_SHARE=0`, no SDL video, or SDL's Vulkan renderer can't
+  use Skald's device) the engine draws with **a GPU renderer of SDL's** (SDL's choice: OpenGL
+  here) owned by a hidden window of the preview's own, into a render-target texture, and the
+  pixels are read back (`RenderReadPixels`); then the view uploads them with
+  `skald.image_update_pixels` (or `image_load_pixels` when the size changes), drawn with
+  `draw_image` inside a canvas.
   - **Software fallback:** without SDL video (unit tests, which run on several threads), when no
     GPU renderer can be made, or with `EDITOR_PREVIEW_SOFTWARE` set, it draws with SDL's software
     renderer into a surface, as it used to. That path was slower (90% of renders under 40 ms
@@ -355,9 +375,8 @@ sprites, animations, text and menus look as they do in the game. Future engine f
   - animations run on a timer at `VIEWPORT_ANIMATION_FPS` (30): `Viewport_Tick` schedules the
     next tick itself, and stops when the window isn't focused (`EditorFocused`)
   - The cheap upload was a Skald change (no mipmaps, a reused staging buffer, no
-    `QueueWaitIdle`: Skald's `mipmaps = false`). Drawing the engine through Skald on the GPU
-    would need a public textured-quad API in Skald: deferred; ask before changing Skald.
-- Skald draws with Vulkan, so it can't share a GPU context with the engine.
+    `QueueWaitIdle`: Skald's `mipmaps = false`). Sharing Skald's device (above) removed the
+    upload and the readback altogether.
 - The preview is package state, not `State`, because it holds SDL resources:
   - The engine scene is rebuilt only when the scene's structure changes (`sceneSignature`).
   - Transforms, visibility and layers are copied to the engine nodes every frame (`syncTransforms`).
@@ -703,8 +722,16 @@ Scripts open in code tabs after the scene tabs (`State.codeTabs`, absolute paths
 `settings.builtInCodeEditor` (Settings > Editor, `code_editor_builtin`, on by default), else the
 external program (`Script_OpenInEditor`). Picking a scene tab, or anything that changes
 `currentScene` (`update` resets `codeTab`), shows the scene.
-- **Rendering:** the code editor draws with an SDL renderer; Skald draws with Vulkan. Each open
-  file has an SDL software renderer on a surface; only the shown one is rendered, and only when
+- **Rendering:** the code editor draws with an SDL renderer: the shared GPU renderer
+  (gpu_share.odin, as the viewport) straight into the tab's image (`host.target`, key
+  `CODE_IMAGE`, one for whichever file shows; `CodeEditor_OnGPU`, driver check
+  `code_render_path`); its text goes through SDL_ttf's renderer text engine
+  (`atlas_text` in code_editor's render.odin, one glyph atlas per renderer, freed by
+  `ce.editor_forget_renderer` before the renderer goes): a texture made per run of text was
+  cheap in software, but SDL's Vulkan renderer uploads and waits for each. A fullscreen render
+  went from 12.1 ms (software, with its upload) to 2.8 ms median (debug build, code_keys.script).
+  Without the shared renderer each open file has an SDL software renderer on a surface. Only the
+  shown one is rendered, and only when
   what it shows may have changed (`codeRenderKey`: size, text version, carets, scroll, the
   server's answer counters; or input reached it, a server reply is waiting, it was reloaded or
   just came to the front), at least every `CODE_RENDER_REFRESH` (0.5 s) for anything else. A
@@ -733,7 +760,7 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   with a headless LSP session to complete same-file structs in Script_Register's proc
   literals, other files' types and `e.`): it doesn't see a file of the package created or
   rewritten while it runs (New Script, the regenerated assets.odin, git) until told, so
-  `CodeEditor_WatchScripts` (from Code_Tick, at most once a second) sends
+  `CodeEditor_WatchScripts` (from the code view and Code_Tick, at most once a second: ticks only come while the window has the keyboard, and a file written meanwhile was never announced: code_editor.script failed whenever its window opened unfocused) sends
   `workspace/didChangeWatchedFiles` for the folder's .odin files that appeared, changed or went
   (files open in a tab excepted). And text the host inserts (`CodeEditor_InsertAtLine`: node
   fields, listeners) reaches it once: `editor_notify_lsp_changed` drops the queued incremental
@@ -1079,8 +1106,8 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   computer's SDL lacks marked "(not on this computer)" (`e.RenderBackend_Available`), with a note
   on where the choice works. Play and exports read it from project.xml; the game falls back to
   SDL's choice where it isn't available, and logs "Renderer: <name>" (scenes.script plays with
-  Vulkan and checks that line). The viewport isn't affected: it renders with the engine's
-  software renderer (`viewport_preview.odin`).
+  Vulkan and checks that line). The viewport isn't affected: it renders with SDL's Vulkan
+  renderer on the editor's own GPU device (`gpu_share.odin`).
 - **Project Settings > General:** pixels per meter, gravity, Show shapes (the game's debug
   drawing), Smooth motion (the engine's smoothing: bodies drawn between physics steps); `Project.physics`, in the `.Project` undo snapshot, written to project.xml only when
   not the defaults.
@@ -1927,6 +1954,16 @@ Highlights:
   about layout, and automated checks must not capture the screen.
 - Exports: build the exported game and launch it. Report each target honestly as verified, untested,
   or blocked.
+- **Vulkan validation** (after any change to how the editor or Skald use the GPU): run the UI
+  scripts with the Khronos validation layer and its synchronization checks, and expect no
+  `Validation Error` lines:
+  `VK_LOADER_LAYERS_ENABLE='*validation' VK_KHRONOS_VALIDATION_VALIDATE_SYNC=1 task test:ui SCRIPT=...`
+  (the layer is the `vulkan-validation-layers` package; without installing it, unpack the package
+  somewhere and point `VK_LAYER_PATH` at its `explicit_layer.d` with the manifest's
+  `library_path` made absolute). The first run (2026-10-22, the shared GPU renderer) found four
+  bugs, all fixed: SDL 3.4's Vulkan pipelines are picked by the swapchain's format (the engine's
+  `RENDER_TARGET_FORMAT`), and in Skald a vertex buffer shared by two frames in flight, the
+  swapchain acquire barrier's stage, and leaked image streams.
 - **Editing files with scripts:** never `open(path, 'w')` before the new content is ready; a failure
   in between empties the file. (That happened to this file once.)
 

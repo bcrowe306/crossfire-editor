@@ -67,9 +67,16 @@ toggleButton :: proc(s: ^State, ctx: ^skald.Ctx(Msg), key, icon, tip: string, ac
 	return skald.tooltip(ctx, button, actionTip(s, tip, action), id = skald.hash_id(fmt.tprintf("panel-tip-%s", key)))
 }
 
-// The viewport's last render, kept only while a test script runs (save_viewport_render)
+// The viewport's last render, kept only while a test script runs (save_viewport_render); with
+// the shared GPU renderer it's read back when asked for (`Viewport_LastRender`)
 lastViewportRender: [dynamic]u8
 lastViewportSize: [2]int
+
+// The viewport's last render (RGBA8) and its size, for test scripts
+Viewport_LastRender :: proc() -> ([]u8, [2]int) {
+	if Preview_Shared() do return Preview_LastPixels(), Preview_DrawnSize()
+	return lastViewportRender[:], lastViewportSize
+}
 
 viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
@@ -90,7 +97,8 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	shapes := nodeShapes(s, scene)
 	if viewRect.w > 0 do handleViewportInput(s, ctx, canvasId, viewRect, shapes)
 
-	// Render the scene with the engine and hand the pixels to Skald
+	// Render the scene with the engine: straight into Skald's image (the shared GPU renderer), or
+	// read back and uploaded
 	imageReady := false
 	if ctx.renderer != nil && s.viewport.zoom > 0 && viewRect.w > 0 && viewRect.h > 0 {
 		pixelScale := max(ctx.renderer.scale, 1)
@@ -102,7 +110,13 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		renderMs: f64
 		if key == uploadedKey && size == uploadedSize {
 			imageReady = true
-		} else if pixels, ok := Preview_Render(s, size, pixelScale); ok {
+		} else if pixels, ok := Preview_Render(s, size, pixelScale); ok && Preview_Shared() {
+			// Drawn into the image the canvas shows: nothing to upload
+			frameStats.viewportMs = time.duration_milliseconds(time.tick_since(renderStart))
+			imageReady = true
+			uploadedSize = size
+			uploadedKey = key
+		} else if ok {
 			renderMs = time.duration_milliseconds(time.tick_since(renderStart))
 			// Test scripts can save it (the driver's save_viewport_render)
 			if ScriptDriver_Active() {
@@ -154,6 +168,8 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		state = s^,
 		shapes = shapes,
 		imageReady = imageReady,
+		shared = Preview_Shared(),
+		imageSize = uploadedSize,
 		mouse = ctx.input.mouse_pos,
 		theme = th^,
 	}
@@ -597,6 +613,9 @@ ViewportData :: struct {
 	state: State,
 	shapes: []NodeShape,
 	imageReady: bool,
+	// The image is the shared GPU target (draw its used corner, `imageSize` pixels)
+	shared: bool,
+	imageSize: [2]int,
 	mouse: [2]f32,
 	theme: skald.Theme,
 }
@@ -614,7 +633,9 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 	}
 
 	skald.push_clip(r, viewRect)
-	if data.imageReady {
+	if data.imageReady && data.shared {
+		GPUTarget_Draw(r, VIEWPORT_IMAGE, viewRect, data.imageSize)
+	} else if data.imageReady {
 		skald.draw_image(r, VIEWPORT_IMAGE, viewRect, .Fill)
 	} else {
 		skald.draw_rect(r, viewRect, skald.rgb(0x101218))

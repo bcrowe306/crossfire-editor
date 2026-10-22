@@ -15,13 +15,15 @@ The viewport's live preview: the open scene rendered by the engine itself, so sp
 animations, text and menus look exactly as they do in the game (and future engine features,
 like particles, show up without editor work).
 
-The engine draws with a GPU renderer of SDL's (Vulkan, OpenGL...: SDL's choice, as the game
-gets) into a render-target texture, owned by a hidden window of its own, and the pixels are read
-back; the view uploads them to a Skald image when `Preview_FrameKey` says the picture changed.
-Skald draws with Vulkan in a context SDL's renderer can't share, hence the round trip. Without
-SDL video (unit tests), when the GPU renderer can't be made, or with EDITOR_PREVIEW_SOFTWARE
-set, it draws with SDL's software renderer into a surface instead (slower: a whole forest level
-took about 38 ms; and it has had its own bugs, see the engine's LDtk tile drawing).
+The engine draws with the shared GPU renderer (gpu_share.odin: SDL's Vulkan renderer on Skald's
+own device) straight into the Skald image the viewport shows (`VIEWPORT_IMAGE`, a `GPUTarget`):
+nothing is read back or uploaded, and `Preview_Render` returns no pixels (`Preview_Shared`).
+Without it, it draws with a GPU renderer of SDL's choice (OpenGL here) on a hidden window of its
+own into a render-target texture whose pixels are read back, and the view uploads them to a
+Skald image when `Preview_FrameKey` says the picture changed. Without SDL video (unit tests),
+when no GPU renderer can be made, or with EDITOR_PREVIEW_SOFTWARE set, it draws with SDL's
+software renderer into a surface instead (slower: a whole forest level took about 38 ms; and it
+has had its own bugs, see the engine's LDtk tile drawing).
 The preview keeps SDL resources, so it lives here as package state, not in `State`:
 - The engine scene is rebuilt only when the scene's structure changes (node kinds, textures, text,
   animation settings...), detected with `sceneSignature`.
@@ -42,6 +44,12 @@ Preview :: struct {
 	window: ^sdl.Window,
 	target: ^sdl.Texture,
 	gpuFailed: bool,
+	// Shared: the shared GPU renderer draws into Skald's image (`shared`), whether it was tried
+	shared: bool,
+	sharedTried: bool,
+	sharedTarget: GPUTarget,
+	// The size last drawn (the target's used corner)
+	drawnSize: [2]int,
 	renderer: ^sdl.Renderer,
 	game: ^e.Game,
 	scene: ^e.Scene,
@@ -131,10 +139,14 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	}
 
 	r := preview.renderer
-	if preview.target != nil do sdl.SetRenderTarget(r, preview.target)
 	viewport := sdl.Rect{0, 0, i32(size.x), i32(size.y)}
-	sdl.SetRenderViewport(r, &viewport)
-	sdl.SetRenderClipRect(r, &viewport)
+	if preview.shared {
+		GPUTarget_Begin(&preview.sharedTarget, size)
+	} else {
+		if preview.target != nil do sdl.SetRenderTarget(r, preview.target)
+		sdl.SetRenderViewport(r, &viewport)
+		sdl.SetRenderClipRect(r, &viewport)
+	}
 	sdl.SetRenderDrawColor(r, 16, 18, 24, 255)
 	sdl.RenderClear(r)
 
@@ -147,10 +159,36 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	sdl.SetRenderDrawColor(r, bg.r, bg.g, bg.b, 255)
 	sdl.RenderFillRect(r, &game)
 	e.Scene_DrawWithView(preview.scene, r, view, screenLayersUseView = true, positionOnlyScale = s.viewport.zoom * pixelScale)
+	preview.drawnSize = size
 
+	// Shared: it's in Skald's image once SDL's target is the window again
+	if preview.shared {
+		GPUTarget_End()
+		return nil, true
+	}
 	// SDL batches draw commands; run them before reading the surface
 	sdl.FlushRenderer(r)
 	return copyPixels(size), true
+}
+
+// Whether the preview draws straight into the viewport's Skald image (`Preview_Render` then
+// returns no pixels; the view draws `VIEWPORT_IMAGE`'s used corner: `Preview_DrawnSize`)
+Preview_Shared :: proc() -> bool {
+	return preview.shared
+}
+
+// The size of the last render, in pixels
+Preview_DrawnSize :: proc() -> [2]int {
+	return preview.drawnSize
+}
+
+/*
+The last render's pixels (RGBA8, `Preview_DrawnSize`), read back from the GPU when it's shared:
+for tests and the driver's saved renders.
+*/
+Preview_LastPixels :: proc() -> []u8 {
+	if preview.shared do return GPUTarget_ReadPixels(&preview.sharedTarget, preview.drawnSize)
+	return preview.pixels[:]
 }
 
 /*
@@ -233,6 +271,21 @@ ensureSurface :: proc(size: [2]int) -> bool {
 		return false
 	}
 
+	// The shared GPU renderer first: the scene drawn straight into the viewport's Skald image
+	if !preview.sharedTried && preview.surface == nil && preview.window == nil {
+		preview.sharedTried = true
+		if r := SharedGPU_Renderer(); r != nil {
+			preview.shared = true
+			preview.renderer = r
+			makeGame(r)
+		}
+	}
+	if preview.shared {
+		if GPUTarget_Ensure(&preview.sharedTarget, VIEWPORT_IMAGE, size) do return true
+		log.warn("Viewport preview: no shared render target; reading the render back instead")
+		destroyAll()
+	}
+
 	if preview.window == nil && !preview.gpuFailed && preview.surface == nil do startGPU()
 	if preview.window != nil {
 		if preview.target != nil && preview.target.w >= i32(size.x) && preview.target.h >= i32(size.y) do return true
@@ -253,10 +306,16 @@ ensureSurface :: proc(size: [2]int) -> bool {
 		preview.failed = true
 		return false
 	}
-	preview.game = new(e.Game)
-	preview.game.renderer = preview.renderer
-	e.ResourceManager_Init(&preview.game.resourceManager, preview.renderer, nil)
+	makeGame(preview.renderer)
 	return true
+}
+
+// The preview's game, drawing with `renderer`
+@(private="file")
+makeGame :: proc(renderer: ^sdl.Renderer) {
+	preview.game = new(e.Game)
+	preview.game.renderer = renderer
+	e.ResourceManager_Init(&preview.game.resourceManager, renderer, nil)
 }
 
 // The GPU renderer: a hidden window with SDL's choice of renderer, and the game that draws with it.
@@ -284,14 +343,12 @@ startGPU :: proc() {
 	preview.gpuFailed = false
 	_ = sdl.SetRenderVSync(preview.renderer, 0)
 	log.infof("Viewport preview: drawing with SDL's %s renderer", name)
-	preview.game = new(e.Game)
-	preview.game.renderer = preview.renderer
-	e.ResourceManager_Init(&preview.game.resourceManager, preview.renderer, nil)
+	makeGame(preview.renderer)
 }
 
 // Whether the preview draws on the GPU (tests, the status bar)
 Preview_UsesGPU :: proc() -> bool {
-	return preview.window != nil
+	return preview.window != nil || preview.shared
 }
 
 // Builds a fresh engine scene from the editor scene
@@ -861,6 +918,12 @@ destroyAll :: proc() {
 		preview.game = nil
 	}
 	if preview.target != nil do sdl.DestroyTexture(preview.target)
+	// The shared renderer isn't the preview's: only its target is
+	if preview.shared {
+		GPUTarget_Destroy(&preview.sharedTarget)
+		preview.shared = false
+		preview.renderer = nil
+	}
 	if preview.renderer != nil do sdl.DestroyRenderer(preview.renderer)
 	if preview.window != nil do sdl.DestroyWindow(preview.window)
 	if preview.surface != nil do sdl.DestroySurface(preview.surface)

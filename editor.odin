@@ -528,6 +528,12 @@ main :: proc() {
 		view   = view,
 		// The window's close button asks about unsaved changes, like File > Quit
 		on_close_request = proc() -> Msg { return Msg(Action.Quit) },
+		// Before Skald destroys its GPU device: what was made on it (gpu_share.odin)
+		on_shutdown = proc() {
+			Preview_Destroy()
+			CodeEditor_Shutdown()
+			SharedGPU_Shutdown()
+		},
 		window_flags = EDITOR_FULLSCREEN ? {.RESIZABLE, .FULLSCREEN} : {},
 	})
 

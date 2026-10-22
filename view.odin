@@ -13,6 +13,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	FrameStats_Begin()
 	rowTipCount = 0
 	ensureIconFont(ctx)
+	// The viewport and code tabs draw on Skald's GPU device (gpu_share.odin)
+	SharedGPU_SetSkald(ctx.renderer)
 	th := ctx.theme
 	state := s
 	ScriptDriver_Frame(&state, ctx)

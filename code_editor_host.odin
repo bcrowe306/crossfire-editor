@@ -23,8 +23,12 @@ an OLS client) hosted in the center panel's tabs, one tab per open script (code_
 
 It draws with an SDL renderer and reads SDL events, while this editor draws with Skald on
 Vulkan, so each open file gets:
-- a `ce.Editor`, drawn by SDL's software renderer into a surface, uploaded as one Skald image
-  (`CODE_IMAGE`) only when its pixels changed (like the viewport, viewport_preview.odin)
+- a `ce.Editor`, drawn by the shared GPU renderer (gpu_share.odin: SDL's Vulkan renderer on
+  Skald's device) straight into the Skald image the tab shows (`CODE_IMAGE`, `host.target`, one
+  for whichever file shows); without it (unit tests, or a machine where it can't be made) by
+  SDL's software renderer into a surface of its own, uploaded only when its pixels changed. Text
+  goes through the code editor's glyph atlas (`ce.editor_forget_renderer` frees it with its
+  renderer)
 - the window's raw SDL events, collected by an event watch (`sdl.AddEventWatch`: it sees every
   event as SDL queues it, before Skald polls them, in order, key repeats included). Each frame
   `CodeEditor_View` passes them on: keys and text while the editor has keyboard focus, the mouse
@@ -116,6 +120,10 @@ host: struct {
 	watching: bool,
 	events: [1024]sdl.Event,
 	eventCount: int,
+	// The shared GPU renderer's target the shown file is drawn into (`CODE_IMAGE`), and whether
+	// the image is it (else the software path's upload)
+	target: GPUTarget,
+	onGPU: bool,
 	// Which editor's pixels the image holds
 	uploaded: ^CodeEditor,
 	uploadedHash: u64,
@@ -199,7 +207,10 @@ CodeEditor_Close :: proc(path: string) {
 		if host.lastShown == c do host.lastShown = nil
 		releaseServer(c)
 		ce.editor_destroy(&c.ed)
-		if c.renderer != nil do sdl.DestroyRenderer(c.renderer)
+		if c.renderer != nil {
+			ce.editor_forget_renderer(c.renderer)
+			sdl.DestroyRenderer(c.renderer)
+		}
 		if c.surface != nil do sdl.DestroySurface(c.surface)
 		delete(c.path)
 		free(c)
@@ -237,6 +248,8 @@ CodeEditor_Shutdown :: proc() {
 	host.server = nil
 	host.lastShown = nil
 	host.uploaded = nil
+	GPUTarget_Destroy(&host.target)
+	host.onGPU = false
 	host.serversStarted = 0
 }
 
@@ -424,13 +437,31 @@ holds: tests check the code editor drew its text without reading the screen.
 */
 CodeEditor_RenderStats :: proc(path: string) -> (inked: int, uploaded: bool) {
 	c := CodeEditor_Find(path)
-	if c == nil || c.surface == nil do return 0, false
-	pixels := ([^]u8)(c.surface.pixels)[:c.size.x * c.size.y * 4]
+	if c == nil do return 0, false
+	pixels := lastPixels(c)
+	if pixels == nil do return 0, false
 	bg := c.ed.theme.background
 	for i := 0; i + 3 < len(pixels); i += 4 {
 		if pixels[i] != bg.r || pixels[i + 1] != bg.g || pixels[i + 2] != bg.b do inked += 1
 	}
-	return inked, host.uploaded == c && host.uploadedHash == c.pixelsHash
+	return inked, host.uploaded == c && (host.onGPU || host.uploadedHash == c.pixelsHash)
+}
+
+// Whether the shown code tab is drawn by the shared GPU renderer (tests)
+CodeEditor_OnGPU :: proc() -> bool {
+	return host.onGPU
+}
+
+// A file's last render (RGBA8, `c.size`): read back from the shared target when it's the one
+// shown there, else its software surface; nil when there's none
+@(private="file")
+lastPixels :: proc(c: ^CodeEditor) -> []u8 {
+	if host.onGPU {
+		if host.uploaded != c do return nil
+		return GPUTarget_ReadPixels(&host.target, c.size)
+	}
+	if c.surface == nil do return nil
+	return ([^]u8)(c.surface.pixels)[:c.size.x * c.size.y * 4]
 }
 
 /*
@@ -439,9 +470,11 @@ looking at it. Returns "" or what went wrong.
 */
 CodeEditor_SaveRender :: proc(path, png: string) -> string {
 	c := CodeEditor_Find(path)
-	if c == nil || c.surface == nil do return "not rendered"
+	if c == nil do return "not rendered"
+	pixels := lastPixels(c)
+	if pixels == nil do return "not rendered"
 	cpng := strings.clone_to_cstring(png, context.temp_allocator)
-	if stbi.write_png(cpng, i32(c.size.x), i32(c.size.y), 4, c.surface.pixels, i32(c.size.x * 4)) == 0 do return "couldn't write it"
+	if stbi.write_png(cpng, i32(c.size.x), i32(c.size.y), 4, raw_data(pixels), i32(c.size.x * 4)) == 0 do return "couldn't write it"
 	return ""
 }
 
@@ -625,6 +658,10 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	drainEvents()
 	// The shared language server follows the file that shows
 	takeServer(c)
+	// It learns of script files changed on disk whenever the code shows, not only on Code_Tick:
+	// ticks come only while the window has the keyboard, so a file written meanwhile (git, another
+	// editor, a test) was never announced (WatchScripts looks at most once a second)
+	CodeEditor_WatchScripts(absolutePath(joinPath(s.project.rootPath, SCRIPTS_FOLDER, allocator = context.temp_allocator)))
 	// A reply from the language server (completions, diagnostics, hover...) may change what shows
 	if c.ed.lsp_enabled && c.ed.lsp.has_process && c.ed.lsp.stdout != nil {
 		if pending, err := os.pipe_has_data(c.ed.lsp.stdout); err == nil && pending do handled += 1
@@ -660,7 +697,24 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	key := codeRenderKey(c, size, scale)
 	if stillShown && handled == 0 && key == c.renderKey && time.tick_since(c.renderedAt) < CODE_RENDER_REFRESH {
 		imageReady = true
+	} else if ctx.renderer != nil && size.x > 0 && size.y > 0 && SharedGPU_Renderer() != nil && GPUTarget_Ensure(&host.target, CODE_IMAGE, size) {
+		// Drawn straight into the image the tab shows
+		c.renderKey = key
+		c.renderedAt = time.tick_now()
+		c.size = size
+		r := SharedGPU_Renderer()
+		ce.editor_set_viewport(&c.ed, f32(size.x), f32(size.y))
+		GPUTarget_Begin(&host.target, size)
+		sdl.SetRenderDrawColor(r, 0, 0, 0, 255)
+		sdl.RenderClear(r)
+		ce.editor_render(&c.ed, r, host.font, 0, 0)
+		GPUTarget_End()
+		host.onGPU = true
+		host.uploaded = c
+		host.uploadedSize = size
+		imageReady = true
 	} else if ctx.renderer != nil && size.x > 0 && size.y > 0 && ensureSurface(c, size) {
+		host.onGPU = false
 		c.renderKey = key
 		c.renderedAt = time.tick_now()
 		ce.editor_set_viewport(&c.ed, f32(size.x), f32(size.y))
@@ -683,13 +737,17 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		}
 	}
 
-	Data :: struct { ready: bool, bg: skald.Color }
+	Data :: struct { ready: bool, bg: skald.Color, onGPU: bool, size: [2]int }
 	theme := c.ed.theme.background
-	data := new_clone(Data{imageReady, skald.rgba(u32(theme.r) << 24 | u32(theme.g) << 16 | u32(theme.b) << 8 | 0xff)}, context.temp_allocator)
+	data := new_clone(Data{imageReady, skald.rgba(u32(theme.r) << 24 | u32(theme.g) << 16 | u32(theme.b) << 8 | 0xff), host.onGPU, host.uploadedSize}, context.temp_allocator)
 	cursor := ce.editor_mouse_cursor(&c.ed) == .Text ? skald.Cursor_Shape.Text : skald.Cursor_Shape.Default
 	return skald.canvas(ctx, data, proc(d: ^Data, p: skald.Canvas_Painter) {
 		skald.draw_rect(p.r, p.bounds, d.bg)
-		if d.ready do skald.draw_image(p.r, CODE_IMAGE, p.bounds, .Fill)
+		if d.ready && d.onGPU {
+			GPUTarget_Draw(p.r, CODE_IMAGE, p.bounds, d.size)
+		} else if d.ready {
+			skald.draw_image(p.r, CODE_IMAGE, p.bounds, .Fill)
+		}
 	}, id = id, cursor = cursor)
 }
 
@@ -855,7 +913,10 @@ applyFont :: proc(c: ^CodeEditor, scale: f32 = 0) {
 @(private="file")
 ensureSurface :: proc(c: ^CodeEditor, size: [2]int) -> bool {
 	if c.surface != nil && c.size == size do return true
-	if c.renderer != nil do sdl.DestroyRenderer(c.renderer)
+	if c.renderer != nil {
+		ce.editor_forget_renderer(c.renderer)
+		sdl.DestroyRenderer(c.renderer)
+	}
 	if c.surface != nil do sdl.DestroySurface(c.surface)
 	c.renderer = nil
 	c.surface = sdl.CreateSurface(i32(size.x), i32(size.y), .RGBA32)

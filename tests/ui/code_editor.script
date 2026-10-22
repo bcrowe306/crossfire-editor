@@ -27,6 +27,8 @@ expect code_tab mover.odin
 wait_until code_focused true timeout=5
 expect code_caret 1 1
 expect code_rendered true
+# Drawn on Skald's GPU device, straight into the tab's image (gpu_share.odin)
+expect code_render_path shared
 expect code_dirty false
 
 # Typing goes to the code; the editor's own keys don't fire (Delete would delete the node)

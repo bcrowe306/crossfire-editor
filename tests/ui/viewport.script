@@ -4,6 +4,8 @@
 wait 5
 click_row browser-tree 2
 expect scene PlayScene
+# The engine draws straight into the viewport's Skald image, on Skald's GPU device (gpu_share.odin)
+expect render_path shared
 wait 3
 
 # Zoom with keys and the mouse wheel

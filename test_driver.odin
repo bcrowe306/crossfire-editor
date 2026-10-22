@@ -264,6 +264,9 @@ Checks:
 	code_contains <true | false> <text>   The shown code tab's text contains the text (\t, \n)
 	code_dirty <true | false>    The shown code tab has unsaved changes
 	code_caret <line> <column>   The shown code tab's caret (1-based)
+	render_path <shared | readback | software>   How the viewport draws: straight into Skald's image
+	                                 on its GPU device, read back from a GPU renderer, or in software
+	code_render_path <shared | software>         How the shown code tab draws
 	code_rendered <true | false> The shown code tab drew text (pixels unlike its background) and
 	                             that render is the image on screen
 	code_lsp <Off | Starting | Running | Failed>   The shown code tab's language server
@@ -966,8 +969,8 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 
 	case "save_viewport_render":
 		// The viewport's last render as a PNG (its own pixels, never the screen), to look at
-		size := lastViewportSize
-		if size.x > 0 do _ = stbi.write_png(strings.clone_to_cstring(rest, context.temp_allocator), i32(size.x), i32(size.y), 4, raw_data(lastViewportRender), i32(size.x) * 4)
+		pixels, size := Viewport_LastRender()
+		if size.x > 0 && len(pixels) >= size.x * size.y * 4 do _ = stbi.write_png(strings.clone_to_cstring(rest, context.temp_allocator), i32(size.x), i32(size.y), 4, raw_data(pixels), i32(size.x) * 4)
 		report(size.x > 0, line)
 		return false
 
@@ -1763,6 +1766,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return found == want, found
 	case "code_dirty":
 		found = fmt.tprint(CodeEditor_IsDirty(CodeTabs_Active(s)))
+	case "render_path":
+		found = Preview_Shared() ? "shared" : Preview_UsesGPU() ? "readback" : "software"
+	case "code_render_path":
+		found = CodeEditor_OnGPU() ? "shared" : "software"
 	case "code_rendered":
 		inked, uploaded := CodeEditor_RenderStats(CodeTabs_Active(s))
 		found = fmt.tprint(inked > 500 && uploaded)
