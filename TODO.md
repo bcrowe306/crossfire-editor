@@ -8,41 +8,52 @@ owns it.
 
 The features most 2D engines have that this one doesn't, as the user listed them. Items 1-10
 (shaders deferred) were built one per dev release (2026-10-21/22), each with a user guide in
-`docs/manual/`; the rest wait. Remove an item here once it's built.
+`docs/manual/`. The rest are being built now (decisions of 2026-10-22, below each item), one per
+dev release, each tested, documented and removed from here when done.
 
-4. **Shaders and post-processing** (deferred by the user): custom fragment shaders on sprites
-   (hit flash, outline, dissolve, palette swap) and screen effects (CRT, bloom, grading). Check
-   what SDL's GPU renderer allows first, across platforms and the web; the software renderer
-   can't run them.
+4. **Shaders and post-processing**: custom fragment shaders on sprites and screen effects.
+   Decided: a built-in effect library (hit flash, outline, dissolve, palette swap, CRT, bloom,
+   color grading) shipped precompiled per platform, **plus** user-written shaders compiled with
+   SDL_shadercross (a new dependency). SDL 3.4 runs them only on its "gpu" backend
+   (`SDL_CreateGPURenderState`); other backends and the web fall back (no effect, or a CPU
+   approximation where cheap).
 11. **Hot reload of scripts**, more than one script per node, custom node types from game code.
 12. **Asset import settings**: per-texture filtering and atlas packing, audio conversion,
-    bitmap / MSDF fonts.
-13. **Trails and lines**: trail renderers, line nodes (ropes, lasers); GPU particles maybe.
+    bitmap / MSDF fonts. Decided: audio conversion runs ffmpeg when it's installed; MSDF fonts
+    with msdfgen built from source (a submodule, like Box2D and SDL); BMFont bitmap fonts too.
+13. **Trails and lines**: trail renderers, line nodes (ropes, lasers), and GPU particles
+    (decided: yes, on SDL_GPU, GPU backend only, the CPU emitter as the fallback).
 14. **Collision from sprites** (polygons from an image's alpha) and shared physics materials.
-15. **Skeletal animation**: Spine / DragonBones import, or simple bones and IK.
+15. **Skeletal animation**. Decided: the engine's own bones, skinned sprites and IK, edited in
+    the editor and keyed with the Timeline, **plus** DragonBones JSON import (not Spine: its
+    runtime license).
 16. **Audio effects** on buses (reverb, low-pass, echo), music crossfades, adaptive layers.
-17. **A dialogue system**: branching dialogue data and a typewriter text box (Yarn / Ink style).
-18. **More platforms**: Android, iOS, touch input and virtual joysticks; Steam achievements and
-    cloud saves.
-19. **Editor plugins**: tool scripts running in the editor, custom inspectors, import plugins.
-20. **Multiplayer**: local multiplayer helpers; online later, maybe.
+17. **A dialogue system**. Decided: an own dialogue asset with a graph editor (like the States
+    tab) and a typewriter text box node, **plus** importing `.yarn` (Yarn Spinner) files into it.
+18. **Touch input and virtual joysticks; Steam achievements and cloud saves.** Decided: touch
+    and on-screen joysticks now; the Steam API (achievements, stats, cloud saves) with a stub
+    backend until the Steamworks SDK is available. Mobile export targets: later (below).
+19. **Editor plugins**: tool scripts, custom inspectors, import plugins. Decided: Odin packages
+    in the project, built by the editor into a shared library against a plugin API, reloaded
+    when they change.
+20. **Local multiplayer**: players joining with a device, each player's own input actions and
+    view (split screen exists). Online: not planned.
 
 ## Documentation
 
-- **The user manual** (`docs/manual/`, started 2026-10-21 with the features above): published
-  with the API docs on GitHub Pages and opened from the editor (Help > Manual: the page for
-  what's selected). Older features still need their pages (scenes, nodes, scripts, physics,
-  particles, sound, LDtk, Aseprite, components, export...).
+- **The user manual** (`docs/manual/`, started 2026-10-21): pages for the older features
+  (scenes and nodes, scripts, physics, particles, sound, LDtk, Aseprite, components, export...).
+  Decided (2026-10-22): written as one item now. **The docs will later become a static site
+  built with Astro**: every page Markdown with YAML frontmatter (title, description, order),
+  plain relative links, no GitHub-only syntax.
 
-## Editor viewport
+## Later (decided not to build yet)
 
-- **Skald GPU rendering for the viewport** (the user's question, 2026-10-21): the engine draws
-  with SDL's renderer into a hidden window's texture, read back and uploaded to Skald (~0.6 ms an
-  upload fullscreen). A viewport that renders continuously (animations, particles, scripts
-  always live) needs measuring first: the readback stalls the GPU each frame, and the editor
-  otherwise draws only when something changes. Options: keep the round trip with a "live" toggle
-  and a frame cap, paused when unfocused; or let Skald draw the engine's frames itself (a
-  textured-quad API, or Vulkan interop with SDL's GPU renderer). Ask before changing Skald.
+- **Mobile export targets** (Android, iOS): Odin can target both (`-subtarget:android`,
+  `-subtarget:iphone`); needs the Android SDK/NDK here and CI's Mac for iOS (decided
+  2026-10-22: later).
+- **Steam's real backend**: the Steamworks SDK (a partner download) behind the engine's Steam API
+  (built with a stub in item 18).
 
 ## Builds and releases
 
