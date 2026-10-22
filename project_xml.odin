@@ -191,6 +191,14 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 		}
 		close(&w, "bus")
 	}
+	// Local players, when not the defaults (players_edit.odin)
+	if pl, d := project.players, e.DEFAULT_PLAYER_SETTINGS; pl.maxPlayers != d.maxPlayers || pl.keyboard != d.keyboard || pl.joinAction != "" {
+		open(&w, "players")
+		if pl.maxPlayers != d.maxPlayers do attr(&w, "max", pl.maxPlayers)
+		if pl.keyboard != d.keyboard do attr(&w, "keyboard", pl.keyboard)
+		if pl.joinAction != "" do attr(&w, "joinAction", pl.joinAction)
+		closeEmpty(&w)
+	}
 	for a in project.achievements {
 		open(&w, "achievement")
 		attr(&w, "name", a.name)

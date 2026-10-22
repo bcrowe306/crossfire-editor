@@ -1,0 +1,39 @@
+# Local players: Project Settings > Input's Local players rows (most players, keyboard player,
+# the join action), applied, undone, saved; played with them.
+# Run with: task test:ui (and task test:ui:fullscreen)
+
+wait 5
+expect players max 4
+expect players keyboard true
+expect players join default
+action Open_Project_Settings
+click_widget project-settings-tab-Input
+click_widget input-defaults
+scroll_into_view input-list-scroll input-players-max
+click_widget input-players-max
+click_overlay_item 1
+scroll_into_view input-list-scroll input-players-keyboard
+click_widget input-players-keyboard
+scroll_into_view input-list-scroll input-players-join
+click_widget input-players-join
+# The choices: the default buttons, then the actions (ui_left, ui_right, ui_up, ui_down, ui_accept)
+click_overlay_item 5
+expect players max 4
+click_widget project-settings-apply
+expect players max 2
+expect players keyboard false
+expect players join ui_accept
+key ctrl+z
+expect players max 4
+key ctrl+shift+z
+expect players join ui_accept
+key ctrl+s
+expect project_file_contains project.xml <players max="2" keyboard="false" joinAction="ui_accept"/>
+
+# The game reads them
+key F5
+wait_until play Playing timeout=120
+wait 1
+key shift+F5
+wait_until play Stopped
+expect console_contains Local players: up to 2, joining with ui_accept

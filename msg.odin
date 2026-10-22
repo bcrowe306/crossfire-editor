@@ -980,6 +980,7 @@ Msg :: union {
 	Steam_Setting_Changed,
 	Steam_Achievement_Added,
 	Steam_Achievement_Removed,
+	Players_Setting_Changed,
 	Export_Target_Selected,
 	Export_Target_Enabled,
 	Export_Text_Changed,

@@ -176,3 +176,50 @@ touch_controls_draw_in_the_viewport :: proc(t: ^testing.T) {
 	// (190, 190) is world (90, 90): in the game area, past the radius
 	testing.expectf(t, pixels[(190 * 200 + 190) * 4] < 10, "nothing outside: %d", pixels[(190 * 200 + 190) * 4])
 }
+
+@(test)
+local_players_settings_in_the_editor :: proc(t: ^testing.T) {
+	dir := "build/test_players_settings"
+	state := freshState(dir)
+	defer removeAll(dir)
+	defer State_Destroy(&state)
+	testing.expect_value(t, state.project.players, e.DEFAULT_PLAYER_SETTINGS)
+	// The defaults aren't written
+	text, _ := os.read_entire_file(joinPath(state.project.rootPath, "project.xml", allocator = context.temp_allocator), context.temp_allocator)
+	testing.expect(t, !strings.contains(string(text), "<players"), "no <players> by default")
+
+	sendTo(&state, Action.Open_Project_Settings)
+	sendTo(&state, Players_Setting_Changed{field = .Max_Players, text = "2"})
+	sendTo(&state, Players_Setting_Changed{field = .Max_Players, text = "99"})
+	sendTo(&state, Players_Setting_Changed{field = .Keyboard, flag = false})
+	sendTo(&state, Players_Setting_Changed{field = .Join_Action, text = "ui_accept"})
+	testing.expect_value(t, state.projectSettings.players.maxPlayers, e.MAX_LOCAL_PLAYERS)
+	// Renaming the action in the Input tab renames the join action
+	accept := -1
+	for a, i in state.projectSettings.actions do if a.name == "ui_accept" do accept = i
+	testing.expect(t, accept >= 0, "the default actions")
+	sendTo(&state, Input_Action_Selected(accept))
+	sendTo(&state, Input_Action_Renamed("join"))
+	testing.expect_value(t, state.projectSettings.players.joinAction, "join")
+	testing.expect_value(t, state.project.players, e.DEFAULT_PLAYER_SETTINGS)
+	sendTo(&state, Project_Settings_Applied{})
+	testing.expect_value(t, state.project.players.maxPlayers, e.MAX_LOCAL_PLAYERS)
+	testing.expect(t, !state.project.players.keyboard, "no keyboard player")
+	testing.expect_value(t, state.project.players.joinAction, "join")
+	sendTo(&state, Action.Undo)
+	testing.expect_value(t, state.project.players, e.DEFAULT_PLAYER_SETTINGS)
+	sendTo(&state, Action.Redo)
+	testing.expect_value(t, state.project.players.joinAction, "join")
+
+	testing.expect_value(t, Project_Save(&state.project), "")
+	loaded, message, _ := Project_Load(state.project.rootPath)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect_value(t, loaded.players, state.project.players)
+
+	// Removing the join action falls back to the default buttons
+	sendTo(&state, Action.Open_Project_Settings)
+	for a, i in state.projectSettings.actions do if a.name == "join" do sendTo(&state, Input_Action_Removed(i))
+	testing.expect_value(t, state.projectSettings.players.joinAction, "")
+	sendTo(&state, Project_Settings_Cancelled{})
+}

@@ -224,6 +224,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_mixer.odin` | The Mixer tab (`MixerPanel`, built in `skald.sized`), like a DAW's: a channel strip per bus (node count, remove, pan, fader beside its level meter, dB, mute, name at the bottom), scrolling sideways; Master pinned on the right, + beside it |
 | `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
 | `touch_edit.odin` | **Touch controls**: `NodeDef.touch` (`e.TouchControlSettings`) and `touchActions` (comma-separated, owned), `Touch_Setting_Changed` (node steps), the VirtualJoystick / TouchButton inspector rows (`touchInspectorRows`), `NodeKind_IsTouchControl` |
+| `players_edit.odin` | **Local players**: `Project.players` (`e.PlayerSettings`, `joinAction` owned: `PlayerSettings_Clone`), Project Settings > Input's Local players rows (`playersSettingRows`, `Players_Setting_Changed` on the draft) |
 | `steam_edit.odin` | **Steam**: `Project.steam` / `achievements` (`AchievementDef`: clone, destroy, equal, `AchievementNameProblem`), Project Settings > Steam (`SteamTab`, `Steam_Setting_Changed` / `_Achievement_Added` / `_Removed` on the draft), `ACHIEVEMENT_X` constants |
 | `bus_effects_edit.odin` | **Bus effects**: `BusDef.effects` / `effectCount` (a plain array), `Bus_Effects_Opened` (the Mixer's FX: `State.busSelection`) and `Bus_Effect_Added` / `_Removed` / `_Moved` / `_Changed` (`.Project` steps), `busEffectsInspector`; the preview hears them (`AudioPreview_SetEffects` from `Mixer_RoutePreview`) |
 | `music_layers_edit.odin` | **Music layers**: `NodeDef.musicLayers` (`MusicLayerDef`: clone, destroy, equal), `Music_Layer_Added` / `_Removed` / `_Changed` (node steps), the MusicPlayer's Layers rows (`musicLayerRows`) |
@@ -1434,7 +1435,7 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/collision_tools.script` (driver `select_node`, checks `traced`, `material`,
   `node_material`). User guide: `docs/manual/collision_and_materials.md`.
 
-## Touch controls and Steam (implemented, `touch_edit.odin`, `steam_edit.odin`; engine: touch.odin, steam.odin)
+## Touch controls, Steam and local players (implemented, `touch_edit.odin`, `steam_edit.odin`; engine: touch.odin, steam.odin)
 
 - **Touch controls** are node kinds with a plain `NodeDef.touch` and owned `touchActions` (the
   scene file's comma-separated left, right, up, down; a button's one); a button's label is `text`
@@ -1449,6 +1450,12 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   applied with the rest and in the `.Project` snapshot (take, restore, destroy, equal). The
   writer puts `steamAppId` / `steamCloud` on project.xml's root and `<achievement>` children.
   Achievements lay out on two lines each (a tiled window's dialog is narrow).
+- **Local players** (players_edit.odin) are on the Project Settings draft too (Input tab, under the
+  action list), in the snapshot, and written as `<players>` only when not the defaults (new
+  projects get `e.DEFAULT_PLAYER_SETTINGS`). Renaming or removing the join action in the draft
+  follows (input_actions.odin). Tests: `local_players_settings_in_the_editor`,
+  `tests/ui/players.script` (plays: the engine logs `Local players: up to 2, joining with
+  ui_accept`; driver check `players <field>`). User guide: `docs/manual/local_multiplayer.md`.
 - Tests: `touch_controls_in_the_editor`, `touch_controls_draw_in_the_viewport` (pixels),
   `steam_settings_in_the_editor`, `tests/ui/touch_steam.script` (Play: the console's
   `Steam: stub backend (app 480)`; driver checks `touch <field>`, `steam <field>`). User guide:

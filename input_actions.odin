@@ -175,6 +175,11 @@ InputSettings_Update :: proc(state: ^State, m: Msg) -> bool {
 	case Input_Action_Removed:
 		i := int(v)
 		if i < 0 || i >= len(d.actions) do break
+		// The players' join action goes with it (players_edit.odin)
+		if d.players.joinAction == d.actions[i].name {
+			delete(d.players.joinAction)
+			d.players.joinAction = ""
+		}
 		ActionDef_Destroy(&d.actions[i])
 		ordered_remove(&d.actions, i)
 		d.selectedAction = clamp(d.selectedAction, 0, max(len(d.actions) - 1, 0))
@@ -187,6 +192,11 @@ InputSettings_Update :: proc(state: ^State, m: Msg) -> bool {
 		delete(d.renameText)
 		d.renameText = strings.clone(string(v))
 		if selected == nil || ActionNameProblem(d.actions[:], d.selectedAction, string(v)) != "" do break
+		// The players' join action follows the rename (players_edit.odin)
+		if d.players.joinAction != "" && d.players.joinAction == selected.name {
+			delete(d.players.joinAction)
+			d.players.joinAction = strings.clone(string(v))
+		}
 		delete(selected.name)
 		selected.name = strings.clone(string(v))
 	case Input_Deadzone_Changed:

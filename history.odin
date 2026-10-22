@@ -102,6 +102,7 @@ ProjectSnapshot :: struct {
 	buses: [dynamic]BusDef,
 	steam: e.SteamSettings,
 	achievements: [dynamic]AchievementDef,
+	players: e.PlayerSettings,
 	// The scene open at the time, shown again on undo/redo
 	currentScene: int,
 }
@@ -913,6 +914,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for b in p.buses do append(&snapshot.buses, BusDef_Clone(b))
 	snapshot.steam = p.steam
 	snapshot.achievements = Achievements_Clone(p.achievements[:])
+	snapshot.players = PlayerSettings_Clone(p.players)
 	return snapshot
 }
 
@@ -958,6 +960,8 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.steam = snapshot.steam
 	Achievements_Destroy(&p.achievements)
 	p.achievements = Achievements_Clone(snapshot.achievements[:])
+	delete(p.players.joinAction)
+	p.players = PlayerSettings_Clone(snapshot.players)
 	// Data values by file: resources made or removed since (files, not undoable) stay as they are
 	for d in snapshot.data {
 		i := Project_FindData(p, d.path)
@@ -1052,6 +1056,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	for b in snapshot.buses do delete(b.name)
 	delete(snapshot.buses)
 	Achievements_Destroy(&snapshot.achievements)
+	delete(snapshot.players.joinAction)
 	snapshot^ = {}
 }
 
@@ -1070,7 +1075,7 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if len(a.animationSets) != len(b.animationSets) do return false
 	for set, i in a.animationSets do if !AnimationSetDef_Equal(set, b.animationSets[i]) do return false
 	if a.uiTheme != b.uiTheme || len(a.themes) != len(b.themes) || a.transition != b.transition || a.loadingScene != b.loadingScene do return false
-	if a.steam != b.steam || !Achievements_Equal(a.achievements[:], b.achievements[:]) do return false
+	if a.steam != b.steam || !Achievements_Equal(a.achievements[:], b.achievements[:]) || a.players != b.players do return false
 	for t, i in a.themes do if !ThemeDef_Equal(t, b.themes[i]) do return false
 	if len(a.materials) != len(b.materials) do return false
 	for m, i in a.materials do if !MaterialDef_Equal(m, b.materials[i]) do return false

@@ -31,8 +31,6 @@ dev release, each tested, documented and removed from here when done.
 19. **Editor plugins**: tool scripts, custom inspectors, import plugins. Decided: Odin packages
     in the project, built by the editor into a shared library against a plugin API, reloaded
     when they change.
-20. **Local multiplayer**: players joining with a device, each player's own input actions and
-    view (split screen exists). Online: not planned.
 
 ## Documentation
 

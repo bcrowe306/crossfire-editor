@@ -204,6 +204,12 @@ General > Sound output changes the format; Settings > Editor > Audio device pick
 Play and the previews use on this computer. An exported game plays on the system's default
 device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
 
+**Local multiplayer.** Players join with a gamepad or the keyboard while a game is joining
+(`e.Players_StartJoining`), and each reads the input actions from their own device
+(`e.Player_IsActionPressed(1, "jump")`); `e.SplitScreen_Rect` places a CameraView per player.
+Project Settings > Input sets how many can join, whether the keyboard counts, and the join
+button. User guide: [docs/manual/local_multiplayer.md](docs/manual/local_multiplayer.md).
+
 **Touch controls and Steam.** VirtualJoystick and TouchButton nodes are on-screen controls for
 touch screens that press the project's input actions, so a game reading actions plays the same
 with keys, gamepads or fingers; scripts read every finger with `e.Input_GetTouches`. Project

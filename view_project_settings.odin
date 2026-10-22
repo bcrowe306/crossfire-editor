@@ -377,6 +377,8 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.text(newProblem, th.color.danger, th.font.size_xs),
 		small(ctx, "input-defaults", "Add the default ui_ actions", Msg(Input_Defaults_Added{})),
 	)
+	// Local players (players_edit.odin)
+	append(&list, ..playersSettingRows(s, ctx))
 
 	fields := make([dynamic]skald.View, context.temp_allocator)
 	append(&fields, skald.text("Actions are named inputs that keys, mouse buttons and gamepads trigger. Scripts ask about them: e.Input_IsActionPressed(\"jump\"), e.Input_IsActionJustPressed, e.Input_GetVector(\"ui_left\", \"ui_right\", \"ui_up\", \"ui_down\").",

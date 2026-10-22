@@ -261,6 +261,7 @@ Checks:
 	preview_effects <bus> <master>   How many effects the editor's audio preview plays through
 	touch <actions|radius|deadzone|zone|floating|visibility|mouse|opacity|label> <value>
 	                             The selected VirtualJoystick or TouchButton (touch_edit.odin)
+	players <max|keyboard|join> <value>   The project's local players settings (players_edit.odin)
 	steam <app_id|cloud|achievements|draft_achievements> <value>, steam achievement <i> <field> <value>
 	                             The project's Steam settings (steam_edit.odin)
 	music_layer <i> <name|sound|volume> <value>, music_layer count <n>
@@ -1989,6 +1990,17 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case: return false, fmt.tprintf("unknown steam field '%s'", parts[0])
 		}
 		return found == strings.join(parts[1:], " ", context.temp_allocator), found
+	case "players":
+		// `players <max|keyboard|join> <value>`: the project's local players settings
+		field, _, expected := strings.partition(value, " ")
+		pl := s.project.players
+		switch field {
+		case "max":      found = fmt.tprint(pl.maxPlayers)
+		case "keyboard": found = fmt.tprint(pl.keyboard)
+		case "join":     found = pl.joinAction == "" ? "default" : pl.joinAction
+		case: return false, fmt.tprintf("unknown players field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
 	case "bus_selection":
 		// The bus the inspector shows the effects of (-1 none)
 		found = fmt.tprint(s.busSelection)

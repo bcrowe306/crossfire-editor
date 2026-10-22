@@ -327,6 +327,8 @@ Project :: struct {
 	// Steam: the app ID and cloud saves, and the achievements (owned): steam_edit.odin
 	steam: e.SteamSettings,
 	achievements: [dynamic]AchievementDef,
+	// Local players: how many, the keyboard, the join action (owned): players_edit.odin
+	players: e.PlayerSettings,
 }
 
 // Path of a scene's file inside the project folder
@@ -652,6 +654,7 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.uiTheme)
 	delete(project.loadingScene)
 	Achievements_Destroy(&project.achievements)
+	delete(project.players.joinAction)
 	delete(project.data)
 	project^ = {}
 }
@@ -693,6 +696,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		audioOutput = {frequency = data.audioOutput.frequency, channels = data.audioOutput.channels},
 		steam = data.steam,
 		achievements = Achievements_Clone(data.achievements[:]),
+		players = PlayerSettings_Clone(data.players),
 		exports = ExportSettings_Default(),
 	}
 	// Export settings: optional, and a bad line only loses that setting
@@ -938,6 +942,7 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 		physics = e.DEFAULT_PHYSICS,
 		window = e.DEFAULT_WINDOW_SETTINGS,
 		grid = e.DEFAULT_GRID_SETTINGS,
+		players = e.DEFAULT_PLAYER_SETTINGS,
 		audioOutput = e.DEFAULT_AUDIO_OUTPUT,
 		exports = ExportSettings_Default(),
 	}

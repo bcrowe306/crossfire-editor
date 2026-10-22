@@ -337,7 +337,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
 	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Project_Settings_Grid_Changed, Project_Settings_Audio_Changed, Scene_Screen_Layer_Toggled, Scene_Background_Changed,
 	     Scene_Gravity_Toggled, Scene_Gravity_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved,
-	     Steam_Setting_Changed, Steam_Achievement_Added, Steam_Achievement_Removed:
+	     Steam_Setting_Changed, Steam_Achievement_Added, Steam_Achievement_Removed, Players_Setting_Changed:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)
