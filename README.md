@@ -797,5 +797,6 @@ including the planned project format and export targets, are in [CLAUDE.md](CLAU
 
 ## License
 
-Not yet chosen. Bundled third-party assets: Font Awesome Free icons (SIL OFL 1.1,
-`assets/fonts/LICENSE.fa.txt`).
+MIT: see [LICENSE](LICENSE). Bundled third-party pieces keep their own licenses: Font Awesome
+Free icons (SIL OFL 1.1, `assets/fonts/LICENSE.fa.txt`), Liberation Mono (SIL OFL 1.1,
+`assets/fonts/LICENSE.liberation.txt`), and the submodules' own (Skald, SDL_mixer, emsdk, OLS).
