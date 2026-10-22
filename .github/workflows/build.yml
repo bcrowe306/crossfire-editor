@@ -356,3 +356,53 @@ jobs:
           flags=(--title "Crossfire Editor $TAG" --generate-notes)
           [[ "$TAG" == *-* ]] && flags+=(--prerelease)
           gh release create "$TAG" dist/* "${flags[@]}" -R "$GITHUB_REPOSITORY"
+
+  # The release's files on downloads.crossfireengine.io (Cloudflare R2, bucket crossfire-downloads):
+  # releases/<tag>/<file>, and latest.json describing them, which the website's Download page reads.
+  # Then, with a WEBSITE_DISPATCH_TOKEN secret (a fine-grained token allowed to dispatch to
+  # crossfire-astro), the website rebuilds at once; without it, its hourly check notices the release.
+  downloads:
+    name: Downloads (R2)
+    needs: release
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: final-*
+          path: dist
+          merge-multiple: true
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          BUCKET: crossfire-downloads
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          for f in dist/*; do
+            aws s3 cp "$f" "s3://$BUCKET/releases/$TAG/$(basename "$f")" --endpoint-url "$ENDPOINT" --no-progress
+          done
+          python3 - <<'PY'
+          import json, os, datetime
+          tag = os.environ["TAG"]
+          files = [{"name": n, "size": os.path.getsize(os.path.join("dist", n))} for n in sorted(os.listdir("dist"))]
+          json.dump({
+              "tag": tag,
+              "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+              "prerelease": "-" in tag,
+              "notes": f"https://github.com/{os.environ['REPO']}/releases/tag/{tag}",
+              "files": files,
+          }, open("latest.json", "w"), indent=1)
+          PY
+          cat latest.json
+          aws s3 cp latest.json "s3://$BUCKET/latest.json" --endpoint-url "$ENDPOINT" --content-type application/json --cache-control "max-age=60"
+      - name: Tell the website
+        env:
+          TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          if [[ -z "$TOKEN" ]]; then echo "No WEBSITE_DISPATCH_TOKEN: the website's hourly check will notice the release"; exit 0; fi
+          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/bcrowe306/crossfire-astro/dispatches -d '{"event_type":"editor-release"}'

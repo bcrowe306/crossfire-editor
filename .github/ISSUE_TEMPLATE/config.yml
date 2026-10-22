@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://crossfireengine.io/getting-started/
+    about: Getting started, examples, the editor manual and the engine API.

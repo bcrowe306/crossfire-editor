@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in the editor or the engine broke, crashed or did the wrong thing
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please search the existing issues first. Engine bugs go here too.
+        Security problems: don't post them here; email the maintainer instead.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Help > About shows it.
+      placeholder: v0.1.0-dev.49
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Your OS and version, and your GPU.
+      placeholder: Ubuntu 24.04, NVIDIA RTX 3060
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest steps that still show it, from opening the editor.
+      placeholder: |
+        1. Open the demo project
+        2. Select the Spaceship node
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console and Output
+      description: The text of the bottom panel's Console and Output tabs, and for a crash what the terminal printed.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: A project that shows it (File > Export Project Archive), screenshots, what you already tried.

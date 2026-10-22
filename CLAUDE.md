@@ -2152,6 +2152,15 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
 
 ## CI and releases (`.github/workflows/build.yml`)
 
+**The website and downloads** (2026-10-22): after `release`, the `downloads` job uploads the
+release's files to Cloudflare R2 (bucket `crossfire-downloads`, served at
+downloads.crossfireengine.io: `releases/<tag>/<file>` and `latest.json`) with the repository's
+`R2_*` / `CLOUDFLARE_ACCOUNT_ID` secrets, then dispatches `editor-release` to the website repo
+(bcrowe306/crossfire-astro) when a `WEBSITE_DISPATCH_TOKEN` secret exists; otherwise the
+website's hourly check notices the new release. The website (crossfireengine.io) publishes this
+repo's `docs/manual/` at the release's tag: keep the manual's frontmatter and relative links as
+they are (see `docs/manual/`'s row in the code map). Issue templates: `.github/ISSUE_TEMPLATE/`.
+
 **Linux and Windows packages:** an AppImage (`tools/linux/make_appimage.sh`, `task
 linux:appimage`; CI's combine job makes it from the Linux archive with every player; appimagetool
 is downloaded and run extracted, no FUSE needed) and an installer (`tools/windows/

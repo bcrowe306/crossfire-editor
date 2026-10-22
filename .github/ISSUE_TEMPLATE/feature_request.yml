@@ -1,0 +1,26 @@
+name: Feature request
+description: Something your game needs that Crossfire doesn't do yet
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the problem rather than the solution: what you're making and what gets in the way.
+        Check the manual first (https://crossfireengine.io/manual/): it may already be there.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      placeholder: My enemies get stuck on walls when they chase the player...
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you imagine it working, in the editor or from a script.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do now
+      description: Workarounds you use, or other engines that do it well.
