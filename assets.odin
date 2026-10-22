@@ -16,6 +16,23 @@ The asset list is saved in project.xml with the rest of the project (Save, or Pl
 
 ASSETS_FOLDER :: "assets"
 
+// The editor's own file formats: the browser and pickers list these assets by name alone
+EDITOR_FORMAT_EXTENSIONS :: [?]string{COMPONENT_EXTENSION, DATA_EXTENSION, ANIMATION_EXTENSION, THEME_EXTENSION, MATERIAL_EXTENSION, e.ATLAS_EXTENSION, e.DIALOGUE_EXTENSION}
+
+/*
+How an asset is shown in lists: its file's name, without the extension of the editor's own
+formats (`components/coin.component.xml` is "coin"; `assets/hero.png` stays "hero.png").
+
+Example:
+	name := Asset_DisplayName("components/coin.component.xml") // "coin"
+*/
+Asset_DisplayName :: proc(path: string) -> string {
+	base := filepath.base(path)
+	lower := strings.to_lower(base, context.temp_allocator)
+	for ext in EDITOR_FORMAT_EXTENSIONS do if strings.has_suffix(lower, ext) do return base[:len(base) - len(ext)]
+	return base
+}
+
 /*
 The asset kind for a file, from its extension.
 

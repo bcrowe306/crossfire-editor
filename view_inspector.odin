@@ -70,11 +70,6 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	indicator := sceneTreeMouse(s, ctx, visible)
 	renameField := sceneTreeRename(s, ctx, visible)
 
-	// The tree is built before the menu that wraps it, so it would see a click on a menu item
-	// (over the tree) before the menu consumes it, and select the row underneath
-	menuState, _ := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
-	shield := menuState.open && skald.mouse_over_overlay(ctx) && ctx.input.mouse_pressed[.Left]
-	if shield do ctx.input.mouse_pressed[.Left] = false
 	Tree_RevealSelected(ctx, rows, "scene-tree", "scene-tree-scroll", s.settings.rowHeight)
 	tree := skald.scroll(ctx, {0, 0},
 		coloredTree(ctx, rows,
@@ -86,23 +81,8 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		id = skald.hash_id("scene-tree-scroll"),
 		reveal_focus = false,
 	)
-	if shield do ctx.input.mouse_pressed[.Left] = true
-	labels := make([]string, len(SCENE_TREE_MENU), context.temp_allocator)
-	for action, i in SCENE_TREE_MENU {
-		label := action == .Add_Node ? "Add Node..." : ACTION_LABELS[action]
-		// Add Script... for a node without one; with one, it opens it
-		if action == .Add_Script {
-			node := s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) ? &scene.nodes[s.selectedNode] : nil
-			label = node != nil && node.script != "" ? fmt.tprintf("Open Script (%s)", node.script) : "Add Script..."
-		}
-		shortcut := skald.shortcut_format(Keymap_Shortcut(&s.settings.keymap, action))
-		labels[i] = shortcut == "" ? label : fmt.tprintf("%s   (%s)", label, shortcut)
-	}
-	menu := skald.context_menu(ctx, tree, labels,
-		proc(i: int) -> Msg { return Msg(SCENE_TREE_MENU[i]) },
-		id = skald.hash_id("scene-tree-menu"),
-		width = 250,
-	)
+	// Its right-click menu is the editor's (context_menus.odin), opened by sceneTreeMouse
+	menu := tree
 
 	return skald.col(
 		panelHeader(ctx, ICON_SITEMAP, scene.name,
@@ -117,9 +97,6 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		bg = th.color.bg,
 	)
 }
-
-// The scene tree's right-click menu, in order
-SCENE_TREE_MENU := [?]Action{.Add_Node, .Add_Script, .Rename_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Delete_Node, .Save_As_Component}
 
 // How far the mouse moves with the button down before a press on a row becomes a drag
 TREE_DRAG_THRESHOLD :: 5
@@ -148,13 +125,20 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 	row := int(math.floor((mouse.y - tree.y) / rowHeight))
 	onRow := row >= 0 && row < len(visible)
 
+	// A right-click opens the node's menu (selecting it), or below the rows the tree's
 	if ctx.input.mouse_pressed[.Right] && overArea {
-		skald.send(ctx, Msg(Node_Right_Clicked(onRow ? row : -1)))
+		if onRow {
+			skald.send(ctx, Msg(Context_Menu_Opened{at = mouse, target = Ctx_Node{node = visible[row]}}))
+		} else {
+			skald.send(ctx, Msg(Node_Right_Clicked(-1)))
+			skald.send(ctx, Msg(Context_Menu_Opened{at = mouse, target = Ctx_Tree{}}))
+		}
+		ctx.input.mouse_pressed[.Right] = false
 	}
-	// Ctrl+click toggles a row in the selection, Shift+click selects a range. The tree would
+	// Ctrl+click (Cmd+click on a Mac) toggles a row in the selection, Shift+click selects a range. The tree would
 	// select just the clicked row, so it doesn't see this press
 	mods := ctx.input.modifiers
-	if ctx.input.mouse_pressed[.Left] && overArea && onRow && (.Ctrl in mods || .Shift in mods) {
+	if ctx.input.mouse_pressed[.Left] && overArea && onRow && (skald.PRIMARY_MODIFIER in mods || .Shift in mods) {
 		skald.send(ctx, Msg(Tree_Selection_Clicked{row = row, range = .Shift in mods}))
 		ctx.input.mouse_pressed[.Left] = false
 		return none
@@ -561,7 +545,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		choices := make([dynamic]string, context.temp_allocator)
 		append(&choices, TEXTURE_NONE)
 		for asset in s.project.assets do if asset.kind == .Component do append(&choices, asset.path)
-		append(&rows, inspectorRow(ctx, "Component", skald.select(ctx, node.component == "" ? TEXTURE_NONE : node.component, choices[:], NodeTextField.Component, onText,
+		append(&rows, inspectorRow(ctx, "Component", labeledSelect(ctx, node.component == "" ? TEXTURE_NONE : node.component, Asset_DisplayNames(choices[:]), choices[:], NodeTextField.Component, onText,
 			id = skald.hash_id(fmt.tprintf("inspector-component-%d", key)), width = controlWidth, placeholder = "Choose a component")))
 		if i := Project_FindComponent(&s.project, node.component); i >= 0 {
 			open := skald.button(ctx, fmt.tprintf("%s  Edit %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
@@ -704,7 +688,7 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 
 	status := ""
 	switch s.scripts.status {
-	case .Unknown:  status = len(s.scriptFiles) > 0 ? "not built yet (Ctrl+B)" : ""
+	case .Unknown:  status = len(s.scriptFiles) > 0 ? fmt.tprintf("not built yet%s", keyParen(s, .Build_Scripts)) : ""
 	case .Building: status = "building..."
 	case .Failed:   status = "build failed: see Output"
 	case .Ready:
@@ -742,7 +726,7 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 
 	desc := ScriptCatalog_Find(&s.scripts, node.script)
 	if desc == nil {
-		message := s.scripts.status == .Building ? "Building..." : fmt.tprintf("Build the scripts (Ctrl+B) to edit %s's fields.", node.script)
+		message := s.scripts.status == .Building ? "Building..." : fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), node.script)
 		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
 		for prop in node.props do append(&rows, inspectorRowView(ctx, prop.name, skald.text(prop.value, th.color.fg_muted, th.font.size_sm)))
 		return rows[:]

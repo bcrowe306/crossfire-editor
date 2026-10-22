@@ -21,6 +21,9 @@ AddNodeDialog :: struct {
 	highlight: int,
 	// Picking the root of a new component (New Component), not a node for the open scene
 	forComponent: bool,
+	// Where the new node goes (world), when it was asked for somewhere (the viewport's Add Node
+	// Here); nil: at its parent's origin
+	at: Maybe([2]f32),
 }
 
 /*

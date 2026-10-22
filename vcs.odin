@@ -40,6 +40,8 @@ GITIGNORE_DEFAULT :: `# Made by Crossfire Editor: what a project's repository le
 export/
 # Build output
 build/
+# The editor's own per-user state (viewport guides)
+.editor/
 # Project archives (File > Export Project Archive)
 *.odinsdl
 *.partial

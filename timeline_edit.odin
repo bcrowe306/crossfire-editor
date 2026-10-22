@@ -126,6 +126,9 @@ Timeline_View :: struct {
 
 // The Timeline's playback clock
 Timeline_Tick :: struct {}
+
+// A key on the selected track at a time (seconds; the playhead moves there): a track's context menu
+Timeline_Key_Here :: distinct f32
 Timeline_Tick_Requested :: struct {}
 
 // The Timeline's number fields
@@ -146,7 +149,7 @@ Returns:
 */
 Timeline_IsEdit :: proc(m: Msg) -> bool {
 	#partial switch v in m {
-	case Timeline_Changed: return true
+	case Timeline_Changed, Timeline_Key_Here: return true
 	case Timeline_View: return v.op == .Name_Typed
 	case Number_Text_Changed:
 		_, isTimeline := v.target.(TimelineNumber)
@@ -394,6 +397,11 @@ Timeline_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	#partial switch v in m {
 	case Timeline_Changed:
 		timelineEdit(s, v)
+		t.previewing = true
+		if clip := Timeline_Clip(s); clip != nil do previewAt(s)
+	case Timeline_Key_Here:
+		t.playhead = max(f32(v), 0)
+		timelineEdit(s, Timeline_Changed{op = .Key_Added})
 		t.previewing = true
 		if clip := Timeline_Clip(s); clip != nil do previewAt(s)
 	case Timeline_View:

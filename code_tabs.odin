@@ -248,6 +248,21 @@ CodeTabs_SaveAll :: proc(state: ^State) -> bool {
 	return true
 }
 
+// Whether a tab's file has unsaved changes
+CodeTabs_IsDirty :: proc(state: ^State, path: string) -> bool {
+	return CodeEditor_IsDirty(path)
+}
+
+// Saves one tab's file (logged)
+CodeTabs_SaveFile :: proc(state: ^State, path: string) {
+	if !CodeEditor_IsDirty(path) do return
+	if problem := CodeEditor_Save(path); problem != "" {
+		logLine(state, .Error, strings.clone(problem))
+		return
+	}
+	logLine(state, .Info, fmt.aprintf("Saved %s", filepath.base(path)))
+}
+
 // Whether one of this state's tabs has unsaved changes
 CodeTabs_AnyDirty :: proc(state: ^State) -> bool {
 	for path in state.codeTabs do if CodeEditor_IsDirty(path) do return true
@@ -269,7 +284,7 @@ CodeTabs_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 	for path, i in s.codeTabs {
 		label := fmt.tprintf("%s  %s%s", ICON_FILE_CODE, filepath.base(path), CodeEditor_IsDirty(path) ? " ●" : "")
 		append(&views, editorTab(ctx, label, path, s.codeTab == i + 1, Msg(Code_Tab_Selected(i)), Msg(Code_Tab_Close_Requested(i)),
-			fmt.tprintf("code-tab-%d", i)))
+			fmt.tprintf("code-tab-%d", i), menu = Ctx_Code_Tab(i)))
 	}
 	return views[:]
 }
@@ -282,9 +297,11 @@ button inside the tile; a middle click closes it too. `closable` false leaves th
 Widget keys: the tab is `key`, its close button `key` with "-close" before the number
 (`scene-tab-close-1`).
 */
-editorTab :: proc(ctx: ^skald.Ctx(Msg), label, tip: string, active: bool, selectMsg, closeMsg: Msg, key: string, closable := true) -> skald.View {
+editorTab :: proc(ctx: ^skald.Ctx(Msg), label, tip: string, active: bool, selectMsg, closeMsg: Msg, key: string, closable := true, menu: ContextTarget = nil) -> skald.View {
 	th := ctx.theme
 	tabId := skald.hash_id(key)
+	// A right-click: its context menu (context_menus.odin)
+	if menu != nil do rightPressOpens(ctx, lastRect(ctx, tabId), menu)
 	if closable {
 		if state, drawn := ctx.widgets.states[tabId]; drawn && ctx.input.mouse_pressed[.Middle] {
 			r := state.last_rect

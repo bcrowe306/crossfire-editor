@@ -250,7 +250,7 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		kinds := [2][2]string{{prefix, type}, {}}
 		if asset.kind == .Image && e.Aseprite_IsFile(asset.path) do kinds[1] = {"ANIMATION", "AnimationAsset"}
 		for k in kinds do if k[0] != "" {
-			name := fmt.tprintf("%s_%s", k[0], strings.to_upper(sanitize(stem), context.temp_allocator))
+			name := fmt.tprintf("%s_%s", k[0], ConstantName(stem))
 			if n := used[name]; n > 0 {
 				used[name] = n + 1
 				name = fmt.tprintf("%s_%d", name, n + 1)
@@ -264,7 +264,7 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 	// The input actions' names (Project Settings > Input): e.Input_IsActionPressed(ACTION_JUMP)
 	if len(project.actions) > 0 do strings.write_string(&b, "\n")
 	for action in project.actions {
-		name := fmt.tprintf("ACTION_%s", strings.to_upper(sanitize(action.name), context.temp_allocator))
+		name := fmt.tprintf("ACTION_%s", ConstantName(action.name))
 		if n := used[name]; n > 0 {
 			used[name] = n + 1
 			name = fmt.tprintf("%s_%d", name, n + 1)
@@ -277,7 +277,7 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 	if len(project.achievements) > 0 do strings.write_string(&b, "\n")
 	for a in project.achievements {
 		if a.name == "" do continue
-		name := fmt.tprintf("ACHIEVEMENT_%s", strings.to_upper(sanitize(a.name), context.temp_allocator))
+		name := fmt.tprintf("ACHIEVEMENT_%s", ConstantName(a.name))
 		if n := used[name]; n > 0 {
 			used[name] = n + 1
 			name = fmt.tprintf("%s_%d", name, n + 1)
@@ -287,6 +287,31 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		fmt.sbprintf(&b, "%s :: %q\n", name, a.name)
 	}
 	return strings.to_string(b)
+}
+
+/*
+The part of a constant's name a file, action or achievement gives in scripts/assets.odin
+(`TEXTURE_` + it): upper case letters and digits, anything else (dashes, spaces, dots, accented
+letters) one underscore, none at either end. Odin names can't hold a dash: "hero-run.png" was
+TEXTURE_HERO-RUN, which didn't build.
+
+Example:
+	ConstantName("hero-run 2") // "HERO_RUN_2"
+*/
+ConstantName :: proc(name: string) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	gap := false
+	for r in name {
+		ok := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+		if !ok {
+			gap = strings.builder_len(b) > 0
+			continue
+		}
+		if gap do strings.write_byte(&b, '_')
+		gap = false
+		strings.write_rune(&b, r >= 'a' && r <= 'z' ? r - 32 : r)
+	}
+	return strings.builder_len(b) > 0 ? strings.to_string(b) : "UNNAMED"
 }
 
 /*

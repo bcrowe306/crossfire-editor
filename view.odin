@@ -20,13 +20,11 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	ScriptDriver_Frame(&state, ctx)
 	// Before anything else registers shortcuts (see keymap.odin)
 	// Dialogs and the open context menu take Escape (and every other key) themselves
-	menu, drawn := ctx.widgets.states[skald.hash_id("scene-tree-menu")]
-	browserMenu, browserMenuDrawn := ctx.widgets.states[skald.hash_id("browser-menu")]
 	// Tab gives the keyboard back to the code editor that had it (code_editor_host.odin)
 	coding := CodeEditor_Frame(ctx, CodeTabs_Active(&state) != "")
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
 		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.listenerDialog.open || state.newEvent.open || state.componentClose.open || state.newData.open || state.projectSettings.open || state.aboutOpen || state.git.discardAsk != "" ||
-		(drawn && menu.open) || (browserMenuDrawn && browserMenu.open)
+		state.contextMenu.open
 	// A project with scripts is built once in the background when it opens, so the inspector
 	// knows their fields
 	if len(state.scriptFiles) > 0 && !state.scriptsAutoBuilt && state.play.stage == .None {
@@ -39,7 +37,10 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	Git_View_Tick(&state, ctx)
 	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
 
+	// The right-click menu, built first so it takes its clicks before the widgets under it
+	contextMenu := contextMenuView(&state, ctx)
 	return skald.col(
+		contextMenu,
 		// The menu bar's shortcuts are off while the code editor has the keyboard (the keymap's few
 		// that still work fire through KeymapDispatch)
 		menuBarView(&state, ctx, keysTaken || coding),
@@ -78,7 +79,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 	keys := Keys{&s.settings.keymap, IsTyping(ctx), keysTaken}
 	item :: proc(label: string, action: Action, keys: Keys) -> skald.Menu_Item(Msg) {
 		if keys.taken do return {label = label, msg = action}
-		return {label = label, shortcut = Keymap_Shortcut(keys.keymap, action, keys.typing), msg = action}
+		return {label = label, shortcut = Chord_OnPlatform(Keymap_Shortcut(keys.keymap, action, keys.typing)), msg = action}
 	}
 	// "Undo Rename Spaceship"
 	undoLabel := History_NextLabel(&s.history, false)
@@ -141,7 +142,11 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Move Tool", .Tool_Move, keys),
 			item("Rotate Tool", .Tool_Rotate, keys),
 			item("Scale Tool", .Tool_Scale, keys),
+			item("Transform Tool", .Tool_Transform, keys),
+			item("Zoom Tool", .Tool_Zoom, keys),
 			item("Pan Tool", .Tool_Pan, keys),
+			{label = "Move Along the Node's Axes", shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Toggle_Local_Axes, keys.typing)), msg = Msg(Action.Toggle_Local_Axes), checked = s.viewport.localAxes},
+			{label = "Show Guides", shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Toggle_Guides, keys.typing)), msg = Msg(Action.Toggle_Guides), checked = !s.viewport.guidesHidden},
 			{separator = true},
 			item("Frame Selected", .Frame_Selected, keys),
 			item("Fit Game Area", .View_Fit, keys),
@@ -161,7 +166,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Play", .Play, keys),
 			item("Play This Scene", .Play_Scene, keys),
 			{label = "Show Collision Shapes in Game", msg = Msg(Action.Toggle_Physics_Debug),
-			 shortcut = keys.taken ? {} : Keymap_Shortcut(keys.keymap, .Toggle_Physics_Debug, keys.typing),
+			 shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Toggle_Physics_Debug, keys.typing)),
 			 checked = s.project.physics.debugDraw},
 			{label = "New Scene", msg = Msg(Scene_Action{.New, -1})},
 			item("Pause", .Pause, keys),
@@ -197,6 +202,8 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		toolButton(ctx, "move", ICON_MOVE, actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
 		toolButton(ctx, "rotate", ICON_ROTATE, actionTip(s, "Rotate", .Tool_Rotate), Action.Tool_Rotate, active = s.tool == .Rotate),
 		toolButton(ctx, "scale", ICON_SCALE, actionTip(s, "Scale", .Tool_Scale), Action.Tool_Scale, active = s.tool == .Scale),
+		toolButton(ctx, "transform", ICON_VECTOR_SQUARE, actionTip(s, "Transform: move, rotate and scale handles at once", .Tool_Transform), Action.Tool_Transform, active = s.tool == .Transform),
+		toolButton(ctx, "zoom", ICON_ZOOM, actionTip(s, "Zoom: click to zoom in (Alt: out), drag a box to zoom to it", .Tool_Zoom), Action.Tool_Zoom, active = s.tool == .Zoom),
 		toolButton(ctx, "pan", ICON_HAND, actionTip(s, "Pan the view", .Tool_Pan), Action.Tool_Pan, active = s.tool == .Pan),
 
 		// Play controls sit in the middle of the toolbar
@@ -361,7 +368,7 @@ when it has none.
 actionTip :: proc(s: ^State, label: string, action: Action) -> string {
 	chord := Keymap_Shortcut(&s.settings.keymap, action)
 	if chord == {} do return label
-	return fmt.tprintf("%s (%s)", label, skald.shortcut_format(chord))
+	return fmt.tprintf("%s (%s)", label, Chord_Format(chord))
 }
 
 /*

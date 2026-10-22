@@ -62,6 +62,7 @@ Project_UniqueSceneName :: proc(project: ^Project, name: string) -> string {
 SceneDef_Clone :: proc(scene: SceneDef) -> SceneDef {
 	copy := SceneDef{name = strings.clone(scene.name), component = strings.clone(scene.component), opened = scene.opened, settings = scene.settings, savedHash = scene.savedHash}
 	for node in scene.nodes do append(&copy.nodes, NodeDef_Clone(node))
+	for g in scene.guides do append(&copy.guides, g)
 	return copy
 }
 
@@ -71,6 +72,7 @@ SceneDef_Destroy :: proc(scene: ^SceneDef) {
 	delete(scene.nodes)
 	delete(scene.name)
 	delete(scene.component)
+	delete(scene.guides)
 	scene^ = {}
 }
 

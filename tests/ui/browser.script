@@ -34,3 +34,9 @@ click_widget dialog-remove
 expect dialog closed
 expect assets 3
 expect preview none
+
+# Several files at once (the dialog lets you pick many), the dialog opening in their folder next
+# time (their dashed names make valid constants: import_several_files_with_awkward_names)
+import_many tests/fixtures/import/hero-run.wav tests/fixtures/import/tile-sheet.png
+expect assets 5
+expect import_folder tests/fixtures/import

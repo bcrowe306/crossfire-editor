@@ -356,7 +356,7 @@ shaderInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 	}
 	if !strings.has_prefix(node.shader, e.SHADER_BUILTIN_PREFIX) {
 		if _, found := Toolchain_ShaderTools(); !found do append(&rows, note(ctx, "No shader compiler (Settings > Toolchain): this shader can't be compiled.", width, warning = true))
-		else if !os.exists(fmt.tprintf("%s.shader", joinPath(s.project.rootPath, node.shader, allocator = context.temp_allocator))) do append(&rows, note(ctx, "Not compiled yet: save (Ctrl+S) to compile it; errors show in the Console.", width, warning = true))
+		else if !os.exists(fmt.tprintf("%s.shader", joinPath(s.project.rootPath, node.shader, allocator = context.temp_allocator))) do append(&rows, note(ctx, fmt.tprintf("Not compiled yet: save%s to compile it; errors show in the Console.", keyParen(s, .Save_Project)), width, warning = true))
 	}
 	return rows[:]
 }

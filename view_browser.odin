@@ -117,7 +117,7 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		case .Asset:
 			asset := s.project.assets[item.index]
 			row.depth = 1
-			row.label = filepath.base(asset.path)
+			row.label = Asset_DisplayName(asset.path)
 			row.icon = assetIcon(asset.kind)
 		case .None:
 		}
@@ -134,13 +134,8 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		id = skald.hash_id("browser-scroll"),
 		reveal_focus = false,
 	)
-	// The right-click menu: what it offers depends on the row (set by browserMenuItems)
-	labels := browserMenuItems(s)
-	menu := skald.context_menu(ctx, tree, labels,
-		proc(i: int) -> Msg { return i < len(browserMenuMsgs) ? browserMenuMsgs[i] : nil },
-		id = skald.hash_id("browser-menu"),
-		width = 240,
-	)
+	// Its right-click menu is the editor's (context_menus.odin), opened by browserMouse
+	menu := tree
 
 	// flex: a scroll in a content-sized column gets no height
 	return skald.col(
@@ -151,127 +146,6 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 }
 
-/*
-The browser's context menu for the selected row, as labels; the message for each is put in
-`browserMenuMsgs` (the menu's callback can't capture, so it reads them from there).
-
-	scene          Open, Play Scene, Rename, Duplicate, Copy, Cut, Paste, Delete, Set as Start Scene, New Scene
-	Scenes, none   New Scene, Paste
-	asset          Remove from Project (components: Open, Add to Scene, New Component too)
-	Components     New Component
-	script         Open in Editor
-*/
-@(private="file")
-browserMenuItems :: proc(s: ^State) -> []string {
-	labels := make([dynamic]string, context.temp_allocator)
-	clear(&browserMenuMsgs)
-	add :: proc(labels: ^[dynamic]string, label: string, msg: Msg) {
-		append(labels, label)
-		append(&browserMenuMsgs, msg)
-	}
-	shortcut :: proc(s: ^State, label: string, action: Action) -> string {
-		chord := skald.shortcut_format(Keymap_Shortcut(&s.settings.keymap, action))
-		return chord == "" ? label : fmt.tprintf("%s   (%s)", label, chord)
-	}
-	selection := s.browserSelection
-	switch selection.kind {
-	case .Scene:
-		i := selection.index
-		add(&labels, "Open", Msg(Scene_Action{.Open, i}))
-		add(&labels, "Play Scene", Msg(Scene_Action{.Play, i}))
-		add(&labels, shortcut(s, "Rename", .Rename_Node), Msg(Scene_Action{.Rename, i}))
-		add(&labels, shortcut(s, "Duplicate", .Duplicate_Node), Msg(Scene_Action{.Duplicate, i}))
-		add(&labels, shortcut(s, "Copy", .Copy_Node), Msg(Scene_Action{.Copy, i}))
-		add(&labels, shortcut(s, "Cut", .Cut_Node), Msg(Scene_Action{.Cut, i}))
-		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste", .Paste_Node), Msg(Scene_Action{.Paste, i}))
-		add(&labels, shortcut(s, "Delete", .Delete_Node), Msg(Scene_Action{.Delete, i}))
-		if s.project.scenes[i].name != s.project.startScene do add(&labels, "Set as Start Scene", Msg(Scene_Action{.Set_Start, i}))
-		add(&labels, "New Scene", Msg(Scene_Action{.New, i}))
-	case .Asset:
-		if selection.folder == .Data do add(&labels, "New Data Resource...", Msg(New_Data_Opened{}))
-		if selection.folder == .Components && selection.index < len(s.project.assets) {
-			if i := Project_FindComponent(&s.project, s.project.assets[selection.index].path); i >= 0 do add(&labels, "Edit", Msg(Component_Opened(i)))
-			add(&labels, "Add to Scene", Msg(Component_Instance_Added(selection.index)))
-			add(&labels, "Rename", Msg(Component_Rename_Started(selection.index)))
-			add(&labels, "New Component", Msg(Component_New{}))
-		}
-		// Sounds load whole; music streams: the same files, used one way or the other
-		if selection.index < len(s.project.assets) {
-			switch s.project.assets[selection.index].kind {
-			case .Audio: add(&labels, "Use as Music (streamed)", Msg(Asset_Kind_Changed{selection.index, .Music}))
-			case .Music: add(&labels, "Use as a Sound", Msg(Asset_Kind_Changed{selection.index, .Audio}))
-			case .LDtk: add(&labels, "Open in LDtk", Msg(LDtk_Asset_Open_Requested(selection.index)))
-			case .Image:
-				if path := s.project.assets[selection.index].path; e.Aseprite_IsFile(path) {
-					add(&labels, "Open in Aseprite", Msg(Aseprite_Asset_Open_Requested(selection.index)))
-					add(&labels, "Show Its Animations", Msg(Anim_Asset_Shown(path)))
-				}
-			case .Animation:
-				add(&labels, "Edit Animations", Msg(Anim_Asset_Shown(s.project.assets[selection.index].path)))
-				add(&labels, "New Animations", Msg(Anim_Set_New{}))
-			case .Theme:
-				add(&labels, "New Theme", Msg(Theme_Created{}))
-			case .PhysicsMaterial:
-				add(&labels, "New Material", Msg(Material_Created{}))
-			case .Shader:
-				add(&labels, "New Shader", Msg(Shader_New_Requested{}))
-			case .Atlas:
-				add(&labels, "New Atlas", Msg(Atlas_Created{}))
-			case .Dialogue:
-				add(&labels, "New Dialogue", Msg(Dialogue_Created{}))
-			case .Font, .Data, .Component, .Translation:
-			}
-		}
-		add(&labels, "Remove from Project...", Msg(Action.Remove_Asset))
-	case .Script:
-		if selection.index < len(s.scriptFiles) {
-			path, _ := filepath.join({s.project.rootPath, s.scriptFiles[selection.index]}, context.temp_allocator)
-			absolute, err := os.get_absolute_path(path, context.temp_allocator)
-			add(&labels, "Open in Editor", Msg(Script_Open_File{file = err == nil ? absolute : path, line = 1}))
-		}
-	case .Folder, .None:
-		if selection.kind == .Folder && selection.folder == .Data {
-			add(&labels, "New Data Resource...", Msg(New_Data_Opened{}))
-			break
-		}
-		if selection.kind == .Folder && selection.folder == .Components {
-			add(&labels, "New Component", Msg(Component_New{}))
-			break
-		}
-		if selection.kind == .Folder && selection.folder == .Animations {
-			add(&labels, "New Animations", Msg(Anim_Set_New{}))
-			break
-		}
-		if selection.kind == .Folder && selection.folder == .Themes {
-			add(&labels, "New Theme", Msg(Theme_Created{}))
-			break
-		}
-		if selection.kind == .Folder && selection.folder == .Materials {
-			add(&labels, "New Material", Msg(Material_Created{}))
-			break
-		}
-		if selection.kind == .Folder && selection.folder == .Atlases {
-			add(&labels, "New Atlas", Msg(Atlas_Created{}))
-			break
-		}
-		if selection.kind == .Folder && selection.folder == .Dialogues {
-			add(&labels, "New Dialogue", Msg(Dialogue_Created{}))
-			break
-		}
-		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
-		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste Scene", .Paste_Node), Msg(Scene_Action{.Paste, -1}))
-		add(&labels, "New UI Theme", Msg(Theme_Created{}))
-		add(&labels, "New Physics Material", Msg(Material_Created{}))
-		add(&labels, "New Atlas", Msg(Atlas_Created{}))
-		add(&labels, "New Dialogue", Msg(Dialogue_Created{}))
-	}
-	return labels[:]
-}
-
-// The messages of the browser menu's items, in order (see browserMenuItems). Package state: the
-// menu's callback can't capture
-@(private="file")
-browserMenuMsgs: [dynamic]Msg
 
 /*
 Browser mouse and focus handling the tree widget doesn't do: a right-click selects the row under
@@ -300,6 +174,8 @@ browserMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) {
 	onRow := row >= 0 && row < len(items)
 	if ctx.input.mouse_pressed[.Right] {
 		skald.send(ctx, Msg(Browser_Right_Clicked(onRow ? row : -1)))
+		skald.send(ctx, Msg(Context_Menu_Opened{at = ctx.input.mouse_pos, target = Ctx_Browser{}}))
+		ctx.input.mouse_pressed[.Right] = false
 		// Keys then act on the browser, like after a left click
 		skald.widget_focus(ctx, treeId)
 	}
@@ -426,7 +302,7 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 		return none
 	}
 	if s.assetDrag.asset >= len(s.project.assets) do return none
-	label := fmt.tprintf("%s  %s", ICON_IMAGE, filepath.base(s.project.assets[s.assetDrag.asset].path))
+	label := fmt.tprintf("%s  %s", ICON_IMAGE, Asset_DisplayName(s.project.assets[s.assetDrag.asset].path))
 	_, overViewport := ViewportWorldAt(s, ctx, mouse)
 	codeArea := ctx.widgets.states[skald.hash_id("code-editor")].last_rect
 	kind := s.project.assets[s.assetDrag.asset].kind
@@ -504,7 +380,7 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		case .Theme:
 			isProject := s.project.uiTheme == asset.path
 			content = skald.col(
-				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 				skald.text(isProject ? "The project's UI theme; edit it in the inspector" : "A UI theme; edit it in the inspector", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
@@ -516,7 +392,7 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			i := Project_FindDialogue(&s.project, asset.path)
 			nodes := i >= 0 ? len(s.project.dialogues[i].data.nodes) : 0
 			content = skald.col(
-				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 				skald.text(fmt.tprintf("A dialogue of %d node%s: edit it in the bottom panel's Dialogue tab; a DialogueBox node plays it.", nodes, nodes == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 				skald.button(ctx, fmt.tprintf("%s  Edit in the Dialogue tab", ICON_COMMENTS), Msg(Bottom_Tab_Changed(int(BottomTab.Dialogue))), id = skald.hash_id("dialogue-preview-edit"),
 					bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
@@ -530,7 +406,7 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				text = fmt.tprintf("Friction %.2f, bounce %.2f, density %.2f. Used by %d bod%s; edit it in the inspector.", m.friction, m.restitution, m.density, users, users == 1 ? "y" : "ies")
 			}
 			content = skald.col(
-				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 				skald.text(text, th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
@@ -542,7 +418,7 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			i := Project_FindData(&s.project, asset.path)
 			type := i >= 0 ? s.project.data[i].type : "?"
 			content = skald.col(
-				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 				skald.text(fmt.tprintf("%s data resource; edit it in the inspector", type), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
@@ -581,7 +457,7 @@ imagePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 	})
 	return skald.col(
 		skald.flex(1, image),
-		skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+		skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 		skald.text(fileInfo(path, dimensions), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 		spacing = th.spacing.xs,
 		cross_align = .Stretch,
@@ -653,7 +529,7 @@ audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 
 	if !AudioPreview_IsLoaded(path) {
 		return skald.col(
-			skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+			skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 			skald.text("Couldn't load this sound (see the Console).", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 			spacing = th.spacing.xs,
 		)
@@ -663,7 +539,7 @@ audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 	Bar :: struct { fraction: f32, color, track: skald.Color }
 	bar := Bar{fraction, th.color.primary, th.color.surface}
 	return skald.col(
-		skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+		skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
 		skald.row(
 			skald.button(ctx, playing ? fmt.tprintf("%s  Stop", ICON_STOP) : fmt.tprintf("%s  Play", ICON_PLAY),
 				Msg(playing ? Action.Stop_Audio_Preview : Action.Play_Audio_Preview),
@@ -723,7 +599,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 translationPreview :: proc(ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) -> skald.View {
 	th := ctx.theme
 	lines := make([dynamic]skald.View, context.temp_allocator)
-	append(&lines, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+	append(&lines, skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
 	data, err := os.read_entire_file(path, context.temp_allocator)
 	// Parsed by the engine, as the game will (a scratch game's tables, freed below)
 	game: e.Game

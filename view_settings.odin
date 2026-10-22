@@ -1,6 +1,7 @@
 package crossfire_editor
 
 import "core:fmt"
+import "core:math"
 import "core:strings"
 import "gui:skald"
 
@@ -114,7 +115,8 @@ captureKey :: proc(ctx: ^skald.Ctx(Msg)) {
 	}
 	for key in skald.Key {
 		if key not_in pressed do continue
-		chord := skald.Shortcut{key, ctx.input.modifiers}
+		// Stored the keymap's way: Cmd+S pressed on a Mac is "Ctrl+S"
+		chord := Chord_FromPlatform(skald.Shortcut{key, ctx.input.modifiers})
 		// Plain Backspace is Skald's "no shortcut"
 		if chord == {} do continue
 		skald.send(ctx, Msg(Settings_Key_Captured(chord)))
@@ -122,26 +124,63 @@ captureKey :: proc(ctx: ^skald.Ctx(Msg)) {
 	}
 }
 
+/*
+The editor's look: a preset to start from, the base theme, text size, spacing, row height, corners,
+and every theme color (editor_theme.odin). Changes show at once; Cancel puts the old look back.
+
+Widget keys: `settings-preset`, `settings-theme`, `settings-color-<key>` (a color's picker: bg,
+surface... as editor.ini names them) and `settings-color-reset-<key>`, `settings-<field>`.
+*/
 @(private="file")
 appearanceTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	draft := &s.settingsDialog.draft
-	return skald.col(
+	current := Settings_Theme(draft)
+	presets := make([dynamic]string, context.temp_allocator)
+	for p in THEME_PRESETS do append(&presets, p.name)
+	preset := EditorTheme_PresetName(draft)
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	append(&rows,
+		settingRow(ctx, "Preset", skald.select(ctx, preset == "" ? "Custom" : preset, presets[:],
+			proc(v: string) -> Msg { return Settings_Theme_Preset_Chosen(v) },
+			id = skald.hash_id("settings-preset"), width = 160)),
+		hint(ctx, "A look to start from. Choosing one replaces the colors below; change any of them after."),
 		settingRow(ctx, "Theme", skald.select(ctx, draft.theme == .Light ? "Light" : "Dark", []string{"Dark", "Light"},
 			proc(v: string) -> Msg { return Settings_Theme_Changed(v) },
 			id = skald.hash_id("settings-theme"), width = 140)),
+		hint(ctx, "The base: the colors you haven't set are its."),
 		settingRow(ctx, "Text size", numberSetting(ctx, s, .Font_Size, f64(draft.fontSize), 1, SETTINGS_FONT_SIZE_RANGE, "px")),
 		hint(ctx, "Body text, in pixels. Headings and small text scale with it."),
 		settingRow(ctx, "Spacing", numberSetting(ctx, s, .Spacing, f64(draft.spacing), 5, SETTINGS_SPACING_RANGE, "%")),
 		hint(ctx, "Padding and gaps between controls, as a percentage of Skald's default."),
 		settingRow(ctx, "Row height", numberSetting(ctx, s, .Row_Height, f64(draft.rowHeight), 1, SETTINGS_ROW_HEIGHT_RANGE, "px")),
-		hint(ctx, "Rows in the project browser and scene tree."),
-		skald.spacer(th.spacing.sm),
-		hint(ctx, "Changes show when you press Apply or Save."),
-		spacing = th.spacing.sm,
-		padding = th.spacing.sm,
-		cross_align = .Stretch,
+		hint(ctx, "Rows in the project browser and scene tree (shows when you press Apply or Save)."),
+		settingRow(ctx, "Corners", numberSetting(ctx, s, .Corner_Radius, f64(draft.cornerRadius), 25, SETTINGS_CORNER_RADIUS_RANGE, "%")),
+		hint(ctx, "How round the corners of buttons, fields and panels are: 0 is square, 100 Skald's own."),
+		skald.divider(ctx),
+		skald.text("Colors", th.color.fg, th.font.size_md),
+		hint(ctx, "Click a color to change it; the editor shows it at once. The ↶ beside a color you've set puts the theme's back."),
 	)
+	for which in ThemeColor {
+		key := THEME_COLOR_KEYS[which]
+		color := ThemeColor_Field(&current.color, which)^
+		picker := skald.color_picker(ctx, color, which, proc(w: ThemeColor, c: skald.Color) -> Msg { return Settings_Theme_Color_Changed{w, c} },
+			id = skald.hash_id(fmt.tprintf("settings-color-%s", key)), width = 150)
+		reset: skald.View = skald.spacer(0)
+		if which in draft.themeColorsSet {
+			reset = skald.tooltip(ctx, skald.button(ctx, ICON_UNDO, Msg(Settings_Theme_Color_Reset(which)), id = skald.hash_id(fmt.tprintf("settings-color-reset-%s", key)),
+				width = 28, font_size = th.font.size_sm, bg = th.color.surface, fg = th.color.fg_muted),
+				"Back to the theme's color", id = skald.hash_id(fmt.tprintf("settings-color-reset-tip-%s", key)))
+		}
+		append(&rows, settingRow(ctx, THEME_COLOR_LABELS[which], skald.row(picker, reset, spacing = th.spacing.xs, cross_align = .Center)))
+	}
+	append(&rows,
+		settingRow(ctx, "Selection opacity", numberSetting(ctx, s, .Selection_Opacity, f64(math.round(current.color.selection[3] * 100)), 5, {0, 100}, "%")),
+		skald.spacer(th.spacing.sm),
+		hint(ctx, "Changes show at once. Apply or Save keeps them (in editor.ini); Cancel puts the old look back."),
+	)
+	content := skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.sm, cross_align = .Stretch)
+	return skald.scroll(ctx, {0, 0}, content, id = skald.hash_id("settings-appearance-scroll"))
 }
 
 /*
@@ -256,6 +295,9 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Wheel pans", skald.checkbox(ctx, draft.wheelPans, "The wheel pans the viewport; Ctrl + wheel zooms",
 			proc(v: bool) -> Msg { return Settings_Wheel_Pans_Changed(v) },
 			id = skald.hash_id("settings-wheel-pans"))),
+		settingRow(ctx, "Rotation snap", numberSetting(ctx, s, .Rotate_Snap, f64(draft.rotateSnap), 1, SETTINGS_ROTATE_SNAP_RANGE, "°")),
+		settingRow(ctx, "Scale snap", numberSetting(ctx, s, .Scale_Snap, f64(draft.scaleSnap), 0.05, SETTINGS_SCALE_SNAP_RANGE, "", decimals = 2)),
+		hint(ctx, "The steps the viewport's Rotate and Scale drags snap to while snapping is on (the magnet, Shift+G) or Shift is held."),
 		settingRow(ctx, "Audio device", audioDeviceSelect(ctx, FixedText_String(&draft.audioDevice))),
 		hint(ctx, "Where Play's game and the editor's sound previews play: a device of this computer (exported games use the system's default; players can pick one with --audio-device). If it's missing, the default is used."),
 		hint(ctx, "For touchpads (two-finger scrolling pans). Off: the wheel zooms, Shift + wheel pans sideways, Ctrl + wheel up and down. Sideways scrolling always pans; so do the Pan tool (H), a middle or right drag, and Space + drag."),
@@ -276,13 +318,16 @@ keyboardTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	for action in Action {
 		chords := draft.keymap[action]
 		label := ACTION_LABELS[action]
-		if !matchesSearch(label, dialog.search) && !matchesSearch(Keymap_FormatChords(chords), dialog.search) do continue
+		// By name, or by the keys as shown (Cmd+S on a Mac)
+		shown := make([dynamic]string, context.temp_allocator)
+		for chord in chords do if chord != {} do append(&shown, Chord_Format(chord))
+		if !matchesSearch(label, dialog.search) && !matchesSearch(strings.join(shown[:], " | ", context.temp_allocator), dialog.search) do continue
 
 		buttons := make([dynamic]skald.View, context.temp_allocator)
 		append(&buttons, skald.col(skald.text(label, th.color.fg, th.font.size_sm), width = 210))
 		for slot in 0..<KEYMAP_SLOTS {
 			capturing := dialog.capture.active && dialog.capture.action == action && dialog.capture.slot == slot
-			text := capturing ? "Press keys..." : chords[slot] == {} ? "-" : skald.shortcut_format(chords[slot])
+			text := capturing ? "Press keys..." : chords[slot] == {} ? "-" : Chord_Format(chords[slot])
 			append(&buttons, skald.button(ctx, text, Msg(Settings_Capture_Started{action, slot}),
 				id = skald.hash_id(fmt.tprintf("settings-key-%v-%d", action, slot)),
 				width = 120, font_size = th.font.size_sm,
@@ -297,7 +342,7 @@ keyboardTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		// The same chord on another action: the first in the list wins
 		for chord in chords {
 			if other, used := Keymap_FindChord(&draft.keymap, chord, action); used {
-				append(&rows, skald.text(fmt.tprintf("    %s is also %s", skald.shortcut_format(chord), ACTION_LABELS[other]),
+				append(&rows, skald.text(fmt.tprintf("    %s is also %s", Chord_Format(chord), ACTION_LABELS[other]),
 					th.color.warning, th.font.size_xs))
 			}
 		}
@@ -348,10 +393,10 @@ settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> 
 }
 
 @(private="file")
-numberSetting :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: SettingsField, value, step: f64, limits: [2]f32, unit: string) -> skald.View {
+numberSetting :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: SettingsField, value, step: f64, limits: [2]f32, unit: string, decimals := 0) -> skald.View {
 	th := ctx.theme
 	return skald.row(
-		numberField(ctx, s, fmt.tprintf("settings-%v", field), field, value, step, 0, 130, f64(limits[0]), f64(limits[1])),
+		numberField(ctx, s, fmt.tprintf("settings-%v", field), field, value, step, decimals, 130, f64(limits[0]), f64(limits[1])),
 		skald.text(unit, th.color.fg_muted, th.font.size_sm),
 		spacing = th.spacing.xs,
 		cross_align = .Center,

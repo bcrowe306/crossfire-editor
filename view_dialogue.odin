@@ -111,6 +111,11 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	for st, i in node.steps {
 		line := make([dynamic]skald.View, context.temp_allocator)
 		selected := i == ed.step
+		// A right-click on the step: its menu (move, insert after, delete: context_menus_panels.odin)
+		// (it's selected first: Insert After goes after the selected step)
+		if rightPressOpens(ctx, lastRect(ctx, skald.hash_id(fmt.tprintf("dialogue-step-%d", i))), Ctx_Graph{graph = .Dialogue_Step, item = i, sub = -1}) {
+			skald.send(ctx, Msg(Dialogue_View{op = .Select_Step, index = i}))
+		}
 		append(&line, skald.button(ctx, fmt.tprintf("%d %v", i + 1, st.kind), Msg(Dialogue_View{op = .Select_Step, index = i}), id = skald.hash_id(fmt.tprintf("dialogue-step-%d", i)),
 			bg = selected ? th.color.primary : th.color.surface, fg = selected ? th.color.on_primary : th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
 		switch st.kind {
@@ -181,6 +186,14 @@ dialogueGraph :: proc(ctx: ^skald.Ctx(Msg), s: ^State, data: ^e.DialogueData, wi
 		local := m - {rect.x, rect.y}
 		inside :: proc(r: skald.Rect, p: [2]f32) -> bool { return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h }
 		inBox :: proc(r: [4]f32, p: [2]f32) -> bool { return p.x >= r[0] && p.x < r[0] + r[2] && p.y >= r[1] && p.y < r[1] + r[3] }
+		// A right-click: the node under it is selected and its menu opens (context_menus_panels.odin)
+		if ctx.input.mouse_pressed[.Right] && inside(rect, m) && inside(visible, m) {
+			hit := -1
+			for n, i in data.nodes do if inBox(Dialogue_BoxRect(n), local) do hit = i
+			if hit >= 0 do skald.send(ctx, Msg(Dialogue_View{op = .Select_Node, index = hit}))
+			skald.send(ctx, Msg(Context_Menu_Opened{at = m, target = Ctx_Graph{graph = .Dialogue, item = hit, sub = -1, local = local}}))
+			ctx.input.mouse_pressed[.Right] = false
+		}
 		if ctx.input.mouse_pressed[.Left] && inside(rect, m) && inside(visible, m) {
 			hit := -1
 			for n, i in data.nodes do if inBox(Dialogue_BoxRect(n), local) do hit = i

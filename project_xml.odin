@@ -52,6 +52,7 @@ Project_Save :: proc(project: ^Project) -> string {
 	if message := Project_SaveThemes(project); message != "" do return message
 	if message := Project_SaveDialogues(project); message != "" do return message
 	if message := Project_SaveMaterials(project); message != "" do return message
+	if message := Guides_Save(project); message != "" do return message
 	// The typed asset constants for scripts follow the asset list
 	if message := Scripts_WriteAssetsFile(project); message != "" do return message
 

@@ -192,7 +192,7 @@ newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	types := make([dynamic]string, context.temp_allocator)
 	for t in s.scripts.dataTypes do append(&types, t.name)
 	noTypes := len(types) == 0
-	info := noTypes ? "No data types yet: register one in a script (e.Data_Register) and build (Ctrl+B)." :
+	info := noTypes ? fmt.tprintf("No data types yet: register one in a script (e.Data_Register) and build%s.", keyParen(s, .Build_Scripts)) :
 		name == "" ? "A file holding one value of a data type, shared by everything that loads it." :
 		problem != "" ? problem : fmt.tprintf("Creates %s.", DataPathFor(name))
 	return skald.dialog(ctx,

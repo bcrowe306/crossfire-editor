@@ -520,6 +520,175 @@ viewport_drags :: proc(t: ^testing.T) {
 	testing.expect(t, nearly(node.scale, {2, 2}), "uniform scale")
 }
 
+// The Transform and Scale tools' side handles, moving along a node's own axes, the snapping steps
+@(test)
+viewport_tool_drags :: proc(t: ^testing.T) {
+	// A top-level node turned 90°: its own x axis points down the world's y
+	node := NodeDef{position = {100, 100}, rotation = 90, scale = {1, 1}}
+	drag := ViewportDrag{
+		node = 0, startMouse = {100, 100}, startPosition = node.position, startRotation = 90, startScale = node.scale,
+		startWorld = e.Transform2D_Make(node.position, 90, {1, 1}), parentWorld = e.TRANSFORM2D_IDENTITY,
+	}
+	// Along its own x: a mouse moved right and down only moves it down
+	drag.mode, drag.localAxes = .Move_X, true
+	Viewport_ApplyDrag(&node, &drag, {130, 140}, false)
+	testing.expectf(t, nearly(node.position, {100, 140}), "local x axis: %v", node.position)
+	// The world's x
+	drag.localAxes = false
+	Viewport_ApplyDrag(&node, &drag, {130, 140}, false)
+	testing.expectf(t, nearly(node.position, {130, 100}), "world x axis: %v", node.position)
+
+	// A side handle scales one of its axes (its x is the world's y here)
+	node = NodeDef{position = {100, 100}, rotation = 90, scale = {1, 1}}
+	drag.mode, drag.startMouse = .Scale_X, {100, 120}
+	Viewport_ApplyDrag(&node, &drag, {150, 140}, false)
+	testing.expectf(t, nearly(node.scale, {2, 1}), "scale x only: %v", node.scale)
+	drag.mode, drag.startMouse = .Scale_Y, {80, 100}
+	node.scale = {1, 1}
+	Viewport_ApplyDrag(&node, &drag, {60, 110}, false)
+	testing.expectf(t, nearly(node.scale, {1, 2}), "scale y only: %v", node.scale)
+
+	// Settings' steps: rotation in 45° steps, scale in 0.5s
+	node = NodeDef{position = {0, 0}, scale = {1, 1}}
+	drag = ViewportDrag{mode = .Rotate, startMouse = {100, 0}, startScale = {1, 1}, startWorld = e.TRANSFORM2D_IDENTITY, parentWorld = e.TRANSFORM2D_IDENTITY}
+	Viewport_ApplyDrag(&node, &drag, {100, 70}, true, rotateStep = 45)
+	testing.expectf(t, abs(node.rotation - 45) < 0.01, "45° step: %v", node.rotation)
+	drag.mode = .Scale
+	Viewport_ApplyDrag(&node, &drag, {170, 0}, false, grid = {16, 16}, scaleStep = 0.5)
+	testing.expectf(t, nearly(node.scale, {1.5, 1.5}), "0.5 scale step: %v", node.scale)
+}
+
+// The Zoom tool: a click zooms in (Alt: out) where it was, a box fits the view to it
+@(test)
+zoom_tool_clicks_and_boxes :: proc(t: ^testing.T) {
+	v := ViewportState{center = {0, 0}, zoom = 1, size = {400, 300}}
+	ViewportTools_ZoomBox(&v, {startMouse = {100, 0}, current = {101, 1}})
+	testing.expectf(t, abs(v.zoom - 2) < 0.001, "click zooms in: %v", v.zoom)
+	testing.expectf(t, nearly(v.center, {50, 0}), "about the point: %v", v.center)
+	ViewportTools_ZoomBox(&v, {startMouse = {100, 0}, current = {100, 0}, additive = true})
+	testing.expectf(t, abs(v.zoom - 1) < 0.001, "Alt zooms out: %v", v.zoom)
+	ViewportTools_ZoomBox(&v, {startMouse = {0, 0}, current = {200, 150}})
+	testing.expectf(t, nearly(v.center, {100, 75}), "box centered: %v", v.center)
+	testing.expect(t, v.zoom > 1.5 && v.zoom <= 2, "box fills the view")
+}
+
+// Align and Distribute: boxes moved to the selection's edges and middles, gaps made equal
+@(test)
+align_and_distribute :: proc(t: ^testing.T) {
+	boxes := []AlignBox{{{0, 0}, {10, 10}}, {{30, 5}, {50, 25}}, {{100, 40}, {110, 50}}}
+	left := Align_Moves(boxes, .Left)
+	testing.expect(t, left[0] == {0, 0} && left[1] == {-30, 0} && left[2] == {-100, 0}, "left edges")
+	right := Align_Moves(boxes, .Right)
+	testing.expect(t, right[2] == {0, 0} && right[0] == {100, 0}, "right edges")
+	middle := Align_Moves(boxes, .Middle)
+	testing.expectf(t, middle[0] == {0, 20} && middle[1] == {0, 10}, "middles: %v", middle)
+	// Widths 10, 20, 10 across 0..110: gaps of 35
+	across := Align_Moves(boxes, .Distribute_Horizontally)
+	testing.expectf(t, across[0] == {0, 0} && across[2] == {0, 0}, "the outer two stay: %v", across)
+	testing.expectf(t, across[1] == {15, 0}, "the middle one moves to 45: %v", across[1])
+
+	// Through the editor: two nodes that draw nothing (no preview here) line up by their origins
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	props, hud := nodeNamed(scene, "Props"), nodeNamed(scene, "HUD")
+	send(&state, Node_Picked(props))
+	send(&state, Node_Pick_Toggled(hud))
+	send(&state, Align_Nodes{.Bottom})
+	testing.expect_value(t, scene.nodes[hud].position.y, scene.nodes[props].position.y)
+	testing.expect_value(t, len(state.history.undo), 1)
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[hud].position.y, 24)
+	free_all(context.temp_allocator)
+}
+
+// Alt+drag duplicates the dragged node and moves the copy: one undo step takes both back
+@(test)
+alt_drag_moves_a_copy :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := nodeNamed(scene, "Spaceship")
+	count := len(scene.nodes)
+	start := scene.nodes[ship].position
+	send(&state, Viewport_Drag_Begin{mode = .Move, node = ship, mouse = {100, 100}, duplicate = true})
+	send(&state, Viewport_Drag_Move{mouse = {140, 100}})
+	send(&state, Viewport_Drag_End{})
+	testing.expect(t, len(scene.nodes) > count, "copied")
+	testing.expect_value(t, scene.nodes[ship].position, start)
+	copy := state.selectedNode
+	testing.expect(t, copy != ship && scene.nodes[copy].name == "Spaceship2", "the copy is selected")
+	testing.expect_value(t, scene.nodes[copy].position, start + {40, 0})
+	testing.expect_value(t, len(state.history.undo), 1)
+	send(&state, Action.Undo)
+	testing.expect_value(t, len(scene.nodes), count)
+	free_all(context.temp_allocator)
+}
+
+// The context menus' commands: node visibility, transform, order, selection, here; each undoes
+@(test)
+context_menu_commands :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := nodeNamed(scene, "Spaceship")
+	count := len(scene.nodes)
+
+	// Opening on a node selects it; its items are there, by label
+	send(&state, Context_Menu_Opened{at = {10, 10}, target = Ctx_Node{node = ship, viewport = true, world = {5, 6}}})
+	testing.expect(t, state.contextMenu.open && state.selectedNode == ship, "open, on the ship")
+	labels := make([dynamic]string, context.temp_allocator)
+	for item in ContextMenu_Items(&state) do append(&labels, item.label)
+	for want in ([]string{"Add Child Node...", "Add Node Here...", "Cut", "Copy", "Paste", "Duplicate", "Delete", "Rename", "Hide", "Transform", "Order", "Select", "Frame Selected"}) {
+		testing.expectf(t, slice.contains(labels[:], want), "%s missing from %v", want, labels)
+	}
+	send(&state, Context_Menu_Closed{})
+	testing.expect(t, !state.contextMenu.open, "closed")
+
+	send(&state, Node_Command{.Toggle_Visible})
+	testing.expect(t, !scene.nodes[ship].visible, "hidden")
+	send(&state, Node_Command{.Reset_Transform})
+	testing.expect_value(t, scene.nodes[ship].position, [2]f32{})
+	send(&state, Node_Command{.Bring_Forward})
+	testing.expect_value(t, scene.nodes[ship].zIndex, 1)
+	testing.expect_value(t, len(state.history.undo), 3)
+	send(&state, Action.Undo)
+	send(&state, Action.Undo)
+	send(&state, Action.Undo)
+	testing.expect(t, scene.nodes[ship].visible && scene.nodes[ship].zIndex == 0 && scene.nodes[ship].position != {}, "all undone")
+
+	// Children, then their parent
+	send(&state, Node_Command{.Select_Children})
+	testing.expect(t, state.selectedNode >= 0 && scene.nodes[state.selectedNode].parent == ship, "a child")
+	send(&state, Node_Command{.Select_Parent})
+	testing.expect_value(t, state.selectedNode, ship)
+
+	// Move Down: after its next sibling; undo puts it back
+	name := scene.nodes[ship].name
+	send(&state, Node_Command{.Move_Down})
+	testing.expect(t, scene.nodes[state.selectedNode].name == name && state.selectedNode != ship, "moved")
+	send(&state, Action.Undo)
+	testing.expect_value(t, scene.nodes[ship].name, name)
+
+	// Add Node Here: the dialog remembers the point, and the node goes there
+	send(&state, Action.Deselect)
+	send(&state, Add_Node_Here({300, 200}))
+	testing.expect(t, state.addNode.open, "the dialog")
+	send(&state, Add_Node_Kind_Chosen(NodeKind.Node2D))
+	testing.expect_value(t, scene.nodes[state.selectedNode].position, [2]f32{300, 200})
+	testing.expect_value(t, len(scene.nodes), count + 1)
+	send(&state, Action.Undo)
+
+	// Paste Here: the copy's origin lands on the point
+	send(&state, Node_Picked(ship))
+	send(&state, Action.Copy_Node)
+	send(&state, Paste_Here({-50, 75}))
+	pasted := state.selectedNode
+	testing.expect(t, pasted != ship && scene.nodes[pasted].parent < 0, "a top-level copy")
+	testing.expect_value(t, scene.nodes[pasted].position, [2]f32{-50, 75})
+	free_all(context.temp_allocator)
+}
+
 @(test)
 nudge_moves_in_world_units_inside_rotated_parents :: proc(t: ^testing.T) {
 	state := testState()
@@ -552,7 +721,7 @@ keymap_rules :: proc(t: ^testing.T) {
 	testing.expect_value(t, Keymap_Shortcut(keymap, .Delete_Node), skald.Shortcut{.Delete, {}})
 	testing.expect_value(t, Keymap_Shortcut(keymap, .Save_Project, typing = true), skald.Shortcut{.S, {.Ctrl}})
 	// Every tool has a key
-	for action in ([]Action{.Tool_Select, .Tool_Move, .Tool_Rotate, .Tool_Scale, .Tool_Pan}) {
+	for action in ([]Action{.Tool_Select, .Tool_Move, .Tool_Rotate, .Tool_Scale, .Tool_Transform, .Tool_Zoom, .Tool_Pan}) {
 		testing.expectf(t, Keymap_Shortcut(keymap, action) != {}, "%v has no shortcut", action)
 	}
 	free_all(context.temp_allocator)
@@ -626,6 +795,98 @@ asset_kinds_from_extensions :: proc(t: ^testing.T) {
 	}
 }
 
+// The editor's look: colors set over the base, corners, presets; saved and read back
+@(test)
+editor_theme_settings :: proc(t: ^testing.T) {
+	settings := Settings_Default()
+	testing.expect_value(t, settings.cornerRadius, 100)
+	testing.expect_value(t, settings.themeColorsSet, bit_set[ThemeColor]{})
+	base := Settings_Theme(&settings)
+	testing.expect_value(t, base.color, skald.theme_dark().color)
+
+	// A color set, the corners squared: the theme has them, the rest is the base's
+	settings.themeColors[.Primary] = skald.rgb(0xE8833A)
+	settings.themeColorsSet += {.Primary}
+	settings.cornerRadius = 0
+	theme := Settings_Theme(&settings)
+	testing.expect_value(t, skald.color_to_hex(theme.color.primary), "E8833A")
+	testing.expect_value(t, theme.color.bg, base.color.bg)
+	testing.expect_value(t, theme.radius.md, 0)
+	// It stays on the light base too
+	settings.theme = .Light
+	testing.expect_value(t, skald.color_to_hex(Settings_Theme(&settings).color.primary), "E8833A")
+
+	// Colors as editor.ini writes them, alpha only when see-through
+	testing.expect_value(t, ThemeColor_Format(skald.rgb(0x1E2130)), "#1E2130")
+	testing.expect_value(t, ThemeColor_Format(skald.rgba(0x5B8CFF55)), "#5B8CFF55")
+	c, ok := ThemeColor_Parse("#5B8CFF55")
+	testing.expect(t, ok && ThemeColor_Format(c) == "#5B8CFF55", "round trip with alpha")
+	_, bad := ThemeColor_Parse("#12345")
+	testing.expect(t, !bad, "a short color is refused")
+
+	// Presets: exactly their colors, and recognized afterwards
+	testing.expect(t, EditorTheme_ApplyPreset(&settings, "Midnight"), "Midnight")
+	testing.expect_value(t, settings.theme, ThemeChoice.Dark)
+	testing.expect_value(t, EditorTheme_PresetName(&settings), "Midnight")
+	testing.expect_value(t, ThemeColor_Format(Settings_Theme(&settings).color.bg), "#0F1420")
+	settings.themeColors[.Danger] = skald.rgb(0xFF0000)
+	testing.expect_value(t, EditorTheme_PresetName(&settings), "")
+	testing.expect(t, EditorTheme_ApplyPreset(&settings, "Dark") && settings.themeColorsSet == {}, "Dark sets none")
+	testing.expect(t, !EditorTheme_ApplyPreset(&settings, "Nope"), "unknown preset")
+
+	// Saved and read back
+	EditorTheme_ApplyPreset(&settings, "Graphite")
+	settings.cornerRadius = 150
+	path := "build/test_theme_settings.ini"
+	defer os.remove(path)
+	testing.expect_value(t, Settings_Save(&settings, path), "")
+	loaded, problems := Settings_Load(path)
+	testing.expect_value(t, len(problems), 0)
+	testing.expect_value(t, loaded.cornerRadius, 150)
+	testing.expect_value(t, loaded.themeColorsSet, settings.themeColorsSet)
+	testing.expect_value(t, EditorTheme_PresetName(&loaded), "Graphite")
+	free_all(context.temp_allocator)
+}
+
+// The keymap's Ctrl is Cmd on a Mac: matched, shown and captured that way; files stay the same
+@(test)
+chords_follow_the_platform :: proc(t: ^testing.T) {
+	save, _ := Shortcut_Parse("Ctrl+S")
+	redo, _ := Shortcut_Parse("Ctrl+Shift+Z")
+	other, _ := Shortcut_Parse("Super+Alt+K")
+	// Elsewhere: as written
+	testing.expect_value(t, Chord_OnPlatform(save, mac = false), save)
+	testing.expect_value(t, Chord_Format(redo, mac = false), "Ctrl+Shift+Z")
+	// A Mac: Ctrl is Cmd (Super), Super is Ctrl, Alt is Option
+	testing.expect_value(t, Chord_OnPlatform(save, mac = true), skald.Shortcut{.S, {.Super}})
+	testing.expect_value(t, Chord_Format(save, mac = true), "Cmd+S")
+	testing.expect_value(t, Chord_Format(redo, mac = true), "Shift+Cmd+Z")
+	testing.expect_value(t, Chord_Format(other, mac = true), "Ctrl+Option+K")
+	// Keys pressed on a Mac are stored the keymap's way, so the file reads the same everywhere
+	testing.expect_value(t, Chord_FromPlatform({.S, {.Super}}, mac = true), save)
+	testing.expect_value(t, Keymap_FormatChords({Chord_FromPlatform({.S, {.Super}}, mac = true), {}}), "Ctrl+S")
+	// No shortcut stays none
+	testing.expect_value(t, Chord_Format({}, mac = true), "")
+}
+
+// Lists show the editor's own formats by name; real file types keep their extension
+@(test)
+assets_are_listed_by_name :: proc(t: ^testing.T) {
+	testing.expect_value(t, Asset_DisplayName("components/coin.component.xml"), "coin")
+	testing.expect_value(t, Asset_DisplayName("components/Coin.Component.XML"), "Coin")
+	testing.expect_value(t, Asset_DisplayName("data/goblin.data.json"), "goblin")
+	testing.expect_value(t, Asset_DisplayName("animations/hero.anim.xml"), "hero")
+	testing.expect_value(t, Asset_DisplayName("themes/dark.theme.xml"), "dark")
+	testing.expect_value(t, Asset_DisplayName("materials/ice.material.xml"), "ice")
+	testing.expect_value(t, Asset_DisplayName("atlases/items.atlas.xml"), "items")
+	testing.expect_value(t, Asset_DisplayName("dialogues/shop.dialogue.xml"), "shop")
+	testing.expect_value(t, Asset_DisplayName("assets/hero.png"), "hero.png")
+	testing.expect_value(t, Asset_DisplayName("assets/level.ldtk"), "level.ldtk")
+	labels := Asset_DisplayNames({TEXTURE_NONE, "components/coin.component.xml"})
+	testing.expect_value(t, labels[0], TEXTURE_NONE)
+	testing.expect_value(t, labels[1], "coin")
+}
+
 @(test)
 importing_copies_files_into_assets :: proc(t: ^testing.T) {
 	project := tempProject("odin_sdl_editor_import")
@@ -676,6 +937,44 @@ removing_assets :: proc(t: ^testing.T) {
 	// Usage counts nodes that reference an asset
 	testing.expect_value(t, AssetUsage(&project, "assets/balloons.png"), 2)
 	testing.expect_value(t, AssetUsage(&project, "assets/nothing.png"), 0)
+}
+
+// Several files at once: every one imported, their folder remembered; names with dashes and spaces
+// make valid constants in scripts/assets.odin
+@(test)
+import_several_files_with_awkward_names :: proc(t: ^testing.T) {
+	state := State{project = tempProject("odin_sdl_editor_import_many"), browserSelection = {kind = .None}}
+	defer { removeAll(state.project.rootPath); State_Destroy(&state) }
+	source := joinPath(state.project.rootPath, "..", "odin_sdl_editor_import_many_source", allocator = context.temp_allocator)
+	_ = os.make_directory_all(source)
+	defer removeAll(source)
+	beep, _ := os.read_entire_file("tests/fixtures/beep.wav", context.temp_allocator)
+	ship, _ := os.read_entire_file("tests/fixtures/ui_project/assets/ship.png", context.temp_allocator)
+	names := []string{"hero-run.wav", "boss fight.wav", "tiles-1.png"}
+	paths := make([]string, len(names), context.temp_allocator)
+	for name, i in names {
+		paths[i] = joinPath(source, name, allocator = context.temp_allocator)
+		_ = os.write_entire_file(paths[i], strings.has_suffix(name, ".png") ? ship : beep)
+	}
+	before := len(state.project.assets)
+	send(&state, Asset_Import_Result{path = paths[0], paths = paths})
+	testing.expect_value(t, len(state.project.assets), before + 3)
+	testing.expect_value(t, FixedText_String(&state.settings.importFolder), filepath.dir(paths[0]))
+
+	text := Scripts_AssetsSource(&state.project)
+	testing.expect(t, strings.contains(text, "SOUND_HERO_RUN ::"), "hero-run.wav")
+	testing.expect(t, strings.contains(text, "SOUND_BOSS_FIGHT ::"), "boss fight.wav")
+	testing.expect(t, strings.contains(text, "TEXTURE_TILES_1 ::"), "tiles-1.png")
+	// Every constant's name is an Odin name
+	for line in strings.split_lines(text, context.temp_allocator) {
+		name, _, rest := strings.partition(line, " :: ")
+		if rest == "" || strings.has_prefix(line, "//") do continue
+		for r in name do testing.expectf(t, (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_', "%s isn't a valid name", name)
+	}
+	testing.expect_value(t, ConstantName("hero-run 2"), "HERO_RUN_2")
+	testing.expect_value(t, ConstantName("__x--y__"), "X_Y")
+	testing.expect_value(t, ConstantName("é"), "UNNAMED")
+	free_all(context.temp_allocator)
 }
 
 @(test)

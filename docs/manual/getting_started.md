@@ -108,7 +108,8 @@ viewport is the **game area**: what the player's screen shows (1280 x 720 pixels
 
 1. Click **+** at the top of the browser (or Ctrl+I) and pick an image: a PNG of a character, a
    spaceship, anything. It's copied into your project's `assets/` folder and appears in the
-   browser's **Images** folder.
+   browser's **Images** folder. You can pick several files at once (Ctrl+click or Shift+click
+   them in the dialog), and the dialog opens in the folder you imported from last time.
 2. Click it in the browser: the preview under the browser shows it.
 
 ### 3. Put it in the scene

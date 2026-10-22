@@ -33,7 +33,8 @@ stands for the whole group. Change the component, and every coin in every scene 
 2. Right-click the parent in the scene tree > **Save as component**.
 
 The parent and everything under it are saved as a component named after the parent (`Coin` makes
-`components/coin.component.xml`), and appear in the browser's **Components** folder. In the scene,
+`components/coin.component.xml`), and appear in the browser's **Components** folder by name (`coin`:
+the browser and every component choice leave out the `.component.xml`). In the scene,
 the parent becomes an instance of the new component, where it was. Undo turns it back into plain
 nodes (the component file stays).
 

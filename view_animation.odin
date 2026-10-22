@@ -286,6 +286,16 @@ frameStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animation: 
 	rowCount := (cells + perRow - 1) / perRow
 	height := f32(rowCount) * (THUMB_SIZE + THUMB_GAP + 12)
 
+	// A right-click on a frame: its menu (start or end the animation there: context_menus_panels.odin)
+	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 && ctx.input.mouse_pressed[.Right] {
+		rect := state.last_rect
+		mouse := ctx.input.mouse_pos
+		column := int((mouse.x - rect.x) / (THUMB_SIZE + THUMB_GAP))
+		row := int((mouse.y - rect.y) / (THUMB_SIZE + THUMB_GAP + 12))
+		if frame := row * perRow + column; mouse.x >= rect.x && mouse.y >= rect.y && column < perRow && frame < cells {
+			rightPressOpens(ctx, rect, Ctx_Graph{graph = .Animation, item = frame, sub = -1})
+		}
+	}
 	// The mouse, from last frame's rect (like the scene tree's)
 	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 && ctx.input.mouse_pressed[.Left] {
 		rect := state.last_rect

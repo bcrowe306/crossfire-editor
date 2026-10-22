@@ -1,6 +1,6 @@
 ---
 title: Settings and the toolchain
-description: Change how the editor looks and behaves, rebind its shortcuts, check and install the tools that build your games, and find your way around Project Settings.
+description: Change how the editor looks (a live theme editor) and behaves, rebind its shortcuts, check and install the tools that build your games, and find your way around Project Settings.
 order: 36
 ---
 
@@ -41,14 +41,35 @@ The buttons at the bottom:
 
 ## Appearance
 
+This tab is the editor's **theme editor**: everything on it shows **at once**, while you change
+it, so you see the result before keeping it. **Apply** or **Save** keeps the look (in your
+`editor.ini`); **Cancel** puts the old one back.
+
 | Setting | Default | What it does |
 |---|---|---|
-| **Theme** | Dark | Dark or Light colors |
+| **Preset** | Dark | A ready-made look: Dark, Light, Midnight (deep blue), Graphite (gray with an orange accent), High Contrast, Paper (warm light). Choosing one replaces the colors; change any of them after (the dropdown then says Custom) |
+| **Theme** | Dark | The base: Dark or Light. The colors you haven't set are its |
 | **Text size** | 13 px | The size of the editor's text; headings and small text grow with it |
 | **Spacing** | 75% | The room around and between controls (more for a roomy look, less to fit more) |
-| **Row height** | 26 px | Rows in the project browser and the scene tree |
+| **Row height** | 26 px | Rows in the project browser and the scene tree (this one shows when you press Apply or Save) |
+| **Corners** | 100% | How round corners are: 0 square, 100 standard, more for rounder |
 
-Changes show when you press Apply or Save. The code editor has its own colors: see
+**Colors:** every color of the theme has a row. Click its swatch to pick a new one (a color wheel,
+values, or a hex code like `#E8833A`); the ↶ beside a color you've set puts the base theme's back.
+
+| Color | Where it shows |
+|---|---|
+| **Window background** | Behind every panel |
+| **Panels** | Panels, sidebars and buttons |
+| **Popups** | Menus, dropdowns, tooltips and dialogs |
+| **Borders** | The lines between panels and around fields |
+| **Main text**, **Muted text** | Most text; captions, hints and placeholders |
+| **Accent**, **Text on accent** | Selected and focused things, primary buttons; the text on them |
+| **Selection** | Behind selected text and rows (**Selection opacity** sets how see-through) |
+| **Success**, **Warning**, **Danger** | Things that worked, warnings, errors |
+
+The colors you set are saved in `editor.ini`'s `[theme]` section, one line each (`bg = #1B1B1B`,
+`selection = #E8833A50`), with `corner_radius`. The code editor has its own colors: see
 [The code editor](code_editor.md#keymaps-and-themes).
 
 ## Editor
@@ -63,6 +84,8 @@ Changes show when you press Apply or Save. The code editor has its own colors: s
 
 **Viewport:** the grid belongs to the project (Project Settings > Grid). **Wheel pans** (off by
 default) makes the mouse wheel move the view and Ctrl + wheel zoom: nicer on a touchpad.
+**Rotation snap** (15°) and **Scale snap** (0.1) are the steps Rotate and Scale drags snap to,
+with snapping on or Shift held.
 
 **Scripts:**
 
@@ -96,6 +119,13 @@ Shortcuts** opens it too.
 
 If a shortcut is also used by another action, a yellow line under it says so ("Ctrl+D is also
 Duplicate node"). That's allowed, but only one of them works: the one higher in the list.
+
+**On a Mac, Cmd takes Ctrl's place.** Every shortcut written with Ctrl here and in the rest of
+this manual is Cmd on macOS (Save is Cmd+S, Undo Cmd+Z), and the editor shows it that way: in
+menus, tooltips and this tab, where Alt is called Option. Cmd+click selects several nodes, as
+Ctrl+click does elsewhere. The settings file stores shortcuts the same way on every computer
+("Ctrl+S" means Cmd+S on a Mac), so one `editor.ini` works on all of them; a shortcut that should
+use the Mac's Control key is written with Super.
 
 Menus and tooltips always show your shortcuts. A few things to know:
 

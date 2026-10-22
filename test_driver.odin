@@ -49,7 +49,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 Click the Timeline's tracks at a time: on the ruler, or on a track's row
 	drag_timeline_key <track> <key> <seconds>
 	                                 Drag a key of the Timeline's clip to a time
-	click_frame <n> [shift]          Click thumbnail n of the Animation panel's frames
+	click_frame <n> [shift | right]  Click thumbnail n of the Animation panel's frames (right: its menu)
 	click_overlay_item <i>           Click button i (top to bottom) of the open popup, e.g. a
 	                                 dropdown's choices after click_widget opened it
 	drag_widget <key> <fx0> <fy0> <fx1> <fy1> [shift] [middle | right]
@@ -80,7 +80,14 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 Scroll so the widget is in view, e.g.
 	                                 scroll_into_view inspector-scroll inspector-new-script
 	right_click_row <tree key> <row> Right-click a row (opens the scene tree's context menu)
-	click_menu_item <menu key> <i>   Click item i of an open context menu, e.g. scene-tree-menu
+	click_context_item <label>[/<label>]  Choose an item of the open context menu (context_menus.odin)
+	                                 by its label, or the start of it ("Open Script" for "Open
+	                                 Script (Mover)"); "Transform/Reset Scale" goes through a submenu
+	right_click_node <name>          Right-click a node in the viewport (its context menu)
+	right_click_world <x> <y>        Right-click a world point in the viewport
+	right_click_widget <key>         Right-click the middle of a widget (a tab, a log line...)
+	drag_guide <top | left> <world>  Pull a guide out of a ruler to a world y (top) or x (left)
+	drag_guide_back <i>              Drag guide i back onto its ruler (it's removed)
 	drag_row_to <tree key> <row> <widget key>
 	                                 Drag a row onto a widget (a scene tree node onto the code tab:
 	                                 code-editor)
@@ -109,14 +116,15 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 if picked in its two dialogs; no unsaved-changes prompt)
 	open_project <folder>            Open a project, as if picked in the folder dialog (no
 	                                 unsaved-changes prompt)
-	drag_node <name> <dx> <dy>       Press on a node, move by (dx, dy) window pixels, release
+	drag_node <name> <dx> <dy> [alt] Press on a node, move by (dx, dy) window pixels, release (alt: held)
 	scroll <notches> [<fx> <fy>] [shift|ctrl|sideways]
 	                                 Mouse wheel over the viewport (positive zooms in): its center,
 	                                 or a point as fractions of its view (0 0 top-left, 1 1 bottom-right);
 	                                 holding Shift or Ctrl, or turned sideways
 	click <x> <y>                    Click a window position (logical pixels)
 	move <x> <y>                     Move the mouse
-	key <combo>                      Press a key: F5, DELETE, ctrl+s, shift+F5 (SDL scancode names)
+	key <combo>                      Press a key: F5, DELETE, ctrl+s, shift+F5 (SDL scancode names;
+	                                 ctrl is Cmd on macOS, as the keymap's is; control is Control)
 	type <text>                      Type text into the focused field
 	select_asset <path>              Select an asset in the browser (its folder opened), e.g. a component
 	right_click_asset <path>         Right-click an asset's browser row (its context menu: browser-menu)
@@ -125,6 +133,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 Drag the first asset whose path starts so onto a widget (a
 	                                 component onto the code tab: code-editor)
 	import <path>                    Import a file as an asset, as if picked in the Import dialog
+	import_many <path> <path>...     Import several files at once, as the dialog sends them
 	                                 (native file dialogs can't be scripted)
 	quit                             End the script
 
@@ -138,7 +147,7 @@ Checks:
 	play <Stopped | Building | Playing | Paused>
 	tab <Console | Output | Animation>
 	bottom <open | closed>       Bottom panel
-	field <x | y | rotation | scale_x | scale_y | visible | name> <value>
+	field <x | y | rotation | scale_x | scale_y | visible | name | z> <value>
 	                             Property of the selected node (numbers are rounded to whole units)
 	tool <Select | Move | Rotate | Scale>
 	zoom <percent>               Viewport zoom, rounded to a whole percent
@@ -159,8 +168,16 @@ Checks:
 	audio <playing | stopped>    Sound preview playback
 	dialog <open | closed>       The remove-asset dialog
 	add_dialog <open | closed>   The Add Node dialog
-	menu <key> <open | closed>   A context menu, e.g. scene-tree-menu
-	menu_idle <key>              A context menu is closed and done fading out
+	context_menu <open | closed>  The right-click menu (context_menus.odin)
+	scene_clipboard <true | false>  A scene was copied (the browser's Copy)
+	import_folder <path end>     Where the Import dialog opens next (the last import's folder)
+	local_axes <on | off>        The move arrows follow the node's own axes
+	live_theme <applied | draft> The look the editor shows is the applied settings' (or the dialog's draft)
+	theme_color <key> <#RRGGBB>  A theme color the editor shows now (bg, primary...: editor.ini's keys)
+	guides <n>                   The open scene's guides
+	guide <i> <x | y> <at>       Guide i: vertical (x) or horizontal (y), where (rounded)
+	context_item <label> <enabled | disabled | checked | missing>  An item of the open menu
+	                             ("Show/Grid" in a submenu)
 	row <n> <name>               Node shown in row n of the scene tree
 	clipboard <count>            Nodes copied (a subtree)
 	selection <count>            Selected nodes
@@ -338,9 +355,6 @@ next check.
 */
 
 INPUT_SETTLE_FRAMES :: 3
-// Context menus the driver lets finish fading out before the next command
-@(private="file")
-FADING_MENUS := [?]string{"scene-tree-menu", "browser-menu"}
 DEFAULT_WAIT_TIMEOUT :: 10 * time.Second
 // How often a `wait_until code_completion_has` asks the language server again
 COMPLETION_RETRY :: 3 * time.Second
@@ -484,12 +498,6 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 		if time.tick_since(driver.windowSettled) < WINDOW_SETTLE_TIME do return
 		driver.ready = true
 	}
-	// A context menu fades out after it closes and blocks clicks under it until it has. Wait for
-	// that, so the next command doesn't land on a fading menu (a person is never that quick)
-	for key in FADING_MENUS {
-		menu := ctx.widgets.states[skald.hash_id(key)]
-		if !menu.open && menu.anim_t > 0.01 do return
-	}
 	if driver.waitCheck != "" {
 		ok, message := runCheck(s, ctx, driver.waitCheck)
 		if ok {
@@ -602,6 +610,42 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		}
 		offset := TilesPanel_TileCenter(atoi(args, 0, 1))
 		click({state.last_rect.x + offset.x, state.last_rect.y + offset.y}, {})
+		report(true, line)
+		return false
+
+	case "drag_guide", "drag_guide_back":
+		// drag_guide <top | left> <world>: out of a ruler to a world y (top) or x (left);
+		// drag_guide_back <i>: guide i back onto its ruler (removed)
+		rect, ok := widgetRect(ctx, "viewport-canvas")
+		if !ok || s.viewport.zoom <= 0 {
+			fail(fmt.tprintf("%s: the viewport hasn't been drawn", line))
+			return true
+		}
+		middle := [2]f32{rect.x + RULER_SIZE + (rect.w - RULER_SIZE) * 0.5, rect.y + RULER_SIZE + (rect.h - RULER_SIZE) * 0.5}
+		center := s.viewport.center
+		from, to: [2]f32
+		if command == "drag_guide" {
+			at, _ := strconv.parse_f32(len(args) > 1 ? args[1] : "")
+			top := len(args) > 0 && args[0] == "top"
+			from = top ? [2]f32{middle.x, rect.y + RULER_SIZE * 0.5} : [2]f32{rect.x + RULER_SIZE * 0.5, middle.y}
+			to, _ = ViewportWorldToWindow(s, ctx, top ? [2]f32{center.x, at} : [2]f32{at, center.y})
+		} else {
+			guides := s.project.scenes[s.currentScene].guides[:]
+			i := atoi(args, 0, 0)
+			if i < 0 || i >= len(guides) {
+				fail(fmt.tprintf("%s: the scene has %d guides", line, len(guides)))
+				return true
+			}
+			g := guides[i]
+			from, _ = ViewportWorldToWindow(s, ctx, g.vertical ? [2]f32{g.at, center.y} : [2]f32{center.x, g.at})
+			to = g.vertical ? [2]f32{rect.x + RULER_SIZE * 0.5, from.y} : [2]f32{from.x, rect.y + RULER_SIZE * 0.5}
+		}
+		pushMouse(.MOUSE_MOTION, from)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, from))
+		STEPS :: 4
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, from + (to - from) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, to))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 
@@ -734,7 +778,15 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return true
 		}
 		offset := AnimationPanel_FrameCenter(atoi(args, 0, 0))
-		click({state.last_rect.x + offset.x, state.last_rect.y + offset.y}, len(args) > 1 && args[1] == "shift" ? {.LSHIFT} : {})
+		at := [2]f32{state.last_rect.x + offset.x, state.last_rect.y + offset.y}
+		if len(args) > 1 && args[1] == "right" {
+			pushMouse(.MOUSE_MOTION, at)
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, at, sdl.BUTTON_RIGHT))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at, sdl.BUTTON_RIGHT))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+		} else {
+			click(at, len(args) > 1 && args[1] == "shift" ? {.LSHIFT} : {})
+		}
 		report(true, line)
 		return false
 
@@ -912,13 +964,60 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
-	case "click_menu_item":
-		state, drawn := ctx.widgets.states[skald.hash_id(args[0] if len(args) > 0 else "")]
-		if !drawn || !state.open {
-			fail(fmt.tprintf("%s: no open context menu with that key", line))
+	case "click_context_item":
+		if !s.contextMenu.open {
+			fail(fmt.tprintf("%s: no context menu is open", line))
 			return true
 		}
-		click(contextMenuItemCenter(ctx, state.anchor_pos, atoi(args, 1, 0), atoi(args, 2, len(SCENE_TREE_MENU))))
+		label := strings.join(args, " ", context.temp_allocator)
+		items := ContextMenu_Items(s)
+		parent, index, ok := contextItemFind(items, label)
+		if !ok {
+			fail(fmt.tprintf("%s: the menu has no such item (%s)", line, contextItemLabels(items)))
+			return true
+		}
+		center :: proc(r: skald.Rect) -> [2]f32 { return {r.x + r.w * 0.5, r.y + r.h * 0.5} }
+		if parent >= 0 {
+			// Hover the submenu's row first (it opens), then click its item
+			pushMouse(.MOUSE_MOTION, center(skald.popup_menu_row_rect(ctx, items, s.contextMenu.at, parent)))
+			to := center(skald.popup_menu_row_rect(ctx, items, s.contextMenu.at, index, parent))
+			queueBatch(mouseEvent(.MOUSE_MOTION, to))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, to))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, to))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+		} else {
+			click(center(skald.popup_menu_row_rect(ctx, items, s.contextMenu.at, index)))
+		}
+		report(true, line)
+		return false
+
+	case "right_click_node", "right_click_world", "right_click_widget":
+		at: [2]f32
+		ok: bool
+		switch command {
+		case "right_click_node":
+			scene := &s.project.scenes[s.currentScene]
+			index := -1
+			name := strings.join(args, " ", context.temp_allocator)
+			for node, i in scene.nodes do if node.name == name do index = i
+			at, ok = ViewportNodePosition(s, ctx, index)
+		case "right_click_world":
+			x, _ := strconv.parse_f32(args[0] if len(args) > 0 else "")
+			y, _ := strconv.parse_f32(args[1] if len(args) > 1 else "")
+			at, ok = ViewportWorldToWindow(s, ctx, {x, y})
+		case "right_click_widget":
+			rect: skald.Rect
+			rect, ok = widgetRect(ctx, args[0] if len(args) > 0 else "")
+			at = {rect.x + rect.w * 0.5, rect.y + rect.h * 0.5}
+		}
+		if !ok {
+			fail(fmt.tprintf("%s: not on screen", line))
+			return true
+		}
+		pushMouse(.MOUSE_MOTION, at)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, at, sdl.BUTTON_RIGHT))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at, sdl.BUTTON_RIGHT))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 
@@ -1232,6 +1331,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			msg = Git_Op_Requested{op = .Switch_Branch, arg = strings.clone(value, context.temp_allocator)}
 		case "Node_Script_Added":     msg = Node_Script_Added(strings.clone(value, context.temp_allocator))
 		case "Atlas_Created":         msg = Atlas_Created{}
+		case "Settings_Theme_Preset_Chosen": msg = Settings_Theme_Preset_Chosen(strings.clone(value, context.temp_allocator))
 		// A bottom tab by its name (the strip scrolls in a narrow window)
 		case "Bottom_Tab":
 			if tab, ok := reflect.enum_from_name(BottomTab, value); ok do msg = Bottom_Tab_Changed(int(tab))
@@ -1316,12 +1416,21 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return true
 		}
 		delta := [2]f32{f32(atoi(args, 1, 0)), f32(atoi(args, 2, 0))}
+		// "alt": Alt held through the drag (Skald reads modifiers from key events)
+		alt := len(args) > 3 && args[3] == "alt"
 		pushMouse(.MOUSE_MOTION, start)
+		if alt do pushKey(.KEY_DOWN, {.LALT})
 		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, start))
 		// Move in steps over several frames, like a real drag, then release
 		STEPS :: 4
 		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, start + delta * f32(i) / STEPS))
 		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, start + delta))
+		if alt {
+			release: sdl.Event
+			release.type = .KEY_UP
+			release.key.scancode = .LALT
+			queueBatch(release)
+		}
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
@@ -1361,7 +1470,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		if mods != {} {
 			release: sdl.Event
 			release.type = .KEY_UP
-			release.key.scancode = .LCTRL in mods ? .LCTRL : .LSHIFT
+			release.key.scancode = .LCTRL in mods ? .LCTRL : .LGUI in mods ? .LGUI : .LSHIFT
 			queueBatch(release)
 		}
 		driver.waitFrames = INPUT_SETTLE_FRAMES
@@ -1440,6 +1549,15 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		}
 		fail(fmt.tprintf("%s: no asset %s", line, rest))
 		return true
+
+	case "import_many":
+		// Several files, as the Import dialog sends them when several are chosen
+		paths := make([]string, len(args), context.temp_allocator)
+		for a, i in args do paths[i] = Editor_ArgumentPath(a)
+		if len(paths) > 0 do skald.send(ctx, Msg(Asset_Import_Result{path = paths[0], paths = paths}))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
 
 	case "import":
 		skald.send(ctx, Msg(Asset_Import_Result{path = Editor_ArgumentPath(rest)}))
@@ -1766,11 +1884,58 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = s.removeConfirm.open ? "open" : "closed"
 	case "add_dialog":
 		found = s.addNode.open ? "open" : "closed"
-	case "menu":
+	case "context_menu":
+		found = s.contextMenu.open ? "open" : "closed"
+	case "scene_clipboard":
+		found = s.hasSceneClipboard ? "true" : "false"
+	case "live_theme":
+		// The look the editor shows: the applied settings' or the Settings dialog's draft
+		applied := Settings_Theme(&s.settings).color == ctx.theme.color
+		draft := Settings_Theme(&s.settingsDialog.draft).color == ctx.theme.color
+		found = applied && draft ? "applied, draft" : applied ? "applied" : draft ? "draft" : "neither"
+		return strings.contains(found, value), found
+	case "theme_color":
+		// theme_color <key> <#RRGGBB>: a color the editor shows now
 		key, _, expected := strings.partition(value, " ")
-		state, drawn := ctx.widgets.states[skald.hash_id(key)]
-		found = drawn && state.open ? "open" : "closed"
-		return found == strings.trim_space(expected), found
+		for which in ThemeColor do if THEME_COLOR_KEYS[which] == key {
+			colors := ctx.theme.color
+			found = ThemeColor_Format(ThemeColor_Field(&colors, which)^)
+			return found == strings.trim_space(expected), found
+		}
+		return false, "no such color"
+	case "import_folder":
+		// import_folder <end of the path>: where the Import dialog opens next
+		found = FixedText_String(&s.settings.importFolder)
+		slashed, _ := strings.replace_all(found, "\\", "/", context.temp_allocator)
+		return strings.has_suffix(slashed, value), found
+	case "local_axes":
+		found = s.viewport.localAxes ? "on" : "off"
+	case "guides":
+		found = fmt.tprint(len(scene.guides))
+	case "guide":
+		// guide <i> <x | y> <at>
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 3 do return false, "expected an index, x or y, and a value"
+		i, _ := strconv.parse_int(parts[0])
+		if i < 0 || i >= len(scene.guides) do return false, fmt.tprintf("%d guides", len(scene.guides))
+		g := scene.guides[i]
+		found = fmt.tprintf("%s %v", g.vertical ? "x" : "y", math.round(g.at))
+		return found == fmt.tprintf("%s %s", parts[1], parts[2]), found
+	case "context_item":
+		// The label is everything before the last word
+		cut := strings.last_index_byte(value, ' ')
+		if cut < 0 do return false, "expected a label and a state"
+		label, expected := value[:cut], value[cut + 1:]
+		found = "missing"
+		if s.contextMenu.open {
+			items := ContextMenu_Items(s)
+			if parent, index, ok := contextItemFind(items, label); ok {
+				item := parent >= 0 ? items[parent].submenu[index] : items[index]
+				found = item.checked ? "checked" : item.disabled ? "disabled" : "enabled"
+				if expected == "enabled" && found == "checked" do found = "enabled"
+			}
+		}
+		return found == expected, found
 	case "row":
 		index, _, expected := strings.partition(value, " ")
 		rows := SceneTreeRows(scene)
@@ -2346,9 +2511,6 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = Keymap_FormatChords(s.settings.keymap[action])
 		if found == "" do found = "-"
 		return found == strings.trim_space(expected), found
-	case "menu_idle":
-		state := ctx.widgets.states[skald.hash_id(value)]
-		return !state.open && state.anim_t <= 0.01, fmt.tprintf("open %v, fade %.2f", state.open, state.anim_t)
 	case "capture":
 		found = s.settingsDialog.capture.active ? "on" : "off"
 	case "settings_file_contains":
@@ -2370,6 +2532,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "scale_y":  found = fmt.tprintf("%.2f", selected.scale.y)
 		case "visible":  found = fmt.tprint(selected.visible)
 		case "name":     found = selected.name
+		case "z":        found = fmt.tprint(selected.zIndex)
 		case:            return false, fmt.tprintf("unknown field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
@@ -2496,7 +2659,7 @@ click :: proc(position: [2]f32, mods: sdl.Keymod = {}) {
 	if mods != {} {
 		release: sdl.Event
 		release.type = .KEY_UP
-		release.key.scancode = .LCTRL in mods ? .LCTRL : .LSHIFT
+		release.key.scancode = .LCTRL in mods ? .LCTRL : .LGUI in mods ? .LGUI : .LSHIFT
 		queueBatch(release)
 	}
 	driver.waitFrames = INPUT_SETTLE_FRAMES
@@ -2507,7 +2670,7 @@ click :: proc(position: [2]f32, mods: sdl.Keymod = {}) {
 pushKey :: proc(type: sdl.EventType, mods: sdl.Keymod) {
 	event: sdl.Event
 	event.type = type
-	event.key.scancode = .LCTRL in mods ? .LCTRL : .LSHIFT
+	event.key.scancode = .LCTRL in mods ? .LCTRL : .LGUI in mods ? .LGUI : .LALT in mods ? .LALT : .LSHIFT
 	event.key.key = sdl.GetKeyFromScancode(event.key.scancode, {}, false)
 	event.key.mod = mods
 	event.key.down = type == .KEY_DOWN
@@ -2519,8 +2682,9 @@ pushKey :: proc(type: sdl.EventType, mods: sdl.Keymod) {
 clickModifiers :: proc(args: []string, index: int) -> (sdl.Keymod, bool) {
 	if index >= len(args) do return {}, true
 	switch strings.to_lower(args[index], context.temp_allocator) {
-	case "ctrl": return {.LCTRL}, true
+	case "ctrl": return PRIMARY_KEYMOD, true
 	case "shift": return {.LSHIFT}, true
+	case "alt": return {.LALT}, true
 	}
 	return {}, false
 }
@@ -2546,6 +2710,10 @@ mouseEvent :: proc(type: sdl.EventType, position: [2]f32, button := sdl.BUTTON_L
 	return event
 }
 
+// What a script's "ctrl" holds: the platform's command key (Cmd on macOS, as the keymap's Ctrl
+// is there: keymap.odin), so scripts run the same everywhere; "control" is the Control key itself
+PRIMARY_KEYMOD :: sdl.Keymod{.LGUI} when ODIN_OS == .Darwin else sdl.Keymod{.LCTRL}
+
 // "ctrl+shift+s" -> key down now, key up next frame
 @(private="file")
 pressKey :: proc(combo: string) -> bool {
@@ -2553,7 +2721,8 @@ pressKey :: proc(combo: string) -> bool {
 	mods: sdl.Keymod
 	for part in parts[:len(parts) - 1] {
 		switch strings.to_lower(part, context.temp_allocator) {
-		case "ctrl":  mods += {.LCTRL}
+		case "ctrl":  mods += PRIMARY_KEYMOD
+		case "control": mods += {.LCTRL}
 		case "shift": mods += {.LSHIFT}
 		case "alt":   mods += {.LALT}
 		case "super": mods += {.LGUI}
@@ -2631,24 +2800,36 @@ viewportCenter :: proc(ctx: ^skald.Ctx(Msg)) -> ([2]f32, bool) {
 }
 
 /*
-Center of a context menu item. Mirrors `skald.context_menu`'s layout (fixed-height rows below the
-click point, flipped above it near the window's bottom); update this if Skald's menu changes.
+An item of a context menu by its label ("Transform/Reset Scale" through a submenu); a label that
+starts an item's label finds it too ("Open Script" for "Open Script (Mover)"), an exact one first.
 
-Inputs:
-- anchor: Where the menu was opened (its widget state's `anchor_pos`)
-- index: The item
-- count: How many items the menu has (it decides whether the menu flips)
+Returns:
+- The submenu's row (-1: none), the item's index in its list, and whether it was found
 */
 @(private="file")
-contextMenuItemCenter :: proc(ctx: ^skald.Ctx(Msg), anchor: [2]f32, index, count: int) -> [2]f32 {
-	th := ctx.theme
-	BORDER :: f32(1)
-	PAD :: f32(4)
-	GAP :: f32(2)
-	rowHeight := th.font.size_md + 2 * th.spacing.sm + 6
-	height := 2 * (BORDER + PAD) + f32(count) * rowHeight + f32(max(0, count - 1)) * GAP
-	rect := skald.overlay_placement_rect(ctx, skald.Rect{anchor.x, anchor.y, 0, 0}, {250, height}, .Below)
-	return {rect.x + 125, rect.y + BORDER + PAD + f32(index) * (rowHeight + GAP) + rowHeight * 0.5}
+contextItemFind :: proc(items: []skald.Menu_Item(Msg), label: string) -> (parent, index: int, ok: bool) {
+	find :: proc(items: []skald.Menu_Item(Msg), label: string) -> int {
+		for item, i in items do if !item.separator && item.label == label do return i
+		for item, i in items do if !item.separator && strings.has_prefix(item.label, label) do return i
+		return -1
+	}
+	head, _, rest := strings.partition(label, "/")
+	if rest == "" {
+		i := find(items, label)
+		return -1, i, i >= 0
+	}
+	p := find(items, head)
+	if p < 0 || len(items[p].submenu) == 0 do return -1, -1, false
+	i := find(items[p].submenu, rest)
+	return p, i, i >= 0
+}
+
+// "Cut, Copy, Transform/..." for failure messages
+@(private="file")
+contextItemLabels :: proc(items: []skald.Menu_Item(Msg)) -> string {
+	labels := make([dynamic]string, context.temp_allocator)
+	for item in items do if !item.separator do append(&labels, len(item.submenu) > 0 ? fmt.tprintf("%s/...", item.label) : item.label)
+	return strings.join(labels[:], ", ", context.temp_allocator)
 }
 
 // Whether a height in a tree is inside the part of the tree's scroll area that's on screen. Rows

@@ -23,7 +23,7 @@ key shift+g
 expect snap off
 # View > Grid Settings: Project Settings' Grid tab; a 16 x 24 cell, saved with the project, and
 # snapping uses it. Undo puts the old grid back
-expect project_grid 32 32 4 8 20
+expect project_grid 32 32 4 60 90
 send Open_Grid_Settings
 expect project_settings open
 click_widget project-settings-grid-Width
@@ -35,7 +35,7 @@ type 24
 click_widget project-settings-grid-Major_Every-inc
 click_widget project-settings-apply
 expect project_settings closed
-expect project_grid 16 24 5 8 20
+expect project_grid 16 24 5 60 90
 key ctrl+s
 expect project_file_contains project.xml <grid width="16" height="24" majorEvery="5"/>
 key shift+g
@@ -46,7 +46,7 @@ key shift+g
 key ctrl+z
 expect field x 672
 key ctrl+z
-expect project_grid 32 32 4 8 20
+expect project_grid 32 32 4 60 90
 # (a project undo step clears the selection)
 click_node Spaceship
 expect selected Spaceship

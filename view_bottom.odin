@@ -23,7 +23,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		panelButton(ctx, "clear-log", ICON_TRASH, "Clear", Action.Clear_Console,
 			disabled = !clearable(s)),
 		panelButton(ctx, "toggle-bottom", open ? ICON_CHEVRON_DOWN : ICON_CHEVRON_UP,
-			open ? "Collapse panel (Ctrl+J)" : "Expand panel (Ctrl+J)", Action.Toggle_Bottom_Panel),
+			actionTip(s, open ? "Collapse panel" : "Expand panel", .Toggle_Bottom_Panel), Action.Toggle_Bottom_Panel),
 		spacing = th.spacing.xs,
 		cross_align = .Center,
 	)
@@ -51,8 +51,8 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	content: skald.View
 	switch s.bottomTab {
-	case .Console:   content = logView(ctx, s.console[:], "Console is empty.", "console-scroll")
-	case .Output:    content = logView(ctx, s.output[:], "Build output appears here when you press Play.", "output-scroll")
+	case .Console:   content = logView(ctx, s.console[:], "Console is empty.", "console-scroll", output = false)
+	case .Output:    content = logView(ctx, s.output[:], "Build output appears here when you press Play.", "output-scroll", output = true)
 	case .Animation: content = AnimationPanel(s, ctx)
 	case .Mixer:     content = MixerPanel(s, ctx)
 	case .Git:       content = GitPanel(s, ctx)
@@ -82,10 +82,25 @@ clearable :: proc(s: ^State) -> bool {
 	return false
 }
 
-// A scrolling list of log lines, colored by level
+// A scrolling list of log lines, colored by level; a right-click opens a line's menu (copy it,
+// copy all, clear: context_menus.odin). Line widgets: `<scrollKey>-line-<i>`
 @(private="file")
-logView :: proc(ctx: ^skald.Ctx(Msg), log: []LogLine, emptyText, scrollKey: string) -> skald.View {
+logView :: proc(ctx: ^skald.Ctx(Msg), log: []LogLine, emptyText, scrollKey: string, output: bool) -> skald.View {
 	th := ctx.theme
+	scrollId := skald.hash_id(scrollKey)
+	// The line under a right-click, from last frame's layout (below the lines: -1)
+	if area := lastRect(ctx, scrollId); ctx.input.mouse_pressed[.Right] && area.w > 0 {
+		line := -1
+		p := ctx.input.mouse_pos
+		for i in 0..<len(log) {
+			r := lastRect(ctx, skald.hash_id(fmt.tprintf("%s-line-%d", scrollKey, i)))
+			if r.w > 0 && p.y >= r.y && p.y < r.y + r.h && p.y >= area.y && p.y < area.y + area.h {
+				line = i
+				break
+			}
+		}
+		rightPressOpens(ctx, area, Ctx_Log{output = output, line = line})
+	}
 	if len(log) == 0 do return placeholder(ctx, emptyText)
 
 	lines := make([]skald.View, len(log), context.temp_allocator)
@@ -97,11 +112,13 @@ logView :: proc(ctx: ^skald.Ctx(Msg), log: []LogLine, emptyText, scrollKey: stri
 		case .Warning: color, tag = th.color.warning, "WARN "
 		case .Error:   color, tag = th.color.danger, "ERROR"
 		}
-		lines[i] = skald.text(fmt.tprintf("%s  %s", tag, line.text), color, th.font.size_sm)
+		text := new(skald.View, context.temp_allocator)
+		text^ = skald.text(fmt.tprintf("%s  %s", tag, line.text), color, th.font.size_sm)
+		lines[i] = skald.View_Zone{id = skald.hash_id(fmt.tprintf("%s-line-%d", scrollKey, i)), child = text}
 	}
 	return skald.scroll(ctx, {0, 0},
 		skald.col(..lines, spacing = 2, padding = th.spacing.sm),
-		id = skald.hash_id(scrollKey))
+		id = scrollId)
 }
 
 @(private="package")

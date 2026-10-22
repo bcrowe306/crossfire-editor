@@ -234,7 +234,7 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 
 	staged := 0
-	for change in snapshot.changes do if isStaged(change) do staged += 1
+	for change in snapshot.changes do if Git_IsStaged(change) do staged += 1
 	summary := len(snapshot.changes) == 0 ? "No changes" : fmt.tprintf("%d change%s, %d staged%s", len(snapshot.changes),
 		len(snapshot.changes) == 1 ? "" : "s", staged, staged == 0 ? " (Commit takes them all)" : "")
 	actions := skald.row(
@@ -269,7 +269,7 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 		// Conflicted: keep one side; otherwise the file can be thrown back to the last commit
 		actions: skald.View
-		if isConflicted(change) {
+		if Git_IsConflicted(change) {
 			actions = skald.row(
 				smallButton(ctx, fmt.tprintf("git-mine-%d", i), "Keep mine", Msg(Git_Op_Requested{op = .Resolve_Mine, arg = path}), git.busy),
 				smallButton(ctx, fmt.tprintf("git-theirs-%d", i), "Take theirs", Msg(Git_Op_Requested{op = .Resolve_Theirs, arg = path}), git.busy),
@@ -280,10 +280,14 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				"Discard the changes (back to the last commit)", id = skald.hash_id(fmt.tprintf("git-discard-tip-%d", i)))
 		}
 		shown := git.diffPath == change.path
-		append(&rows, skald.row(
-			skald.checkbox(ctx, isStaged(change), "", path,
+		// A right-click on the row: the change's menu (context_menus_panels.odin); widget `git-row-<i>`
+		rowId := skald.hash_id(fmt.tprintf("git-row-%d", i))
+		rightPressOpens(ctx, lastRect(ctx, rowId), Ctx_Graph{graph = .Git_Change, item = i, sub = -1})
+		row := new(skald.View, context.temp_allocator)
+		row^ = skald.row(
+			skald.checkbox(ctx, Git_IsStaged(change), "", path,
 				proc(path: string, value: bool) -> Msg { return Git_Op_Requested{op = value ? .Stage : .Unstage, arg = path} },
-				id = skald.hash_id(fmt.tprintf("git-change-%d", i)), disabled = git.busy || isConflicted(change)),
+				id = skald.hash_id(fmt.tprintf("git-change-%d", i)), disabled = git.busy || Git_IsConflicted(change)),
 			skald.col(skald.text(letter, color, small), width = 16),
 			// Before the path: rows in a scroll aren't width-limited, so a long path would push
 			// them out of a narrow panel
@@ -293,7 +297,8 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				bg = shown ? th.color.surface : {}, fg = th.color.fg, padding = {th.spacing.xs, 1}, font_size = small, radius = th.radius.sm),
 			spacing = th.spacing.sm,
 			cross_align = .Center,
-		))
+		)
+		append(&rows, skald.View_Zone{id = rowId, child = row})
 	}
 	if snapshot.problem != "" do append(&rows, skald.text(snapshot.problem, th.color.danger, small))
 	list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = 2, padding = th.spacing.xs), id = skald.hash_id("git-changes"))
@@ -329,21 +334,19 @@ historyColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 // Whether a change is a merge conflict (both sides changed it: UU, AA, DD, AU...)
-@(private="file")
-isConflicted :: proc(change: GitChange) -> bool {
+Git_IsConflicted :: proc(change: GitChange) -> bool {
 	return change.staged == 'U' || change.unstaged == 'U' || (change.staged == 'A' && change.unstaged == 'A') || (change.staged == 'D' && change.unstaged == 'D')
 }
 
 // Whether a change is in the index (what Commit takes when anything is)
-@(private="file")
-isStaged :: proc(change: GitChange) -> bool {
+Git_IsStaged :: proc(change: GitChange) -> bool {
 	return change.staged != ' ' && change.staged != '?'
 }
 
 // A change's letter (the work tree's, else the index's) and its color
 @(private="file")
 changeLetter :: proc(change: GitChange, th: ^skald.Theme) -> (string, skald.Color) {
-	if isConflicted(change) do return "!", th.color.danger
+	if Git_IsConflicted(change) do return "!", th.color.danger
 	letter := change.unstaged != ' ' ? change.unstaged : change.staged
 	switch letter {
 	case '?': return "U", th.color.success

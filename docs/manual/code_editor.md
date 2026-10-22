@@ -124,7 +124,16 @@ What it gives you:
 
 - **Completion:** suggestions appear as you type (after a `.` for example: `e.` lists the
   engine's procedures). Ctrl+Space asks for them anywhere. Up and Down choose, Enter or a click
-  takes one.
+  takes one. A struct's fields are listed as the code declares them, with the comment above each
+  one beside it:
+
+  ```
+  speed: f32          Pixels a second
+  node: ^e.Node       The node it's attached to
+  ```
+
+  Other suggestions carry a short tag for what they are: `fn` (a procedure), `type`, `var`,
+  `const`, `enum`, `pkg` (a package), `kw` (a keyword).
 - **Parameter hints:** inside a call's brackets, the procedure's parameters show, the current one
   highlighted (Ctrl+Shift+Space asks for them).
 - **Hover:** rest the mouse on a name to see its type and documentation.

@@ -19,7 +19,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 |---|---|
 | [Getting started](getting_started.md) | Install and run the Crossfire Editor, learn the parts of its window, and make a first tiny game with a picture and some text |
 | [Projects](projects.md) | Making, opening and saving a project; recent projects in the File menu; Save Project As (a copy somewhere else); project archives; unsaved changes |
-| [Scenes and nodes](scenes_and_nodes.md) | Make and organize scenes, build them from nodes in the scene tree, set each node's position, layer and drawing order, and work in the viewport with its tools, grid and undo |
+| [Scenes and nodes](scenes_and_nodes.md) | Make and organize scenes, build them from nodes in the scene tree, set each node's position, layer and drawing order, and work in the viewport with its tools (move, rotate, scale, transform, zoom), right-click menus, align and distribute, guides, grid and undo |
 | [Sprites and images](sprites_and_images.md) | Show pictures with Sprite nodes, play sprite-sheet animations with AnimatedSprite and the Animation panel, share animations as assets, use Aseprite files with their tags, layers and slices, and write text with Labels |
 | [Scripts](scripts.md) | Write your game's code in Odin, attach it to nodes, set its fields in the inspector, and use events, assets and the engine from it |
 | [Several scripts, node types and hot reload](scripts_node_types_hot_reload.md) | More than one script on a node, node types of your own made in code (a Player that is a Sprite), changing scripts while the game plays |
@@ -52,7 +52,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 | [The code editor](code_editor.md) | Write your game's Odin scripts in tabs beside your scenes, with completion, error checking, go to definition, find and replace, and a command palette, or use an external editor such as Zed or VS Code instead |
 | [Version control with Git](version_control.md) | Keep every version of your project with Git from the bottom panel's Git tab, with commits, branches, pushing to and pulling from a remote, diffs, merges and Git LFS for big assets |
 | [Exporting your game](exporting.md) | Turn your project into a game other people can run, on Linux, Windows, macOS or in a web browser, from Project Settings > Export, File > Export, or the command line |
-| [Settings and the toolchain](settings_and_toolchain.md) | Change how the editor looks and behaves, rebind its shortcuts, check and install the tools that build your games, and find your way around Project Settings |
+| [Settings and the toolchain](settings_and_toolchain.md) | Change how the editor looks (a live theme editor with presets and every color) and behaves, rebind its shortcuts, check and install the tools that build your games, and find your way around Project Settings |
 | [Editor plugins](plugins.md) | Your own Odin code in the editor: commands, importers for other formats, inspector rows; built and reloaded as you save |
 
 The pages are in reading order: the first five get you making a game, the rest can be read as
@@ -74,3 +74,5 @@ you need them.
   Ctrl+J shows or hides it.
 - **Play** (F5): runs the game in its own window, the way players will see it.
 - **Undo** (Ctrl+Z) and **Redo** (Ctrl+Shift+Z): every edit in a scene can be taken back.
+- **Ctrl on a Mac:** where this manual says Ctrl, a Mac uses **Cmd** (Ctrl+S is Cmd+S), and
+  Alt is **Option**. The editor shows each shortcut the way your computer names it.

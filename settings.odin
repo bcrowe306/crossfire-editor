@@ -42,6 +42,12 @@ Settings :: struct {
 	// Browser and scene tree row height
 	rowHeight: f32,
 
+	// [theme] (editor_theme.odin): the colors set over the base theme (only those in
+	// `themeColorsSet` are used), and the corners' roundness in percent of Skald's
+	themeColors: [ThemeColor]skald.Color,
+	themeColorsSet: bit_set[ThemeColor],
+	cornerRadius: f32,
+
 	// [editor]
 	// Same-target edits closer together than this merge into one undo step (debounce)
 	undoMergeMs: int,
@@ -60,6 +66,13 @@ Settings :: struct {
 	// The mouse wheel pans the viewport and Ctrl + wheel zooms (for touchpads); otherwise the
 	// wheel zooms, Shift + wheel pans sideways and Ctrl + wheel up and down
 	wheelPans: bool,
+	// Snapping steps of the viewport's rotate and scale drags (degrees; a scale step), with snapping
+	// on or Shift held
+	rotateSnap: f32,
+	scaleSnap: f32,
+	// The folder files were last imported from (Ctrl+I opens there; "" the home folder): the
+	// machine's, so not the project's
+	importFolder: FixedText,
 	// The playback device for Play (the player's --audio-device) and the editor's own previews,
 	// by name ("" for the system's default): a machine's choice, so not the project's
 	audioDevice: FixedText,
@@ -84,6 +97,9 @@ Settings :: struct {
 SETTINGS_FONT_SIZE_RANGE :: [2]f32{9, 24}
 SETTINGS_SPACING_RANGE :: [2]f32{25, 200}
 SETTINGS_ROW_HEIGHT_RANGE :: [2]f32{18, 48}
+// Rotation snap, degrees; scale snap, a step
+SETTINGS_ROTATE_SNAP_RANGE :: [2]f32{1, 90}
+SETTINGS_SCALE_SNAP_RANGE :: [2]f32{0.01, 1}
 SETTINGS_UNDO_MS_RANGE :: [2]int{0, 10000}
 SETTINGS_UNDO_LIMIT_RANGE :: [2]int{1, 10000}
 
@@ -154,6 +170,25 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 			case "row_height": parseNumber(&settings.rowHeight, SETTINGS_ROW_HEIGHT_RANGE, it.section, key, value, &problems)
 			case: problem(&problems, it.section, key, value, "unknown setting")
 			}
+		case "theme":
+			if key == "corner_radius" {
+				parseNumber(&settings.cornerRadius, SETTINGS_CORNER_RADIUS_RANGE, it.section, key, value, &problems)
+				continue
+			}
+			known := false
+			for which in ThemeColor {
+				if THEME_COLOR_KEYS[which] != key do continue
+				known = true
+				if c, ok := ThemeColor_Parse(value); ok {
+					settings.themeColors[which] = c
+					settings.themeColorsSet += {which}
+				} else if strings.trim_space(value) == "" {
+					settings.themeColorsSet -= {which}
+				} else {
+					problem(&problems, it.section, key, value, "expected a color like #1E2130 (or #1E2130CC)")
+				}
+			}
+			if !known do problem(&problems, it.section, key, value, "unknown setting")
 		case "editor":
 			target: ^int
 			limits: [2]int
@@ -188,6 +223,9 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 			case "aseprite_path":
 				settings.asepritePath = FixedText_Make(value)
 				continue
+			case "import_folder":
+				settings.importFolder = FixedText_Make(value)
+				continue
 			case "code_editor_auto_close":
 				switch strings.to_lower(value, context.temp_allocator) {
 				case "true":  settings.autoClosePairs = true
@@ -218,6 +256,12 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 				continue
 			case "audio_device":
 				settings.audioDevice = FixedText_Make(value)
+				continue
+			case "rotate_snap":
+				parseNumber(&settings.rotateSnap, SETTINGS_ROTATE_SNAP_RANGE, it.section, key, value, &problems)
+				continue
+			case "scale_snap":
+				parseNumber(&settings.scaleSnap, SETTINGS_SCALE_SNAP_RANGE, it.section, key, value, &problems)
 				continue
 			case "viewport_wheel_pans":
 				switch strings.to_lower(value, context.temp_allocator) {
@@ -287,10 +331,13 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	strings.write_string(&b, "; Defaults and what each setting means: settings.default.ini in the editor's source.\n\n")
 	fmt.sbprintf(&b, "[appearance]\ntheme = %s\nfont_size = %v\nspacing = %v\nrow_height = %v\n\n",
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ncode_editor_builtin = %v\ncode_editor_auto_close = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\naseprite_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nhot_reload = %v\nviewport_wheel_pans = %v\naudio_device = %s\n\n",
+	fmt.sbprintf(&b, "[theme]\ncorner_radius = %v\n", settings.cornerRadius)
+	for which in ThemeColor do if which in settings.themeColorsSet do fmt.sbprintf(&b, "%s = %s\n", THEME_COLOR_KEYS[which], ThemeColor_Format(settings.themeColors[which]))
+	strings.write_string(&b, "\n")
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ncode_editor_builtin = %v\ncode_editor_auto_close = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\naseprite_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nhot_reload = %v\nviewport_wheel_pans = %v\nrotate_snap = %v\nscale_snap = %v\nimport_folder = %s\naudio_device = %s\n\n",
 		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit,
 		settings.builtInCodeEditor, settings.autoClosePairs, FixedText_String(&settings.olsPath), FixedText_String(&settings.odinPath), FixedText_String(&settings.ldtkPath),
-		FixedText_String(&settings.asepritePath), FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.hotReload, settings.wheelPans, FixedText_String(&settings.audioDevice))
+		FixedText_String(&settings.asepritePath), FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.hotReload, settings.wheelPans, settings.rotateSnap, settings.scaleSnap, FixedText_String(&settings.importFolder), FixedText_String(&settings.audioDevice))
 	strings.write_string(&b, "[keymap]\n")
 	for chords, action in settings.keymap {
 		fmt.sbprintf(&b, "%v = %s\n", action, Keymap_FormatChords(chords))
@@ -398,7 +445,9 @@ The Skald theme for the appearance settings: dark or light colors, with text siz
 `fontSize` and spacing from `spacing`.
 */
 Settings_Theme :: proc(settings: ^Settings) -> skald.Theme {
-	theme := settings.theme == .Light ? skald.theme_light() : skald.theme_dark()
+	theme := EditorTheme_Base(settings.theme)
+	// The colors set over the base and the corners' roundness (editor_theme.odin)
+	EditorTheme_Apply(&theme, settings)
 	// Skald's defaults are xs 11, sm 13, md 14, lg 18, xl 24, display 36
 	f := settings.fontSize / theme.font.size_md
 	theme.font = {

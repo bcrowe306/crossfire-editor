@@ -3,6 +3,7 @@ package crossfire_editor
 import "core:fmt"
 import "core:path/filepath"
 import "core:reflect"
+import "core:slice"
 import "core:strconv"
 import "core:strings"
 import "core:time"
@@ -93,6 +94,8 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 @(private="file")
 applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
+	if command, handled := ContextMenu_Update(&out, m); handled do return out, command
+	if ViewportTools_Update(&out, m) do return out, {}
 	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
 	if command, handled := Session_Update(&out, m); handled do return out, command
 	if command, handled := ProjectArchive_Update(&out, m); handled do return out, command
@@ -162,7 +165,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by TileMapEdit_Update above
 	case Tile_Brush, Tile_Tool_Chosen, Tile_Brush_Chosen, Tile_Layer_Chosen, Tile_Terrain_Chosen, Tile_Tileset_Chosen, Tile_Brush_Turned, Tile_Layer_Added, Tile_Layer_Reverted:
 		// Handled by TilePaint_Update above
-	case Timeline_Changed, Timeline_View, Timeline_Tick, Timeline_Tick_Requested:
+	case Timeline_Changed, Timeline_View, Timeline_Tick, Timeline_Tick_Requested, Timeline_Key_Here:
 		// Handled by Timeline_Update above
 	case Nav_Setting_Changed:
 		// Handled by NavEdit_Update above
@@ -196,6 +199,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Bus_Effects_Opened, Bus_Effect_Added, Bus_Effect_Removed, Bus_Effect_Moved, Bus_Effect_Changed,
 	     Music_Layer_Added, Music_Layer_Removed, Music_Layer_Changed:
 		// Handled by Mixer_Update, BusEffects_Update and MusicLayers_Update above
+	case Context_Menu_Opened, Context_Menu_Closed, Node_Command, Add_Node_Here, Paste_Here, Tab_Command,
+	     File_Command, Log_Command, Script_Open_External, Asset_Add_To_Scene, Graph_Command, Align_Nodes,
+	     Guide_Added, Guide_Moved, Guide_Removed, Guides_Cleared,
+	     Text_Copied:
+		// Handled by ContextMenu_Update and ViewportTools_Update above
 	case Audio_Field_Changed:
 		node := selectedNode(&out)
 		if node == nil || !isSoundKind(node.kind) do break
@@ -418,6 +426,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Git_New_Branch_Changed, Git_Remote_URL_Changed:
 		// Handled by Git_Update above
 	case Settings_Tab_Changed, Settings_Theme_Changed, Settings_Value_Changed, Settings_Search_Changed,
+	     Settings_Theme_Color_Changed, Settings_Theme_Color_Reset, Settings_Theme_Preset_Chosen,
 	     Settings_Capture_Started, Settings_Key_Captured, Settings_Capture_Cancelled, Settings_Key_Cleared,
 	     Settings_Key_Reset, Settings_Tab_Reset, Settings_Applied, Settings_Cancelled:
 		// Handled by SettingsDialog_Update above
@@ -449,10 +458,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.layout.previewHeight = max(out.layout.browserBodyHeight - f32(v) - DIVIDER, MIN_PREVIEW_HEIGHT)
 
 	case Asset_Import_Result:
-		if v.cancelled || v.path == "" do break
-		// A sound games can't play: converted to Ogg Vorbis first (asset_import_edit.odin)
-		if Audio_NeedsConversion(v.path) do return out, Audio_Convert(&out, v.path, -1)
-		importAsset(&out, v.path)
+		return out, importChosen(&out, skald.File_Dialog_Result(v))
 
 	case Asset_Remove_Confirmed:
 		index := out.removeConfirm.asset
@@ -625,10 +631,27 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Viewport_Drag_Begin:
 		// A new gesture: it won't merge with the previous drag's undo step
 		out.history.gesture += 1
-		drag := ViewportDrag{mode = v.mode, node = v.node, startMouse = v.mouse, current = v.mouse, additive = v.additive}
-		if v.mode != .Pan && v.mode != .Box {
+		drag := ViewportDrag{mode = v.mode, node = v.node, startMouse = v.mouse, current = v.mouse, additive = v.additive, localAxes = out.viewport.localAxes}
+		if v.mode != .Pan && v.mode != .Box && v.mode != .Zoom_Box {
 			scene := &out.project.scenes[out.currentScene]
 			if v.node < 0 || v.node >= len(scene.nodes) do break
+			// Alt+drag: the selection (the node with it) is duplicated, and the copies are dragged
+			if v.duplicate {
+				if !Selection_Contains(&out, v.node) {
+					clear(&out.selection)
+					out.selectedNode = v.node
+					Selection_Normalize(&out)
+				}
+				roots := slice.clone(Selection_Roots(&out), context.temp_allocator)
+				at := slice_index(roots, v.node)
+				if at < 0 do break
+				copies := Scene_DuplicateNodes(scene, roots)
+				Selection_Set(&out, copies, copies[at])
+				drag.node = copies[at]
+				drag.duplicated = true
+			}
+			v := v
+			v.node = drag.node
 			// Keeps a multi-selection that includes it (they move together)
 			out.selectedNode = v.node
 			if Selection_Contains(&out, v.node) do out.selectionSet = true
@@ -644,7 +667,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Viewport_Drag_Move:
 		drag := &out.viewport.drag
 		scene := &out.project.scenes[out.currentScene]
-		if drag.mode == .Box {
+		if drag.mode == .Box || drag.mode == .Zoom_Box {
 			drag.current = v.mouse
 			break
 		}
@@ -652,7 +675,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		before := scene.nodes[drag.node]
 		grid: [2]f32
 		if out.viewport.snap do grid = {f32(out.project.grid.size.x), f32(out.project.grid.size.y)}
-		Viewport_ApplyDrag(&scene.nodes[drag.node], drag, v.mouse, v.constrain, grid)
+		Viewport_ApplyDrag(&scene.nodes[drag.node], drag, v.mouse, v.constrain, grid, out.settings.rotateSnap, out.settings.scaleSnap)
+		// Snapping on: the origin also snaps to the scene's guides, within a few pixels
+		if out.viewport.snap && (drag.mode == .Move || drag.mode == .Move_X || drag.mode == .Move_Y) && len(scene.guides) > 0 && !out.viewport.guidesHidden {
+			Guides_SnapNode(scene, drag.node, GUIDE_SNAP_PIXELS / max(out.viewport.zoom, VIEWPORT_MIN_ZOOM), drag.mode)
+		}
 		// The rest of the selection follows
 		if len(out.selection) > 1 && Selection_Contains(&out, drag.node) {
 			Viewport_FollowDrag(scene, drag.node, before, Selection_Roots(&out))
@@ -660,6 +687,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		}
 	case Viewport_Drag_End:
 		if out.viewport.drag.mode == .Box do boxSelect(&out, out.viewport.drag)
+		if out.viewport.drag.mode == .Zoom_Box do ViewportTools_ZoomBox(&out.viewport, out.viewport.drag)
 		out.viewport.drag = {}
 
 	// Panel sizes. Splits report the size of their first pane; sidebars and the bottom panel
@@ -1240,6 +1268,12 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .Tool_Rotate: out.tool = .Rotate
 	case .Tool_Scale:  out.tool = .Scale
 	case .Tool_Pan:    out.tool = .Pan
+	case .Tool_Transform: out.tool = .Transform
+	case .Tool_Zoom:   out.tool = .Zoom
+	case .Toggle_Local_Axes:
+		out.viewport.localAxes = !out.viewport.localAxes
+	case .Toggle_Guides:
+		out.viewport.guidesHidden = !out.viewport.guidesHidden
 
 	case .View_Fit:
 		Viewport_Fit(&out.viewport, out.project.gameSize)
@@ -1293,7 +1327,9 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 			{"LDtk projects", IMPORT_LDTK_PATTERN},
 			{"Translations (CSV)", IMPORT_TRANSLATION_PATTERN},
 		}
-		return out, skald.cmd_open_file_dialog(filters[:], proc(r: skald.File_Dialog_Result) -> Msg { return Asset_Import_Result(r) })
+		// Several files at once, from where the last ones came from
+		return out, skald.cmd_open_file_dialog(filters[:], importDialogResult,
+			default_location = FixedText_String(&out.settings.importFolder), allow_many = true)
 	case .Remove_Asset:
 		if out.browserSelection.kind == .Asset {
 			out.removeConfirm = {open = true, asset = out.browserSelection.index}
@@ -1398,6 +1434,65 @@ selectedNode :: proc(state: ^State) -> ^NodeDef {
 	scene := &state.project.scenes[state.currentScene]
 	if state.selectedNode < 0 || state.selectedNode >= len(scene.nodes) do return nil
 	return &scene.nodes[state.selectedNode]
+}
+
+/*
+The import dialog's files (one or several): each imported, sounds games can't play converted to Ogg
+Vorbis first (asset_import_edit.odin); their folder is remembered for next time (Settings'
+`importFolder`, written to editor.ini). The paths are the frame's (`importDialogResult`).
+*/
+importChosen :: proc(state: ^State, r: skald.File_Dialog_Result) -> skald.Command(Msg) {
+	paths := r.paths
+	if paths == nil && r.path != "" {
+		single := make([]string, 1, context.temp_allocator)
+		single[0] = r.path
+		paths = single
+	}
+	if r.cancelled || len(paths) == 0 do return {}
+
+	// Next time the dialog opens where these came from
+	folder := filepath.dir(paths[0])
+	if folder != FixedText_String(&state.settings.importFolder) {
+		state.settings.importFolder = FixedText_Make(folder)
+		if state.settingsPath != "" {
+			if message := Settings_Save(&state.settings, state.settingsPath); message != "" do logLine(state, .Warning, fmt.aprintf("Couldn't remember the import folder: %s", message))
+		}
+	}
+
+	commands := make([dynamic]skald.Command(Msg), context.temp_allocator)
+	for path in paths {
+		// A sound games can't play: converted to Ogg Vorbis first
+		if Audio_NeedsConversion(path) {
+			append(&commands, Audio_Convert(state, path, -1))
+			continue
+		}
+		importAsset(state, path)
+	}
+	if len(paths) > 1 do logLine(state, .Info, fmt.aprintf("Imported %d files", len(paths)))
+	if len(commands) == 0 do return {}
+	command := commands[0]
+	for c in commands[1:] do command = skald.cmd_batch(command, c)
+	return command
+}
+
+// The import dialog's answer as a message: Skald's heap paths copied to the frame's memory (the
+// message is handled this frame) and freed
+@(private="file")
+importDialogResult :: proc(r: skald.File_Dialog_Result) -> Msg {
+	out := r
+	if r.paths != nil {
+		paths := make([]string, len(r.paths), context.temp_allocator)
+		for p, i in r.paths {
+			paths[i] = strings.clone(p, context.temp_allocator)
+			delete(p)
+		}
+		delete(r.paths)
+		out.paths, out.path = paths, paths[0]
+	} else if r.path != "" {
+		out.path = strings.clone(r.path, context.temp_allocator)
+		delete(r.path)
+	}
+	return Asset_Import_Result(out)
 }
 
 // Imports a file and selects it in the browser
@@ -1523,6 +1618,13 @@ addNodeOfKind :: proc(state: ^State, kind: NodeKind, custom := "") {
 	index := AddNode_Create(state, kind, custom)
 	state.addNode.open = false
 	scene := &state.project.scenes[state.currentScene]
+	// Asked for at a point (the viewport's Add Node Here): placed there, in its parent's space
+	if at, ok := state.addNode.at.?; ok && index >= 0 && index < len(scene.nodes) {
+		node := &scene.nodes[index]
+		parentWorld := node.parent >= 0 ? Scene_WorldTransforms(scene)[node.parent] : e.TRANSFORM2D_IDENTITY
+		local := e.Transform2D_Apply(e.Transform2D_Inverse(parentWorld), at)
+		node.position = {math_tidy(local.x), math_tidy(local.y)}
+	}
 	logLine(state, .Info, fmt.aprintf("Added %s to %s", scene.nodes[index].name, scene.name))
 }
 
@@ -1552,13 +1654,12 @@ startRename :: proc(state: ^State, index: int) {
 }
 
 // "Spaceship", or "3 nodes" (temp allocated)
-@(private="file")
 describeNodes :: proc(scene: ^SceneDef, nodes: []int) -> string {
 	if len(nodes) == 1 do return scene.nodes[nodes[0]].name
 	return fmt.tprintf("%d nodes", len(nodes))
 }
 
-@(private="file")
+// The index of `value` in `values`, -1 when it isn't there
 slice_index :: proc(values: []int, value: int) -> int {
 	for v, i in values do if v == value do return i
 	return -1

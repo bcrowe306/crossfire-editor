@@ -97,7 +97,7 @@ wait 30
 # A component dragged from the browser onto the code tab: a ComponentAsset field for
 # e.Scene_AddComponent (ShipLight, row 3, saved as one first)
 right_click_row scene-tree 3
-click_menu_item scene-tree-menu 8
+click_context_item Save as Component
 wait_until components 1 timeout=5
 drag_asset_to components/ code-editor
 wait_until code_contains true : e.ComponentAsset `export:"default=components/ timeout=5

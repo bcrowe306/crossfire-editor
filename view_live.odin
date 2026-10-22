@@ -53,6 +53,8 @@ LivePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	treeWidth := narrow ? width - th.spacing.sm * 2 : clamp(width * 0.4, 140, 320)
 	nodes := make([dynamic]skald.View, context.temp_allocator)
 	for n, i in live.nodes {
+		// A right-click: the node's menu (context_menus_panels.odin)
+		rightPressOpens(ctx, lastRect(ctx, skald.hash_id(fmt.tprintf("live-node-%d", i))), Ctx_Graph{graph = .Live_Node, item = i, sub = -1})
 		label := fmt.tprintf("%s%s", strings.repeat("   ", n.depth, context.temp_allocator), n.name)
 		on := n.id == live.selected
 		append(&nodes, skald.button(ctx, label, Msg(Live_Selected(n.id)), id = skald.hash_id(fmt.tprintf("live-node-%d", i)),

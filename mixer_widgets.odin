@@ -159,7 +159,7 @@ fader :: proc(ctx: ^skald.Ctx($Msg), key: string, gain: f32, payload: $P, on_cha
 		popupOpen := len(ctx.widgets.overlay_rects_prev) > 0
 		if ctx.input.mouse_pressed[.Left] && !popupOpen && skald.widget_hovered(ctx, id) && rectHas(state.clip_rect, mouse, true) {
 			skald.widget_focus(ctx, id)
-			if ctx.input.mouse_click_count[.Left] >= 2 || .Ctrl in ctx.input.modifiers {
+			if ctx.input.mouse_click_count[.Left] >= 2 || skald.PRIMARY_MODIFIER in ctx.input.modifiers {
 				if gain != 1 do skald.send(ctx, on_change(payload, 1))
 			} else {
 				p := position
@@ -227,7 +227,7 @@ panControl :: proc(ctx: ^skald.Ctx($Msg), key: string, pan: f32, payload: $P, on
 		popupOpen := len(ctx.widgets.overlay_rects_prev) > 0
 		if ctx.input.mouse_pressed[.Left] && !popupOpen && skald.widget_hovered(ctx, id) && rectHas(state.clip_rect, mouse, true) {
 			skald.widget_focus(ctx, id)
-			if ctx.input.mouse_click_count[.Left] >= 2 || .Ctrl in ctx.input.modifiers {
+			if ctx.input.mouse_click_count[.Left] >= 2 || skald.PRIMARY_MODIFIER in ctx.input.modifiers {
 				if pan != 0 do skald.send(ctx, on_change(payload, 0))
 			} else {
 				controlDrag = {id, mouse.x, pan, fine}

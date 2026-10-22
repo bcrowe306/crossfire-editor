@@ -55,7 +55,7 @@ BrowserRows :: proc(state: ^State) -> []BrowserItem {
 			}
 		} else {
 			for asset, i in state.project.assets {
-				if AssetFolder(asset.kind) == folder && matchesSearch(filepath.base(asset.path), search) {
+				if AssetFolder(asset.kind) == folder && (matchesSearch(Asset_DisplayName(asset.path), search) || matchesSearch(filepath.base(asset.path), search)) {
 					append(&contents, BrowserItem{kind = .Asset, folder = folder, index = i})
 				}
 			}

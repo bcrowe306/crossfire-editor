@@ -282,7 +282,7 @@ dataInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 	desc := ScriptCatalog_FindData(&s.scripts, data.type)
 	if desc == nil {
-		message := s.scripts.status == .Ready ? fmt.tprintf("No data type named %s in the scripts.", data.type) : "Build the scripts (Ctrl+B) to edit the fields."
+		message := s.scripts.status == .Ready ? fmt.tprintf("No data type named %s in the scripts.", data.type) : fmt.tprintf("Build the scripts%s to edit the fields.", keyParen(s, .Build_Scripts))
 		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
 		for v in data.values do append(&rows, inspectorRow(ctx, v.name, skald.text(v.value, th.color.fg_muted, th.font.size_sm)))
 	} else {

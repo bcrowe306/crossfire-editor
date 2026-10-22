@@ -147,8 +147,13 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 		}
 	}
 
-	return skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.xs, width = STRIP_WIDTH, height = height,
+	// A right-click on the strip: its menu (context_menus_panels.odin); widget `mixer-strip-<i>`
+	stripId := skald.hash_id(fmt.tprintf("mixer-strip-%d", i))
+	rightPressOpens(ctx, lastRect(ctx, stripId), Ctx_Graph{graph = .Mixer_Bus, item = i, sub = -1})
+	strip := new(skald.View, context.temp_allocator)
+	strip^ = skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.xs, width = STRIP_WIDTH, height = height,
 		bg = th.color.surface, radius = th.radius.sm)
+	return skald.View_Zone{id = stripId, child = strip}
 }
 
 @(private="file")

@@ -13,10 +13,10 @@ expect scene PlayScene
 import tests/fixtures/beep.wav
 expect assets 4
 right_click_asset assets/beep.wav
-click_menu_item browser-menu 0 2
+click_context_item Use as Music (streamed)
 expect console_contains beep.wav is music (streamed)
 right_click_asset assets/beep.wav
-click_menu_item browser-menu 0 2
+click_context_item Use as a Sound
 expect console_contains beep.wav is a sound
 
 # An AudioPlayer playing it

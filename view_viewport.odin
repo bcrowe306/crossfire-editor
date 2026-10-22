@@ -47,7 +47,6 @@ EditorFocused :: proc() -> bool {
 }
 
 // Where a node is and what it covers, in world coordinates
-@(private="file")
 NodeShape :: struct {
 	visible: bool,
 	world: e.Transform2D,
@@ -94,7 +93,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.send(ctx, Viewport_Measured(viewSize))
 	}
 
-	shapes := nodeShapes(s, scene)
+	shapes := Viewport_NodeShapes(s, scene)
 	if viewRect.w > 0 do handleViewportInput(s, ctx, canvasId, viewRect, shapes)
 
 	// Render the scene with the engine: straight into Skald's image (the shared GPU renderer), or
@@ -151,6 +150,8 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		toggleButton(s, ctx, "viewport-snap", ICON_MAGNET, "Snap to grid", .Toggle_Snap, s.viewport.snap),
 		toggleButton(s, ctx, "viewport-shapes", ICON_POLYGON, "Show collision shapes", .Toggle_Collision_Shapes, s.viewport.showShapes),
 		toggleButton(s, ctx, "viewport-lighting", ICON_LIGHTBULB, "Show lit scenes lit", .Toggle_Lighting, !s.viewport.unlit),
+		toggleButton(s, ctx, "viewport-local-axes", ICON_COMPASS, "Move along the selected node's own axes (turned with it)", .Toggle_Local_Axes, s.viewport.localAxes),
+		alignButton(s, ctx),
 		panelButton(ctx, "viewport-fit", ICON_SCALE, actionTip(s, "Fit game area", .View_Fit), Action.View_Fit),
 		skald.button(ctx, fmt.tprintf("%.0f%%", s.viewport.zoom * 100), Msg(Action.Zoom_100),
 			id = skald.hash_id("viewport-zoom"), bg = th.color.surface, fg = th.color.fg_muted,
@@ -201,9 +202,9 @@ centerTabs :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width: f32) -> skald.View {
 		shown := index == s.currentScene && CodeTabs_Active(s) == ""
 		if shown do active = i
 		tip := Scene_IsComponent(scene) ? scene.component : fmt.tprintf("Scene %s", scene.name)
-		if dirty do tip = fmt.tprintf("%s (unsaved changes: Ctrl+S saves)", tip)
+		if dirty do tip = fmt.tprintf("%s (unsaved changes: Save%s)", tip, keyParen(s, .Save_Project))
 		append(&views, editorTab(ctx, label, tip, shown,
-			Msg(Scene_Tab_Changed(i)), Msg(Scene_Tab_Closed(i)), fmt.tprintf("scene-tab-%d", i), closable))
+			Msg(Scene_Tab_Changed(i)), Msg(Scene_Tab_Closed(i)), fmt.tprintf("scene-tab-%d", i), closable, menu = Ctx_Scene_Tab(index)))
 	}
 	append(&views, ..CodeTabs_View(s, ctx))
 	strip := skald.row(..views[:], spacing = ctx.theme.spacing.xs, cross_align = .End)
@@ -301,7 +302,7 @@ Returns:
 ViewportNodesInRect :: proc(s: ^State, lo, hi: [2]f32) -> []int {
 	scene := &s.project.scenes[s.currentScene]
 	hits := make([dynamic]int, context.temp_allocator)
-	for shape, i in nodeShapes(s, scene) {
+	for shape, i in Viewport_NodeShapes(s, scene) {
 		if !shape.visible || scene.nodes[i].kind == .Animator do continue
 		inside := false
 		if shape.hasBounds {
@@ -353,13 +354,42 @@ ViewportNodePosition :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> ([2
 	rect := lastRect(ctx, skald.hash_id("viewport-canvas"))
 	scene := &s.project.scenes[s.currentScene]
 	if rect.w <= 0 || index < 0 || index >= len(scene.nodes) || s.viewport.zoom <= 0 do return {}, false
-	shape := nodeShapes(s, scene)[index]
+	shape := Viewport_NodeShapes(s, scene)[index]
 	if !shape.visible do return {}, false
 	return viewToWindow(rect, Viewport_WorldToView(&s.viewport, shapeCenter(shape))), true
 }
 
 
 // INPUT
+
+// How far (px) a right click may move and still open the context menu rather than pan
+RIGHT_CLICK_SLOP :: 4
+
+// Where the right button went down in the viewport, to tell a right click from a right drag
+@(private="file")
+rightPress: struct {
+	active: bool,
+	at: [2]f32,
+}
+
+// A guide being dragged out of a ruler (index -1) or moved; `at` is where it is now (world)
+@(private="file")
+guideDrag: struct {
+	active, vertical: bool,
+	index: int,
+	at: f32,
+}
+
+// The open scene's guide under a view point (within a few pixels), or -1; none while hidden
+@(private="file")
+guideAt :: proc(s: ^State, mouseView: [2]f32) -> int {
+	if s.viewport.guidesHidden do return -1
+	for g, i in s.project.scenes[s.currentScene].guides {
+		p := Viewport_WorldToView(&s.viewport, g.vertical ? {g.at, 0} : {0, g.at})
+		if g.vertical ? abs(p.x - mouseView.x) < 4 : abs(p.y - mouseView.y) < 4 do return i
+	}
+	return -1
+}
 
 @(private="file")
 handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Widget_ID, viewRect: skald.Rect, shapes: []NodeShape) {
@@ -380,9 +410,48 @@ handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Wid
 		return
 	}
 
+	// A guide follows the mouse; dropped in the view it stays, on a ruler (or outside) it goes
+	if guideDrag.active {
+		guideDrag.at = guideDrag.vertical ? mouseWorld.x : mouseWorld.y
+		if input.mouse_released[.Left] {
+			guideDrag.active = false
+			switch {
+			case inView && guideDrag.index < 0:  skald.send(ctx, Msg(Guide_Added{guideDrag.vertical, guideDrag.at}))
+			case inView:                         skald.send(ctx, Msg(Guide_Moved{guideDrag.index, guideDrag.at}))
+			case guideDrag.index >= 0:           skald.send(ctx, Msg(Guide_Removed(guideDrag.index)))
+			}
+		}
+		return
+	}
+	// A press on a ruler pulls a guide out of it (the top one's is horizontal, the left one's vertical)
+	if input.mouse_pressed[.Left] && skald.widget_hovered(ctx, canvasId) && !skald.mouse_over_overlay(ctx) && drag.mode == .None {
+		p := input.mouse_pos
+		inTop := p.y >= viewRect.y - RULER_SIZE && p.y < viewRect.y && p.x >= viewRect.x && p.x < viewRect.x + viewRect.w
+		inLeft := p.x >= viewRect.x - RULER_SIZE && p.x < viewRect.x && p.y >= viewRect.y && p.y < viewRect.y + viewRect.h
+		if inTop || inLeft {
+			guideDrag = {active = true, vertical = inLeft, index = -1, at = inLeft ? mouseWorld.x : mouseWorld.y}
+			return
+		}
+	}
+
 	// An active drag follows the mouse anywhere, even outside the view
 	if drag.mode != .None {
 		released := input.mouse_released[.Left] || input.mouse_released[.Middle] || input.mouse_released[.Right]
+		// A right click that didn't drag (a right drag pans): the context menu for the node under
+		// the pointer, or for empty space (context_menus.odin)
+		if input.mouse_released[.Right] && rightPress.active {
+			rightPress.active = false
+			d := input.mouse_pos - rightPress.at
+			if d.x * d.x + d.y * d.y < RIGHT_CLICK_SLOP * RIGHT_CLICK_SLOP {
+				skald.send(ctx, Msg(Viewport_Drag_End{}))
+				hit := pickNode(s, shapes, mouseView, mouseWorld)
+				target: ContextTarget = Ctx_Viewport{world = mouseWorld}
+				if hit >= 0 do target = Ctx_Node{node = hit, world = mouseWorld, viewport = true}
+				if g := guideAt(s, mouseView); g >= 0 do target = Ctx_Guide(g)
+				skald.send(ctx, Msg(Context_Menu_Opened{at = input.mouse_pos, target = target}))
+				return
+			}
+		}
 		if drag.mode == .Pan {
 			if input.mouse_delta != {} do skald.send(ctx, Viewport_Panned(input.mouse_delta))
 		} else if input.mouse_delta != {} {
@@ -409,19 +478,36 @@ handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Wid
 		if input.mouse_delta != {} do skald.send(ctx, Msg(Tile_Brush{world = mouseWorld, phase = .Hover}))
 	}
 	panTool := s.tool == .Pan && input.mouse_pressed[.Left]
+	if input.mouse_pressed[.Right] do rightPress = {active = true, at = input.mouse_pos}
 	if input.mouse_pressed[.Middle] || input.mouse_pressed[.Right] || (input.mouse_pressed[.Left] && spaceHeld) || panTool {
 		skald.send(ctx, Viewport_Drag_Begin{mode = .Pan, node = -1, mouse = mouseWorld})
 		return
 	}
 	if !input.mouse_pressed[.Left] do return
 
-	// The selected node's gizmo takes priority, then whatever is under the cursor
+	// The Zoom tool: a click zooms in there (Alt: out), a drag zooms to the box (viewport_tools.odin)
+	if s.tool == .Zoom {
+		skald.send(ctx, Viewport_Drag_Begin{mode = .Zoom_Box, node = -1, mouse = mouseWorld, additive = .Alt in input.modifiers})
+		return
+	}
+	// Alt+drag moves a copy: the selection is duplicated first
+	duplicate :: proc(mode: DragMode, mods: skald.Modifiers) -> bool {
+		return .Alt in mods && (mode == .Move || mode == .Move_X || mode == .Move_Y)
+	}
+
+	// The selected node's gizmo takes priority, then a guide, then whatever is under the cursor
 	if mode := gizmoHit(s, shapes, mouseView, mouseWorld); mode != .None {
-		skald.send(ctx, Viewport_Drag_Begin{mode = mode, node = s.selectedNode, mouse = mouseWorld})
+		skald.send(ctx, Viewport_Drag_Begin{mode = mode, node = s.selectedNode, mouse = mouseWorld, duplicate = duplicate(mode, input.modifiers)})
+		return
+	}
+	if g := guideAt(s, mouseView); g >= 0 {
+		guide := s.project.scenes[s.currentScene].guides[g]
+		guideDrag = {active = true, vertical = guide.vertical, index = g, at = guide.at}
 		return
 	}
 	hit := pickNode(s, shapes, mouseView, mouseWorld)
-	toggle := .Ctrl in input.modifiers
+	// Ctrl+click toggles (Cmd+click on a Mac, where Ctrl+click is a right click)
+	toggle := skald.PRIMARY_MODIFIER in input.modifiers
 	add := .Shift in input.modifiers
 	switch {
 	case hit < 0:
@@ -435,10 +521,12 @@ handleViewportInput :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Wid
 	case len(s.selection) > 1 && slice.contains(s.selection[:], hit):
 		// Part of a multi-selection: keep it, so the drag moves them all
 		skald.send(ctx, Node_Primary_Picked(hit))
-		skald.send(ctx, Viewport_Drag_Begin{mode = toolDragMode(s.tool), node = hit, mouse = mouseWorld})
+		mode := toolDragMode(s.tool)
+		skald.send(ctx, Viewport_Drag_Begin{mode = mode, node = hit, mouse = mouseWorld, duplicate = duplicate(mode, input.modifiers)})
 	case:
 		skald.send(ctx, Node_Picked(hit))
-		skald.send(ctx, Viewport_Drag_Begin{mode = toolDragMode(s.tool), node = hit, mouse = mouseWorld})
+		mode := toolDragMode(s.tool)
+		skald.send(ctx, Viewport_Drag_Begin{mode = mode, node = hit, mouse = mouseWorld, duplicate = duplicate(mode, input.modifiers)})
 	}
 }
 
@@ -450,8 +538,10 @@ it (touchpads) the wheel pans and Ctrl + wheel zooms.
 */
 wheelAction :: proc(scroll: [2]f32, modifiers: skald.Modifiers, wheelPans: bool) -> (zoom: f32, pan: [2]f32) {
 	pan.x = scroll.x * WHEEL_PAN_PIXELS
+	// Ctrl, or Cmd on a Mac (a touchpad's pinch arrives as Ctrl + wheel there too)
+	ctrl := .Ctrl in modifiers || skald.PRIMARY_MODIFIER in modifiers
 	switch {
-	case wheelPans && .Ctrl in modifiers, !wheelPans && .Ctrl not_in modifiers && .Shift not_in modifiers:
+	case wheelPans && ctrl, !wheelPans && !ctrl && .Shift not_in modifiers:
 		zoom = scroll.y
 	case !wheelPans && .Shift in modifiers:
 		pan.x += scroll.y * WHEEL_PAN_PIXELS
@@ -467,12 +557,30 @@ WHEEL_PAN_PIXELS :: 40
 @(private="file")
 toolDragMode :: proc(tool: Tool) -> DragMode {
 	switch tool {
-	case .Select, .Move: return .Move
-	case .Rotate:        return .Rotate
-	case .Scale:         return .Scale
-	case .Pan:           return .Pan
+	case .Select, .Move, .Transform: return .Move
+	case .Rotate:                    return .Rotate
+	case .Scale:                     return .Scale
+	case .Pan:                       return .Pan
+	case .Zoom:                      return .Zoom_Box
 	}
 	return .Move
+}
+
+// The move arrows' directions in the view: the world's axes, or the node's own (turned with it)
+@(private="file")
+moveAxes :: proc(s: ^State, shape: NodeShape) -> (x, y: [2]f32) {
+	if !s.viewport.localAxes do return {1, 0}, {0, 1}
+	a := math.to_radians(e.Transform2D_Rotation(shape.world))
+	return {math.cos(a), math.sin(a)}, {-math.sin(a), math.cos(a)}
+}
+
+// The middles of a node's bounds' sides (view coordinates) and the axis each scales: top and
+// bottom its y, left and right its x
+@(private="file")
+sideHandles :: proc(v: ^ViewportState, shape: NodeShape) -> (points: [4][2]f32, modes: [4]DragMode) {
+	c := shape.corners
+	for i in 0..<4 do points[i] = Viewport_WorldToView(v, (c[i] + c[(i + 1) % 4]) * 0.5)
+	return points, {.Scale_Y, .Scale_X, .Scale_Y, .Scale_X}
 }
 
 // Which drag the selected node's tool handles start at this point, or .None
@@ -484,21 +592,36 @@ gizmoHit :: proc(s: ^State, shapes: []NodeShape, mouseView, mouseWorld: [2]f32) 
 	v := &s.viewport
 	origin := Viewport_WorldToView(v, shape.world.origin)
 
+	axisX, axisY := moveAxes(s, shape)
+	arrows :: proc(mouse, origin, axisX, axisY: [2]f32) -> DragMode {
+		if distanceToSegment(mouse, origin, origin + axisX * GIZMO_ARROW_LENGTH) < PICK_RADIUS * 0.6 do return .Move_X
+		if distanceToSegment(mouse, origin, origin + axisY * GIZMO_ARROW_LENGTH) < PICK_RADIUS * 0.6 do return .Move_Y
+		if length(mouse - origin) < PICK_RADIUS do return .Move
+		return .None
+	}
+	handles :: proc(v: ^ViewportState, shape: NodeShape, mouse: [2]f32) -> DragMode {
+		if !shape.hasBounds do return .None
+		for corner in shape.corners {
+			if length(mouse - Viewport_WorldToView(v, corner)) < PICK_RADIUS do return .Scale_Axes
+		}
+		points, modes := sideHandles(v, shape)
+		for p, i in points do if length(mouse - p) < PICK_RADIUS * 0.8 do return modes[i]
+		return .None
+	}
 	switch s.tool {
 	case .Move:
-		if distanceToSegment(mouseView, origin, origin + {GIZMO_ARROW_LENGTH, 0}) < PICK_RADIUS * 0.6 do return .Move_X
-		if distanceToSegment(mouseView, origin, origin + {0, GIZMO_ARROW_LENGTH}) < PICK_RADIUS * 0.6 do return .Move_Y
-		if length(mouseView - origin) < PICK_RADIUS do return .Move
+		if mode := arrows(mouseView, origin, axisX, axisY); mode != .None do return mode
 	case .Rotate:
 		if abs(length(mouseView - origin) - GIZMO_ROTATE_RADIUS) < PICK_RADIUS do return .Rotate
 	case .Scale:
-		if shape.hasBounds {
-			for corner in shape.corners {
-				if length(mouseView - Viewport_WorldToView(v, corner)) < PICK_RADIUS do return .Scale_Axes
-			}
-		}
+		if mode := handles(v, shape, mouseView); mode != .None do return mode
 		if length(mouseView - origin) < PICK_RADIUS do return .Scale
-	case .Select, .Pan:
+	case .Transform:
+		// The arrows and the middle square, then the bounds' handles, then the ring
+		if mode := arrows(mouseView, origin, axisX, axisY); mode != .None do return mode
+		if mode := handles(v, shape, mouseView); mode != .None do return mode
+		if abs(length(mouseView - origin) - GIZMO_ROTATE_RADIUS) < PICK_RADIUS * 0.6 do return .Rotate
+	case .Select, .Pan, .Zoom:
 	}
 	// Grabbing the selected node itself uses the tool's normal drag
 	if hitsShape(v, shape, mouseView, mouseWorld) do return toolDragMode(s.tool)
@@ -538,7 +661,7 @@ contentRect :: proc(s: ^State, scene: ^SceneDef) -> [4]f32 {
 	grow :: proc(lo, hi: ^[2]f32, p: [2]f32) {
 		lo^, hi^ = {min(lo.x, p.x), min(lo.y, p.y)}, {max(hi.x, p.x), max(hi.y, p.y)}
 	}
-	for shape in nodeShapes(s, scene) {
+	for shape in Viewport_NodeShapes(s, scene) {
 		if !shape.visible do continue
 		if shape.hasBounds do for corner in shape.corners do grow(&lo, &hi, corner)
 		else do grow(&lo, &hi, shape.world.origin)
@@ -566,8 +689,7 @@ subtreeBounds :: proc(root: ^e.Node) -> (sdl.FRect, bool) {
 }
 
 // World transform, visibility and bounds of every node in the open scene (temp allocated)
-@(private="file")
-nodeShapes :: proc(s: ^State, scene: ^SceneDef) -> []NodeShape {
+Viewport_NodeShapes :: proc(s: ^State, scene: ^SceneDef) -> []NodeShape {
 	world := Scene_WorldTransforms(scene)
 	shapes := make([]NodeShape, len(scene.nodes), context.temp_allocator)
 	for &node, i in scene.nodes {
@@ -641,6 +763,7 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 		skald.draw_rect(r, viewRect, skald.rgb(0x101218))
 	}
 	if v.zoom > 0 && v.gridVisible do drawGrid(r, viewRect, v, s.project.grid, th)
+	if v.zoom > 0 do drawGuides(r, viewRect, s)
 	if v.zoom > 0 {
 		// Game frame
 		a := toWindow(p.bounds, v, {0, 0})
@@ -803,13 +926,57 @@ drawOutline :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, s
 	}
 }
 
+// The Align and Distribute button (two or more nodes selected): its menu opens under it
+@(private="file")
+alignButton :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	if len(Selection_Roots(s)) < 2 do return skald.spacer(0)
+	th := ctx.theme
+	id := skald.hash_id("panel-viewport-align")
+	r := lastRect(ctx, id)
+	at := [2]f32{r.x, r.y + r.h}
+	button := skald.button(ctx, ICON_ALIGN, Msg(Context_Menu_Opened{at = at, target = Ctx_Align{}}), id = id,
+		bg = th.color.surface, fg = th.color.fg_muted, width = math.round(th.font.size_md * 1.9), padding = {0, 3}, font_size = th.font.size_sm)
+	return skald.tooltip(ctx, button, "Align or distribute the selected nodes", id = skald.hash_id("panel-tip-viewport-align"))
+}
+
+// The guides' color: a cyan apart from the grid's grays and the selection's
+GUIDE_COLOR :: skald.Color{0.25, 0.8, 0.95, 0.85}
+
+// The open scene's guides, and one being dragged (dropped on a ruler it goes: drawn faint)
+@(private="file")
+drawGuides :: proc(r: ^skald.Renderer, view: skald.Rect, s: ^State) {
+	line :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, vertical: bool, at: f32, color: skald.Color) {
+		p := Viewport_WorldToView(v, vertical ? {at, 0} : {0, at})
+		if vertical do skald.draw_rect(r, {view.x + p.x, view.y, 1, view.h}, color)
+		else do skald.draw_rect(r, {view.x, view.y + p.y, view.w, 1}, color)
+	}
+	v := &s.viewport
+	if !v.guidesHidden {
+		for g, i in s.project.scenes[s.currentScene].guides {
+			if guideDrag.active && guideDrag.index == i do continue
+			line(r, view, v, g.vertical, g.at, GUIDE_COLOR)
+		}
+	}
+	if guideDrag.active do line(r, view, v, guideDrag.vertical, guideDrag.at, {GUIDE_COLOR.r, GUIDE_COLOR.g, GUIDE_COLOR.b, 1})
+}
+
+// The move arrows' colors: x red, y green
+X_COLOR :: skald.Color{0.95, 0.35, 0.35, 1}
+Y_COLOR :: skald.Color{0.4, 0.85, 0.45, 1}
+
 // The game area's outline: a subtle red, apart from the grid and the camera frames
 GAME_FRAME_COLOR :: skald.Color{0.93, 0.36, 0.36, 0.6}
 
+// The grid's dark grays (lines, majors, axes), apart from the editor's own colors; the project's
+// opacities apply to them
+GRID_LINE_COLOR :: skald.Color{0.22, 0.22, 0.23, 1}
+GRID_MAJOR_COLOR :: skald.Color{0.31, 0.31, 0.32, 1}
+GRID_AXIS_COLOR :: skald.Color{0.42, 0.42, 0.44, 1}
+
 /*
-Grid lines at the project's cell size, a major (more opaque) line every `majorEvery` cells,
-the axes brighter still. Zoomed out, cells double until they're at least 8 px apart on screen,
-and the major lines with them, so blocks keep the same number of cells.
+Grid lines at the project's cell size, in dark gray: a major (lighter) line every `majorEvery`
+cells, the axes lighter still. Zoomed out, cells double until they're at least 8 px apart on
+screen, and the major lines with them, so blocks keep the same number of cells.
 */
 @(private="file")
 drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, grid: e.GridSettings, th: ^skald.Theme) {
@@ -819,11 +986,11 @@ drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, grid: 
 	every := grid.majorEvery
 	lo := Viewport_ViewToWorld(v, {0, 0})
 	hi := Viewport_ViewToWorld(v, {view.w, view.h})
-	color := th.color.fg
+	color := GRID_LINE_COLOR
 	color[3] = f32(grid.opacity) / 100
-	major := th.color.fg
+	major := GRID_MAJOR_COLOR
 	major[3] = f32(grid.majorOpacity) / 100
-	axis := th.color.fg
+	axis := GRID_AXIS_COLOR
 	axis[3] = min(max(major[3], color[3]) + 0.15, 1)
 	// The line's color by its index: line i sits at i cells from the origin
 	lineColor :: proc(i: int, every: int, color, major, axis: skald.Color) -> skald.Color {
@@ -850,31 +1017,44 @@ drawSelection :: proc(r: ^skald.Renderer, canvas: skald.Rect, s: ^State, shape: 
 	drawOutline(r, canvas, v, shape, color)
 	skald.draw_circle(r, origin, 3, color, aa = true)
 
-	X_COLOR :: skald.Color{0.95, 0.35, 0.35, 1}
-	Y_COLOR :: skald.Color{0.4, 0.85, 0.45, 1}
 	drag := v.drag.mode
-	switch s.tool {
-	case .Move:
-		drawArrow(r, origin, {1, 0}, drag == .Move_X ? th.color.fg : X_COLOR)
-		drawArrow(r, origin, {0, 1}, drag == .Move_Y ? th.color.fg : Y_COLOR)
+	axisX, axisY := moveAxes(s, shape)
+	arrows :: proc(r: ^skald.Renderer, origin, axisX, axisY: [2]f32, drag: DragMode, th: ^skald.Theme) {
+		drawArrow(r, origin, axisX, drag == .Move_X ? th.color.fg : X_COLOR)
+		drawArrow(r, origin, axisY, drag == .Move_Y ? th.color.fg : Y_COLOR)
 		skald.draw_rect(r, {origin.x - 4, origin.y - 4, 8, 8}, th.color.fg)
-	case .Rotate:
+	}
+	ring :: proc(r: ^skald.Renderer, origin: [2]f32, shape: NodeShape, drag: DragMode, color: skald.Color, th: ^skald.Theme) {
 		skald.draw_ring(r, origin, GIZMO_ROTATE_RADIUS, drag == .Rotate ? 3 : 2, color, aa = true)
 		angle := math.to_radians(e.Transform2D_Rotation(shape.world))
 		handle := origin + [2]f32{math.cos(angle), math.sin(angle)} * GIZMO_ROTATE_RADIUS
 		skald.draw_line(r, origin, handle, 1, color, aa = true)
 		skald.draw_circle(r, handle, 5, th.color.fg, aa = true)
-	case .Scale:
-		if shape.hasBounds {
-			for corner in shape.corners {
-				c := viewToWindow(canvas, Viewport_WorldToView(v, corner))
-				h :: GIZMO_HANDLE_SIZE
-				skald.draw_rect(r, {c.x - h * 0.5, c.y - h * 0.5, h, h}, th.color.fg)
-				skald.draw_rect_outline(r, {c.x - h * 0.5, c.y - h * 0.5, h, h}, 1, color)
-			}
+	}
+	// Corner handles (both axes) and side handles (one axis)
+	handles :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, shape: NodeShape, drag: DragMode, color: skald.Color, th: ^skald.Theme) {
+		if !shape.hasBounds do return
+		square :: proc(r: ^skald.Renderer, c: [2]f32, h: f32, fill, edge: skald.Color) {
+			skald.draw_rect(r, {c.x - h * 0.5, c.y - h * 0.5, h, h}, fill)
+			skald.draw_rect_outline(r, {c.x - h * 0.5, c.y - h * 0.5, h, h}, 1, edge)
 		}
+		for corner in shape.corners do square(r, viewToWindow(canvas, Viewport_WorldToView(v, corner)), GIZMO_HANDLE_SIZE, drag == .Scale_Axes ? color : th.color.fg, color)
+		points, modes := sideHandles(v, shape)
+		for p, i in points do square(r, viewToWindow(canvas, p), GIZMO_HANDLE_SIZE - 2, drag == modes[i] ? color : th.color.fg, color)
+	}
+	switch s.tool {
+	case .Move:
+		arrows(r, origin, axisX, axisY, drag, th)
+	case .Rotate:
+		ring(r, origin, shape, drag, color, th)
+	case .Scale:
+		handles(r, canvas, v, shape, drag, color, th)
 		skald.draw_rect(r, {origin.x - 4, origin.y - 4, 8, 8}, color)
-	case .Select, .Pan:
+	case .Transform:
+		ring(r, origin, shape, drag, color, th)
+		handles(r, canvas, v, shape, drag, color, th)
+		arrows(r, origin, axisX, axisY, drag, th)
+	case .Select, .Pan, .Zoom:
 	}
 }
 
@@ -1079,7 +1259,7 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 
 // HELPERS
 
-@(private="file")
+// A widget's rect from last frame (zero when it wasn't drawn)
 lastRect :: proc(ctx: ^skald.Ctx(Msg), id: skald.Widget_ID) -> skald.Rect {
 	state, ok := ctx.widgets.states[id]
 	return ok ? state.last_rect : {}

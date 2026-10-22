@@ -53,7 +53,7 @@ branch called `main`) and writes two files:
 
 | File | What it does |
 |---|---|
-| `.gitignore` | Leaves out what shouldn't be kept: exported games (`export/`), build output (`build/`), project archives (`*.odinsdl`) and system clutter (`.DS_Store`, `Thumbs.db`) |
+| `.gitignore` | Leaves out what shouldn't be kept: exported games (`export/`), build output (`build/`), the editor's own per-user state (`.editor/`: viewport guides), project archives (`*.odinsdl`) and system clutter (`.DS_Store`, `Thumbs.db`) |
 | `.gitattributes` | Keeps text files' line endings the same on every computer, so a project moved between Windows, macOS and Linux doesn't show every file as changed |
 
 (An existing `.gitignore` or `.gitattributes` is kept.)

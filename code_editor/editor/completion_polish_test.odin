@@ -194,3 +194,30 @@ test_popup_text_wraps_to_the_editor :: proc(t: ^testing.T) {
 	for l in completion_doc_lines(item, 30, 40) do testing.expectf(t, text_cols(l.text) <= 30, "fits 30 columns: %q", l.text)
 	free_all(context.temp_allocator)
 }
+
+// Fields show as code declares them (`speed: f32`) with their comment, not a "field" tag
+@(test)
+test_completion_fields_show_their_type :: proc(t: ^testing.T) {
+	run_leak_free(t, proc(t: ^testing.T) {
+		field_type, about := completion_field_doc("```odin\nHero.speed: f32\n```\n---\nPixels a second", "speed")
+		testing.expect_value(t, field_type, ": f32")
+		testing.expect_value(t, about, "Pixels a second")
+		// No comment; a type with spaces and brackets
+		field_type, about = completion_field_doc("```odin\nHero.struck: [2][dynamic]^Enemy\n```", "struck")
+		testing.expect_value(t, field_type, ": [2][dynamic]^Enemy")
+		testing.expect_value(t, about, "")
+
+		tag, suffix, right := completion_row_parts(lspc.CompletionItem{label = "lives", kind = 5, documentation = "```odin\nHero.lives: int\n```\n---\nhow many tries"})
+		testing.expect_value(t, tag, "")
+		testing.expect_value(t, suffix, ": int")
+		testing.expect_value(t, right, "how many tries")
+		// Other kinds keep their tag and the server's detail
+		tag, suffix, right = completion_row_parts(lspc.CompletionItem{label = "move", kind = 3, detail = "proc(dt: f32)"})
+		testing.expect_value(t, tag, "fn")
+		testing.expect_value(t, suffix, "")
+		testing.expect_value(t, right, "proc(dt: f32)")
+		// A field the documentation doesn't describe keeps its tag
+		tag, _, _ = completion_row_parts(lspc.CompletionItem{label = "x", kind = 5})
+		testing.expect_value(t, tag, "field")
+	})
+}

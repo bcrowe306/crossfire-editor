@@ -24,6 +24,10 @@ Tool :: enum {
 	Move,
 	Rotate,
 	Scale,
+	// Move, rotate and scale handles at once
+	Transform,
+	// A click zooms in where it is (Alt: out), a drag zooms to the box
+	Zoom,
 	// Left drags pan the view (like Space + drag)
 	Pan,
 }
@@ -315,6 +319,8 @@ State :: struct {
 	sceneClipboard: SceneDef,
 	hasSceneClipboard: bool,
 	projectSettings: ProjectSettingsDialog,
+	// The open right-click menu (context_menus.odin)
+	contextMenu: ContextMenu,
 	// A press on an image in the project browser, which becomes a drag into the viewport
 	assetDrag: struct {
 		pressed: bool,

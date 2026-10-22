@@ -959,7 +959,7 @@ passthroughChords :: proc(keymap: ^Keymap) -> []skald.Shortcut {
 	list := make([dynamic]skald.Shortcut, context.temp_allocator)
 	for chords, action in keymap {
 		if action not_in CODE_EDITOR_PASSTHROUGH do continue
-		for chord in chords do if chord != {} do append(&list, chord)
+		for chord in chords do if chord != {} do append(&list, Chord_OnPlatform(chord))
 	}
 	return list[:]
 }

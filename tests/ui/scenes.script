@@ -12,8 +12,8 @@ expect start_scene MenuScene
 
 # Right-click PlayScene: Duplicate
 right_click_row browser-tree 2
-expect menu browser-menu open
-click_menu_item browser-menu 3 9
+expect context_menu open
+click_context_item Duplicate
 expect scenes MenuScene,PlayScene,PlayScene2,OptionsScene
 
 # F2 renames the selected scene in place (the browser has focus after the click)
@@ -34,17 +34,17 @@ expect scenes MenuScene,PlayScene,Level,Level2,OptionsScene
 key DELETE
 expect scenes MenuScene,PlayScene,Level,OptionsScene
 
-# Copy Level, paste it at the end (right-click below the rows: New Scene, Paste Scene)
+# Copy Level, paste it at the end (a folder row's menu: Paste Scene)
 click_row browser-tree 3
 key ctrl+c
 right_click_row browser-tree 9
-expect menu browser-menu open
-click_menu_item browser-menu 1 2
+expect context_menu open
+click_context_item Paste Scene
 expect scenes MenuScene,PlayScene,Level,OptionsScene,Level2
 
 # Set Level as the start scene from its menu; undo takes it back
 right_click_row browser-tree 3
-click_menu_item browser-menu 8 10
+click_context_item Set as Start Scene
 expect start_scene Level
 key ctrl+z
 expect start_scene MenuScene

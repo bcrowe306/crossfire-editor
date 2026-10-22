@@ -45,6 +45,63 @@ completion_kind_tag :: proc(kind: int) -> string {
 	return "  "
 }
 
+/*
+What a completion row shows: its kind's tag, the label's type (a field's `: f32`, drawn after the
+label as code declares it) and the text on the right (a field's doc comment, else the server's
+detail).
+
+OLS sends a field's type and comment only in its documentation (```odin\nHero.speed: f32\n```,
+then `---` and the comment), so they're read from there; fields then need no "field" tag.
+*/
+completion_row_parts :: proc(item: lspc.CompletionItem) -> (tag, type_suffix, right: string) {
+	tag, right = completion_kind_tag(item.kind), item.detail
+	if item.kind != 5 && item.kind != 10 do return
+	field_type, description := completion_field_doc(item.documentation, item.label)
+	if field_type == "" do return
+	return "", field_type, description != "" ? description : item.detail
+}
+
+/*
+A field's type and description from its documentation: the code block's `Owner.name: type` line
+and the first line after the `---` rule.
+
+Example:
+	type, about := completion_field_doc("```odin\nHero.speed: f32\n```\n---\nPixels a second", "speed")
+	// type == ": f32", about == "Pixels a second"
+*/
+completion_field_doc :: proc(doc, label: string) -> (field_type, description: string) {
+	rest := doc
+	// The declaration: the code block's first line that names the field
+	if open := strings.index(rest, "```"); open >= 0 {
+		rest = rest[open + 3:]
+		if nl := strings.index_byte(rest, '\n'); nl >= 0 do rest = rest[nl + 1:]
+		code := rest
+		if close := strings.index(rest, "```"); close >= 0 {
+			code = rest[:close]
+			rest = rest[close + 3:]
+		} else {
+			rest = ""
+		}
+		for line in strings.split_lines_iterator(&code) {
+			l := strings.trim_space(line)
+			at := strings.index(l, ": ")
+			if at < 0 do continue
+			name := l[:at]
+			if dot := strings.last_index_byte(name, '.'); dot >= 0 do name = name[dot + 1:]
+			if name != label do continue
+			field_type = fmt.tprintf(": %s", strings.trim_space(l[at + 2:]))
+			break
+		}
+	}
+	// The comment: the first line of text after the rule
+	if rule := strings.index(rest, "---"); rule >= 0 do rest = rest[rule + 3:]
+	for line in strings.split_lines_iterator(&rest) {
+		l := strings.trim_space(line)
+		if l != "" { description = l; break }
+	}
+	return
+}
+
 @(private)
 text_cols :: proc(s: string) -> int {
 	return utf8.rune_count_in_string(s)
@@ -65,16 +122,27 @@ editor_position_to_screen :: proc(ed: ^Editor, pos: buf.Position) -> (x, y: f32)
 	return
 }
 
+/*
+The completion list's columns: the kind tags' (none when no row has a tag: a list of fields),
+the widest label with its type, and the widest text on the right (capped).
+*/
 @(private)
-completion_popup_cols :: proc(ed: ^Editor) -> int {
-	label_cols, detail_cols := 0, 0
+completion_columns :: proc(ed: ^Editor) -> (kind_cols, label_cols, detail_cols: int) {
 	for idx in ed.completion.filtered {
 		item := ed.lsp.last_completion[idx]
-		label_cols = max(label_cols, text_cols(item.label))
-		detail_cols = max(detail_cols, text_cols(item.detail))
+		tag, type_suffix, right := completion_row_parts(item)
+		if tag != "" do kind_cols = COMPLETION_KIND_COLS
+		label_cols = max(label_cols, text_cols(item.label) + text_cols(type_suffix))
+		detail_cols = max(detail_cols, text_cols(right))
 	}
 	detail_cols = min(detail_cols, COMPLETION_DETAIL_MAX_COLS)
-	cols := COMPLETION_KIND_COLS + label_cols + (detail_cols > 0 ? 2 + detail_cols : 0)
+	return
+}
+
+@(private)
+completion_popup_cols :: proc(ed: ^Editor) -> int {
+	kind_cols, label_cols, detail_cols := completion_columns(ed)
+	cols := kind_cols + label_cols + (detail_cols > 0 ? 2 + detail_cols : 0)
 	return clamp(cols, COMPLETION_MIN_COLS, COMPLETION_MAX_COLS)
 }
 
@@ -125,7 +193,8 @@ editor_popup_layout :: proc(ed: ^Editor) -> (layout: Popup_Layout) {
 		layout.completion_rows = rows
 		// Align the list's label column under the start of the word.
 		ax, _ := editor_position_to_screen(ed, ed.completion.anchor)
-		x := ax - f32(COMPLETION_KIND_COLS) * ed.char_w - POPUP_PAD
+		kind_cols, _, _ := completion_columns(ed)
+		x := ax - f32(kind_cols) * ed.char_w - POPUP_PAD
 		// No wider than the text area (its scrollbar on the right must show; labels are cut)
 		w = min(w, view_right - (ed.origin_x + editor_gutter_width(ed)))
 		x = clamp(x, ed.origin_x + editor_gutter_width(ed), max(ed.origin_x + editor_gutter_width(ed), view_right - w))
@@ -201,6 +270,11 @@ render_completion_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 
 	visible := editor_completion_rows(ed)
 	last := min(cs.scroll + visible, len(cs.filtered))
+	kind_cols, widest_label, _ := completion_columns(ed)
+	// The text on the right starts in one column, after the widest label (a table: name: type, then
+	// what it is); the scrollbar's room comes off it
+	detail_col := kind_cols + widest_label + 2
+	detail_room := total_cols - detail_col - (len(cs.filtered) > visible ? 1 : 0)
 	for row in cs.scroll ..< last {
 		item := ed.lsp.last_completion[cs.filtered[row]]
 		y := rect.y + POPUP_PAD + f32(row - cs.scroll) * ed.char_h
@@ -210,10 +284,11 @@ render_completion_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 			fill_rect(renderer, {rect.x + 1, y, rect.w - 2, ed.char_h}, theme.popup_selected)
 		}
 
-		draw_text(renderer, font, completion_kind_tag(item.kind), x, y, theme.text_type, ed.char_h)
-		x += f32(COMPLETION_KIND_COLS) * ed.char_w
+		tag, type_suffix, right := completion_row_parts(item)
+		if kind_cols > 0 do draw_text(renderer, font, tag, x, y, theme.text_type, ed.char_h)
+		x += f32(kind_cols) * ed.char_w
 
-		label_cols := min(text_cols(item.label), total_cols - COMPLETION_KIND_COLS)
+		label_cols := min(text_cols(item.label), total_cols - kind_cols)
 		label := truncate_cols(item.label, label_cols)
 		// Highlight the typed prefix when it matches the label's start.
 		match_len := 0
@@ -222,13 +297,18 @@ render_completion_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 		}
 		draw_text(renderer, font, label[:match_len], x, y, theme.popup_match, ed.char_h)
 		draw_text(renderer, font, label[match_len:], x + f32(text_cols(label[:match_len])) * ed.char_w, y, theme.popup_text, ed.char_h)
+		// A field's type, as code declares it: `speed: f32`
+		if type_suffix != "" {
+			type_cols := min(text_cols(type_suffix), total_cols - kind_cols - label_cols)
+			if type_cols > 0 {
+				draw_text(renderer, font, truncate_cols(type_suffix, type_cols), x + f32(label_cols) * ed.char_w, y, theme.text_type, ed.char_h)
+				label_cols += type_cols
+			}
+		}
 
-		// The scrollbar's room comes off the detail column
-		detail_cols := total_cols - COMPLETION_KIND_COLS - label_cols - 2 - (len(cs.filtered) > visible ? 1 : 0)
-		if len(item.detail) > 0 && detail_cols > 3 {
-			detail := truncate_cols(item.detail, min(detail_cols, COMPLETION_DETAIL_MAX_COLS))
-			dx := rect.x + rect.w - POPUP_PAD - f32(text_cols(detail)) * ed.char_w
-			draw_text(renderer, font, detail, dx, y, theme.popup_text_dim, ed.char_h)
+		if len(right) > 0 && detail_room > 3 {
+			detail := truncate_cols(right, min(detail_room, COMPLETION_DETAIL_MAX_COLS))
+			draw_text(renderer, font, detail, rect.x + POPUP_PAD + f32(detail_col) * ed.char_w, y, theme.popup_text_dim, ed.char_h)
 		}
 	}
 

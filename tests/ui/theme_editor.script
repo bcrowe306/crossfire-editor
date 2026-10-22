@@ -1,0 +1,46 @@
+# The editor's look (editor_theme.odin), edited live in Settings > Appearance: a preset shows at
+# once, Cancel puts the old look back, a color set back to the theme's, Save keeps it in the file.
+# Run with: task test:ui
+
+wait 5
+expect live_theme applied
+key ctrl+comma
+wait_until settings_dialog open
+click_widget settings-tab-Appearance
+
+# A preset shows at once (Midnight: the third), before Apply
+click_widget settings-preset
+click_overlay_item 2
+wait_until theme_color bg #0F1420
+expect live_theme draft
+# Cancel: the old look is back
+click_widget settings-cancel
+wait_until settings_dialog closed
+wait_until live_theme applied
+expect setting theme Dark
+
+# Graphite, its accent put back to the base theme's, then saved
+key ctrl+comma
+wait_until settings_dialog open
+click_widget settings-tab-Appearance
+send Settings_Theme_Preset_Chosen Graphite
+wait_until theme_color primary #E8833A
+scroll_into_view settings-appearance-scroll settings-color-reset-primary
+click_widget settings-color-reset-primary
+wait_until live_theme draft
+expect theme_color bg #1B1B1B
+click_widget settings-save
+wait_until settings_dialog closed
+expect live_theme applied
+expect theme_color bg #1B1B1B
+expect settings_file_contains bg = #1B1B1B
+expect settings_file_contains corner_radius = 100
+
+# Back to Dark for the scripts after this one
+key ctrl+comma
+wait_until settings_dialog open
+click_widget settings-tab-Appearance
+send Settings_Theme_Preset_Chosen Dark
+click_widget settings-save
+wait_until settings_dialog closed
+expect live_theme applied

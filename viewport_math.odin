@@ -39,9 +39,14 @@ DragMode :: enum {
 	Scale,
 	// Scale each local axis separately (the scale tool's corner handles)
 	Scale_Axes,
+	// Scale one local axis (the side handles)
+	Scale_X,
+	Scale_Y,
 	Pan,
 	// Drag a rectangle on empty space to select the nodes in it
 	Box,
+	// The Zoom tool: a click zooms in (additive: Alt, out), a drag zooms to the box
+	Zoom_Box,
 }
 
 // A drag in progress: what it does and the values when it started
@@ -57,6 +62,10 @@ ViewportDrag :: struct {
 	// Box selection: where the mouse is now (world), and whether it adds to the selection
 	current: [2]f32,
 	additive: bool,
+	// The move arrows follow the node's own axes (ViewportState.localAxes when it started)
+	localAxes: bool,
+	// Alt+drag: the selection was duplicated first, and the copies move (one undo step)
+	duplicated: bool,
 }
 
 /*
@@ -78,6 +87,10 @@ ViewportState :: struct {
 	showShapes: bool,
 	// Draw lit scenes unlit (Toggle_Lighting): lights and their darkness off in the viewport
 	unlit: bool,
+	// The move arrows follow the selected node's own axes (turned with it), not the world's
+	localAxes: bool,
+	// The scene's guide lines aren't drawn (they still are kept)
+	guidesHidden: bool,
 	snap: bool,
 	// Animation frames shown so far; each one is a 1 / VIEWPORT_ANIMATION_FPS timer tick
 	animationFrame: int,
@@ -175,23 +188,36 @@ Inputs:
 - mouse: Current mouse position in world coordinates
 - constrain: Shift held: snap rotation, keep moves on one axis, scale axes separately
 - grid: Snapping on: the grid's cell (width, height). Moves put the node's origin on the grid,
-  rotation snaps to ROTATE_SNAP degrees, scale to SCALE_SNAP steps. Zero for no snapping
+  rotation snaps to `rotateStep` degrees, scale to `scaleStep` steps. Zero for no snapping
+- rotateStep, scaleStep: The snapping steps (Settings > Editor: Rotation snap, Scale snap)
+
+The move arrows (Move_X, Move_Y) follow the world's axes, or the node's own (turned with it) when
+`drag.localAxes`; the side handles (Scale_X, Scale_Y) scale one of the node's axes.
 */
-Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, constrain: bool, grid: [2]f32 = {}) {
+Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, constrain: bool, grid: [2]f32 = {}, rotateStep: f32 = ROTATE_SNAP, scaleStep: f32 = SCALE_SNAP) {
 	snap := grid.x > 0 && grid.y > 0
 	origin := drag.startWorld.origin
+	rotateStep := rotateStep > 0 ? rotateStep : ROTATE_SNAP
+	scaleStep := scaleStep > 0 ? scaleStep : SCALE_SNAP
 	switch drag.mode {
 	case .Move, .Move_X, .Move_Y:
 		delta := mouse - drag.startMouse
 		mode := drag.mode
-		if mode == .Move && constrain do mode = abs(delta.x) >= abs(delta.y) ? .Move_X : .Move_Y
-		if mode == .Move_X do delta.y = 0
-		if mode == .Move_Y do delta.x = 0
+		// The axes a constrained move follows: the world's, or the node's turned ones
+		angle := drag.localAxes ? e.Transform2D_Rotation(drag.startWorld) : 0
+		local := rotate(delta, -angle)
+		if mode == .Move && constrain do mode = abs(local.x) >= abs(local.y) ? .Move_X : .Move_Y
+		if mode == .Move_X do local.y = 0
+		if mode == .Move_Y do local.x = 0
+		delta = rotate(local, angle)
 		// The new world origin, expressed in the parent's space
 		world := origin + delta
-		if snap {
+		// Grid snapping is in world space; along a turned axis it would leave the axis
+		if snap && angle == 0 {
 			if mode != .Move_Y do world.x = math.round(world.x / grid.x) * grid.x
 			if mode != .Move_X do world.y = math.round(world.y / grid.y) * grid.y
+		} else if snap && mode == .Move {
+			world = {math.round(world.x / grid.x) * grid.x, math.round(world.y / grid.y) * grid.y}
 		}
 		node.position = e.Transform2D_Apply(e.Transform2D_Inverse(drag.parentWorld), world)
 
@@ -200,27 +226,27 @@ Viewport_ApplyDrag :: proc(node: ^NodeDef, drag: ^ViewportDrag, mouse: [2]f32, c
 		b := mouse - origin
 		delta := math.to_degrees(math.atan2(b.y, b.x) - math.atan2(a.y, a.x))
 		rotation := drag.startRotation + delta
-		if constrain || snap do rotation = math.round(rotation / ROTATE_SNAP) * ROTATE_SNAP
+		if constrain || snap do rotation = math.round(rotation / rotateStep) * rotateStep
 		node.rotation = normalizeDegrees(rotation)
 
-	case .Scale, .Scale_Axes:
+	case .Scale, .Scale_Axes, .Scale_X, .Scale_Y:
 		// Compare the mouse to the start in the node's rotated frame
 		angle := -e.Transform2D_Rotation(drag.startWorld)
 		a := rotate(drag.startMouse - origin, angle)
 		b := rotate(mouse - origin, angle)
-		if drag.mode == .Scale_Axes || constrain {
+		if drag.mode == .Scale_Axes || drag.mode == .Scale_X || drag.mode == .Scale_Y || constrain {
 			ratio := [2]f32{1, 1}
-			if abs(a.x) > 1e-3 do ratio.x = b.x / a.x
-			if abs(a.y) > 1e-3 do ratio.y = b.y / a.y
+			if abs(a.x) > 1e-3 && drag.mode != .Scale_Y do ratio.x = b.x / a.x
+			if abs(a.y) > 1e-3 && drag.mode != .Scale_X do ratio.y = b.y / a.y
 			node.scale = drag.startScale * ratio
 		} else {
 			la := math.sqrt(a.x * a.x + a.y * a.y)
 			lb := math.sqrt(b.x * b.x + b.y * b.y)
 			if la > 1e-3 do node.scale = drag.startScale * (lb / la)
 		}
-		if snap do node.scale = {math.round(node.scale.x / SCALE_SNAP) * SCALE_SNAP, math.round(node.scale.y / SCALE_SNAP) * SCALE_SNAP}
+		if snap do node.scale = {math.round(node.scale.x / scaleStep) * scaleStep, math.round(node.scale.y / scaleStep) * scaleStep}
 
-	case .None, .Pan, .Box:
+	case .None, .Pan, .Box, .Zoom_Box:
 	}
 }
 

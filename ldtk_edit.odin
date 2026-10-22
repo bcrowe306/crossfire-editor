@@ -427,7 +427,7 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 			}
 			entity := strings.clone(def.identifier, context.temp_allocator)
 			append(&rows, skald.text(fmt.tprintf("%s ×%d", def.identifier, counts[def.identifier]), th.color.fg, th.font.size_sm))
-			append(&rows, inspectorRow(ctx, "Becomes", skald.select(ctx, becomes, makes[:], entity,
+			append(&rows, inspectorRow(ctx, "Becomes", labeledSelect(ctx, becomes, Asset_DisplayNames(makes[:]), makes[:], entity,
 				proc(entity: string, value: string) -> Msg { return LDtk_Setting_Changed{field = .Entity_Make, text = value, name = entity} },
 				id = skald.hash_id(fmt.tprintf("inspector-ldtk-component-%s-%d", def.identifier, key)), width = controlWidth)))
 			append(&rows, inspectorRow(ctx, "Runs", skald.select(ctx, runs, choices, entity,

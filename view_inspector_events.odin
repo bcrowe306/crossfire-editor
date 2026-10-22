@@ -75,7 +75,7 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 			small(ctx, "New Event...", "inspector-new-event", Msg(New_Event_Opened(script))),
 			cross_align = .Center,
 		))
-		if ScriptCatalog_Find(&s.scripts, script) == nil do append(&rows, muted(ctx, fmt.tprintf("Build the scripts (Ctrl+B) to see %s's events.", script), width))
+		if ScriptCatalog_Find(&s.scripts, script) == nil do append(&rows, muted(ctx, fmt.tprintf("Build the scripts%s to see %s's events.", keyParen(s, .Build_Scripts), script), width))
 		for ev in scriptEvents {
 			event(ctx, s, &rows, &shown, node, ev, "", Event_ShortName(ev.name), fmt.tprintf("inspector-event-listen-%s", ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width)
 		}

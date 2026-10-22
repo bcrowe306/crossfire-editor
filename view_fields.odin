@@ -34,7 +34,7 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 		list := make([dynamic]string, context.temp_allocator)
 		append(&list, TEXTURE_NONE)
 		append(&list, ..options)
-		return skald.select(ctx, value == "" ? TEXTURE_NONE : value, list[:], payload, onChoice, id = skald.hash_id(key), width = width)
+		return labeledSelect(ctx, value == "" ? TEXTURE_NONE : value, Asset_DisplayNames(list[:]), list[:], payload, onChoice, id = skald.hash_id(key), width = width)
 	}
 	assetsOf :: proc(s: ^State, kind: AssetKind) -> []string {
 		paths := make([dynamic]string, context.temp_allocator)
@@ -104,4 +104,29 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 		return choices(ctx, value, NodeField_Choices(&s.project, scene, s.selectedNode, field.hint), payload, id(field, key), controlWidth)
 	}
 	return skald.text(value, th.color.fg_muted, th.font.size_sm)
+}
+
+/*
+A dropdown showing `labels` that chooses `values` (the same length, in order): assets listed by
+name (`Asset_DisplayName`) while their paths are what's stored. A value without a label shows as
+itself.
+*/
+labeledSelect :: proc(ctx: ^skald.Ctx(Msg), value: string, labels, values: []string, payload: $P, onChange: proc(P, string) -> Msg,
+	id: skald.Widget_ID = 0, width: f32 = 0, placeholder := "") -> skald.View {
+	Labeled :: struct { inner: P, labels, values: []string, onChange: proc(P, string) -> Msg }
+	shown := value
+	for v, i in values do if v == value { shown = labels[i]; break }
+	return skald.select(ctx, shown, labels, Labeled{payload, labels, values, onChange}, proc(p: Labeled, label: string) -> Msg {
+		for l, i in p.labels do if l == label do return p.onChange(p.inner, p.values[i])
+		return p.onChange(p.inner, label)
+	}, id = id, width = width, placeholder = placeholder)
+}
+
+/*
+The labels for a list of asset paths (`Asset_DisplayName`), `TEXTURE_NONE` kept as it is.
+*/
+Asset_DisplayNames :: proc(paths: []string) -> []string {
+	labels := make([]string, len(paths), context.temp_allocator)
+	for p, i in paths do labels[i] = p == TEXTURE_NONE ? p : Asset_DisplayName(p)
+	return labels
 }

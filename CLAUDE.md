@@ -140,7 +140,11 @@ Skald is not immediate-mode and not a retained widget tree:
 | `editor.odin` | `State`, `Layout`, panel size rules (`FittedSidebarWidths`, `FittedBottomHeight`), `init`, args, `main` |
 | `msg.odin` | `Msg` union and `Action` (menu, toolbar and shortcut commands) |
 | `update.odin` | `update`, the only place State changes |
-| `keymap.odin` | `DEFAULT_KEYMAP`, shortcut dispatch, typing guard |
+| `keymap.odin` | `DEFAULT_KEYMAP`, shortcut dispatch, typing guard, the platform's keys (`Chord_OnPlatform` / `Chord_FromPlatform` / `Chord_Format`: the keymap's Ctrl is Cmd on macOS), `keyParen` (an action's keys for text) |
+| `context_menus.odin` | **Right-click menus everywhere**: `ContextTarget` (what was clicked), `State.contextMenu`, `Context_Menu_Opened` / `_Closed`, `ContextMenu_Items` (the items per target: nodes, empty viewport, the tree, the browser's every kind, tabs, logs), `contextMenuView` (Skald's `popup_menu`, built first in the frame), `rightPressOpens`, the commands without an older message (`Node_Command`, `Add_Node_Here`, `Paste_Here`, `Tab_Command`, `File_Command`, `Log_Command`, `Asset_Add_To_Scene`) |
+| `context_menus_panels.odin` | The bottom panel's menus (`Ctx_Graph`): States, Dialogue nodes and steps, Timeline tracks and keys, Mixer strips, Git changes, Live nodes, Animation frames, plugins |
+| `viewport_tools.odin` | **Viewport tools**: Align and Distribute (`Align_Nodes`, `Align_Moves` on `Viewport_NodeShapes`' boxes), the Zoom tool's click or box (`ViewportTools_ZoomBox`), guides (`SceneDef.guides`, `Guide_*` messages, `Guides_Snap` / `Guides_SnapNode`, `.editor/guides.ini`: `Guides_Save` / `Guides_Load`) |
+| `editor_theme.odin` | **The editor's look**, edited live in Settings > Appearance: `ThemeColor` (Skald's roles), `Settings.themeColors` / `themeColorsSet` / `cornerRadius`, `EditorTheme_Apply` (in `Settings_Theme`), `THEME_PRESETS`, `ThemeColor_Format` / `_Parse` (editor.ini's `[theme]`) |
 | `project.odin` | Project model (`Project`, `SceneDef`, `NodeDef`, `AssetDef`), node insert/remove, world transforms, `Project_Load` (through the engine's parser), the demo project |
 | `project_xml.odin` | `Project_Save`, XML writer (`ProjectToXML`, `SceneToXML`, `EscapeXML`) |
 | `assets.odin` | Importing (copy into `assets/`), removing, usage counts, asset kinds by extension |
@@ -439,7 +443,8 @@ features (particles) appear without editor work.
 in the `[keymap]` section of `settings.default.ini`. `ACTION_KEY_RULES` says how each action's keys
 behave (`viewportOnly`, `textChord`).
 - Defaults:
-  - Q W E R H tools (H: pan), F frame selected
+  - Q W E R T Z H tools (T: transform, Z: zoom, H: pan), L the node's own axes, F frame selected,
+    Shift+; guides
   - Ctrl+0 fit, Ctrl+1 100%, Ctrl+=/- zoom, P animations
   - arrows nudge (Shift ×10), Esc deselect, Delete
   - Ctrl+D duplicate, Ctrl+C/X/V copy/cut/paste nodes (not while typing)
@@ -452,8 +457,15 @@ behave (`viewportOnly`, `textChord`).
 - Settings > Keyboard lists and edits the keymap (Help > Keyboard Shortcuts opens it there).
 - **A new Action needs a line in `settings.default.ini`'s `[keymap]`** (a test checks), and an
   `ACTION_LABELS` entry. Don't add ad-hoc `skald.shortcut` calls.
-- Tooltips and menu hints read the keymap (`actionTip`, `Keymap_Shortcut`); never hard-code a
-  shortcut in a label.
+- Tooltips and menu hints read the keymap (`actionTip`, `Keymap_Shortcut`, `keyParen` for text);
+  never hard-code a shortcut in a label.
+- **macOS: the keymap's Ctrl is Cmd.** Chords are stored once for every platform (editor.ini is
+  portable): Ctrl means the platform's command key, Super the other one. `Chord_OnPlatform` swaps
+  them on macOS for matching (`KeymapDispatch`, menu items, the code editor's passthrough) and
+  `Chord_Format` names them (Skald's `shortcut_format`: Cmd, Option on a Mac); a captured chord
+  goes back through `Chord_FromPlatform`. Clicks use `skald.PRIMARY_MODIFIER` (Cmd+click selects
+  on a Mac, where Ctrl+click is a right click); Ctrl + wheel takes either. The code editor's own
+  keymap uses Cmd there already. Test: `chords_follow_the_platform` (with `mac = true`).
 
 ### Project browser (implemented)
 
@@ -485,7 +497,12 @@ behave (`viewportOnly`, `textChord`).
   menus), its own background (the viewport draws it too), its own gravity. Each edit is a
   `.Project` undo step (the snapshot holds every scene; `projectSnapshotsEqual` compares
   settings). Components have none. Test: `tests/ui/scene_preview.script`.
-- **Import** (Ctrl+I or the + button): Skald's native dialog, which picks one file at a time.
+- **Import** (Ctrl+I or the + button): Skald's native dialog with `allow_many` (several files at
+  once: `File_Dialog_Result.paths`), opening in the folder of the last import
+  (`Settings.importFolder`, editor.ini's `import_folder`, written when it changes). The dialog's
+  callback (`importDialogResult`) copies the paths to the frame's memory and frees Skald's, so
+  `Asset_Import_Result` never owns them (tests and the driver send it with their own strings);
+  `importChosen` imports each, converting sounds games can't play first.
   - `Project_ImportAsset` detects the kind from the extension and copies the file into
     `assets/`, renaming it to `name_1.ext` and so on if the name is taken.
   - A file already inside the project folder is referenced, not copied.
@@ -522,12 +539,9 @@ shows up here with no editor change (it still needs inspector fields).
 - **Clipboard**: `State.clipboard`, editor-internal (not the system clipboard). Copy, Cut and Paste
   are Ctrl+C/X/V, Duplicate Ctrl+D. These are `textChord` bindings: skipped while typing, so text
   fields keep the chords. Paste goes into the selected node, or the top level.
-- **Context menu**: `skald.context_menu` wraps the tree's scroll area; items are `SCENE_TREE_MENU`
-  (Add Script... is `Action.Add_Script`: New Script, as a node script, for the right-clicked node;
-  on a node with a script it reads Open Script (Name) and opens it).
-  A right-click first selects the row under the cursor (`Node_Right_Clicked`; below the rows it
-  deselects). Skald builds the tree before the menu that wraps it, so the tree would see a click on
-  a menu item first and select the row under it: `sceneTreeView` hides that press from the tree.
+- **Context menu**: the editor's (context_menus.odin, below): a right press on a row sends
+  `Context_Menu_Opened{Ctx_Node}` (selecting it unless it's in the selection), below the rows
+  `Node_Right_Clicked(-1)` and `Ctx_Tree`.
 - **Drag to move** (`sceneTreeMouse`): a press on a row records `treeDrag`; moving
   `TREE_DRAG_THRESHOLD` px starts the drag. Top/bottom quarter of a row = before/after it as a
   sibling, the middle = its last child, below the rows = last top-level node. The bottom edge of an
@@ -604,6 +618,9 @@ shows up here with no editor change (it still needs inspector fields).
   check `project_grid`).
 - The game area is outlined in a subtle red (`GAME_FRAME_COLOR`), apart from the grid and the
   camera frames.
+- **The grid is dark gray** (`GRID_LINE_COLOR`, `GRID_MAJOR_COLOR`, `GRID_AXIS_COLOR`; the user's
+  choice, 2026-10-22: apart from the editor's own colors), the project's opacities applied to them
+  (the engine's defaults are 60 and 90 since).
 
 ### Dragging images into the viewport
 
@@ -809,6 +826,11 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   unchanged buffers reload (caret kept), dirty ones get the bar over the code (`CodeTabs_DiskBar`:
   Reload / Keep mine, `Code_Disk_Chosen`). A hidden tab's reload keeps its document open on the
   server (it resends the text when it shows).
+- **Completion rows show fields as code declares them** (`speed: f32` then the field's comment;
+  code_editor's render_popups.odin, `completion_row_parts`): OLS sends a field's type and comment
+  only in its documentation (`Hero.speed: f32`, `---`, the comment), so they're read from there,
+  and fields get no "field" tag; the text on the right starts in one column. The kind column is
+  left out when no row has a tag.
 - **Auto-closing pairs** (code_editor's buffer/autopairs.odin, `Editor.auto_close_pairs`, set
   from Settings > Editor > Auto-close, `code_editor_auto_close`, every frame in
   `CodeEditor_View`): typed brackets and quotes close; `<` only after a word (or in XML); the
@@ -1112,8 +1134,10 @@ MyGame/
   fields), reloads it, and compares every field. Extend it whenever a property is added.
 - **Not handled yet:**
   - Scene files of deleted or renamed scenes aren't removed.
-  - The editor only imports assets one at a time and doesn't scan `assets/` for files added
-    outside the editor.
+  - The editor doesn't scan `assets/` for files added outside the editor.
+- **Constants in `scripts/assets.odin`** take their names from files, actions and achievements
+  through `ConstantName` (letters and digits upper-cased, anything else one underscore): a
+  dash once went in as it was (`TEXTURE_HERO-RUN`), which isn't an Odin name.
 
 ## Globals, data resources, saves, asset handles (implemented; engine: globals.odin, data.odin, save.odin, assets.odin)
 
@@ -1227,6 +1251,11 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   component has the script (`NodeField_From`: it runs on the instance's root, or on the LDtk
   entity's named like it); the path was from the top level, which the game never found.
   `components_keep_one_root`, `components_with_nodes_beside_the_root_load_with_them_under_it`.
+- **Listed by name** (`Asset_DisplayName`, assets.odin): the browser, its previews and every asset
+  choice (`labeledSelect`: names shown, paths stored) leave out the extension of the editor's own
+  formats (`EDITOR_FORMAT_EXTENSIONS`: `.component.xml`, `.data.json`, `.anim.xml`, `.theme.xml`,
+  `.material.xml`, `.atlas.xml`, `.dialogue.xml`); real file types keep theirs. The browser's search
+  matches either.
 - **Making one:** Save as Component (scene tree menu, Action.Save_As_Component): the subtree is
   written as a component (root at the origin) and the node becomes an instance with its
   transform (a `.Scene` undo step; the component stays). Browser > Components > New Component
@@ -1505,6 +1534,71 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/shaders.script` (the hit flash seen in the render, undo, New Shader compiled on
   save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
   `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
+
+## Context menus (implemented, `context_menus.odin`, `context_menus_panels.odin`)
+
+One right-click menu for the whole editor (the user asked for complete menus everywhere,
+2026-10-22). Its file's doc comment lists every target and what it offers; what the code relies on:
+- **State, not widgets:** `State.contextMenu` (open, where, the `ContextTarget`). Every place opens
+  it with `Context_Menu_Opened` from its own mouse handling (`rightPressOpens(ctx, rect, target)`
+  for a widget's last rect, or the place's hit test: graphs, the tree, the viewport); the items are
+  built each frame from the state (`ContextMenu_Items`), so they're always current.
+- **Skald's `popup_menu`** (added for this, Skald 2026-10-22): `Menu_Item`s (shortcut hints,
+  checks, separators, disabled rows, a level of submenus) at a point the app keeps; keys (Up / Down
+  / Right / Left / Enter / Escape). `contextMenuView` is built first in the root view, so it takes
+  its clicks before the widgets under it, and an open menu counts in `keysTaken`.
+- **Items send the existing messages** (an `Action` where one exists: the menu, the shortcut and
+  the menu bar do the same, with the keymap's hint): only what had no message got one
+  (`Node_Command`: hide / show, move up / down, reset transform, z order, select children / parent,
+  copy path, expand / collapse; `Add_Node_Here` (`AddNodeDialog.at`), `Paste_Here`, tab, file and
+  log commands). Their undo steps are classified in `History_Classify`.
+- **The viewport** opens it on a right **release** that moved under `RIGHT_CLICK_SLOP` px (a right
+  drag still pans): a guide, else the node under the pointer (`pickNode`), else empty space.
+- **Tab commands close by scene**, not by tab position (`closeSceneTab`): positions shift as tabs
+  close. Components with unsaved changes and code tabs with unsaved text stay open (their × asks).
+- Driver: `click_context_item <label>[/<submenu label>]` (a label's start works), `right_click_node`,
+  `right_click_world`, `right_click_widget`, `click_frame <n> right`; checks `context_menu`,
+  `context_item <label> <enabled|disabled|checked|missing>`. Tests: `context_menu_commands`,
+  `tests/ui/context_menus.script`. User guide: `docs/manual/scenes_and_nodes.md#right-click-menus`.
+
+## Viewport tools (implemented, `viewport_tools.odin`, `view_viewport.odin`, `viewport_math.odin`)
+
+- **Tools:** Transform (T: the arrows, the middle square, corner and side handles, the ring;
+  `gizmoHit` tries them in that order) and Zoom (Z: `DragMode.Zoom_Box`, a click zooms 2x, Alt
+  out, a box fits). Side handles are `DragMode.Scale_X` / `Scale_Y` (one local axis), for Scale and
+  Transform.
+- **Local axes** (`ViewportState.localAxes`, L): the move arrows (drawn and dragged) follow the
+  node's rotation; `ViewportDrag.localAxes` is taken when a drag starts. Grid snapping along a
+  turned axis is skipped (it would leave the axis).
+- **Alt+drag** (`Viewport_Drag_Begin.duplicate`): the selection's roots are duplicated in
+  Drag_Begin and the copy of the dragged node is dragged; Drag_Begin is a `.Scene` step merged
+  with the drag's moves (`key("drag", gesture + 1)`, `ViewportDrag.duplicated` keeps them `.Scene`).
+- **Snap steps** are settings (`Settings.rotateSnap` / `scaleSnap`, Settings > Editor), passed to
+  `Viewport_ApplyDrag`.
+- **Align and Distribute** use `Viewport_NodeShapes` (the preview's bounds; without a preview,
+  as in unit tests, the nodes' origins). The header's Align button opens the menu (`Ctx_Align`).
+- **Guides** are view state on `SceneDef` (cloned, destroyed; not undo steps), drawn after the
+  grid in `GUIDE_COLOR`; the drag is file state in view_viewport.odin (`guideDrag`), out of a ruler
+  or from a guide (`guideAt`, before node picking); moves snap to them with snapping on
+  (`Guides_SnapNode`). Saved in `.editor/guides.ini` (scene name or component file per section).
+- Driver: `drag_guide <top|left> <world>`, `drag_guide_back <i>`, `drag_node ... alt`; checks
+  `guides`, `guide`, `local_axes`. Tests: `viewport_tool_drags`, `zoom_tool_clicks_and_boxes`,
+  `align_and_distribute`, `alt_drag_moves_a_copy`, `tests/ui/viewport_tools.script`. User guide:
+  `docs/manual/scenes_and_nodes.md`.
+
+## The editor's look (implemented, `editor_theme.odin`, Settings > Appearance)
+
+- Colors are set over the base theme (Skald's Dark or Light) only where the user set one
+  (`themeColorsSet`), so a set color survives a base change; `cornerRadius` scales Skald's radii.
+- **Live:** the dialog returns `skald.cmd_set_theme` with the draft's theme for every Appearance
+  change (`liveTheme`); Cancel returns the applied settings' theme. Row height isn't live (views
+  read `settings.rowHeight`, not the draft).
+- The picker has no alpha: a picked color keeps the opacity it had; Selection opacity sets it.
+- Labels are "Window background" and "Main text" (tooltips are per label; Background and Text
+  were taken).
+- Driver: `send Settings_Theme_Preset_Chosen <name>`; checks `live_theme <applied|draft>`,
+  `theme_color <key> <#RRGGBB>`. Tests: `editor_theme_settings`, `tests/ui/theme_editor.script`.
+  User guide: `docs/manual/settings_and_toolchain.md#appearance`.
 
 ## Editor plugins (implemented, `plugin_host.odin`, `view_plugins.odin`, `plugin_api/`)
 
@@ -2226,6 +2320,9 @@ Highlights:
   rect: stop the game before clicking things that may move.
 - **Modifier clicks:** Skald reads Ctrl/Shift from key events, not mouse events, so the driver
   holds the modifier key around the click (`click_row ... ctrl`, `click_node ... shift`).
+- **A script's `ctrl` is the platform's command key** (`PRIMARY_KEYMOD`: Cmd on macOS, as the
+  keymap's Ctrl is there), so the same scripts pass on a Mac; `control` presses the Control key
+  itself.
 - A context menu fades out after closing and blocks clicks under it meanwhile; the driver waits
   for that (`FADING_MENUS`) before the next command.
 

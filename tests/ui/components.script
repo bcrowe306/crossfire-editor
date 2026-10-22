@@ -13,8 +13,8 @@ expect selected Props
 
 # Save as Component (the scene tree's menu): Props is an instance of it now
 right_click_row scene-tree 4
-wait_until menu scene-tree-menu open
-click_menu_item scene-tree-menu 8
+wait_until context_menu open
+click_context_item Save as Component
 expect components 1
 expect nodes 7
 expect kind Component
@@ -54,8 +54,8 @@ expect components 2
 
 # Rename (the browser's menu): the file moves, the instances follow
 right_click_asset components/props.component.xml
-wait_until menu browser-menu open
-click_menu_item browser-menu 2 5
+wait_until context_menu open
+click_context_item Rename
 expect renaming true
 wait_until typing true
 key END
@@ -75,8 +75,8 @@ expect project_file_contains project.xml kind="Component"
 # New Component: the Add Node dialog picks its root (a Sprite, named after it); it opens in its
 # own tab, edited like a scene (Add Node, undo)
 right_click_asset components/props_set.component.xml
-wait_until menu browser-menu open
-click_menu_item browser-menu 3 5
+wait_until context_menu open
+click_context_item New Component
 wait_until typing true
 type Sprite
 key RETURN

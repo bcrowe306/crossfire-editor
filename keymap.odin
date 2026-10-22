@@ -1,5 +1,6 @@
 package crossfire_editor
 
+import "core:fmt"
 import "gui:skald"
 
 /*
@@ -71,7 +72,7 @@ ACTION_LABELS := [Action]string{
 	.About = "About",
 	.User_Manual = "User Manual",
 	.Tool_Select = "Select tool", .Tool_Move = "Move tool", .Tool_Rotate = "Rotate tool",
-	.Tool_Scale = "Scale tool", .Tool_Pan = "Pan tool", .Frame_Selected = "Frame selected node", .View_Fit = "Fit game area",
+	.Tool_Scale = "Scale tool", .Tool_Pan = "Pan tool", .Tool_Transform = "Transform tool", .Tool_Zoom = "Zoom tool", .Toggle_Local_Axes = "Move along the node's own axes", .Toggle_Guides = "Show guides", .Frame_Selected = "Frame selected node", .View_Fit = "Fit game area",
 	.Zoom_In = "Zoom in", .Zoom_Out = "Zoom out", .Zoom_100 = "Zoom to 100%",
 	.Toggle_Animation = "Play/pause viewport animations", .Deselect = "Deselect",
 	.Nudge_Left = "Nudge left", .Nudge_Right = "Nudge right", .Nudge_Up = "Nudge up",
@@ -105,6 +106,47 @@ Keymap_Shortcut :: proc(keymap: ^Keymap, action: Action, typing := false) -> ska
 		return chord
 	}
 	return {}
+}
+
+/*
+Keymap chords are written once for every platform: their **Ctrl is the platform's command key**
+(Cmd on macOS, Ctrl elsewhere), and their Super the other one (Ctrl on macOS, the Windows or
+Super key elsewhere). So "Ctrl+S" in settings.default.ini and editor.ini saves with Cmd+S on a
+Mac and Ctrl+S on Windows and Linux, and one editor.ini works on all of them.
+
+This turns a keymap chord into the keys pressed on this platform (on macOS, Ctrl and Super swap),
+and back: the swap is its own inverse (`Chord_FromPlatform`).
+
+Example:
+	chord, _ := Shortcut_Parse("Ctrl+S")
+	pressed := Chord_OnPlatform(chord) // {.S, {.Super}} on macOS, {.S, {.Ctrl}} elsewhere
+*/
+Chord_OnPlatform :: proc(chord: skald.Shortcut, mac := ODIN_OS == .Darwin) -> skald.Shortcut {
+	if !mac do return chord
+	out := chord
+	out.mods -= {.Ctrl, .Super}
+	if .Ctrl in chord.mods do out.mods += {.Super}
+	if .Super in chord.mods do out.mods += {.Ctrl}
+	return out
+}
+
+// The keymap chord for keys pressed on this platform (Cmd+S on a Mac is the keymap's "Ctrl+S")
+Chord_FromPlatform :: proc(pressed: skald.Shortcut, mac := ODIN_OS == .Darwin) -> skald.Shortcut {
+	return Chord_OnPlatform(pressed, mac)
+}
+
+/*
+A keymap chord as this platform names it: "Ctrl+Shift+Z" on Windows and Linux, "Shift+Cmd+Z" on a
+Mac; "" when unbound. What users see (menus, tooltips, Settings); files keep `Keymap_FormatChords`.
+*/
+Chord_Format :: proc(chord: skald.Shortcut, mac := ODIN_OS == .Darwin) -> string {
+	return skald.shortcut_format_for(Chord_OnPlatform(chord, mac), mac)
+}
+
+// " (Ctrl+B)" (" (Cmd+B)" on a Mac) for text naming an action's keys; "" when it has none
+keyParen :: proc(s: ^State, action: Action) -> string {
+	chord := Keymap_Shortcut(&s.settings.keymap, action)
+	return chord == {} ? "" : fmt.tprintf(" (%s)", Chord_Format(chord))
 }
 
 /*
@@ -146,7 +188,7 @@ KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), keymap: ^Keymap, overViewport: bool
 		for chord in chords {
 			if chord == {} do continue
 			if typing && !coding && (isPlainKey(chord) || rule.textChord) do continue
-			skald.shortcut(ctx, chord, Msg(action))
+			skald.shortcut(ctx, Chord_OnPlatform(chord), Msg(action))
 		}
 	}
 }

@@ -1,0 +1,94 @@
+# Viewport tools (viewport_tools.odin): the Transform and Zoom tools, Alt+drag moving a copy, the
+# move arrows on a node's own axes, guides pulled out of the rulers (moved, removed, kept in
+# .editor/guides.ini), the Align button, and the snap steps in Settings.
+# Run with: task test:ui
+#
+# PlayScene: World, Camera, Spaceship (640, 430), ShipLight, Props (640, 360), ..., HUD (row 9)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect nodes 11
+
+# Tools by key
+key t
+expect tool Transform
+key z
+expect tool Zoom
+key w
+expect tool Move
+
+# Alt+drag moves a copy (with its child); one undo takes it back
+click_row scene-tree 2
+expect selected Spaceship
+drag_node Spaceship 40 0 alt
+expect nodes 13
+expect selected Spaceship2
+key ctrl+z
+expect nodes 11
+
+# The Transform tool drags the node like Move (its middle square)
+key t
+click_row scene-tree 2
+drag_node Spaceship 30 0
+expect field y 430
+key ctrl+z
+expect field x 640
+
+# The node's own axes for the move arrows: L
+expect local_axes off
+key l
+expect local_axes on
+key l
+expect local_axes off
+
+# The Zoom tool: a click zooms in two times where it is; a box fits the view to it
+key z
+key ctrl+1
+expect zoom 100
+drag_world 640 360 640 360
+expect zoom 200
+drag_world 600 400 700 450
+wait_until viewport_center 650 425
+key ctrl+0
+key w
+
+# Guides: one out of the left ruler, at x = 320; dragged to 400; back onto the ruler (gone)
+drag_guide left 320
+expect guides 1
+expect guide 0 x 320
+drag_world 320 200 400 200
+expect guide 0 x 400
+drag_guide_back 0
+expect guides 0
+# One out of the top ruler; its menu removes it
+drag_guide top 100
+expect guide 0 y 100
+right_click_world 900 100
+wait_until context_menu open
+expect context_item Remove Guide enabled
+click_context_item Remove Guide
+expect guides 0
+# Kept with the project (not undo steps)
+drag_guide top 150
+expect guides 1
+key ctrl+s
+expect project_file_contains .editor/guides.ini y = 150
+
+# The Align button (two or more nodes selected): its menu
+click_row scene-tree 4
+click_row scene-tree 9 ctrl
+expect selection 2
+click_widget panel-viewport-align
+wait_until context_menu open
+click_context_item Top Edges
+click_row scene-tree 4
+expect field y 24
+key ctrl+z
+
+# The snap steps are in Settings > Editor
+key ctrl+comma
+click_widget settings-tab-Editor
+scroll_into_view settings-editor-scroll settings-Rotate_Snap
+scroll_into_view settings-editor-scroll settings-Scale_Snap
+click_widget settings-cancel

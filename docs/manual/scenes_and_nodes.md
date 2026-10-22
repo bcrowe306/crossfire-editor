@@ -1,6 +1,6 @@
 ---
 title: Scenes and nodes
-description: Make and organize scenes, build them from nodes in the scene tree, set each node's position, layer and drawing order, and work in the viewport with its tools, grid and undo.
+description: Make and organize scenes, build them from nodes in the scene tree, set each node's position, layer and drawing order, and work in the viewport with its tools, right-click menus, align and distribute, guides, grid and undo.
 order: 3
 ---
 
@@ -17,6 +17,9 @@ with a flame and a gun under it: move the ship, and the flame and the gun come a
 - [Arranging nodes](#arranging-nodes)
 - [Every node's settings](#every-nodes-settings)
 - [The viewport](#the-viewport)
+- [Right-click menus](#right-click-menus)
+- [Align and distribute](#align-and-distribute)
+- [Guides](#guides)
 - [Grid and snapping](#grid-and-snapping)
 - [Undo and redo](#undo-and-redo)
 - [A scene's own settings](#a-scenes-own-settings)
@@ -69,21 +72,13 @@ folds its children away.
 
 - **Click** a node to select it. The inspector under the tree shows its settings.
 - **Double-click** it, or press **F2**, to rename it. Enter keeps the name, Escape cancels.
-- **Right-click** it for a menu:
+- **Right-click** it for its menu (the same as a right-click on it in the viewport: see
+  [Right-click menus](#right-click-menus)): Add Child Node, Cut, Copy, Paste, Duplicate, Delete,
+  Rename, its script, Save as Component, Hide / Show, Transform, Order, Select, Frame Selected,
+  Copy Node Path, Expand All, Collapse All. A right-click below the rows offers Add Node, Paste,
+  Select All and Expand / Collapse All.
 
-| Command | Shortcut |
-|---|---|
-| Add Node... | Ctrl+Shift+A |
-| Add Script... (or **Open Script** when it has one) | |
-| Rename node | F2 |
-| Duplicate node | Ctrl+D |
-| Copy node | Ctrl+C |
-| Cut node | Ctrl+X |
-| Paste node | Ctrl+V |
-| Delete node | Del |
-| Save as component | |
-
-The same commands are in the **Edit** menu. A copied node takes its children with it. **Paste**
+The editing commands are in the **Edit** menu too. A copied node takes its children with it. **Paste**
 puts the copies inside the selected node (or at the top of the scene when nothing is selected),
 in this scene or another one. A duplicate goes right after the original, named with the next
 number (`Ship2` after `Ship`). [Save as component](components.md) turns the node into a reusable
@@ -183,12 +178,19 @@ camera sees). Cameras show their own frame.
 | **Select** | Q | Moves it |
 | **Move** | W | Moves it; drag an arrow to move along one direction only |
 | **Rotate** | E | Turns it (drag the ring) |
-| **Scale** | R | Resizes it (drag a corner) |
+| **Scale** | R | Resizes it: a corner scales both directions, a side's middle handle one |
+| **Transform** | T | All three at once: the arrows and middle square move, the corner and side handles scale, the ring turns |
+| **Zoom** | Z | Doesn't move nodes: a click zooms in two times there (Alt+click: out), dragging a box zooms to fit it |
 | **Pan** | H | Moves the view instead |
 
 Click a node to select it (the topmost one under the pointer). Hold **Shift** while dragging to
 constrain the move. **The arrow keys** nudge the selection by a pixel (Shift + arrow: 10), while
 the pointer is over the viewport.
+
+- **Alt + drag** moves a copy: the selection is duplicated and the copies follow the pointer,
+  leaving the originals where they were. One Undo takes back both.
+- **The node's own axes** (**L**, or the compass button above the viewport): the move arrows turn
+  with the selected node, so a turned platform slides along its own length.
 
 **Moving around:**
 
@@ -217,22 +219,86 @@ corner shows the zoom and the pointer's position in the world.
 | Magnet | Shift+G | Snaps to the grid |
 | Polygon | Shift+C | Shows collision shapes (see [Physics](physics.md)) |
 | Light bulb | Shift+L | Shows lit scenes lit or unlit (see [2D lighting](lighting.md)) |
+| Compass | L | The move arrows follow the selected node's own axes |
+| Align | | With two or more nodes selected: Align and Distribute (below) |
 | Fit | Ctrl+0 | Fits the game area in the view |
 | Percentage | Ctrl+1 | Shows the zoom; click for 100% |
 
 Scripts don't run in the viewport: nothing falls or walks there. Press Play to see the game run.
 
+## Right-click menus
+
+Everywhere in the editor, a right-click opens a menu of what you can do with what's under the
+pointer. Each item shows its shortcut, items that can't be used now are grayed, and settings that
+are on have a check. Items with ▸ open a submenu. Escape or a click elsewhere closes the menu.
+
+**On a node in the viewport** (a right click that doesn't drag: a right drag pans). The node is
+selected first; if it's part of a selection, the menu acts on all of it:
+
+| Item | Does |
+|---|---|
+| Add Child Node..., Add Node Here... | Add Node, as a child of this one, or at the point you clicked |
+| Cut, Copy, Paste, Duplicate, Delete, Rename | As their shortcuts |
+| Add Script... / Open Script (Name) | Its script ([Scripts](scripts.md)) |
+| Save as Component... / Edit Component, Make Unique | [Components](components.md) |
+| Hide / Show | Hides it in the viewport and the game, or shows it |
+| Transform ▸ | Reset its position, rotation, scale, or all three |
+| Align and Distribute ▸ | With several nodes selected ([below](#align-and-distribute)) |
+| Order ▸ | Move Up / Move Down among its siblings in the tree; Bring Forward / Send Backward (its z index) |
+| Select ▸ | Its children, its parent, all, none |
+| Frame Selected | Centers the view on it |
+| Copy Node Path | Its path from the scene's top (`World/Ship`), for scripts |
+
+**On empty space in the viewport:** Add Node Here..., Paste Here (the copy's origin lands where
+you clicked), Select All, Deselect, Frame Selected, Fit the View, the zoom, the **Tool** submenu,
+the **Show** submenu (grid, snapping, collision shapes, lighting, animations, guides), Grid
+Settings....
+
+**Elsewhere:** the [browser](projects.md)'s scenes, assets of every kind (open, add to the scene,
+play a sound, show in the file manager, copy its path, remove...) and folders (new files of each
+kind, Import); the scene and code tabs (play, save, show in the browser, close, close the others,
+close the ones to the right); the Console and Output lines (copy one, copy all, clear); and the
+bottom panel's lists: [states](state_machines.md), [dialogue](dialogue.md) nodes and steps,
+[Timeline](animation.md) tracks and keys, [Mixer](sound.md) strips, [Git](version_control.md)
+changes, [Live](live.md) nodes, the Animation panel's frames, [plugins](plugins.md).
+
+## Align and distribute
+
+With two or more nodes selected, **Align and Distribute** (the Align button above the viewport, or
+a node's menu) lines them up by what they draw (a node that draws nothing by its origin):
+
+| Item | Moves each node to |
+|---|---|
+| Left Edges, Centers, Right Edges | The selection's left edge, middle or right edge |
+| Top Edges, Middles, Bottom Edges | The selection's top, middle or bottom |
+| Distribute Across, Distribute Down | Equal gaps between them, the outermost two staying put (three or more nodes) |
+
+Each is one undo step.
+
+## Guides
+
+Guides are lines across the viewport to line things up against. **Drag one out of a ruler:** from
+the top ruler for a horizontal guide, from the left one for a vertical guide, and let go where you
+want it. **Drag a guide** to move it; drag it back onto its ruler to remove it. A right-click on a
+guide offers Remove Guide, Remove All Guides and Hide Guides.
+
+With **snapping** on (Shift+G), a node you drag snaps its origin onto a guide within a few pixels.
+**View > Show Guides** (Shift+;) hides or shows them all. Guides belong to the scene and are kept
+with the project for you, in `.editor/guides.ini` (yours: not an undo step, not part of the game, and left out of Git).
+
 ## Grid and snapping
 
 **G** shows the grid (it's on to start with). **Shift+G** turns snapping on: while you drag, the
-node's position lands on the grid, rotations go in 15° steps and scales in steps of 0.1. When
+node's position lands on the grid (and on [guides](#guides)), rotations go in 15° steps and scales
+in steps of 0.1. **Settings > Editor > Rotation snap** and **Scale snap** change those steps. When
 several nodes are dragged, only the one under the pointer snaps; the rest keep their places
 relative to it.
 
 **View > Grid Settings...** opens **Project Settings > Grid**: **Grid width** and **Grid height**
-(the cell size in pixels), **Major lines every** (a brighter line every so many cells; 0 for none),
-**Line opacity** and **Major line opacity**. The grid is saved with the project, so everyone working
-on it shares it.
+(the cell size in pixels), **Major lines every** (a lighter line every so many cells; 0 for none),
+**Line opacity** and **Major line opacity** (60% and 90% to start). The grid is drawn in dark grays
+of its own, so it stands apart from the editor's panels; the axes (x = 0, y = 0) are the lightest.
+The grid is saved with the project, so everyone working on it shares it.
 
 ## Undo and redo
 

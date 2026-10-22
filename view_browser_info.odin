@@ -142,7 +142,7 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 			append(&rows, muted(ctx, "Registers no script or data type: helper code the scripts share."))
 		}
 		if s.scripts.status != .Ready && len(info.scripts) > 0 {
-			append(&rows, muted(ctx, "Build Scripts (Ctrl+B) to see their fields."))
+			append(&rows, muted(ctx, fmt.tprintf("Build Scripts%s to see their fields.", keyParen(s, .Build_Scripts))))
 		}
 	}
 	return skald.col(

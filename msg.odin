@@ -60,6 +60,10 @@ Action :: enum {
 	Tool_Rotate,
 	Tool_Scale,
 	Tool_Pan,
+	Tool_Transform,
+	Tool_Zoom,
+	Toggle_Local_Axes,
+	Toggle_Guides,
 	// Viewport navigation
 	Frame_Selected,
 	View_Fit,
@@ -772,8 +776,10 @@ Viewport_Drag_Begin :: struct {
 	mode: DragMode,
 	node: int,
 	mouse: [2]f32,
-	// Box selection: Ctrl or Shift held, add to the selection
+	// Box selection: Ctrl or Shift held, add to the selection; the Zoom tool: Alt held (out)
 	additive: bool,
+	// Alt+drag: duplicate the selection first, and drag the copies
+	duplicate: bool,
 }
 Viewport_Drag_Move :: struct {
 	mouse: [2]f32,
@@ -1016,6 +1022,9 @@ Msg :: union {
 	Settings_Tab_Changed,
 	Settings_Theme_Changed,
 	Settings_Value_Changed,
+	Settings_Theme_Color_Changed,
+	Settings_Theme_Color_Reset,
+	Settings_Theme_Preset_Chosen,
 	Settings_Search_Changed,
 	Settings_Code_Editor_Path_Changed,
 	Settings_Code_Editor_Args_Changed,
@@ -1216,4 +1225,24 @@ Msg :: union {
 	Ramp_Edited,
 	Ramp_Stop_Selected,
 	Ramp_Drag_Changed,
+	// Context menus (context_menus.odin)
+	Context_Menu_Opened,
+	Context_Menu_Closed,
+	Node_Command,
+	Add_Node_Here,
+	Paste_Here,
+	Tab_Command,
+	File_Command,
+	Log_Command,
+	Script_Open_External,
+	Asset_Add_To_Scene,
+	Graph_Command,
+	Text_Copied,
+	Timeline_Key_Here,
+	// Viewport tools (viewport_tools.odin)
+	Align_Nodes,
+	Guide_Added,
+	Guide_Moved,
+	Guide_Removed,
+	Guides_Cleared,
 }

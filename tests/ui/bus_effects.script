@@ -107,7 +107,7 @@ wait_until preview_effects 1 1 timeout=3
 
 # A MusicPlayer with a layer: beep.wav used as music first
 right_click_asset assets/beep.wav
-click_menu_item browser-menu 0 2
+click_context_item Use as Music (streamed)
 expect console_contains beep.wav is music (streamed)
 key escape
 key ctrl+shift+a

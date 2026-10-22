@@ -1,0 +1,168 @@
+# Context menus (context_menus.odin): a node's in the viewport, empty space's, the browser's, a
+# scene tab's, the Console's and a Mixer strip's. Each item does what its shortcut or button does,
+# and edits undo.
+# Run with: task test:ui
+#
+# PlayScene: World, Camera, Spaceship (640, 430; a 96 px ship), ShipLight, Props (640, 360), ...,
+# HUD (1240, 24; row 9). Spaceship is right-clicked low on the ship, away from Props' marker
+# (fitted to the window, they're a few pixels apart and the later node wins)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect nodes 11
+
+# A node right-clicked in the viewport is selected and its menu opens
+right_click_world 640 470
+wait_until context_menu open
+expect selected Spaceship
+expect context_item Rename enabled
+expect context_item Paste disabled
+expect context_item Transform/Reset Scale enabled
+# Escape closes it, choosing nothing
+key escape
+expect context_menu closed
+expect selected Spaceship
+
+# Hide it; undo shows it again
+right_click_world 640 470
+click_context_item Hide
+expect context_menu closed
+expect field visible false
+key ctrl+z
+expect field visible true
+
+# Order: one step forward in z; Transform: back to the origin
+right_click_world 640 470
+click_context_item Order/Bring Forward
+expect field z 1
+right_click_world 640 470
+click_context_item Transform/Reset Position
+expect field x 0
+expect field y 0
+key ctrl+z
+expect field x 640
+key ctrl+z
+expect field z 0
+
+# Empty space: the view's menu. The grid toggle shows its state
+key escape
+expect selected none
+right_click_world 900 150
+wait_until context_menu open
+expect selected none
+expect context_item Fit the View enabled
+expect context_item Deselect disabled
+expect context_item Show/Grid checked
+click_context_item Show/Grid
+expect grid off
+right_click_world 900 150
+expect context_item Show/Grid enabled
+click_context_item Show/Grid
+expect grid on
+
+# Add Node Here: the Add Node dialog, then the node is where the menu opened
+right_click_world 900 150
+click_context_item Add Node Here
+expect add_dialog open
+type Node2D
+key RETURN
+expect add_dialog closed
+expect kind Node2D
+expect nodes 12
+expect field x 900
+expect field y 150
+key ctrl+z
+expect nodes 11
+
+# Paste Here: Spaceship copied, pasted at the point (its child comes along)
+click_row scene-tree 2
+expect selected Spaceship
+key ctrl+c
+key escape
+right_click_world 900 150
+click_context_item Paste Here
+expect selected Spaceship2
+expect parent none
+expect field x 900
+expect field y 150
+expect nodes 13
+key ctrl+z
+expect nodes 11
+
+# Align and Distribute, on two nodes that draw nothing (their origins line up): Props and HUD,
+# from the scene tree's menu
+click_row scene-tree 4
+click_row scene-tree 9 ctrl
+expect selection 2
+right_click_row scene-tree 9
+expect selection 2
+expect context_item Align and Distribute/Distribute Across disabled
+click_context_item Align and Distribute/Bottom Edges
+expect selected HUD
+expect field y 360
+key ctrl+z
+expect field y 24
+
+# The browser: an image's menu adds it to the scene as a Sprite
+key escape
+right_click_asset assets/ship.png
+wait_until context_menu open
+expect context_item Show in File Manager enabled
+click_context_item Add to Scene as a Sprite
+expect nodes 12
+expect kind Sprite
+key ctrl+z
+expect nodes 11
+
+# A scene tab: Close Others leaves just it
+click_row browser-tree 1
+expect scene MenuScene
+right_click_widget scene-tab-0
+wait_until context_menu open
+click_context_item Close Others
+expect scene_tabs MenuScene
+
+# The Console: a line's menu copies it; Clear empties it
+send Bottom_Tab Console
+right_click_widget console-scroll-line-0
+wait_until context_menu open
+expect context_item Copy Line enabled
+expect context_item Copy All enabled
+click_context_item Clear
+expect context_menu closed
+
+# A Mixer strip: Add Bus
+send Bottom_Tab Mixer
+right_click_widget mixer-strip-0
+wait_until context_menu open
+expect context_item Remove Bus disabled
+click_context_item Add Bus
+expect buses 2
+
+# The Animation panel: a frame's menu ends the animation there (ShipLight: two frames)
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 3
+expect selected ShipLight
+send Bottom_Tab Animation
+wait_until sheet_loaded true
+click_frame 0 right
+wait_until context_menu open
+click_context_item End at Frame 0
+expect animation end 0
+key ctrl+z
+expect animation end 1
+
+# The Dialogue tab: a step's menu inserts an Options step after it
+send Dialogue_Created
+send Bottom_Tab Dialogue
+send Dialogue_Select_Node 0
+wait_until dialogue steps 1
+scroll_into_view dialogue-scroll dialogue-step-0
+right_click_widget dialogue-step-0
+wait_until context_menu open
+expect context_item Move Up disabled
+click_context_item Insert After/Options
+expect dialogue steps 2
+expect dialogue step 1 kind Options

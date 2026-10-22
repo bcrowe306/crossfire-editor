@@ -369,6 +369,9 @@ DATA_GOBLIN :: e.DataAsset{"data/goblin.data.json"}  // EnemyStats
 ACTION_JUMP :: "jump"
 ```
 
+A constant's name is its file's name in capitals, anything but letters and digits turned into
+one underscore: `hero-run.png` is `TEXTURE_HERO_RUN`, `boss fight.ogg` is `SOUND_BOSS_FIGHT`.
+
 | Prefix | Assets |
 |---|---|
 | `TEXTURE_` | Images (and Aseprite files) |

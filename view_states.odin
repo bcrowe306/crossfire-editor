@@ -165,6 +165,23 @@ States_Arrow :: proc(sm: ^e.StateMachineSettings, t: e.StateMachineTransition) -
 statesGraphOrigin: [2]f32
 
 @(private="file")
+// The state (else the transition) under a point of the graph (-1: none)
+States_HitTest :: proc(sm: ^e.StateMachineSettings, local: [2]f32) -> (hitState, hitTransition: int) {
+	hitState, hitTransition = -1, -1
+	inBox :: proc(r: [4]f32, p: [2]f32) -> bool { return p.x >= r[0] && p.x < r[0] + r[2] && p.y >= r[1] && p.y < r[1] + r[3] }
+	for st, i in sm.states do if inBox(States_BoxRect(st), local) do hitState = i
+	if hitState >= 0 do return
+	for t, i in sm.transitions {
+		a, b, ok := States_Arrow(sm, t)
+		if !ok do continue
+		ab := b - a
+		k := clamp(((local.x - a.x) * ab.x + (local.y - a.y) * ab.y) / max(ab.x * ab.x + ab.y * ab.y, 1), 0, 1)
+		q := a + ab * k - local
+		if math.sqrt(q.x * q.x + q.y * q.y) < 6 do hitTransition = i
+	}
+	return
+}
+
 graphCanvas :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSettings, width: f32) -> skald.View {
 	th := ctx.theme
 	ed := &s.states
@@ -179,6 +196,16 @@ graphCanvas :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSettings
 		local := m - {rect.x, rect.y}
 		inside :: proc(r: skald.Rect, p: [2]f32) -> bool { return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h }
 		inBox :: proc(r: [4]f32, p: [2]f32) -> bool { return p.x >= r[0] && p.x < r[0] + r[2] && p.y >= r[1] && p.y < r[1] + r[3] }
+		// A right-click: what's under it is selected and its menu opens (context_menus_panels.odin)
+		if ctx.input.mouse_pressed[.Right] && inside(rect, m) && inside(visible, m) {
+			hitState, hitTransition := States_HitTest(sm, local)
+			switch {
+			case hitState >= 0:      skald.send(ctx, Msg(SM_View{op = .Select_State, index = hitState}))
+			case hitTransition >= 0: skald.send(ctx, Msg(SM_View{op = .Select_Transition, index = hitTransition}))
+			}
+			skald.send(ctx, Msg(Context_Menu_Opened{at = m, target = Ctx_Graph{graph = .States, item = hitState, sub = hitTransition, local = local}}))
+			ctx.input.mouse_pressed[.Right] = false
+		}
 		if ctx.input.mouse_pressed[.Left] && inside(rect, m) && inside(visible, m) {
 			hitState, hitTransition := -1, -1
 			for st, i in sm.states do if inBox(States_BoxRect(st), local) do hitState = i

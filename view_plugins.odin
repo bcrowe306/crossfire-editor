@@ -50,8 +50,13 @@ PluginsPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		case .Building: status = "Building..."
 		case .Waiting:
 		}
+		// A right-click on the name: the plugin's menu (context_menus_panels.odin); widget `plugin-<i>`
+		nameId := skald.hash_id(fmt.tprintf("plugin-%d", i))
+		rightPressOpens(ctx, lastRect(ctx, nameId), Ctx_Graph{graph = .Plugin, item = i, sub = -1})
+		name := new(skald.View, context.temp_allocator)
+		name^ = skald.text(fmt.tprintf("%s  %s", ICON_PLUG, p.name), th.color.fg, th.font.size_sm)
 		append(&rows, skald.wrap_row(
-			skald.text(fmt.tprintf("%s  %s", ICON_PLUG, p.name), th.color.fg, th.font.size_sm),
+			skald.View_Zone{id = nameId, child = name},
 			skald.text(status, color, th.font.size_xs, max_width = width - 200),
 			small(ctx, fmt.tprintf("plugins/%s", p.folder), 200),
 			spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.xs, width = width))

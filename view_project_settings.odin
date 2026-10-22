@@ -220,7 +220,7 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Start scene", skald.select(ctx, strings.clone(d.startScene, context.temp_allocator), scenes[:],
 			proc(v: string) -> Msg { return Project_Settings_Start_Changed(v) },
 			id = skald.hash_id("project-settings-start"), width = 200)),
-		skald.text("The scene the game starts in (Play, and exports). Play Scene (Ctrl+F5) starts in the open scene instead.",
+		skald.text(fmt.tprintf("The scene the game starts in (Play, and exports). Play Scene%s starts in the open scene instead.", keyParen(s, .Play_Scene)),
 			th.color.fg_muted, th.font.size_xs, max_width = 420),
 		settingRow(ctx, "Icon", iconSelect(ctx, s, d.icon)),
 		skald.col(..sceneFlowSettingRows(ctx, s), spacing = th.spacing.sm, cross_align = .Stretch),
@@ -293,7 +293,7 @@ globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.select(ctx, TEXTURE_NONE, choices[:], proc(v: string) -> Msg { return Global_Added(v) },
 			id = skald.hash_id("global-add"), width = 220, placeholder = "Choose a script"))
 	if s.scripts.status != .Ready {
-		append(&list, skald.text("Build the scripts (Ctrl+B) to list them here.", th.color.fg_muted, th.font.size_xs, max_width = 230))
+		append(&list, skald.text(fmt.tprintf("Build the scripts%s to list them here.", keyParen(s, .Build_Scripts)), th.color.fg_muted, th.font.size_xs, max_width = 230))
 	}
 
 	fields := make([dynamic]skald.View, context.temp_allocator)
@@ -306,7 +306,7 @@ globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&fields, skald.text(g.script, th.color.fg, th.font.size_md))
 		desc := ScriptCatalog_Find(&s.scripts, g.script)
 		if desc == nil {
-			append(&fields, skald.text(fmt.tprintf("Build the scripts (Ctrl+B) to edit %s's fields.", g.script), th.color.fg_muted, th.font.size_xs))
+			append(&fields, skald.text(fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), g.script), th.color.fg_muted, th.font.size_xs))
 			for p in g.props do append(&fields, settingRow(ctx, p.name, skald.text(p.value, th.color.fg_muted, th.font.size_sm)))
 		} else if len(desc.fields) == 0 {
 			append(&fields, skald.text("No exported fields (tag a field with export:\"\" to set it here).", th.color.fg_muted, th.font.size_xs))

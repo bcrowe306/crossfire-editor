@@ -243,6 +243,27 @@ tracksCanvas :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: int
 		inside :: proc(r: skald.Rect, p: [2]f32) -> bool { return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h }
 		local := m - {rect.x, rect.y}
 		at := Timeline_XTime(width, clip.length, local.x)
+		// A right-click: the track or key under it is selected and its menu opens
+		// (context_menus_panels.odin); the menu's Key Here uses the time clicked
+		if ctx.input.mouse_pressed[.Right] && inside(rect, m) && inside(visible, m) {
+			row := int((local.y - TIMELINE_RULER_HEIGHT) / TIMELINE_ROW_HEIGHT)
+			onTrack := local.y >= TIMELINE_RULER_HEIGHT && row < len(clip.tracks)
+			hit := -1
+			if onTrack && local.x >= Timeline_NameWidth(width) {
+				for key, k in clip.tracks[row].keys do if abs(Timeline_TimeX(width, clip.length, key.time) - local.x) <= 6 do hit = k
+			}
+			target := Ctx_Graph{graph = .Timeline_Track, item = -1, sub = -1, local = {snapTime(at, .Shift in ctx.input.modifiers), local.y}}
+			switch {
+			case hit >= 0:
+				skald.send(ctx, Msg(Timeline_View{op = .Key_Selected, index = row, other = hit}))
+				target.graph, target.item, target.sub = .Timeline_Key, row, hit
+			case onTrack:
+				skald.send(ctx, Msg(Timeline_View{op = .Track_Selected, index = row}))
+				target.item = row
+			}
+			skald.send(ctx, Msg(Context_Menu_Opened{at = m, target = target}))
+			ctx.input.mouse_pressed[.Right] = false
+		}
 		if ctx.input.mouse_pressed[.Left] && inside(rect, m) && inside(visible, m) {
 			row := int((local.y - TIMELINE_RULER_HEIGHT) / TIMELINE_ROW_HEIGHT)
 			onTrack := local.y >= TIMELINE_RULER_HEIGHT && row < len(clip.tracks)

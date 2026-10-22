@@ -43,6 +43,10 @@ SettingsField :: enum {
 	Undo_Merge_Ms,
 	Undo_Group_Max_Ms,
 	Undo_Limit,
+	Rotate_Snap,
+	Scale_Snap,
+	Corner_Radius,
+	Selection_Opacity,
 }
 
 // Opens the dialog on a fresh copy of the active settings
@@ -69,6 +73,12 @@ closeEmbeddedProjectSettings :: proc(state: ^State) {
 	state.projectSettings.embedded = false
 }
 
+// The draft's look, shown at once (Settings > Appearance is live; Cancel puts the old one back)
+@(private="file")
+liveTheme :: proc(draft: ^Settings) -> skald.Command(Msg) {
+	return skald.cmd_set_theme(Msg, Settings_Theme(draft))
+}
+
 /*
 Handles a Settings dialog message.
 
@@ -85,6 +95,21 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		if dialog.tab == .Project do openEmbeddedProjectSettings(state)
 	case Settings_Theme_Changed:
 		draft.theme = string(v) == "Light" ? .Light : .Dark
+		return liveTheme(draft), true
+	case Settings_Theme_Color_Changed:
+		// The picker has no alpha: a color keeps the opacity it had
+		old := Settings_Theme(draft).color
+		c := v.value
+		c[3] = ThemeColor_Field(&old, v.color)[3]
+		draft.themeColors[v.color] = c
+		draft.themeColorsSet += {v.color}
+		return liveTheme(draft), true
+	case Settings_Theme_Color_Reset:
+		draft.themeColorsSet -= {ThemeColor(v)}
+		return liveTheme(draft), true
+	case Settings_Theme_Preset_Chosen:
+		EditorTheme_ApplyPreset(draft, string(v))
+		return liveTheme(draft), true
 	case Settings_Value_Changed:
 		switch v.field {
 		case .Font_Size:         draft.fontSize = clamp(f32(v.value), SETTINGS_FONT_SIZE_RANGE[0], SETTINGS_FONT_SIZE_RANGE[1])
@@ -93,7 +118,17 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		case .Undo_Merge_Ms:     draft.undoMergeMs = clamp(int(v.value), SETTINGS_UNDO_MS_RANGE[0], SETTINGS_UNDO_MS_RANGE[1])
 		case .Undo_Group_Max_Ms: draft.undoGroupMaxMs = clamp(int(v.value), SETTINGS_UNDO_MS_RANGE[0], SETTINGS_UNDO_MS_RANGE[1])
 		case .Undo_Limit:        draft.undoLimit = clamp(int(v.value), SETTINGS_UNDO_LIMIT_RANGE[0], SETTINGS_UNDO_LIMIT_RANGE[1])
+		case .Rotate_Snap:       draft.rotateSnap = clamp(f32(v.value), SETTINGS_ROTATE_SNAP_RANGE[0], SETTINGS_ROTATE_SNAP_RANGE[1])
+		case .Scale_Snap:        draft.scaleSnap = clamp(f32(v.value), SETTINGS_SCALE_SNAP_RANGE[0], SETTINGS_SCALE_SNAP_RANGE[1])
+		case .Corner_Radius:     draft.cornerRadius = clamp(f32(v.value), SETTINGS_CORNER_RADIUS_RANGE[0], SETTINGS_CORNER_RADIUS_RANGE[1])
+		case .Selection_Opacity:
+			// The selection's color as it shows now, with this opacity (it's set from then on)
+			c := Settings_Theme(draft).color.selection
+			c[3] = clamp(f32(v.value), 0, 100) / 100
+			draft.themeColors[.Selection] = c
+			draft.themeColorsSet += {.Selection}
 		}
+		if v.field == .Font_Size || v.field == .Spacing || v.field == .Corner_Radius || v.field == .Selection_Opacity do return liveTheme(draft), true
 	case Settings_Code_Editor_Path_Changed:
 		draft.codeEditorPath = FixedText_Make(string(v))
 	case Settings_Code_Editor_Args_Changed:
@@ -146,6 +181,9 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		switch dialog.tab {
 		case .Appearance:
 			draft.theme, draft.fontSize, draft.spacing, draft.rowHeight = defaults.theme, defaults.fontSize, defaults.spacing, defaults.rowHeight
+			draft.themeColors, draft.themeColorsSet, draft.cornerRadius = defaults.themeColors, defaults.themeColorsSet, defaults.cornerRadius
+			dialog.capture = {}
+			return liveTheme(draft), true
 		case .Editor:
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
 			draft.codeEditorPath, draft.codeEditorArgs, draft.optimizedPlay = defaults.codeEditorPath, defaults.codeEditorArgs, defaults.optimizedPlay
@@ -183,6 +221,8 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		dialog.open = false
 		dialog.capture = {}
 		closeEmbeddedProjectSettings(state)
+		// The look previewed while editing goes back to the applied settings'
+		return skald.cmd_set_theme(Msg, Settings_Theme(&state.settings)), true
 	case:
 		return {}, false
 	}

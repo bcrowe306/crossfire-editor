@@ -251,7 +251,7 @@ fieldRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, name: string, props: []Script
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	if desc == nil {
-		message := s.scripts.status == .Building ? "Building..." : fmt.tprintf("Build the scripts (Ctrl+B) to edit %s's fields.", name)
+		message := s.scripts.status == .Building ? "Building..." : fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), name)
 		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
 		for prop in props do append(&rows, inspectorRow(ctx, prop.name, skald.text(prop.value, th.color.fg_muted, th.font.size_sm)))
 		return rows[:]

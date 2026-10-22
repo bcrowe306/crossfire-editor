@@ -411,11 +411,21 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change collision %s of %s", v.mask ? "mask" : "layers", name))
 	case Node_Points_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change points of %s", name), key("points", s.currentScene, selected))
+	case Viewport_Drag_Begin:
+		// Alt+drag: the duplicates and their move are one step (the drag's: the gesture this begins)
+		if v.duplicate && v.node >= 0 && v.node < len(scene.nodes) {
+			return {scope = .Scene, label = fmt.tprintf("Duplicate and move %s", many(s, scene.nodes[v.node].name)), mergeKey = key("drag", s.history.gesture + 1), sticky = true}
+		}
 	case Viewport_Drag_Move:
 		drag := s.viewport.drag
-		if drag.mode == .None || drag.mode == .Pan || drag.mode == .Box || drag.node < 0 || drag.node >= len(scene.nodes) do break
+		if drag.mode == .None || drag.mode == .Pan || drag.mode == .Box || drag.mode == .Zoom_Box || drag.node < 0 || drag.node >= len(scene.nodes) do break
 		info := node(drag.node, fmt.tprintf("%v %s", drag.mode, scene.nodes[drag.node].name), key("drag", s.history.gesture))
 		info.sticky = true
+		// Duplicates being moved: the same scene step as their duplication
+		if drag.duplicated {
+			info.scope = .Scene
+			info.label = fmt.tprintf("Duplicate and move %s", many(s, scene.nodes[drag.node].name))
+		}
 		// Several nodes move together: record the whole scene
 		if len(s.selection) > 1 && slice.contains(s.selection[:], drag.node) {
 			info.scope = .Scene
@@ -441,6 +451,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			}
 			return node(i, label, v.op == .Key_Value ? key("timeline-value", i, s.timeline.track, s.timeline.key) : 0)
 		}
+	case Timeline_Key_Here:
+		if _, i := Timeline_Animator(s); i >= 0 do return node(i, fmt.tprintf("%s in the clips of %s", timelineOpLabel(.Key_Added), scene.nodes[i].name))
 	case Timeline_View:
 		if _, i := Timeline_Animator(s); i >= 0 && v.op == .Name_Typed {
 			return node(i, fmt.tprintf("Rename a clip of %s", scene.nodes[i].name), key("timeline-name", i, s.timeline.clip))
@@ -513,6 +525,24 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		asset := s.assetDrag.asset
 		if asset >= 0 && asset < len(s.project.assets) && s.project.assets[asset].kind == .LDtk do return {scope = .Scene, label = "Add level"}
 		return {scope = .Scene, label = "Add sprite"}
+	case Node_Command:
+		if !hasSelection do break
+		switch v.op {
+		case .Toggle_Visible:  return {scope = .Scene, label = fmt.tprintf("Show or hide %s", many(s, name))}
+		case .Reset_Position:  return {scope = .Scene, label = fmt.tprintf("Reset the position of %s", many(s, name))}
+		case .Reset_Rotation:  return {scope = .Scene, label = fmt.tprintf("Reset the rotation of %s", many(s, name))}
+		case .Reset_Scale:     return {scope = .Scene, label = fmt.tprintf("Reset the scale of %s", many(s, name))}
+		case .Reset_Transform: return {scope = .Scene, label = fmt.tprintf("Reset the transform of %s", many(s, name))}
+		case .Bring_Forward:   return {scope = .Scene, label = fmt.tprintf("Bring %s forward", many(s, name))}
+		case .Send_Backward:   return {scope = .Scene, label = fmt.tprintf("Send %s backward", many(s, name))}
+		case .Move_Up:         return {scope = .Scene, label = fmt.tprintf("Move %s up", name)}
+		case .Move_Down:       return {scope = .Scene, label = fmt.tprintf("Move %s down", name)}
+		case .Select_Children, .Select_Parent, .Copy_Path, .Expand_All, .Collapse_All:
+		}
+	case Paste_Here:
+		return {scope = .Scene, label = "Paste"}
+	case Align_Nodes:
+		if hasSelection do return {scope = .Scene, label = fmt.tprintf("%s %s", AlignOp_Label(v.op), many(s, name))}
 	case Tree_Drag_Dropped:
 		if s.treeDrag.node >= 0 && s.treeDrag.node < len(scene.nodes) {
 			return {scope = .Scene, label = fmt.tprintf("Move %s", scene.nodes[s.treeDrag.node].name)}

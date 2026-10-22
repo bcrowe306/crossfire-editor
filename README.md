@@ -108,7 +108,8 @@ The Taskfile passes the flags every build needs:
 - **Search** at the top filters scenes and assets by name (Escape clears it).
 - **Preview** (bottom, collapsible): shows the selected image with its size, or plays the
   selected sound.
-- **Import** (Ctrl+I or +): copies an image, sound or font into the project's `assets/` folder.
+- **Import** (Ctrl+I or +): copies images, sounds, fonts and more into the project's `assets/`
+  folder; pick several files at once. The dialog opens where you last imported from.
 - **Remove** (trash): removes the asset from the project, optionally deleting the file.
   It warns when nodes still use it.
 
@@ -116,8 +117,11 @@ Imported and removed assets are saved to project.xml on Save (Ctrl+S) or Play.
 
 ## Scene tree
 
-- **Right-click** a node for Add Node, Duplicate, Copy, Cut, Paste and Delete. Right-click below
-  the nodes to paste at the top level.
+- **Right-click** a node for its menu: add a child, cut / copy / paste / duplicate / delete /
+  rename, its script, save as a component, hide or show, reset its transform, order, select its
+  children or parent. Right-click below the nodes to add or paste at the top level. Every list in
+  the editor has a right-click menu like it: the viewport, the browser, tabs, logs, the bottom
+  panel's graphs and lists.
 - **Drag** a node onto another: near the top or bottom edge of a row puts it before or after that
   node, the middle makes it a child. Drop it below the rows to make it a top-level node. It keeps
   its place in the scene; its position is adjusted for the new parent.
@@ -137,8 +141,9 @@ when nothing is selected.
   names the step). Every scene edit is undoable. Quick edits to the same thing (typing a name,
   dragging a number, nudging) undo as one step; a viewport drag is always one step.
 - **Settings** (Edit > Settings, Ctrl+,):
-  - Appearance: dark or light theme, text size, spacing, row height
-  - Editor: how undo merges edits, and how many steps it keeps
+  - Appearance: the editor's look, edited live: presets, the base theme, every color, corners,
+    text size, spacing, row height
+  - Editor: how undo merges edits, and how many steps it keeps; the rotate and scale snap steps
   - Keyboard: every shortcut, two per command. Click one and press the new keys
   - Toolchain: what building games needs, found or not (see above)
   - Project: the open project's settings (the same tabs as File > Project Settings). Apply and
@@ -153,8 +158,12 @@ The viewport renders the open scene with the engine (animations play; P toggles 
 | Input | Does |
 |---|---|
 | Click / drag | Select the node under the cursor and drag it with the active tool |
-| Q / W / E / R / H | Select, Move, Rotate, Scale, Pan tool |
+| Q / W / E / R / T / Z / H | Select, Move, Rotate, Scale, Transform (all three), Zoom, Pan tool |
 | Shift while dragging | Move along one axis, snap rotation to 15°, scale axes separately |
+| Alt + drag | Move a copy of the selection |
+| L | Move along the node's own (turned) axes |
+| Right-click (no drag) | The node's menu, or empty space's |
+| Drag out of a ruler | A guide (moves snap to it with snapping on) |
 | Mouse wheel | Zoom around the cursor |
 | Shift + wheel / Ctrl + wheel / sideways scroll | Pan sideways / up and down / sideways |
 | Middle or right drag, Space + drag, Pan tool | Pan |
@@ -165,6 +174,9 @@ The viewport renders the open scene with the engine (animations play; P toggles 
 
 With a touchpad, turn on Settings > Editor > **Wheel pans**: two-finger scrolling pans and
 Ctrl + scroll zooms. Single-letter shortcuts are ignored while typing in a field. Help > Keyboard Shortcuts lists them all.
+On macOS, Cmd takes Ctrl's place in every shortcut (Cmd+S saves), and the editor names keys the Mac
+way. With two or more nodes selected, the Align button above the viewport aligns or distributes
+them. The grid is dark gray, apart from the editor's colors.
 
 ## Scripts
 

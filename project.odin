@@ -267,6 +267,8 @@ SceneDef :: struct {
 	opened: bool,
 	// Editor-only, scenes: its viewport tab was closed (they start open; opening it shows it again)
 	tabClosed: bool,
+	// Editor-only: the viewport's guide lines (viewport_tools.odin), kept in .editor/guides.ini
+	guides: [dynamic]Guide,
 	// Scenes: their own settings (the engine's: screen layers, background, gravity), written on
 	// the scene file's root. Components have none
 	settings: e.SceneSettings,
@@ -946,6 +948,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		Scene_MarkSaved(&scene)
 		append(&project.scenes, scene)
 	}
+	Guides_Load(&project)
 	return project, "", warnings
 }
 
