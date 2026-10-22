@@ -23,13 +23,15 @@ recent_projects_list :: proc(t: ^testing.T) {
 
 	recent := Recent_Load(settings)
 	testing.expect_value(t, len(recent.folders), 0)
+	// Folders are kept absolute (on Windows "/games/a" is "D:\games\a")
+	abs :: proc(path: string) -> string { return absolutePath(path) }
 	Recent_Add(&recent, "/games/a")
 	Recent_Add(&recent, "/games/b")
 	Recent_Add(&recent, "/games/a")
-	testing.expect(t, len(recent.folders) == 2 && recent.folders[0] == "/games/a" && recent.folders[1] == "/games/b", "moved to the front, once")
+	testing.expect(t, len(recent.folders) == 2 && recent.folders[0] == abs("/games/a") && recent.folders[1] == abs("/games/b"), "moved to the front, once")
 	for i in 0 ..< 12 do Recent_Add(&recent, strings.concatenate({"/games/n", string([]u8{u8('a' + i)})}, context.temp_allocator))
 	testing.expect_value(t, len(recent.folders), RECENT_PROJECTS_MAX)
-	testing.expect_value(t, recent.folders[0], "/games/nl")
+	testing.expect_value(t, recent.folders[0], abs("/games/nl"))
 	Recent_Destroy(&recent)
 
 	// Saved beside the settings file, read back the same
@@ -37,10 +39,10 @@ recent_projects_list :: proc(t: ^testing.T) {
 	defer Recent_Destroy(&again)
 	testing.expect(t, os.exists("build/test_recent/recent_projects.txt"), "the file")
 	testing.expect_value(t, len(again.folders), RECENT_PROJECTS_MAX)
-	testing.expect_value(t, again.folders[0], "/games/nl")
+	testing.expect_value(t, again.folders[0], abs("/games/nl"))
 	Recent_Remove(&again, "/games/nl")
-	testing.expect_value(t, again.folders[0], "/games/nk")
-	testing.expect_value(t, Recent_Label("/games/nk"), "nk   /games")
+	testing.expect_value(t, again.folders[0], abs("/games/nk"))
+	testing.expect(t, strings.has_prefix(Recent_Label(abs("/games/nk")), "nk   "), "the folder's name first")
 	Recent_Clear(&again)
 	cleared := Recent_Load(settings)
 	defer Recent_Destroy(&cleared)

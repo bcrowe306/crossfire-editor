@@ -84,7 +84,9 @@ Recent_Add :: proc(recent: ^RecentProjects, root: string) {
 
 // Drops a folder from the list (it's gone) and writes the file
 Recent_Remove :: proc(recent: ^RecentProjects, root: string) {
+	// Stored absolute (Recent_Add): compared the same way (a Windows path gets its drive)
 	removeFolder(recent, root)
+	removeFolder(recent, absolutePath(root))
 	Recent_Save(recent)
 }
 
