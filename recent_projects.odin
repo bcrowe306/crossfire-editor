@@ -6,7 +6,7 @@ import "core:strings"
 
 /*
 Recent projects: the folders of the projects opened lately, most recent first, listed in the
-File menu (`fileMenuRecent` in view.odin) to open again in one click.
+File menu's Open Recent submenu (`menuBarView` in view.odin) to open again in one click.
 
 - Kept in `recent_projects.txt` beside the settings file (`editor.ini`; a UI test's scratch
   settings file has its own list), one absolute folder per line. Test runs without a settings

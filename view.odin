@@ -83,17 +83,23 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 	redoLabel := History_NextLabel(&s.history, true)
 	// File: the project, its recent ones (recent_projects.odin), import, export, quit
 	fileItems := make([dynamic]skald.Menu_Item(Msg), context.temp_allocator)
+	// Open Recent: a submenu of the recent projects (disabled when there are none)
+	recent := Recent_Shown(s)
+	recentItem := skald.Menu_Item(Msg){label = "Open Recent", disabled = true}
+	if len(recent) > 0 {
+		recentItems := make([dynamic]skald.Menu_Item(Msg), context.temp_allocator)
+		for i in recent do append(&recentItems, skald.Menu_Item(Msg){label = Recent_Label(s.recentProjects.folders[i]), msg = Msg(Recent_Project_Chosen(i))})
+		append(&recentItems, skald.Menu_Item(Msg){separator = true}, skald.Menu_Item(Msg){label = "Clear Recent Projects", msg = Msg(Recent_Projects_Cleared{})})
+		recentItem = {label = "Open Recent", submenu = recentItems[:]}
+	}
 	append(&fileItems,
 		item("New Project", .New_Project, keys),
 		item("Open Project", .Open_Project, keys),
+		recentItem,
 		item("Open Project Archive...", .Open_Project_Archive, keys),
 		item("Save", .Save_Project, keys),
 		item("Save Project As...", .Save_Project_As, keys),
 	)
-	recent := Recent_Shown(s)
-	if len(recent) > 0 do append(&fileItems, skald.Menu_Item(Msg){separator = true})
-	for i in recent do append(&fileItems, skald.Menu_Item(Msg){label = Recent_Label(s.recentProjects.folders[i]), msg = Msg(Recent_Project_Chosen(i))})
-	if len(recent) > 0 do append(&fileItems, skald.Menu_Item(Msg){label = "Clear Recent Projects", msg = Msg(Recent_Projects_Cleared{})})
 	append(&fileItems,
 		skald.Menu_Item(Msg){separator = true},
 		item("Import Asset...", .Import_Asset, keys),

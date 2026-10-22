@@ -43,8 +43,8 @@ You can also start the editor with a project: `crossfire-editor path/to/MyGame`.
 
 ## Recent projects
 
-The **File** menu lists the projects you opened lately, the most recent first: click one to open
-it again. Each shows its folder's name, then where it is (`~` is your home folder). The project
+**File > Open Recent** lists the projects you opened lately, the most recent first: click one to
+open it again. Each shows its folder's name, then where it is (`~` is your home folder). The project
 that's open isn't listed.
 
 - The list keeps the last 10 projects (the menu shows 8).

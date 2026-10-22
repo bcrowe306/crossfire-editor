@@ -617,8 +617,9 @@ positioned at that point in the parent's space. Undoable.
   inside the scratch project, made fresh each run). User guide: `docs/manual/projects.md`.
 - **Recent projects** (recent_projects.odin, `State.recentProjects`): `recent_projects.txt` beside
   the settings file (none without one), absolute folders, most recent first, at most 10;
-  `switchProject` and `init` add the opened project. The File menu lists `Recent_Shown` (8, not
-  the open one) inline (Skald menus have no submenus) and Clear Recent Projects;
+  `switchProject` and `init` add the opened project. File > Open Recent (a Skald submenu,
+  `Menu_Item.submenu`; disabled with none) lists `Recent_Shown` (8, not the open one) and Clear
+  Recent Projects;
   `Recent_Project_Chosen(index)` goes through `Session_Request(.Open_Recent)` (the path waits in
   `session.recent`); a folder without project.xml is reported and dropped. Driver: `send
   Recent_Project_Chosen <i>` (the menu bar can't be clicked), check `recent_menu <i> <name>`.

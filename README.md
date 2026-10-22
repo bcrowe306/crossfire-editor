@@ -658,7 +658,7 @@ the frame rate and the last viewport render time.
 ## Projects
 
 **File > New Project** (Ctrl+N) creates a project folder with a Main scene. **Open Project**
-(Ctrl+O) opens a project folder. The File menu also lists the **recent projects** (the last 10,
+(Ctrl+O) opens a project folder. **File > Open Recent** lists the **recent projects** (the last 10,
 kept in `recent_projects.txt` beside the settings): one click opens one. These, and Quit, ask to
 save unsaved changes first. **Save Project As...** (Ctrl+Shift+S) copies the project, with what's
 open (unsaved changes too), into another folder and opens the copy; the original stays as it was
