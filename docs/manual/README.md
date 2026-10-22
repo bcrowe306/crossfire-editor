@@ -13,6 +13,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 |---|---|
 | [Projects](projects.md) | Making, opening and saving a project; recent projects in the File menu; Save Project As (a copy somewhere else); project archives; unsaved changes |
 | [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
+| [Touch controls and Steam](touch_and_steam.md) | On-screen joysticks and buttons pressing input actions, fingers in scripts; Steam achievements, stats and cloud saves (the stub backend) |
 | [Bus effects, crossfades and music layers](audio_effects_and_music.md) | Filters, echo and reverb on mix buses (the Mixer's FX), fading between songs, music built from layers that scripts fade in and out |
 | [Collision from sprites and physics materials](collision_and_materials.md) | Collision shapes traced from a sprite's pixels; shared friction, bounce and density for bodies |
 | [Camera tools](camera_tools.md) | Parallax backgrounds, rooms the camera stays in (camera zones), smooth zoom, camera views for split screen, minimaps and picture in picture |

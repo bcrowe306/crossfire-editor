@@ -110,6 +110,9 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	}
 	if project.loadingScene != "" do attr(&w, "loadingScene", project.loadingScene)
 	if project.icon != "" do attr(&w, "icon", project.icon)
+	// Steam (steam_edit.odin)
+	if project.steam.appId != 0 do attr(&w, "steamAppId", project.steam.appId)
+	if project.steam.cloudSaves do attr(&w, "steamCloud", true)
 	endOpen(&w)
 	for &scene in project.scenes {
 		// Components are assets, not scenes
@@ -187,6 +190,14 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 			closeEmpty(&w)
 		}
 		close(&w, "bus")
+	}
+	for a in project.achievements {
+		open(&w, "achievement")
+		attr(&w, "name", a.name)
+		if a.title != "" do attr(&w, "title", a.title)
+		if a.description != "" do attr(&w, "description", a.description)
+		if a.hidden do attr(&w, "hidden", true)
+		closeEmpty(&w)
 	}
 	for action in project.actions {
 		open(&w, "action")
@@ -632,6 +643,20 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			if n.avoidRadius != d.avoidRadius do attr(w, "avoidRadius", n.avoidRadius)
 			if n.autoMove != d.autoMove do attr(w, "autoMove", n.autoMove)
 		}
+	case .VirtualJoystick, .TouchButton:
+		// touch_edit.odin; a button's label is `text`
+		t, d := node.touch, e.TouchControl_Defaults(node.kind)
+		if node.kind == .TouchButton && node.text != "" do attr(w, "text", node.text)
+		if node.touchActions != "" do attr(w, "touchActions", node.touchActions)
+		if t.radius != d.radius do attr(w, "touchRadius", t.radius)
+		if t.deadzone != d.deadzone do attr(w, "deadzone", t.deadzone)
+		if t.zone.x != d.zone.x do attr(w, "zoneWidth", t.zone.x)
+		if t.zone.y != d.zone.y do attr(w, "zoneHeight", t.zone.y)
+		if t.floating != d.floating do attr(w, "floating", t.floating)
+		if t.visibility != d.visibility do attr(w, "touchVisibility", t.visibility)
+		if t.mouse != d.mouse do attr(w, "touchMouse", t.mouse)
+		if t.color != d.color do attr(w, "touchColor", e.FormatColor(t.color, context.temp_allocator))
+		if t.opacity != d.opacity do attr(w, "touchOpacity", t.opacity)
 	case .Light2D:
 		l, d := node.light, e.DEFAULT_LIGHT_SETTINGS
 		if l.kind != d.kind do attr(w, "lightKind", l.kind)

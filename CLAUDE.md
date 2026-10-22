@@ -223,6 +223,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `mixer.odin` | Mix buses: `BusDef`, `Buses_FromData` (Master first), names (`BusNameProblem`), `Bus_NodeCount`, `isSoundKind`, the Mixer's messages (`Mixer_Update`) |
 | `view_mixer.odin` | The Mixer tab (`MixerPanel`, built in `skald.sized`), like a DAW's: a channel strip per bus (node count, remove, pan, fader beside its level meter, dB, mute, name at the bottom), scrolling sideways; Master pinned on the right, + beside it |
 | `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
+| `touch_edit.odin` | **Touch controls**: `NodeDef.touch` (`e.TouchControlSettings`) and `touchActions` (comma-separated, owned), `Touch_Setting_Changed` (node steps), the VirtualJoystick / TouchButton inspector rows (`touchInspectorRows`), `NodeKind_IsTouchControl` |
+| `steam_edit.odin` | **Steam**: `Project.steam` / `achievements` (`AchievementDef`: clone, destroy, equal, `AchievementNameProblem`), Project Settings > Steam (`SteamTab`, `Steam_Setting_Changed` / `_Achievement_Added` / `_Removed` on the draft), `ACHIEVEMENT_X` constants |
 | `bus_effects_edit.odin` | **Bus effects**: `BusDef.effects` / `effectCount` (a plain array), `Bus_Effects_Opened` (the Mixer's FX: `State.busSelection`) and `Bus_Effect_Added` / `_Removed` / `_Moved` / `_Changed` (`.Project` steps), `busEffectsInspector`; the preview hears them (`AudioPreview_SetEffects` from `Mixer_RoutePreview`) |
 | `music_layers_edit.odin` | **Music layers**: `NodeDef.musicLayers` (`MusicLayerDef`: clone, destroy, equal), `Music_Layer_Added` / `_Removed` / `_Changed` (node steps), the MusicPlayer's Layers rows (`musicLayerRows`) |
 | `view_inspector_audio.odin` | The inspector's sound node settings (`audioInspectorRows`): sound or music, bus, Open Mixer, volume / pitch / pan sliders, loop, autostart, a 2D player's range and falloff, music's fades, Preview |
@@ -1431,6 +1433,26 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
 - Tests: `physics_materials_in_the_editor`, `collision_from_a_sprite_in_the_editor`,
   `tests/ui/collision_tools.script` (driver `select_node`, checks `traced`, `material`,
   `node_material`). User guide: `docs/manual/collision_and_materials.md`.
+
+## Touch controls and Steam (implemented, `touch_edit.odin`, `steam_edit.odin`; engine: touch.odin, steam.odin)
+
+- **Touch controls** are node kinds with a plain `NodeDef.touch` and owned `touchActions` (the
+  scene file's comma-separated left, right, up, down; a button's one); a button's label is `text`
+  (written only for TouchButtons besides Labels and UI kinds). `NodeDef_Make` takes
+  `e.TouchControl_Defaults(kind)` (a button's radius is smaller), and the writer compares against
+  it. `TouchEdit_Update` formats the actions before freeing the old text (the parsed names are
+  slices of it: a use-after-free the UI script caught). The preview game has
+  `showTouchControls`, so they draw whatever their visibility; `syncTransforms` copies their
+  settings. The inspector warns when the node's layer isn't one of the scene's screen layers
+  and the scene has a camera. Labels "Input action" (not "Action": a UI Button's), "Size radius".
+- **Steam** lives on the Project Settings draft (`ProjectSettingsDialog.steam`, `achievements`),
+  applied with the rest and in the `.Project` snapshot (take, restore, destroy, equal). The
+  writer puts `steamAppId` / `steamCloud` on project.xml's root and `<achievement>` children.
+  Achievements lay out on two lines each (a tiled window's dialog is narrow).
+- Tests: `touch_controls_in_the_editor`, `touch_controls_draw_in_the_viewport` (pixels),
+  `steam_settings_in_the_editor`, `tests/ui/touch_steam.script` (Play: the console's
+  `Steam: stub backend (app 480)`; driver checks `touch <field>`, `steam <field>`). User guide:
+  `docs/manual/touch_and_steam.md`.
 
 ## Camera tools (implemented, `camera_tools_edit.odin`; engine: camera_tools.odin)
 

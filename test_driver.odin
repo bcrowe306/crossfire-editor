@@ -259,6 +259,10 @@ Checks:
 	                             One of a bus's effects (bus_effects_edit.odin)
 	bus_selection <i | -1>       The bus whose effects the inspector shows
 	preview_effects <bus> <master>   How many effects the editor's audio preview plays through
+	touch <actions|radius|deadzone|zone|floating|visibility|mouse|opacity|label> <value>
+	                             The selected VirtualJoystick or TouchButton (touch_edit.odin)
+	steam <app_id|cloud|achievements|draft_achievements> <value>, steam achievement <i> <field> <value>
+	                             The project's Steam settings (steam_edit.odin)
 	music_layer <i> <name|sound|volume> <value>, music_layer count <n>
 	                             The selected MusicPlayer's layers (music_layers_edit.odin)
 	scene_tabs <a,b,...>         The scene and component tabs, by name, in order
@@ -1941,6 +1945,50 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case: return false, fmt.tprintf("unknown effect field '%s'", parts[2])
 		}
 		return found == parts[3], found
+	case "touch":
+		// `touch <actions|radius|deadzone|zone|floating|visibility|mouse|opacity|label> <value>`: the selected touch control
+		if selected == nil || !NodeKind_IsTouchControl(selected.kind) do return false, "no VirtualJoystick or TouchButton selected"
+		field, _, expected := strings.partition(value, " ")
+		tc := selected.touch
+		switch field {
+		case "actions":    found = selected.touchActions == "" ? "none" : selected.touchActions
+		case "radius":     found = fmt.tprintf("%.0f", tc.radius)
+		case "deadzone":   found = fmt.tprintf("%.2f", tc.deadzone)
+		case "zone":       found = fmt.tprintf("%.0fx%.0f", tc.zone.x, tc.zone.y)
+		case "floating":   found = fmt.tprint(tc.floating)
+		case "visibility": found = fmt.tprint(tc.visibility)
+		case "mouse":      found = fmt.tprint(tc.mouse)
+		case "opacity":    found = fmt.tprintf("%.2f", tc.opacity)
+		case "label":      found = selected.text == "" ? "none" : selected.text
+		case: return false, fmt.tprintf("unknown touch field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "steam":
+		// `steam <app_id|cloud|achievements> <value>`: the project's; `steam draft_achievements <n>`;
+		// `steam achievement <i> <name|title|description|hidden> <value>`
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 2 do return false, "expected a field and a value"
+		switch parts[0] {
+		case "app_id":             found = fmt.tprint(s.project.steam.appId)
+		case "cloud":              found = fmt.tprint(s.project.steam.cloudSaves)
+		case "achievements":       found = fmt.tprint(len(s.project.achievements))
+		case "draft_achievements": found = fmt.tprint(len(s.projectSettings.achievements))
+		case "achievement":
+			if len(parts) < 4 do return false, "expected an index, a field and a value"
+			i, _ := strconv.parse_int(parts[1])
+			if i < 0 || i >= len(s.project.achievements) do return false, fmt.tprintf("%d achievements", len(s.project.achievements))
+			a := s.project.achievements[i]
+			switch parts[2] {
+			case "name":        found = a.name
+			case "title":       found = a.title
+			case "description": found = a.description
+			case "hidden":      found = fmt.tprint(a.hidden)
+			case: return false, fmt.tprintf("unknown achievement field '%s'", parts[2])
+			}
+			return found == strings.join(parts[3:], " ", context.temp_allocator), found
+		case: return false, fmt.tprintf("unknown steam field '%s'", parts[0])
+		}
+		return found == strings.join(parts[1:], " ", context.temp_allocator), found
 	case "bus_selection":
 		// The bus the inspector shows the effects of (-1 none)
 		found = fmt.tprint(s.busSelection)

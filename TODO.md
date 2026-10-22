@@ -28,9 +28,6 @@ dev release, each tested, documented and removed from here when done.
     runtime license).
 17. **A dialogue system**. Decided: an own dialogue asset with a graph editor (like the States
     tab) and a typewriter text box node, **plus** importing `.yarn` (Yarn Spinner) files into it.
-18. **Touch input and virtual joysticks; Steam achievements and cloud saves.** Decided: touch
-    and on-screen joysticks now; the Steam API (achievements, stats, cloud saves) with a stub
-    backend until the Steamworks SDK is available. Mobile export targets: later (below).
 19. **Editor plugins**: tool scripts, custom inspectors, import plugins. Decided: Odin packages
     in the project, built by the editor into a shared library against a plugin API, reloaded
     when they change.
@@ -51,7 +48,7 @@ dev release, each tested, documented and removed from here when done.
   `-subtarget:iphone`); needs the Android SDK/NDK here and CI's Mac for iOS (decided
   2026-10-22: later).
 - **Steam's real backend**: the Steamworks SDK (a partner download) behind the engine's Steam API
-  (built with a stub in item 18).
+  (built with a stub backend: steam.odin, 2026-10-22).
 
 ## Builds and releases
 

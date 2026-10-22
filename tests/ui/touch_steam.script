@@ -1,0 +1,138 @@
+# Touch controls and Steam: add input actions; a VirtualJoystick (its four actions, size,
+# deadzone, floating, zone) and a TouchButton (action, label); Project Settings > Steam (app ID,
+# cloud saves, achievements: add, name, remove, apply, undo); saved; played (the scene builds,
+# the engine starts Steam's stub backend).
+# Run with: task test:ui (and task test:ui:fullscreen)
+#
+# PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+
+# Input actions for the controls: the default ui_* ones
+action Open_Project_Settings
+click_widget project-settings-tab-Input
+click_widget input-defaults
+click_widget project-settings-apply
+expect input_actions 6
+
+# A joystick: left, right, up and down (the choices: none, ui_left, ui_right, ui_up, ui_down...)
+key escape
+key ctrl+shift+a
+type VirtualJoystick
+key RETURN
+expect selected VirtualJoystick
+expect touch actions none
+expect touch visibility Touch_Screens
+scroll_into_view inspector-scroll inspector-touch-Action0-11
+click_widget inspector-touch-Action0-11
+click_overlay_item 1
+scroll_into_view inspector-scroll inspector-touch-Action1-11
+click_widget inspector-touch-Action1-11
+click_overlay_item 2
+scroll_into_view inspector-scroll inspector-touch-Action2-11
+click_widget inspector-touch-Action2-11
+click_overlay_item 3
+scroll_into_view inspector-scroll inspector-touch-Action3-11
+click_widget inspector-touch-Action3-11
+click_overlay_item 4
+expect touch actions ui_left,ui_right,ui_up,ui_down
+# Size: typed; deadzone dragged to its top; floating with a zone
+scroll_into_view inspector-scroll inspector-touch-Radius-11-value
+click_widget inspector-touch-Radius-11-value
+key ctrl+a
+type 90
+key RETURN
+expect touch radius 90
+scroll_into_view inspector-scroll inspector-touch-Deadzone-11
+drag_widget inspector-touch-Deadzone-11 0.5 0.5 1.5 0.5
+expect touch deadzone 0.95
+scroll_into_view inspector-scroll inspector-touch-Deadzone-11-reset
+click_widget inspector-touch-Deadzone-11-reset
+expect touch deadzone 0.20
+scroll_into_view inspector-scroll inspector-touch-Floating-11
+click_widget inspector-touch-Floating-11
+expect touch floating true
+scroll_into_view inspector-scroll inspector-touch-Zone_Width-11-value
+click_widget inspector-touch-Zone_Width-11-value
+key ctrl+a
+type 400
+key RETURN
+scroll_into_view inspector-scroll inspector-touch-Zone_Height-11-value
+click_widget inspector-touch-Zone_Height-11-value
+key ctrl+a
+type 300
+key RETURN
+expect touch zone 400x300
+# Always shown; undo takes it back
+scroll_into_view inspector-scroll inspector-touch-Visibility-11
+click_widget inspector-touch-Visibility-11
+click_overlay_item 1
+expect touch visibility Always
+key ctrl+z
+expect touch visibility Touch_Screens
+
+# A button: ui_accept, labelled A
+key escape
+key ctrl+shift+a
+type TouchButton
+key RETURN
+expect selected TouchButton
+expect touch radius 40
+scroll_into_view inspector-scroll inspector-touch-Action0-12
+click_widget inspector-touch-Action0-12
+click_overlay_item 5
+expect touch actions ui_accept
+scroll_into_view inspector-scroll inspector-touch-Label-12
+click_widget inspector-touch-Label-12
+type A
+key escape
+expect touch label A
+
+# Project Settings > Steam: nothing changes until Apply
+action Open_Project_Settings
+click_widget project-settings-tab-Steam
+click_widget project-settings-steam-app-id
+type 480
+click_widget project-settings-steam-cloud
+scroll_into_view project-settings-steam-scroll steam-achievement-add
+click_widget steam-achievement-add
+scroll_into_view project-settings-steam-scroll steam-achievement-add
+click_widget steam-achievement-add
+expect steam draft_achievements 2
+scroll_into_view project-settings-steam-scroll steam-achievement-0-name
+click_widget steam-achievement-0-name
+key ctrl+a
+type FIRST_BLOOD
+scroll_into_view project-settings-steam-scroll steam-achievement-0-title
+click_widget steam-achievement-0-title
+type First Blood
+scroll_into_view project-settings-steam-scroll steam-achievement-1-remove
+click_widget steam-achievement-1-remove
+expect steam draft_achievements 1
+expect steam achievements 0
+click_widget project-settings-apply
+expect steam app_id 480
+expect steam cloud true
+expect steam achievements 1
+expect steam achievement 0 name FIRST_BLOOD
+expect steam achievement 0 title First Blood
+key ctrl+z
+expect steam achievements 0
+expect steam app_id 0
+key ctrl+shift+z
+expect steam achievements 1
+
+key ctrl+s
+expect project_file_contains project.xml steamAppId="480"
+expect project_file_contains project.xml <achievement name="FIRST_BLOOD" title="First Blood"/>
+expect project_file_contains scenes/PlayScene.scene.xml touchActions="ui_left,ui_right,ui_up,ui_down"
+expect project_file_contains scenes/PlayScene.scene.xml kind="TouchButton"
+
+# Played: the scene builds its controls, and the engine starts Steam's stub
+key ctrl+F5
+wait_until play Playing timeout=120
+wait_until console_contains Steam: stub backend (app 480) timeout=10
+key shift+F5
+wait_until play Stopped

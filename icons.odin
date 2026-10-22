@@ -20,6 +20,8 @@ ICON_MOVE        :: "\uf047"
 ICON_ROTATE      :: "\uf2f1"
 ICON_SCALE       :: "\uf424"
 ICON_HAND        :: "\uf256"
+ICON_GAMEPAD     :: "\uf11b"
+ICON_CIRCLE_DOT  :: "\uf192"
 ICON_PLAY        :: "\uf04b"
 ICON_PAUSE       :: "\uf04c"
 ICON_STOP        :: "\uf04d"
@@ -136,6 +138,8 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .CameraZone:     return ICON_VECTOR_SQUARE
 	case .CameraView:     return ICON_TV
 	case .NavAgent:       return ICON_PERSON_WALKING
+	case .VirtualJoystick: return ICON_GAMEPAD
+	case .TouchButton:    return ICON_CIRCLE_DOT
 	}
 	return ICON_CUBE
 }

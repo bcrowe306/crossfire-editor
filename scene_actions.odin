@@ -22,6 +22,7 @@ ProjectSettingsTab :: enum {
 	Globals,
 	Export,
 	Grid,
+	Steam,
 }
 
 // The Project Settings dialog edits a copy of these; Apply sets them as one undoable step
@@ -55,6 +56,9 @@ ProjectSettingsDialog :: struct {
 	audioOutput: e.AudioOutputSettings,
 	// Grid tab: the viewport grid
 	grid: e.GridSettings,
+	// Steam tab: the app ID and cloud saves, a copy of the achievements (owned): steam_edit.odin
+	steam: e.SteamSettings,
+	achievements: [dynamic]AchievementDef,
 	// Globals tab: a copy of the project's globals (owned), and the one shown
 	globals: [dynamic]GlobalDef,
 	selectedGlobal: int,
@@ -213,6 +217,7 @@ ProjectSettings_Destroy :: proc(dialog: ^ProjectSettingsDialog) {
 	delete(dialog.globals)
 	for &a in dialog.actions do ActionDef_Destroy(&a)
 	delete(dialog.actions)
+	Achievements_Destroy(&dialog.achievements)
 	delete(dialog.newActionName)
 	delete(dialog.renameText)
 	dialog.name, dialog.startScene, dialog.locale, dialog.icon, dialog.newActionName, dialog.renameText = "", "", "", "", "", ""
@@ -245,6 +250,8 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		exportTarget = exportTarget,
 		exports = p.exports,
 		physics = p.physics,
+		steam = p.steam,
+		achievements = Achievements_Clone(p.achievements[:]),
 	}
 	for g in p.globals do append(&dialog.globals, GlobalDef_Clone(g))
 	for a in p.actions do append(&dialog.actions, ActionDef_Clone(a))
@@ -262,6 +269,7 @@ Returns:
 ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	dialog := &state.projectSettings
 	if InputSettings_Update(state, m) do return {}, true
+	if SteamSettings_Update(state, m) do return {}, true
 	#partial switch v in m {
 	case Project_Settings_Tab_Changed:
 		dialog.tab = ProjectSettingsTab(v)
@@ -388,6 +396,11 @@ applyProjectSettings :: proc(state: ^State) {
 		p.icon = strings.clone(dialog.icon)
 	}
 	p.transition = dialog.transition
+	p.steam = dialog.steam
+	if !Achievements_Equal(dialog.achievements[:], p.achievements[:]) {
+		Achievements_Destroy(&p.achievements)
+		p.achievements = Achievements_Clone(dialog.achievements[:])
+	}
 	if dialog.loadingScene != p.loadingScene {
 		delete(p.loadingScene)
 		p.loadingScene = strings.clone(dialog.loadingScene)

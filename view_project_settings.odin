@@ -102,6 +102,7 @@ ProjectSettings_TabsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> (tabs, body
 	case .Globals: body = globalsTab(s, ctx)
 	case .Export:  body = exportTab(s, ctx)
 	case .Grid:    body = skald.scroll(ctx, {0, 0}, gridTab(s, ctx), id = skald.hash_id("project-settings-grid-scroll"))
+	case .Steam:   body = skald.scroll(ctx, {0, 0}, SteamTab(s, ctx), id = skald.hash_id("project-settings-steam-scroll"))
 	}
 	return skald.row(..buttons[:], spacing = th.spacing.xs), body
 }

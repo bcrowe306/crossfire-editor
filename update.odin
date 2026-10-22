@@ -84,6 +84,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := Timeline_Update(&out, m); handled do return out, command
 	if UIEdit_Update(&out, m) do return out, {}
 	if LightEdit_Update(&out, m) do return out, {}
+	if TouchEdit_Update(&out, m) do return out, {}
 	if NavEdit_Update(&out, m) do return out, {}
 	if Live_Update(&out, m) do return out, {}
 	if States_Update(&out, m) do return out, {}
@@ -132,7 +133,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by States_Update above
 	case Live_Command, Live_Selected, Live_Property_Edited:
 		// Handled by Live_Update above
-	case Light_Setting_Changed, Scene_Lighting_Changed:
+	case Light_Setting_Changed, Scene_Lighting_Changed, Touch_Setting_Changed:
 		// Handled by LightEdit_Update above
 	case UI_Setting_Changed, Theme_Field_Changed, Theme_Font_Changed, Theme_Created, Theme_Project_Set, Material_Field_Changed, Material_Created, Trace_Setting_Changed, Trace_Sprite_Chosen, Collision_Traced:
 		// Handled by UIEdit_Update and ThemeEdit_Update above
@@ -335,7 +336,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
 	     Project_Settings_Physics_Smoothing_Changed, Project_Settings_Window_Changed, Project_Settings_Grid_Changed, Project_Settings_Audio_Changed, Scene_Screen_Layer_Toggled, Scene_Background_Changed,
-	     Scene_Gravity_Toggled, Scene_Gravity_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved:
+	     Scene_Gravity_Toggled, Scene_Gravity_Changed, Global_Added, Global_Removed, Global_Selected, Global_Moved,
+	     Steam_Setting_Changed, Steam_Achievement_Added, Steam_Achievement_Removed:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
 		return out, Scene_DoAction(&out, v)

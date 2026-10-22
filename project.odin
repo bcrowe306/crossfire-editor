@@ -165,6 +165,10 @@ NodeDef :: struct {
 	// A NavRegion's or NavAgent's settings (a plain value: nav_edit.odin); a region's area is
 	// shapeSize
 	nav: e.NavSettings,
+	// A VirtualJoystick's or TouchButton's settings (a plain value) and its input actions,
+	// comma-separated (owned): touch_edit.odin
+	touch: e.TouchControlSettings,
+	touchActions: string,
 	// A StateMachine's states, transitions and parameters (owned: state_machine_edit.odin)
 	stateMachine: e.StateMachineSettings,
 	// ParallaxLayer, CameraZone, CameraView settings (plain) and a CameraView's camera (owned):
@@ -320,6 +324,9 @@ Project :: struct {
 	actions: [dynamic]ActionDef,
 	// Mix buses (mixer.odin): Master first, always
 	buses: [dynamic]BusDef,
+	// Steam: the app ID and cloud saves, and the achievements (owned): steam_edit.odin
+	steam: e.SteamSettings,
+	achievements: [dynamic]AchievementDef,
 }
 
 // Path of a scene's file inside the project folder
@@ -388,6 +395,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		light = e.DEFAULT_LIGHT_SETTINGS,
 		nav = e.DEFAULT_NAV_SETTINGS,
 		cameraTools = e.DEFAULT_CAMERA_TOOL_SETTINGS,
+		touch = e.TouchControl_Defaults(kind),
 	}
 	// A NavRegion covers a screenful to begin with; a StateMachine has a first state
 	if kind == .NavRegion do node.shapeSize = {640, 360}
@@ -456,6 +464,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	e.UISettings_Destroy(&node.ui)
 	e.StateMachineSettings_Destroy(&node.stateMachine)
 	delete(node.viewCamera)
+	delete(node.touchActions)
 	delete(node.autoplay)
 	delete(node.component)
 	delete(node.sound)
@@ -642,6 +651,7 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.materials)
 	delete(project.uiTheme)
 	delete(project.loadingScene)
+	Achievements_Destroy(&project.achievements)
 	delete(project.data)
 	project^ = {}
 }
@@ -681,6 +691,8 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		window = data.window,
 		grid = data.grid,
 		audioOutput = {frequency = data.audioOutput.frequency, channels = data.audioOutput.channels},
+		steam = data.steam,
+		achievements = Achievements_Clone(data.achievements[:]),
 		exports = ExportSettings_Default(),
 	}
 	// Export settings: optional, and a bad line only loses that setting
@@ -896,6 +908,8 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.stateMachine = e.StateMachineSettings_Clone(node.stateMachine)
 	def.cameraTools = node.cameraTools
 	def.viewCamera = strings.clone(node.viewCamera)
+	def.touch = node.touch
+	def.touchActions = strings.clone(node.touchActions)
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)

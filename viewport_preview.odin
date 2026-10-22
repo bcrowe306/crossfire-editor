@@ -316,6 +316,8 @@ makeGame :: proc(renderer: ^sdl.Renderer) {
 	preview.game = new(e.Game)
 	preview.game.renderer = renderer
 	e.ResourceManager_Init(&preview.game.resourceManager, renderer, nil)
+	// Touch controls draw in the editor whatever their visibility (touch_edit.odin)
+	preview.game.input.showTouchControls = true
 }
 
 // The GPU renderer: a hidden window with SDL's choice of renderer, and the game that draws with it.
@@ -547,6 +549,8 @@ syncTransforms :: proc(scene: ^SceneDef) {
 			region.settings = def.nav
 			region.size = def.shapeSize
 		}
+		// A touch control's look follows edits at once
+		if NodeKind_IsTouchControl(def.kind) && (e.Node_Is(node, e.VirtualJoystick) || e.Node_Is(node, e.TouchButton)) do (cast(^e.TouchControl)node).settings = def.touch
 		// A light's settings follow edits at once (no rebuild)
 		if def.kind == .Light2D && e.Node_Is(node, e.Light2D) do (cast(^e.Light2D)node).settings = def.light
 		if NodeKind_IsControl(def.kind) && e.Node_IsControl(node) {
@@ -613,7 +617,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav, stateMachine = node.stateMachine, cameraTools = node.cameraTools, viewCamera = node.viewCamera,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav, stateMachine = node.stateMachine, cameraTools = node.cameraTools, viewCamera = node.viewCamera, touch = node.touch, touchActions = node.touchActions,
 		})
 	}
 	return data

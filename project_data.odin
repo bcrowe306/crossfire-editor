@@ -262,6 +262,19 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		}
 		fmt.sbprintf(&b, "%s :: %q\n", name, action.name)
 	}
+	// Steam achievements' API names (Project Settings > Steam): e.Steam_UnlockAchievement(ACHIEVEMENT_FIRST_BLOOD)
+	if len(project.achievements) > 0 do strings.write_string(&b, "\n")
+	for a in project.achievements {
+		if a.name == "" do continue
+		name := fmt.tprintf("ACHIEVEMENT_%s", strings.to_upper(sanitize(a.name), context.temp_allocator))
+		if n := used[name]; n > 0 {
+			used[name] = n + 1
+			name = fmt.tprintf("%s_%d", name, n + 1)
+		} else {
+			used[name] = 1
+		}
+		fmt.sbprintf(&b, "%s :: %q\n", name, a.name)
+	}
 	return strings.to_string(b)
 }
 

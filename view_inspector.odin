@@ -518,6 +518,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..stateMachineInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .NavRegion, .NavAgent:
 		append(&rows, ..navInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+	case .VirtualJoystick, .TouchButton:
+		append(&rows, ..touchInspectorRows(ctx, s, node, key, controlWidth))
 	case .Light2D, .LightOccluder:
 		append(&rows, ..lightInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:

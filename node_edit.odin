@@ -71,6 +71,7 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.ui = e.UISettings_Clone(node.ui)
 	copy.stateMachine = e.StateMachineSettings_Clone(node.stateMachine)
 	copy.viewCamera = strings.clone(node.viewCamera)
+	copy.touchActions = strings.clone(node.touchActions)
 	copy.sound = strings.clone(node.sound)
 	copy.bus = strings.clone(node.bus)
 	copy.material = strings.clone(node.material)

@@ -100,6 +100,8 @@ ProjectSnapshot :: struct {
 	loadingScene: string,
 	actions: [dynamic]ActionDef,
 	buses: [dynamic]BusDef,
+	steam: e.SteamSettings,
+	achievements: [dynamic]AchievementDef,
 	// The scene open at the time, shown again on undo/redo
 	currentScene: int,
 }
@@ -318,6 +320,10 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	case Nav_Setting_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
 	// Lights: a slider's drag merges
+	case Touch_Setting_Changed:
+		// Sliders merge while dragged (touch_edit.odin)
+		number := v.field == .Radius || v.field == .Deadzone || v.field == .Zone_Width || v.field == .Zone_Height || v.field == .Opacity
+		if hasSelection do return node(selected, fmt.tprintf("Change the %v of %s", v.field, name), number ? key("touch", v.field, s.currentScene, selected) : 0)
 	case Light_Setting_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change the %v of %s", v.field, name), v.field == .Energy || v.field == .Radius || v.field == .Angle ? key("light", v.field, s.currentScene, selected) : 0)
 	// UI controls: typing and number fields merge per setting
@@ -805,7 +811,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera {
+	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera || a.touch != b.touch || a.touchActions != b.touchActions {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
@@ -905,6 +911,8 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for m in p.materials do append(&snapshot.materials, MaterialDef_Clone(m))
 	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
 	for b in p.buses do append(&snapshot.buses, BusDef_Clone(b))
+	snapshot.steam = p.steam
+	snapshot.achievements = Achievements_Clone(p.achievements[:])
 	return snapshot
 }
 
@@ -947,6 +955,9 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	for b in p.buses do delete(b.name)
 	clear(&p.buses)
 	for b in snapshot.buses do append(&p.buses, BusDef_Clone(b))
+	p.steam = snapshot.steam
+	Achievements_Destroy(&p.achievements)
+	p.achievements = Achievements_Clone(snapshot.achievements[:])
 	// Data values by file: resources made or removed since (files, not undoable) stay as they are
 	for d in snapshot.data {
 		i := Project_FindData(p, d.path)
@@ -1040,6 +1051,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.actions)
 	for b in snapshot.buses do delete(b.name)
 	delete(snapshot.buses)
+	Achievements_Destroy(&snapshot.achievements)
 	snapshot^ = {}
 }
 
@@ -1058,6 +1070,7 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if len(a.animationSets) != len(b.animationSets) do return false
 	for set, i in a.animationSets do if !AnimationSetDef_Equal(set, b.animationSets[i]) do return false
 	if a.uiTheme != b.uiTheme || len(a.themes) != len(b.themes) || a.transition != b.transition || a.loadingScene != b.loadingScene do return false
+	if a.steam != b.steam || !Achievements_Equal(a.achievements[:], b.achievements[:]) do return false
 	for t, i in a.themes do if !ThemeDef_Equal(t, b.themes[i]) do return false
 	if len(a.materials) != len(b.materials) do return false
 	for m, i in a.materials do if !MaterialDef_Equal(m, b.materials[i]) do return false
