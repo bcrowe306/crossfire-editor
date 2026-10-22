@@ -71,6 +71,8 @@ BrowserRows :: proc(state: ^State) -> []BrowserItem {
 		if folder == .Materials && len(state.project.materials) == 0 do continue
 		// Atlases: once the project has one (the browser's New Atlas)
 		if folder == .Atlases && len(state.project.atlases) == 0 && search == "" do continue
+		// Dialogues: once the project has one (New Dialogue, or an imported .yarn file)
+		if folder == .Dialogues && len(state.project.dialogues) == 0 && search == "" do continue
 		// Shaders: once the project has one (New Shader in a node's Shader section, or the menu)
 		if folder == .Shaders && len(contents) == 0 && search == "" do continue
 		append(&rows, BrowserItem{kind = .Folder, folder = folder})
@@ -105,6 +107,7 @@ AssetFolder :: proc(kind: AssetKind) -> BrowserFolder {
 	case .Theme: return .Themes
 	case .PhysicsMaterial: return .Materials
 	case .Atlas: return .Atlases
+	case .Dialogue: return .Dialogues
 	case .Shader: return .Shaders
 	}
 	return .Images

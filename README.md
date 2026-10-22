@@ -212,6 +212,11 @@ General > Sound output changes the format; Settings > Editor > Audio device pick
 Play and the previews use on this computer. An exported game plays on the system's default
 device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
 
+**Dialogue.** New Dialogue makes a conversation edited in the Dialogue tab (nodes of lines,
+options, jumps, variables and commands, with conditions); importing a Yarn Spinner `.yarn` file
+converts it; a DialogueBox node shows it in the game, typing each line out. User guide:
+[docs/manual/dialogue.md](docs/manual/dialogue.md).
+
 **Skeletal animation.** Skeleton2D and Bone2D nodes (Add Bone builds a chain) animated in the
 Timeline; SkinnedMesh bends one picture over bones (Make Mesh, Bind to Bones); IKChain turns bones
 toward a target; importing a DragonBones `_ske.json` makes a component and an atlas. User guide:

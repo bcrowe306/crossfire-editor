@@ -260,7 +260,7 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 	case .Node2D, .Sprite, .AnimatedSprite, .Camera, .Label, .Menu, .StaticBody, .DynamicBody, .CharacterMover, .Area,
 	     .CollisionShape, .RayCast, .Joint, .ParticleEmitter, .Component, .AudioPlayer, .AudioPlayer2D, .MusicPlayer,
 	     .LDtkLevel, .TileMap, .Animator, .Light2D, .LightOccluder, .NavRegion, .NavAgent, .StateMachine, .ParallaxLayer, .CameraZone, .CameraView,
-	     .VirtualJoystick, .TouchButton, .ScreenEffect, .Line2D, .Trail2D, .Skeleton2D, .Bone2D, .SkinnedMesh, .IKChain:
+	     .VirtualJoystick, .TouchButton, .ScreenEffect, .Line2D, .Trail2D, .Skeleton2D, .Bone2D, .SkinnedMesh, .IKChain, .DialogueBox:
 	}
 	if node.kind != .ProgressBar && node.kind != .Panel && node.kind != .ScrollBox {
 		append(&rows, inspectorRow(ctx, "Font size", number(ctx, s, key, .Text_Size, u.textSize, 1, 0, numberWidth, 0, 400)))

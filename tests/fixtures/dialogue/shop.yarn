@@ -1,0 +1,17 @@
+title: Shop
+position: 0,0
+---
+Keeper: Welcome to my shop! #line:greet
+<<declare $gold = 10>>
+-> Buy a potion (5 gold) <<if $gold >= 5>>
+    <<set $gold to $gold - 5>>
+    Keeper: Here's your potion. You have {$gold} gold left.
+-> Just looking
+    Keeper: Take your time.
+<<jump Goodbye>>
+===
+title: Goodbye
+position: 300,0
+---
+Keeper: Come again!
+===

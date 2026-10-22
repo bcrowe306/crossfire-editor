@@ -94,6 +94,8 @@ ProjectSnapshot :: struct {
 	animationSets: [dynamic]AnimationSetDef,
 	// UI themes by file, and the project's
 	themes: [dynamic]ThemeDef,
+	// Dialogues by file
+	dialogues: [dynamic]DialogueDef,
 	// Physics materials by file
 	materials: [dynamic]MaterialDef,
 	uiTheme: string,
@@ -333,6 +335,19 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s's shader", v.name, name), key("shader-param", v.name, s.currentScene, selected))
 	case Shader_New_Requested:
 		if v.forSelected && hasSelection do return node(selected, fmt.tprintf("Give %s a new shader", name))
+	// The Dialogue tab: a project step (the snapshot holds every dialogue); typing merges per
+	// field, a node's drag per gesture (dialogue_edit.odin)
+	case Dialogue_Changed:
+		if Dialogue_Shown(s) == nil do break
+		merge: u64 = 0
+		#partial switch v.op {
+		case .Node_Moved: merge = key("dialogue-move", s.dialogue.path, s.dialogue.node, s.history.gesture)
+		case .Step_Field, .Option_Field, .Node_Renamed: merge = key("dialogue-field", s.dialogue.path, s.dialogue.node, v.op, v.step, v.option, v.field)
+		}
+		return {scope = .Project, label = fmt.tprintf("Edit the dialogue %s (%v)", filepath.base(s.dialogue.path), v.op), mergeKey = merge}
+	case DialogueBox_Setting_Changed:
+		number := v.field == .Width || v.field == .Height || v.field == .Type_Speed || v.field == .Font_Size || v.field == .Padding
+		if hasSelection do return node(selected, fmt.tprintf("Change the %v of %s", v.field, name), number ? key("dialogue-box", v.field, s.currentScene, selected) : 0)
 	case Skeleton_Setting_Changed:
 		// The mesh grid is the editor's, not the node's (skeleton_edit.odin)
 		if v.field == .Mesh_Columns || v.field == .Mesh_Rows do break
@@ -847,7 +862,8 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.particles != b.particles || a.component != b.component ||
 	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera || a.touch != b.touch || a.touchActions != b.touchActions ||
 	   a.shader != b.shader || !propsEqual(a.shaderParams[:], b.shaderParams[:]) || a.effectScreenLayers != b.effectScreenLayers || a.line != b.line ||
-	   a.boneLength != b.boneLength || !e.MeshData_Equal(a.mesh, b.mesh) || a.ik != b.ik || a.ikTip != b.ikTip || a.ikTarget != b.ikTarget {
+	   a.boneLength != b.boneLength || !e.MeshData_Equal(a.mesh, b.mesh) || a.ik != b.ik || a.ikTip != b.ikTip || a.ikTarget != b.ikTarget ||
+	   a.dialogue != b.dialogue || a.dialogueStart != b.dialogueStart || a.dialogueBox != b.dialogueBox {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
@@ -945,6 +961,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for d in p.data do append(&snapshot.data, DataDef_Clone(d))
 	for set in p.animationSets do append(&snapshot.animationSets, AnimationSetDef_Clone(set))
 	for t in p.themes do append(&snapshot.themes, ThemeDef_Clone(t))
+	for d in p.dialogues do append(&snapshot.dialogues, DialogueDef_Clone(d))
 	for m in p.materials do append(&snapshot.materials, MaterialDef_Clone(m))
 	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
 	for b in p.buses do append(&snapshot.buses, BusDef_Clone(b))
@@ -1012,6 +1029,13 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 		if i < 0 do continue
 		AnimationSetDef_Destroy(&p.animationSets[i])
 		p.animationSets[i] = AnimationSetDef_Clone(set)
+	}
+	// Dialogues by file, the same way
+	for d in snapshot.dialogues {
+		i := Project_FindDialogue(p, d.path)
+		if i < 0 do continue
+		DialogueDef_Destroy(&p.dialogues[i])
+		p.dialogues[i] = DialogueDef_Clone(d)
 	}
 	// Themes by file, the same way
 	for t in snapshot.themes {
@@ -1084,6 +1108,8 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.animationSets)
 	for &t in snapshot.themes do ThemeDef_Destroy(&t)
 	delete(snapshot.themes)
+	for &d in snapshot.dialogues do DialogueDef_Destroy(&d)
+	delete(snapshot.dialogues)
 	for &m in snapshot.materials do MaterialDef_Destroy(&m)
 	delete(snapshot.materials)
 	delete(snapshot.uiTheme)
@@ -1114,6 +1140,8 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if a.uiTheme != b.uiTheme || len(a.themes) != len(b.themes) || a.transition != b.transition || a.loadingScene != b.loadingScene do return false
 	if a.steam != b.steam || !Achievements_Equal(a.achievements[:], b.achievements[:]) || a.players != b.players do return false
 	for t, i in a.themes do if !ThemeDef_Equal(t, b.themes[i]) do return false
+	if len(a.dialogues) != len(b.dialogues) do return false
+	for d, i in a.dialogues do if d.path != b.dialogues[i].path || !e.DialogueData_Equal(d.data, b.dialogues[i].data) do return false
 	if len(a.materials) != len(b.materials) do return false
 	for m, i in a.materials do if !MaterialDef_Equal(m, b.materials[i]) do return false
 	return true

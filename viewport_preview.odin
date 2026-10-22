@@ -549,6 +549,8 @@ provideComponents :: proc(s: ^State, game: ^e.Game) {
 	}
 	// Animation assets as they are in memory (unsaved edits show), and Aseprite files' (parsed
 	// once by the editor, not into the game's memory on every rebuild)
+	// Dialogues as they are in memory (dialogue_edit.odin)
+	Dialogue_ProvideToGame(s, game)
 	game.animationSets = make(map[string]^e.AnimationSetData, context.temp_allocator)
 	for &set in s.project.animationSets do game.animationSets[set.path] = new_clone(AnimationSetDef_ToData(&set), context.temp_allocator)
 	for scene in s.project.scenes do for node in scene.nodes {
@@ -758,6 +760,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 				particles = node.particles, component = node.component,
 				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav, stateMachine = node.stateMachine, cameraTools = node.cameraTools, viewCamera = node.viewCamera, touch = node.touch, touchActions = node.touchActions, shader = node.shader, shaderParams = shaderParamData(node.shaderParams[:]), effectScreenLayers = node.effectScreenLayers, line = node.line,
 				boneLength = node.boneLength, mesh = node.mesh, ik = node.ik, ikTip = node.ikTip, ikTarget = node.ikTarget,
+				dialogue = node.dialogue, dialogueStart = node.dialogueStart, dialogueBox = node.dialogueBox,
 		})
 	}
 	return data
@@ -781,6 +784,11 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_byte(&b, '|')
 		strings.write_int(&b, int(node.kind))
 		strings.write_int(&b, node.parent)
+		// A dialogue box: its settings, and its dialogue's text (its first line shows)
+		if node.kind == .DialogueBox {
+			fmt.sbprintf(&b, "|%s|%s|%v", node.dialogue, node.dialogueStart, node.dialogueBox)
+			if i := Project_FindDialogue(&s.project, node.dialogue); i >= 0 do strings.write_string(&b, e.FormatDialogue(s.project.dialogues[i].data, context.temp_allocator))
+		}
 		// A mesh, its picture and an IK chain's paths are built in (skeleton_edit.odin)
 		if node.kind == .SkinnedMesh || node.kind == .IKChain || node.kind == .Bone2D {
 			fmt.sbprintf(&b, "|%s|%s|%d|%d|%d|%d|%s|%s|%v|%v", node.texture, node.region, len(node.mesh.vertices), len(node.mesh.triangles), len(node.mesh.bones), hash.fnv64a(transmute([]u8)e.FormatWeights(node.mesh.weights[:])), node.ikTip, node.ikTarget, node.ik, node.boneLength)
@@ -1022,6 +1030,7 @@ thumbnailDestroy :: proc(t: ^Thumbnail) {
 	if t.game != nil {
 		e.Game_ForgetLDtk(t.game)
 		e.Game_ForgetAseprites(t.game)
+		e.DialogueVariables_Destroy(&t.game.dialogueVariables)
 		t.game.resourceManager->destroy()
 		free(t.game)
 	}
@@ -1069,6 +1078,8 @@ destroyAll :: proc() {
 		e.Game_ForgetAseprites(preview.game)
 		// Its themes are the preview's (previewThemes)
 		delete(preview.game.themes)
+		// A DialogueBox's conversation variables (dialogue_edit.odin)
+		e.DialogueVariables_Destroy(&preview.game.dialogueVariables)
 		preview.game.resourceManager->destroy()
 		free(preview.game)
 		preview.game = nil

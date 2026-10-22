@@ -11,6 +11,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 
 | Page | What it covers |
 |---|---|
+| [Dialogue](dialogue.md) | Conversations written in the Dialogue tab (lines, choices, conditions, variables, commands), Yarn Spinner files imported, the typewriter DialogueBox, scripts |
 | [Skeletal animation](skeletal_animation.md) | Bones and skeletons keyed in the Timeline, pictures bent over bones (skinned meshes), IK chains reaching targets, DragonBones characters imported |
 | [Asset import settings, atlases and fonts](asset_import.md) | Smooth or pixel-art filtering per image, texture atlases Sprites draw from, bitmap fonts, fonts sharp at any size (MSDF), converting sounds to Ogg Vorbis |
 | [Several scripts, node types and hot reload](scripts_node_types_hot_reload.md) | More than one script on a node, node types of your own made in code (a Player that is a Sprite), changing scripts while the game plays |

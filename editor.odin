@@ -52,6 +52,8 @@ BottomTab :: enum {
 	Live,
 	// A StateMachine's graph (view_states.odin)
 	States,
+	// A dialogue's nodes and steps (view_dialogue.odin)
+	Dialogue,
 }
 
 LogLevel :: enum {
@@ -93,6 +95,8 @@ BrowserFolder :: enum {
 	Materials,
 	// Texture atlases (atlas_edit.odin)
 	Atlases,
+	// Dialogues (dialogue_edit.odin)
+	Dialogues,
 }
 
 /*
@@ -276,6 +280,8 @@ State :: struct {
 	materialSelection: int,
 	// The atlas the inspector shows (atlas_edit.odin; -1 none): the browser selected it
 	atlasSelection: int,
+	// The Dialogue tab's dialogue and selection (dialogue_edit.odin)
+	dialogue: DialogueEditor,
 	// Collision from sprite's settings (collision_trace_edit.odin; view state)
 	trace: TraceSettings,
 	// The bus the inspector shows the effects of (an index into project.buses; -1 none), opened
@@ -342,7 +348,7 @@ init :: proc() -> State {
 		timeline = {node = -1, track = -1, key = -1},
 		states = {node = -1, state = -1, transition = -1},
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true, .Shaders = true, .Atlases = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true, .Shaders = true, .Atlases = true, .Dialogues = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		themeSelection = -1,
@@ -455,6 +461,7 @@ State_Destroy :: proc(state: ^State) {
 	ScriptCatalog_Clear(&state.scripts)
 	for f in state.scriptFiles do delete(f)
 	delete(state.scriptFiles)
+	delete(state.dialogue.path)
 	delete(state.newScript.name)
 	delete(state.listenerDialog.event)
 	NewEventDialog_Destroy(&state.newEvent)

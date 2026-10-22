@@ -1,0 +1,70 @@
+# Dialogue: a new dialogue edited in the Dialogue tab (a node added, lines and options typed, a
+# step moved, undo), a Yarn Spinner file imported, a DialogueBox playing it; saved and played.
+# Run with: task test:ui (and task test:ui:fullscreen)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+
+# New Dialogue: shown in the Dialogue tab, a Start node with a line
+send Dialogue_Created
+expect tab Dialogue
+expect dialogue shown dialogues/dialogue.dialogue.xml
+expect dialogue nodes 1
+send Dialogue_Select_Node 0
+expect dialogue node Start
+expect dialogue steps 1
+
+# The line's text typed; an Options step and a second node
+scroll_into_view dialogue-scroll dialogue-step-0-Text
+click_widget dialogue-step-0-Text
+key ctrl+a
+type Welcome, traveller!
+expect dialogue step 0 text Welcome, traveller!
+scroll_into_view dialogue-scroll dialogue-add-Options
+click_widget dialogue-add-Options
+expect dialogue steps 2
+expect dialogue step 1 options 2
+scroll_into_view dialogue-scroll dialogue-add-node
+click_widget dialogue-add-node
+expect dialogue nodes 2
+expect dialogue node Node
+send Dialogue_Select_Node 0
+scroll_into_view dialogue-scroll dialogue-step-1-option-0-Target
+click_widget dialogue-step-1-option-0-Target
+click_overlay_item 2
+scroll_into_view dialogue-scroll dialogue-step-1-up
+click_widget dialogue-step-1-up
+expect dialogue step 0 kind Options
+key ctrl+z
+expect dialogue step 0 kind Line
+
+# A Yarn Spinner file: a dialogue of its nodes
+import tests/fixtures/dialogue/shop.yarn
+expect asset dialogues/shop.dialogue.xml exists
+expect console_contains Imported shop.yarn
+
+# A DialogueBox playing it (choices: none, the dialogues)
+key escape
+key ctrl+shift+a
+type DialogueBox
+click_widget add-node-DialogueBox
+expect kind DialogueBox
+scroll_into_view inspector-scroll inspector-dialogue-Dialogue-{selected}
+click_widget inspector-dialogue-Dialogue-{selected}
+click_overlay_item 2
+expect dialogue shown dialogues/shop.dialogue.xml
+
+# Saved and played
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml dialogue="dialogues/shop.dialogue.xml"
+expect project_file_contains dialogues/dialogue.dialogue.xml Welcome, traveller!
+expect project_file_contains dialogues/shop.dialogue.xml <option text="Buy a potion (5 gold)"
+key ctrl+F5
+wait_until play Playing timeout=240
+wait 3
+expect console_lacks Couldn't
+expect console_lacks has no node
+key shift+F5
+wait_until play Stopped
+quit

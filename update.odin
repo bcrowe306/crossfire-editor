@@ -54,6 +54,15 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	}
 	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.materialSelection = -1
 	if out.materialSelection >= len(out.project.materials) do out.materialSelection = -1
+	// A dialogue chosen in the browser shows in the Dialogue tab (dialogue_edit.odin)
+	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
+	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Dialogue {
+		path := out.project.assets[out.browserSelection.index].path
+		if path != out.dialogue.path {
+			delete(out.dialogue.path)
+			out.dialogue = {path = strings.clone(path), node = 0, step = -1}
+		}
+	}
 	// And an atlas (atlas_edit.odin)
 	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
 	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Atlas {
@@ -100,6 +109,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := AssetImport_Update(&out, m); handled do return out, command
 	if AtlasEdit_Update(&out, m) do return out, {}
 	if SkeletonEdit_Update(&out, m) do return out, {}
+	if DialogueEdit_Update(&out, m) do return out, {}
+	if DialogueBoxEdit_Update(&out, m) do return out, {}
 	if LineEdit_Update(&out, m) do return out, {}
 	if command, handled := ShaderEdit_Update(&out, m); handled do return out, command
 	if NavEdit_Update(&out, m) do return out, {}
@@ -140,6 +151,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by AtlasEdit_Update above
 	case Skeleton_Setting_Changed, Skeleton_Bone_Added, Mesh_Made, Mesh_Bound:
 		// Handled by SkeletonEdit_Update above
+	case Dialogue_Changed, Dialogue_View, Dialogue_Created, DialogueBox_Setting_Changed:
+		// Handled by DialogueEdit_Update and DialogueBoxEdit_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
 	case TileMap_Setting_Changed:
@@ -1387,6 +1400,21 @@ selectedNode :: proc(state: ^State) -> ^NodeDef {
 // Imports a file and selects it in the browser
 @(private="package")
 importAsset :: proc(state: ^State, path: string) {
+	// A Yarn Spinner file: a dialogue (dialogue_edit.odin), and what wasn't converted
+	if Yarn_IsFile(path) {
+		index, warnings, problem := Yarn_Import(&state.project, path)
+		if problem != "" {
+			logLine(state, .Error, fmt.aprintf("Import failed: %s", problem))
+			return
+		}
+		state.session.assetsChanged = true
+		for w in warnings do logLine(state, .Warning, fmt.aprintf("Yarn: %s", w))
+		logLine(state, .Info, fmt.aprintf("Imported %s as %s", filepath.base(path), state.project.assets[index].path))
+		if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, strings.clone(message))
+		state.browserOpen[.Dialogues] = true
+		selectAsset(state, index)
+		return
+	}
 	// A DragonBones skeleton: a component and an atlas (skeleton_edit.odin), and what wasn't converted
 	if DragonBones_IsSkeleton(path) {
 		index, warnings, problem := DragonBones_Import(&state.project, path)

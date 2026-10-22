@@ -147,6 +147,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `audio_preview.odin` | Sound playback for the preview panel (SDL3_mixer; package state) |
 | `play.odin` | Play mode: save, build the player, run it as a child process, stream output, pause/stop |
 | `play_reload.odin` | **Hot reload**: `PlayReload` (`PlaySession.reload`): scripts newer than the running game rebuild `player-reload` beside it, describe it, ask the game for a `snapshot` over the live link, restart it with `--restore` (`playReloadTick`, from `playTick`); `settings.hotReload` |
+| `dialogue_edit.odin` | **Dialogues**: `DialogueDef` (`Project.dialogues`, asset kind Dialogue, `dialogues/`), `Project_CreateDialogue` / `SaveDialogues`, `Yarn_Import`, `DialogueEditor` (`State.dialogue`: the shown dialogue, node, step, drag), `Dialogue_Changed` (every edit: a `.Project` step) / `Dialogue_View`, DialogueBox's `NodeDef.dialogue` / `dialogueStart` / `dialogueBox` and rows (`dialogueBoxRows`, `DialogueBox_Setting_Changed`), `Dialogue_ProvideToGame` |
+| `view_dialogue.odin` | The bottom panel's **Dialogue** tab (`DialoguePanel`): the dialogue's graph (`dialogueGraph`: boxes with their first line, arrows for jumps and options), the selected node's steps and options as rows, + step buttons |
 | `skeleton_edit.odin` | **Skeletons**: `NodeDef.boneLength` / `mesh` / `ik` / `ikTip` / `ikTarget`, `Skeleton_Setting_Changed`, `Skeleton_Bone_Added`, `Mesh_Made` (`Mesh_FromPicture`: a grid, empty cells dropped), `Mesh_Bound` (`Mesh_AutoWeights`: nearest bones' segments, inverse square, up to 4), the inspector's rows (`skeletonInspectorRows`), `DragonBones_Import` (a `_ske.json` into a component and an atlas) |
 | `asset_import_edit.odin` | **Import settings**: `AssetDef.filter` / `msdf`, `Project.textureFilter` (Project Settings > General > Image filtering), `Asset_Filter_Changed` / `Asset_MSDF_Changed` / `Font_MSDF_Make_Requested`, `Fonts_MakeMSDF` (save, Play, exports), `Fonts_ExportFiles`, the previews' rows (`imageImportRows`, `fontPreview`, `audioImportRows`), sound conversion with ffmpeg (`Audio_Convert` on a worker, `Audio_ConvertFile`, `Audio_Converted`: references follow; `AUDIO_CONVERT_EXTENSIONS` converted on import), `Toolchain_FFmpeg` |
 | `atlas_edit.odin` | **Texture atlases**: `AtlasDef` (`Project.atlases`, asset kind Atlas, `atlases/`), `Project_CreateAtlas` (the browser's New Atlas), `Atlas_PackFiles` (packs with `e.Atlas_Pack`, writes the PNG and `.atlas.xml` on every edit), `atlasInspector` (`State.atlasSelection`), `atlasPreview`, Sprites' `NodeDef.region` (the Region row) |
@@ -1500,6 +1502,30 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/shaders.script` (the hit flash seen in the render, undo, New Shader compiled on
   save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
   `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
+
+## Dialogue (implemented, `dialogue_edit.odin`, `view_dialogue.odin`; engine: dialogue.odin, yarn.odin, dialogue_box.odin)
+
+- Dialogues are files edited in memory like animation sets: `Project.dialogues`, in the
+  `.Project` undo snapshot (restored by file), written by `Project_Save` when changed; creating,
+  importing and removing them are asset changes. The Dialogue tab shows `s.dialogue.path`: set
+  by New Dialogue, a browser selection of a dialogue asset (`update`), a DialogueBox's Dialogue
+  choice, the tab's own dropdown.
+- `Dialogue_Changed` ops act on the shown dialogue's selected node (`s.dialogue.node`); typing
+  merges per node, step, option and field; a node drag merges per `history.gesture` (bumped by
+  `Dialogue_View{.Drag_Begin}`). Renaming a node follows in jumps, options and the start.
+- The preview game gets the dialogues in memory (`Dialogue_ProvideToGame` in
+  `provideComponents`), and a DialogueBox's signature holds its dialogue's text, so a box shows
+  the edited first line at once (it autostarts on the preview's zero-time update). The preview
+  frees the game's `dialogueVariables` itself (`destroyAll`, thumbnails).
+- Importing a `.yarn` file converts it (`Yarn_Import`: `dialogues/<name>.dialogue.xml`, the Yarn
+  file isn't added); `AssetKindForPath` takes `.yarn` as Dialogue for the import dialog.
+- Labels: "Letter size" (not "Text size": Settings' editor text size), "Chosen color", "Box
+  padding", "Starts playing".
+- Tests: `dialogues_in_the_editor` (edits, renames following, undo, played by the engine, a Yarn
+  import, a DialogueBox drawn in the viewport, saved and read back), `tests/ui/dialogue.script`
+  (typing a line, + Options, + Node, an option's target, moving and undo, a Yarn import, a box
+  set up and played; driver `send Dialogue_Created` / `Dialogue_Select_Node`, check `dialogue
+  <field>`); fixture `tests/fixtures/dialogue/shop.yarn`. User guide: `docs/manual/dialogue.md`.
 
 ## Skeletons (implemented, `skeleton_edit.odin`; engine: skeleton.odin, dragonbones.odin)
 

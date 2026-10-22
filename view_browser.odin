@@ -217,6 +217,8 @@ browserMenuItems :: proc(s: ^State) -> []string {
 				add(&labels, "New Shader", Msg(Shader_New_Requested{}))
 			case .Atlas:
 				add(&labels, "New Atlas", Msg(Atlas_Created{}))
+			case .Dialogue:
+				add(&labels, "New Dialogue", Msg(Dialogue_Created{}))
 			case .Font, .Data, .Component, .Translation:
 			}
 		}
@@ -252,11 +254,16 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			add(&labels, "New Atlas", Msg(Atlas_Created{}))
 			break
 		}
+		if selection.kind == .Folder && selection.folder == .Dialogues {
+			add(&labels, "New Dialogue", Msg(Dialogue_Created{}))
+			break
+		}
 		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
 		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste Scene", .Paste_Node), Msg(Scene_Action{.Paste, -1}))
 		add(&labels, "New UI Theme", Msg(Theme_Created{}))
 		add(&labels, "New Physics Material", Msg(Material_Created{}))
 		add(&labels, "New Atlas", Msg(Atlas_Created{}))
+		add(&labels, "New Dialogue", Msg(Dialogue_Created{}))
 	}
 	return labels[:]
 }
@@ -505,6 +512,16 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			content = shaderPreview(s, ctx, asset)
 		case .Atlas:
 			content = atlasPreview(s, ctx, asset)
+		case .Dialogue:
+			i := Project_FindDialogue(&s.project, asset.path)
+			nodes := i >= 0 ? len(s.project.dialogues[i].data.nodes) : 0
+			content = skald.col(
+				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(fmt.tprintf("A dialogue of %d node%s: edit it in the bottom panel's Dialogue tab; a DialogueBox node plays it.", nodes, nodes == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+				skald.button(ctx, fmt.tprintf("%s  Edit in the Dialogue tab", ICON_COMMENTS), Msg(Bottom_Tab_Changed(int(BottomTab.Dialogue))), id = skald.hash_id("dialogue-preview-edit"),
+					bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+				spacing = th.spacing.xs,
+			)
 		case .PhysicsMaterial:
 			text := "A physics material; edit it in the inspector"
 			if i := Project_FindMaterial(&s.project, asset.path); i >= 0 {
@@ -695,6 +712,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Theme: return ICON_PALETTE
 	case .PhysicsMaterial: return ICON_CUBE
 	case .Atlas: return ICON_IMAGE
+	case .Dialogue: return ICON_COMMENTS
 	case .Shader: return ICON_WAND
 	}
 	return ICON_FILE

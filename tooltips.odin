@@ -220,6 +220,20 @@ fieldTip :: proc(label: string) -> string {
 	case "Solve": return "Turn the bones toward the target every frame (off: they keep their animation)."
 	case "Mesh columns": return "Make Mesh's grid: cells across the picture (more: smoother bends, more triangles)."
 	case "Mesh rows": return "Make Mesh's grid: cells down the picture."
+	case "Dialogue": return "The conversation this box plays (a dialogue asset; New Dialogue, or import a .yarn file)."
+	case "Start node": return "The dialogue node it starts in (its own start when not set)."
+	case "Box width": return "How wide the box is, in game pixels."
+	case "Box height": return "How tall the box is, in game pixels."
+	case "Type speed": return "Letters typed a second (0: each line at once)."
+	case "Letter size": return "The box's text size in points."
+	case "Box padding": return "Space between the box's edge and its text."
+	case "Box color": return "The box's color (its opacity too)."
+	case "Text color": return "The color of what's said and of the options."
+	case "Name color": return "The speaker's name's color."
+	case "Chosen color": return "The color of the option the player has picked."
+	case "Starts playing": return "Plays its dialogue as soon as the scene starts (else a script calls e.DialogueBox_Start)."
+	case "Hide when done": return "Hidden when a conversation ends, shown when one starts."
+	case "Box font": return "The font (\"None\": the default)."
 	case "Region": return "Which image of the atlas this Sprite draws."
 	case "Add image": return "Pack one of the project's images into this atlas."
 	case "Image gap": return "Empty pixels between the atlas's images, so they don't bleed into each other when scaled."
@@ -323,4 +337,4 @@ scriptFieldTip :: proc(field: ^ScriptFieldDesc) -> string {
 }
 
 // The bottom panel's tab strip
-BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control. Tiles: paint the selected TileMap. Timeline: the selected Animator's keyframe clips. Live: the game running from Play: pause, step, frame times, its nodes' values. States: the selected StateMachine's graph."
+BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control. Tiles: paint the selected TileMap. Timeline: the selected Animator's keyframe clips. Live: the game running from Play: pause, step, frame times, its nodes' values. States: the selected StateMachine's graph. Dialogue: a conversation's nodes and lines."

@@ -45,6 +45,10 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), THEME_EXTENSION) do return .Theme, true
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), MATERIAL_EXTENSION) do return .PhysicsMaterial, true
 		if e.Atlas_IsFile(path) do return .Atlas, true
+		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), e.DIALOGUE_EXTENSION) do return .Dialogue, true
+	// Yarn Spinner: converted into a dialogue on import (dialogue_edit.odin)
+	case ".yarn":
+		return .Dialogue, true
 	case ".ldtk":
 		return .LDtk, true
 	case ".csv":
@@ -89,6 +93,10 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 
 	// Already inside the project: reference it where it is
 	relative := ""
+	if Yarn_IsFile(source) {
+		index, _, problem := Yarn_Import(project, source)
+		return index, problem
+	}
 	if DragonBones_IsSkeleton(source) {
 		index, _, problem := DragonBones_Import(project, source)
 		return index, problem
@@ -126,6 +134,14 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 			return -1, problem
 		}
 		append(&project.animationSets, set)
+	}
+	if kind == .Dialogue {
+		dialogue, problem := Project_LoadDialogue(project.rootPath, relative)
+		if problem != "" {
+			DialogueDef_Destroy(&dialogue)
+			return -1, problem
+		}
+		append(&project.dialogues, dialogue)
 	}
 	if kind == .Atlas {
 		atlas, problem := Project_LoadAtlas(project.rootPath, relative)
@@ -186,6 +202,10 @@ Project_RemoveAsset :: proc(project: ^Project, index: int, deleteFile: bool) -> 
 	if a := Project_FindAnimationSet(project, asset.path); a >= 0 {
 		AnimationSetDef_Destroy(&project.animationSets[a])
 		ordered_remove(&project.animationSets, a)
+	}
+	if d := Project_FindDialogue(project, asset.path); d >= 0 {
+		DialogueDef_Destroy(&project.dialogues[d])
+		ordered_remove(&project.dialogues, d)
 	}
 	if a := Project_FindAtlas(project, asset.path); a >= 0 {
 		AtlasDef_Destroy(&project.atlases[a])

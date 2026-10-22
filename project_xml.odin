@@ -50,6 +50,7 @@ Project_Save :: proc(project: ^Project) -> string {
 	if message := Project_SaveData(project); message != "" do return message
 	if message := Project_SaveAnimationSets(project); message != "" do return message
 	if message := Project_SaveThemes(project); message != "" do return message
+	if message := Project_SaveDialogues(project); message != "" do return message
 	if message := Project_SaveMaterials(project); message != "" do return message
 	// The typed asset constants for scripts follow the asset list
 	if message := Scripts_WriteAssetsFile(project); message != "" do return message
@@ -694,6 +695,23 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			if n.avoidRadius != d.avoidRadius do attr(w, "avoidRadius", n.avoidRadius)
 			if n.autoMove != d.autoMove do attr(w, "autoMove", n.autoMove)
 		}
+	case .DialogueBox:
+		// dialogue_edit.odin: its dialogue, start node, and the settings that aren't the defaults
+		b, d := node.dialogueBox, defaults.dialogueBox
+		if node.dialogue != "" do attr(w, "dialogue", node.dialogue)
+		if node.dialogueStart != "" do attr(w, "startNode", node.dialogueStart)
+		if b.size.x != d.size.x do attr(w, "boxWidth", b.size.x)
+		if b.size.y != d.size.y do attr(w, "boxHeight", b.size.y)
+		if b.typeSpeed != d.typeSpeed do attr(w, "typeSpeed", b.typeSpeed)
+		if b.fontSize != d.fontSize do attr(w, "textSize", b.fontSize)
+		if b.font != "" do attr(w, "boxFont", b.font)
+		if b.padding != d.padding do attr(w, "boxPadding", b.padding)
+		if b.background != d.background do attr(w, "boxColor", e.FormatColor(b.background, context.temp_allocator))
+		if b.textColor != d.textColor do attr(w, "textColor", e.FormatColor(b.textColor, context.temp_allocator))
+		if b.nameColor != d.nameColor do attr(w, "nameColor", e.FormatColor(b.nameColor, context.temp_allocator))
+		if b.pickColor != d.pickColor do attr(w, "pickColor", e.FormatColor(b.pickColor, context.temp_allocator))
+		if b.autostart != d.autostart do attr(w, "boxAutostart", b.autostart)
+		if b.hideWhenDone != d.hideWhenDone do attr(w, "hideWhenDone", b.hideWhenDone)
 	case .Skeleton2D:
 	case .Bone2D:
 		if node.boneLength != defaults.boneLength do attr(w, "boneLength", node.boneLength)

@@ -1064,6 +1064,7 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .ScreenEffect: return skald.rgb(0xe08bff)
 	case .Line2D, .Trail2D: return skald.rgb(0xff9d5c)
 	case .Skeleton2D, .Bone2D, .SkinnedMesh, .IKChain: return skald.rgb(0xe8c39e)
+	case .DialogueBox: return skald.rgb(0xf2a6c8)
 	// State machines: the Animator's purple, bluer
 	case .StateMachine:   return skald.rgb(0xa8b4ff)
 	// Camera tools: the Camera's amber
@@ -1193,6 +1194,6 @@ drawSkeletonNode :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportSta
 	case .Node2D, .Sprite, .AnimatedSprite, .Camera, .Label, .Menu, .StaticBody, .DynamicBody, .CharacterMover, .Area,
 	     .CollisionShape, .RayCast, .Joint, .ParticleEmitter, .Component, .AudioPlayer, .AudioPlayer2D, .MusicPlayer,
 	     .LDtkLevel, .TileMap, .Animator, .Light2D, .LightOccluder, .NavRegion, .NavAgent, .StateMachine, .ParallaxLayer, .CameraZone, .CameraView,
-	     .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .VirtualJoystick, .TouchButton, .ScreenEffect, .Line2D, .Trail2D:
+	     .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .VirtualJoystick, .TouchButton, .ScreenEffect, .Line2D, .Trail2D, .DialogueBox:
 	}
 }

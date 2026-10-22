@@ -234,12 +234,14 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		// A path for e.Node_SetShader
 		case .Shader: prefix, type = "SHADER", ""
 		case .Atlas: prefix, type = "ATLAS", ""
+		case .Dialogue: prefix, type = "DIALOGUE", ""
 		// Games load every table themselves; scripts use their keys
 		case .Translation, .Theme, .PhysicsMaterial: continue
 		}
 		stem := asset.kind == .Data ? DataName(asset.path) : asset.kind == .Component ? ComponentName(asset.path) : filepath.stem(filepath.base(asset.path))
 		if asset.kind == .Animation do stem = strings.trim_suffix(filepath.base(asset.path), ANIMATION_EXTENSION)
 		if asset.kind == .Atlas do stem = strings.trim_suffix(filepath.base(asset.path), e.ATLAS_EXTENSION)
+		if asset.kind == .Dialogue do stem = strings.trim_suffix(filepath.base(asset.path), e.DIALOGUE_EXTENSION)
 		comment := ""
 		if asset.kind == .Data {
 			if i := Project_FindData(project, asset.path); i >= 0 do comment = fmt.tprintf("  // %s", project.data[i].type)

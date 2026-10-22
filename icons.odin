@@ -25,6 +25,7 @@ ICON_BONE        :: "\uf5d7"
 ICON_PERSON      :: "\uf183"
 ICON_DRAW_POLYGON :: "\uf5ee"
 ICON_CROSSHAIRS  :: "\uf05b"
+ICON_COMMENTS    :: "\uf086"
 ICON_GAMEPAD     :: "\uf11b"
 ICON_WAND        :: "\uf0d0"
 ICON_PEN         :: "\uf304"
@@ -154,6 +155,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .Bone2D:         return ICON_BONE
 	case .SkinnedMesh:    return ICON_DRAW_POLYGON
 	case .IKChain:        return ICON_CROSSHAIRS
+	case .DialogueBox:    return ICON_COMMENTS
 	case .Trail2D:        return ICON_WIND
 	}
 	return ICON_CUBE

@@ -219,6 +219,8 @@ Checks:
 	atlas <regions|padding|filter> <value>
 	                             The atlas the inspector shows
 	region <name | none>         The selected Sprite's atlas region
+	dialogue <shown | nodes | start | node | steps | step <i> <text|speaker|kind|options|target>> <value>
+	                             The Dialogue tab's dialogue and its selected node
 	node_type <name | none>      The selected node's node type of the project's code
 	more_scripts <a,b | none>    The selected node's more scripts (after its first)
 	script_prop <script> <field> <value>
@@ -1212,6 +1214,8 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			msg = Git_Op_Requested{op = .Switch_Branch, arg = strings.clone(value, context.temp_allocator)}
 		case "Node_Script_Added":     msg = Node_Script_Added(strings.clone(value, context.temp_allocator))
 		case "Atlas_Created":         msg = Atlas_Created{}
+		case "Dialogue_Created":      msg = Dialogue_Created{}
+		case "Dialogue_Select_Node":  if i, ok := strconv.parse_int(value); ok do msg = Dialogue_View{op = .Select_Node, index = i}
 		// A node's texture or region as its dropdown would set it (atlas_edit.odin)
 		case "Node_Texture":          msg = Node_Text_Changed{.Texture, strings.clone(value, context.temp_allocator)}
 		case "Node_Region":           msg = Node_Text_Changed{.Region, strings.clone(value, context.temp_allocator)}
@@ -1801,6 +1805,41 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "padding": found = fmt.tprint(a.padding)
 		case "filter":  found = fmt.tprint(a.filter)
 		case: return false, fmt.tprintf("unknown atlas field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "dialogue":
+		// "dialogue <shown | nodes | start | steps | node | step <i> <text|speaker|kind|options>> <value>":
+		// the Dialogue tab's dialogue and its selected node
+		def := Dialogue_Shown(s)
+		field, _, expected := strings.partition(value, " ")
+		if field == "shown" {
+			found = def != nil ? def.path : "none"
+			return found == strings.trim_space(expected), found
+		}
+		if def == nil do return false, "no dialogue shown"
+		d := &def.data
+		node := s.dialogue.node
+		switch field {
+		case "nodes": found = fmt.tprint(len(d.nodes))
+		case "start": found = d.start
+		case "node":  found = node >= 0 && node < len(d.nodes) ? d.nodes[node].name : "none"
+		case "steps": found = node >= 0 && node < len(d.nodes) ? fmt.tprint(len(d.nodes[node].steps)) : "none"
+		case "step":
+			index, _, rest := strings.partition(expected, " ")
+			what, _, want := strings.partition(rest, " ")
+			i, _ := strconv.parse_int(index)
+			if node < 0 || node >= len(d.nodes) || i < 0 || i >= len(d.nodes[node].steps) do return false, "no such step"
+			st := d.nodes[node].steps[i]
+			switch what {
+			case "text":    found = st.text
+			case "speaker": found = st.speaker
+			case "kind":    found = fmt.tprint(st.kind)
+			case "options": found = fmt.tprint(len(st.options))
+			case "target":  found = st.target
+			case: return false, fmt.tprintf("unknown step field '%s'", what)
+			}
+			return found == strings.trim_space(want), found
+		case: return false, fmt.tprintf("unknown dialogue field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
 	case "region":

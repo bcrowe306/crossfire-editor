@@ -194,6 +194,10 @@ NodeDef :: struct {
 	mesh: e.MeshData,
 	ik: e.IKSettings,
 	ikTip, ikTarget: string,
+	// DialogueBox (dialogue_edit.odin): its dialogue asset and start node (owned), and the engine's
+	// settings (its font owned)
+	dialogue, dialogueStart: string,
+	dialogueBox: e.DialogueBoxSettings,
 	// A StateMachine's states, transitions and parameters (owned: state_machine_edit.odin)
 	stateMachine: e.StateMachineSettings,
 	// ParallaxLayer, CameraZone, CameraView settings (plain) and a CameraView's camera (owned):
@@ -331,6 +335,8 @@ AssetKind :: enum {
 	Shader,
 	// A texture atlas (`.atlas.xml`, atlas_edit.odin): images packed into one picture
 	Atlas,
+	// A dialogue (`.dialogue.xml`, dialogue_edit.odin): a conversation's nodes and steps
+	Dialogue,
 }
 
 /*
@@ -391,6 +397,8 @@ Project :: struct {
 	animationSets: [dynamic]AnimationSetDef,
 	// UI themes (`.theme.xml` assets: theme_edit.odin), and the project's (`uiTheme`; "" none)
 	themes: [dynamic]ThemeDef,
+	// Dialogues (dialogue_edit.odin), one per asset of kind Dialogue
+	dialogues: [dynamic]DialogueDef,
 	// Physics materials (`.material.xml` assets: material_edit.odin)
 	materials: [dynamic]MaterialDef,
 	// Texture atlases (atlas_edit.odin), one per asset of kind Atlas
@@ -483,6 +491,9 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		ik = defaults.ik,
 		ikTip = strings.clone(""),
 		ikTarget = strings.clone(""),
+		dialogue = strings.clone(""),
+		dialogueStart = strings.clone(""),
+		dialogueBox = defaults.dialogueBox,
 	}
 	// A NavRegion covers a screenful to begin with; a StateMachine has a first state
 	if kind == .NavRegion do node.shapeSize = {640, 360}
@@ -542,6 +553,9 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	e.MeshData_Destroy(&node.mesh)
 	delete(node.ikTip)
 	delete(node.ikTarget)
+	delete(node.dialogue)
+	delete(node.dialogueStart)
+	delete(node.dialogueBox.font)
 	delete(node.bodyA)
 	delete(node.bodyB)
 	for &a in node.animations do AnimationDef_Destroy(&a)
@@ -743,6 +757,8 @@ Project_Destroy :: proc(project: ^Project) {
 	for &set in project.animationSets do AnimationSetDef_Destroy(&set)
 	delete(project.animationSets)
 	for &t in project.themes do ThemeDef_Destroy(&t)
+	for &d in project.dialogues do DialogueDef_Destroy(&d)
+	delete(project.dialogues)
 	delete(project.themes)
 	for &m in project.materials do MaterialDef_Destroy(&m)
 	delete(project.materials)
@@ -820,6 +836,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "PhysicsMaterial": kind = .PhysicsMaterial
 		case "Shader": kind = .Shader
 		case "Atlas": kind = .Atlas
+		case "Dialogue": kind = .Dialogue
 		}
 		append(&project.assets, AssetDef{path = strings.clone(asset.path), kind = kind, filter = asset.filter, msdf = asset.msdf})
 		// A data resource's values come from its file
@@ -868,6 +885,16 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 			append(&project.materials, material)
 		}
 		// A theme's font and values come from its file
+		if kind == .Dialogue {
+			dialogue, problem := Project_LoadDialogue(rootPath, asset.path)
+			if problem != "" {
+				list := make([dynamic]string, context.temp_allocator)
+				append(&list, ..warnings)
+				append(&list, problem)
+				warnings = list[:]
+			}
+			append(&project.dialogues, dialogue)
+		}
 		if kind == .Theme {
 			theme, problem := Project_LoadTheme(rootPath, asset.path)
 			if problem != "" {
@@ -1042,6 +1069,10 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.ik = node.ik
 	def.ikTip = strings.clone(node.ikTip)
 	def.ikTarget = strings.clone(node.ikTarget)
+	def.dialogue = strings.clone(node.dialogue)
+	def.dialogueStart = strings.clone(node.dialogueStart)
+	def.dialogueBox = node.dialogueBox
+	def.dialogueBox.font = strings.clone(node.dialogueBox.font)
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)
