@@ -673,6 +673,10 @@ Export_ProjectFiles :: proc(project: ^Project, allocator := context.allocator) -
 	for asset in project.assets do append(&files, strings.clone(asset.path, allocator))
 	// Shaders: the compiled file games read (shader_edit.odin compiles it before exports)
 	for asset in project.assets do if asset.kind == .Shader do append(&files, strings.concatenate({asset.path, ".shader"}, allocator))
+	// Fonts' MSDF atlases and bitmap fonts' page images (asset_import_edit.odin)
+	append(&files, ..Fonts_ExportFiles(project, allocator))
+	// Atlases' packed pictures (atlas_edit.odin)
+	for a in project.atlases do if a.data.image != "" do append(&files, strings.clone(a.data.image, allocator))
 	// What LDtk projects need with them: tileset images, separate level files, backgrounds
 	append(&files, ..LDtkEdit_ExportFiles(project, allocator))
 	return files[:]

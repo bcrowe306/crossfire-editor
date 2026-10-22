@@ -91,6 +91,8 @@ BrowserFolder :: enum {
 	Shaders,
 	// Physics materials (material_edit.odin)
 	Materials,
+	// Texture atlases (atlas_edit.odin)
+	Atlases,
 }
 
 /*
@@ -272,6 +274,8 @@ State :: struct {
 	themeSelection: int,
 	// The physics material the inspector shows (an index into project.materials; -1 none)
 	materialSelection: int,
+	// The atlas the inspector shows (atlas_edit.odin; -1 none): the browser selected it
+	atlasSelection: int,
 	// Collision from sprite's settings (collision_trace_edit.odin; view state)
 	trace: TraceSettings,
 	// The bus the inspector shows the effects of (an index into project.buses; -1 none), opened
@@ -338,11 +342,12 @@ init :: proc() -> State {
 		timeline = {node = -1, track = -1, key = -1},
 		states = {node = -1, state = -1, transition = -1},
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true, .Shaders = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true, .Shaders = true, .Atlases = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		themeSelection = -1,
 		materialSelection = -1,
+		atlasSelection = -1,
 		trace = DEFAULT_TRACE_SETTINGS,
 		busSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},

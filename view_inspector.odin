@@ -321,6 +321,15 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			bg = th.color.bg,
 		)
 	}
+	if s.atlasSelection >= 0 && s.atlasSelection < len(s.project.atlases) {
+		return skald.col(
+			header,
+			skald.divider(ctx),
+			skald.flex(1, skald.scroll(ctx, {0, 0}, atlasInspector(s, ctx), id = skald.hash_id("inspector-scroll"))),
+			cross_align = .Stretch,
+			bg = th.color.bg,
+		)
+	}
 	if s.materialSelection >= 0 && s.materialSelection < len(s.project.materials) {
 		return skald.col(
 			header,
@@ -413,11 +422,11 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	flag :: proc(ctx: ^skald.Ctx(Msg), key: int, flag: NodeFlag, value: bool) -> skald.View {
 		return skald.checkbox(ctx, value, "", flag, onFlag, id = skald.hash_id(fmt.tprintf("inspector-%v-%d", flag, key)))
 	}
-	textureSelect :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, value: string, width: f32) -> skald.View {
-		// The project's images, and "None" to clear it
+	textureSelect :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, value: string, width: f32, atlases := false) -> skald.View {
+		// The project's images (and atlases, for a Sprite), and "None" to clear it
 		images := make([dynamic]string, context.temp_allocator)
 		append(&images, TEXTURE_NONE)
-		for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)
+		for asset in s.project.assets do if asset.kind == .Image || (atlases && asset.kind == .Atlas) do append(&images, asset.path)
 		return skald.select(ctx, value == "" ? TEXTURE_NONE : value, images[:], NodeTextField.Texture, onText,
 			id = skald.hash_id(fmt.tprintf("inspector-texture-%d", key)), width = width, placeholder = "Choose an image")
 	}
@@ -446,7 +455,15 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	switch node.kind {
 	case .Node2D:
 	case .Sprite:
-		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth)))
+		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth, atlases = true)))
+		// An atlas: which of its images (atlas_edit.odin)
+		if Asset_IsAtlas(node.texture) {
+			regions := make([dynamic]string, context.temp_allocator)
+			append(&regions, REGION_NONE)
+			append(&regions, ..Atlas_RegionNames(&s.project, node.texture))
+			append(&rows, inspectorRow(ctx, "Region", skald.select(ctx, node.region == "" ? REGION_NONE : node.region, regions[:], NodeTextField.Region, onText,
+				id = skald.hash_id(fmt.tprintf("inspector-region-%d", key)), width = controlWidth)))
+		}
 		append(&rows, ..asepriteSpriteRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .AnimatedSprite:
 		// The animations themselves are edited in the bottom panel's Animation tab; they're the

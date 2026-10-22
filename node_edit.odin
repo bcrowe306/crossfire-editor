@@ -65,6 +65,7 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.asepriteLayers = strings.clone(node.asepriteLayers)
 	copy.pivotSlice = strings.clone(node.pivotSlice)
 	copy.nineSlice = strings.clone(node.nineSlice)
+	copy.region = strings.clone(node.region)
 	copy.slice = strings.clone(node.slice)
 	copy.autoplay = strings.clone(node.autoplay)
 	copy.component = strings.clone(node.component)

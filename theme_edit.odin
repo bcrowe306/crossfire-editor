@@ -128,7 +128,7 @@ Project_CreateTheme :: proc(project: ^Project, name: string) -> (int, string) {
 		ThemeDef_Destroy(&def)
 		return -1, fmt.tprintf("Couldn't write %s: %v", path, err)
 	}
-	append(&project.assets, AssetDef{strings.clone(path), .Theme})
+	append(&project.assets, AssetDef{path = strings.clone(path), kind = .Theme})
 	append(&project.themes, def)
 	return len(project.themes) - 1, ""
 }

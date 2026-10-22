@@ -212,6 +212,13 @@ General > Sound output changes the format; Settings > Editor > Audio device pick
 Play and the previews use on this computer. An exported game plays on the system's default
 device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
 
+**Import settings, atlases and fonts.** Each image chooses smooth or pixel-art filtering (or the
+project's, Project Settings > General > Image filtering); New Atlas packs images into one picture
+that Sprites draw regions of; `.fnt` bitmap fonts work like any font, and a TrueType font can be
+made sharp at any size (MSDF, with the shader tools' msdf-atlas-gen); sounds convert to Ogg
+Vorbis with ffmpeg (and m4a, aac, opus... convert on import). User guide:
+[docs/manual/asset_import.md](docs/manual/asset_import.md).
+
 **Lines, trails and GPU particles.** Line2D nodes draw thick lines through points (ropes,
 lasers, paths: color gradients, round joints and caps, loops, textures); Trail2D nodes leave a
 tapering, fading ribbon behind their parent. A ParticleEmitter's **On the GPU** runs up to

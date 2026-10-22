@@ -54,6 +54,17 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	}
 	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.materialSelection = -1
 	if out.materialSelection >= len(out.project.materials) do out.materialSelection = -1
+	// And an atlas (atlas_edit.odin)
+	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
+	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Atlas {
+		out.atlasSelection = Project_FindAtlas(&out.project, out.project.assets[out.browserSelection.index].path)
+	}
+	if out.browserSelection != state.browserSelection && !(out.browserSelection.kind == .Asset && out.browserSelection.index < len(out.project.assets) &&
+	   out.project.assets[out.browserSelection.index].kind == .Atlas) && out.browserSelection.kind != .None {
+		out.atlasSelection = -1
+	}
+	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.atlasSelection = -1
+	if out.atlasSelection >= len(out.project.atlases) do out.atlasSelection = -1
 	// A bus opened from the Mixer: until a node or something in the browser is chosen
 	if (out.selectedNode >= 0 && out.selectedNode != state.selectedNode) || (out.browserSelection != state.browserSelection && out.browserSelection.kind != .None) do out.busSelection = -1
 	if out.busSelection >= len(out.project.buses) do out.busSelection = -1
@@ -86,6 +97,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if LightEdit_Update(&out, m) do return out, {}
 	if TouchEdit_Update(&out, m) do return out, {}
 	if command, handled := NodeScripts_Update(&out, m); handled do return out, command
+	if command, handled := AssetImport_Update(&out, m); handled do return out, command
+	if AtlasEdit_Update(&out, m) do return out, {}
 	if LineEdit_Update(&out, m) do return out, {}
 	if command, handled := ShaderEdit_Update(&out, m); handled do return out, command
 	if NavEdit_Update(&out, m) do return out, {}
@@ -120,6 +133,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by SettingsDialog_Update above
 	case Node_Script_Added, Node_Script_Removed, Node_Script_Open:
 		// Handled by NodeScripts_Update above
+	case Asset_Filter_Changed, Asset_MSDF_Changed, Font_MSDF_Make_Requested, Audio_Convert_Requested, Audio_Converted:
+		// Handled by AssetImport_Update above
+	case Atlas_Created, Atlas_Image_Added, Atlas_Image_Removed, Atlas_Padding_Changed, Atlas_Filter_Changed, Atlas_Pack_Requested:
+		// Handled by AtlasEdit_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
 	case TileMap_Setting_Changed:
@@ -353,7 +370,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		path, line := Script_Location(&out, name)
 		return out, skald.cmd_batch(Script_Open(&out, path, line), scriptsBuild(&out))
 
-	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Renderer_Changed, Project_Settings_Background_Changed,
+	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Renderer_Changed, Project_Settings_Texture_Filter_Changed, Project_Settings_Background_Changed,
 	     Project_Settings_Start_Changed, Project_Settings_Locale_Changed, Project_Settings_Icon_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
 	     Project_Settings_Tab_Changed, Export_Target_Selected, Export_Target_Enabled, Export_Text_Changed, Export_Flag_Changed,
 	     Export_Target_Run, Export_Cancel_Requested, Project_Settings_Physics_Changed, Project_Settings_Physics_Debug_Changed,
@@ -414,6 +431,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 
 	case Asset_Import_Result:
 		if v.cancelled || v.path == "" do break
+		// A sound games can't play: converted to Ogg Vorbis first (asset_import_edit.odin)
+		if Audio_NeedsConversion(v.path) do return out, Audio_Convert(&out, v.path, -1)
 		importAsset(&out, v.path)
 
 	case Asset_Remove_Confirmed:
@@ -963,6 +982,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Texture:
 			delete(node.texture)
 			node.texture = strings.clone(v.value == TEXTURE_NONE ? "" : v.value)
+			// An atlas: its first region (a Sprite draws one); another picture: none
+			if node.kind == .Sprite {
+				regions := Atlas_RegionNames(&out.project, node.texture)
+				delete(node.region)
+				node.region = strings.clone(len(regions) > 0 ? regions[0] : "")
+			}
 		case .Color:
 			if color, ok := e.ParseColor(v.value); ok do node.color = color
 		case .Sound:
@@ -992,6 +1017,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Nine_Slice:
 			delete(node.nineSlice)
 			node.nineSlice = strings.clone(v.value == SLICE_NONE ? "" : v.value)
+		case .Region:
+			delete(node.region)
+			node.region = strings.clone(v.value == REGION_NONE ? "" : v.value)
 		case .Slice:
 			delete(node.slice)
 			node.slice = strings.clone(v.value == SLICE_NONE ? "" : v.value)
@@ -1354,7 +1382,7 @@ selectedNode :: proc(state: ^State) -> ^NodeDef {
 }
 
 // Imports a file and selects it in the browser
-@(private="file")
+@(private="package")
 importAsset :: proc(state: ^State, path: string) {
 	index, message := Project_ImportAsset(&state.project, path)
 	if message == "" do state.session.assetsChanged = true

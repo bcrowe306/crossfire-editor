@@ -45,6 +45,8 @@ NumberTarget :: union {
 	CameraToolNumber,
 	// Collision from sprite's settings (view state)
 	TraceNumber,
+	// The shown atlas's padding (atlas_edit.odin)
+	AtlasPaddingTarget,
 }
 
 GameSizeTarget :: distinct int
@@ -171,6 +173,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case SMAfterTarget: return SM_Changed{op = .Transition_After, number = f32(value)}
 	case CameraToolNumber: return Camera_Tool_Changed{field = CameraToolField(t), value = f32(value)}
 	case TraceNumber: return Trace_Setting_Changed{field = TraceField(t), value = f32(value)}
+	case AtlasPaddingTarget: return Atlas_Padding_Changed(int(value))
 	case TimelineNumber:
 		ops := [TimelineNumber]TimelineOp{.Length = .Clip_Length, .Speed = .Speed, .Key_Time = .Key_Time}
 		return Timeline_Changed{op = ops[t], number = f32(value)}

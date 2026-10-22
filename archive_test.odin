@@ -83,7 +83,7 @@ project_archive_brings_outside_assets_in :: proc(t: ^testing.T) {
 	root := joinPath(dir, "Game", allocator = context.temp_allocator)
 	project := Project_CreateEmpty(root, "My Game")
 	defer Project_Destroy(&project)
-	append(&project.assets, AssetDef{strings.clone("../outside/ship.png"), .Image})
+	append(&project.assets, AssetDef{path = strings.clone("../outside/ship.png"), kind = .Image})
 	scene := &project.scenes[0]
 	sprite := Scene_InsertNode(scene, "Ship", .Sprite, 0)
 	scene.nodes[sprite].texture = strings.clone("../outside/ship.png")

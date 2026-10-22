@@ -28,7 +28,7 @@ testState :: proc() -> State {
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
 		busSelection = -1,
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true, .Shaders = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true, .Shaders = true, .Atlases = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
@@ -222,9 +222,9 @@ browser_opens_scenes_and_toggles_folders :: proc(t: ^testing.T) {
 
 	send(&state, Browser_Toggled(0))
 	testing.expect_value(t, state.browserOpen[.Scenes], false)
-	// Only Images is open, with 3 images; the Scripts, Animations, Themes, Materials and Shaders
-	// folders are hidden (the project has none of them)
-	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) - 5 + 3)
+	// Only Images is open, with 3 images; the Scripts, Animations, Themes, Materials, Shaders and
+	// Atlases folders are hidden (the project has none of them)
+	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) - 6 + 3)
 }
 
 @(test)
@@ -313,7 +313,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	original.audioOutput = {frequency = 44100, channels = 1}
 	original.locale = strings.clone("fr")
 	original.icon = strings.clone("assets/ship.png")
-	append(&original.assets, AssetDef{strings.clone("i18n/strings.csv"), .Translation})
+	append(&original.assets, AssetDef{path = strings.clone("i18n/strings.csv"), kind = .Translation})
 
 	testing.expect_value(t, Project_Save(&original), "")
 	loaded, message, _ := Project_Load(dir)
@@ -2534,7 +2534,7 @@ generated_asset_constants :: proc(t: ^testing.T) {
 	defer removeAll(dir)
 	project := Project_CreateDemo(dir)
 	defer Project_Destroy(&project)
-	append(&project.assets, AssetDef{strings.clone("assets/laser.wav"), .Audio}, AssetDef{strings.clone("other/ship.png"), .Image}, AssetDef{strings.clone("fonts/title font.ttf"), .Font})
+	append(&project.assets, AssetDef{path = strings.clone("assets/laser.wav"), kind = .Audio}, AssetDef{path = strings.clone("other/ship.png"), kind = .Image}, AssetDef{path = strings.clone("fonts/title font.ttf"), kind = .Font})
 	_, _ = Project_CreateData(&project, "Fast Ship", "ShipStats")
 	source := Scripts_AssetsSource(&project)
 	testing.expect(t, strings.contains(source, "package scripts"))
@@ -2589,7 +2589,7 @@ globals_dialog_and_data_edits :: proc(t: ^testing.T) {
 	testing.expect(t, len(state.project.globals) == 1 && state.project.globals[0].script == "GameState")
 
 	// A data resource: chosen in the browser, edited (undoable), deselected by picking a node
-	append(&state.project.assets, AssetDef{strings.clone("data/boss.data.json"), .Data})
+	append(&state.project.assets, AssetDef{path = strings.clone("data/boss.data.json"), kind = .Data})
 	append(&state.project.data, DataDef{path = strings.clone("data/boss.data.json"), type = strings.clone("EnemyStats")})
 	asset := len(state.project.assets) - 1
 	send(&state, Browser_Right_Clicked(-1))
@@ -3055,7 +3055,7 @@ components_render_in_instances_and_thumbnails :: proc(t: ^testing.T) {
 	component.nodes[label].fontSize = 40
 	component.nodes[label].color = {255, 0, 255, 255}
 	append(&state.project.scenes, component)
-	append(&state.project.assets, AssetDef{strings.clone("components/badge.component.xml"), .Component})
+	append(&state.project.assets, AssetDef{path = strings.clone("components/badge.component.xml"), kind = .Component})
 	scene := &state.project.scenes[0]
 	index := Scene_InsertNode(scene, "Badge1", .Component, -1)
 	delete(scene.nodes[index].component)
@@ -3135,7 +3135,7 @@ sound_nodes_and_buses_round_trip :: proc(t: ^testing.T) {
 	testing.expect_value(t, project.buses[0].name, e.MASTER_BUS)
 	project.buses[0].volume = 0.8
 	append(&project.buses, BusDef{name = strings.clone("SFX"), volume = 0.5, pan = -0.25, mute = true}, BusDef{name = strings.clone("Music"), volume = 1})
-	append(&project.assets, AssetDef{strings.clone("assets/theme.ogg"), .Music})
+	append(&project.assets, AssetDef{path = strings.clone("assets/theme.ogg"), kind = .Music})
 
 	scene := &project.scenes[1]
 	sound := NodeDef_Make("Laser", .AudioPlayer, -1)
@@ -3931,16 +3931,16 @@ assets_dropped_on_code_become_fields :: proc(t: ^testing.T) {
 	defer State_Destroy(&state)
 	st := NodeField_Struct{name = "Hero", engineAlias = "e", fields = {"coin"}}
 	testing.expect_value(t, AssetField_BaseName("components/coin.component.xml"), "coin")
-	line, name, ok := AssetField_Line(st, &state.project, AssetDef{"components/coin.component.xml", .Component})
+	line, name, ok := AssetField_Line(st, &state.project, AssetDef{path = "components/coin.component.xml", kind = .Component})
 	testing.expect(t, ok && name == "coin2", "a free name")
 	testing.expect_value(t, line, "\t// e.Scene_AddComponent(self.scene, self.coin2, position = e.Node_GetWorldPosition(self.node))\n\tcoin2: e.ComponentAsset `export:\"default=components/coin.component.xml\"`,\n")
-	line, _, _ = AssetField_Line(st, &state.project, AssetDef{"assets/beep.wav", .Audio})
+	line, _, _ = AssetField_Line(st, &state.project, AssetDef{path = "assets/beep.wav", kind = .Audio})
 	testing.expect(t, strings.contains(line, "beep: e.SoundAsset `export:\"default=assets/beep.wav\"`,") && strings.contains(line, "e.Game_PlaySound(self.game, self.beep)"), line)
 	// A data resource: its type in the tag (the inspector lists resources of that type)
 	append(&state.project.data, DataDef{path = strings.clone("data/scout.data.json"), type = strings.clone("ShipStats")})
-	line, _, _ = AssetField_Line(st, &state.project, AssetDef{"data/scout.data.json", .Data})
+	line, _, _ = AssetField_Line(st, &state.project, AssetDef{path = "data/scout.data.json", kind = .Data})
 	testing.expect(t, strings.contains(line, "scout: e.DataAsset `export:\"default=data/scout.data.json kind=ShipStats\"`,") && strings.contains(line, "e.Data(ShipStats, self.scout)"), line)
-	_, _, ok = AssetField_Line(st, &state.project, AssetDef{"levels/world.ldtk", .LDtk})
+	_, _, ok = AssetField_Line(st, &state.project, AssetDef{path = "levels/world.ldtk", kind = .LDtk})
 	testing.expect(t, !ok, "no handle type")
 	free_all(context.temp_allocator)
 }

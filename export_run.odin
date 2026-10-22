@@ -79,6 +79,7 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 	}
 	if !CodeTabs_SaveAll(state) do return {}
 	_ = Shaders_Compile(state)
+	_ = Fonts_MakeMSDF(state)
 	if message := Project_Save(&state.project); message != "" {
 		logLine(state, .Error, fmt.aprintf("Export: couldn't save the project: %s", message))
 		return {}

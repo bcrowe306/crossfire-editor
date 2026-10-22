@@ -122,7 +122,7 @@ Project_CreateMaterial :: proc(project: ^Project, name: string) -> (int, string)
 		MaterialDef_Destroy(&def)
 		return -1, fmt.tprintf("Couldn't write %s: %v", path, err)
 	}
-	append(&project.assets, AssetDef{strings.clone(path), .PhysicsMaterial})
+	append(&project.assets, AssetDef{path = strings.clone(path), kind = .PhysicsMaterial})
 	append(&project.materials, def)
 	return len(project.materials) - 1, ""
 }

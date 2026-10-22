@@ -192,7 +192,7 @@ Project_CreateAnimationSet :: proc(project: ^Project, name: string, from: Animat
 		AnimationSetDef_Destroy(&set)
 		return -1, fmt.tprintf("Couldn't write %s: %v", path, err)
 	}
-	append(&project.assets, AssetDef{strings.clone(path), .Animation})
+	append(&project.assets, AssetDef{path = strings.clone(path), kind = .Animation})
 	append(&project.animationSets, set)
 	return len(project.animationSets) - 1, ""
 }

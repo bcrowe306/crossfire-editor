@@ -81,6 +81,8 @@ NodeDef :: struct {
 	pivotSlice: string,
 	nineSlice: string,
 	nineSize: [2]f32,
+	// Sprite: the region of the atlas its `texture` names ("" for none; owned; atlas_edit.odin)
+	region: string,
 	// CollisionShape: the Aseprite slice of its sprite it follows ("" for none; owned)
 	slice: string,
 	// Menu
@@ -321,6 +323,8 @@ AssetKind :: enum {
 	PhysicsMaterial,
 	// A GLSL fragment shader (`.frag`, shader_edit.odin), compiled beside it as `.frag.shader`
 	Shader,
+	// A texture atlas (`.atlas.xml`, atlas_edit.odin): images packed into one picture
+	Atlas,
 }
 
 /*
@@ -330,6 +334,10 @@ AssetDef :: struct {
 	// Path relative to the project root, always with `/`
 	path: string,
 	kind: AssetKind,
+	// Import settings (asset_import_edit.odin): an image's filtering (Default: the project's), a
+	// TrueType font's MSDF atlas
+	filter: e.TextureFilter,
+	msdf: bool,
 }
 
 /*
@@ -344,6 +352,9 @@ Project :: struct {
 	scaleMode: e.ScaleMode,
 	// The renderer the game draws with (Auto: SDL's choice; the engine's render_backend.odin)
 	renderer: e.RenderBackend,
+	// How images are filtered unless their asset says (Default: smooth, Aseprite files pixels;
+	// the engine's asset_import.odin)
+	textureFilter: e.TextureFilter,
 	background: sdl.Color,
 	// Name of the scene the game starts in
 	startScene: string,
@@ -376,6 +387,8 @@ Project :: struct {
 	themes: [dynamic]ThemeDef,
 	// Physics materials (`.material.xml` assets: material_edit.odin)
 	materials: [dynamic]MaterialDef,
+	// Texture atlases (atlas_edit.odin), one per asset of kind Atlas
+	atlases: [dynamic]AtlasDef,
 	uiTheme: string,
 	// How scene changes look, and the loading scene ("" none; owned): scene_flow_edit.odin
 	transition: e.Transition,
@@ -525,6 +538,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.asepriteLayers)
 	delete(node.pivotSlice)
 	delete(node.nineSlice)
+	delete(node.region)
 	delete(node.slice)
 	TileMapSettings_Destroy(&node.tilemap)
 	e.AnimatorSettings_Destroy(&node.animator)
@@ -719,6 +733,8 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.themes)
 	for &m in project.materials do MaterialDef_Destroy(&m)
 	delete(project.materials)
+	for &a in project.atlases do AtlasDef_Destroy(&a)
+	delete(project.atlases)
 	delete(project.uiTheme)
 	delete(project.loadingScene)
 	Achievements_Destroy(&project.achievements)
@@ -751,6 +767,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		gameSize = data.size,
 		scaleMode = data.scaleMode,
 		renderer = data.renderer,
+		textureFilter = data.textureFilter,
 		background = data.background,
 		startScene = strings.clone(data.startScene),
 		locale = strings.clone(data.locale),
@@ -789,8 +806,9 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "Theme": kind = .Theme
 		case "PhysicsMaterial": kind = .PhysicsMaterial
 		case "Shader": kind = .Shader
+		case "Atlas": kind = .Atlas
 		}
-		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
+		append(&project.assets, AssetDef{path = strings.clone(asset.path), kind = kind, filter = asset.filter, msdf = asset.msdf})
 		// A data resource's values come from its file
 		if kind == .Data {
 			def, problem := Project_LoadData(rootPath, asset.path)
@@ -813,6 +831,17 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				warnings = list[:]
 			}
 			append(&project.animationSets, set)
+		}
+		// An atlas's regions come from its file
+		if kind == .Atlas {
+			atlas, problem := Project_LoadAtlas(rootPath, asset.path)
+			if problem != "" {
+				list := make([dynamic]string, context.temp_allocator)
+				append(&list, ..warnings)
+				append(&list, problem)
+				warnings = list[:]
+			}
+			append(&project.atlases, atlas)
 		}
 		// A material's values come from its file
 		if kind == .PhysicsMaterial {
@@ -958,6 +987,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 		if node.kind == .Sprite {
 			def.nineSlice = strings.clone(node.nineSlice)
 			def.nineSize = node.nineSize
+			def.region = strings.clone(node.region)
 		}
 		if node.kind == .CollisionShape {
 			def.slice = strings.clone(node.slice)
@@ -1066,7 +1096,7 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 	append(&project.scenes, options)
 
 	for path in ([]string{"assets/ship.png", "assets/balloons.png", "assets/light.png"}) {
-		append(&project.assets, AssetDef{strings.clone(path), .Image})
+		append(&project.assets, AssetDef{path = strings.clone(path), kind = .Image})
 	}
 	project.buses = Buses_FromData(nil)
 	project.actions = DefaultActions()

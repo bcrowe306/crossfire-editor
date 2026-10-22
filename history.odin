@@ -80,6 +80,7 @@ ProjectSnapshot :: struct {
 	gameSize: [2]f32,
 	scaleMode: e.ScaleMode,
 	renderer: e.RenderBackend,
+	textureFilter: e.TextureFilter,
 	background: sdl.Color,
 	scenes: [dynamic]SceneDef,
 	exports: ExportSettings,
@@ -818,7 +819,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.texture != b.texture || a.text != b.text || a.fontSize != b.fontSize || a.color != b.color ||
 	   a.centered != b.centered || a.zoom != b.zoom || a.columns != b.columns || a.rows != b.rows ||
 	   a.margin != b.margin || a.spacing != b.spacing || a.autoplay != b.autoplay || !animationsEqual(a.animations[:], b.animations[:]) || a.animationSet != b.animationSet ||
-	   a.asepriteLayers != b.asepriteLayers || a.pivotSlice != b.pivotSlice || a.nineSlice != b.nineSlice || a.nineSize != b.nineSize || a.slice != b.slice ||
+	   a.asepriteLayers != b.asepriteLayers || a.pivotSlice != b.pivotSlice || a.nineSlice != b.nineSlice || a.nineSize != b.nineSize || a.region != b.region || a.slice != b.slice ||
 	   len(a.items) != len(b.items) ||
 	   a.script != b.script || len(a.props) != len(b.props) ||
 	   !NodeScripts_Equal(a.moreScripts[:], b.moreScripts[:]) || a.customKind != b.customKind || !propsEqual(a.customProps[:], b.customProps[:]) ||
@@ -917,6 +918,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
 		renderer = p.renderer,
+		textureFilter = p.textureFilter,
 		background = p.background,
 		exports = p.exports,
 		physics = p.physics,
@@ -965,6 +967,7 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	p.icon = strings.clone(snapshot.icon)
 	p.gameSize, p.scaleMode, p.background = snapshot.gameSize, snapshot.scaleMode, snapshot.background
 	p.renderer = snapshot.renderer
+	p.textureFilter = snapshot.textureFilter
 	p.exports = snapshot.exports
 	p.physics = snapshot.physics
 	p.window = snapshot.window
@@ -1085,7 +1088,7 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 @(private="file")
 projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	if a.name != b.name || a.startScene != b.startScene || a.locale != b.locale || a.icon != b.icon || a.gameSize != b.gameSize || a.scaleMode != b.scaleMode ||
-	   a.renderer != b.renderer || a.background != b.background || a.exports != b.exports || a.physics != b.physics || a.window != b.window || a.grid != b.grid || a.audioOutput != b.audioOutput || len(a.scenes) != len(b.scenes) {
+	   a.renderer != b.renderer || a.textureFilter != b.textureFilter || a.background != b.background || a.exports != b.exports || a.physics != b.physics || a.window != b.window || a.grid != b.grid || a.audioOutput != b.audioOutput || len(a.scenes) != len(b.scenes) {
 		return false
 	}
 	for scene, i in a.scenes {

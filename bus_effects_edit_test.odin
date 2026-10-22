@@ -102,7 +102,7 @@ music_layers_in_the_editor :: proc(t: ^testing.T) {
 	state := freshState(dir)
 	defer removeAll(dir)
 	defer State_Destroy(&state)
-	append(&state.project.assets, AssetDef{strings.clone("assets/drums.ogg"), .Music})
+	append(&state.project.assets, AssetDef{path = strings.clone("assets/drums.ogg"), kind = .Music})
 	sendTo(&state, Add_Node_Kind_Chosen(.MusicPlayer))
 	scene := &state.project.scenes[state.currentScene]
 	index := state.selectedNode

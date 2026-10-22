@@ -6,14 +6,11 @@ owns it.
 
 ## Common engine features (2026-10-21)
 
-The features most 2D engines have that this one doesn't, as the user listed them. Items 1-11,
-13, 14, 16 and 18 were built one per dev release (2026-10-21/22), each with a user guide in
+The features most 2D engines have that this one doesn't, as the user listed them. Items 1-14,
+16 and 18 were built one per dev release (2026-10-21/22), each with a user guide in
 `docs/manual/`. The rest are being built now (decisions of 2026-10-22, below each item), one per
 dev release, each tested, documented and removed from here when done.
 
-12. **Asset import settings**: per-texture filtering and atlas packing, audio conversion,
-    bitmap / MSDF fonts. Decided: audio conversion runs ffmpeg when it's installed; MSDF fonts
-    with msdfgen built from source (a submodule, like Box2D and SDL); BMFont bitmap fonts too.
 15. **Skeletal animation**. Decided: the engine's own bones, skinned sprites and IK, edited in
     the editor and keyed with the Timeline, **plus** DragonBones JSON import (not Spine: its
     runtime license).

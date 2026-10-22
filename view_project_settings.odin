@@ -200,6 +200,9 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id("project-settings-scale"), width = 160)),
 		settingRow(ctx, "Renderer", rendererSelect(ctx, d.renderer)),
 		skald.text(rendererNote(d.renderer), th.color.fg_muted, th.font.size_xs, max_width = 420),
+		settingRow(ctx, "Image filtering", textureFilterSelect(ctx, d.textureFilter, "project-settings-texture-filter", true,
+			proc(f: e.TextureFilter) -> Msg { return Project_Settings_Texture_Filter_Changed(f) })),
+		skald.text("How images look drawn bigger, smaller or turned: Smooth for painted art, Pixels for pixel art (hard square pixels). Each image can choose its own in the browser's preview.", th.color.fg_muted, th.font.size_xs, max_width = 420),
 		settingRow(ctx, "Window", skald.row(
 			windowFlag(ctx, "Fullscreen", .Fullscreen, d.window.fullscreen),
 			windowFlag(ctx, "VSync", .VSync, d.window.vsync),

@@ -122,6 +122,8 @@ for dir in "$engine"/shader_tools/*_*/; do
 	[[ -f "$dir/glslang" || -f "$dir/glslang.exe" ]] || continue
 	mkdir -p "$stage/shader_tools/$(basename "$dir")"
 	cp "$dir"/glslang* "$dir"/shadercross* "$stage/shader_tools/$(basename "$dir")/"
+	# The font tool (MSDF atlases), when this build of the tools has it
+	if compgen -G "$dir/msdf-atlas-gen*" > /dev/null; then cp "$dir"/msdf-atlas-gen* "$stage/shader_tools/$(basename "$dir")/"; fi
 	[[ "$(uname -s)" == Linux ]] && glibc_check "$stage/shader_tools/$(basename "$dir")/glslang" "$stage/shader_tools/$(basename "$dir")/shadercross"
 done
 compgen -G "$stage/shader_tools/*/shadercross*" > /dev/null || echo "No shader tools (the engine's tools/build_shader_tools.sh): projects' own shaders won't compile in this package" >&2

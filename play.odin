@@ -91,6 +91,7 @@ playStart :: proc(state: ^State, scene := "") -> skald.Command(Msg) {
 
 	if !CodeTabs_SaveAll(state) do return {}
 	_ = Shaders_Compile(state)
+	_ = Fonts_MakeMSDF(state)
 	if message := Project_Save(&state.project); message != "" {
 		logLine(state, .Error, fmt.aprintf("Play: couldn't save the project: %s", message))
 		return {}

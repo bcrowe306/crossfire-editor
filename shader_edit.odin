@@ -227,7 +227,7 @@ shaderNewFile :: proc(s: ^State) -> string {
 		logLine(s, .Error, fmt.aprintf("Couldn't write %s", relative))
 		return ""
 	}
-	append(&s.project.assets, AssetDef{strings.clone(relative), .Shader})
+	append(&s.project.assets, AssetDef{path = strings.clone(relative), kind = .Shader})
 	s.session.assetsChanged = true
 	logLine(s, .Info, fmt.aprintf("New shader %s", relative))
 	return relative

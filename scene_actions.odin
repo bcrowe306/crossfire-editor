@@ -40,6 +40,8 @@ ProjectSettingsDialog :: struct {
 	gameSize: [2]f32,
 	scaleMode: e.ScaleMode,
 	renderer: e.RenderBackend,
+	// Image filtering, unless an image says (asset_import_edit.odin)
+	textureFilter: e.TextureFilter,
 	background: skald.Color,
 	// Owned
 	startScene: string,
@@ -241,6 +243,7 @@ ProjectSettings_Open :: proc(state: ^State, tab := ProjectSettingsTab.General) {
 		gameSize = p.gameSize,
 		scaleMode = p.scaleMode,
 		renderer = p.renderer,
+		textureFilter = p.textureFilter,
 		window = p.window,
 		grid = p.grid,
 		audioOutput = p.audioOutput,
@@ -350,6 +353,8 @@ ProjectSettings_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bo
 		if mode, ok := reflect.enum_from_name(e.ScaleMode, string(v)); ok do dialog.scaleMode = mode
 	case Project_Settings_Renderer_Changed:
 		dialog.renderer = e.RenderBackend(v)
+	case Project_Settings_Texture_Filter_Changed:
+		dialog.textureFilter = e.TextureFilter(v)
 	case Project_Settings_Background_Changed:
 		dialog.background = skald.Color(v)
 	case Project_Settings_Start_Changed:
@@ -394,6 +399,7 @@ applyProjectSettings :: proc(state: ^State) {
 	p.gameSize = dialog.gameSize
 	p.scaleMode = dialog.scaleMode
 	p.renderer = dialog.renderer
+	p.textureFilter = dialog.textureFilter
 	p.window = dialog.window
 	p.grid = dialog.grid
 	p.audioOutput = dialog.audioOutput

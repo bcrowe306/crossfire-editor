@@ -173,7 +173,7 @@ Project_CreateData :: proc(project: ^Project, name, type: string) -> (int, strin
 	if err := os.write_entire_file(full, e.FormatDataResource(type, nil, context.temp_allocator)); err != nil {
 		return -1, fmt.tprintf("Couldn't write %s: %v", path, err)
 	}
-	append(&project.assets, AssetDef{strings.clone(path), .Data})
+	append(&project.assets, AssetDef{path = strings.clone(path), kind = .Data})
 	append(&project.data, DataDef{path = strings.clone(path), type = strings.clone(type)})
 	return len(project.data) - 1, ""
 }
@@ -233,11 +233,13 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		case .Animation: prefix, type = "ANIMATION", "AnimationAsset"
 		// A path for e.Node_SetShader
 		case .Shader: prefix, type = "SHADER", ""
+		case .Atlas: prefix, type = "ATLAS", ""
 		// Games load every table themselves; scripts use their keys
 		case .Translation, .Theme, .PhysicsMaterial: continue
 		}
 		stem := asset.kind == .Data ? DataName(asset.path) : asset.kind == .Component ? ComponentName(asset.path) : filepath.stem(filepath.base(asset.path))
 		if asset.kind == .Animation do stem = strings.trim_suffix(filepath.base(asset.path), ANIMATION_EXTENSION)
+		if asset.kind == .Atlas do stem = strings.trim_suffix(filepath.base(asset.path), e.ATLAS_EXTENSION)
 		comment := ""
 		if asset.kind == .Data {
 			if i := Project_FindData(project, asset.path); i >= 0 do comment = fmt.tprintf("  // %s", project.data[i].type)

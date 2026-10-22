@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
+import e "engine:."
 
 /*
 Project asset operations: importing files into `assets/`, removing them, and finding where
@@ -28,7 +29,11 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		return .Image, true
 	case ".wav", ".ogg", ".mp3", ".flac":
 		return .Audio, true
-	case ".ttf", ".otf":
+	// Converted to Ogg Vorbis when imported (asset_import_edit.odin)
+	case ".m4a", ".aac", ".opus", ".wma", ".webm", ".mp4", ".m4b", ".amr", ".ac3":
+		return .Audio, true
+	// TrueType, OpenType, and BMFont bitmap fonts (the engine's fonts.odin)
+	case ".ttf", ".otf", ".fnt":
 		return .Font, true
 	case ".json":
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), DATA_EXTENSION) do return .Data, true
@@ -37,6 +42,7 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), ANIMATION_EXTENSION) do return .Animation, true
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), THEME_EXTENSION) do return .Theme, true
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), MATERIAL_EXTENSION) do return .PhysicsMaterial, true
+		if e.Atlas_IsFile(path) do return .Atlas, true
 	case ".ldtk":
 		return .LDtk, true
 	case ".csv":
@@ -49,8 +55,8 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 
 // Extensions for the import dialog's filters (semicolon-separated, no dots)
 IMPORT_IMAGE_PATTERN :: "png;jpg;jpeg;bmp;gif;tga;webp;qoi;aseprite;ase"
-IMPORT_AUDIO_PATTERN :: "wav;ogg;mp3;flac"
-IMPORT_FONT_PATTERN  :: "ttf;otf"
+IMPORT_AUDIO_PATTERN :: "wav;ogg;mp3;flac;" + IMPORT_CONVERT_PATTERN
+IMPORT_FONT_PATTERN  :: "ttf;otf;fnt"
 IMPORT_LDTK_PATTERN  :: "ldtk"
 IMPORT_TRANSLATION_PATTERN :: "csv"
 
@@ -115,6 +121,14 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 		}
 		append(&project.animationSets, set)
 	}
+	if kind == .Atlas {
+		atlas, problem := Project_LoadAtlas(project.rootPath, relative)
+		if problem != "" {
+			AtlasDef_Destroy(&atlas)
+			return -1, problem
+		}
+		append(&project.atlases, atlas)
+	}
 	if kind == .PhysicsMaterial {
 		material, problem := Project_LoadMaterial(project.rootPath, relative)
 		if problem != "" {
@@ -131,7 +145,7 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 		}
 		append(&project.themes, theme)
 	}
-	append(&project.assets, AssetDef{strings.clone(relative), kind})
+	append(&project.assets, AssetDef{path = strings.clone(relative), kind = kind})
 	return len(project.assets) - 1, ""
 }
 
@@ -166,6 +180,10 @@ Project_RemoveAsset :: proc(project: ^Project, index: int, deleteFile: bool) -> 
 	if a := Project_FindAnimationSet(project, asset.path); a >= 0 {
 		AnimationSetDef_Destroy(&project.animationSets[a])
 		ordered_remove(&project.animationSets, a)
+	}
+	if a := Project_FindAtlas(project, asset.path); a >= 0 {
+		AtlasDef_Destroy(&project.atlases[a])
+		ordered_remove(&project.atlases, a)
 	}
 	if m := Project_FindMaterial(project, asset.path); m >= 0 {
 		MaterialDef_Destroy(&project.materials[m])
@@ -203,7 +221,7 @@ AssetFilePath :: proc(project: ^Project, asset: AssetDef) -> string {
 }
 
 // "name.png", or "name_1.png", "name_2.png"... if the folder already has it
-@(private="file")
+@(private="package")
 uniqueFileName :: proc(folder, name: string) -> string {
 	stem := filepath.stem(name)
 	ext := filepath.ext(name)
@@ -215,7 +233,7 @@ uniqueFileName :: proc(folder, name: string) -> string {
 	}
 }
 
-@(private="file")
+@(private="package")
 toSlashes :: proc(path: string) -> string {
 	s, _ := strings.replace_all(path, "\\", "/", context.temp_allocator)
 	return s

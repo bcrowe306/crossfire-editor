@@ -213,6 +213,12 @@ Checks:
 	                             The Live tab's view of the running game (counts for nodes and
 	                             properties; selected: true when a node is chosen)
 	live prop <name> <value>     The chosen node's property as the running game sent it
+	asset <path> <exists | missing | filter <Default|Smooth|Pixel> | msdf <bool>>
+	                             A project asset and its import settings
+	file_exists <path>           A file in the project folder
+	atlas <regions|padding|filter> <value>
+	                             The atlas the inspector shows
+	region <name | none>         The selected Sprite's atlas region
 	node_type <name | none>      The selected node's node type of the project's code
 	more_scripts <a,b | none>    The selected node's more scripts (after its first)
 	script_prop <script> <field> <value>
@@ -1205,6 +1211,10 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		case "Git_Switch_Branch":
 			msg = Git_Op_Requested{op = .Switch_Branch, arg = strings.clone(value, context.temp_allocator)}
 		case "Node_Script_Added":     msg = Node_Script_Added(strings.clone(value, context.temp_allocator))
+		case "Atlas_Created":         msg = Atlas_Created{}
+		// A node's texture or region as its dropdown would set it (atlas_edit.odin)
+		case "Node_Texture":          msg = Node_Text_Changed{.Texture, strings.clone(value, context.temp_allocator)}
+		case "Node_Region":           msg = Node_Text_Changed{.Region, strings.clone(value, context.temp_allocator)}
 		case "Live_Property_Edited":
 			// "<property> <value>", as typed in the Live tab for the chosen node
 			name, _, text := strings.partition(value, " ")
@@ -1759,6 +1769,43 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = selected.script == "" ? "none" : selected.script
 	case "scripts":
 		found = fmt.tprint(s.scripts.status)
+	case "asset":
+		// "asset <path> <exists | missing | filter <f> | msdf <bool>>": a project asset (import settings)
+		path, _, rest := strings.partition(value, " ")
+		field, _, expected := strings.partition(rest, " ")
+		index := -1
+		for a, i in s.project.assets do if a.path == path do index = i
+		switch field {
+		case "exists":  return index >= 0, index >= 0 ? "listed" : "not listed"
+		case "missing": return index < 0, index >= 0 ? "listed" : "not listed"
+		}
+		if index < 0 do return false, "not listed"
+		a := s.project.assets[index]
+		switch field {
+		case "filter": found = fmt.tprint(a.filter)
+		case "msdf":   found = fmt.tprint(a.msdf)
+		case: return false, fmt.tprintf("unknown asset field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "file_exists":
+		// A file in the project folder
+		ok := os.exists(joinPath(s.project.rootPath, value, allocator = context.temp_allocator))
+		return ok, ok ? "there" : "missing"
+	case "atlas":
+		// "atlas <regions | padding | filter> <value>": the atlas the inspector shows
+		if s.atlasSelection < 0 || s.atlasSelection >= len(s.project.atlases) do return false, "no atlas shown"
+		a := s.project.atlases[s.atlasSelection].data
+		field, _, expected := strings.partition(value, " ")
+		switch field {
+		case "regions": found = fmt.tprint(len(a.regions))
+		case "padding": found = fmt.tprint(a.padding)
+		case "filter":  found = fmt.tprint(a.filter)
+		case: return false, fmt.tprintf("unknown atlas field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "region":
+		if selected == nil do return false, "nothing selected"
+		found = selected.region == "" ? "none" : selected.region
 	case "node_type":
 		// The selected node's node type of the project's code ("none")
 		if selected == nil do return false, "nothing selected"

@@ -147,6 +147,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `audio_preview.odin` | Sound playback for the preview panel (SDL3_mixer; package state) |
 | `play.odin` | Play mode: save, build the player, run it as a child process, stream output, pause/stop |
 | `play_reload.odin` | **Hot reload**: `PlayReload` (`PlaySession.reload`): scripts newer than the running game rebuild `player-reload` beside it, describe it, ask the game for a `snapshot` over the live link, restart it with `--restore` (`playReloadTick`, from `playTick`); `settings.hotReload` |
+| `asset_import_edit.odin` | **Import settings**: `AssetDef.filter` / `msdf`, `Project.textureFilter` (Project Settings > General > Image filtering), `Asset_Filter_Changed` / `Asset_MSDF_Changed` / `Font_MSDF_Make_Requested`, `Fonts_MakeMSDF` (save, Play, exports), `Fonts_ExportFiles`, the previews' rows (`imageImportRows`, `fontPreview`, `audioImportRows`), sound conversion with ffmpeg (`Audio_Convert` on a worker, `Audio_ConvertFile`, `Audio_Converted`: references follow; `AUDIO_CONVERT_EXTENSIONS` converted on import), `Toolchain_FFmpeg` |
+| `atlas_edit.odin` | **Texture atlases**: `AtlasDef` (`Project.atlases`, asset kind Atlas, `atlases/`), `Project_CreateAtlas` (the browser's New Atlas), `Atlas_PackFiles` (packs with `e.Atlas_Pack`, writes the PNG and `.atlas.xml` on every edit), `atlasInspector` (`State.atlasSelection`), `atlasPreview`, Sprites' `NodeDef.region` (the Region row) |
 | `node_scripts_edit.odin` | **Several scripts per node and node types of game code**: `NodeDef.moreScripts` / `customKind` / `customProps`, `Node_Script_Added` / `_Removed` / `_Open`, `NodeScriptTarget` / `NodeCustomTarget` (PropTarget), `AddNode_Entries` (Add Node's "Your node types"), `NodeDef_Codes` (what a node runs, in the engine's order), the inspector's rows (`moreScriptsRows`, `nodeTypeRows`) |
 | `tree_rows.odin` | Flattens the project into browser and scene tree rows, applying the browser search. Shared by view and update, because Skald's tree reports clicks by row index |
 | `view.odin` | Root layout: menu bar, toolbar, resizable workspace, status bar, remove-asset dialog, panel header helpers |
@@ -1497,6 +1499,35 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/shaders.script` (the hit flash seen in the render, undo, New Shader compiled on
   save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
   `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
+
+## Import settings, atlases and fonts (implemented, `asset_import_edit.odin`, `atlas_edit.odin`; engine: asset_import.odin, atlas.odin, fonts.odin)
+
+- **Asset changes, not undo steps** (like imports): an image's filtering, a font's MSDF, a
+  conversion, every atlas edit; the project's Image filtering is in the Project Settings draft and
+  the `.Project` snapshot. The writer puts `filter` / `msdf` on `<asset>` and `textureFilter` on
+  project.xml's root, only when set.
+- **The viewport** applies the import settings when they change (`previewImportSettings`, hashed
+  into `Preview_FrameKey`: `e.ResourceManager_SetImportSettings` on the preview game); a repacked
+  atlas drops the preview game's copy and its texture (`Preview_AtlasChanged`), a remade MSDF atlas
+  its glyph font (`Preview_FontChanged`). The viewport's shared renderer isn't SDL's GPU renderer, so
+  MSDF fonts show as TrueType there; games on the GPU renderer draw the atlas.
+- **Atlases are always written**: every edit repacks and writes both files at once
+  (`Atlas_PackFiles`), so the preview, Play and exports read them from disk; exports add the
+  packed picture (`Export_ProjectFiles`). Choosing an atlas as a Sprite's texture picks its first
+  region. The inspector shows an atlas while `atlasSelection` holds (cleared like
+  `materialSelection`).
+- **MSDF atlases** (`<font>.msdf.json` / `.msdf.bmp`) are made by `e.Font_MakeMSDF` with the shader
+  tools' msdf-atlas-gen (Settings > Toolchain > Font tool) when the setting goes on, on save, before
+  Play and exports (beside `Shaders_Compile`), when the font is newer; exports add them
+  (`Fonts_ExportFiles`), and a bitmap font's page images.
+- **Sounds** convert with ffmpeg (`Toolchain_FFmpeg`, Settings > Toolchain) on a worker; the
+  asset's path, sound nodes, music layers, script and global values naming the old file follow
+  (`audioReplace`); imports of formats SDL_mixer can't play convert first (`Asset_Import_Result`).
+- Tests: `import_settings_in_the_editor`, `atlases_in_the_editor`, `tests/ui/asset_import.script`
+  (filtering, MSDF made, a conversion, an m4a converted on import (`tests/fixtures/tone.m4a`), an
+  atlas packed and a Sprite's region, played; driver checks `asset <path> ...`, `file_exists`,
+  `atlas <field>`, `region`; `send Atlas_Created`, `Node_Texture`, `Node_Region`). User guide:
+  `docs/manual/asset_import.md`.
 
 ## Lines, trails and GPU particles (implemented, `line_edit.odin`; engine: lines.odin, gpu_particles.odin)
 

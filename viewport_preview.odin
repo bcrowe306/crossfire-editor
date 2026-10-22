@@ -74,6 +74,8 @@ Preview :: struct {
 	effects, offscreen, effectsFailed: bool,
 	// Bumped when a shader compiled (the scene is built again with it)
 	shadersVersion: int,
+	// The import settings applied to the preview game (previewImportSettings)
+	importKey: u64,
 }
 
 @(private="file")
@@ -241,6 +243,7 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		timeline = {s.timeline.previewing && s.bottomTab == .Timeline && s.layout.bottomOpen, s.timeline.clip, s.timeline.playhead},
 	}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
+	h ~= previewImportSettings(s)
 	for node in scene.nodes {
 		t := struct { position: [2]f32, rotation: f32, scale: [2]f32, visible: bool, layer: int, zIndex: i32, blendMode: e.BlendMode, ySort: bool }{node.position, node.rotation, node.scale, node.visible, node.layer, node.zIndex, node.blendMode, node.ySort}
 		h = hash.fnv64a(([^]u8)(&t)[:size_of(t)], h)
@@ -333,6 +336,7 @@ ensureSurface :: proc(size: [2]int) -> bool {
 @(private="file")
 makeGame :: proc(renderer: ^sdl.Renderer) {
 	preview.game = new(e.Game)
+	preview.importKey = 0
 	preview.game.renderer = renderer
 	e.ResourceManager_Init(&preview.game.resourceManager, renderer, nil)
 	// Touch controls draw in the editor whatever their visibility (touch_edit.odin)
@@ -374,6 +378,40 @@ Preview_UsesShaders :: proc() -> bool {
 }
 
 // A shader compiled: the scene is built again with it (the preview game's copy is dropped)
+// An atlas was packed again (atlas_edit.odin): the preview game reads its file and picture again
+Preview_AtlasChanged :: proc(path, imagePath: string) {
+	preview.signature = 0
+	game := preview.game
+	if game == nil do return
+	// Its memory is the game's (freed with it)
+	if path in game.atlases do delete_key(&game.atlases, path)
+	game.resourceManager->unloadTexture(imagePath)
+}
+
+// A font's MSDF atlas was made again (asset_import_edit.odin): the preview reads it next time
+Preview_FontChanged :: proc(path: string) {
+	if preview.game != nil do e.ResourceManager_ForgetGlyphFont(&preview.game.resourceManager, path)
+	preview.signature = 0
+}
+
+// The project's import settings for the preview game, when they changed (images' filtering,
+// fonts' atlases: asset_import_edit.odin); their hash, for the frame key
+@(private="file")
+previewImportSettings :: proc(s: ^State) -> u64 {
+	h := hash.fnv64a(transmute([]u8)fmt.tprint(s.project.textureFilter))
+	for a in s.project.assets do if a.filter != .Default || a.msdf {
+		h = hash.fnv64a(transmute([]u8)a.path, h)
+		h = hash.fnv64a(transmute([]u8)fmt.tprint(a.filter, a.msdf), h)
+	}
+	if preview.game != nil && h != preview.importKey {
+		preview.importKey = h
+		refs := make([dynamic]e.AssetRef, context.temp_allocator)
+		for a in s.project.assets do append(&refs, e.AssetRef{path = a.path, filter = a.filter, msdf = a.msdf})
+		e.ResourceManager_SetImportSettings(&preview.game.resourceManager, refs[:], s.project.rootPath, s.project.textureFilter)
+	}
+	return h
+}
+
 Preview_ShadersChanged :: proc() {
 	preview.shadersVersion += 1
 	if preview.game != nil do e.Game_ReleaseShaders(preview.game)
@@ -692,7 +730,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			texture = node.texture, text = node.text, fontSize = node.fontSize, color = node.color,
 			centered = node.centered, zoom = node.zoom, columns = node.columns, rows = node.rows,
 			margin = node.margin, spacing = node.spacing, animations = animationData(node.animations[:]), autoplay = node.autoplay, animationSet = node.animationSet, items = items,
-			asepriteLayers = node.asepriteLayers, pivotSlice = node.pivotSlice, nineSlice = node.nineSlice, nineSize = node.nineSize, slice = node.slice,
+			asepriteLayers = node.asepriteLayers, pivotSlice = node.pivotSlice, nineSlice = node.nineSlice, nineSize = node.nineSize, slice = node.slice, region = node.region,
 			collisionLayer = node.collisionLayer, collisionMask = node.collisionMask,
 			friction = node.friction, restitution = node.restitution, density = node.density,
 			gravityScale = node.gravityScale, linearDamping = node.linearDamping, angularDamping = node.angularDamping,
@@ -774,7 +812,7 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_f32(&b, node.margin, 'g')
 		strings.write_f32(&b, node.spacing, 'g')
 		strings.write_string(&b, node.autoplay)
-		fmt.sbprintf(&b, "|%s|%s|%s|%v|%s", node.asepriteLayers, node.pivotSlice, node.nineSlice, node.nineSize, node.slice)
+		fmt.sbprintf(&b, "|%s|%s|%s|%v|%s|%s", node.asepriteLayers, node.pivotSlice, node.nineSlice, node.nineSize, node.slice, node.region)
 		for a in node.animations {
 			fmt.sbprintf(&b, "|%s %d %d %v %v %v %d %v", a.name, a.start, a.end, a.fps, a.loop, a.playMode, a.repeat, a.durations[:])
 		}

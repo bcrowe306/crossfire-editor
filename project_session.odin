@@ -84,6 +84,7 @@ Session_Save :: proc(state: ^State) -> bool {
 	Session_MarkSaved(state)
 	state.git.stale = true
 	_ = Shaders_Compile(state)
+	_ = Fonts_MakeMSDF(state)
 	logLine(state, .Info, fmt.aprintf("Saved to %s", state.project.rootPath))
 	return true
 }

@@ -76,6 +76,7 @@ layout)
 		[[ -f "$dir/shadercross" ]] || continue
 		mkdir -p "$contents/MacOS/shader_tools/$(basename "$dir")"
 		cp "$dir/glslang" "$dir/shadercross" "$contents/MacOS/shader_tools/$(basename "$dir")/"
+		if [[ -f "$dir/msdf-atlas-gen" ]]; then cp "$dir/msdf-atlas-gen" "$contents/MacOS/shader_tools/$(basename "$dir")/"; fi
 	done
 	# The engine's git-tracked sources (not the third_party submodules) and its built libraries
 	mkdir -p "$contents/Resources/engine"

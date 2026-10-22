@@ -1,0 +1,84 @@
+# Asset import settings and atlases: an image's filtering in its preview, the project's in
+# Project Settings, a font made sharp at any size (its MSDF atlas made), a sound converted to Ogg
+# Vorbis with ffmpeg (needs ffmpeg), an atlas packed from two images and a Sprite drawing one of
+# them; saved and played.
+# Run with: task test:ui (and task test:ui:fullscreen)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+
+# An image's filtering (choices: the project's setting, Smooth, Pixels)
+select_asset assets/ship.png
+expect asset assets/ship.png filter Default
+click_widget asset-filter
+click_overlay_item 2
+expect asset assets/ship.png filter Pixel
+
+# The project's, in Project Settings > General
+action Open_Project_Settings
+scroll_into_view project-settings-general-scroll project-settings-texture-filter
+click_widget project-settings-texture-filter
+click_overlay_item 2
+click_widget project-settings-apply
+key ctrl+z
+key ctrl+y
+
+# A font, sharp at any size: its atlas made with the font tool
+import ../odin_sdl_engine/Open_Sans/static/OpenSans-Regular.ttf
+expect asset assets/OpenSans-Regular.ttf exists
+click_widget asset-msdf
+expect asset assets/OpenSans-Regular.ttf msdf true
+wait_until file_exists assets/OpenSans-Regular.ttf.msdf.json timeout=30
+expect file_exists assets/OpenSans-Regular.ttf.msdf.bmp
+
+# A sound converted to Ogg Vorbis: the project uses the new file
+import tests/fixtures/beep.wav
+expect asset assets/beep.wav exists
+click_widget asset-convert
+wait_until asset assets/beep.ogg exists timeout=30
+expect asset assets/beep.wav missing
+expect file_exists assets/beep.wav
+
+# A file games can't play is converted on import
+import tests/fixtures/tone.m4a
+wait_until asset assets/tone.ogg exists timeout=30
+
+# An atlas: made, two images packed into it (each add packs)
+send Atlas_Created
+expect atlas regions 0
+scroll_into_view inspector-scroll atlas-add
+click_widget atlas-add
+click_overlay_item 1
+expect atlas regions 1
+click_widget atlas-add
+click_overlay_item 1
+expect atlas regions 2
+expect file_exists atlases/atlas.png
+
+# A Sprite drawing one of its images
+select_node Spaceship
+send Node_Texture atlases/atlas.atlas.xml
+expect region ship
+scroll_into_view inspector-scroll inspector-region-{selected}
+click_widget inspector-region-{selected}
+click_overlay_item 2
+expect region balloons
+key ctrl+z
+expect region ship
+
+# Saved and played: the scene builds the atlas's Sprite
+key ctrl+s
+expect project_file_contains project.xml kind="Atlas"
+expect project_file_contains project.xml textureFilter="Pixel"
+expect project_file_contains project.xml path="assets/ship.png" kind="Image" filter="Pixel"
+expect project_file_contains project.xml msdf="true"
+expect project_file_contains scenes/PlayScene.scene.xml region="ship"
+key ctrl+F5
+wait_until play Playing timeout=240
+wait 3
+expect console_lacks has no region
+expect console_lacks Couldn't read the atlas
+key shift+F5
+wait_until play Stopped
+quit

@@ -84,6 +84,7 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	attr(&w, "height", project.gameSize.y)
 	attr(&w, "scaleMode", project.scaleMode)
 	if project.renderer != .Auto do attr(&w, "renderer", project.renderer)
+	if project.textureFilter != .Default do attr(&w, "textureFilter", project.textureFilter)
 	// A scene uses shaders: Auto means the GPU renderer then (shader_edit.odin)
 	if Project_UsesShaders(project) do attr(&w, "shaders", true)
 	attr(&w, "background", e.FormatColor(project.background, context.temp_allocator))
@@ -128,6 +129,9 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 		open(&w, "asset")
 		attr(&w, "path", asset.path)
 		attr(&w, "kind", asset.kind)
+		// Import settings (asset_import_edit.odin)
+		if asset.filter != .Default do attr(&w, "filter", asset.filter)
+		if asset.msdf do attr(&w, "msdf", true)
 		closeEmpty(&w)
 	}
 	for global in project.globals {
@@ -591,6 +595,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 	switch node.kind {
 	case .Sprite:
 		attr(w, "texture", node.texture)
+		if node.region != "" do attr(w, "region", node.region)
 		if node.asepriteLayers != "" do attr(w, "layers", node.asepriteLayers)
 		if node.pivotSlice != "" do attr(w, "pivotSlice", node.pivotSlice)
 		if node.nineSlice != "" {

@@ -93,7 +93,7 @@ addComponent :: proc(project: ^Project, scene: SceneDef) -> (int, string) {
 		SceneDef_Destroy(&scene)
 		return -1, message
 	}
-	append(&project.assets, AssetDef{strings.clone(scene.component), .Component})
+	append(&project.assets, AssetDef{path = strings.clone(scene.component), kind = .Component})
 	append(&project.scenes, scene)
 	return len(project.scenes) - 1, ""
 }

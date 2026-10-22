@@ -215,6 +215,8 @@ browserMenuItems :: proc(s: ^State) -> []string {
 				add(&labels, "New Material", Msg(Material_Created{}))
 			case .Shader:
 				add(&labels, "New Shader", Msg(Shader_New_Requested{}))
+			case .Atlas:
+				add(&labels, "New Atlas", Msg(Atlas_Created{}))
 			case .Font, .Data, .Component, .Translation:
 			}
 		}
@@ -246,10 +248,15 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			add(&labels, "New Material", Msg(Material_Created{}))
 			break
 		}
+		if selection.kind == .Folder && selection.folder == .Atlases {
+			add(&labels, "New Atlas", Msg(Atlas_Created{}))
+			break
+		}
 		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
 		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste Scene", .Paste_Node), Msg(Scene_Action{.Paste, -1}))
 		add(&labels, "New UI Theme", Msg(Theme_Created{}))
 		add(&labels, "New Physics Material", Msg(Material_Created{}))
+		add(&labels, "New Atlas", Msg(Atlas_Created{}))
 	}
 	return labels[:]
 }
@@ -477,14 +484,12 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		case .Image:
 			if e.Aseprite_IsFile(asset.path) do content = AsepriteEdit_Preview(s, ctx, asset, s.browserSelection.index)
 			else do content = imagePreview(s, ctx, asset, path)
-		case .Audio, .Music: content = audioPreview(s, ctx, asset, path)
+			// Import settings (asset_import_edit.odin)
+			content = skald.col(skald.flex(1, content), imageImportRows(ctx, s, s.browserSelection.index), spacing = th.spacing.sm, cross_align = .Stretch)
+		case .Audio, .Music:
+			content = skald.col(skald.flex(1, audioPreview(s, ctx, asset, path)), audioImportRows(ctx, s, s.browserSelection.index), spacing = th.spacing.sm, cross_align = .Stretch)
 		case .Font:
-			content = skald.col(
-				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
-				skald.text(fileInfo(path, ""), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
-				skald.text("Font previews aren't supported yet.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
-				spacing = th.spacing.xs,
-			)
+			content = fontPreview(ctx, s, s.browserSelection.index)
 		case .Component:
 			content = componentPreview(s, ctx, asset)
 		case .Animation:
@@ -498,6 +503,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			)
 		case .Shader:
 			content = shaderPreview(s, ctx, asset)
+		case .Atlas:
+			content = atlasPreview(s, ctx, asset)
 		case .PhysicsMaterial:
 			text := "A physics material; edit it in the inspector"
 			if i := Project_FindMaterial(&s.project, asset.path); i >= 0 {
@@ -687,6 +694,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Animation: return ICON_FILM
 	case .Theme: return ICON_PALETTE
 	case .PhysicsMaterial: return ICON_CUBE
+	case .Atlas: return ICON_IMAGE
 	case .Shader: return ICON_WAND
 	}
 	return ICON_FILE

@@ -249,6 +249,8 @@ Project_Settings_Name_Changed :: distinct string
 Project_Settings_Scale_Changed :: distinct string
 // The renderer the game draws with (Project Settings > General)
 Project_Settings_Renderer_Changed :: distinct e.RenderBackend
+// Project Settings > General > Image filtering (asset_import_edit.odin)
+Project_Settings_Texture_Filter_Changed :: distinct e.TextureFilter
 Project_Settings_Background_Changed :: distinct skald.Color
 Project_Settings_Start_Changed :: distinct string
 // The language the game starts in (a translation table's, like "fr"; "" for the player's)
@@ -481,6 +483,8 @@ NodeTextField :: enum {
 	Pivot_Slice,
 	Nine_Slice,
 	Slice,
+	// A Sprite's atlas region (REGION_NONE for none; atlas_edit.odin)
+	Region,
 	// A Component node's component (its file; TEXTURE_NONE for none)
 	Component,
 	// A sound node's sound or music asset (TEXTURE_NONE for none), and its bus (a name; Master is "")
@@ -956,6 +960,7 @@ Msg :: union {
 	Project_Settings_Name_Changed,
 	Project_Settings_Scale_Changed,
 	Project_Settings_Renderer_Changed,
+	Project_Settings_Texture_Filter_Changed,
 	Project_Settings_Background_Changed,
 	Project_Settings_Start_Changed,
 	Project_Settings_Locale_Changed,
@@ -1101,6 +1106,17 @@ Msg :: union {
 	Node_Script_Added,
 	Node_Script_Removed,
 	Node_Script_Open,
+	Asset_Filter_Changed,
+	Asset_MSDF_Changed,
+	Font_MSDF_Make_Requested,
+	Audio_Convert_Requested,
+	Audio_Converted,
+	Atlas_Created,
+	Atlas_Image_Added,
+	Atlas_Image_Removed,
+	Atlas_Padding_Changed,
+	Atlas_Filter_Changed,
+	Atlas_Pack_Requested,
 	Browser_Body_Measured,
 	Preview_Tick,
 	Left_Resized,
