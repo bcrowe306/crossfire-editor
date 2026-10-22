@@ -81,22 +81,32 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 	// "Undo Rename Spaceship"
 	undoLabel := History_NextLabel(&s.history, false)
 	redoLabel := History_NextLabel(&s.history, true)
+	// File: the project, its recent ones (recent_projects.odin), import, export, quit
+	fileItems := make([dynamic]skald.Menu_Item(Msg), context.temp_allocator)
+	append(&fileItems,
+		item("New Project", .New_Project, keys),
+		item("Open Project", .Open_Project, keys),
+		item("Open Project Archive...", .Open_Project_Archive, keys),
+		item("Save", .Save_Project, keys),
+		item("Save Project As...", .Save_Project_As, keys),
+	)
+	recent := Recent_Shown(s)
+	if len(recent) > 0 do append(&fileItems, skald.Menu_Item(Msg){separator = true})
+	for i in recent do append(&fileItems, skald.Menu_Item(Msg){label = Recent_Label(s.recentProjects.folders[i]), msg = Msg(Recent_Project_Chosen(i))})
+	if len(recent) > 0 do append(&fileItems, skald.Menu_Item(Msg){label = "Clear Recent Projects", msg = Msg(Recent_Projects_Cleared{})})
+	append(&fileItems,
+		skald.Menu_Item(Msg){separator = true},
+		item("Import Asset...", .Import_Asset, keys),
+		item("Project Settings...", .Open_Project_Settings, keys),
+		skald.Menu_Item(Msg){separator = true},
+		item("Export...", .Export, keys),
+		item("Export Project Archive...", .Export_Project_Archive, keys),
+		item("Export Project Archive with History...", .Export_Project_Archive_With_History, keys),
+		skald.Menu_Item(Msg){separator = true},
+		item("Quit", .Quit, keys),
+	)
 	return skald.menu_bar(ctx, []skald.Menu_Entry(Msg){
-		{"File", []skald.Menu_Item(Msg){
-			item("New Project", .New_Project, keys),
-			item("Open Project", .Open_Project, keys),
-			item("Open Project Archive...", .Open_Project_Archive, keys),
-			item("Save", .Save_Project, keys),
-			{separator = true},
-			item("Import Asset...", .Import_Asset, keys),
-			item("Project Settings...", .Open_Project_Settings, keys),
-			{separator = true},
-			item("Export...", .Export, keys),
-			item("Export Project Archive...", .Export_Project_Archive, keys),
-			item("Export Project Archive with History...", .Export_Project_Archive_With_History, keys),
-			{separator = true},
-			item("Quit", .Quit, keys),
-		}},
+		{"File", fileItems[:]},
 		{"Edit", []skald.Menu_Item(Msg){
 			item(undoLabel == "" ? "Undo" : fmt.tprintf("Undo %s", undoLabel), .Undo, keys),
 			item(redoLabel == "" ? "Redo" : fmt.tprintf("Redo %s", redoLabel), .Redo, keys),

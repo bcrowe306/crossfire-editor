@@ -326,7 +326,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		rows := BrowserRows(&out)
 		out.browserSelection = int(v) >= 0 && int(v) < len(rows) ? rows[v] : BrowserItem{kind = .None}
 	case Confirm_Chosen, New_Project_Name_Changed, New_Project_Location_Changed, New_Project_Browse,
-	     New_Project_Location_Chosen, New_Project_Created, New_Project_Cancelled, Open_Project_Chosen:
+	     New_Project_Location_Chosen, New_Project_Created, New_Project_Cancelled, Open_Project_Chosen,
+	     Recent_Project_Chosen, Recent_Projects_Cleared:
 		// Handled by Session_Update above
 	case Project_Archive_Path_Chosen, Project_Archive_Open_Chosen, Project_Archive_Destination_Chosen,
 	     Project_Archive_Written, Project_Archive_Extracted:
@@ -1022,6 +1023,8 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		return out, Session_Request(&out, .New_Project)
 	case .Open_Project:
 		return out, Session_Request(&out, .Open_Project)
+	case .Save_Project_As:
+		Session_OpenSaveAs(&out)
 	case .Open_Project_Archive:
 		return out, Session_Request(&out, .Open_Project_Archive)
 	case .Export_Project_Archive:

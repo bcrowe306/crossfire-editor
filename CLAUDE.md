@@ -208,7 +208,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `third_party/emsdk` | Emscripten SDK submodule, pinned to a release tag (`task emsdk` installs it) |
 | `third_party/SDL_mixer`, `tools/build_web_mixer.sh` | SDL3_mixer sources (submodule, the native version) and the script that builds them for the web, with the symbol aliases Odin's binding needs (see the engine's CLAUDE.md, "Web build") |
 | `selection.odin` | Multi-selection: `Selection_Set/Toggle/Normalize/Roots` |
-| `project_session.odin` | Unsaved changes, New/Open Project, the save prompt, the window title |
+| `project_session.odin` | Unsaved changes, New/Open Project, Save Project As, the save prompt, the window title |
+| `recent_projects.odin` | Recent projects: `RecentProjects` (`recent_projects.txt` beside the settings), `Recent_Add` / `Remove` / `Clear`, `Recent_Shown` (what the File menu lists), `Recent_Label` |
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
@@ -606,6 +607,21 @@ positioned at that point in the parent's space. Undoable.
   `<location>/<name>` with `Project_CreateEmpty` (a Main scene with a World node) and opens it.
   Open Project: a folder dialog, then `Project_Load`. `switchProject` resets everything that
   belonged to the old project, including the undo history.
+- **Save Project As** (Ctrl+Shift+S, `Session_OpenSaveAs`: the New Project dialog with
+  `newProject.saveAs`): `saveProjectAs` copies `Project_OwnFiles` (project_archive.odin: the
+  archive's rules, so no `export/`, `build/`, `.git`, export output folders) into the new folder,
+  writes dirty code tabs' text there, points the in-memory project at it (name too) and
+  `Project_Save`s it, then `Session_OpenProject`s the copy (history starts fresh; the original
+  on disk stays as saved). Outside assets keep their paths and are warned about. Test:
+  `save_as_copies_the_project_and_opens_the_copy`, `tests/ui/save_as.script` (the copy goes
+  inside the scratch project, made fresh each run). User guide: `docs/manual/projects.md`.
+- **Recent projects** (recent_projects.odin, `State.recentProjects`): `recent_projects.txt` beside
+  the settings file (none without one), absolute folders, most recent first, at most 10;
+  `switchProject` and `init` add the opened project. The File menu lists `Recent_Shown` (8, not
+  the open one) inline (Skald menus have no submenus) and Clear Recent Projects;
+  `Recent_Project_Chosen(index)` goes through `Session_Request(.Open_Recent)` (the path waits in
+  `session.recent`); a folder without project.xml is reported and dropped. Driver: `send
+  Recent_Project_Chosen <i>` (the menu bar can't be clicked), check `recent_menu <i> <name>`.
 
 ### Project archives (implemented, `project_archive.odin`, `zip.odin`)
 

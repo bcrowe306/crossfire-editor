@@ -93,7 +93,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	send <Message> <value>           Send what a dropdown choice would (dropdowns can't be clicked
 	                                 open): New_Script_Kind_Changed <Node | Global | Data>,
 	                                 Global_Added <script>, New_Data_Type_Changed <type>,
-	                                 Project_Settings_Tab_Changed <tab>, Git_Switch_Branch <name>
+	                                 Project_Settings_Tab_Changed <tab>, Git_Switch_Branch <name>,
+	                                 Recent_Project_Chosen <i> (the File menu's i-th recent project)
 	                                 (the Git tab's branch list), New_Script_Opened,
 	                                 New_Data_Opened (no value), Scene_Tab_Changed <tab index>,
 	                                 Code_Open_Requested <file> (opens it in a code tab),
@@ -273,6 +274,9 @@ Checks:
 	code_completion <true | false>   The completion list shows
 	code_completion_has <label>      The server's last completion list has that item
 	widget_visible <key> <true | false>   Some of the widget was drawn last frame, not clipped away
+	recent_menu <i> <folder name | none>   The File menu's i-th recent project (its folder's name)
+	widget_inside <key> <container key>  All of the widget's rect is inside the container's (content
+	                                 that overflows a dialog is drawn, but outside it)
 	scrolled <scroll key> <true | false>  A scroll container is scrolled down from its top
 	widget_bottom_near <key> <other key> <px>   The two widgets' bottoms are within px (one fills the other)
 	row_visible <tree key> <row> <true | false>   A tree row is wholly inside its scroll's view
@@ -1135,6 +1139,15 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		name, _, value := strings.partition(rest, " ")
 		msg: Msg
 		switch name {
+		case "Recent_Project_Chosen":
+			// The File menu's i-th recent project (the menu bar can't be clicked)
+			i, _ := strconv.parse_int(value)
+			shown := Recent_Shown(s)
+			if i < 0 || i >= len(shown) {
+				fail(fmt.tprintf("%s: the File menu lists %d recent projects", line, len(shown)))
+				return true
+			}
+			msg = Recent_Project_Chosen(shown[i])
 		case "New_Script_Kind_Changed":
 			kind, ok := reflect.enum_from_name(ScriptKind, value)
 			if ok do msg = New_Script_Kind_Changed(kind)
@@ -1816,6 +1829,19 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		y := tree.last_rect.y + f32(row) * s.settings.rowHeight
 		found = fmt.tprint(y >= area.y - 0.5 && y + s.settings.rowHeight <= area.y + area.h + 0.5)
 		return found == parts[2], found
+	case "recent_menu":
+		index, _, name := strings.partition(value, " ")
+		i, _ := strconv.parse_int(index)
+		shown := Recent_Shown(s)
+		found = i >= 0 && i < len(shown) ? filepath.base(s.recentProjects.folders[shown[i]]) : "none"
+		return found == strings.trim_space(name), found
+	case "widget_inside":
+		key, _, container := strings.partition(value, " ")
+		inner, innerOk := widgetRect(ctx, key)
+		outer, outerOk := widgetRect(ctx, strings.trim_space(container))
+		if !innerOk || !outerOk do return false, "not both drawn"
+		inside := inner.x >= outer.x - 0.5 && inner.y >= outer.y - 0.5 && inner.x + inner.w <= outer.x + outer.w + 0.5 && inner.y + inner.h <= outer.y + outer.h + 0.5
+		return inside, fmt.tprintf("%v in %v", inner, outer)
 	case "widget_visible":
 		key, _, expected := strings.partition(value, " ")
 		_, visible := widgetRect(ctx, key)

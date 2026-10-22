@@ -44,9 +44,6 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 			exportHeight = clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 400)
 			generalHeight = clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 560)
 		}
-		// General scrolls too once it's taller than that (a short, tiled window): the buttons must
-		// stay drawn, or they can't be clicked
-		if d.tab == .General do body = skald.scroll(ctx, {0, 0}, body, id = skald.hash_id("project-settings-general-scroll"))
 		content = skald.col(
 			skald.text("Project Settings", th.color.fg, th.font.size_lg),
 			tabs,
@@ -96,12 +93,15 @@ ProjectSettings_TabsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> (tabs, body
 			fg = active ? th.color.on_primary : th.color.fg,
 			font_size = th.font.size_sm))
 	}
+	// General and Grid scroll once they're taller than the dialog leaves them (a short, tiled
+	// window; Settings' Project tab, which has less room): the dialog's buttons must stay drawn,
+	// or they can't be clicked. The other tabs scroll their own lists
 	switch d.tab {
-	case .General: body = generalTab(s, ctx)
+	case .General: body = skald.scroll(ctx, {0, 0}, generalTab(s, ctx), id = skald.hash_id("project-settings-general-scroll"))
 	case .Input:   body = inputTab(s, ctx)
 	case .Globals: body = globalsTab(s, ctx)
 	case .Export:  body = exportTab(s, ctx)
-	case .Grid:    body = gridTab(s, ctx)
+	case .Grid:    body = skald.scroll(ctx, {0, 0}, gridTab(s, ctx), id = skald.hash_id("project-settings-grid-scroll"))
 	}
 	return skald.row(..buttons[:], spacing = th.spacing.xs), body
 }

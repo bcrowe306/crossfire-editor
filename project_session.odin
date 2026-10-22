@@ -9,8 +9,15 @@ import e "engine:."
 import sdl "vendor:sdl3"
 
 /*
-The open project's lifecycle: unsaved changes, New and Open Project, and the "save changes?"
-prompt before quitting or switching projects. The dialogs are in view_project_dialogs.odin.
+The open project's lifecycle: unsaved changes, New and Open Project, Save As, recent projects
+(recent_projects.odin), and the "save changes?" prompt before quitting or switching projects. The
+dialogs are in view_project_dialogs.odin.
+
+Save As (`Session_OpenSaveAs`, the New Project dialog with `saveAs` set) copies the project's own
+files (`Project_OwnFiles`: not build output, exported games or `.git`) into the new folder, writes
+what's open there (the project as it is, unsaved code tabs' text), then opens the copy: the
+project on disk where it was stays as it was last saved. Assets outside the project folder keep
+their paths and are reported (a relative one may not resolve from the new place).
 
 Unsaved changes: every undo step pushed, merged, undone or redone bumps `history.version`, so the
 project is modified when that differs from the version at the last save, or when assets were
@@ -25,6 +32,8 @@ PendingAction :: enum {
 	New_Project,
 	Open_Project,
 	Open_Project_Archive,
+	// A recent project (SessionState.recent)
+	Open_Recent,
 }
 
 SessionState :: struct {
@@ -37,8 +46,12 @@ SessionState :: struct {
 		open: bool,
 		pending: PendingAction,
 	},
+	// The recent project waiting on the prompt (owned)
+	recent: string,
 	newProject: struct {
 		open: bool,
+		// Save As: the dialog names the copy instead of a new project
+		saveAs: bool,
 		// Owned
 		name: string,
 		location: string,
@@ -126,7 +139,11 @@ Session_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		name := strings.trim_space(session.newProject.name)
 		root, _ := filepath.join({session.newProject.location, name}, context.temp_allocator)
 		if message := newProjectProblem(name, session.newProject.location, root); message != "" {
-			logLine(state, .Error, fmt.aprintf("New project: %s", message))
+			logLine(state, .Error, fmt.aprintf("%s: %s", session.newProject.saveAs ? "Save As" : "New project", message))
+			return {}, true
+		}
+		if session.newProject.saveAs {
+			if saveProjectAs(state, root, name) do session.newProject.open = false
 			return {}, true
 		}
 		project := Project_CreateEmpty(root, name)
@@ -143,6 +160,13 @@ Session_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	case Open_Project_Chosen:
 		if v.cancelled || v.path == "" do return {}, true
 		Session_OpenProject(state, v.path)
+	case Recent_Project_Chosen:
+		if int(v) < 0 || int(v) >= len(state.recentProjects.folders) do return {}, true
+		delete(session.recent)
+		session.recent = strings.clone(state.recentProjects.folders[int(v)])
+		return Session_Request(state, .Open_Recent), true
+	case Recent_Projects_Cleared:
+		Recent_Clear(&state.recentProjects)
 	case:
 		return {}, false
 	}
@@ -228,13 +252,81 @@ runPending :: proc(state: ^State, action: PendingAction) -> skald.Command(Msg) {
 			default_location = filepath.dir(state.project.rootPath))
 	case .Open_Project_Archive:
 		return ProjectArchive_Open(state)
+	case .Open_Recent:
+		folder := strings.clone(state.session.recent, context.temp_allocator)
+		if !os.exists(filepath.join({folder, "project.xml"}, context.temp_allocator) or_else "") {
+			logLine(state, .Error, fmt.aprintf("Open recent: %s has no project any more; it's off the list", folder))
+			Recent_Remove(&state.recentProjects, folder)
+			return {}
+		}
+		Session_OpenProject(state, folder)
 	}
 	return {}
+}
+
+// Opens the Save As dialog: a name and a place for the copy (beside the project by default)
+Session_OpenSaveAs :: proc(state: ^State) {
+	newProject := &state.session.newProject
+	delete(newProject.name)
+	delete(newProject.location)
+	newProject^ = {
+		open = true,
+		saveAs = true,
+		name = fmt.aprintf("%s Copy", filepath.base(absolutePath(state.project.rootPath))),
+		location = strings.clone(filepath.dir(absolutePath(state.project.rootPath))),
+	}
+}
+
+/*
+Save As: the project's own files copied into `root`, what's open written over them (the project,
+unsaved code tabs), then the copy opened.
+
+Returns:
+- Whether it was saved (else the error is logged and the project stays as it was)
+*/
+@(private="file")
+saveProjectAs :: proc(state: ^State, root, name: string) -> bool {
+	from := absolutePath(state.project.rootPath)
+	files := Project_OwnFiles(&state.project)
+	for file in files {
+		target := joinPath(root, file, allocator = context.temp_allocator)
+		_ = os.make_directory_all(filepath.dir(target))
+		if err := os.copy_file(target, joinPath(from, file, allocator = context.temp_allocator)); err != nil {
+			logLine(state, .Error, fmt.aprintf("Save As: couldn't copy %s: %v", file, err))
+			return false
+		}
+	}
+	// Unsaved scripts: their text goes to the copy (the files where they were stay as saved)
+	for path in state.codeTabs {
+		rel, err := filepath.rel(from, absolutePath(path), context.temp_allocator)
+		if err != nil || strings.has_prefix(rel, "..") || !CodeEditor_IsDirty(path) do continue
+		text := CodeEditor_Text(path)
+		_ = os.write_entire_file(joinPath(root, rel, allocator = context.temp_allocator), transmute([]byte)text)
+	}
+	// The project as it's open, written into the copy
+	delete(state.project.rootPath)
+	state.project.rootPath = strings.clone(root)
+	delete(state.project.name)
+	state.project.name = strings.clone(name)
+	if message := Project_Save(&state.project); message != "" {
+		logLine(state, .Error, fmt.aprintf("Save As: %s", message))
+		// Back where it was, unsaved as it was
+		delete(state.project.rootPath)
+		state.project.rootPath = strings.clone(from)
+		return false
+	}
+	for asset in state.project.assets {
+		if Asset_IsOutside(asset.path) do logLine(state, .Warning, fmt.aprintf("Save As: %s is outside the project folder; the copy uses the same path, which may not find it from %s", asset.path, root))
+	}
+	logLine(state, .Info, fmt.aprintf("Saved a copy as '%s' in %s (%d files); opening it", name, root, len(files)))
+	Session_OpenProject(state, root)
+	return true
 }
 
 // Replaces the open project, resetting everything that belonged to the old one
 @(private="file")
 switchProject :: proc(state: ^State, project: Project) {
+	Recent_Add(&state.recentProjects, project.rootPath)
 	playStop(state)
 	// The save prompt came first: what's still unsaved is dropped
 	CodeTabs_CloseAll(state)

@@ -233,6 +233,8 @@ State :: struct {
 	// The active settings (see settings.odin), and the file they're saved to ("" = don't save)
 	settings: Settings,
 	settingsPath: string,
+	// The projects opened lately, for the File menu (recent_projects.odin)
+	recentProjects: RecentProjects,
 	settingsDialog: SettingsDialog,
 	history: History,
 	// What the last build said about the project's scripts, and its script files (scripts.odin)
@@ -346,6 +348,7 @@ init :: proc() -> State {
 	AudioPreview_SetDevice(FixedText_String(&settings.audioDevice))
 	state.settings = settings
 	state.settingsPath = args.settings
+	state.recentProjects = Recent_Load(args.settings)
 	for problem in problems do logLine(&state, .Warning, fmt.aprintf("Settings: %s", problem))
 	root := args.project
 	// An archive given instead of a folder: unpacked next to it, then opened
@@ -391,6 +394,7 @@ init :: proc() -> State {
 	}
 	// After the project is chosen: list its script files for the browser
 	Scripts_Refresh(&state)
+	if message == "" do Recent_Add(&state.recentProjects, state.project.rootPath)
 	return state
 }
 
@@ -427,6 +431,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.numberEdit.text)
 	delete(state.session.newProject.name)
 	delete(state.session.newProject.location)
+	delete(state.session.recent)
 	History_Destroy(&state.history)
 	ScriptCatalog_Clear(&state.scripts)
 	for f in state.scriptFiles do delete(f)
@@ -438,6 +443,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.newData.type)
 	delete(state.selection)
 	delete(state.settingsPath)
+	Recent_Destroy(&state.recentProjects)
 	delete(state.settingsDialog.search)
 	delete(state.play.partial)
 	ExportSession_Destroy(state)

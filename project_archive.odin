@@ -380,6 +380,31 @@ archiveFolderName :: proc(project: ^Project) -> string {
 	return name
 }
 
+/*
+The project's own files, as an archive takes them: every file under its folder but build output,
+exported games (each target's output folder), `.git` and OS clutter. Save As copies these.
+
+Returns:
+- Paths relative to the project folder, "/"-separated, temp allocated
+*/
+Project_OwnFiles :: proc(p: ^Project) -> []string {
+	root := absolutePath(p.rootPath)
+	skip := make([dynamic]string, context.temp_allocator)
+	for folder in ARCHIVE_SKIPPED_FOLDERS do append(&skip, joinPath(root, folder, allocator = context.temp_allocator))
+	for target in ExportTarget {
+		settings := p.exports.targets[target]
+		append(&skip, absolutePath(Export_OutputDir(p.rootPath, target, &settings, context.temp_allocator)))
+	}
+	relative := make([dynamic]string, context.temp_allocator)
+	collectFiles(root, "", skip[:], "", &relative)
+	return relative[:]
+}
+
+// Whether an asset path points outside the project folder (so a copy elsewhere may not find it)
+Asset_IsOutside :: proc(path: string) -> bool {
+	return isOutside(path)
+}
+
 // Every file under a folder (relative, "/"-separated), leaving out what archives skip
 @(private="file")
 collectFiles :: proc(root, relative: string, skip: []string, archive: string, out: ^[dynamic]string) {

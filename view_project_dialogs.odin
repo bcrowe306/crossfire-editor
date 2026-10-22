@@ -59,11 +59,15 @@ newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	label :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
 		return skald.col(skald.text(text, ctx.theme.color.fg, ctx.theme.font.size_sm), width = 80)
 	}
+	info := fmt.tprintf("Creates the folder %s/%s with project.xml, a Main scene and assets/.", np.location, np.name)
+	if np.saveAs {
+		info = fmt.tprintf("Copies the project to the folder %s/%s with what's open now (unsaved changes too), then opens the copy. The project where it is stays as it was last saved. Build output, exported games and Git history aren't copied.", np.location, np.name)
+	}
 	return skald.dialog(ctx,
 		open = np.open,
 		on_dismiss = proc() -> Msg { return New_Project_Cancelled{} },
 		content = skald.col(
-			skald.text("New Project", th.color.fg, th.font.size_lg),
+			skald.text(np.saveAs ? "Save Project As" : "New Project", th.color.fg, th.font.size_lg),
 			skald.row(
 				label(ctx, "Name"),
 				skald.flex(1, skald.text_input(ctx, np.name,
@@ -82,14 +86,13 @@ newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				spacing = th.spacing.sm,
 				cross_align = .Center,
 			),
-			skald.text(fmt.tprintf("Creates the folder %s/%s with project.xml, a Main scene and assets/.", np.location, np.name),
-				th.color.fg_muted, th.font.size_xs, max_width = 440),
+			skald.text(info, th.color.fg_muted, th.font.size_xs, max_width = 440),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
 				skald.button(ctx, "Cancel", Msg(New_Project_Cancelled{}), id = skald.hash_id("new-project-cancel"),
 					bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm),
-				skald.button(ctx, "Create", Msg(New_Project_Created{}), id = skald.hash_id("new-project-create"),
+				skald.button(ctx, np.saveAs ? "Save Copy" : "Create", Msg(New_Project_Created{}), id = skald.hash_id("new-project-create"),
 					font_size = th.font.size_sm),
 				spacing = th.spacing.sm,
 			),

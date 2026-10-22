@@ -22,6 +22,13 @@ expect undo 1
 expect settings_dialog open
 expect project_settings open
 
+# General scrolls inside the tab (it's taller than Settings leaves it): its lowest rows are
+# reachable and the dialog's buttons stay drawn
+scroll_into_view project-settings-general-scroll project-settings-icon
+expect widget_visible project-settings-icon true
+# inside the scroll, not drawn over the footer (it overlapped Save before the tab scrolled)
+expect widget_inside project-settings-icon project-settings-general-scroll
+
 # The other project tabs are there too
 click_widget project-settings-tab-Export
 expect widget_visible export-enable-Linux_x64 true

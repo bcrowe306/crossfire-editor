@@ -62,7 +62,7 @@ ACTION_KEY_RULES := #partial [Action]ActionKeyRule{
 
 // Readable names for the Keys tab and menus
 ACTION_LABELS := [Action]string{
-	.New_Project = "New project", .Open_Project = "Open project", .Save_Project = "Save",
+	.New_Project = "New project", .Open_Project = "Open project", .Save_Project = "Save", .Save_Project_As = "Save project as",
 	.Export = "Export", .Export_Project_Archive = "Export project archive", .Export_Project_Archive_With_History = "Export project archive with its history", .Open_Project_Archive = "Open project archive", .Quit = "Quit", .Undo = "Undo", .Redo = "Redo",
 	.Add_Node = "Add node", .Delete_Node = "Delete node", .Duplicate_Node = "Duplicate node",
 	.Copy_Node = "Copy node", .Cut_Node = "Cut node", .Paste_Node = "Paste node", .Rename_Node = "Rename node", .Save_As_Component = "Save as component", .Add_Script = "Add or open the node's script",

@@ -1,0 +1,37 @@
+# File > Save Project As (Ctrl+Shift+S) and the File menu's recent projects: the copy gets what's
+# open (an unsaved deletion too) and opens; the project where it was stays as it was saved; the
+# File menu lists it, and choosing it opens it again.
+# Run with: task test:ui
+#
+# The copy goes inside the scratch project (build/ui_project/SavedCopy), made fresh for each run
+
+wait 5
+expect project Asteroids Demo
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+key DELETE
+expect modified true
+
+key ctrl+shift+s
+expect new_project_dialog open
+click_widget new-project-name
+key ctrl+a
+type SavedCopy
+click_widget new-project-location
+key ctrl+a
+type build/ui_project
+click_widget new-project-create
+expect new_project_dialog closed
+expect project SavedCopy
+expect modified false
+expect project_file_lacks scenes/PlayScene.scene.xml name="Spaceship"
+
+# The project it came from is the File menu's first recent project; choosing it opens it, as saved
+expect recent_menu 0 ui_project
+send Recent_Project_Chosen 0
+expect project Asteroids Demo
+expect modified false
+expect project_file_contains scenes/PlayScene.scene.xml name="Spaceship"
+expect recent_menu 0 SavedCopy

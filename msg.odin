@@ -12,6 +12,8 @@ Action :: enum {
 	New_Project,
 	Open_Project,
 	Save_Project,
+	// A copy of the project in another folder, then opened (project_session.odin)
+	Save_Project_As,
 	Export,
 	// The whole project in one file, and opening one (project_archive.odin)
 	Export_Project_Archive,
@@ -395,6 +397,10 @@ New_Project_Cancelled :: struct {}
 // Quit even with unsaved changes (the UI test driver, when a script ends)
 Quit_Without_Asking :: struct {}
 Open_Project_Chosen :: distinct skald.File_Dialog_Result
+// The File menu's recent projects (recent_projects.odin): one chosen (its index in the list), the
+// list emptied
+Recent_Project_Chosen :: distinct int
+Recent_Projects_Cleared :: struct {}
 // Project archives (project_archive.odin): where to write one; the archive to open, then the
 // folder to unpack it into (paths are only valid while handling the message)
 Project_Archive_Path_Chosen :: distinct skald.File_Dialog_Result
@@ -915,6 +921,8 @@ Msg :: union {
 	New_Project_Created,
 	New_Project_Cancelled,
 	Open_Project_Chosen,
+	Recent_Project_Chosen,
+	Recent_Projects_Cleared,
 	Project_Archive_Path_Chosen,
 	Project_Archive_Open_Chosen,
 	Project_Archive_Destination_Chosen,
