@@ -298,6 +298,8 @@ INPUT_SETTLE_FRAMES :: 3
 @(private="file")
 FADING_MENUS := [?]string{"scene-tree-menu", "browser-menu"}
 DEFAULT_WAIT_TIMEOUT :: 10 * time.Second
+// How often a `wait_until code_completion_has` asks the language server again
+COMPLETION_RETRY :: 3 * time.Second
 // A script that hasn't finished after this long fails
 SCRIPT_TIMEOUT :: 300 * time.Second
 
@@ -318,6 +320,8 @@ Driver :: struct {
 	waitCheck: string,
 	waitDeadline: time.Tick,
 	waitTimeout: time.Duration,
+	// When a `code_completion_has` wait last asked the language server again
+	waitAsked: time.Tick,
 	started: time.Tick,
 	failures: int,
 	finished: bool,
@@ -454,6 +458,12 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 			fail(fmt.tprintf("wait_until %s: timed out after %v (%s)", driver.waitCheck, driver.waitTimeout, message))
 			driver.waitCheck = ""
 		} else {
+			// The server may answer before it has read a file just written (busy machine):
+			// ask again every few seconds, as a person would with Ctrl+Space
+			if strings.has_prefix(driver.waitCheck, "code_completion_has") && time.tick_since(driver.waitAsked) > COMPLETION_RETRY {
+				driver.waitAsked = time.tick_now()
+				CodeEditor_RequestCompletion(CodeTabs_Active(s))
+			}
 			return
 		}
 	}
@@ -493,6 +503,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		}
 		driver.waitCheck = strings.clone(check)
 		driver.waitDeadline = time.tick_add(time.tick_now(), driver.waitTimeout)
+		driver.waitAsked = time.tick_now()
 		return false
 
 	case "expect":

@@ -460,6 +460,11 @@ CodeEditor_CompletionHas :: proc(path, label: string) -> bool {
 	return false
 }
 
+// Asks the language server for completions at the caret again (the popup shows the answer)
+CodeEditor_RequestCompletion :: proc(path: string) {
+	if c := CodeEditor_Find(path); c != nil do ce.editor_request_completion(&c.ed)
+}
+
 // How many language servers run now (0 or 1: every tab shares one), and how many were started
 CodeEditor_Servers :: proc() -> (running, started: int) {
 	for c in host.editors do if c.ed.lsp_enabled do running += 1
