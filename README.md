@@ -312,6 +312,11 @@ rate, frame times, node and body counts). A CollisionShape marked **One way** is
 only its top stops what lands on it. Project Settings also has the world's scale
 (pixels per meter), gravity and Smooth motion (moving bodies glide on high-refresh screens).
 
+**Collision from sprite** (a body's inspector, with a Sprite under it): **Make Shapes** traces the
+sprite's opaque pixels into polygon CollisionShapes that fit it. **Physics materials**
+(`.material.xml`, the browser's Materials folder, a body's **Material**) share friction, bounce
+and density between bodies. User guide: [docs/manual/collision_and_materials.md](docs/manual/collision_and_materials.md).
+
 Scripts react to collisions with the `collisionEnter` / `collisionExit` hooks, and to Areas with
 `areaEnter` / `areaExit` (or the bodies' events), and can ask at any time:
 `e.PhysicsBody_IsInArea(body, area)`, `e.PhysicsBody_GetAreas(body)`,

@@ -170,6 +170,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `material_edit.odin` | **Physics materials**: `MaterialDef` (`Project.materials`), load / save / create, `Material_Field_Changed` / `Material_Created`, the material inspector (`materialInspector`) and a body's Material rows (`materialBodyRows`) |
+| `collision_trace_edit.odin` | **Collision from sprite**: `TraceSettings` (`State.trace`), `Trace_Sprites`, `Trace_Pieces`, `Trace_MakeShapes` (`Collision_Traced`), the body inspector's rows (`traceInspectorRows`) |
 | `camera_tools_edit.odin` | **Camera tools**: `NodeDef.cameraTools` (`e.CameraToolSettings`) and `viewCamera`, `Camera_Tool_Changed` (`CameraToolNumber`), the ParallaxLayer / CameraZone / CameraView inspector rows (`cameraToolInspectorRows`) |
 | `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `Scene_ResolvePath`, the inspector's rows |
 | `view_states.odin` | The bottom panel's States tab (`StatesPanel`): the graph (`graphCanvas`: boxes, arrows with their conditions, Any state; click, drag, double-click), the selected state's and transition's fields, the parameters |
@@ -1409,6 +1411,24 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## Collision from sprites and physics materials (implemented, `collision_trace_edit.odin`, `material_edit.odin`; engine: collision_trace.odin, physics_material.odin)
+
+- **Materials** follow themes: `Project.materials` (`MaterialDef`), `.material.xml` assets of kind
+  PhysicsMaterial (browser folder Materials, hidden until one exists), `Project_SaveMaterials` in
+  `Project_Save`, `.Project` undo steps (the snapshot holds every material), the inspector when
+  the browser selects one (`State.materialSelection`, set in `update` like `themeSelection`).
+  Values are rounded to three decimals as they're set (short numbers in files). A body's
+  `NodeDef.material` (Node_Text_Changed `.Material`) replaces its friction, restitution and
+  density, so the inspector leaves those rows out (`materialBodyRows`). Areas have none.
+- **Collision from sprite** (`State.trace`, view state): the body inspector's section under its
+  shapes; `Collision_Traced` is a `.Scene` step that removes the body's direct CollisionShape
+  children named `Traced...` and inserts one Polygon per piece (`e.Image_CollisionPolygons` on
+  `Image_LoadRGBA`, an AnimatedSprite's first animation cell cropped), mapped through the sprite's
+  transform relative to the body. A trace that changes nothing records no step.
+- Tests: `physics_materials_in_the_editor`, `collision_from_a_sprite_in_the_editor`,
+  `tests/ui/collision_tools.script` (driver `select_node`, checks `traced`, `material`,
+  `node_material`). User guide: `docs/manual/collision_and_materials.md`.
 
 ## Camera tools (implemented, `camera_tools_edit.odin`; engine: camera_tools.odin)
 

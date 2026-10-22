@@ -72,6 +72,7 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.viewCamera = strings.clone(node.viewCamera)
 	copy.sound = strings.clone(node.sound)
 	copy.bus = strings.clone(node.bus)
+	copy.material = strings.clone(node.material)
 	return copy
 }
 

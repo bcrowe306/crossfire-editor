@@ -1,0 +1,60 @@
+# Collision from a sprite and physics materials: a StaticBody with a Sprite under it, Make Shapes
+# traces the sprite's pixels into polygon CollisionShapes (traced again: replaced; undone); New
+# Material gives the body a material file, edited in the inspector, saved with the scene.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key ESCAPE
+expect selected none
+
+# A body with a sprite of the ship under it
+click_widget panel-add-node
+type staticbody
+key RETURN
+expect selected StaticBody
+click_widget panel-add-node
+type sprite
+key RETURN
+expect selected Sprite
+expect parent StaticBody
+scroll_into_view inspector-scroll inspector-texture-{selected}
+click_widget inspector-texture-{selected}
+wait 3
+click_overlay_item 1
+expect texture assets/ship.png
+
+# Make Shapes on the body: polygons that fit the ship
+select_node StaticBody
+expect selected StaticBody
+expect traced StaticBody 0
+scroll_into_view inspector-scroll inspector-trace-make-{selected}
+click_widget inspector-trace-make-{selected}
+expect traced StaticBody > 0
+expect console_contains Collision from sprite:
+# Traced again with the same settings: the same shapes (nothing to undo); undo takes the trace back
+scroll_into_view inspector-scroll inspector-trace-make-{selected}
+click_widget inspector-trace-make-{selected}
+expect traced StaticBody > 0
+key ctrl+z
+expect traced StaticBody 0
+expect selected StaticBody
+key ctrl+y
+expect traced StaticBody > 0
+
+# A material for the body, from its inspector
+scroll_into_view inspector-scroll inspector-new-material-{selected}
+click_widget inspector-new-material-{selected}
+expect node_material materials/material.material.xml
+expect console_contains Made materials/material.material.xml
+# Edited in the inspector when chosen in the browser
+select_asset materials/material.material.xml
+expect material friction 0.60
+click_at material-friction 0.05 0.5
+expect project_file_lacks materials/material.material.xml friction="0.05"
+expect material friction 0.05
+# Saved: the scene names it
+key ctrl+s
+expect project_file_contains scenes/PlayScene.scene.xml material="materials/material.material.xml"
+expect project_file_contains materials/material.material.xml friction="0.05"

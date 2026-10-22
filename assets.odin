@@ -36,6 +36,7 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), COMPONENT_EXTENSION) do return .Component, true
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), ANIMATION_EXTENSION) do return .Animation, true
 		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), THEME_EXTENSION) do return .Theme, true
+		if strings.has_suffix(strings.to_lower(path, context.temp_allocator), MATERIAL_EXTENSION) do return .PhysicsMaterial, true
 	case ".ldtk":
 		return .LDtk, true
 	case ".csv":
@@ -112,6 +113,14 @@ Project_ImportAsset :: proc(project: ^Project, source: string) -> (index: int, m
 		}
 		append(&project.animationSets, set)
 	}
+	if kind == .PhysicsMaterial {
+		material, problem := Project_LoadMaterial(project.rootPath, relative)
+		if problem != "" {
+			MaterialDef_Destroy(&material)
+			return -1, problem
+		}
+		append(&project.materials, material)
+	}
 	if kind == .Theme {
 		theme, problem := Project_LoadTheme(project.rootPath, relative)
 		if problem != "" {
@@ -155,6 +164,10 @@ Project_RemoveAsset :: proc(project: ^Project, index: int, deleteFile: bool) -> 
 	if a := Project_FindAnimationSet(project, asset.path); a >= 0 {
 		AnimationSetDef_Destroy(&project.animationSets[a])
 		ordered_remove(&project.animationSets, a)
+	}
+	if m := Project_FindMaterial(project, asset.path); m >= 0 {
+		MaterialDef_Destroy(&project.materials[m])
+		ordered_remove(&project.materials, m)
 	}
 	if t := Project_FindTheme(project, asset.path); t >= 0 {
 		ThemeDef_Destroy(&project.themes[t])

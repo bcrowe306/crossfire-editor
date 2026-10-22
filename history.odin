@@ -93,6 +93,8 @@ ProjectSnapshot :: struct {
 	animationSets: [dynamic]AnimationSetDef,
 	// UI themes by file, and the project's
 	themes: [dynamic]ThemeDef,
+	// Physics materials by file
+	materials: [dynamic]MaterialDef,
 	uiTheme: string,
 	transition: e.Transition,
 	loadingScene: string,
@@ -338,6 +340,11 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	// The file stays (an asset); undo takes the control's choice back
 	case Theme_Created:
 		if v.forSelected && hasSelection do return node(selected, fmt.tprintf("Give %s a new theme", name))
+	// Physics materials: project steps too; a slider's drag merges
+	case Material_Field_Changed:
+		return {scope = .Project, label = fmt.tprintf("Change a material's %v", v.field), mergeKey = key("material", v.field, s.materialSelection)}
+	case Material_Created:
+		if v.forSelected && hasSelection do return node(selected, fmt.tprintf("Give %s a new material", name))
 	case Particle_Field_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", particleLabel(v.name), name), key("particle", v.name, s.currentScene, selected))
 	case Particle_Axis_Changed:
@@ -422,6 +429,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Make %s unique", name))
 	case Component_Instance_Added:
 		return {scope = .Scene, label = "Add an instance"}
+	// Collision from sprite: traced shapes replace the body's earlier ones (collision_trace_edit.odin)
+	case Collision_Traced:
+		if hasSelection do return {scope = .Scene, label = fmt.tprintf("Make collision for %s from its sprite", name)}
 	case Add_Node_Confirmed, Add_Node_Kind_Chosen:
 		return {scope = .Scene, label = "Add node"}
 	case Asset_Dropped:
@@ -779,7 +789,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera {
+	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
@@ -876,6 +886,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for d in p.data do append(&snapshot.data, DataDef_Clone(d))
 	for set in p.animationSets do append(&snapshot.animationSets, AnimationSetDef_Clone(set))
 	for t in p.themes do append(&snapshot.themes, ThemeDef_Clone(t))
+	for m in p.materials do append(&snapshot.materials, MaterialDef_Clone(m))
 	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
 	for b in p.buses do append(&snapshot.buses, BusDef{strings.clone(b.name), b.volume, b.pan, b.mute})
 	return snapshot
@@ -941,6 +952,13 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 		ThemeDef_Destroy(&p.themes[i])
 		p.themes[i] = ThemeDef_Clone(t)
 	}
+	// And materials
+	for m in snapshot.materials {
+		i := Project_FindMaterial(p, m.path)
+		if i < 0 do continue
+		MaterialDef_Destroy(&p.materials[i])
+		p.materials[i] = MaterialDef_Clone(m)
+	}
 	for scene in snapshot.scenes do append(&p.scenes, SceneDef_Clone(scene))
 	append(&p.scenes, ..components[:])
 }
@@ -998,6 +1016,8 @@ destroyProjectSnapshot :: proc(snapshot: ^ProjectSnapshot) {
 	delete(snapshot.animationSets)
 	for &t in snapshot.themes do ThemeDef_Destroy(&t)
 	delete(snapshot.themes)
+	for &m in snapshot.materials do MaterialDef_Destroy(&m)
+	delete(snapshot.materials)
 	delete(snapshot.uiTheme)
 	delete(snapshot.loadingScene)
 	for &a in snapshot.actions do ActionDef_Destroy(&a)
@@ -1023,6 +1043,8 @@ projectSnapshotsEqual :: proc(a, b: ^ProjectSnapshot) -> bool {
 	for set, i in a.animationSets do if !AnimationSetDef_Equal(set, b.animationSets[i]) do return false
 	if a.uiTheme != b.uiTheme || len(a.themes) != len(b.themes) || a.transition != b.transition || a.loadingScene != b.loadingScene do return false
 	for t, i in a.themes do if !ThemeDef_Equal(t, b.themes[i]) do return false
+	if len(a.materials) != len(b.materials) do return false
+	for m, i in a.materials do if !MaterialDef_Equal(m, b.materials[i]) do return false
 	return true
 }
 

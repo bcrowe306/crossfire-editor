@@ -85,6 +85,7 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 Drag a row onto another row (top quarter, middle, bottom
 	                                 quarter); a `to` past the last row drops below the rows
 	click_node <name> [ctrl | shift] Click a node in the viewport (current scene)
+	select_node <name>               Select a node of the current scene by name (as a click on its row)
 	box_select <x0> <y0> <x1> <y1>   Drag a selection box in the viewport, in world coordinates
 	drag_to_viewport <browser row> <dx> <dy>
 	                                 Drag a browser row into the viewport, to (dx, dy) window
@@ -212,6 +213,9 @@ Checks:
 	                             properties; selected: true when a node is chosen)
 	scene_lit <true | false>     The open scene's lighting is on
 	light <kind|energy|radius|angle|shadows> <value>
+	traced <node> <n | > n>       The traced CollisionShapes (named Traced...) under a node
+	material <friction|restitution|density> <value>   The material the inspector shows (2 decimals)
+	node_material <path | none>   The selected node's physics material
 	                             The selected Light2D's settings
 	viewport_unlit <true | false>   The viewport shows lit scenes unlit
 	themes <count>               The project's UI themes
@@ -1203,6 +1207,19 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
+	case "select_node":
+		scene := &s.project.scenes[s.currentScene]
+		index := -1
+		for node, i in scene.nodes do if node.name == rest do index = i
+		if index < 0 {
+			fail(fmt.tprintf("%s: no node '%s' in the scene", line, rest))
+			return true
+		}
+		skald.send(ctx, Msg(Node_Picked(index)))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "open_project":
 		// Kept: the message may be handled after this frame's temp memory is freed (test-only, tiny)
 		skald.send(ctx, Msg(Open_Project_Chosen{path = Editor_ArgumentPath(rest)}))
@@ -1591,6 +1608,34 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case: return false, fmt.tprintf("unknown light field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
+	case "traced":
+		// "traced <node> <n | > n>": the traced CollisionShapes under a node
+		name, _, expected := strings.partition(value, " ")
+		body := -1
+		for node, i in scene.nodes do if node.name == name do body = i
+		count := 0
+		for node in scene.nodes do if body >= 0 && node.parent == body && node.kind == .CollisionShape && strings.has_prefix(node.name, "Traced") do count += 1
+		found = fmt.tprint(count)
+		expected = strings.trim_space(expected)
+		if strings.has_prefix(expected, "> ") {
+			n, _ := strconv.parse_int(expected[2:])
+			return count > n, found
+		}
+		return found == expected, found
+	case "material":
+		// "material <friction | restitution | density> <value>": the inspector's material, two decimals
+		field, _, expected := strings.partition(value, " ")
+		if s.materialSelection < 0 || s.materialSelection >= len(s.project.materials) do return false, "no material shown"
+		m := s.project.materials[s.materialSelection].material
+		switch field {
+		case "friction":    found = fmt.tprintf("%.2f", m.friction)
+		case "restitution": found = fmt.tprintf("%.2f", m.restitution)
+		case "density":     found = fmt.tprintf("%.2f", m.density)
+		case: return false, fmt.tprintf("unknown material field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "node_material":
+		found = selected != nil ? (selected.material == "" ? "none" : selected.material) : "nothing selected"
 	case "themes":
 		found = fmt.tprint(len(s.project.themes))
 	case "theme":

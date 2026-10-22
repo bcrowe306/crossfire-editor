@@ -496,6 +496,8 @@ NodeTextField :: enum {
 	Process_Mode,
 	Blend_Mode,
 	Groups,
+	// A body's physics material (MATERIAL_NONE for none)
+	Material,
 }
 
 Node_Text_Changed :: struct {
@@ -1054,6 +1056,11 @@ Msg :: union {
 	Theme_Font_Changed,
 	Theme_Created,
 	Theme_Project_Set,
+	Material_Field_Changed,
+	Material_Created,
+	Trace_Setting_Changed,
+	Trace_Sprite_Chosen,
+	Collision_Traced,
 	Timeline_View,
 	Timeline_Tick,
 	Timeline_Tick_Requested,

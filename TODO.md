@@ -23,7 +23,6 @@ dev release, each tested, documented and removed from here when done.
     with msdfgen built from source (a submodule, like Box2D and SDL); BMFont bitmap fonts too.
 13. **Trails and lines**: trail renderers, line nodes (ropes, lasers), and GPU particles
     (decided: yes, on SDL_GPU, GPU backend only, the CPU emitter as the fallback).
-14. **Collision from sprites** (polygons from an image's alpha) and shared physics materials.
 15. **Skeletal animation**. Decided: the engine's own bones, skinned sprites and IK, edited in
     the editor and keyed with the Timeline, **plus** DragonBones JSON import (not Spine: its
     runtime license).

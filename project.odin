@@ -146,6 +146,9 @@ NodeDef :: struct {
 	sound: string,
 	bus: string,
 	audio: e.AudioSettings,
+	// Bodies: a physics material (`.material.xml`, material_edit.odin) replacing their friction,
+	// restitution and density ("" none; owned)
+	material: string,
 	// LDtkLevel (ldtk_edit.odin): the .ldtk file, the level, collision, entity components... (owned)
 	ldtk: e.LDtkLevelSettings,
 	// A TileMap's settings (strings owned: tilemap_edit.odin)
@@ -250,6 +253,8 @@ AssetKind :: enum {
 	Animation,
 	// A UI theme (`.theme.xml`, theme_edit.odin): how UI controls look
 	Theme,
+	// A physics material (`.material.xml`, material_edit.odin): bodies' friction, bounce, density
+	PhysicsMaterial,
 }
 
 /*
@@ -303,6 +308,8 @@ Project :: struct {
 	animationSets: [dynamic]AnimationSetDef,
 	// UI themes (`.theme.xml` assets: theme_edit.odin), and the project's (`uiTheme`; "" none)
 	themes: [dynamic]ThemeDef,
+	// Physics materials (`.material.xml` assets: material_edit.odin)
+	materials: [dynamic]MaterialDef,
 	uiTheme: string,
 	// How scene changes look, and the loading scene ("" none; owned): scene_flow_edit.odin
 	transition: e.Transition,
@@ -351,6 +358,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		component = strings.clone(""),
 		sound = strings.clone(""),
 		bus = strings.clone(""),
+		material = strings.clone(""),
 		audio = defaults.audio,
 		script = strings.clone(""),
 		collisionLayer = defaults.collisionLayer,
@@ -449,6 +457,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	delete(node.component)
 	delete(node.sound)
 	delete(node.bus)
+	delete(node.material)
 	e.LDtkLevelSettings_Destroy(&node.ldtk)
 }
 
@@ -626,6 +635,8 @@ Project_Destroy :: proc(project: ^Project) {
 	delete(project.animationSets)
 	for &t in project.themes do ThemeDef_Destroy(&t)
 	delete(project.themes)
+	for &m in project.materials do MaterialDef_Destroy(&m)
+	delete(project.materials)
 	delete(project.uiTheme)
 	delete(project.loadingScene)
 	delete(project.data)
@@ -689,6 +700,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "Translation": kind = .Translation
 		case "Animation": kind = .Animation
 		case "Theme": kind = .Theme
+		case "PhysicsMaterial": kind = .PhysicsMaterial
 		}
 		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
 		// A data resource's values come from its file
@@ -713,6 +725,17 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 				warnings = list[:]
 			}
 			append(&project.animationSets, set)
+		}
+		// A material's values come from its file
+		if kind == .PhysicsMaterial {
+			material, problem := Project_LoadMaterial(rootPath, asset.path)
+			if problem != "" {
+				list := make([dynamic]string, context.temp_allocator)
+				append(&list, ..warnings)
+				append(&list, problem)
+				warnings = list[:]
+			}
+			append(&project.materials, material)
 		}
 		// A theme's font and values come from its file
 		if kind == .Theme {
@@ -862,6 +885,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.component = strings.clone(node.component)
 	def.sound = strings.clone(node.sound)
 	def.bus = strings.clone(node.bus)
+	def.material = strings.clone(node.material)
 	def.audio = node.audio
 	def.light = node.light
 	def.nav = node.nav

@@ -312,6 +312,15 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			bg = th.color.bg,
 		)
 	}
+	if s.materialSelection >= 0 && s.materialSelection < len(s.project.materials) {
+		return skald.col(
+			header,
+			skald.divider(ctx),
+			skald.flex(1, skald.scroll(ctx, {0, 0}, materialInspector(s, ctx), id = skald.hash_id("inspector-scroll"))),
+			cross_align = .Stretch,
+			bg = th.color.bg,
+		)
+	}
 	if s.dataSelection >= 0 && s.dataSelection < len(s.project.data) {
 		return skald.col(
 			header,

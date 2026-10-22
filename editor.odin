@@ -87,6 +87,8 @@ BrowserFolder :: enum {
 	Animations,
 	// UI themes (theme_edit.odin)
 	Themes,
+	// Physics materials (material_edit.odin)
+	Materials,
 }
 
 /*
@@ -266,6 +268,10 @@ State :: struct {
 	dataSelection: int,
 	// The theme the inspector shows (an index into project.themes; -1 none), chosen in the browser
 	themeSelection: int,
+	// The physics material the inspector shows (an index into project.materials; -1 none)
+	materialSelection: int,
+	// Collision from sprite's settings (collision_trace_edit.odin; view state)
+	trace: TraceSettings,
 	session: SessionState,
 	// Copied or cut nodes: one subtree, parents relative to the list (see node_edit.odin)
 	clipboard: [dynamic]NodeDef,
@@ -327,10 +333,12 @@ init :: proc() -> State {
 		timeline = {node = -1, track = -1, key = -1},
 		states = {node = -1, state = -1, transition = -1},
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		themeSelection = -1,
+		materialSelection = -1,
+		trace = DEFAULT_TRACE_SETTINGS,
 		viewport = {animate = true, gridVisible = true, showShapes = true},
 		layout = {
 			leftWidth = 240,

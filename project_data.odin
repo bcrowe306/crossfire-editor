@@ -228,7 +228,7 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		case .LDtk:  prefix, type = "LDTK", "LDtkAsset"
 		case .Animation: prefix, type = "ANIMATION", "AnimationAsset"
 		// Games load every table themselves; scripts use their keys
-		case .Translation, .Theme: continue
+		case .Translation, .Theme, .PhysicsMaterial: continue
 		}
 		stem := asset.kind == .Data ? DataName(asset.path) : asset.kind == .Component ? ComponentName(asset.path) : filepath.stem(filepath.base(asset.path))
 		if asset.kind == .Animation do stem = strings.trim_suffix(filepath.base(asset.path), ANIMATION_EXTENSION)

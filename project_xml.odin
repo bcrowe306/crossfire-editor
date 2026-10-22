@@ -50,6 +50,7 @@ Project_Save :: proc(project: ^Project) -> string {
 	if message := Project_SaveData(project); message != "" do return message
 	if message := Project_SaveAnimationSets(project); message != "" do return message
 	if message := Project_SaveThemes(project); message != "" do return message
+	if message := Project_SaveMaterials(project); message != "" do return message
 	// The typed asset constants for scripts follow the asset list
 	if message := Scripts_WriteAssetsFile(project); message != "" do return message
 
@@ -539,6 +540,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.kind != .Area {
 			if node.friction != defaults.friction do attr(w, "friction", node.friction)
 			if node.restitution != defaults.restitution do attr(w, "restitution", node.restitution)
+			if node.material != "" do attr(w, "material", node.material)
 		}
 		#partial switch node.kind {
 		case .DynamicBody:

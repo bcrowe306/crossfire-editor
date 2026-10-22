@@ -211,6 +211,8 @@ browserMenuItems :: proc(s: ^State) -> []string {
 				add(&labels, "New Animations", Msg(Anim_Set_New{}))
 			case .Theme:
 				add(&labels, "New Theme", Msg(Theme_Created{}))
+			case .PhysicsMaterial:
+				add(&labels, "New Material", Msg(Material_Created{}))
 			case .Font, .Data, .Component, .Translation:
 			}
 		}
@@ -238,9 +240,14 @@ browserMenuItems :: proc(s: ^State) -> []string {
 			add(&labels, "New Theme", Msg(Theme_Created{}))
 			break
 		}
+		if selection.kind == .Folder && selection.folder == .Materials {
+			add(&labels, "New Material", Msg(Material_Created{}))
+			break
+		}
 		add(&labels, "New Scene", Msg(Scene_Action{.New, -1}))
 		if s.hasSceneClipboard do add(&labels, shortcut(s, "Paste Scene", .Paste_Node), Msg(Scene_Action{.Paste, -1}))
 		add(&labels, "New UI Theme", Msg(Theme_Created{}))
+		add(&labels, "New Physics Material", Msg(Material_Created{}))
 	}
 	return labels[:]
 }
@@ -487,6 +494,18 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				skald.text(isProject ? "The project's UI theme; edit it in the inspector" : "A UI theme; edit it in the inspector", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
+		case .PhysicsMaterial:
+			text := "A physics material; edit it in the inspector"
+			if i := Project_FindMaterial(&s.project, asset.path); i >= 0 {
+				m := s.project.materials[i].material
+				users := Material_Users(&s.project, asset.path)
+				text = fmt.tprintf("Friction %.2f, bounce %.2f, density %.2f. Used by %d bod%s; edit it in the inspector.", m.friction, m.restitution, m.density, users, users == 1 ? "y" : "ies")
+			}
+			content = skald.col(
+				skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+				skald.text(text, th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+				spacing = th.spacing.xs,
+			)
 		case .LDtk:
 			content = ldtkPreview(s, ctx, asset, path)
 		case .Translation:
@@ -663,6 +682,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Translation: return ICON_GLOBE
 	case .Animation: return ICON_FILM
 	case .Theme: return ICON_PALETTE
+	case .PhysicsMaterial: return ICON_CUBE
 	}
 	return ICON_FILE
 }

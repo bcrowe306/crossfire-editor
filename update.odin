@@ -43,6 +43,17 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	}
 	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.themeSelection = -1
 	if out.themeSelection >= len(out.project.themes) do out.themeSelection = -1
+	// And a physics material
+	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
+	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .PhysicsMaterial {
+		out.materialSelection = Project_FindMaterial(&out.project, out.project.assets[out.browserSelection.index].path)
+	}
+	if out.browserSelection != state.browserSelection && !(out.browserSelection.kind == .Asset && out.browserSelection.index < len(out.project.assets) &&
+	   out.project.assets[out.browserSelection.index].kind == .PhysicsMaterial) && out.browserSelection.kind != .None {
+		out.materialSelection = -1
+	}
+	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.materialSelection = -1
+	if out.materialSelection >= len(out.project.materials) do out.materialSelection = -1
 	// Anything that opens another scene shows it (not a code tab), in its tab
 	if out.currentScene != state.currentScene {
 		out.codeTab = 0
@@ -76,6 +87,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if CameraTools_Update(&out, m) do return out, {}
 	if SceneFlowEdit_Update(&out, m) do return out, {}
 	if ThemeEdit_Update(&out, m) do return out, {}
+	if MaterialEdit_Update(&out, m) do return out, {}
+	if TraceEdit_Update(&out, m) do return out, {}
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if SceneSettings_Update(&out, m) do return out, {}
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
@@ -116,7 +129,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by Live_Update above
 	case Light_Setting_Changed, Scene_Lighting_Changed:
 		// Handled by LightEdit_Update above
-	case UI_Setting_Changed, Theme_Field_Changed, Theme_Font_Changed, Theme_Created, Theme_Project_Set:
+	case UI_Setting_Changed, Theme_Field_Changed, Theme_Font_Changed, Theme_Created, Theme_Project_Set, Material_Field_Changed, Material_Created, Trace_Setting_Changed, Trace_Sprite_Chosen, Collision_Traced:
 		// Handled by UIEdit_Update and ThemeEdit_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
@@ -922,6 +935,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Sound:
 			delete(node.sound)
 			node.sound = strings.clone(v.value == TEXTURE_NONE ? "" : v.value)
+		case .Material:
+			delete(node.material)
+			node.material = strings.clone(v.value == MATERIAL_NONE ? "" : v.value)
 		case .Bus:
 			delete(node.bus)
 			node.bus = strings.clone(v.value == e.MASTER_BUS ? "" : v.value)

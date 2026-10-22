@@ -13,6 +13,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 |---|---|
 | [Projects](projects.md) | Making, opening and saving a project; recent projects in the File menu; Save Project As (a copy somewhere else); project archives; unsaved changes |
 | [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
+| [Collision from sprites and physics materials](collision_and_materials.md) | Collision shapes traced from a sprite's pixels; shared friction, bounce and density for bodies |
 | [Camera tools](camera_tools.md) | Parallax backgrounds, rooms the camera stays in (camera zones), smooth zoom, camera views for split screen, minimaps and picture in picture |
 | [State machines](state_machines.md) | StateMachine nodes and the States tab: states playing animations, transitions on conditions over parameters scripts set, events, any-state transitions |
 | [Scene changes](scene_changes.md) | Transitions between scenes (fades, wipes, a circle), scenes opened over others (pause menus, HUDs), loading screens, scene changes in scripts |

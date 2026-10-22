@@ -61,14 +61,19 @@ physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 
 	#partial switch node.kind {
 	case .StaticBody, .DynamicBody, .CharacterMover, .Area:
-		append(&rows, ..bodySurfaceRows(ctx, s, node, key, controlWidth, numberWidth, surface = node.kind != .Area))
+		// A physics material (material_edit.odin) replaces the body's own surface and density
+		material := false
+		materialRows: []skald.View
+		if NodeKind_HasMaterial(node.kind) do materialRows, material = materialBodyRows(ctx, s, node, key, controlWidth)
+		append(&rows, ..bodySurfaceRows(ctx, s, node, key, controlWidth, numberWidth, surface = node.kind != .Area && !material))
+		append(&rows, ..materialRows)
 		if node.kind == .Area {
 			append(&rows, hint(ctx, "Reports bodies entering and leaving it (on the layers in Collides); stops nothing."))
 		}
 		#partial switch node.kind {
 		case .DynamicBody:
+			if !material do append(&rows, inspectorRow(ctx, "Density", number(ctx, s, key, .Density, node.density, 0.1, 2, numberWidth, 0, 1000)))
 			append(&rows,
-				inspectorRow(ctx, "Density", number(ctx, s, key, .Density, node.density, 0.1, 2, numberWidth, 0, 1000)),
 				inspectorRow(ctx, "Gravity", number(ctx, s, key, .Gravity_Scale, node.gravityScale, 0.1, 2, numberWidth, -100, 100)),
 				inspectorRow(ctx, "Damping", number(ctx, s, key, .Linear_Damping, node.linearDamping, 0.1, 2, numberWidth, 0, 100)),
 				inspectorRow(ctx, "Spin damp", number(ctx, s, key, .Angular_Damping, node.angularDamping, 0.1, 2, numberWidth, 0, 100)),
@@ -82,8 +87,11 @@ physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 			}
 		}
 		if !bodyHasShape(scene, index) {
-			append(&rows, hint(ctx, "Add a CollisionShape under it to give it a shape.", warning = true))
+			append(&rows, hint(ctx, "Add a CollisionShape under it to give it a shape, or make shapes from its sprite below.", warning = true))
 		}
+		// Collision from sprite (collision_trace_edit.odin)
+		append(&rows, skald.divider(ctx))
+		append(&rows, ..traceInspectorRows(ctx, s, scene, key, controlWidth, numberWidth))
 
 	case .CollisionShape:
 		append(&rows, ..shapeRows(ctx, s, node, key, controlWidth, numberWidth))
