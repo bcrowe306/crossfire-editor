@@ -18,6 +18,8 @@ expect row 5 HUD
 click_row scene-tree 2
 expect selected Spaceship
 click_widget panel-add-node
+# Searched: the list is longer than the tiled window shows
+type Sprite
 click_widget add-node-Sprite
 expect selected Sprite
 expect parent Spaceship

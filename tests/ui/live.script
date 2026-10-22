@@ -13,15 +13,20 @@ wait_until live nodes > 0 timeout=10
 wheel_widget bottom-tabs-scroll -10
 click_tab bottom-tabs 7
 expect tab Live
+# The game's window can squeeze the editor's (a tiling window manager): scroll to the row
+scroll_into_view live-scroll live-node-0
 click_widget live-node-0
 expect live selected true
 wait_until live properties > 0 timeout=10
 
 # Paused, stepped, resumed (the game says it's paused in its stats)
+scroll_into_view live-scroll live-pause
 click_widget live-pause
 wait_until live paused true timeout=5
 expect play Paused
+scroll_into_view live-scroll live-step
 click_widget live-step
+scroll_into_view live-scroll live-pause
 click_widget live-pause
 wait_until live paused false timeout=5
 expect play Playing

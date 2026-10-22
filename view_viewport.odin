@@ -636,6 +636,16 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				// Hidden (Toggle_Collision_Shapes); still pickable by their bounds
 			case node.kind == .Joint:
 				drawJoint(r, p.bounds, v, scene, i, data.shapes[:], th)
+			case node.kind == .CameraZone || node.kind == .CameraView:
+				// Their rectangle (a view's is drawn by the engine too)
+				color := kindColor(node.kind)
+				corners := [4][2]f32{{0, 0}, {node.shapeSize.x, 0}, node.shapeSize, {0, node.shapeSize.y}}
+				for c, k in corners {
+					a := toWindow(p.bounds, v, e.Transform2D_Apply(shape.world, c))
+					b := toWindow(p.bounds, v, e.Transform2D_Apply(shape.world, corners[(k + 1) % 4]))
+					skald.draw_polyline(r, {a, b}, i == s.selectedNode ? 2 : 1, color, aa = true)
+				}
+				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case node.kind == .NavRegion:
 				// Its area, and (selected) its blocked cells
 				color := kindColor(.NavRegion)
@@ -1028,6 +1038,8 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .NavRegion, .NavAgent: return skald.rgb(0x8be07a)
 	// State machines: the Animator's purple, bluer
 	case .StateMachine:   return skald.rgb(0xa8b4ff)
+	// Camera tools: the Camera's amber
+	case .ParallaxLayer, .CameraZone, .CameraView: return skald.rgb(0xffbe46)
 	case .LightOccluder:  return skald.rgb(0x9aa0b4)
 	// UI: the Label's green, bluer
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText: return skald.rgb(0x7ed6d0)

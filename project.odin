@@ -162,6 +162,10 @@ NodeDef :: struct {
 	nav: e.NavSettings,
 	// A StateMachine's states, transitions and parameters (owned: state_machine_edit.odin)
 	stateMachine: e.StateMachineSettings,
+	// ParallaxLayer, CameraZone, CameraView settings (plain) and a CameraView's camera (owned):
+	// camera_tools_edit.odin
+	cameraTools: e.CameraToolSettings,
+	viewCamera: string,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -373,10 +377,14 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		ui = e.UISettings_Clone(e.DEFAULT_UI_SETTINGS),
 		light = e.DEFAULT_LIGHT_SETTINGS,
 		nav = e.DEFAULT_NAV_SETTINGS,
+		cameraTools = e.DEFAULT_CAMERA_TOOL_SETTINGS,
 	}
 	// A NavRegion covers a screenful to begin with; a StateMachine has a first state
 	if kind == .NavRegion do node.shapeSize = {640, 360}
 	if kind == .StateMachine do node.stateMachine = StateMachine_Default()
+	// A camera zone covers a screenful, a camera view a small corner
+	if kind == .CameraZone do node.shapeSize = {640, 360}
+	if kind == .CameraView do node.shapeSize = {160, 90}
 	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
 		append(&node.items, MenuItemDef{strings.clone("Button"), strings.clone("quit")})
@@ -436,6 +444,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	e.AnimatorSettings_Destroy(&node.animator)
 	e.UISettings_Destroy(&node.ui)
 	e.StateMachineSettings_Destroy(&node.stateMachine)
+	delete(node.viewCamera)
 	delete(node.autoplay)
 	delete(node.component)
 	delete(node.sound)
@@ -857,6 +866,8 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.light = node.light
 	def.nav = node.nav
 	def.stateMachine = e.StateMachineSettings_Clone(node.stateMachine)
+	def.cameraTools = node.cameraTools
+	def.viewCamera = strings.clone(node.viewCamera)
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)

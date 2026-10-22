@@ -73,6 +73,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if NavEdit_Update(&out, m) do return out, {}
 	if Live_Update(&out, m) do return out, {}
 	if States_Update(&out, m) do return out, {}
+	if CameraTools_Update(&out, m) do return out, {}
 	if SceneFlowEdit_Update(&out, m) do return out, {}
 	if ThemeEdit_Update(&out, m) do return out, {}
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
@@ -107,6 +108,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by NavEdit_Update above
 	case Project_Settings_Transition_Changed, Project_Settings_Loading_Changed:
 		// Handled by SceneFlowEdit_Update above
+	case Camera_Tool_Changed:
+		// Handled by CameraTools_Update above
 	case SM_Changed, SM_View:
 		// Handled by States_Update above
 	case Live_Command, Live_Selected, Live_Property_Edited:

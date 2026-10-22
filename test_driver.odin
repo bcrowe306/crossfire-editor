@@ -201,6 +201,8 @@ Checks:
 	                             The selected UI control's settings ("none" for empty text)
 	nav <cellSize|agentRadius|diagonal|speed|autoMove|width> <value>
 	                             The selected NavRegion's or NavAgent's settings
+	camtool <factorX|repeatX|transition|zoom|camera> <value>
+	                             The selected ParallaxLayer's, CameraZone's or CameraView's settings ("none": no camera)
 	states <states|transitions|params|start|selected|position> <value>
 	                             The States tab's machine: counts, its start, the selected state's name
 	                             ("none") and position ("x, y")
@@ -1495,6 +1497,19 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "autoMove":    found = fmt.tprint(n.autoMove)
 		case "width":       found = fmt.tprint(selected.shapeSize.x)
 		case: return false, fmt.tprintf("unknown nav field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "camtool":
+		if selected == nil do return false, "nothing selected"
+		field, _, expected := strings.partition(value, " ")
+		c := selected.cameraTools
+		switch field {
+		case "factorX":    found = fmt.tprint(c.factor.x)
+		case "repeatX":    found = fmt.tprint(c.repeatX)
+		case "transition": found = fmt.tprint(c.transition)
+		case "zoom":       found = fmt.tprint(c.zoom)
+		case "camera":     found = selected.viewCamera == "" ? "none" : selected.viewCamera
+		case: return false, fmt.tprintf("unknown camtool field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
 	case "states":

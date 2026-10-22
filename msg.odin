@@ -1034,6 +1034,7 @@ Msg :: union {
 	Light_Setting_Changed,
 	Nav_Setting_Changed,
 	SM_Changed,
+	Camera_Tool_Changed,
 	SM_View,
 	Live_Command,
 	Live_Selected,

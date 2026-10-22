@@ -373,6 +373,12 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
+**Camera tools:** **ParallaxLayer** backgrounds move slower than the world (tiled if asked) for
+depth; **CameraZone** rooms keep the camera inside the room the player is in and slide it into the
+next; `e.Camera2D_ZoomTo` zooms smoothly; a **CameraView** shows what another Camera sees in a
+rectangle on screen (split screen, minimaps, picture in picture). See the
+[manual's camera tools page](docs/manual/camera_tools.md).
+
 **State machines:** a **StateMachine** node inside an AnimatedSprite keeps what the character is
 doing (idle, run, jump, attack) and plays each state's animation. Edit it as a graph in the bottom
 panel's **States** tab: states (drag them around), arrows with conditions over parameters

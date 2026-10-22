@@ -6,16 +6,14 @@ owns it.
 
 ## Common engine features (2026-10-21)
 
-The features most 2D engines have that this one doesn't, as the user listed them. The first ten
-(shaders deferred) are being built one per dev release, in this order; each gets a user guide in
-`docs/manual/`. Remove an item here once it's built.
+The features most 2D engines have that this one doesn't, as the user listed them. Items 1-10
+(shaders deferred) were built one per dev release (2026-10-21/22), each with a user guide in
+`docs/manual/`; the rest wait. Remove an item here once it's built.
 
 4. **Shaders and post-processing** (deferred by the user): custom fragment shaders on sprites
    (hit flash, outline, dissolve, palette swap) and screen effects (CRT, bloom, grading). Check
    what SDL's GPU renderer allows first, across platforms and the web; the software renderer
    can't run them.
-10. **Parallax and camera tools**: parallax backgrounds outside LDtk, camera limit zones and
-    rooms, smooth zoom, multiple viewports (split screen, minimaps, picture in picture).
 11. **Hot reload of scripts**, more than one script per node, custom node types from game code.
 12. **Asset import settings**: per-texture filtering and atlas packing, audio conversion,
     bitmap / MSDF fonts.

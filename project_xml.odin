@@ -558,6 +558,26 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.slice != "" do attr(w, "slice", node.slice)
 	case .LightOccluder:
 		writeShape(w, node)
+	case .ParallaxLayer, .CameraZone, .CameraView:
+		c, d := node.cameraTools, e.DEFAULT_CAMERA_TOOL_SETTINGS
+		#partial switch node.kind {
+		case .ParallaxLayer:
+			if node.texture != "" do attr(w, "texture", node.texture)
+			if c.factor.x != d.factor.x do attr(w, "factorX", c.factor.x)
+			if c.factor.y != d.factor.y do attr(w, "factorY", c.factor.y)
+			if c.repeatX do attr(w, "repeatX", true)
+			if c.repeatY do attr(w, "repeatY", true)
+		case .CameraZone:
+			attr(w, "width", node.shapeSize.x)
+			attr(w, "height", node.shapeSize.y)
+			if c.transition != d.transition do attr(w, "zoneTransition", c.transition)
+		case .CameraView:
+			attr(w, "width", node.shapeSize.x)
+			attr(w, "height", node.shapeSize.y)
+			if node.viewCamera != "" do attr(w, "viewCamera", node.viewCamera)
+			if c.zoom != d.zoom do attr(w, "viewZoom", c.zoom)
+			if c.border != d.border do attr(w, "border", c.border)
+		}
 	case .StateMachine:
 		if node.stateMachine.start != "" do attr(w, "start", node.stateMachine.start)
 		if node.stateMachine.target != "" do attr(w, "animates", node.stateMachine.target)

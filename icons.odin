@@ -44,6 +44,9 @@ ICON_GRID        :: "\uf00a"
 ICON_STOPWATCH   :: "\uf2f2"
 ICON_PALETTE     :: "\uf53f"
 ICON_LIGHTBULB   :: "\uf0eb"
+ICON_MOUNTAIN    :: "\uf6fc"
+ICON_VECTOR_SQUARE :: "\uf5cb"
+ICON_TV          :: "\uf26c"
 ICON_ROUTE       :: "\uf4d7"
 ICON_PERSON_WALKING :: "\uf554"
 ICON_SHADOW      :: "\uf5c7"
@@ -129,6 +132,9 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .LightOccluder:  return ICON_SHADOW
 	case .NavRegion:      return ICON_ROUTE
 	case .StateMachine:   return ICON_SITEMAP
+	case .ParallaxLayer:  return ICON_MOUNTAIN
+	case .CameraZone:     return ICON_VECTOR_SQUARE
+	case .CameraView:     return ICON_TV
 	case .NavAgent:       return ICON_PERSON_WALKING
 	}
 	return ICON_CUBE

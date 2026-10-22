@@ -256,6 +256,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isTimeline := v.target.(TimelineNumber); isTimeline {
 			if _, i := Timeline_Animator(s); i >= 0 do return node(i, fmt.tprintf("Change the %v in the clips of %s", field, scene.nodes[i].name), key("timeline-number", field, i, s.timeline.clip, s.timeline.track, s.timeline.key))
 		}
+		if field, isCam := v.target.(CameraToolNumber); isCam && hasSelection {
+			return node(selected, fmt.tprintf("Change %v of %s", CameraToolField(field), name), key("camtool", CameraToolField(field), s.currentScene, selected))
+		}
 		if _, isAfter := v.target.(SMAfterTarget); isAfter {
 			if _, i := States_Machine(s); i >= 0 do return node(i, "Change a transition's wait", key("states-after", i, s.states.transition))
 		}
@@ -306,6 +309,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			}
 			return node(i, label)
 		}
+	// Camera tools: sliders merge while dragged
+	case Camera_Tool_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), v.field == .Factor_X || v.field == .Factor_Y ? key("camtool", v.field, s.currentScene, selected) : 0)
 	// Navigation: typing a number merges
 	case Nav_Setting_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
@@ -773,7 +779,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) {
+	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false

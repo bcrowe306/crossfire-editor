@@ -1,0 +1,60 @@
+# Camera tools: a ParallaxLayer (how much it follows the camera, repeating), a CameraZone's slide
+# time, a CameraView showing a Camera at a zoom; undo; saved.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+
+key ctrl+shift+a
+type ParallaxLayer
+click_widget add-node-ParallaxLayer
+expect kind ParallaxLayer
+scroll_into_view inspector-scroll inspector-cam-Factor_X-{selected}-value
+click_widget inspector-cam-Factor_X-{selected}-value
+key ctrl+a
+type 0.25
+key RETURN
+expect camtool factorX 0.25
+scroll_into_view inspector-scroll inspector-cam-Repeat_X-{selected}
+click_widget inspector-cam-Repeat_X-{selected}
+expect camtool repeatX true
+key ctrl+z
+expect camtool repeatX false
+
+key escape
+key ctrl+shift+a
+type CameraZone
+click_widget add-node-CameraZone
+expect kind CameraZone
+scroll_into_view inspector-scroll inspector-cam-Transition-{selected}
+click_widget inspector-cam-Transition-{selected}
+key ctrl+a
+type 1.5
+key RETURN
+expect camtool transition 1.5
+
+key escape
+key ctrl+shift+a
+type Camera
+click_widget add-node-Camera
+expect kind Camera
+key escape
+key ctrl+shift+a
+type CameraView
+click_widget add-node-CameraView
+expect kind CameraView
+scroll_into_view inspector-scroll inspector-cam-Camera-{selected}
+click_widget inspector-cam-Camera-{selected}
+click_overlay_item 1
+expect camtool camera ../World/Camera
+scroll_into_view inspector-scroll inspector-cam-Zoom-{selected}
+click_widget inspector-cam-Zoom-{selected}
+key ctrl+a
+type 0.5
+key RETURN
+expect camtool zoom 0.5
+
+key ctrl+s
+expect modified false

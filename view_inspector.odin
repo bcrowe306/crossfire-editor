@@ -494,6 +494,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..tileMapInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Animator:
 		append(&rows, ..animatorInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+	case .ParallaxLayer, .CameraZone, .CameraView:
+		append(&rows, ..cameraToolInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .StateMachine:
 		append(&rows, ..stateMachineInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .NavRegion, .NavAgent:

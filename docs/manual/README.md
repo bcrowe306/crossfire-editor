@@ -12,6 +12,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 | Page | What it covers |
 |---|---|
 | [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
+| [Camera tools](camera_tools.md) | Parallax backgrounds, rooms the camera stays in (camera zones), smooth zoom, camera views for split screen, minimaps and picture in picture |
 | [State machines](state_machines.md) | StateMachine nodes and the States tab: states playing animations, transitions on conditions over parameters scripts set, events, any-state transitions |
 | [Scene changes](scene_changes.md) | Transitions between scenes (fades, wipes, a circle), scenes opened over others (pause menus, HUDs), loading screens, scene changes in scripts |
 | [The Live tab](live.md) | The game running from Play, seen from the editor: pause and step a frame, frame times (update, physics, draw), the running scene's nodes and their values, changed while it plays |
@@ -20,9 +21,8 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 | [The UI system](ui.md) | Panels, buttons, progress bars, text fields, scroll boxes and rich text for menus and HUDs: anchors, row / column / grid layouts, themes, 9-patch images, keyboard and gamepad focus, scripts |
 | [Tilemaps](tilemaps.md) | TileMap nodes: drawing levels from tiles, painting them in the editor, terrains (autotiling), collision from tiles, animated tiles, changing tiles from scripts |
 
-More pages arrive with each feature (pathfinding,
-the live game view, scene transitions, state machines, parallax and cameras), and pages for the
-older features follow.
+Pages for the older features (scenes and nodes, scripts, physics, particles, sound, LDtk,
+Aseprite, components, exporting) follow.
 
 ## Words used in this manual
 

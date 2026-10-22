@@ -169,6 +169,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `camera_tools_edit.odin` | **Camera tools**: `NodeDef.cameraTools` (`e.CameraToolSettings`) and `viewCamera`, `Camera_Tool_Changed` (`CameraToolNumber`), the ParallaxLayer / CameraZone / CameraView inspector rows (`cameraToolInspectorRows`) |
 | `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `Scene_ResolvePath`, the inspector's rows |
 | `view_states.odin` | The bottom panel's States tab (`StatesPanel`): the graph (`graphCanvas`: boxes, arrows with their conditions, Any state; click, drag, double-click), the selected state's and transition's fields, the parameters |
 | `scene_flow_edit.odin` | **Scene changes**: `Project.transition` / `loadingScene`, Project Settings > General's rows (`sceneFlowSettingRows`, on the dialog's draft), `Project_Settings_Transition_Changed` / `_Loading_Changed` |
@@ -1352,6 +1353,15 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## Camera tools (implemented, `camera_tools_edit.odin`; engine: camera_tools.odin)
+
+- `NodeDef.cameraTools` is plain (`==`), `viewCamera` owned; zones' and views' sizes are
+  `shapeSize` (the shape fields, labelled Room / View width and height; defaults 640 x 360 and
+  160 x 90 in `NodeDef_Make`); a layer's image is `texture`. The viewport outlines zones and views;
+  the engine draws layers and views (a view's camera as the scene starts it).
+- Tests: `camera_tools_in_the_editor`, `tests/ui/camera_tools.script` (driver check
+  `camtool <field>`). User guide: `docs/manual/camera_tools.md`.
 
 ## State machines (implemented, `state_machine_edit.odin`, `view_states.odin`; engine: state_machine.odin)
 
