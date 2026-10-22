@@ -63,6 +63,8 @@ fieldTip :: proc(label: string) -> string {
 	case "Edges R / B":    return "Pixels at the image's right and bottom that don't stretch."
 	case "UI theme":       return "How it and the controls in it look (a .theme.xml asset). Its parent's, or the project's, when none."
 	case "Font":           return "The theme's font (a font asset), or the built-in one."
+	case "Starts in":      return "The state the StateMachine starts in when the scene starts."
+	case "Animates":       return "The AnimatedSprite whose animations its states play (its parent by default)."
 	case "Scene change":   return "How the screen changes between scenes: at once (None), a fade, a wipe from a side, or a closing circle."
 	case "Change time":    return "Seconds the change takes: covering, then uncovering."
 	case "Change color":   return "The color the screen is covered with during the change."
@@ -241,4 +243,4 @@ scriptFieldTip :: proc(field: ^ScriptFieldDesc) -> string {
 }
 
 // The bottom panel's tab strip
-BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control. Tiles: paint the selected TileMap. Timeline: the selected Animator's keyframe clips. Live: the game running from Play: pause, step, frame times, its nodes' values."
+BOTTOM_TABS_TIP :: "Console: the game's log while it plays. Output: builds and exports. Animation: the selected sprite's animations. Mixer: the mix buses. Git: version control. Tiles: paint the selected TileMap. Timeline: the selected Animator's keyframe clips. Live: the game running from Play: pause, step, frame times, its nodes' values. States: the selected StateMachine's graph."

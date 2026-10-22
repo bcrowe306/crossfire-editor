@@ -1,0 +1,60 @@
+# State machines: a StateMachine in an AnimatedSprite, its graph in the States tab: a state added,
+# selected and renamed, dragged (one undo step), a transition with a condition on a parameter.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+key ctrl+shift+a
+type AnimatedSprite
+click_widget add-node-AnimatedSprite
+expect kind AnimatedSprite
+key ctrl+shift+a
+type StateMachine
+click_widget add-node-StateMachine
+expect kind StateMachine
+scroll_into_view inspector-scroll inspector-sm-edit-{selected}
+click_widget inspector-sm-edit-{selected}
+expect tab States
+expect states states 1
+expect states start idle
+
+# A second state, selected in the graph and renamed
+scroll_into_view states-scroll states-add
+click_widget states-add
+expect states states 2
+expect states selected state
+scroll_into_view states-scroll states-name
+click_widget states-name
+key ctrl+a
+type run
+expect states selected run
+
+# Dragged: one step
+scroll_into_view states-scroll states-graph
+click_state 0
+expect states selected idle
+expect states position 40, 60
+drag_state 0 40 20
+expect states position 80, 80
+key ctrl+z
+expect states position 40, 60
+key ctrl+y
+expect states position 80, 80
+
+# A parameter, and a transition from idle to run when it's over 10
+scroll_into_view states-scroll states-add-param
+click_widget states-add-param
+expect states params 1
+scroll_into_view states-scroll states-graph
+click_state 0
+scroll_into_view states-scroll states-connect
+click_widget states-connect
+click_overlay_item 0
+expect states transitions 1
+scroll_into_view states-scroll states-condition
+click_widget states-condition
+type param > 10
+key ctrl+s
+expect modified false

@@ -160,6 +160,8 @@ NodeDef :: struct {
 	// A NavRegion's or NavAgent's settings (a plain value: nav_edit.odin); a region's area is
 	// shapeSize
 	nav: e.NavSettings,
+	// A StateMachine's states, transitions and parameters (owned: state_machine_edit.odin)
+	stateMachine: e.StateMachineSettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -372,8 +374,9 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		light = e.DEFAULT_LIGHT_SETTINGS,
 		nav = e.DEFAULT_NAV_SETTINGS,
 	}
-	// A NavRegion covers a screenful to begin with
+	// A NavRegion covers a screenful to begin with; a StateMachine has a first state
 	if kind == .NavRegion do node.shapeSize = {640, 360}
+	if kind == .StateMachine do node.stateMachine = StateMachine_Default()
 	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
 		append(&node.items, MenuItemDef{strings.clone("Button"), strings.clone("quit")})
@@ -432,6 +435,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	TileMapSettings_Destroy(&node.tilemap)
 	e.AnimatorSettings_Destroy(&node.animator)
 	e.UISettings_Destroy(&node.ui)
+	e.StateMachineSettings_Destroy(&node.stateMachine)
 	delete(node.autoplay)
 	delete(node.component)
 	delete(node.sound)
@@ -852,6 +856,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.audio = node.audio
 	def.light = node.light
 	def.nav = node.nav
+	def.stateMachine = e.StateMachineSettings_Clone(node.stateMachine)
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)

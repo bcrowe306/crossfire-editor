@@ -169,6 +169,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `Scene_ResolvePath`, the inspector's rows |
+| `view_states.odin` | The bottom panel's States tab (`StatesPanel`): the graph (`graphCanvas`: boxes, arrows with their conditions, Any state; click, drag, double-click), the selected state's and transition's fields, the parameters |
 | `scene_flow_edit.odin` | **Scene changes**: `Project.transition` / `loadingScene`, Project Settings > General's rows (`sceneFlowSettingRows`, on the dialog's draft), `Project_Settings_Transition_Changed` / `_Loading_Changed` |
 | `live_edit.odin` | **The live view**: `LiveView` (`State.live`: the running game's tree, chosen node's properties, stats, frame-time history), `Live_Send` (to the game's stdin), `Live_Ingest` (its `@@live` replies), `Live_Update`, `Live_Reset` |
 | `view_live.odin` | The bottom panel's Live tab (`LivePanel`): pause / step, stats and the frame-time graph, the nodes, the chosen node's fields (side by side, or stacked in a narrow panel) |
@@ -1350,6 +1352,20 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## State machines (implemented, `state_machine_edit.odin`, `view_states.odin`; engine: state_machine.odin)
+
+- Like the Timeline, the States tab shows the selected StateMachine and keeps it while other
+  nodes are selected (`States_Follow` after every message); `SM_Changed` is a node step on the
+  machine's index (a state drag sticky per `history.gesture`, bumped by `SM_View{.Drag_Begin}`;
+  typing merges). `NodeDef_Make` gives a new machine an `idle` state.
+- Renames follow: a state in transitions and the start; a parameter in conditions, whole words
+  only (`renameWord`). Removing a state removes its transitions.
+- The graph handles the mouse from last frame's rect (the canvas pattern); arrows run box edge to
+  box edge, nudged sideways so both ways between two states show (`States_Arrow`). States'
+  positions are graph pixels, saved as `x` / `y`.
+- Tests: `state_machines_in_the_editor`, `tests/ui/states.script` (driver `click_state`,
+  `drag_state`, check `states <field>`). User guide: `docs/manual/state_machines.md`.
 
 ## Scene changes (implemented, `scene_flow_edit.odin`; engine: scene_flow.odin)
 

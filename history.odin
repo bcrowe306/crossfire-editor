@@ -256,6 +256,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isTimeline := v.target.(TimelineNumber); isTimeline {
 			if _, i := Timeline_Animator(s); i >= 0 do return node(i, fmt.tprintf("Change the %v in the clips of %s", field, scene.nodes[i].name), key("timeline-number", field, i, s.timeline.clip, s.timeline.track, s.timeline.key))
 		}
+		if _, isAfter := v.target.(SMAfterTarget); isAfter {
+			if _, i := States_Machine(s); i >= 0 do return node(i, "Change a transition's wait", key("states-after", i, s.states.transition))
+		}
 		if field, isNav := v.target.(NavNumberTarget); isNav && hasSelection {
 			return node(selected, fmt.tprintf("Change %v of %s", NavField(field), name), key("nav", NavField(field), s.currentScene, selected))
 		}
@@ -288,6 +291,21 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change the frames of an animation of %s", name))
 	case Anim_Autoplay_Set:
 		if hasSelection do return node(selected, fmt.tprintf("Change the first animation of %s", name))
+	// The States tab: its StateMachine's step (not necessarily the selected node); a drag is one
+	// step, typing merges
+	case SM_Changed:
+		if _, i := States_Machine(s); i >= 0 {
+			label := fmt.tprintf("Change %v in %s", v.op, scene.nodes[i].name)
+			#partial switch v.op {
+			case .State_Moved:
+				info := node(i, label, key("states-drag", s.history.gesture))
+				info.sticky = true
+				return info
+			case .State_Renamed, .Transition_Condition, .Param_Renamed, .Param_Value:
+				return node(i, label, key("states-text", v.op, i, s.states.state, s.states.transition, v.index))
+			}
+			return node(i, label)
+		}
 	// Navigation: typing a number merges
 	case Nav_Setting_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
@@ -755,7 +773,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav {
+	   a.sound != b.sound || a.bus != b.bus || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false

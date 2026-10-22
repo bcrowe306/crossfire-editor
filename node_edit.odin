@@ -68,6 +68,7 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.tilemap = TileMapSettings_Clone(node.tilemap)
 	copy.animator = e.AnimatorSettings_Clone(node.animator)
 	copy.ui = e.UISettings_Clone(node.ui)
+	copy.stateMachine = e.StateMachineSettings_Clone(node.stateMachine)
 	copy.sound = strings.clone(node.sound)
 	copy.bus = strings.clone(node.bus)
 	return copy

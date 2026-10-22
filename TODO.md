@@ -14,8 +14,6 @@ The features most 2D engines have that this one doesn't, as the user listed them
    (hit flash, outline, dissolve, palette swap) and screen effects (CRT, bloom, grading). Check
    what SDL's GPU renderer allows first, across platforms and the web; the software renderer
    can't run them.
-9. **State machines**: for gameplay (idle, run, jump, attack) and animation (which animation
-   from the state, transitions), with an editor graph.
 10. **Parallax and camera tools**: parallax backgrounds outside LDtk, camera limit zones and
     rooms, smooth zoom, multiple viewports (split screen, minimaps, picture in picture).
 11. **Hot reload of scripts**, more than one script per node, custom node types from game code.

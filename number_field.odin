@@ -39,6 +39,8 @@ NumberTarget :: union {
 	NavNumberTarget,
 	// Project Settings' transition time
 	TransitionTimeTarget,
+	// The States tab's transition wait
+	SMAfterTarget,
 }
 
 GameSizeTarget :: distinct int
@@ -162,6 +164,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case UINumberTarget: return UI_Setting_Changed{field = UIField(t), value = value}
 	case NavNumberTarget: return Nav_Setting_Changed{field = NavField(t), value = value}
 	case TransitionTimeTarget: return Project_Settings_Transition_Changed{field = .Duration, value = value}
+	case SMAfterTarget: return SM_Changed{op = .Transition_After, number = f32(value)}
 	case TimelineNumber:
 		ops := [TimelineNumber]TimelineOp{.Length = .Clip_Length, .Speed = .Speed, .Key_Time = .Key_Time}
 		return Timeline_Changed{op = ops[t], number = f32(value)}

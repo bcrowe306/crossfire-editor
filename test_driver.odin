@@ -43,6 +43,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	click_tile <n>                   Click tile n (1 is the first) of the Tiles panel's palette
 	drag_world x1 y1 x2 y2 [right]   Press at a world point in the viewport, move to another, release
 	paint_cells c1 r1 c2 r2 [right]  A stroke between two cells of the selected TileMap (the Tiles panel's layer)
+	click_state <i>                  Click state i's box in the States tab's graph
+	drag_state <i> <dx> <dy>         Drag state i's box by (dx, dy) pixels
 	click_timeline <seconds> [track] [double]
 	                                 Click the Timeline's tracks at a time: on the ruler, or on a track's row
 	drag_timeline_key <track> <key> <seconds>
@@ -199,6 +201,9 @@ Checks:
 	                             The selected UI control's settings ("none" for empty text)
 	nav <cellSize|agentRadius|diagonal|speed|autoMove|width> <value>
 	                             The selected NavRegion's or NavAgent's settings
+	states <states|transitions|params|start|selected|position> <value>
+	                             The States tab's machine: counts, its start, the selected state's name
+	                             ("none") and position ("x, y")
 	live <connected|paused|nodes|properties|selected> <value>
 	                             The Live tab's view of the running game (counts for nodes and
 	                             properties; selected: true when a node is chosen)
@@ -562,6 +567,29 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
 		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b, button))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "click_state", "drag_state":
+		node, _ := States_Machine(s)
+		i := atoi(args, 0, 0)
+		if node == nil || i < 0 || i >= len(node.stateMachine.states) {
+			fail(fmt.tprintf("%s: no state %d in the States tab", line, i))
+			return true
+		}
+		r := States_BoxRect(node.stateMachine.states[i])
+		at := statesGraphOrigin + [2]f32{r[0] + r[2] * 0.5, r[1] + r[3] * 0.5}
+		if command == "click_state" {
+			click(at)
+		} else {
+			to := at + [2]f32{f32(atoi(args, 1, 0)), f32(atoi(args, 2, 0))}
+			pushMouse(.MOUSE_MOTION, at)
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, at))
+			STEPS :: 4
+			for k in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, at + (to - at) * f32(k) / STEPS))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, to))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+		}
 		report(true, line)
 		return false
 
@@ -1467,6 +1495,24 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "autoMove":    found = fmt.tprint(n.autoMove)
 		case "width":       found = fmt.tprint(selected.shapeSize.x)
 		case: return false, fmt.tprintf("unknown nav field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "states":
+		node, _ := States_Machine(s)
+		if node == nil do return false, "the States tab shows no StateMachine"
+		field, _, expected := strings.partition(value, " ")
+		m := &node.stateMachine
+		switch field {
+		case "states":      found = fmt.tprint(len(m.states))
+		case "transitions": found = fmt.tprint(len(m.transitions))
+		case "params":      found = fmt.tprint(len(m.params))
+		case "start":       found = m.start
+		case "selected":    found = s.states.state >= 0 && s.states.state < len(m.states) ? m.states[s.states.state].name : "none"
+		case "position":
+			if s.states.state < 0 || s.states.state >= len(m.states) do return false, "no state selected"
+			p := m.states[s.states.state].position
+			found = fmt.tprintf("%v, %v", p.x, p.y)
+		case: return false, fmt.tprintf("unknown states field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
 	case "live":

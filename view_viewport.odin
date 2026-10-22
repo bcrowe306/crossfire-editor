@@ -1026,6 +1026,8 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .Light2D:        return skald.rgb(0xffd36b)
 	// Navigation: a path's green
 	case .NavRegion, .NavAgent: return skald.rgb(0x8be07a)
+	// State machines: the Animator's purple, bluer
+	case .StateMachine:   return skald.rgb(0xa8b4ff)
 	case .LightOccluder:  return skald.rgb(0x9aa0b4)
 	// UI: the Label's green, bluer
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText: return skald.rgb(0x7ed6d0)

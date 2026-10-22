@@ -50,6 +50,8 @@ BottomTab :: enum {
 	Timeline,
 	// The game running from Play, as it plays (view_live.odin)
 	Live,
+	// A StateMachine's graph (view_states.odin)
+	States,
 }
 
 LogLevel :: enum {
@@ -208,6 +210,8 @@ State :: struct {
 	timeline: TimelineEditor,
 	// The running game, as the Live tab shows it (live_edit.odin)
 	live: LiveView,
+	// The States tab: the StateMachine it shows, its selection (state_machine_edit.odin)
+	states: StatesEditor,
 	// The Mixer tab: a bus name being typed (its index, the text; owned), kept until it's valid
 	busEdit: struct {
 		index: int,
@@ -319,6 +323,7 @@ init :: proc() -> State {
 		currentScene = 0,
 		selectedNode = -1,
 		timeline = {node = -1, track = -1, key = -1},
+		states = {node = -1, state = -1, transition = -1},
 
 		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true},
 		browserSelection = {kind = .None},

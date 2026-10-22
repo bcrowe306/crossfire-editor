@@ -228,7 +228,8 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		entities := node.kind == .LDtkLevel ? node.ldtk.entityComponents[:] : nil
 		painted := node.kind == .TileMap ? node.tilemap.painted[:] : nil
 		clips := node.kind == .Animator ? node.animator.clips[:] : nil
-		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && !hasChildren {
+		machine := node.kind == .StateMachine ? &node.stateMachine : nil
+		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -252,6 +253,33 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			attr(&w, "rows", layer.rows)
 			attr(&w, "data", e.TileLayer_Encode(layer.tiles[:], context.temp_allocator))
 			closeEmpty(&w)
+		}
+		// A StateMachine's parameters, states and transitions (the engine's state_machine.odin)
+		if machine != nil {
+			for p in machine.params {
+				open(&w, "param")
+				attr(&w, "name", p.name)
+				attr(&w, "type", p.kind)
+				if p.value != "" do attr(&w, "value", p.value)
+				closeEmpty(&w)
+			}
+			for st in machine.states {
+				open(&w, "state")
+				attr(&w, "name", st.name)
+				if st.animation != "" do attr(&w, "animation", st.animation)
+				attr(&w, "x", st.position.x)
+				attr(&w, "y", st.position.y)
+				closeEmpty(&w)
+			}
+			for t in machine.transitions {
+				open(&w, "transition")
+				attr(&w, "from", t.from)
+				attr(&w, "to", t.to)
+				if t.condition != "" do attr(&w, "when", t.condition)
+				if t.after != 0 do attr(&w, "after", t.after)
+				if t.onFinished do attr(&w, "onFinished", true)
+				closeEmpty(&w)
+			}
 		}
 		// An Animator's clips: tracks of keys (the engine's animator.odin)
 		for clip in clips {
@@ -530,6 +558,9 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.slice != "" do attr(w, "slice", node.slice)
 	case .LightOccluder:
 		writeShape(w, node)
+	case .StateMachine:
+		if node.stateMachine.start != "" do attr(w, "start", node.stateMachine.start)
+		if node.stateMachine.target != "" do attr(w, "animates", node.stateMachine.target)
 	case .NavRegion, .NavAgent:
 		n, d := node.nav, e.DEFAULT_NAV_SETTINGS
 		if node.kind == .NavRegion {

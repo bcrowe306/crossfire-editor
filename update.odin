@@ -28,6 +28,7 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	// again, not the clip at the playhead
 	if info.scope != .None && !Timeline_IsEdit(m) do out.timeline.previewing = false
 	Timeline_Follow(&out)
+	States_Follow(&out)
 	// The inspector shows a data resource chosen in the browser, until a node is selected
 	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
 	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Data {
@@ -71,6 +72,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if LightEdit_Update(&out, m) do return out, {}
 	if NavEdit_Update(&out, m) do return out, {}
 	if Live_Update(&out, m) do return out, {}
+	if States_Update(&out, m) do return out, {}
 	if SceneFlowEdit_Update(&out, m) do return out, {}
 	if ThemeEdit_Update(&out, m) do return out, {}
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
@@ -105,6 +107,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by NavEdit_Update above
 	case Project_Settings_Transition_Changed, Project_Settings_Loading_Changed:
 		// Handled by SceneFlowEdit_Update above
+	case SM_Changed, SM_View:
+		// Handled by States_Update above
 	case Live_Command, Live_Selected, Live_Property_Edited:
 		// Handled by Live_Update above
 	case Light_Setting_Changed, Scene_Lighting_Changed:

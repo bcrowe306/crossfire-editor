@@ -128,6 +128,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .Light2D:        return ICON_LIGHTBULB
 	case .LightOccluder:  return ICON_SHADOW
 	case .NavRegion:      return ICON_ROUTE
+	case .StateMachine:   return ICON_SITEMAP
 	case .NavAgent:       return ICON_PERSON_WALKING
 	}
 	return ICON_CUBE

@@ -373,6 +373,13 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
+**State machines:** a **StateMachine** node inside an AnimatedSprite keeps what the character is
+doing (idle, run, jump, attack) and plays each state's animation. Edit it as a graph in the bottom
+panel's **States** tab: states (drag them around), arrows with conditions over parameters
+(`speed > 10 and grounded`), waits and "when its animation ends", transitions from any state.
+Scripts set the parameters (`e.StateMachine_SetFloat`, `SetBool`, `SetTrigger`) and listen to
+`onStateEntered`. See the [manual's state machines page](docs/manual/state_machines.md).
+
 **Scene changes:** Project Settings > General sets how scenes change: a fade, a wipe or a closing
 circle, its time and color. A Button can open a scene **over** the playing one (a pause menu: the
 level waits under it) and close it again; with a **loading scene**, scenes are built when
