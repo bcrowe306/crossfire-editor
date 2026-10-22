@@ -86,6 +86,9 @@ jobs:
           key: shader-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('odin_sdl_engine/tools/build_shader_tools.sh', 'odin_sdl_engine/.gitmodules') }}-glslang16.6.0-spirvcross1.4.363.0
 
       - name: Build shader tools (glslang and SDL_shadercross, for projects' shaders)
+        env:
+          # Fewer parallel compiles on Linux: zig's C++ compiler ran out of the runner's memory
+          SHADER_TOOLS_JOBS: ${{ runner.os == 'Linux' && '2' || '' }}
         run: |
           if ! compgen -G "../odin_sdl_engine/shader_tools/*/shadercross*" > /dev/null; then ../odin_sdl_engine/tools/build_shader_tools.sh; fi
 
