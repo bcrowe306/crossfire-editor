@@ -324,9 +324,9 @@ editor_palette_handle_key :: proc(ed: ^Editor, chord: km.Chord) -> bool {
 	case .Down:
 		if n > 0 {p.selected = (p.selected + 1) % n}
 	case .PageUp:
-		p.selected = max(0, p.selected - PALETTE_ROWS)
+		p.selected = max(0, p.selected - editor_palette_rows(ed))
 	case .PageDown:
-		p.selected = clamp(p.selected + PALETTE_ROWS, 0, max(0, n - 1))
+		p.selected = clamp(p.selected + editor_palette_rows(ed), 0, max(0, n - 1))
 	case .Backspace:
 		s := strings.to_string(p.query)
 		if len(s) > 0 {
@@ -342,12 +342,15 @@ editor_palette_handle_key :: proc(ed: ^Editor, chord: km.Chord) -> bool {
 			editor_close_palette(ed) // the palette shortcut toggles
 		}
 	}
-	if p.selected < p.scroll {
-		p.scroll = p.selected
-	} else if p.selected >= p.scroll + PALETTE_ROWS {
-		p.scroll = p.selected - PALETTE_ROWS + 1
-	}
+	p.scroll = overlay_scroll_reveal(p.scroll, p.selected, n, editor_palette_rows(ed))
 	return true
+}
+
+// editor_palette_rows is how many results the palette shows (up to PALETTE_ROWS, fewer in a
+// short view: the rest scroll)
+editor_palette_rows :: proc(ed: ^Editor) -> int {
+	_, rows, ok := editor_palette_layout(ed)
+	return max(rows, 1) if ok else PALETTE_ROWS
 }
 
 // editor_palette_layout: input row + result rows, centred near the top.
@@ -356,10 +359,21 @@ editor_palette_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, rows: int, ok: b
 		return
 	}
 	_, matches := editor_palette_matches(ed)
+	// The results below the input row, as many as fit above the view's bottom (they scroll)
+	top := ed.origin_y + 6
+	bottom := ed.origin_y + f32(ed.visible_rows) * ed.char_h
+	if ed.window != .Text {
+		area := editor_area_rect(ed)
+		bottom = area.y + area.h
+	}
 	rows = min(len(matches), PALETTE_ROWS)
-	w := f32(PALETTE_COLS) * ed.char_w + 2 * POPUP_PAD
-	h := f32(rows + 1) * ed.char_h + 2 * POPUP_PAD + 4
+	if rows > 0 {
+		rows = overlay_rows_fit(ed, bottom - top, rows, ed.char_h + 2 * POPUP_PAD + 4)
+	}
 	area_w := editor_gutter_width(ed) + f32(ed.visible_cols) * ed.char_w
+	// No wider than the editor (a narrow pane): labels are cut
+	w := min(f32(PALETTE_COLS) * ed.char_w + 2 * POPUP_PAD, area_w)
+	h := f32(rows + 1) * ed.char_h + 2 * POPUP_PAD + 4
 	x := ed.origin_x + max(0, (area_w - w) / 2)
 	return {x, ed.origin_y + 6, w, h}, rows, true
 }
@@ -399,6 +413,7 @@ render_palette :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, th
 		return
 	}
 	first := y + ed.char_h + 4
+	render_overlay_scrollbar(renderer, {rect.x, first, rect.w, f32(rows) * ed.char_h}, len(matches), rows, p.scroll, theme)
 	for r in 0 ..< rows {
 		i := p.scroll + r
 		if i >= len(matches) {
@@ -413,7 +428,8 @@ render_palette :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, th
 		lx := x + 4
 		// Label, with fuzzy-matched letters highlighted.
 		hit := 0
-		for b := 0; b < len(e.label); {
+		label_end := rect.x + rect.w - POPUP_PAD - f32(len(e.detail) > 0 ? text_cols(e.detail) + 2 : 1) * ed.char_w
+		for b := 0; b < len(e.label) && lx + ed.char_w <= label_end; {
 			_, size := utf8.decode_rune_in_string(e.label[b:])
 			color := theme.popup_text
 			if hit < m.n_pos && int(m.positions[hit]) == b {

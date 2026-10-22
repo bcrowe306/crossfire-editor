@@ -20,6 +20,8 @@ Context_Menu :: struct {
 	open:     bool,
 	x, y:     f32, // where it was opened (window pixels)
 	selected: int,
+	// The first item shown, when the view is too short for them all
+	scroll:   int,
 }
 
 Menu_Item :: struct {
@@ -111,16 +113,21 @@ editor_context_menu_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, ok: bool) {
 	for it in items {
 		cols = max(cols, text_cols(it.label) + 4 + text_cols(chord_label(ed, it.action)))
 	}
-	w := f32(cols) * ed.char_w + 2 * POPUP_PAD
-	h := f32(len(items)) * ed.char_h + 2 * POPUP_PAD
+	// Room for the scrollbar
+	w := f32(cols + 1) * ed.char_w + 2 * POPUP_PAD
 	left := ed.origin_x
 	right := ed.origin_x + editor_gutter_width(ed) + f32(ed.visible_cols) * ed.char_w
 	bottom := ed.origin_y + f32(ed.visible_rows) * ed.char_h
+	w = min(w, right - left) // labels are cut to fit
 	x := clamp(ed.menu.x, left, max(left, right - w))
-	y := ed.menu.y
-	if y + h > bottom {
-		y = max(ed.origin_y, ed.menu.y - h) // flip above the pointer
-	}
+	// Below the pointer, else above it; in a short view on the roomier side, as many items as fit
+	full := f32(len(items)) * ed.char_h + 2 * POPUP_PAD
+	room_below := bottom - ed.menu.y
+	room_above := ed.menu.y - ed.origin_y
+	below := full <= room_below || (full > room_above && room_below >= room_above)
+	rows := overlay_rows_fit(ed, below ? room_below : room_above, len(items))
+	h := f32(rows) * ed.char_h + 2 * POPUP_PAD
+	y := below ? ed.menu.y : ed.menu.y - h
 	return {x, y, w, h}, true
 }
 
@@ -144,6 +151,9 @@ editor_context_menu_move :: proc(ed: ^Editor, dir: int) {
 		i = (i + dir + n) % n if i >= 0 else (0 if dir > 0 else n - 1)
 		if items[i].enabled {
 			ed.menu.selected = i
+			if rect, ok := editor_context_menu_layout(ed); ok {
+				ed.menu.scroll = overlay_scroll_reveal(ed.menu.scroll, i, n, popup_rows_of(ed, rect))
+			}
 			return
 		}
 	}
@@ -156,12 +166,17 @@ render_context_menu :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 		return
 	}
 	draw_popup_box(renderer, rect, theme)
+	items := editor_context_menu_items(ed)
+	rows := popup_rows_of(ed, rect)
+	scroll := overlay_scroll_clamp(ed.menu.scroll, len(items), rows)
+	render_overlay_scrollbar(renderer, rect, len(items), rows, scroll, theme)
 	hover_row := -1
 	if ed.mouse.zone == .Context_Menu {
-		hover_row = int((ed.mouse.y - rect.y - POPUP_PAD) / ed.char_h)
+		hover_row = scroll + int((ed.mouse.y - rect.y - POPUP_PAD) / ed.char_h)
 	}
-	for it, i in editor_context_menu_items(ed) {
-		y := rect.y + POPUP_PAD + f32(i) * ed.char_h
+	for it, row in items[scroll:min(len(items), scroll + rows)] {
+		i := scroll + row
+		y := rect.y + POPUP_PAD + f32(row) * ed.char_h
 		if len(it.label) == 0 {
 			fill_rect(renderer, {rect.x + POPUP_PAD, y + ed.char_h / 2, rect.w - 2 * POPUP_PAD, 1}, theme.popup_border)
 			continue
@@ -170,8 +185,11 @@ render_context_menu :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 			fill_rect(renderer, {rect.x + 1, y, rect.w - 2, ed.char_h}, theme.popup_selected)
 		}
 		color := theme.popup_text if it.enabled else theme.popup_text_dim
-		draw_text(renderer, font, it.label, rect.x + POPUP_PAD + ed.char_w, y, color, ed.char_h)
-		if sc := chord_label(ed, it.action); len(sc) > 0 {
+		// A narrow menu cuts the label before its shortcut
+		sc := chord_label(ed, it.action)
+		room := int((rect.w - 2 * POPUP_PAD) / ed.char_w) - 2 - (text_cols(sc) + 2 if len(sc) > 0 else 0)
+		draw_text(renderer, font, truncate_cols(it.label, max(room, 1)), rect.x + POPUP_PAD + ed.char_w, y, color, ed.char_h)
+		if len(sc) > 0 {
 			draw_text(renderer, font, sc, rect.x + rect.w - POPUP_PAD - f32(text_cols(sc) + 1) * ed.char_w, y, theme.popup_text_dim, ed.char_h)
 		}
 	}
@@ -260,6 +278,8 @@ Hover_Info :: struct {
 	pos:       buf.Position,
 	seen_seq:  int,
 	visible:   bool,
+	// Its scroll, when it's taller than the view leaves it (per answer)
+	scroll:    Popup_Scroll,
 }
 
 // editor_update_hover asks the server for hover info once the pointer has
@@ -307,9 +327,9 @@ editor_hover_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, lines: []Doc_Line,
 	if !ed.hover.visible || !ed.lsp_enabled || editor_completion_visible(ed) {
 		return
 	}
-	// As wide as the text area allows (100 columns at most), as many lines as half the view
+	// As wide as the text area allows (100 columns at most); as many lines as fit (it scrolls)
 	lines = completion_doc_lines(lspc.CompletionItem{documentation = ed.lsp.last_hover, doc_markdown = ed.lsp.last_hover_markdown},
-		popup_max_cols(ed, HOVER_MAX_COLS), max(COMPLETION_DOC_MAX_LINES, editor_text_rows(ed) / 2))
+		popup_max_cols(ed, HOVER_MAX_COLS), POPUP_MAX_LINES)
 	if len(lines) == 0 {
 		return
 	}
@@ -317,26 +337,27 @@ editor_hover_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, lines: []Doc_Line,
 	for l in lines {
 		widest = max(widest, text_cols(l.text))
 	}
-	w := f32(widest) * ed.char_w + 2 * POPUP_PAD
-	hh := f32(len(lines)) * ed.char_h + 2 * POPUP_PAD
+	// Room for the scrollbar
+	w := f32(widest + 1) * ed.char_w + 2 * POPUP_PAD
 	x, y := editor_position_to_screen(ed, ed.hover.pos)
-	top := y - hh - 2
-	if top < ed.origin_y {
-		top = y + ed.char_h + 2
-	}
+	top, hh, _ := place_popup(ed, len(lines), y, y + ed.char_h, prefer_above = true)
 	left := ed.origin_x + editor_gutter_width(ed)
 	right := left + f32(ed.visible_cols) * ed.char_w
+	w = min(w, right - left)
 	return {clamp(x, left, max(left, right - w)), top, w, hh}, lines, true
 }
 
 @(private)
 render_hover :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, theme: Theme) {
-	rect, lines, ok := editor_hover_layout(ed)
+	rect, all_lines, ok := editor_hover_layout(ed)
 	if !ok || font == nil {
 		return
 	}
 	draw_popup_box(renderer, rect, theme)
-	for l, i in lines {
+	rows := popup_rows_of(ed, rect)
+	scroll := overlay_scroll_clamp(popup_scroll_get(&ed.hover.scroll, u64(ed.hover.seen_seq)), len(all_lines), rows)
+	render_overlay_scrollbar(renderer, rect, len(all_lines), rows, scroll, theme)
+	for l, i in all_lines[scroll:min(scroll + rows, len(all_lines))] {
 		x := rect.x + POPUP_PAD
 		y := rect.y + POPUP_PAD + f32(i) * ed.char_h
 		if !l.code {

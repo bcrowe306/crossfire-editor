@@ -789,6 +789,12 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   unchanged buffers reload (caret kept), dirty ones get the bar over the code (`CodeTabs_DiskBar`:
   Reload / Keep mine, `Code_Disk_Chosen`). A hidden tab's reload keeps its document open on the
   server (it resends the text when it shows).
+- **Overlays fit the code view** (code_editor's overlay_scroll.odin; its README's "Overlays in a
+  small editor"): popups, menus, the palette and the problems / references panel fit the tab's
+  height and width (a tiled window's tab is about 300 px wide), scroll what doesn't fit (wheel,
+  keys, clicks through the scroll) and show a scrollbar then. Found doing it: code actions past
+  the 8th couldn't be reached, references clicks used the problems panel's scroll, a click on the
+  completion docs closed the list, the wheel over the palette scrolled the code.
 - **Its own settings persist:** `ce.editor_set_config_dir` with `code_editor/` next to editor.ini
   (keymap.json, theme.json: the code editor's Keymap Editor, Theme Editor, "Color Theme"). Test
   runs without `--settings` keep none. A light editor theme starts the code on Ayu Light until a

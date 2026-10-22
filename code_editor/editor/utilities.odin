@@ -26,6 +26,30 @@ Utility :: enum {
 
 Utilities_State :: struct {
 	selected: int,
+	// The first row shown, when the window is too short for it all (the wheel, or the selected
+	// action kept in view)
+	scroll:   int,
+}
+
+// utilities_content_rows is the window's content in rows: the server's lines, the actions,
+// the settings (with their headings and gaps)
+@(private)
+utilities_content_rows :: proc(ed: ^Editor) -> int {
+	return len(editor_lsp_info(ed)) + 3 + len(Utility) + 4
+}
+
+// utilities_content_rect is where the content shows: between the title bar and the footer
+@(private)
+utilities_content_rect :: proc(ed: ^Editor) -> (rect: sdl.FRect, rows: int) {
+	area := editor_area_rect(ed)
+	rect = {area.x, area.y + 2 * ed.char_h, area.w, max(area.h - 4 * ed.char_h, ed.char_h)}
+	return rect, max(int(rect.h / ed.char_h), 1)
+}
+
+// editor_utilities_scroll scrolls the window's content by `lines` (the wheel)
+editor_utilities_scroll :: proc(ed: ^Editor, lines: int) {
+	_, rows := utilities_content_rect(ed)
+	ed.utilities.scroll = overlay_scroll_clamp(ed.utilities.scroll + lines, utilities_content_rows(ed), rows)
 }
 
 utility_label :: proc(ed: ^Editor, u: Utility) -> string {
@@ -186,6 +210,9 @@ editor_utilities_handle_key :: proc(ed: ^Editor, chord: km.Chord) -> bool {
 	case .Enter:
 		editor_run_utility(ed, Utility(u.selected))
 	}
+	// The selected action stays in view
+	_, rows := utilities_content_rect(ed)
+	u.scroll = overlay_scroll_reveal(u.scroll, len(editor_lsp_info(ed)) + 3 + u.selected, utilities_content_rows(ed), rows)
 	return true
 }
 
@@ -193,12 +220,13 @@ editor_utilities_handle_key :: proc(ed: ^Editor, chord: km.Chord) -> bool {
 editor_utilities_layout :: proc(ed: ^Editor) -> (actions_top: f32) {
 	area := editor_area_rect(ed)
 	info_rows := len(editor_lsp_info(ed))
-	return area.y + 2 * ed.char_h + f32(info_rows + 3) * ed.char_h
+	return area.y + 2 * ed.char_h + f32(info_rows + 3 - ed.utilities.scroll) * ed.char_h
 }
 
 editor_utilities_row_at :: proc(ed: ^Editor, y: f32) -> int {
 	top := editor_utilities_layout(ed)
-	if y < top {
+	content, _ := utilities_content_rect(ed)
+	if y < top || y < content.y || y >= content.y + content.h {
 		return -1
 	}
 	r := int((y - top) / ed.char_h)
@@ -217,6 +245,21 @@ render_utilities :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, 
 	area := editor_area_rect(ed)
 	y := render_window_title(ed, renderer, font, theme, "Utilities")
 	x := area.x + 2 * ed.char_w
+	// The content scrolls between the title and the footer, clipped there (the host's clip is put
+	// back after)
+	content, content_rows := utilities_content_rect(ed)
+	scroll := overlay_scroll_clamp(ed.utilities.scroll, utilities_content_rows(ed), content_rows)
+	y -= f32(scroll) * ed.char_h
+	host_clip: sdl.Rect
+	host_clipped := sdl.RenderClipEnabled(renderer)
+	if host_clipped {
+		sdl.GetRenderClipRect(renderer, &host_clip)
+	}
+	clip := sdl.Rect{i32(content.x), i32(content.y), i32(content.w), i32(content.h)}
+	if host_clipped {
+		_ = sdl.GetRectIntersection(clip, host_clip, &clip)
+	}
+	sdl.SetRenderClipRect(renderer, &clip)
 	draw_text(renderer, font, "Language server (OLS)", area.x + ed.char_w, y, theme.header_text, ed.char_h)
 	y += ed.char_h
 	for line, i in editor_lsp_info(ed) {
@@ -261,5 +304,7 @@ render_utilities :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, 
 	}
 	draw_text(renderer, font, "Files:", x, sy + 2 * ed.char_h, theme.popup_text_dim, ed.char_h)
 	draw_text(renderer, font, strings.join(files[:], ", ", context.temp_allocator) if len(files) > 0 else "none yet", x + 13 * ed.char_w, sy + 2 * ed.char_h, theme.text_default, ed.char_h)
+	sdl.SetRenderClipRect(renderer, &host_clip if host_clipped else nil)
+	render_overlay_scrollbar(renderer, content, utilities_content_rows(ed), content_rows, scroll, theme)
 	render_window_footer(ed, renderer, font, theme, "Up/Down choose · Enter or click run · Esc close")
 }

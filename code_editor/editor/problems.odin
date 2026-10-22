@@ -40,9 +40,24 @@ Problem :: struct {
 // rows minus the problems panel when it's open).
 editor_text_rows :: proc(ed: ^Editor) -> int {
 	if ed.problems.open || ed.nav.refs.open {
-		return max(1, ed.visible_rows - PROBLEMS_PANEL_ROWS)
+		return max(1, ed.visible_rows - editor_panel_rows(ed))
 	}
 	return ed.visible_rows
+}
+
+// editor_panel_rows is the problems / references panel's height in rows (its header included):
+// PROBLEMS_PANEL_ROWS, fewer in a short view so the panel fits under a few rows of text (its
+// entries scroll).
+editor_panel_rows :: proc(ed: ^Editor) -> int {
+	if ed.visible_rows < 4 {
+		return max(ed.visible_rows - 1, 1)
+	}
+	return clamp(ed.visible_rows - 3, 2, PROBLEMS_PANEL_ROWS)
+}
+
+// editor_panel_entries is how many entries the panel shows under its header.
+editor_panel_entries :: proc(ed: ^Editor) -> int {
+	return max(editor_panel_rows(ed) - 1, 1)
 }
 
 editor_toggle_problems :: proc(ed: ^Editor) {
@@ -97,7 +112,9 @@ problems_row_at :: proc(ed: ^Editor, y: f32) -> int {
 	if row <= 0 {
 		return -1
 	}
-	return ed.problems.scroll + row - 1
+	// The references panel scrolls its own list (it shares the space)
+	scroll := ed.nav.refs.scroll if ed.nav.refs.open else ed.problems.scroll
+	return scroll + row - 1
 }
 
 // editor_open_problem jumps to problem `index`: in the current document
@@ -155,7 +172,7 @@ problems_destroy :: proc(pr: ^Problems_Panel) {
 @(private)
 problems_scroll_by :: proc(ed: ^Editor, delta: int) {
 	n := len(editor_problems(ed))
-	ed.problems.scroll = clamp(ed.problems.scroll + delta, 0, max(0, n - (PROBLEMS_PANEL_ROWS - 1)))
+	ed.problems.scroll = overlay_scroll_clamp(ed.problems.scroll + delta, n, editor_panel_entries(ed))
 }
 
 @(private)
@@ -165,10 +182,12 @@ render_problems_panel :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.F
 	}
 	top := origin_y + f32(editor_text_rows(ed)) * ed.char_h
 	width := editor_gutter_width(ed) + f32(ed.visible_cols) * ed.char_w
-	fill_rect(renderer, {origin_x, top, width, f32(PROBLEMS_PANEL_ROWS) * ed.char_h}, theme.popup_bg)
+	fill_rect(renderer, {origin_x, top, width, f32(editor_panel_rows(ed)) * ed.char_h}, theme.popup_bg)
 	fill_rect(renderer, {origin_x, top, width, 1}, theme.popup_border)
 
 	problems := editor_problems(ed)
+	entries := editor_panel_entries(ed)
+	render_overlay_scrollbar(renderer, {origin_x, top + ed.char_h, width, f32(entries) * ed.char_h}, len(problems), entries, ed.problems.scroll, theme)
 	counts: [Diagnostic_Severity]int
 	for p in problems {
 		counts[p.severity] += 1
@@ -181,7 +200,7 @@ render_problems_panel :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.F
 		return
 	}
 
-	last := min(len(problems), ed.problems.scroll + PROBLEMS_PANEL_ROWS - 1)
+	last := min(len(problems), ed.problems.scroll + entries)
 	for i in ed.problems.scroll ..< last {
 		p := problems[i]
 		y := top + f32(i - ed.problems.scroll + 1) * ed.char_h

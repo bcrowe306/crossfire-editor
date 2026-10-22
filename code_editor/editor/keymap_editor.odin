@@ -323,6 +323,7 @@ render_keymap_editor :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fo
 	fill_rect(renderer, {area.x, top - 3, area.w, 1}, theme.popup_border)
 
 	rows := editor_keymap_rows(ed)
+	render_overlay_scrollbar(renderer, {area.x, top, area.w, f32(page) * ed.char_h}, len(rows), page, k.scroll, theme)
 	for r in 0 ..< page {
 		i := k.scroll + r
 		if i >= len(rows) {

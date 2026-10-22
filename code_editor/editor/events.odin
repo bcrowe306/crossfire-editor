@@ -194,10 +194,10 @@ editor_handle_popup_key :: proc(ed: ^Editor, chord: km.Chord) -> bool {
 			editor_completion_move(ed, 1)
 			return true
 		case .PageUp:
-			editor_completion_move(ed, -COMPLETION_MAX_VISIBLE)
+			editor_completion_move(ed, -editor_completion_rows(ed))
 			return true
 		case .PageDown:
-			editor_completion_move(ed, COMPLETION_MAX_VISIBLE)
+			editor_completion_move(ed, editor_completion_rows(ed))
 			return true
 		case .Enter, .Tab:
 			return editor_accept_completion(ed)

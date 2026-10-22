@@ -20,6 +20,8 @@ Code_Action_Menu :: struct {
 	waiting:  bool,
 	seen_seq: int,
 	selected: int,
+	// The first action shown (a long list, or a short view, scrolls)
+	scroll:   int,
 	anchor:   buf.Position, // caret position when requested
 	// Result of the last apply, for hosts/tests: edits applied and edits
 	// skipped because they targeted another file.
@@ -54,6 +56,7 @@ editor_request_code_actions :: proc(ed: ^Editor) {
 	m.active = true
 	m.waiting = true
 	m.selected = 0
+	m.scroll = 0
 	m.anchor = c.pos
 	lspc.client_request_code_action(&ed.lsp, ed.document_uri, rng, ctx[:])
 	m.seen_seq = ed.lsp.code_action_seq
@@ -98,6 +101,7 @@ editor_code_actions_move :: proc(ed: ^Editor, delta: int) {
 	n := len(ed.lsp.last_code_actions)
 	if n > 0 {
 		ed.actions.selected = (ed.actions.selected + delta + n) % n
+		ed.actions.scroll = overlay_scroll_reveal(ed.actions.scroll, ed.actions.selected, n, editor_code_actions_rows(ed))
 	}
 }
 
@@ -159,16 +163,15 @@ editor_code_actions_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, ok: bool) {
 	for a in ed.lsp.last_code_actions {
 		widest = max(widest, text_cols(a.title) + 2)
 	}
-	rows := clamp(len(ed.lsp.last_code_actions), 1, CODE_ACTION_MAX_VISIBLE)
-	w := f32(widest) * ed.char_w + 2 * POPUP_PAD
-	h := f32(rows) * ed.char_h + 2 * POPUP_PAD
+	wanted := clamp(len(ed.lsp.last_code_actions), 1, CODE_ACTION_MAX_VISIBLE)
+	// Room for the scrollbar
+	w := f32(widest + 1) * ed.char_w + 2 * POPUP_PAD
 	cx, cy := editor_cursor_screen_pos(ed)
-	y := cy + ed.char_h + 2
-	if y + h > ed.origin_y + f32(editor_text_rows(ed)) * ed.char_h {
-		y = max(ed.origin_y, cy - h - 2)
-	}
+	// Under the caret, else above; in a short view as many rows as fit (it scrolls)
+	y, h, _ := place_popup(ed, wanted, cy, cy + ed.char_h, prefer_above = false)
 	left := ed.origin_x + editor_gutter_width(ed)
 	right := left + f32(ed.visible_cols) * ed.char_w
+	w = min(w, right - left) // titles are cut to fit
 	return {clamp(cx, left, max(left, right - w)), y, w, h}, true
 }
 
@@ -184,13 +187,24 @@ render_code_actions :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 		draw_text(renderer, font, "No code actions available", rect.x + POPUP_PAD, rect.y + POPUP_PAD, theme.popup_text_dim, ed.char_h)
 		return
 	}
-	for a, i in actions[:min(len(actions), CODE_ACTION_MAX_VISIBLE)] {
-		y := rect.y + POPUP_PAD + f32(i) * ed.char_h
+	rows := popup_rows_of(ed, rect)
+	scroll := overlay_scroll_clamp(ed.actions.scroll, len(actions), rows)
+	render_overlay_scrollbar(renderer, rect, len(actions), rows, scroll, theme)
+	for a, row in actions[scroll:min(len(actions), scroll + rows)] {
+		i := scroll + row
+		y := rect.y + POPUP_PAD + f32(row) * ed.char_h
 		if i == ed.actions.selected {
 			fill_rect(renderer, {rect.x + 1, y, rect.w - 2, ed.char_h}, theme.popup_selected)
 		}
 		marker := "* " if a.preferred else "  "
 		draw_text(renderer, font, marker, rect.x + POPUP_PAD, y, theme.popup_active_param, ed.char_h)
-		draw_text(renderer, font, a.title, rect.x + POPUP_PAD + 2 * ed.char_w, y, theme.popup_text, ed.char_h)
+		room := int((rect.w - 2 * POPUP_PAD) / ed.char_w) - 3
+		draw_text(renderer, font, truncate_cols(a.title, max(room, 1)), rect.x + POPUP_PAD + 2 * ed.char_w, y, theme.popup_text, ed.char_h)
 	}
+}
+
+// editor_code_actions_rows is how many actions the menu shows (the rest scroll)
+editor_code_actions_rows :: proc(ed: ^Editor) -> int {
+	rect, ok := editor_code_actions_layout(ed)
+	return popup_rows_of(ed, rect) if ok else CODE_ACTION_MAX_VISIBLE
 }

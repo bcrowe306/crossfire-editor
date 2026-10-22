@@ -31,6 +31,9 @@ Mouse_Zone :: enum {
 	References,   // the references panel (row = item index, -1 = header)
 	Peek,         // the peek-definition window (row = source line index)
 	Tool_Window,  // a full-area tool window (keymap editor, ...)
+	Completion_Docs, // the docs panel beside the completion list
+	Hover,           // the hover tooltip (clicks go to the text under it)
+	Diag_Tooltip,    // a diagnostic's tooltip (clicks go to the text under it)
 }
 
 Drag_Mode :: enum {
@@ -119,12 +122,13 @@ editor_hit_test :: proc(ed: ^Editor, x, y: f32) -> Hit {
 	}
 	if rect, ok := editor_peek_layout(ed); ok && in_rect(rect, x, y) {
 		hit.zone = .Peek
-		hit.row = int((y - rect.y - POPUP_PAD) / ed.char_h) - 1
+		row := int((y - rect.y - POPUP_PAD) / ed.char_h) - 1
+		hit.row = row if row < 0 else ed.nav.peek.scroll + row
 		return hit
 	}
 	if rect, ok := editor_context_menu_layout(ed); ok && in_rect(rect, x, y) {
 		hit.zone = .Context_Menu
-		hit.row = int((y - rect.y - POPUP_PAD) / ed.char_h)
+		hit.row = ed.menu.scroll + int((y - rect.y - POPUP_PAD) / ed.char_h)
 		return hit
 	}
 	if l, ok := editor_find_layout(ed); ok && in_rect(l.rect, x, y) {
@@ -133,7 +137,11 @@ editor_hit_test :: proc(ed: ^Editor, x, y: f32) -> Hit {
 	}
 	if rect, ok := editor_code_actions_layout(ed); ok && in_rect(rect, x, y) {
 		hit.zone = .Code_Actions
-		hit.row = int((y - rect.y - POPUP_PAD) / ed.char_h)
+		hit.row = ed.actions.scroll + int((y - rect.y - POPUP_PAD) / ed.char_h)
+		return hit
+	}
+	if rect, _, ok := editor_completion_doc_layout(ed); ok && in_rect(rect, x, y) {
+		hit.zone = .Completion_Docs
 		return hit
 	}
 	layout := editor_popup_layout(ed)
@@ -145,6 +153,14 @@ editor_hit_test :: proc(ed: ^Editor, x, y: f32) -> Hit {
 	}
 	if layout.signature_visible && in_rect(layout.signature, x, y) {
 		hit.zone = .Signature
+		return hit
+	}
+	if rect, _, ok := editor_hover_layout(ed); ok && in_rect(rect, x, y) {
+		hit.zone = .Hover
+		return hit
+	}
+	if tip, ok := editor_diag_tooltip_layout(ed); ok && in_rect(tip.rect, x, y) {
+		hit.zone = .Diag_Tooltip
 		return hit
 	}
 	sb := editor_scrollbar_layout(ed)
@@ -235,6 +251,11 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 		return false
 	}
 	editor_hide_hover(ed)
+	// Tooltips only take the wheel: a click goes to the text under them
+	if hit.zone == .Hover || hit.zone == .Diag_Tooltip {
+		hit.zone = .Gutter if ev.x < ed.origin_x + editor_gutter_width(ed) else .Text
+		ed.mouse.zone = hit.zone
+	}
 	if hit.zone == .Peek {
 		p := &ed.nav.peek
 		if ev.button == 1 && hit.row >= 0 && hit.row < len(p.lines) {
@@ -309,7 +330,7 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 	case .Completion:
 		ed.completion.selected = hit.row
 		editor_accept_completion(ed)
-	case .Signature:
+	case .Signature, .Completion_Docs, .Hover, .Diag_Tooltip:
 	case .Gutter:
 		editor_close_completion(ed)
 		resize(&b.cursors, 1)
@@ -511,18 +532,61 @@ editor_handle_mouse_wheel :: proc(ed: ^Editor, ev: sdl.MouseWheelEvent) -> bool 
 		return true
 	}
 	if hit.zone == .Problems {
-		problems_scroll_by(ed, -int(dy))
+		problems_scroll_by(ed, overlay_wheel_rows(ed, dy))
 		return true
 	}
 	if hit.zone == .References {
 		r := &ed.nav.refs
-		r.scroll = clamp(r.scroll - int(dy), 0, max(0, len(r.items) - (PROBLEMS_PANEL_ROWS - 1)))
+		r.scroll = overlay_scroll_clamp(r.scroll + overlay_wheel_rows(ed, dy), len(r.items), editor_panel_entries(ed))
 		return true
 	}
 	if hit.zone == .Completion {
 		cs := &ed.completion
-		cs.scroll = clamp(cs.scroll - int(dy), 0, max(0, len(cs.filtered) - COMPLETION_MAX_VISIBLE))
+		cs.scroll = overlay_scroll_clamp(cs.scroll + overlay_wheel_rows(ed, dy), len(cs.filtered), editor_completion_rows(ed))
 		return true
+	}
+	// Text popups taller than the view leaves them scroll their lines
+	switch hit.zone {
+	case .Completion_Docs:
+		if rect, lines, ok := editor_completion_doc_layout(ed); ok {
+			popup_scroll_by(&ed.completion.doc_scroll, completion_doc_scroll_key(ed), overlay_wheel_rows(ed, dy), len(lines), popup_rows_of(ed, rect))
+		}
+		return true
+	case .Signature:
+		layout := editor_popup_layout(ed)
+		lines, _ := signature_wrapped(ed, signature_max_cols(ed))
+		popup_scroll_by(&ed.signature.scroll, signature_scroll_key(ed), overlay_wheel_rows(ed, dy), len(lines), popup_rows_of(ed, layout.signature))
+		return true
+	case .Hover:
+		if rect, lines, ok := editor_hover_layout(ed); ok {
+			popup_scroll_by(&ed.hover.scroll, u64(ed.hover.seen_seq), overlay_wheel_rows(ed, dy), len(lines), popup_rows_of(ed, rect))
+		}
+		return true
+	case .Diag_Tooltip:
+		if tip, ok := editor_diag_tooltip_layout(ed); ok {
+			popup_scroll_by(&ed.diag_tip.scroll, diag_tip_scroll_key(ed), overlay_wheel_rows(ed, dy), len(tip.lines), popup_rows_of(ed, tip.rect))
+		}
+		return true
+	case .Code_Actions:
+		if rect, ok := editor_code_actions_layout(ed); ok {
+			ed.actions.scroll = overlay_scroll_clamp(ed.actions.scroll + overlay_wheel_rows(ed, dy), len(ed.lsp.last_code_actions), popup_rows_of(ed, rect))
+		}
+		return true
+	case .Context_Menu:
+		if rect, ok := editor_context_menu_layout(ed); ok {
+			ed.menu.scroll = overlay_scroll_clamp(ed.menu.scroll + overlay_wheel_rows(ed, dy), len(editor_context_menu_items(ed)), popup_rows_of(ed, rect))
+		}
+		return true
+	case .Palette:
+		_, matches := editor_palette_matches(ed)
+		ed.palette.scroll = overlay_scroll_clamp(ed.palette.scroll + overlay_wheel_rows(ed, dy), len(matches), editor_palette_rows(ed))
+		return true
+	case .Peek:
+		if rect, ok := editor_peek_layout(ed); ok {
+			ed.nav.peek.scroll = overlay_scroll_clamp(ed.nav.peek.scroll + overlay_wheel_rows(ed, dy), len(ed.nav.peek.lines), max(popup_rows_of(ed, rect) - 1, 0))
+		}
+		return true
+	case .Outside, .Gutter, .Text, .Completion, .Problems, .Find, .Scrollbar, .References, .Tool_Window:
 	}
 
 	m := &ed.mouse

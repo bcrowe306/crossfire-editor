@@ -43,6 +43,8 @@ Peek_View :: struct {
 	target_char: int,
 	first_line:  int,               // line number of lines[0]
 	lines:       [dynamic]string,   // owned copies
+	// The first of `lines` shown, when the view is too short for them all
+	scroll:      int,
 }
 
 Ref_Item :: struct {
@@ -94,6 +96,7 @@ peek_clear :: proc(p: ^Peek_View) {
 	delete(p.key)
 	p.key = ""
 	p.open = false
+	p.scroll = 0
 }
 
 @(private)
@@ -303,12 +306,9 @@ editor_peek_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, ok: bool) {
 	_, cy := editor_cursor_screen_pos(ed)
 	x := ed.origin_x + editor_gutter_width(ed)
 	w := f32(ed.visible_cols) * ed.char_w
-	h := f32(len(p.lines) + 1) * ed.char_h + 2 * POPUP_PAD
-	y := cy + ed.char_h + 2
-	bottom := ed.origin_y + f32(editor_text_rows(ed)) * ed.char_h
-	if y + h > bottom {
-		y = max(ed.origin_y, cy - h - 2)
-	}
+	// The title row and the lines, under the caret line, else above it; in a short view as many
+	// lines as fit (they scroll)
+	y, h, _ := place_popup(ed, len(p.lines) + 1, cy, cy + ed.char_h, prefer_above = false)
 	return {x, y, w, h}, true
 }
 
@@ -328,8 +328,12 @@ render_peek :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, theme
 	hint := "Enter: open   Esc: close"
 	draw_text(renderer, font, hint, rect.x + rect.w - POPUP_PAD - f32(text_cols(hint) + 1) * ed.char_w, y, theme.popup_text_dim, ed.char_h)
 	num_w := f32(5) * ed.char_w
-	for line, i in p.lines {
-		ly := y + f32(i + 1) * ed.char_h
+	rows := max(popup_rows_of(ed, rect) - 1, 0)
+	scroll := overlay_scroll_clamp(p.scroll, len(p.lines), rows)
+	render_overlay_scrollbar(renderer, {rect.x, y + ed.char_h, rect.w, f32(rows) * ed.char_h}, len(p.lines), rows, scroll, theme)
+	for line, row in p.lines[scroll:min(len(p.lines), scroll + rows)] {
+		i := scroll + row
+		ly := y + f32(row + 1) * ed.char_h
 		ln := p.first_line + i
 		if ln == p.target_line {
 			fill_rect(renderer, {rect.x + 1, ly, rect.w - 2, ed.char_h}, theme.popup_selected)
@@ -433,12 +437,7 @@ editor_step_reference :: proc(ed: ^Editor, dir: int) {
 @(private)
 refs_keep_visible :: proc(ed: ^Editor) {
 	r := &ed.nav.refs
-	rows := PROBLEMS_PANEL_ROWS - 1
-	if r.selected < r.scroll {
-		r.scroll = r.selected
-	} else if r.selected >= r.scroll + rows {
-		r.scroll = r.selected - rows + 1
-	}
+	r.scroll = overlay_scroll_reveal(r.scroll, r.selected, len(r.items), editor_panel_entries(ed))
 }
 
 @(private)
@@ -449,11 +448,13 @@ render_references_panel :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 	}
 	top := origin_y + f32(editor_text_rows(ed)) * ed.char_h
 	width := editor_gutter_width(ed) + f32(ed.visible_cols) * ed.char_w
-	fill_rect(renderer, {origin_x, top, width, f32(PROBLEMS_PANEL_ROWS) * ed.char_h}, theme.popup_bg)
+	fill_rect(renderer, {origin_x, top, width, f32(editor_panel_rows(ed)) * ed.char_h}, theme.popup_bg)
 	fill_rect(renderer, {origin_x, top, width, 1}, theme.popup_border)
+	entries := editor_panel_entries(ed)
+	render_overlay_scrollbar(renderer, {origin_x, top + ed.char_h, width, f32(entries) * ed.char_h}, len(r.items), entries, r.scroll, theme)
 	header := fmt.tprintf("REFERENCES  %d result%s for '%s'   (F4 / Shift+F4 to step, Esc to close)", len(r.items), "" if len(r.items) == 1 else "s", r.symbol)
 	draw_text(renderer, font, header, origin_x + POPUP_PAD, top, theme.popup_text_dim, ed.char_h)
-	last := min(len(r.items), r.scroll + PROBLEMS_PANEL_ROWS - 1)
+	last := min(len(r.items), r.scroll + entries)
 	for i in r.scroll ..< last {
 		it := r.items[i]
 		y := top + f32(i - r.scroll + 1) * ed.char_h

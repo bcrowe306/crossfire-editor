@@ -88,6 +88,9 @@ Diagnostic_Tooltip :: struct {
 	hover_pos:       buf.Position,
 	hover_line_only: bool,
 	hover_since:     time.Tick,
+
+	// The tooltip's scroll, when it's taller than the view leaves it (per anchor)
+	scroll: Popup_Scroll,
 }
 
 // editor_diagnostics returns the current document's diagnostics in buffer
@@ -305,7 +308,7 @@ editor_track_diag_hover :: proc(ed: ^Editor, hit: Hit, x, y: f32) {
 		}
 	case .Gutter:
 		line_only, valid = true, true
-	case .Outside, .Completion, .Signature, .Problems, .Code_Actions, .Find, .Context_Menu, .Scrollbar, .Palette, .References, .Peek, .Tool_Window:
+	case .Outside, .Completion, .Signature, .Problems, .Code_Actions, .Find, .Context_Menu, .Scrollbar, .Palette, .References, .Peek, .Tool_Window, .Completion_Docs, .Hover, .Diag_Tooltip:
 	}
 	if !valid || (tip.hover_valid && (pos != tip.hover_pos || line_only != tip.hover_line_only)) || !tip.hover_valid {
 		tip.hover_since = time.tick_now()

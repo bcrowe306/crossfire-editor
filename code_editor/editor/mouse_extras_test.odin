@@ -48,7 +48,15 @@ test_context_menu_opens_moves_caret_and_runs_actions :: proc(t: ^testing.T) {
 		testing.expect(t, editor_context_menu_items(&ed)[cut + 1].enabled, "Copy enabled with a selection")
 		rect, _ := editor_context_menu_layout(&ed)
 		find_row := cut + 8 // "Find"
-		mouse_click(&ed, rect.x + 10, rect.y + POPUP_PAD + f32(find_row) * ed.char_h + 5)
+		// The 10-row view is too short for all 14 items: the menu fits inside it and scrolls
+		testing.expect(t, rect.y >= ed.origin_y && rect.y + rect.h <= ed.origin_y + f32(ed.visible_rows) * ed.char_h, "the menu fits the view")
+		rows := popup_rows_of(&ed, rect)
+		testing.expect(t, rows < len(editor_context_menu_items(&ed)), "fewer rows than items")
+		for i := 0; i < 20 && ed.menu.scroll + rows <= find_row; i += 1 {
+			mouse_wheel(&ed, rect.x + 10, rect.y + 10, 0, -1)
+		}
+		testing.expect(t, ed.menu.scroll > 0, "the wheel scrolled the menu")
+		mouse_click(&ed, rect.x + 10, rect.y + POPUP_PAD + f32(find_row - ed.menu.scroll) * ed.char_h + 5)
 		testing.expect(t, ed.find.open, "clicking Find opened the find bar")
 
 		right_click(&ed, x, y)

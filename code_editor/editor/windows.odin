@@ -149,6 +149,7 @@ editor_window_scroll :: proc(ed: ^Editor, lines: int) {
 	case .Theme:
 		editor_theme_scroll(ed, lines)
 	case .Utilities:
+		editor_utilities_scroll(ed, lines)
 	}
 }
 

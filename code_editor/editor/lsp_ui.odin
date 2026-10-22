@@ -37,6 +37,8 @@ Completion_State :: struct {
 	// Typed-prefix length when the request went out; with an incomplete
 	// list, a different prefix triggers a re-query.
 	request_prefix_len: int,
+	// The docs panel's scroll (for the item it shows)
+	doc_scroll: Popup_Scroll,
 }
 
 Signature_State :: struct {
@@ -52,6 +54,8 @@ Signature_State :: struct {
 	// the tooltip closes once the cursor leaves the call.
 	last_pos:     buf.Position,
 	last_version: int,
+	// The tooltip's scroll, when it's taller than the view leaves it
+	scroll: Popup_Scroll,
 }
 
 @(private)
@@ -381,13 +385,16 @@ editor_completion_move :: proc(ed: ^Editor, delta: int) {
 @(private)
 editor_completion_clamp_scroll :: proc(ed: ^Editor) {
 	cs := &ed.completion
-	if cs.selected < cs.scroll {
-		cs.scroll = cs.selected
+	cs.scroll = overlay_scroll_reveal(cs.scroll, cs.selected, len(cs.filtered), editor_completion_rows(ed))
+}
+
+// editor_completion_rows is how many rows the completion list shows: up to
+// COMPLETION_MAX_VISIBLE, fewer when the view is too short for them (the list scrolls).
+editor_completion_rows :: proc(ed: ^Editor) -> int {
+	if rows := editor_popup_layout(ed).completion_rows; rows > 0 {
+		return rows
 	}
-	if cs.selected >= cs.scroll + COMPLETION_MAX_VISIBLE {
-		cs.scroll = cs.selected - COMPLETION_MAX_VISIBLE + 1
-	}
-	cs.scroll = clamp(cs.scroll, 0, max(0, len(cs.filtered) - COMPLETION_MAX_VISIBLE))
+	return COMPLETION_MAX_VISIBLE
 }
 
 // editor_accept_completion replaces the typed prefix with the selected

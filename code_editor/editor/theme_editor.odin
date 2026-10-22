@@ -322,6 +322,7 @@ render_theme_editor :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 		draw_text(renderer, font, hex, area.x + list_w - f32(len(hex) + 1) * ed.char_w, ry, theme.popup_text_dim, ed.char_h)
 	}
 	fill_rect(renderer, {area.x + list_w, top, 1, f32(rows) * ed.char_h}, theme.popup_border)
+	render_overlay_scrollbar(renderer, {area.x, top, list_w, f32(rows) * ed.char_h}, len(names), rows, t.scroll, theme)
 
 	// Selected colour: name, big swatch, hex, sliders.
 	px := area.x + list_w + 2 * ed.char_w

@@ -281,6 +281,26 @@ builds the sheets.
   resize them (`TTF_SetFontSize`) and call `editor_set_font` (see
   `example/main.odin`).
 
+## Overlays in a small editor
+
+A hosted editor can be a short or narrow pane, so every overlay fits the visible area
+(`editor/overlay_scroll.odin`) instead of running off it:
+
+- **Popups and menus** (completion list, its docs, signature help, hover, diagnostic tooltips, code
+  actions, the context menu, peek, the palette) go on the side of their anchor with room, as tall
+  as fits there and no wider than the view (long labels are cut with "…"). What doesn't fit scrolls:
+  the wheel over the overlay, the keys that move a selection (kept in view), and clicks map through
+  the scroll.
+- **A scrollbar** (`render_overlay_scrollbar`, the theme's scrollbar colours) shows along the
+  overlay's right edge whenever its content doesn't all fit.
+- **Text popups** (docs, hover, signature, diagnostics) keep up to `POPUP_MAX_LINES` and scroll
+  through them; their offset is kept per thing shown (`Popup_Scroll`), so showing another item
+  starts at the top.
+- **The problems / references panel** is `editor_panel_rows` tall (8 rows, fewer in a short view)
+  and scrolls; **tool windows** (key bindings, colour theme) show scrollbars, and Utilities scrolls.
+
+Tests: `overlay_scroll_test.odin` (short and narrow views).
+
 ## Command palette
 
 **Cmd/Ctrl+P** (also Cmd/Ctrl+Shift+P and F1) opens a searchable list of

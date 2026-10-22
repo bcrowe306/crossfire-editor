@@ -22,6 +22,8 @@ COMPLETION_DETAIL_MAX_COLS :: 40
 Popup_Layout :: struct {
 	completion:         sdl.FRect,
 	completion_visible: bool,
+	// The list's rows shown: at most COMPLETION_MAX_VISIBLE, fewer when the view is short
+	completion_rows:    int,
 	signature:          sdl.FRect,
 	signature_visible:  bool,
 }
@@ -94,10 +96,9 @@ editor_popup_layout :: proc(ed: ^Editor) -> (layout: Popup_Layout) {
 	if editor_signature_visible(ed) {
 		lines, cols := signature_wrapped(ed, signature_max_cols(ed))
 		w := f32(cols) * ed.char_w + 2 * POPUP_PAD
-		h := f32(len(lines)) * ed.char_h + 2 * POPUP_PAD
-		y := cy - h - 2
-		if y < view_top {
-			y = below_y
+		// Above the cursor, else below; in a short view as many lines as fit (it scrolls)
+		y, h, _ := place_popup(ed, len(lines), cy, cy + ed.char_h, prefer_above = true)
+		if y > cy {
 			below_y += h + 2
 		}
 		x := min(cx, max(ed.origin_x + editor_gutter_width(ed), view_right - w))
@@ -106,20 +107,27 @@ editor_popup_layout :: proc(ed: ^Editor) -> (layout: Popup_Layout) {
 	}
 
 	if editor_completion_visible(ed) {
-		rows := min(len(ed.completion.filtered), COMPLETION_MAX_VISIBLE)
+		wanted := min(len(ed.completion.filtered), COMPLETION_MAX_VISIBLE)
 		w := f32(completion_popup_cols(ed)) * ed.char_w + 2 * POPUP_PAD
-		h := f32(rows) * ed.char_h + 2 * POPUP_PAD
-		y := below_y
-		if y + h > view_bottom && cy - h - 2 >= view_top {
-			y = cy - h - 2
-			// Don't cover the signature tooltip if it's also above.
-			if layout.signature_visible && layout.signature.y < cy {
-				y = layout.signature.y - h - 2
-			}
+		// Below the cursor if it fits, else above (over the signature tooltip if that's above
+		// too); in a short view, on the roomier side with as many rows as fit (it scrolls)
+		above_bottom := cy - 2
+		if layout.signature_visible && layout.signature.y < cy {
+			above_bottom = layout.signature.y - 2
 		}
+		room_below := view_bottom - below_y
+		room_above := above_bottom - view_top
+		full := f32(wanted) * ed.char_h + 2 * POPUP_PAD
+		below := full <= room_below || room_below >= room_above
+		rows := overlay_rows_fit(ed, below ? room_below : room_above, wanted)
+		h := f32(rows) * ed.char_h + 2 * POPUP_PAD
+		y := below ? below_y : above_bottom - h
+		layout.completion_rows = rows
 		// Align the list's label column under the start of the word.
 		ax, _ := editor_position_to_screen(ed, ed.completion.anchor)
 		x := ax - f32(COMPLETION_KIND_COLS) * ed.char_w - POPUP_PAD
+		// No wider than the text area (its scrollbar on the right must show; labels are cut)
+		w = min(w, view_right - (ed.origin_x + editor_gutter_width(ed)))
 		x = clamp(x, ed.origin_x + editor_gutter_width(ed), max(ed.origin_x + editor_gutter_width(ed), view_right - w))
 		layout.completion = {x, y, w, h}
 		layout.completion_visible = true
@@ -191,7 +199,8 @@ render_completion_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 	prefix, _ := editor_completion_prefix(ed)
 	total_cols := int((rect.w - 2 * POPUP_PAD) / ed.char_w)
 
-	last := min(cs.scroll + COMPLETION_MAX_VISIBLE, len(cs.filtered))
+	visible := editor_completion_rows(ed)
+	last := min(cs.scroll + visible, len(cs.filtered))
 	for row in cs.scroll ..< last {
 		item := ed.lsp.last_completion[cs.filtered[row]]
 		y := rect.y + POPUP_PAD + f32(row - cs.scroll) * ed.char_h
@@ -214,7 +223,8 @@ render_completion_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 		draw_text(renderer, font, label[:match_len], x, y, theme.popup_match, ed.char_h)
 		draw_text(renderer, font, label[match_len:], x + f32(text_cols(label[:match_len])) * ed.char_w, y, theme.popup_text, ed.char_h)
 
-		detail_cols := total_cols - COMPLETION_KIND_COLS - label_cols - 2
+		// The scrollbar's room comes off the detail column
+		detail_cols := total_cols - COMPLETION_KIND_COLS - label_cols - 2 - (len(cs.filtered) > visible ? 1 : 0)
 		if len(item.detail) > 0 && detail_cols > 3 {
 			detail := truncate_cols(item.detail, min(detail_cols, COMPLETION_DETAIL_MAX_COLS))
 			dx := rect.x + rect.w - POPUP_PAD - f32(text_cols(detail)) * ed.char_w
@@ -222,19 +232,23 @@ render_completion_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 		}
 	}
 
-	// Scroll indicator when the list is longer than the popup.
-	if len(cs.filtered) > COMPLETION_MAX_VISIBLE {
-		track_h := rect.h - 2
-		thumb_h := max(track_h * f32(COMPLETION_MAX_VISIBLE) / f32(len(cs.filtered)), 6)
-		thumb_y := rect.y + 1 + (track_h - thumb_h) * f32(cs.scroll) / f32(len(cs.filtered) - COMPLETION_MAX_VISIBLE)
-		fill_rect(renderer, {rect.x + rect.w - 4, thumb_y, 3, thumb_h}, theme.popup_border)
-	}
+	render_overlay_scrollbar(renderer, rect, len(cs.filtered), visible, cs.scroll, theme)
+}
+
+// The signature tooltip's scroll key: the server's answer and the overload shown
+@(private)
+signature_scroll_key :: proc(ed: ^Editor) -> u64 {
+	return u64(ed.signature.seen_seq) << 20 | u64(editor_signature_index(ed) + 1)
 }
 
 @(private)
 render_signature_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, theme: Theme, rect: sdl.FRect) {
 	draw_popup_box(renderer, rect, theme)
-	lines, _ := signature_wrapped(ed, signature_max_cols(ed))
+	all_lines, _ := signature_wrapped(ed, signature_max_cols(ed))
+	rows := popup_rows_of(ed, rect)
+	scroll := overlay_scroll_clamp(popup_scroll_get(&ed.signature.scroll, signature_scroll_key(ed)), len(all_lines), rows)
+	lines := all_lines[scroll:min(scroll + rows, len(all_lines))]
+	render_overlay_scrollbar(renderer, rect, len(all_lines), rows, scroll, theme)
 	for line, row in lines {
 		y := rect.y + POPUP_PAD + f32(row) * ed.char_h
 		// Each run of one style is drawn at once
@@ -415,7 +429,7 @@ editor_completion_doc_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, lines: []
 	if !layout.completion_visible || !has {
 		return
 	}
-	lines = completion_doc_lines(item, popup_max_cols(ed, COMPLETION_DOC_COLS))
+	lines = completion_doc_lines(item, popup_max_cols(ed, COMPLETION_DOC_COLS), POPUP_MAX_LINES)
 	if len(lines) == 0 {
 		return
 	}
@@ -423,27 +437,34 @@ editor_completion_doc_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, lines: []
 	for l in lines {
 		widest = max(widest, text_cols(l.text))
 	}
-	w := f32(widest) * ed.char_w + 2 * POPUP_PAD
-	h := f32(len(lines)) * ed.char_h + 2 * POPUP_PAD
+	// Room for the scrollbar
+	w := f32(widest + 1) * ed.char_w + 2 * POPUP_PAD
 	c := layout.completion
 	left := ed.origin_x + editor_gutter_width(ed)
 	right := left + f32(ed.visible_cols) * ed.char_w
+	// Beside the list (as many lines as fit down to the view's bottom: it scrolls), else below it
+	y := c.y
+	x: f32
 	switch {
-	case c.x + c.w + 2 + w <= right: rect = {c.x + c.w + 2, c.y, w, h}
-	case c.x - 2 - w >= left: rect = {c.x - 2 - w, c.y, w, h}
-	case: rect = {c.x, c.y + c.h + 2, w, h}
+	case c.x + c.w + 2 + w <= right: x = c.x + c.w + 2
+	case c.x - 2 - w >= left: x = c.x - 2 - w
+	case: x, y = c.x, c.y + c.h + 2
 	}
-	return rect, lines, true
+	rows := overlay_rows_fit(ed, overlay_view_bottom(ed) - y, len(lines))
+	return {x, y, min(w, right - left), f32(rows) * ed.char_h + 2 * POPUP_PAD}, lines, true
 }
 
 @(private)
 render_completion_docs :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, theme: Theme) {
-	rect, lines, ok := editor_completion_doc_layout(ed)
+	rect, all_lines, ok := editor_completion_doc_layout(ed)
 	if !ok || font == nil {
 		return
 	}
 	draw_popup_box(renderer, rect, theme)
-	for l, i in lines {
+	rows := popup_rows_of(ed, rect)
+	scroll := overlay_scroll_clamp(popup_scroll_get(&ed.completion.doc_scroll, completion_doc_scroll_key(ed)), len(all_lines), rows)
+	render_overlay_scrollbar(renderer, rect, len(all_lines), rows, scroll, theme)
+	for l, i in all_lines[scroll:min(scroll + rows, len(all_lines))] {
 		x := rect.x + POPUP_PAD
 		y := rect.y + POPUP_PAD + f32(i) * ed.char_h
 		if !l.code {
@@ -454,10 +475,19 @@ render_completion_docs :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.
 	}
 }
 
+// The completion docs panel's scroll key: the server's answer and the item shown
+@(private)
+completion_doc_scroll_key :: proc(ed: ^Editor) -> u64 {
+	cs := &ed.completion
+	item := cs.selected >= 0 && cs.selected < len(cs.filtered) ? cs.filtered[cs.selected] : -1
+	return u64(ed.lsp.completion_seq) << 32 | u64(u32(item + 1))
+}
+
 // popup_max_cols is how wide a popup's text may be: the text area's width
 // (less a margin), at most `cap`, at least 20 columns.
 popup_max_cols :: proc(ed: ^Editor, cap: int) -> int {
-	return clamp(ed.visible_cols - 2, 20, cap)
+	// A narrow editor (a hosted pane) gets narrower popups, down to 8 columns
+	return max(min(ed.visible_cols - 2, cap), 8)
 }
 
 // wrap_code wraps a line of code at `cols` runes: after a space (", "

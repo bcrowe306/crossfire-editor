@@ -10,7 +10,8 @@ import sdl "vendor:sdl3"
 import ttf "vendor:sdl3/ttf"
 
 DIAG_TOOLTIP_MAX_COLS :: 80
-DIAG_TOOLTIP_MAX_LINES :: 12
+// A diagnostic tooltip holds this many lines at most (it shows as many as fit and scrolls)
+DIAG_TOOLTIP_MAX_LINES :: POPUP_MAX_LINES
 
 severity_color :: proc(theme: Theme, sev: Diagnostic_Severity) -> sdl.Color {
 	switch sev {
@@ -188,18 +189,13 @@ editor_diag_tooltip_layout :: proc(ed: ^Editor) -> (layout: Diag_Tooltip_Layout,
 		anchor = {ed.diag_tip.pos.line, items[0].start.col if items[0].start.line == ed.diag_tip.pos.line else 0}
 	}
 	ax, ay := editor_position_to_screen(ed, anchor)
-	view_top := ed.origin_y
-	view_bottom := ed.origin_y + f32(editor_text_rows(ed)) * ed.char_h
 	view_left := ed.origin_x + editor_gutter_width(ed)
 	view_right := view_left + f32(ed.visible_cols) * ed.char_w
-
-	y := ay - h - 2
-	if y < view_top {
-		y = ay + ed.char_h + 2
-	}
-	if y + h > view_bottom {
-		y = max(view_top, view_bottom - h)
-	}
+	// Above the anchor, else below; in a short view as many lines as fit (it scrolls)
+	y: f32
+	y, h, _ = place_popup(ed, len(lines), ay, ay + ed.char_h, prefer_above = true)
+	w += ed.char_w // the scrollbar's room
+	w = min(w, view_right - view_left)
 	x := clamp(ax, view_left, max(view_left, view_right - w))
 	return {rect = {x, y, w, h}, lines = lines[:]}, true
 }
@@ -212,7 +208,10 @@ render_diag_tooltip :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 	}
 	draw_popup_box(renderer, layout.rect, theme)
 	x := layout.rect.x + POPUP_PAD
-	for line, i in layout.lines {
+	rows := popup_rows_of(ed, layout.rect)
+	scroll := overlay_scroll_clamp(popup_scroll_get(&ed.diag_tip.scroll, diag_tip_scroll_key(ed)), len(layout.lines), rows)
+	render_overlay_scrollbar(renderer, layout.rect, len(layout.lines), rows, scroll, theme)
+	for line, i in layout.lines[scroll:min(scroll + rows, len(layout.lines))] {
 		y := layout.rect.y + POPUP_PAD + f32(i) * ed.char_h
 		text := line.text
 		if line.label {
@@ -224,4 +223,11 @@ render_diag_tooltip :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 			draw_text(renderer, font, text, x, y, theme.popup_text, ed.char_h)
 		}
 	}
+}
+
+// The diagnostic tooltip's scroll key: where it's anchored and why it shows
+@(private)
+diag_tip_scroll_key :: proc(ed: ^Editor) -> u64 {
+	t := &ed.diag_tip
+	return u64(u32(t.pos.line)) << 32 | u64(u32(t.pos.col)) << 4 | u64(t.source) << 1 | u64(t.line_only)
 }
