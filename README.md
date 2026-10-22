@@ -242,6 +242,12 @@ palette, ...): the palette (Ctrl+P) lists every command with its keys, and its K
 changes them. Ctrl+O and Ctrl+Shift+S open and save as through file dialogs. Tab indents with a
 tab, as Odin code does.
 
+**Brackets and quotes close themselves** as you type them: `(`, `[`, `{`, `"`, `'` and `` ` `` get
+their closer after the caret, and `<` does after a name (`Map<`; elsewhere it's "less than").
+Typing the closer steps over it, Backspace between an empty pair removes both, typing one with
+text selected wraps the selection, and Enter between `{}` opens an indented line. **Settings >
+Editor > Auto-close** turns it off.
+
 Scene tabs close with their × too (the scene stays in the project; opening it brings its tab
 back).
 

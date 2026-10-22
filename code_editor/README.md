@@ -281,6 +281,23 @@ builds the sheets.
   resize them (`TTF_SetFontSize`) and call `editor_set_font` (see
   `example/main.odin`).
 
+## Auto-closing pairs
+
+`Editor.auto_close_pairs` (on by default; the host's setting can turn it off) closes `()`, `[]`,
+`{}`, `""`, `''`, "``" and `<>` as they're typed (`buffer/autopairs.odin`), like most code editors:
+
+- The closer goes after the caret when the opener is typed before whitespace, the end of the line
+  or another closer. Not before a word, not a quote inside a word (`don't`) or after a backslash,
+  and `<` only straight after a word (`Map<`) since it's "less than" in code; in XML / HTML files
+  (`Pair_Rules.markup`) `<` closes anywhere.
+- Typing the closer that's next steps over it (an escaped quote, `\"`, is typed).
+- Backspace between an empty pair deletes both (`buffer_backspace_pair`).
+- An opener typed with text selected wraps it, the text staying selected.
+- Enter between `{}`, `()` or `[]` puts the closer on its own line under an indented one
+  (`buffer_newline_paired`); after an opener alone the new line is indented one more.
+
+Every caret gets it; each pair is one undo step. Tests: `buffer/autopairs_test.odin`.
+
 ## Overlays in a small editor
 
 A hosted editor can be a short or narrow pane, so every overlay fits the visible area

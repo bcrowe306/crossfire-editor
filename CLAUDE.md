@@ -789,6 +789,12 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   unchanged buffers reload (caret kept), dirty ones get the bar over the code (`CodeTabs_DiskBar`:
   Reload / Keep mine, `Code_Disk_Chosen`). A hidden tab's reload keeps its document open on the
   server (it resends the text when it shows).
+- **Auto-closing pairs** (code_editor's buffer/autopairs.odin, `Editor.auto_close_pairs`, set
+  from Settings > Editor > Auto-close, `code_editor_auto_close`, every frame in
+  `CodeEditor_View`): typed brackets and quotes close; `<` only after a word (or in XML); the
+  closer steps over; Backspace removes an empty pair; Enter between brackets indents. Only typed
+  text (TEXT_INPUT, one character) goes through it: what the host inserts (node fields,
+  listeners) doesn't. code_editor.script types and checks it.
 - **Overlays fit the code view** (code_editor's overlay_scroll.odin; its README's "Overlays in a
   small editor"): popups, menus, the palette and the problems / references panel fit the tab's
   height and width (a tiled window's tab is about 300 px wide), scroll what doesn't fit (wheel,
