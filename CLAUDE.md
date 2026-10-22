@@ -223,6 +223,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `mixer.odin` | Mix buses: `BusDef`, `Buses_FromData` (Master first), names (`BusNameProblem`), `Bus_NodeCount`, `isSoundKind`, the Mixer's messages (`Mixer_Update`) |
 | `view_mixer.odin` | The Mixer tab (`MixerPanel`, built in `skald.sized`), like a DAW's: a channel strip per bus (node count, remove, pan, fader beside its level meter, dB, mute, name at the bottom), scrolling sideways; Master pinned on the right, + beside it |
 | `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
+| `shader_edit.odin` | **Shaders**: `NodeDef.shader` / `shaderParams`, the Shader section and ScreenEffect rows (`shaderInspectorRows`), `Node_Shader_Changed` / `Node_Shader_Param_Changed` / `Shader_New_Requested`, Shader assets (`.frag`, `shaderPreview`), compiling (`Shaders_Compile`, `ShaderEdit_Watch`, `Toolchain_ShaderTools`), `Project_UsesShaders` |
 | `touch_edit.odin` | **Touch controls**: `NodeDef.touch` (`e.TouchControlSettings`) and `touchActions` (comma-separated, owned), `Touch_Setting_Changed` (node steps), the VirtualJoystick / TouchButton inspector rows (`touchInspectorRows`), `NodeKind_IsTouchControl` |
 | `players_edit.odin` | **Local players**: `Project.players` (`e.PlayerSettings`, `joinAction` owned: `PlayerSettings_Clone`), Project Settings > Input's Local players rows (`playersSettingRows`, `Players_Setting_Changed` on the draft) |
 | `steam_edit.odin` | **Steam**: `Project.steam` / `achievements` (`AchievementDef`: clone, destroy, equal, `AchievementNameProblem`), Project Settings > Steam (`SteamTab`, `Steam_Setting_Changed` / `_Achievement_Added` / `_Removed` on the draft), `ACHIEVEMENT_X` constants |
@@ -1434,6 +1435,32 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
 - Tests: `physics_materials_in_the_editor`, `collision_from_a_sprite_in_the_editor`,
   `tests/ui/collision_tools.script` (driver `select_node`, checks `traced`, `material`,
   `node_material`). User guide: `docs/manual/collision_and_materials.md`.
+
+## Shaders (implemented, `shader_edit.odin`; engine: shaders.odin, screen_effects.odin, shader_compile.odin)
+
+- **Data:** `NodeDef.shader` (owned path) and `shaderParams` (`ScriptPropDef`, only the values
+  set: clearing one deletes it), ScreenEffect's `effectScreenLayers`; written as the node's
+  `shader` attribute and `<shaderParam>` children (the writer's "no children" test counts them);
+  project.xml's `shaders="true"` (`Project_UsesShaders`). Asset kind Shader (`.frag`, browser
+  folder Shaders hidden until one exists; `SHADER_X` path constants in assets.odin).
+- **Inspector:** for kinds that draw or have drawing children (`NodeKind_TakesShader`), after the
+  kind's rows; a project shader's params come from its source (`ShaderEdit_Params`:
+  `e.Shader_ParseParams`), a built-in's from its bundle. Param labels are the shader's own (no
+  editor tooltip).
+- **Compiling** (`Shaders_Compile`): on Session_Save, before Play and exports (before
+  Project_Save), and from Code_Tick (`ShaderEdit_Watch`, once a second) while code tabs are
+  open; errors to the Console. The tools: `shader_tools/` beside the editor (releases; a macOS
+  bundle's MacOS folder), else the engine's (`task shadertools`). Exports add `<asset>.shader`.
+- **Viewport:** a scene with shaders (`Preview_SceneUsesShaders`) switches the preview to an
+  offscreen SDL GPU renderer (`startEffects`, read back like the OpenGL fallback; `render_path`
+  says `effects`); parameters follow every frame (`syncTransforms`: defaults, then the node's
+  values) and are in `Preview_FrameKey` (they weren't: a drag never re-rendered); scenes with
+  shaders count as animated (`time`). `destroyAll` releases the game's shaders before the
+  renderer; the preview game gets `projectDir` (project shaders are read from it).
+- Tests: `node_shaders_in_the_editor`, `project_shaders_new_compile_and_export`,
+  `tests/ui/shaders.script` (the hit flash seen in the render, undo, New Shader compiled on
+  save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
+  `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
 
 ## Touch controls, Steam and local players (implemented, `touch_edit.odin`, `steam_edit.odin`; engine: touch.odin, steam.odin)
 

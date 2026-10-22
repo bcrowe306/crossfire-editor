@@ -41,6 +41,8 @@ AssetKindForPath :: proc(path: string) -> (AssetKind, bool) {
 		return .LDtk, true
 	case ".csv":
 		return .Translation, true
+	case ".frag":
+		return .Shader, true
 	}
 	return .Image, false
 }

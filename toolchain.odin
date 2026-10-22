@@ -2,6 +2,7 @@ package crossfire_editor
 
 import "core:fmt"
 import "core:os"
+import "core:path/filepath"
 import "core:strings"
 import "gui:skald"
 import sdl "vendor:sdl3"
@@ -164,6 +165,9 @@ Toolchain_Check :: proc(settings: ^Settings) -> []ToolStatus {
 		emsdkFound && mixerFound ? "Web exports link games with it." : "For web exports: Install below (about 1 GB, once), or the first web export installs it."})
 	git, gitFound := Script_FindEditorProgram("git")
 	append(&list, ToolStatus{"Git", gitFound, gitFound ? git : "", gitFound ? "Version control for your projects (the Git tab)." : "Optional: version control in the Git tab. Install it from git-scm.com or your package manager."})
+	shaderTools, shadersFound := Toolchain_ShaderTools()
+	append(&list, ToolStatus{"Shader compiler", shadersFound, shadersFound ? filepath.dir(shaderTools.glslang) : "",
+		shadersFound ? "Compiles the project's GLSL shaders (glslang and SDL_shadercross)." : "For your own shaders (the built-in effects need nothing): the engine's tools/build_shader_tools.sh builds them; releases have them."})
 	ols := Code_FindOLS(FixedText_String(&settings.olsPath))
 	append(&list, ToolStatus{"Odin language server", ols != "", ols, ols != "" ? "Completion and diagnostics in the code editor." : "Optional: completion and diagnostics in the code editor (ols in PATH, or task ols)."})
 	return list[:]

@@ -28,7 +28,7 @@ testState :: proc() -> State {
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
 		busSelection = -1,
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true, .Shaders = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
 	}
@@ -222,9 +222,9 @@ browser_opens_scenes_and_toggles_folders :: proc(t: ^testing.T) {
 
 	send(&state, Browser_Toggled(0))
 	testing.expect_value(t, state.browserOpen[.Scenes], false)
-	// Only Images is open, with 3 images; the Scripts, Animations, Themes and Materials folders
-	// are hidden (the project has no scripts, no animation assets, no themes, no materials)
-	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) - 4 + 3)
+	// Only Images is open, with 3 images; the Scripts, Animations, Themes, Materials and Shaders
+	// folders are hidden (the project has none of them)
+	testing.expect_value(t, len(BrowserRows(&state)), len(BrowserFolder) - 5 + 3)
 }
 
 @(test)

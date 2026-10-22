@@ -84,6 +84,8 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 	attr(&w, "height", project.gameSize.y)
 	attr(&w, "scaleMode", project.scaleMode)
 	if project.renderer != .Auto do attr(&w, "renderer", project.renderer)
+	// A scene uses shaders: Auto means the GPU renderer then (shader_edit.odin)
+	if Project_UsesShaders(project) do attr(&w, "shaders", true)
 	attr(&w, "background", e.FormatColor(project.background, context.temp_allocator))
 	attr(&w, "startScene", project.startScene)
 	// Physics settings only when they aren't the defaults
@@ -276,7 +278,7 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		clips := node.kind == .Animator ? node.animator.clips[:] : nil
 		machine := node.kind == .StateMachine ? &node.stateMachine : nil
 		layers := node.kind == .MusicPlayer ? node.musicLayers[:] : nil
-		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(layers) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
+		if len(node.items) == 0 && len(node.shaderParams) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(layers) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
@@ -384,6 +386,12 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 			attr(&w, "event", l.event)
 			attr(&w, "target", l.target)
 			attr(&w, "handler", l.handler)
+			closeEmpty(&w)
+		}
+		for p in node.shaderParams {
+			open(&w, "shaderParam")
+			attr(&w, "name", p.name)
+			attr(&w, "value", p.value)
 			closeEmpty(&w)
 		}
 		for item in node.items {
@@ -560,6 +568,9 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 	if node.zIndex != 0 do attr(w, "zIndex", int(node.zIndex))
 	if node.ySort do attr(w, "ySort", true)
 	if node.groups != "" do attr(w, "groups", node.groups)
+	// Its shader (shader_edit.odin; the values are <shaderParam> children)
+	if node.shader != "" do attr(w, "shader", node.shader)
+	if node.kind == .ScreenEffect && !node.effectScreenLayers do attr(w, "effectScreenLayers", false)
 
 	switch node.kind {
 	case .Sprite:
@@ -791,7 +802,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			if a.fadeIn != 0 do attr(w, "fadeIn", a.fadeIn)
 			if a.fadeOut != 0 do attr(w, "fadeOut", a.fadeOut)
 		}
-	case .Node2D, .Menu:
+	case .Node2D, .Menu, .ScreenEffect:
 	}
 }
 

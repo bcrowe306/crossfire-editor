@@ -264,6 +264,8 @@ Checks:
 	players <max|keyboard|join> <value>   The project's local players settings (players_edit.odin)
 	steam <app_id|cloud|achievements|draft_achievements> <value>, steam achievement <i> <field> <value>
 	                             The project's Steam settings (steam_edit.odin)
+	viewport_has_color <#rrggbb> <distance> <true|false>   A pixel of the viewport's last render near the color
+	shader <path|param <name>> <value>   The selected node's shader, or one of its parameters' stored text ("default")
 	music_layer <i> <name|sound|volume> <value>, music_layer count <n>
 	                             The selected MusicPlayer's layers (music_layers_edit.odin)
 	scene_tabs <a,b,...>         The scene and component tabs, by name, in order
@@ -1837,7 +1839,25 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "code_dirty":
 		found = fmt.tprint(CodeEditor_IsDirty(CodeTabs_Active(s)))
 	case "render_path":
-		found = Preview_Shared() ? "shared" : Preview_UsesGPU() ? "readback" : "software"
+		found = Preview_UsesShaders() ? "effects" : Preview_Shared() ? "shared" : Preview_UsesGPU() ? "readback" : "software"
+	case "viewport_has_color":
+		// `viewport_has_color <#rrggbb> <distance> <true|false>`: a pixel of the last render within
+		// `distance` (0 to 255 per channel) of the color
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 3 do return false, "expected a color, a distance and true or false"
+		want, ok := e.ParseColor(parts[0])
+		if !ok do return false, "not a color"
+		distance, _ := strconv.parse_int(parts[1])
+		pixels, size := Viewport_LastRender()
+		hit := false
+		for i := 0; i + 3 < len(pixels) && i < size.x * size.y * 4; i += 4 {
+			if abs(int(pixels[i]) - int(want.r)) <= distance && abs(int(pixels[i + 1]) - int(want.g)) <= distance && abs(int(pixels[i + 2]) - int(want.b)) <= distance {
+				hit = true
+				break
+			}
+		}
+		found = fmt.tprint(hit)
+		return found == parts[2], found
 	case "code_render_path":
 		found = CodeEditor_OnGPU() ? "shared" : "software"
 	case "code_rendered":
@@ -2000,6 +2020,17 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "join":     found = pl.joinAction == "" ? "default" : pl.joinAction
 		case: return false, fmt.tprintf("unknown players field '%s'", field)
 		}
+		return found == strings.trim_space(expected), found
+	case "shader":
+		if selected == nil do return false, "no node selected"
+		field, _, rest := strings.partition(value, " ")
+		if field == "path" {
+			found = selected.shader == "" ? "none" : selected.shader
+			return found == strings.trim_space(rest), found
+		}
+		name, _, expected := strings.partition(rest, " ")
+		found = "default"
+		for p in selected.shaderParams do if p.name == name do found = p.value
 		return found == strings.trim_space(expected), found
 	case "bus_selection":
 		// The bus the inspector shows the effects of (-1 none)

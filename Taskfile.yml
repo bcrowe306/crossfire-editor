@@ -91,6 +91,15 @@ tasks:
     cmds:
       - '{{.ENGINE_DIR}}/tools/build_sdl_static.sh'
 
+  shadertools:
+    desc: Build the shader compilers (glslang, SDL_shadercross) into <engine>/shader_tools (its tools/build_shader_tools.sh; needs CMake, a C++ compiler, Python 3). The editor compiles projects' GLSL shaders with them; skipped when built
+    run: once
+    deps: [sdl]
+    status:
+      - ls {{.ENGINE_DIR}}/shader_tools/*/shadercross*
+    cmds:
+      - '{{.ENGINE_DIR}}/tools/build_shader_tools.sh'
+
   box2d:web:
     desc: Build the engine's Box2D for web exports (needs emsdk). Exports also build it when it's missing
     status:
@@ -171,7 +180,7 @@ tasks:
 
   test:ui:
     desc: Run the UI test scripts in tests/ui (opens the editor window; uses a copy of tests/fixtures/ui_project); SCRIPT=<file> runs one
-    deps: [build, prebuilt, ols]  # ols: toolchain.script expects a language server
+    deps: [build, prebuilt, ols, shadertools]  # ols: toolchain.script expects a language server; shaders.script compiles
     env:
       # The Git tab's script commits: a name and email, whatever git is set up with
       GIT_AUTHOR_NAME: UI test
@@ -190,7 +199,7 @@ tasks:
 
   test:ui:fullscreen:
     desc: The UI test scripts in a fullscreen editor (the wide layouts a tiled window never gets); SCRIPT=<file> runs one
-    deps: [box2d, sdl, prebuilt, ols]
+    deps: [box2d, sdl, prebuilt, ols, shadertools]
     env:
       # The Git tab's script commits: a name and email, whatever git is set up with
       GIT_AUTHOR_NAME: UI test
@@ -222,7 +231,7 @@ tasks:
 
   run:
     desc: Build optimized and run. Pass program arguments after --, e.g. task run -- path/to/project
-    deps: [box2d, sdl, prebuilt]
+    deps: [box2d, sdl, prebuilt, shadertools]
     # Optimized: the debug build is several times slower (the viewport ran at ~14 fps vs 60)
     cmds:
       - mkdir -p {{.BUILD_DIR}}/release

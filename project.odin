@@ -169,6 +169,12 @@ NodeDef :: struct {
 	// comma-separated (owned): touch_edit.odin
 	touch: e.TouchControlSettings,
 	touchActions: string,
+	// Any node: its shader ("builtin:<name>", a project `.frag`, "" none) and its parameters'
+	// values as text (only those set; owned): shader_edit.odin
+	shader: string,
+	shaderParams: [dynamic]ScriptPropDef,
+	// ScreenEffect: it covers the screen layers too
+	effectScreenLayers: bool,
 	// A StateMachine's states, transitions and parameters (owned: state_machine_edit.odin)
 	stateMachine: e.StateMachineSettings,
 	// ParallaxLayer, CameraZone, CameraView settings (plain) and a CameraView's camera (owned):
@@ -261,6 +267,8 @@ AssetKind :: enum {
 	Theme,
 	// A physics material (`.material.xml`, material_edit.odin): bodies' friction, bounce, density
 	PhysicsMaterial,
+	// A GLSL fragment shader (`.frag`, shader_edit.odin), compiled beside it as `.frag.shader`
+	Shader,
 }
 
 /*
@@ -398,6 +406,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		nav = e.DEFAULT_NAV_SETTINGS,
 		cameraTools = e.DEFAULT_CAMERA_TOOL_SETTINGS,
 		touch = e.TouchControl_Defaults(kind),
+		effectScreenLayers = true,
 	}
 	// A NavRegion covers a screenful to begin with; a StateMachine has a first state
 	if kind == .NavRegion do node.shapeSize = {640, 360}
@@ -467,6 +476,9 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	e.StateMachineSettings_Destroy(&node.stateMachine)
 	delete(node.viewCamera)
 	delete(node.touchActions)
+	delete(node.shader)
+	for p in node.shaderParams { delete(p.name); delete(p.value) }
+	delete(node.shaderParams)
 	delete(node.autoplay)
 	delete(node.component)
 	delete(node.sound)
@@ -720,6 +732,7 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 		case "Animation": kind = .Animation
 		case "Theme": kind = .Theme
 		case "PhysicsMaterial": kind = .PhysicsMaterial
+		case "Shader": kind = .Shader
 		}
 		append(&project.assets, AssetDef{strings.clone(asset.path), kind})
 		// A data resource's values come from its file
@@ -914,6 +927,9 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.viewCamera = strings.clone(node.viewCamera)
 	def.touch = node.touch
 	def.touchActions = strings.clone(node.touchActions)
+	def.shader = strings.clone(node.shader)
+	for p in node.shaderParams do append(&def.shaderParams, ScriptPropDef{strings.clone(p.name), strings.clone(p.value)})
+	def.effectScreenLayers = node.effectScreenLayers
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)

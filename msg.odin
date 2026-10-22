@@ -520,6 +520,8 @@ NodeFlag :: enum {
 	Y_Sort,
 	// CollisionShape: a one-way platform (format 13)
 	One_Way,
+	// ScreenEffect: it covers the screen layers too (shader_edit.odin)
+	Effect_Screen_Layers,
 }
 
 // Turns one collision layer (1-64) on or off in the selected node's layers (or its mask)
@@ -1049,6 +1051,9 @@ Msg :: union {
 	UI_Setting_Changed,
 	Light_Setting_Changed,
 	Touch_Setting_Changed,
+	Node_Shader_Changed,
+	Node_Shader_Param_Changed,
+	Shader_New_Requested,
 	Nav_Setting_Changed,
 	SM_Changed,
 	Camera_Tool_Changed,

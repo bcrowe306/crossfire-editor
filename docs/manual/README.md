@@ -13,6 +13,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 |---|---|
 | [Projects](projects.md) | Making, opening and saving a project; recent projects in the File menu; Save Project As (a copy somewhere else); project archives; unsaved changes |
 | [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
+| [Shaders and screen effects](shaders.md) | Built-in effects (hit flash, outline, dissolve, palette swap), your own GLSL shaders, ScreenEffect nodes (CRT, bloom, color grading), shaders in scripts and the Timeline |
 | [Local multiplayer](local_multiplayer.md) | Players joining with gamepads or the keyboard, each reading the input actions from their own device; lobbies, unplugged pads, split screen |
 | [Touch controls and Steam](touch_and_steam.md) | On-screen joysticks and buttons pressing input actions, fingers in scripts; Steam achievements, stats and cloud saves (the stub backend) |
 | [Bus effects, crossfades and music layers](audio_effects_and_music.md) | Filters, echo and reverb on mix buses (the Mixer's FX), fading between songs, music built from layers that scripts fade in and out |

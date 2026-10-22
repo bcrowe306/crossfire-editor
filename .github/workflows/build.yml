@@ -79,6 +79,16 @@ jobs:
         run: |
           if ! compgen -G "../odin_sdl_engine/sdl/lib/*/libSDL3.a" > /dev/null && ! compgen -G "../odin_sdl_engine/sdl/lib/*/sdl3_static.lib" > /dev/null; then ../odin_sdl_engine/tools/build_sdl_static.sh; fi
 
+      - name: Cache shader tools
+        uses: actions/cache@v4
+        with:
+          path: odin_sdl_engine/shader_tools
+          key: shader-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('odin_sdl_engine/tools/build_shader_tools.sh', 'odin_sdl_engine/.gitmodules') }}-glslang16.6.0-spirvcross1.4.363.0
+
+      - name: Build shader tools (glslang, SDL_shadercross: projects' shaders compile with them)
+        run: |
+          if ! compgen -G "../odin_sdl_engine/shader_tools/*/shadercross*" > /dev/null; then ../odin_sdl_engine/tools/build_shader_tools.sh; fi
+
       - name: Check
         run: odin check . $COLLECTIONS -vet-unused -vet-packages:crossfire_editor
 

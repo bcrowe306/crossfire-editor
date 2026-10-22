@@ -11,12 +11,6 @@ The features most 2D engines have that this one doesn't, as the user listed them
 `docs/manual/`. The rest are being built now (decisions of 2026-10-22, below each item), one per
 dev release, each tested, documented and removed from here when done.
 
-4. **Shaders and post-processing**: custom fragment shaders on sprites and screen effects.
-   Decided: a built-in effect library (hit flash, outline, dissolve, palette swap, CRT, bloom,
-   color grading) shipped precompiled per platform, **plus** user-written shaders compiled with
-   SDL_shadercross (a new dependency). SDL 3.4 runs them only on its "gpu" backend
-   (`SDL_CreateGPURenderState`); other backends and the web fall back (no effect, or a CPU
-   approximation where cheap).
 11. **Hot reload of scripts**, more than one script per node, custom node types from game code.
 12. **Asset import settings**: per-texture filtering and atlas packing, audio conversion,
     bitmap / MSDF fonts. Decided: audio conversion runs ffmpeg when it's installed; MSDF fonts

@@ -187,6 +187,8 @@ CodeTabs_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		state.codeTickPending = false
 		// The language server learns of script files changed on disk (new scripts, assets.odin)
 		CodeEditor_WatchScripts(absolutePath(joinPath(state.project.rootPath, SCRIPTS_FOLDER, allocator = context.temp_allocator)))
+		// Shaders saved in a code tab compile (shader_edit.odin)
+		ShaderEdit_Watch(state)
 	case Code_Focused:
 		state.codeFocusPending = false
 	case Code_Dialog_Requested:

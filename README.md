@@ -70,6 +70,7 @@ Run `task` to list them all.
 | `task stb` | Build Odin's STB libraries, which Skald needs. Skipped if already built |
 | `task check` | Type-check the editor, with vet |
 | `task sdl` | Build the engine's static SDL once (needs CMake): the editor and your games then have SDL built in |
+| `task shadertools` | Build the shader compilers once (glslang, SDL_shadercross; needs CMake, a C++ compiler, Python 3): your projects' own GLSL shaders compile with them |
 | `task test` | Run the unit tests |
 | `task test:code-editor` | Unit tests of the built-in code editor's packages (`code_editor/`) |
 | `task ols` | Build the Odin language server for the built-in code editor (clones OLS; not needed if `ols` is in PATH) |
@@ -203,6 +204,12 @@ devices if one won't open (the console says which device and format it got). Pro
 General > Sound output changes the format; Settings > Editor > Audio device picks the device
 Play and the previews use on this computer. An exported game plays on the system's default
 device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
+
+**Shaders and screen effects.** A node's Shader section gives it a built-in effect (hit flash,
+outline, dissolve, palette swap) or your own GLSL shader (New Shader; compiled on save), with its
+parameters as sliders and colors; a ScreenEffect node puts CRT, bloom or color grading over the
+scene. They run on SDL's GPU renderer (Auto picks it), and the viewport shows them. User guide:
+[docs/manual/shaders.md](docs/manual/shaders.md).
 
 **Local multiplayer.** Players join with a gamepad or the keyboard while a game is joining
 (`e.Players_StartJoining`), and each reads the input actions from their own device

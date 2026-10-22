@@ -520,6 +520,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..navInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .VirtualJoystick, .TouchButton:
 		append(&rows, ..touchInspectorRows(ctx, s, node, key, controlWidth))
+	case .ScreenEffect:
+		append(&rows, ..shaderInspectorRows(ctx, s, node, key, controlWidth))
 	case .Light2D, .LightOccluder:
 		append(&rows, ..lightInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:
@@ -555,6 +557,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			append(&rows, skald.text("No buttons", th.color.fg_muted, th.font.size_sm))
 		}
 	}
+	// Its shader (shader_edit.odin; a ScreenEffect's are its own rows above)
+	if node.kind != .ScreenEffect && NodeKind_TakesShader(node.kind) do append(&rows, ..shaderInspectorRows(ctx, s, node, key, controlWidth))
 
 	fields := skald.col(..rows[:],
 		spacing = th.spacing.sm,

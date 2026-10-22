@@ -71,6 +71,12 @@ layout)
 	cp "$EDITOR_BIN" "$contents/MacOS/$executable"
 	cp "$OLS_BIN" "$contents/MacOS/ols"
 	cp "$PLAYER_BIN" "$contents/MacOS/prebuilt/$TARGET/player"
+	# The shader compilers (Toolchain_ShaderTools: shader_tools/ beside the executable; signed with the rest)
+	for dir in "$ENGINE_DIR"/shader_tools/darwin_*/; do
+		[[ -f "$dir/shadercross" ]] || continue
+		mkdir -p "$contents/MacOS/shader_tools/$(basename "$dir")"
+		cp "$dir/glslang" "$dir/shadercross" "$contents/MacOS/shader_tools/$(basename "$dir")/"
+	done
 	# The engine's git-tracked sources (not the third_party submodules) and its built libraries
 	mkdir -p "$contents/Resources/engine"
 	(cd "$ENGINE_DIR" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) |

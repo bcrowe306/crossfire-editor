@@ -87,6 +87,8 @@ BrowserFolder :: enum {
 	Animations,
 	// UI themes (theme_edit.odin)
 	Themes,
+	// Shaders (shader_edit.odin)
+	Shaders,
 	// Physics materials (material_edit.odin)
 	Materials,
 }
@@ -336,7 +338,7 @@ init :: proc() -> State {
 		timeline = {node = -1, track = -1, key = -1},
 		states = {node = -1, state = -1, transition = -1},
 
-		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true},
+		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true, .Shaders = true},
 		browserSelection = {kind = .None},
 		dataSelection = -1,
 		themeSelection = -1,

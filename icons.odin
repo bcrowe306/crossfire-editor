@@ -21,6 +21,7 @@ ICON_ROTATE      :: "\uf2f1"
 ICON_SCALE       :: "\uf424"
 ICON_HAND        :: "\uf256"
 ICON_GAMEPAD     :: "\uf11b"
+ICON_WAND        :: "\uf0d0"
 ICON_CIRCLE_DOT  :: "\uf192"
 ICON_PLAY        :: "\uf04b"
 ICON_PAUSE       :: "\uf04c"
@@ -140,6 +141,7 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .NavAgent:       return ICON_PERSON_WALKING
 	case .VirtualJoystick: return ICON_GAMEPAD
 	case .TouchButton:    return ICON_CIRCLE_DOT
+	case .ScreenEffect:   return ICON_WAND
 	}
 	return ICON_CUBE
 }

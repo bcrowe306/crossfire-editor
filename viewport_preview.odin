@@ -68,6 +68,12 @@ Preview :: struct {
 	// The Timeline's clip was applied last frame: once it isn't, the scene is built again (an
 	// Animator may have changed what the build set, a label's text)
 	timelineApplied: bool,
+	// Shaders (shader_edit.odin): the scene uses some, so the preview draws with an offscreen SDL
+	// GPU renderer (read back) instead of the shared one, which can't run them (`effects`);
+	// `offscreen` is that renderer (no window); `effectsFailed`: none could be made
+	effects, offscreen, effectsFailed: bool,
+	// Bumped when a shader compiled (the scene is built again with it)
+	shadersVersion: int,
 }
 
 @(private="file")
@@ -91,6 +97,12 @@ Returns:
 */
 Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool) {
 	if preview.failed || size.x <= 0 || size.y <= 0 do return nil, false
+	// Shaders show only with SDL's GPU renderer: a scene using any draws with one of its own
+	if wants := Preview_SceneUsesShaders(&s.project.scenes[s.currentScene]) && !preview.effectsFailed; wants != preview.effects {
+		destroyAll()
+		preview.effects = wants
+		preview.sharedTried, preview.gpuFailed = false, false
+	}
 	if !ensureSurface(size) do return nil, false
 
 	scene := &s.project.scenes[s.currentScene]
@@ -232,6 +244,11 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 	for node in scene.nodes {
 		t := struct { position: [2]f32, rotation: f32, scale: [2]f32, visible: bool, layer: int, zIndex: i32, blendMode: e.BlendMode, ySort: bool }{node.position, node.rotation, node.scale, node.visible, node.layer, node.zIndex, node.blendMode, node.ySort}
 		h = hash.fnv64a(([^]u8)(&t)[:size_of(t)], h)
+		// Shader parameters change the picture without a rebuild
+		for p in node.shaderParams {
+			h = hash.fnv64a(transmute([]u8)p.name, h)
+			h = hash.fnv64a(transmute([]u8)p.value, h)
+		}
 	}
 	return h
 }
@@ -271,8 +288,10 @@ ensureSurface :: proc(size: [2]int) -> bool {
 		return false
 	}
 
+	// A scene with shaders: an offscreen SDL GPU renderer, read back
+	if preview.effects && preview.renderer == nil && !preview.effectsFailed do startEffects()
 	// The shared GPU renderer first: the scene drawn straight into the viewport's Skald image
-	if !preview.sharedTried && preview.surface == nil && preview.window == nil {
+	if !preview.effects && !preview.sharedTried && preview.surface == nil && preview.window == nil {
 		preview.sharedTried = true
 		if r := SharedGPU_Renderer(); r != nil {
 			preview.shared = true
@@ -286,11 +305,11 @@ ensureSurface :: proc(size: [2]int) -> bool {
 		destroyAll()
 	}
 
-	if preview.window == nil && !preview.gpuFailed && preview.surface == nil do startGPU()
-	if preview.window != nil {
+	if !preview.offscreen && preview.window == nil && !preview.gpuFailed && preview.surface == nil do startGPU()
+	if preview.window != nil || preview.offscreen {
 		if preview.target != nil && preview.target.w >= i32(size.x) && preview.target.h >= i32(size.y) do return true
 		if preview.target != nil do sdl.DestroyTexture(preview.target)
-		preview.target = sdl.CreateTexture(preview.renderer, .RGBA32, .TARGET, i32(w), i32(h))
+		preview.target = sdl.CreateTexture(preview.renderer, preview.offscreen ? e.RENDER_TARGET_FORMAT : .RGBA32, .TARGET, i32(w), i32(h))
 		if preview.target != nil do return true
 		log.warnf("Viewport preview: no %dx%d render target (%s); drawing in software", w, h, sdl.GetError())
 		destroyAll()
@@ -318,6 +337,55 @@ makeGame :: proc(renderer: ^sdl.Renderer) {
 	e.ResourceManager_Init(&preview.game.resourceManager, renderer, nil)
 	// Touch controls draw in the editor whatever their visibility (touch_edit.odin)
 	preview.game.input.showTouchControls = true
+}
+
+// The effects renderer: SDL's GPU renderer offscreen (no window), which runs shaders
+@(private="file")
+startEffects :: proc() {
+	if sdl.WasInit({.VIDEO}) == {} || os.get_env("EDITOR_PREVIEW_SOFTWARE", context.temp_allocator) != "" {
+		preview.effectsFailed, preview.effects = true, false
+		return
+	}
+	// Shaders are SPIR-V and MSL: Vulkan on Windows (Direct3D 12 takes neither)
+	when ODIN_OS == .Windows do _ = sdl.SetHint(sdl.HINT_GPU_DRIVER, "vulkan")
+	r := sdl.CreateGPURenderer(nil, nil)
+	when ODIN_OS == .Windows do _ = sdl.ResetHint(sdl.HINT_GPU_DRIVER)
+	if r == nil || !e.Renderer_SupportsShaders(r) {
+		log.warnf("Viewport preview: no SDL GPU renderer for shaders (%s): drawing without them", r == nil ? string(sdl.GetError()) : "it takes neither SPIR-V nor MSL")
+		if r != nil do sdl.DestroyRenderer(r)
+		preview.effectsFailed, preview.effects = true, false
+		return
+	}
+	preview.renderer = r
+	preview.offscreen = true
+	log.info("Viewport preview: drawing with SDL's GPU renderer (the scene uses shaders)")
+	makeGame(r)
+}
+
+// Whether a scene uses shaders (a node's, or a ScreenEffect): the preview then runs them
+Preview_SceneUsesShaders :: proc(scene: ^SceneDef) -> bool {
+	for &n in scene.nodes do if n.shader != "" || n.kind == .ScreenEffect do return true
+	return false
+}
+
+// Whether the preview draws with the GPU renderer that runs shaders (tests, the status bar)
+Preview_UsesShaders :: proc() -> bool {
+	return preview.offscreen
+}
+
+// A shader compiled: the scene is built again with it (the preview game's copy is dropped)
+Preview_ShadersChanged :: proc() {
+	preview.shadersVersion += 1
+	if preview.game != nil do e.Game_ReleaseShaders(preview.game)
+	preview.signature = 0
+}
+
+// A node's shader parameters as engine data (borrowed; temp allocated)
+@(private="file")
+shaderParamData :: proc(params: []ScriptPropDef) -> [dynamic]e.ScriptPropData {
+	list := make([dynamic]e.ScriptPropData, 0, len(params), context.temp_allocator)
+	for p in params do append(&list, e.ScriptPropData{p.name, p.value})
+	return list
 }
 
 // The GPU renderer: a hidden window with SDL's choice of renderer, and the game that draws with it.
@@ -366,6 +434,11 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	// Animations play in the preview (Scene_Update), but bodies don't fall: physics runs in Play
 	preview.scene.physicsPaused = true
 	preview.scene.game = preview.game
+	// Project shaders are read from the project folder (Game_LoadShader)
+	if preview.game.projectDir != s.project.rootPath {
+		delete(preview.game.projectDir)
+		preview.game.projectDir = strings.clone(s.project.rootPath)
+	}
 
 	data := toSceneData(scene)
 	// Scripts don't run in the viewport. Instances are built from the components being edited
@@ -386,6 +459,8 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 	append(&preview.nodes, ..created)
 	preview.animated = false
 	for node in scene.nodes do if node.kind == .AnimatedSprite || node.kind == .ParticleEmitter || node.kind == .Component do preview.animated = true
+	// Shaders may move with time (their `time`)
+	if Preview_SceneUsesShaders(scene) do preview.animated = true
 }
 
 /*
@@ -551,6 +626,11 @@ syncTransforms :: proc(scene: ^SceneDef) {
 		}
 		// A touch control's look follows edits at once
 		if NodeKind_IsTouchControl(def.kind) && (e.Node_Is(node, e.VirtualJoystick) || e.Node_Is(node, e.TouchButton)) do (cast(^e.TouchControl)node).settings = def.touch
+		// Shader parameters follow edits at once: the shader's defaults, then the node's values
+		if node.shader != nil {
+			e.Node_ResetShaderParams(node)
+			for p in def.shaderParams do _ = e.Node_SetShaderParamText(node, p.name, p.value)
+		}
 		// A light's settings follow edits at once (no rebuild)
 		if def.kind == .Light2D && e.Node_Is(node, e.Light2D) do (cast(^e.Light2D)node).settings = def.light
 		if NodeKind_IsControl(def.kind) && e.Node_IsControl(node) {
@@ -617,7 +697,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav, stateMachine = node.stateMachine, cameraTools = node.cameraTools, viewCamera = node.viewCamera, touch = node.touch, touchActions = node.touchActions,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light, nav = node.nav, stateMachine = node.stateMachine, cameraTools = node.cameraTools, viewCamera = node.viewCamera, touch = node.touch, touchActions = node.touchActions, shader = node.shader, shaderParams = shaderParamData(node.shaderParams[:]), effectScreenLayers = node.effectScreenLayers,
 		})
 	}
 	return data
@@ -674,6 +754,8 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 			strings.write_string(&b, node.component)
 			if i := Project_FindComponent(&s.project, node.component); i >= 0 do strings.write_string(&b, componentSignature(s, &s.project.scenes[i], 0))
 		}
+		// Its shader is loaded when it's built (its parameters follow every frame: syncTransforms)
+		fmt.sbprintf(&b, "|%s %v %d", node.shader, node.effectScreenLayers, preview.shadersVersion)
 		strings.write_string(&b, node.texture)
 		strings.write_string(&b, node.text)
 		strings.write_f32(&b, node.fontSize, 'g')
@@ -913,6 +995,9 @@ destroyAll :: proc() {
 		preview.scene = nil
 	}
 	if preview.game != nil {
+		// The shaders' GPU code goes before the renderer
+		e.Game_ReleaseShaders(preview.game)
+		delete(preview.game.projectDir)
 		e.Game_ForgetLDtk(preview.game)
 		e.Game_ForgetAseprites(preview.game)
 		// Its themes are the preview's (previewThemes)
@@ -934,6 +1019,7 @@ destroyAll :: proc() {
 	preview.target = nil
 	preview.renderer = nil
 	preview.window = nil
+	preview.offscreen = false
 	preview.surface = nil
 	preview.signature = 0
 	clear(&preview.nodes)

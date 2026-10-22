@@ -227,6 +227,8 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 		case .Component: prefix, type = "COMPONENT", "ComponentAsset"
 		case .LDtk:  prefix, type = "LDTK", "LDtkAsset"
 		case .Animation: prefix, type = "ANIMATION", "AnimationAsset"
+		// A path for e.Node_SetShader
+		case .Shader: prefix, type = "SHADER", ""
 		// Games load every table themselves; scripts use their keys
 		case .Translation, .Theme, .PhysicsMaterial: continue
 		}
@@ -247,7 +249,8 @@ Scripts_AssetsSource :: proc(project: ^Project) -> string {
 			} else {
 				used[name] = 1
 			}
-			fmt.sbprintf(&b, "%s :: e.%s{{%q}%s\n", name, k[1], asset.path, comment)
+			if k[1] == "" do fmt.sbprintf(&b, "%s :: %q\n", name, asset.path)
+			else do fmt.sbprintf(&b, "%s :: e.%s{{%q}%s\n", name, k[1], asset.path, comment)
 		}
 	}
 	// The input actions' names (Project Settings > Input): e.Input_IsActionPressed(ACTION_JUMP)

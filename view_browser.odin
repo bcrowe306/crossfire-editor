@@ -213,6 +213,8 @@ browserMenuItems :: proc(s: ^State) -> []string {
 				add(&labels, "New Theme", Msg(Theme_Created{}))
 			case .PhysicsMaterial:
 				add(&labels, "New Material", Msg(Material_Created{}))
+			case .Shader:
+				add(&labels, "New Shader", Msg(Shader_New_Requested{}))
 			case .Font, .Data, .Component, .Translation:
 			}
 		}
@@ -494,6 +496,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				skald.text(isProject ? "The project's UI theme; edit it in the inspector" : "A UI theme; edit it in the inspector", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
+		case .Shader:
+			content = shaderPreview(s, ctx, asset)
 		case .PhysicsMaterial:
 			text := "A physics material; edit it in the inspector"
 			if i := Project_FindMaterial(&s.project, asset.path); i >= 0 {
@@ -683,6 +687,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 	case .Animation: return ICON_FILM
 	case .Theme: return ICON_PALETTE
 	case .PhysicsMaterial: return ICON_CUBE
+	case .Shader: return ICON_WAND
 	}
 	return ICON_FILE
 }

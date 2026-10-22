@@ -1,0 +1,82 @@
+# Shaders: a sprite gets the built-in hit flash (the viewport switches to the GPU renderer that
+# runs shaders and shows the flash), its amount dragged, undone; New Shader (compiled on save, its
+# parameters in the inspector); a ScreenEffect with the CRT effect; saved; played (the game
+# draws with the GPU renderer).
+# Run with: task test:ui (and task test:ui:fullscreen)
+#
+# PlayScene: World 0, Camera 1, Spaceship 2; a top-level node added with nothing selected is 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+expect render_path shared
+select_node Spaceship
+expect selected Spaceship
+
+# Built-in: Hit flash (the choices: none, the node effects, the screen effects, the project's)
+scroll_into_view inspector-scroll inspector-shader-2
+click_widget inspector-shader-2
+click_overlay_item 1
+expect shader path builtin:hit_flash
+wait_until render_path effects timeout=5
+expect viewport_has_color #ffffff 0 false
+scroll_into_view inspector-scroll inspector-shader-param-amount-2
+drag_widget inspector-shader-param-amount-2 0.5 0.5 1.5 0.5
+expect shader param amount 1
+wait 1
+save_viewport_render /tmp/vp_flash.png
+wait_until viewport_has_color #ffffff 0 true timeout=5
+key ctrl+z
+expect shader param amount default
+wait_until viewport_has_color #ffffff 0 false timeout=5
+key ctrl+shift+z
+expect shader param amount 1
+
+# Your own: New Shader writes the template, gives it to the sprite and opens it
+scroll_into_view inspector-scroll inspector-shader-new-2
+click_widget inspector-shader-new-2
+expect shader path assets/shaders/shader.frag
+expect code_tabs 1
+# Closed (unchanged): the scene shows again
+click_widget code-tab-close-0
+expect code_tabs 0
+expect scene PlayScene
+select_node Spaceship
+scroll_into_view inspector-scroll inspector-shader-param-strength-2
+drag_widget inspector-shader-param-strength-2 0.5 0.5 -0.5 0.5
+expect shader param strength 0
+key ctrl+s
+expect console_contains Compiled assets/shaders/shader.frag
+expect project_file_contains assets/shaders/shader.frag.shader "spirv"
+
+# A ScreenEffect: an old TV over the world (not the HUD)
+key escape
+key ctrl+shift+a
+type ScreenEffect
+key RETURN
+expect selected ScreenEffect
+scroll_into_view inspector-scroll inspector-shader-11
+click_widget inspector-shader-11
+click_overlay_item 1
+expect shader path builtin:crt
+scroll_into_view inspector-scroll inspector-effect-screen-layers-11
+click_widget inspector-effect-screen-layers-11
+scroll_into_view inspector-scroll inspector-shader-param-scanlines-11
+drag_widget inspector-shader-param-scanlines-11 0.5 0.5 1.5 0.5
+expect shader param scanlines 1
+wait 1
+save_viewport_render /tmp/vp_crt.png
+
+key ctrl+s
+expect project_file_contains project.xml shaders="true"
+expect project_file_contains scenes/PlayScene.scene.xml shader="builtin:crt"
+expect project_file_contains scenes/PlayScene.scene.xml effectScreenLayers="false"
+expect project_file_contains scenes/PlayScene.scene.xml shader="assets/shaders/shader.frag"
+expect project_file_contains scenes/PlayScene.scene.xml <shaderParam name="strength" value="0"/>
+
+# Played: the project uses shaders, so Auto picks the GPU renderer
+key ctrl+F5
+wait_until play Playing timeout=120
+wait_until console_contains Renderer: gpu timeout=10
+key shift+F5
+wait_until play Stopped

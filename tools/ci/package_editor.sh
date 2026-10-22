@@ -116,6 +116,16 @@ fi
 mkdir -p "$stage/engine"
 (cd "$engine" && git ls-files | grep -v '^third_party/' | tar -cf - -T - box2d/lib $(compgen -G "sdl/lib" || true)) | tar -xf - -C "$stage/engine"
 
+# The shader compilers (Toolchain_ShaderTools: shader_tools/<os>_<arch>/ beside the editor)
+for dir in "$engine"/shader_tools/*_*/; do
+	[[ "$(basename "$dir")" == build ]] && continue
+	[[ -f "$dir/glslang" || -f "$dir/glslang.exe" ]] || continue
+	mkdir -p "$stage/shader_tools/$(basename "$dir")"
+	cp "$dir"/glslang* "$dir"/shadercross* "$stage/shader_tools/$(basename "$dir")/"
+	[[ "$(uname -s)" == Linux ]] && glibc_check "$stage/shader_tools/$(basename "$dir")/glslang" "$stage/shader_tools/$(basename "$dir")/shadercross"
+done
+compgen -G "$stage/shader_tools/*/shadercross*" > /dev/null || echo "No shader tools (the engine's tools/build_shader_tools.sh): projects' own shaders won't compile in this package" >&2
+
 # Web exports build SDL3_mixer with this script (Toolchain_WebMixerScript: tools/ beside the editor)
 mkdir -p "$stage/tools"
 cp tools/build_web_mixer.sh "$stage/tools/"

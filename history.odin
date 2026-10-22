@@ -321,6 +321,13 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	case Nav_Setting_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
 	// Lights: a slider's drag merges
+	// Shaders (shader_edit.odin): a parameter's slider drag merges; New Shader gives the node one
+	case Node_Shader_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change the shader of %s", name))
+	case Node_Shader_Param_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s's shader", v.name, name), key("shader-param", v.name, s.currentScene, selected))
+	case Shader_New_Requested:
+		if v.forSelected && hasSelection do return node(selected, fmt.tprintf("Give %s a new shader", name))
 	case Touch_Setting_Changed:
 		// Sliders merge while dragged (touch_edit.odin)
 		number := v.field == .Radius || v.field == .Deadzone || v.field == .Zone_Width || v.field == .Zone_Height || v.field == .Opacity
@@ -812,7 +819,8 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera || a.touch != b.touch || a.touchActions != b.touchActions {
+	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera || a.touch != b.touch || a.touchActions != b.touchActions ||
+	   a.shader != b.shader || !propsEqual(a.shaderParams[:], b.shaderParams[:]) || a.effectScreenLayers != b.effectScreenLayers {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
