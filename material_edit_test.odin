@@ -22,7 +22,7 @@ freshState :: proc(dir: string) -> State {
 	root := joinPath(dir, "Game", allocator = context.temp_allocator)
 	state := State{project = Project_CreateEmpty(root, "Game"), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default(),
 		timeline = {node = -1, track = -1, key = -1}, states = {node = -1, state = -1, transition = -1}, themeSelection = -1, dataSelection = -1,
-		materialSelection = -1, trace = DEFAULT_TRACE_SETTINGS}
+		materialSelection = -1, trace = DEFAULT_TRACE_SETTINGS, busSelection = -1}
 	state.settings.builtInCodeEditor = false
 	testing.expect_value(nil, Project_Save(&state.project), "")
 	return state

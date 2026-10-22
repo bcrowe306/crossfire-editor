@@ -73,6 +73,8 @@ audioInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 		)
 	}
 
+	if music do append(&rows, ..musicLayerRows(ctx, s, node, controlWidth))
+
 	// Preview: Play becomes Stop while this node's sound plays
 	path := node.sound == "" ? "" : joinPath(s.project.rootPath, node.sound, allocator = context.temp_allocator)
 	playing := path != "" && AudioPreview_IsLoaded(path) && AudioPreview_IsPlaying()

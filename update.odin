@@ -54,6 +54,9 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	}
 	if out.selectedNode >= 0 && out.selectedNode != state.selectedNode do out.materialSelection = -1
 	if out.materialSelection >= len(out.project.materials) do out.materialSelection = -1
+	// A bus opened from the Mixer: until a node or something in the browser is chosen
+	if (out.selectedNode >= 0 && out.selectedNode != state.selectedNode) || (out.browserSelection != state.browserSelection && out.browserSelection.kind != .None) do out.busSelection = -1
+	if out.busSelection >= len(out.project.buses) do out.busSelection = -1
 	// Anything that opens another scene shows it (not a code tab), in its tab
 	if out.currentScene != state.currentScene {
 		out.codeTab = 0
@@ -94,6 +97,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
 	if command, handled := CodeTabs_Update(&out, m); handled do return out, command
 	if Mixer_Update(&out, m) do return out, {}
+	if BusEffects_Update(&out, m) do return out, {}
+	if MusicLayers_Update(&out, m) do return out, {}
 	layout := &out.layout
 
 	switch v in m {
@@ -145,8 +150,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Code_Tick_Requested, Code_Tick, Code_Focused, Code_Reloaded, Code_Disk_Chosen,
 	     Code_Dialog_Requested, Code_Dialog_Picked:
 		// Handled by CodeTabs_Update above
-	case Bus_Added, Bus_Removed, Bus_Renamed, Bus_Volume_Changed, Bus_Pan_Changed, Bus_Mute_Toggled:
-		// Handled by Mixer_Update above
+	case Bus_Added, Bus_Removed, Bus_Renamed, Bus_Volume_Changed, Bus_Pan_Changed, Bus_Mute_Toggled,
+	     Bus_Effects_Opened, Bus_Effect_Added, Bus_Effect_Removed, Bus_Effect_Moved, Bus_Effect_Changed,
+	     Music_Layer_Added, Music_Layer_Removed, Music_Layer_Changed:
+		// Handled by Mixer_Update, BusEffects_Update and MusicLayers_Update above
 	case Audio_Field_Changed:
 		node := selectedNode(&out)
 		if node == nil || !isSoundKind(node.kind) do break

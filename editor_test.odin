@@ -27,6 +27,7 @@ testState :: proc() -> State {
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
+		busSelection = -1,
 		browserOpen = {.Scenes = true, .Scripts = true, .Images = true, .Audio = false, .Music = false, .Fonts = false, .Data = true, .Components = true, .Levels = true, .Translations = true, .Animations = true, .Themes = true, .Materials = true},
 		layout = {bottomOpen = true},
 		settings = Settings_Default(),
@@ -3133,7 +3134,7 @@ sound_nodes_and_buses_round_trip :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(project.buses), 1)
 	testing.expect_value(t, project.buses[0].name, e.MASTER_BUS)
 	project.buses[0].volume = 0.8
-	append(&project.buses, BusDef{strings.clone("SFX"), 0.5, -0.25, true}, BusDef{strings.clone("Music"), 1, 0, false})
+	append(&project.buses, BusDef{name = strings.clone("SFX"), volume = 0.5, pan = -0.25, mute = true}, BusDef{name = strings.clone("Music"), volume = 1})
 	append(&project.assets, AssetDef{strings.clone("assets/theme.ogg"), .Music})
 
 	scene := &project.scenes[1]

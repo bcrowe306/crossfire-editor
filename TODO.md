@@ -26,7 +26,6 @@ dev release, each tested, documented and removed from here when done.
 15. **Skeletal animation**. Decided: the engine's own bones, skinned sprites and IK, edited in
     the editor and keyed with the Timeline, **plus** DragonBones JSON import (not Spine: its
     runtime license).
-16. **Audio effects** on buses (reverb, low-pass, echo), music crossfades, adaptive layers.
 17. **A dialogue system**. Decided: an own dialogue asset with a graph editor (like the States
     tab) and a typewriter text box node, **plus** importing `.yarn` (Yarn Spinner) files into it.
 18. **Touch input and virtual joysticks; Steam achievements and cloud saves.** Decided: touch

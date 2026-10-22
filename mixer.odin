@@ -17,18 +17,24 @@ BusDef :: struct {
 	volume: f32,
 	pan: f32,
 	mute: bool,
+	// Its effects, `effectCount` of them (bus_effects_edit.odin; an array, so buses stay plain)
+	effects: [e.AUDIO_MAX_EFFECTS]e.AudioEffect,
+	effectCount: int,
 }
 
 // The project's buses from its file: Master first (made if the file has none), then the rest (owned)
 Buses_FromData :: proc(buses: []e.AudioBusData) -> [dynamic]BusDef {
 	list := make([dynamic]BusDef)
-	append(&list, BusDef{strings.clone(e.MASTER_BUS), 1, 0, false})
+	append(&list, BusDef{name = strings.clone(e.MASTER_BUS), volume = 1})
 	for b in buses {
-		if b.name == e.MASTER_BUS {
-			list[0].volume, list[0].pan, list[0].mute = b.volume, b.pan, b.mute
-			continue
+		def := &list[0]
+		if b.name != e.MASTER_BUS {
+			append(&list, BusDef{name = strings.clone(b.name)})
+			def = &list[len(list) - 1]
 		}
-		append(&list, BusDef{strings.clone(b.name), b.volume, b.pan, b.mute})
+		def.volume, def.pan, def.mute = b.volume, b.pan, b.mute
+		def.effectCount = min(len(b.effects), e.AUDIO_MAX_EFFECTS)
+		for fx, i in b.effects[:def.effectCount] do def.effects[i] = fx
 	}
 	return list
 }
@@ -37,6 +43,13 @@ busesEqual :: proc(a, b: []BusDef) -> bool {
 	if len(a) != len(b) do return false
 	for x, i in a do if x != b[i] do return false
 	return true
+}
+
+// A copy of a bus (its name owned)
+BusDef_Clone :: proc(b: BusDef) -> BusDef {
+	copy := b
+	copy.name = strings.clone(b.name)
+	return copy
 }
 
 // The bus choices for a sound node: Master, then the others (temp allocated)
@@ -90,6 +103,12 @@ Mixer_RoutePreview :: proc(project: ^Project, bus: string) {
 		}
 	}
 	AudioPreview_SetRouting(name, bg, bl, br, mg, ml, mr)
+	// And through the bus's effects and Master's (bus_effects_edit.odin)
+	busEffects: []e.AudioEffect
+	for &b, i in project.buses do if i > 0 && b.name == name do busEffects = BusDef_Effects(&b)
+	masterEffects: []e.AudioEffect
+	if len(project.buses) > 0 do masterEffects = BusDef_Effects(&project.buses[0])
+	AudioPreview_SetEffects(busEffects, masterEffects)
 }
 
 isSoundKind :: proc(kind: NodeKind) -> bool {
@@ -115,7 +134,7 @@ Mixer_Update :: proc(state: ^State, m: Msg) -> bool {
 	case Bus_Added:
 		name := "Bus"
 		for n := 2; BusNameProblem(p, -1, name) != ""; n += 1 do name = fmt.tprintf("Bus %d", n)
-		append(&p.buses, BusDef{strings.clone(name), 1, 0, false})
+		append(&p.buses, BusDef{name = strings.clone(name), volume = 1})
 		// The new strip comes into view
 		hScroll_ScrollToEnd("mixer-buses")
 		delete(state.busEdit.text)

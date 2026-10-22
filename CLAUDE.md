@@ -223,6 +223,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `mixer.odin` | Mix buses: `BusDef`, `Buses_FromData` (Master first), names (`BusNameProblem`), `Bus_NodeCount`, `isSoundKind`, the Mixer's messages (`Mixer_Update`) |
 | `view_mixer.odin` | The Mixer tab (`MixerPanel`, built in `skald.sized`), like a DAW's: a channel strip per bus (node count, remove, pan, fader beside its level meter, dB, mute, name at the bottom), scrolling sideways; Master pinned on the right, + beside it |
 | `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
+| `bus_effects_edit.odin` | **Bus effects**: `BusDef.effects` / `effectCount` (a plain array), `Bus_Effects_Opened` (the Mixer's FX: `State.busSelection`) and `Bus_Effect_Added` / `_Removed` / `_Moved` / `_Changed` (`.Project` steps), `busEffectsInspector`; the preview hears them (`AudioPreview_SetEffects` from `Mixer_RoutePreview`) |
+| `music_layers_edit.odin` | **Music layers**: `NodeDef.musicLayers` (`MusicLayerDef`: clone, destroy, equal), `Music_Layer_Added` / `_Removed` / `_Changed` (node steps), the MusicPlayer's Layers rows (`musicLayerRows`) |
 | `view_inspector_audio.odin` | The inspector's sound node settings (`audioInspectorRows`): sound or music, bus, Open Mixer, volume / pitch / pan sliders, loop, autostart, a 2D player's range and falloff, music's fades, Preview |
 | `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with, frames, FPS, loop, mode, the sheet's image and grid; groups in a `wrap_row`) over the preview and the sheet's frame thumbnails (`frameStrip`, cells drawn from the sheet uploaded once with stb_image); one scroll for all |
 | `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimationDef_FrameAt` / `StepAt` (the frame at a time, as the engine plays it, durations too), `AnimationDef_Range`, unique names, `AnimEdit_IsEdit` |
@@ -1619,7 +1621,26 @@ Their files' doc comments describe them; what the code relies on:
   `tests/ui/mixer.script` (real fader, pan, mute and scroll-bar drags, the wheel, a preview moving
   the meters; driver: `double_click_widget`, `wheel_widget`, checks `buses`, `bus <i> <field>`,
   `sound <field>`, `meter <key>`, `widget_visible <key>`).
-- **Later:** bus effects (each engine bus has a `mix.Group` for them).
+- **Bus effects** (bus_effects_edit.odin; the engine's audio_effects.odin): `BusDef.effects` is
+  a fixed array with `effectCount`, so buses stay plain values (`busesEqual` with `!=`, copied by
+  `BusDef_Clone`, the snapshot's copies too). The Mixer strip's **FX** (`mixer-fx-<i>`) sends
+  `Bus_Effects_Opened`: the inspector shows `busEffectsInspector` while `State.busSelection` is
+  valid (cleared when a node is selected or the browser selection changes). Edits are `.Project`
+  steps, a slider's drag merged per effect and field. The writer puts `<effect>` children under
+  `<bus>` (only what differs from `e.DEFAULT_AUDIO_EFFECT`; Master is written once it has
+  effects). **The preview hears them:** `Mixer_RoutePreview` hands the routed bus's and Master's
+  effects to `AudioPreview_SetEffects`, which sets the preview's two chains (the bus meter's
+  and the master meter's `effects`) only when they changed, with `AudioEffects_SetOne` when only
+  settings changed (an echo's tail carries on); the chains' state is on the heap allocator
+  (package state outlives a unit test's allocator). Labels: "Damp highs" (not "Damping", a
+  body's). Tests: `bus_effects_in_the_editor`, `tests/ui/bus_effects.script` (driver checks
+  `bus <i> effects`, `bus_effect`, `bus_selection`, `preview_effects`).
+- **Music layers** (music_layers_edit.odin): `NodeDef.musicLayers` (owned), in NodeDef_Clone /
+  Destroy / Equal and the load; written as `<layer>` children of a MusicPlayer. The inspector's
+  Layers rows (`inspector-layer-<i>-name|sound|volume|remove`, `inspector-layer-add`) send node
+  steps (typing and drags merge). The viewport doesn't play them; the editor's Preview plays the
+  main music only. Tests: `music_layers_in_the_editor`, bus_effects.script (`music_layer`).
+  User guide: `docs/manual/audio_effects_and_music.md`.
 
 ## Particles (implemented; the engine's particles.odin)
 

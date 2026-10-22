@@ -58,6 +58,7 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.animations = make([dynamic]AnimationDef, 0, len(node.animations))
 	for a in node.animations do append(&copy.animations, AnimationDef_Clone(a))
 	copy.animationSet = strings.clone(node.animationSet)
+	copy.musicLayers = MusicLayers_Clone(node.musicLayers)
 	copy.asepriteLayers = strings.clone(node.asepriteLayers)
 	copy.pivotSlice = strings.clone(node.pivotSlice)
 	copy.nineSlice = strings.clone(node.nineSlice)

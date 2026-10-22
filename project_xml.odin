@@ -153,14 +153,40 @@ ProjectToXML :: proc(project: ^Project, allocator := context.allocator) -> strin
 		closeEmpty(&w)
 	}
 	// Buses: Master only when it's not the default
-	for bus, i in project.buses {
-		if i == 0 && bus.volume == 1 && bus.pan == 0 && !bus.mute do continue
+	for &bus, i in project.buses {
+		if i == 0 && bus.volume == 1 && bus.pan == 0 && !bus.mute && bus.effectCount == 0 do continue
 		open(&w, "bus")
 		attr(&w, "name", bus.name)
 		if bus.volume != 1 do attr(&w, "volume", bus.volume)
 		if bus.pan != 0 do attr(&w, "pan", bus.pan)
 		if bus.mute do attr(&w, "mute", true)
-		closeEmpty(&w)
+		if bus.effectCount == 0 {
+			closeEmpty(&w)
+			continue
+		}
+		// Its effects (bus_effects_edit.odin): what applies to each kind, when not the default
+		endOpen(&w)
+		d := e.DEFAULT_AUDIO_EFFECT
+		for fx in BusDef_Effects(&bus) {
+			open(&w, "effect")
+			attr(&w, "kind", fmt.tprint(fx.kind))
+			if fx.bypass do attr(&w, "bypass", true)
+			switch fx.kind {
+			case .LowPass, .HighPass:
+				if fx.cutoff != d.cutoff do attr(&w, "cutoff", fx.cutoff)
+				if fx.resonance != d.resonance do attr(&w, "resonance", fx.resonance)
+			case .Echo:
+				if fx.delay != d.delay do attr(&w, "delay", fx.delay)
+				if fx.feedback != d.feedback do attr(&w, "feedback", fx.feedback)
+				if fx.mix != d.mix do attr(&w, "mix", fx.mix)
+			case .Reverb:
+				if fx.roomSize != d.roomSize do attr(&w, "roomSize", fx.roomSize)
+				if fx.damping != d.damping do attr(&w, "damping", fx.damping)
+				if fx.mix != d.mix do attr(&w, "mix", fx.mix)
+			}
+			closeEmpty(&w)
+		}
+		close(&w, "bus")
 	}
 	for action in project.actions {
 		open(&w, "action")
@@ -230,13 +256,22 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 		painted := node.kind == .TileMap ? node.tilemap.painted[:] : nil
 		clips := node.kind == .Animator ? node.animator.clips[:] : nil
 		machine := node.kind == .StateMachine ? &node.stateMachine : nil
-		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
+		layers := node.kind == .MusicPlayer ? node.musicLayers[:] : nil
+		if len(node.items) == 0 && node.script == "" && len(node.listeners) == 0 && len(particles) == 0 && len(animations) == 0 && len(layers) == 0 && len(entities) == 0 && len(painted) == 0 && len(clips) == 0 && (machine == nil || len(machine.states) + len(machine.params) + len(machine.transitions) == 0) && !hasChildren {
 			closeEmpty(&w)
 			continue
 		}
 		endOpen(&w)
 		// An AnimatedSprite's animations
 		for a in animations do writeAnimation(&w, a)
+		// A MusicPlayer's layers (music_layers_edit.odin)
+		for l in layers {
+			open(&w, "layer")
+			attr(&w, "name", l.name)
+			if l.sound != "" do attr(&w, "sound", l.sound)
+			if l.volume != 1 do attr(&w, "volume", l.volume)
+			closeEmpty(&w)
+		}
 		if len(particles) > 0 {
 			open(&w, "particles")
 			for pair in particles do attr(&w, pair.name, pair.value)

@@ -1,5 +1,6 @@
 package crossfire_editor
 
+import "base:runtime"
 import "core:fmt"
 import "core:log"
 import "core:strings"
@@ -37,6 +38,10 @@ AudioPreview :: struct {
 	busGain, busLeft, busRight: f32,
 	group: ^mix.Group,
 	busMeter, masterMeter: e.AudioMeter,
+	// The bus's and Master's effects (bus_effects_edit.odin), and what they were last set to
+	busEffects, masterEffects: e.AudioEffectChain,
+	busEffectsSet, masterEffectsSet: [e.AUDIO_MAX_EFFECTS]e.AudioEffect,
+	busEffectsCount, masterEffectsCount: int,
 }
 
 @(private="file")
@@ -64,7 +69,7 @@ AudioPreview_SetDevice :: proc(device: string) {
 		return
 	}
 	AudioPreview_Unload()
-	// Its track and group go with it
+	// Its track and group go with it (nothing runs the effects after)
 	mix.DestroyMixer(preview.mixer)
 	preview.mixer, preview.track, preview.group = nil, nil, nil
 	preview.failed = false
@@ -205,7 +210,43 @@ ensureMixer :: proc() -> bool {
 	}
 	preview.group = mix.CreateGroup(preview.mixer)
 	_ = mix.SetTrackGroup(preview.track, preview.group)
+	preview.busMeter.effects = &preview.busEffects
+	preview.masterMeter.effects = &preview.masterEffects
 	e.AudioMeter_AttachGroup(&preview.busMeter, preview.group)
 	e.AudioMeter_AttachMixer(&preview.masterMeter, preview.mixer)
 	return true
+}
+
+// How many effects the preview plays through: its bus's and Master's (for tests)
+AudioPreview_EffectCounts :: proc() -> (bus, master: int) {
+	return preview.busEffectsCount, preview.masterEffectsCount
+}
+
+/*
+The effects the preview plays through: its bus's and Master's (as the game's buses have them).
+Set again only when they change, so an effect's state (an echo's tail) carries on.
+*/
+AudioPreview_SetEffects :: proc(bus, master: []e.AudioEffect) {
+	same :: proc(set: [e.AUDIO_MAX_EFFECTS]e.AudioEffect, count: int, effects: []e.AudioEffect) -> bool {
+		if count != len(effects) do return false
+		for fx, i in effects do if set[i] != fx do return false
+		return true
+	}
+	update :: proc(chain: ^e.AudioEffectChain, set: ^[e.AUDIO_MAX_EFFECTS]e.AudioEffect, count: ^int, effects: []e.AudioEffect) {
+		if same(set^, count^, effects) do return
+		// Only settings changed (same kinds in the same order): keep the effects' state
+		kinds := count^ == len(effects)
+		for fx, i in effects do if kinds && set[i].kind != fx.kind do kinds = false
+		if kinds {
+			for fx, i in effects do e.AudioEffects_SetOne(chain, i, fx)
+		} else {
+			e.AudioEffects_Set(chain, effects)
+		}
+		count^ = min(len(effects), e.AUDIO_MAX_EFFECTS)
+		for fx, i in effects[:count^] do set[i] = fx
+	}
+	// Package state outlives any caller's allocator (unit tests free theirs after each test)
+	context.allocator = runtime.heap_allocator()
+	update(&preview.busEffects, &preview.busEffectsSet, &preview.busEffectsCount, bus)
+	update(&preview.masterEffects, &preview.masterEffectsSet, &preview.masterEffectsCount, master)
 }

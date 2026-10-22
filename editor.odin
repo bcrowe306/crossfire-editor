@@ -272,6 +272,9 @@ State :: struct {
 	materialSelection: int,
 	// Collision from sprite's settings (collision_trace_edit.odin; view state)
 	trace: TraceSettings,
+	// The bus the inspector shows the effects of (an index into project.buses; -1 none), opened
+	// from the Mixer (bus_effects_edit.odin)
+	busSelection: int,
 	session: SessionState,
 	// Copied or cut nodes: one subtree, parents relative to the list (see node_edit.odin)
 	clipboard: [dynamic]NodeDef,
@@ -339,6 +342,7 @@ init :: proc() -> State {
 		themeSelection = -1,
 		materialSelection = -1,
 		trace = DEFAULT_TRACE_SETTINGS,
+		busSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},
 		layout = {
 			leftWidth = 240,

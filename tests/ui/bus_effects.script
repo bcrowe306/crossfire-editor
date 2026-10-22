@@ -1,0 +1,149 @@
+# Bus effects and music layers: the Mixer's FX button shows a bus's effects in the inspector;
+# add a low-pass and a reverb, change the cutoff, bypass, reorder, undo, remove; Master's echo;
+# the preview plays through them; a MusicPlayer's layers (add, name, music, volume, remove);
+# saved to project.xml and the scene file.
+# Run with: task test:ui
+#
+# PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+import tests/fixtures/beep.wav
+
+# A sound node playing it, and a bus for it
+key escape
+key ctrl+shift+a
+type AudioPlayer
+key RETURN
+expect selected AudioPlayer
+scroll_into_view inspector-scroll inspector-sound-11
+click_widget inspector-sound-11
+click_overlay_item 1
+expect sound sound assets/beep.wav
+scroll_into_view inspector-scroll inspector-open-mixer-11
+click_widget inspector-open-mixer-11
+expect tab Mixer
+click_widget mixer-add
+expect buses 2
+scroll_into_view inspector-scroll inspector-bus-11
+click_widget inspector-bus-11
+click_overlay_item 1
+expect sound bus Bus
+
+# FX opens the bus in the inspector
+click_widget mixer-fx-1
+expect bus_selection 1
+expect selected none
+expect bus 1 effects 0
+
+# A low-pass filter: its cutoff dragged to the bottom, then bypassed
+scroll_into_view inspector-scroll bus-effect-add
+click_widget bus-effect-add
+click_overlay_item 0
+expect bus 1 effects 1
+expect bus_effect 1 0 kind LowPass
+expect bus_effect 1 0 cutoff 1000
+scroll_into_view inspector-scroll bus-effect-0-Cutoff
+drag_widget bus-effect-0-Cutoff 0.5 0.5 -0.5 0.5
+expect bus_effect 1 0 cutoff 20
+scroll_into_view inspector-scroll bus-effect-0-Cutoff-reset
+click_widget bus-effect-0-Cutoff-reset
+expect bus_effect 1 0 cutoff 1000
+scroll_into_view inspector-scroll bus-effect-0-Bypass
+click_widget bus-effect-0-Bypass
+expect bus_effect 1 0 bypass true
+click_widget bus-effect-0-Bypass
+expect bus_effect 1 0 bypass false
+
+# A reverb after it, its wet mix typed, then moved first; undo puts it back
+scroll_into_view inspector-scroll bus-effect-add
+click_widget bus-effect-add
+click_overlay_item 3
+expect bus 1 effects 2
+expect bus_effect 1 1 kind Reverb
+scroll_into_view inspector-scroll bus-effect-1-Mix-value
+click_widget bus-effect-1-Mix-value
+key ctrl+a
+type 0.5
+key RETURN
+expect bus_effect 1 1 mix 0.50
+scroll_into_view inspector-scroll bus-effect-1-up
+click_widget bus-effect-1-up
+expect bus_effect 1 0 kind Reverb
+expect bus_effect 1 1 kind LowPass
+key ctrl+z
+expect bus_effect 1 0 kind LowPass
+expect bus_effect 1 1 kind Reverb
+
+# The FX button shows how many
+expect widget_visible mixer-fx-1 true
+
+# Master: an echo
+click_widget mixer-fx-0
+expect bus_selection 0
+scroll_into_view inspector-scroll bus-effect-add
+click_widget bus-effect-add
+click_overlay_item 2
+expect bus 0 effects 1
+expect bus_effect 0 0 kind Echo
+
+# The preview plays the node's sound through its bus's effects and Master's; the meters move
+select_node AudioPlayer
+expect bus_selection -1
+scroll_into_view inspector-scroll inspector-audio-preview-11
+click_widget inspector-audio-preview-11
+wait_until preview_effects 2 1 timeout=3
+wait_until meter mixer-meter-1 sounding timeout=3
+wait_until meter mixer-meter-0 sounding timeout=3
+click_widget inspector-audio-preview-11
+
+# Removing the reverb (from the bus's inspector) reaches the preview too
+click_widget mixer-fx-1
+scroll_into_view inspector-scroll bus-effect-1-remove
+click_widget bus-effect-1-remove
+expect bus 1 effects 1
+wait_until preview_effects 1 1 timeout=3
+
+# A MusicPlayer with a layer: beep.wav used as music first
+right_click_asset assets/beep.wav
+click_menu_item browser-menu 0 2
+expect console_contains beep.wav is music (streamed)
+key escape
+key ctrl+shift+a
+type MusicPlayer
+key RETURN
+expect selected MusicPlayer
+expect music_layer count 0
+scroll_into_view inspector-scroll inspector-layer-add
+click_widget inspector-layer-add
+scroll_into_view inspector-scroll inspector-layer-add
+click_widget inspector-layer-add
+expect music_layer count 2
+expect music_layer 0 name layer
+expect music_layer 1 name layer 2
+scroll_into_view inspector-scroll inspector-layer-0-name
+click_widget inspector-layer-0-name
+key ctrl+a
+type drums
+key escape
+expect music_layer 0 name drums
+scroll_into_view inspector-scroll inspector-layer-0-sound
+click_widget inspector-layer-0-sound
+click_overlay_item 1
+expect music_layer 0 sound assets/beep.wav
+scroll_into_view inspector-scroll inspector-layer-0-volume
+drag_widget inspector-layer-0-volume 0.5 0.5 -0.5 0.5
+expect music_layer 0 volume 0.00
+scroll_into_view inspector-scroll inspector-layer-1-remove
+click_widget inspector-layer-1-remove
+expect music_layer count 1
+key ctrl+z
+expect music_layer count 2
+key ctrl+shift+z
+expect music_layer count 1
+
+key ctrl+s
+expect project_file_contains project.xml <effect kind="LowPass"/>
+expect project_file_contains project.xml <effect kind="Echo"/>
+expect project_file_contains scenes/PlayScene.scene.xml <layer name="drums" sound="assets/beep.wav" volume="0"/>

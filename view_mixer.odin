@@ -105,6 +105,11 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 	} else {
 		append(&rows, skald.row(used, width = inner, cross_align = .Center))
 	}
+	// Its effects: the inspector shows them (bus_effects_edit.odin)
+	fx := skald.button(ctx, b.effectCount > 0 ? fmt.tprintf("FX %d", b.effectCount) : "FX", Msg(Bus_Effects_Opened(i)), id = skald.hash_id(fmt.tprintf("mixer-fx-%d", i)),
+		bg = s.busSelection == i ? th.color.primary : th.color.surface, fg = s.busSelection == i ? th.color.on_primary : th.color.fg_muted,
+		padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm, width = inner)
+	append(&rows, skald.tooltip(ctx, fx, "The bus's effects (filters, echo, reverb): shown in the inspector", id = skald.hash_id(fmt.tprintf("mixer-fx-tip-%d", i))))
 
 	// Pan
 	append(&rows,

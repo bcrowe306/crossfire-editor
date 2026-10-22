@@ -413,6 +413,13 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), key("audio", v.field, s.currentScene, selected))
 	case Audio_Flag_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.flag, name))
+	// A MusicPlayer's layers (music_layers_edit.odin): typing a name or dragging a volume merges
+	case Music_Layer_Added:
+		if hasSelection do return node(selected, fmt.tprintf("Add a layer to %s", name))
+	case Music_Layer_Removed:
+		if hasSelection do return node(selected, fmt.tprintf("Remove a layer of %s", name))
+	case Music_Layer_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change a layer's %v of %s", v.field, name), key("music-layer", v.index, v.field, s.currentScene, selected))
 	case Bus_Added:
 		return {scope = .Project, label = "Add a bus"}
 	case Bus_Removed:
@@ -421,6 +428,15 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		return {scope = .Project, label = "Rename a bus", mergeKey = key("bus-name", v.index)}
 	case Bus_Volume_Changed:
 		return {scope = .Project, label = "Change a bus's volume", mergeKey = key("bus-volume", v.index)}
+	// Bus effects (bus_effects_edit.odin): a slider's drag merges
+	case Bus_Effect_Added:
+		return {scope = .Project, label = fmt.tprintf("Add a %v to a bus", v.kind)}
+	case Bus_Effect_Removed:
+		return {scope = .Project, label = "Remove a bus effect"}
+	case Bus_Effect_Moved:
+		return {scope = .Project, label = "Move a bus effect"}
+	case Bus_Effect_Changed:
+		return {scope = .Project, label = fmt.tprintf("Change a bus effect's %v", v.field), mergeKey = key("bus-effect", v.bus, v.index, v.field)}
 	case Bus_Pan_Changed:
 		return {scope = .Project, label = "Change a bus's pan", mergeKey = key("bus-pan", v.index)}
 	case Bus_Mute_Toggled:
@@ -789,7 +805,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera {
+	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera {
 		return false
 	}
 	for p, i in a.points do if p != b.points[i] do return false
@@ -888,7 +904,7 @@ takeProjectSnapshot :: proc(s: ^State) -> ProjectSnapshot {
 	for t in p.themes do append(&snapshot.themes, ThemeDef_Clone(t))
 	for m in p.materials do append(&snapshot.materials, MaterialDef_Clone(m))
 	for a in p.actions do append(&snapshot.actions, ActionDef_Clone(a))
-	for b in p.buses do append(&snapshot.buses, BusDef{strings.clone(b.name), b.volume, b.pan, b.mute})
+	for b in p.buses do append(&snapshot.buses, BusDef_Clone(b))
 	return snapshot
 }
 
@@ -930,7 +946,7 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 	for a in snapshot.actions do append(&p.actions, ActionDef_Clone(a))
 	for b in p.buses do delete(b.name)
 	clear(&p.buses)
-	for b in snapshot.buses do append(&p.buses, BusDef{strings.clone(b.name), b.volume, b.pan, b.mute})
+	for b in snapshot.buses do append(&p.buses, BusDef_Clone(b))
 	// Data values by file: resources made or removed since (files, not undoable) stay as they are
 	for d in snapshot.data {
 		i := Project_FindData(p, d.path)

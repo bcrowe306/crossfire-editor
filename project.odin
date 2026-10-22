@@ -146,6 +146,8 @@ NodeDef :: struct {
 	sound: string,
 	bus: string,
 	audio: e.AudioSettings,
+	// MusicPlayer: its layers, played in step with its music (music_layers_edit.odin; owned)
+	musicLayers: [dynamic]MusicLayerDef,
 	// Bodies: a physics material (`.material.xml`, material_edit.odin) replacing their friction,
 	// restitution and density ("" none; owned)
 	material: string,
@@ -444,6 +446,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	for &a in node.animations do AnimationDef_Destroy(&a)
 	delete(node.animations)
 	delete(node.animationSet)
+	MusicLayers_Destroy(&node.musicLayers)
 	delete(node.asepriteLayers)
 	delete(node.pivotSlice)
 	delete(node.nineSlice)
@@ -887,6 +890,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.bus = strings.clone(node.bus)
 	def.material = strings.clone(node.material)
 	def.audio = node.audio
+	if node.kind == .MusicPlayer do for l in node.musicLayers do append(&def.musicLayers, MusicLayerDef{strings.clone(l.name), strings.clone(l.sound), l.volume})
 	def.light = node.light
 	def.nav = node.nav
 	def.stateMachine = e.StateMachineSettings_Clone(node.stateMachine)

@@ -204,6 +204,13 @@ General > Sound output changes the format; Settings > Editor > Audio device pick
 Play and the previews use on this computer. An exported game plays on the system's default
 device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` lists them).
 
+**Bus effects, crossfades and music layers.** The Mixer's **FX** button shows a bus's effects in
+the inspector: low-pass and high-pass filters, echo and reverb, in order, each with Bypass; a
+sound node's Preview plays through its bus's and Master's effects. A MusicPlayer's **Layers** are
+music files played in step with its song, faded from scripts (`e.MusicPlayer_SetLayerVolume`);
+`e.MusicPlayer_CrossfadeTo` fades to another song. User guide:
+[docs/manual/audio_effects_and_music.md](docs/manual/audio_effects_and_music.md).
+
 Selecting a script in the browser shows what it is (a node script, a global, a data type) and
 the nodes it's attached to; selecting a scene shows what's in it and its own settings: screen
 layers (drawn without the camera, for HUDs and menus), a background color and a gravity of its

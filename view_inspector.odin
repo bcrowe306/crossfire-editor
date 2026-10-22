@@ -312,6 +312,15 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			bg = th.color.bg,
 		)
 	}
+	if s.busSelection >= 0 && s.busSelection < len(s.project.buses) {
+		return skald.col(
+			header,
+			skald.divider(ctx),
+			skald.flex(1, skald.scroll(ctx, {0, 0}, busEffectsInspector(s, ctx), id = skald.hash_id("inspector-scroll"))),
+			cross_align = .Stretch,
+			bg = th.color.bg,
+		)
+	}
 	if s.materialSelection >= 0 && s.materialSelection < len(s.project.materials) {
 		return skald.col(
 			header,

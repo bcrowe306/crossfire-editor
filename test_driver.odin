@@ -254,6 +254,13 @@ Checks:
 	input_bindings <action> <a, b, ...>   An action's bindings, described (e.Input_BindingDescribe)
 	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
 	buses <count>                The project's mix buses (Master counts)
+	bus <i> <name|volume|pan|mute|nodes|effects> <value>   A bus (0 is Master)
+	bus_effect <bus> <i> <kind|bypass|cutoff|resonance|delay|feedback|roomSize|damping|mix> <value>
+	                             One of a bus's effects (bus_effects_edit.odin)
+	bus_selection <i | -1>       The bus whose effects the inspector shows
+	preview_effects <bus> <master>   How many effects the editor's audio preview plays through
+	music_layer <i> <name|sound|volume> <value>, music_layer count <n>
+	                             The selected MusicPlayer's layers (music_layers_edit.odin)
 	scene_tabs <a,b,...>         The scene and component tabs, by name, in order
 	toolchain <tool name>: <found | missing>   A Settings > Toolchain row (toolchain Odin compiler: found)
 	code_tabs <count>            Open code tabs
@@ -1907,7 +1914,57 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "pan":    found = fmt.tprintf("%.2f", b.pan)
 		case "mute":   found = fmt.tprint(b.mute)
 		case "nodes":  found = fmt.tprint(Bus_NodeCount(&s.project, i == 0 ? "" : b.name))
+		case "effects": found = fmt.tprint(b.effectCount)
 		case: return false, fmt.tprintf("unknown bus field '%s'", parts[1])
+		}
+		return found == strings.join(parts[2:], " ", context.temp_allocator), found
+	case "bus_effect":
+		// `bus_effect <bus> <index> <kind|bypass|cutoff|resonance|delay|feedback|roomSize|damping|mix> <value>`
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 4 do return false, "expected a bus, an index, a field and a value"
+		bi, _ := strconv.parse_int(parts[0])
+		fi, _ := strconv.parse_int(parts[1])
+		if bi < 0 || bi >= len(s.project.buses) do return false, fmt.tprintf("no bus %d", bi)
+		b := &s.project.buses[bi]
+		if fi < 0 || fi >= b.effectCount do return false, fmt.tprintf("bus %d has %d effects", bi, b.effectCount)
+		fx := b.effects[fi]
+		switch parts[2] {
+		case "kind":      found = fmt.tprint(fx.kind)
+		case "bypass":    found = fmt.tprint(fx.bypass)
+		case "cutoff":    found = fmt.tprintf("%.0f", fx.cutoff)
+		case "resonance": found = fmt.tprintf("%.2f", fx.resonance)
+		case "delay":     found = fmt.tprintf("%.2f", fx.delay)
+		case "feedback":  found = fmt.tprintf("%.2f", fx.feedback)
+		case "roomSize":  found = fmt.tprintf("%.2f", fx.roomSize)
+		case "damping":   found = fmt.tprintf("%.2f", fx.damping)
+		case "mix":       found = fmt.tprintf("%.2f", fx.mix)
+		case: return false, fmt.tprintf("unknown effect field '%s'", parts[2])
+		}
+		return found == parts[3], found
+	case "bus_selection":
+		// The bus the inspector shows the effects of (-1 none)
+		found = fmt.tprint(s.busSelection)
+	case "preview_effects":
+		// How many effects the editor's preview plays through: its bus's and Master's ("2 1")
+		bus, master := AudioPreview_EffectCounts()
+		found = fmt.tprintf("%d %d", bus, master)
+	case "music_layer":
+		// `music_layer <index> <name|sound|volume> <value>`; `music_layer count <n>`
+		if selected == nil || selected.kind != .MusicPlayer do return false, "no MusicPlayer selected"
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) == 2 && parts[0] == "count" {
+			found = fmt.tprint(len(selected.musicLayers))
+			return found == parts[1], found
+		}
+		if len(parts) < 2 do return false, "expected an index, a field and a value"
+		li, _ := strconv.parse_int(parts[0])
+		if li < 0 || li >= len(selected.musicLayers) do return false, fmt.tprintf("%d layers", len(selected.musicLayers))
+		l := selected.musicLayers[li]
+		switch parts[1] {
+		case "name":   found = l.name
+		case "sound":  found = l.sound == "" ? "none" : l.sound
+		case "volume": found = fmt.tprintf("%.2f", l.volume)
+		case: return false, fmt.tprintf("unknown layer field '%s'", parts[1])
 		}
 		return found == strings.join(parts[2:], " ", context.temp_allocator), found
 	case "sound":
