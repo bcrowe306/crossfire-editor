@@ -197,6 +197,10 @@ Checks:
 	                             A key of the Timeline's clip (seconds with 2 decimals)
 	ui <layout|anchor|text|action|width|height|theme> <value>
 	                             The selected UI control's settings ("none" for empty text)
+	scene_lit <true | false>     The open scene's lighting is on
+	light <kind|energy|radius|angle|shadows> <value>
+	                             The selected Light2D's settings
+	viewport_unlit <true | false>   The viewport shows lit scenes unlit
 	themes <count>               The project's UI themes
 	theme <field> <value>        A field of the theme the inspector shows (an e.UITheme field's name)
 	ui_theme <path | none>       The project's UI theme
@@ -1444,6 +1448,23 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "height": found = fmt.tprint(u.size.y)
 		case "theme":  found = pick(u.theme)
 		case: return false, fmt.tprintf("unknown ui field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "scene_lit":
+		found = fmt.tprint(s.project.scenes[s.currentScene].settings.lighting)
+	case "viewport_unlit":
+		found = fmt.tprint(s.viewport.unlit)
+	case "light":
+		if selected == nil || selected.kind != .Light2D do return false, "no Light2D selected"
+		field, _, expected := strings.partition(value, " ")
+		l := selected.light
+		switch field {
+		case "kind":    found = fmt.tprint(l.kind)
+		case "energy":  found = fmt.tprint(l.energy)
+		case "radius":  found = fmt.tprint(l.radius)
+		case "angle":   found = fmt.tprint(l.angle)
+		case "shadows": found = fmt.tprint(l.shadows)
+		case: return false, fmt.tprintf("unknown light field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
 	case "themes":

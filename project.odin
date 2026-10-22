@@ -155,6 +155,8 @@ NodeDef :: struct {
 	animator: e.AnimatorSettings,
 	// A UI control's settings (owned strings: the engine's UISettings_Clone / _Destroy; ui_edit.odin)
 	ui: e.UISettings,
+	// A Light2D's settings (a plain value: light_edit.odin)
+	light: e.LightSettings,
 }
 
 // A script field's value: `<prop name="speed" value="250"/>` (both owned)
@@ -361,6 +363,7 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		tilemap = TileMapSettings_Clone(e.DEFAULT_TILEMAP_SETTINGS),
 		animator = e.AnimatorSettings_Clone(e.DEFAULT_ANIMATOR_SETTINGS),
 		ui = e.UISettings_Clone(e.DEFAULT_UI_SETTINGS),
+		light = e.DEFAULT_LIGHT_SETTINGS,
 	}
 	if kind == .AnimatedSprite do append(&node.animations, AnimationDef_Default())
 	if kind == .Menu {
@@ -835,6 +838,7 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 	def.sound = strings.clone(node.sound)
 	def.bus = strings.clone(node.bus)
 	def.audio = node.audio
+	def.light = node.light
 	def.ldtk = LDtkSettings_Clone(node.ldtk)
 	def.tilemap = TileMapSettings_Clone(node.tilemap)
 	def.animator = e.AnimatorSettings_Clone(node.animator)

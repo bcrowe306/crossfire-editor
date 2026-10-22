@@ -49,6 +49,7 @@ SceneSettings_Classify :: proc(state: ^State, m: Msg) -> (index: int, field: str
 	case Scene_Background_Changed:   return v.scene, "background", true
 	case Scene_Gravity_Toggled:      return v.scene, "gravity", true
 	case Scene_Gravity_Changed:      return v.scene, "gravity", true
+	case Scene_Lighting_Changed:     return v.scene, "lighting", true
 	}
 	return -1, "", false
 }

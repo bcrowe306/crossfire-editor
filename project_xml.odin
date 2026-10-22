@@ -197,6 +197,9 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 	if settings := scene.settings; !Scene_IsComponent(scene) {
 		if settings.screenLayers != {} do attr(&w, "screenLayers", e.FormatScreenLayers(settings.screenLayers, context.temp_allocator))
 		if settings.hasBackground do attr(&w, "background", e.FormatColor(settings.background, context.temp_allocator))
+		if settings.lighting do attr(&w, "lighting", true)
+		if settings.lighting && settings.ambient.a > 0 do attr(&w, "ambient", e.FormatColor(settings.ambient, context.temp_allocator))
+		if settings.bodyShadows do attr(&w, "bodyShadows", true)
 		if settings.hasGravity {
 			attr(&w, "gravityX", settings.gravity.x)
 			attr(&w, "gravityY", settings.gravity.y)
@@ -515,22 +518,20 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			if node.floorMaxAngle != defaults.floorMaxAngle do attr(w, "floorMaxAngle", node.floorMaxAngle)
 		}
 	case .CollisionShape:
-		attr(w, "shape", node.shape)
-		switch node.shape {
-		case .Rectangle:
-			attr(w, "width", node.shapeSize.x)
-			attr(w, "height", node.shapeSize.y)
-		case .Circle:
-			attr(w, "radius", node.radius)
-		case .Capsule:
-			attr(w, "radius", node.radius)
-			attr(w, "height", node.shapeSize.y)
-		case .Polygon, .Segment:
-			attr(w, "points", e.FormatPoints(node.points[:], context.temp_allocator))
-		}
+		writeShape(w, node)
 		if node.disabled do attr(w, "disabled", true)
 		if node.oneWay do attr(w, "oneWay", true)
 		if node.slice != "" do attr(w, "slice", node.slice)
+	case .LightOccluder:
+		writeShape(w, node)
+	case .Light2D:
+		l, d := node.light, e.DEFAULT_LIGHT_SETTINGS
+		if l.kind != d.kind do attr(w, "lightKind", l.kind)
+		if l.color != d.color do attr(w, "lightColor", e.FormatColor(l.color, context.temp_allocator))
+		if l.energy != d.energy do attr(w, "energy", l.energy)
+		if l.radius != d.radius do attr(w, "lightRadius", l.radius)
+		if l.angle != d.angle do attr(w, "spotAngle", l.angle)
+		if l.shadows != d.shadows do attr(w, "shadows", l.shadows)
 	case .RayCast:
 		attr(w, "targetX", node.target.x)
 		attr(w, "targetY", node.target.y)
@@ -649,5 +650,23 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			if a.fadeOut != 0 do attr(w, "fadeOut", a.fadeOut)
 		}
 	case .Node2D, .Menu:
+	}
+}
+
+// A shape's kind and size (a CollisionShape's, a LightOccluder's)
+@(private="file")
+writeShape :: proc(w: ^XMLWriter, node: ^NodeDef) {
+	attr(w, "shape", node.shape)
+	switch node.shape {
+	case .Rectangle:
+		attr(w, "width", node.shapeSize.x)
+		attr(w, "height", node.shapeSize.y)
+	case .Circle:
+		attr(w, "radius", node.radius)
+	case .Capsule:
+		attr(w, "radius", node.radius)
+		attr(w, "height", node.shapeSize.y)
+	case .Polygon, .Segment:
+		attr(w, "points", e.FormatPoints(node.points[:], context.temp_allocator))
 	}
 }

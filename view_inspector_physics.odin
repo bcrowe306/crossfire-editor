@@ -86,31 +86,7 @@ physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 		}
 
 	case .CollisionShape:
-		shapes := make([]string, len(e.CollisionShapeKind), context.temp_allocator)
-		for kind in e.CollisionShapeKind do shapes[kind] = fmt.tprintf("%v", kind)
-		append(&rows, inspectorRow(ctx, "Shape", skald.select(ctx, fmt.tprintf("%v", node.shape), shapes, NodeTextField.Shape,
-			proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
-			id = skald.hash_id(fmt.tprintf("inspector-shape-%d", key)), width = controlWidth)))
-		switch node.shape {
-		case .Rectangle:
-			append(&rows,
-				inspectorRow(ctx, "Width", number(ctx, s, key, .Shape_Width, node.shapeSize.x, 1, 0, numberWidth, 1, 100000)),
-				inspectorRow(ctx, "Height", number(ctx, s, key, .Shape_Height, node.shapeSize.y, 1, 0, numberWidth, 1, 100000)),
-			)
-		case .Circle:
-			append(&rows, inspectorRow(ctx, "Radius", number(ctx, s, key, .Radius, node.radius, 1, 0, numberWidth, 0.5, 100000)))
-		case .Capsule:
-			append(&rows,
-				inspectorRow(ctx, "Radius", number(ctx, s, key, .Radius, node.radius, 1, 0, numberWidth, 0.5, 100000)),
-				inspectorRow(ctx, "Height", number(ctx, s, key, .Shape_Height, node.shapeSize.y, 1, 0, numberWidth, 1, 100000)),
-				hint(ctx, "Upright; the height includes the round ends."),
-			)
-		case .Polygon, .Segment:
-			append(&rows,
-				inspectorRow(ctx, "Points", pointsField(ctx, s, key, node.points[:], controlWidth)),
-				hint(ctx, node.shape == .Polygon ? "x,y pairs separated by spaces; 3 to 8 points, made convex." : "Two x,y points separated by a space."),
-			)
-		}
+		append(&rows, ..shapeRows(ctx, s, node, key, controlWidth, numberWidth))
 		append(&rows, inspectorRow(ctx, "Disabled", flag(ctx, key, .Disabled, node.disabled)))
 		append(&rows, inspectorRow(ctx, "One way", flag(ctx, key, .One_Way, node.oneWay)))
 		if node.oneWay do append(&rows, hint(ctx, "A platform: only its top stops what lands on it; bodies pass through from below and the sides."))
@@ -310,4 +286,44 @@ dataInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, skald.spacer(th.spacing.sm), skald.text(fmt.tprintf("In code: e.Data(%s, DATA_%s)", data.type, strings.to_upper(sanitize(DataName(data.path)), context.temp_allocator)),
 		th.color.fg_muted, th.font.size_xs, max_width = 260))
 	return skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.md, cross_align = .Stretch)
+}
+
+/*
+The rows of a shape's kind and size (a CollisionShape's, a LightOccluder's): Shape, then its
+width and height, radius, or points.
+*/
+shapeRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: NodeField, value: f32, step: f64, decimals: int, width: f32, minValue := min(f64), maxValue := max(f64)) -> skald.View {
+		return numberField(ctx, s, fmt.tprintf("inspector-%v-%d", field, key), field, f64(value), step, decimals, width, minValue, maxValue)
+	}
+	hint :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
+		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = 260)
+	}
+	shapes := make([]string, len(e.CollisionShapeKind), context.temp_allocator)
+	for kind in e.CollisionShapeKind do shapes[kind] = fmt.tprintf("%v", kind)
+	append(&rows, inspectorRow(ctx, "Shape", skald.select(ctx, fmt.tprintf("%v", node.shape), shapes, NodeTextField.Shape,
+		proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
+		id = skald.hash_id(fmt.tprintf("inspector-shape-%d", key)), width = controlWidth)))
+	switch node.shape {
+	case .Rectangle:
+		append(&rows,
+			inspectorRow(ctx, "Width", number(ctx, s, key, .Shape_Width, node.shapeSize.x, 1, 0, numberWidth, 1, 100000)),
+			inspectorRow(ctx, "Height", number(ctx, s, key, .Shape_Height, node.shapeSize.y, 1, 0, numberWidth, 1, 100000)),
+		)
+	case .Circle:
+		append(&rows, inspectorRow(ctx, "Radius", number(ctx, s, key, .Radius, node.radius, 1, 0, numberWidth, 0.5, 100000)))
+	case .Capsule:
+		append(&rows,
+			inspectorRow(ctx, "Radius", number(ctx, s, key, .Radius, node.radius, 1, 0, numberWidth, 0.5, 100000)),
+			inspectorRow(ctx, "Height", number(ctx, s, key, .Shape_Height, node.shapeSize.y, 1, 0, numberWidth, 1, 100000)),
+			hint(ctx, "Upright; the height includes the round ends."),
+		)
+	case .Polygon, .Segment:
+		append(&rows,
+			inspectorRow(ctx, "Points", pointsField(ctx, s, key, node.points[:], controlWidth)),
+			hint(ctx, node.shape == .Polygon ? "x,y pairs separated by spaces; 3 to 8 points, made convex." : "Two x,y points separated by a space."),
+		)
+	}
+	return rows[:]
 }

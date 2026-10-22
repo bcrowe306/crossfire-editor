@@ -136,6 +136,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		toggleButton(s, ctx, "viewport-grid", ICON_GRID, "Show grid", .Toggle_Grid, s.viewport.gridVisible),
 		toggleButton(s, ctx, "viewport-snap", ICON_MAGNET, "Snap to grid", .Toggle_Snap, s.viewport.snap),
 		toggleButton(s, ctx, "viewport-shapes", ICON_POLYGON, "Show collision shapes", .Toggle_Collision_Shapes, s.viewport.showShapes),
+		toggleButton(s, ctx, "viewport-lighting", ICON_LIGHTBULB, "Show lit scenes lit", .Toggle_Lighting, !s.viewport.unlit),
 		panelButton(ctx, "viewport-fit", ICON_SCALE, actionTip(s, "Fit game area", .View_Fit), Action.View_Fit),
 		skald.button(ctx, fmt.tprintf("%.0f%%", s.viewport.zoom * 100), Msg(Action.Zoom_100),
 			id = skald.hash_id("viewport-zoom"), bg = th.color.surface, fg = th.color.fg_muted,
@@ -635,6 +636,19 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				// Hidden (Toggle_Collision_Shapes); still pickable by their bounds
 			case node.kind == .Joint:
 				drawJoint(r, p.bounds, v, scene, i, data.shapes[:], th)
+			case node.kind == .LightOccluder:
+				drawCollisionShape(r, p.bounds, v, &node, shape.world, kindColor(.LightOccluder))
+				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
+			case node.kind == .Light2D:
+				// Its marker, and its reach while selected
+				color := kindColor(.Light2D)
+				if i == s.selectedNode {
+					faint := color
+					faint[3] = 0.5
+					skald.draw_ring(r, origin, node.light.radius * v.zoom, 1, faint, aa = true)
+				}
+				skald.draw_circle(r, origin, MARKER_RADIUS, color, aa = true)
+				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case node.kind == .CollisionShape:
 				// Shapes draw nothing in the game: outline them in their body's color
 				body := shapeBody(scene, i)
@@ -985,6 +999,9 @@ kindColor :: proc(kind: NodeKind) -> skald.Color {
 	case .TileMap:        return skald.rgb(0x6cd9a8)
 	// Animation's purple, lighter
 	case .Animator:       return skald.rgb(0xd2a8ff)
+	// Lights: warm yellow; occluders: their shadow's gray
+	case .Light2D:        return skald.rgb(0xffd36b)
+	case .LightOccluder:  return skald.rgb(0x9aa0b4)
 	// UI: the Label's green, bluer
 	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText: return skald.rgb(0x7ed6d0)
 	}

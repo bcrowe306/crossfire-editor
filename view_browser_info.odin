@@ -240,6 +240,8 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 	}
 	append(&rows, skald.wrap_row(..bgRow[:], spacing = th.spacing.xs))
 
+	append(&rows, ..sceneLightingRows(ctx, s, index, previewTextWidth))
+
 	gravity := SceneSettings_Gravity(&s.project, scene)
 	GravityPayload :: struct { scene: int }
 	append(&rows, skald.checkbox(ctx, settings.hasGravity, "Own gravity", GravityPayload{index},

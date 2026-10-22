@@ -373,6 +373,13 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
+**2D lighting:** tick a scene's **Lit** setting (its settings, in the browser's scene preview)
+and it's dark but for its ambient light and its **Light2D** nodes: point or spot lights with a
+color, energy and reach. **LightOccluder** nodes (or, with one more tick, the static bodies'
+collision shapes: a tilemap's walls) cast shadows. HUDs on screen layers stay lit; the viewport's
+light-bulb button (Shift+L) shows the scene unlit while editing. Works with every renderer, the web
+included. See the [manual's lighting page](docs/manual/lighting.md).
+
 **UI controls:** build menus, HUDs and dialogs from **Panel** (arranges controls in a row,
 column or grid), **Button**, **ProgressBar**, **TextField**, **ScrollBox** and **RichText** (colors
 and sizes with `[color=...]` / `[size=...]` tags) nodes. Anchors keep them in the screen's corners

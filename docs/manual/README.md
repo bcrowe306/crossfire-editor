@@ -12,10 +12,11 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 | Page | What it covers |
 |---|---|
 | [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
+| [2D lighting](lighting.md) | Lit scenes: an ambient light, point and spot lights, shadows from occluders and static bodies, editing in the dark, lights in scripts and animations |
 | [The UI system](ui.md) | Panels, buttons, progress bars, text fields, scroll boxes and rich text for menus and HUDs: anchors, row / column / grid layouts, themes, 9-patch images, keyboard and gamepad focus, scripts |
 | [Tilemaps](tilemaps.md) | TileMap nodes: drawing levels from tiles, painting them in the editor, terrains (autotiling), collision from tiles, animated tiles, changing tiles from scripts |
 
-More pages arrive with each feature (lighting, pathfinding,
+More pages arrive with each feature (pathfinding,
 the live game view, scene transitions, state machines, parallax and cameras), and pages for the
 older features follow.
 

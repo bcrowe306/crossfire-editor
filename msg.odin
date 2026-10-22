@@ -39,6 +39,8 @@ Action :: enum {
 	Toggle_Snap,
 	// Outline collision shapes, rays and joints in the viewport
 	Toggle_Collision_Shapes,
+	// Shows the viewport unlit (a lit scene's darkness hides what's being edited)
+	Toggle_Lighting,
 	// The project's development setting: the game draws its physics shapes (never in exports)
 	Toggle_Physics_Debug,
 	Play,
@@ -1027,6 +1029,8 @@ Msg :: union {
 	Tile_Layer_Reverted,
 	Timeline_Changed,
 	UI_Setting_Changed,
+	Light_Setting_Changed,
+	Scene_Lighting_Changed,
 	Theme_Field_Changed,
 	Theme_Font_Changed,
 	Theme_Created,

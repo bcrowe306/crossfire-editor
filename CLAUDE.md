@@ -169,6 +169,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `light_edit.odin` | **2D lighting**: `NodeDef.light` (`e.LightSettings`), `Light_Setting_Changed`, `Scene_Lighting_Changed`, the light and occluder inspector rows (`lightInspectorRows`; occluders use `shapeRows`), the scene preview's lighting rows (`sceneLightingRows`) |
 | `ui_edit.odin` | **UI controls** (Panel, Button, ProgressBar, TextField, ScrollBox, RichText): `NodeDef.ui` (the engine's `e.UISettings`), `UI_Setting_Changed` / `UIEdit_Update`, the inspector's rows (`uiInspectorRows`), `NodeKind_IsControl` |
 | `theme_edit.odin` | **UI themes** (`.theme.xml` assets, kind Theme): `ThemeDef`, `Project.themes` / `uiTheme`, load / save / create, the theme inspector (`themeInspector`, `State.themeSelection`), `Theme_*` messages |
 | `timeline_edit.odin` | **The Timeline** (Animator nodes): `TimelineEditor` (the Animator edited, playhead, selection), `Timeline_Changed` (edits: node steps on the Animator) / `Timeline_View` (panel only), `Timeline_Update`, `Timeline_Follow`, track paths (`Timeline_ResolvePath`, `Timeline_PathTo`), `Timeline_Properties`, `Timeline_NodeValue` (what Key records) |
@@ -1345,6 +1346,23 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## 2D lighting (implemented, `light_edit.odin`; engine: lighting.odin)
+
+`light_edit.odin`'s doc comment describes it; what the code relies on:
+- A Light2D's settings are `NodeDef.light` (plain; `==`), copied to the engine's light every
+  frame by `syncTransforms` (no rebuild for a slider). A LightOccluder's shape is the
+  CollisionShape fields: `shapeRows` (view_inspector_physics.odin) and `writeShape`
+  (project_xml.odin) serve both; its shape is in the rebuild signature.
+- A scene's lighting is in `SceneDef.settings` (`lighting`, `ambient`, `bodyShadows`), edited in
+  the scene preview (`sceneLightingRows`) as `.Project` steps (`SceneSettings_Classify`).
+  `Preview_Render` sets the preview scene's lighting every frame from them and
+  `viewport.unlit` (Action.Toggle_Lighting, Shift+L, the header's light bulb).
+- The viewport outlines occluders (`drawCollisionShape` in their gray) and draws a selected
+  light's reach.
+- Tests: `lighting_in_the_editor` (the preview's pixels lit, dark past the reach and behind an
+  occluder, unlit when toggled), `tests/ui/lighting.script` (driver checks `scene_lit`,
+  `light <field>`, `viewport_unlit`). User guide: `docs/manual/lighting.md`.
 
 ## UI controls and themes (implemented, `ui_edit.odin`, `theme_edit.odin`; engine: ui_controls.odin, ui_theme.odin)
 

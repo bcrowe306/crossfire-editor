@@ -68,6 +68,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if TilePaint_Update(&out, m) do return out, {}
 	if command, handled := Timeline_Update(&out, m); handled do return out, command
 	if UIEdit_Update(&out, m) do return out, {}
+	if LightEdit_Update(&out, m) do return out, {}
 	if ThemeEdit_Update(&out, m) do return out, {}
 	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
 	if SceneSettings_Update(&out, m) do return out, {}
@@ -97,6 +98,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by TilePaint_Update above
 	case Timeline_Changed, Timeline_View, Timeline_Tick, Timeline_Tick_Requested:
 		// Handled by Timeline_Update above
+	case Light_Setting_Changed, Scene_Lighting_Changed:
+		// Handled by LightEdit_Update above
 	case UI_Setting_Changed, Theme_Field_Changed, Theme_Font_Changed, Theme_Created, Theme_Project_Set:
 		// Handled by UIEdit_Update and ThemeEdit_Update above
 
@@ -1089,6 +1092,8 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		out.viewport.gridVisible = !out.viewport.gridVisible
 	case .Toggle_Collision_Shapes:
 		out.viewport.showShapes = !out.viewport.showShapes
+	case .Toggle_Lighting:
+		out.viewport.unlit = !out.viewport.unlit
 	case .Toggle_Physics_Debug:
 		// A project setting (undoable, saved with the project); exports turn it off
 		out.project.physics.debugDraw = !out.project.physics.debugDraw

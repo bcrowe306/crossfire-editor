@@ -43,6 +43,8 @@ ICON_CIRCLE      :: "\uf111"
 ICON_GRID        :: "\uf00a"
 ICON_STOPWATCH   :: "\uf2f2"
 ICON_PALETTE     :: "\uf53f"
+ICON_LIGHTBULB   :: "\uf0eb"
+ICON_SHADOW      :: "\uf5c7"
 ICON_SQUARE_FULL :: "\uf45c"
 ICON_HAND_POINTER :: "\uf25a"
 ICON_BARS_PROGRESS :: "\uf828"
@@ -121,6 +123,8 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .TextField:      return ICON_I_CURSOR
 	case .ScrollBox:      return ICON_SCROLL
 	case .RichText:       return ICON_PARAGRAPH
+	case .Light2D:        return ICON_LIGHTBULB
+	case .LightOccluder:  return ICON_SHADOW
 	}
 	return ICON_CUBE
 }

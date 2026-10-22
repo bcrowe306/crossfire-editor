@@ -96,6 +96,9 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 		preview.signature = signature
 	}
 	syncTransforms(scene)
+	// The scene's lighting, unless the viewport shows it unlit
+	ambient := scene.settings.ambient.a > 0 ? scene.settings.ambient : e.DEFAULT_AMBIENT
+	e.Scene_SetLighting(preview.scene, scene.settings.lighting && !s.viewport.unlit, ambient, scene.settings.bodyShadows)
 	// The animation open in the Animation panel plays on its sprite
 	if s.bottomTab == .Animation && s.layout.bottomOpen {
 		if _, animation, _ := AnimEdit_Selection(s); animation != nil {
@@ -477,6 +480,8 @@ syncTransforms :: proc(scene: ^SceneDef) {
 		if i >= len(preview.nodes) || preview.nodes[i] == nil do continue
 		node := preview.nodes[i]
 		// A hitbox following an Aseprite slice places itself (aseprite_nodes.odin)
+		// A light's settings follow edits at once (no rebuild)
+		if def.kind == .Light2D && e.Node_Is(node, e.Light2D) do (cast(^e.Light2D)node).settings = def.light
 		if NodeKind_IsControl(def.kind) && e.Node_IsControl(node) {
 			// A UI control's position is its layout's: the editor's moves its offset
 			(cast(^e.Control)node).offset = def.position
@@ -541,7 +546,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			motorSpeed = node.motorSpeed, maxMotor = node.maxMotor, enableSpring = node.enableSpring,
 			hertz = node.hertz, dampingRatio = node.dampingRatio, collideConnected = node.collideConnected,
 				particles = node.particles, component = node.component,
-				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui,
+				sound = node.sound, bus = node.bus, audio = node.audio, ldtk = node.ldtk, tilemap = node.tilemap, animator = node.animator, ui = node.ui, light = node.light,
 		})
 	}
 	return data
@@ -577,6 +582,8 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 				strings.write_bytes(&b, transmute([]u8)mem_slice(layer.tiles[:]))
 			}
 		}
+		// An occluder's shape is read when it's built
+		if node.kind == .LightOccluder do fmt.sbprintf(&b, "|%v %v %v %v", node.shape, node.shapeSize, node.radius, node.points[:])
 		// A UI control's settings, text and image are read when it's built
 		if NodeKind_IsControl(node.kind) do fmt.sbprintf(&b, "|%v %s %s %s %s %s", node.ui, node.ui.theme, node.ui.placeholder, node.ui.action, node.text, node.texture)
 		// An Animator's clips are read when it's built

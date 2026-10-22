@@ -14,8 +14,6 @@ The features most 2D engines have that this one doesn't, as the user listed them
    (hit flash, outline, dissolve, palette swap) and screen effects (CRT, bloom, grading). Check
    what SDL's GPU renderer allows first, across platforms and the web; the software renderer
    can't run them.
-5. **2D lighting**: point and spot lights, light masks, shadows from occluders, normal-mapped
-   sprites.
 6. **Pathfinding and navigation**: A* on grids (tilemaps, LDtk IntGrid), navigation regions,
    agents steering around obstacles.
 7. **A live view of the running game**: the editor showing the running game's scene tree and

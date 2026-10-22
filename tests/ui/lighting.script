@@ -1,0 +1,54 @@
+# 2D lighting: a scene made lit in its settings, a spot light edited, an occluder added, the
+# viewport shown unlit and lit again, undo, saved.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+
+# Lit, in the scene's settings (the browser's preview of the scene)
+scroll_into_view preview-scene-scroll scene-settings-lighting
+click_widget scene-settings-lighting
+expect scene_lit true
+key ctrl+z
+expect scene_lit false
+key ctrl+y
+expect scene_lit true
+
+# A light: a spot, twice as bright
+key ctrl+shift+a
+type Light2D
+click_widget add-node-Light2D
+expect kind Light2D
+scroll_into_view inspector-scroll inspector-light-Kind-{selected}
+click_widget inspector-light-Kind-{selected}
+click_overlay_item 1
+expect light kind Spot
+scroll_into_view inspector-scroll inspector-light-Energy-{selected}-value
+click_widget inspector-light-Energy-{selected}-value
+key ctrl+a
+type 2
+key RETURN
+expect light energy 2
+scroll_into_view inspector-scroll inspector-light-Shadows-{selected}
+click_widget inspector-light-Shadows-{selected}
+expect light shadows false
+key ctrl+z
+expect light shadows true
+
+# An occluder
+key escape
+key ctrl+shift+a
+type LightOccluder
+click_widget add-node-LightOccluder
+expect kind LightOccluder
+
+# The viewport unlit, then lit again
+click_widget panel-viewport-lighting
+expect viewport_unlit true
+key shift+l
+expect viewport_unlit false
+
+key ctrl+s
+expect modified false
