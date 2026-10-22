@@ -48,6 +48,8 @@ BottomTab :: enum {
 	Tiles,
 	// An Animator's keyframe clips (view_timeline.odin)
 	Timeline,
+	// The game running from Play, as it plays (view_live.odin)
+	Live,
 }
 
 LogLevel :: enum {
@@ -204,6 +206,8 @@ State :: struct {
 	tilePainter: TilePainter,
 	// The Timeline tab: the Animator it edits, the playhead (timeline_edit.odin)
 	timeline: TimelineEditor,
+	// The running game, as the Live tab shows it (live_edit.odin)
+	live: LiveView,
 	// The Mixer tab: a bus name being typed (its index, the text; owned), kept until it's valid
 	busEdit: struct {
 		index: int,
@@ -401,6 +405,7 @@ State_Destroy :: proc(state: ^State) {
 	AsepriteEdit_Destroy()
 	TilePainter_Destroy(&state.tilePainter)
 	TimelineEditor_Destroy(&state.timeline)
+	Live_Reset(&state.live)
 	for line in state.console do delete(line.text)
 	delete(state.console)
 	for line in state.output do delete(line.text)

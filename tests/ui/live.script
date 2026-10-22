@@ -1,0 +1,46 @@
+# The Live tab: the game played from the editor, watched while it runs: its nodes, a node's
+# properties, pausing (the tab's button and F6) and stepping, a property changed in the game.
+# Run with: task test:ui
+
+wait 5
+key ctrl+s
+key F5
+wait_until play Playing timeout=240
+wait_until live connected true timeout=30
+wait_until live nodes > 0 timeout=10
+
+# The Live tab (the tiled window's tab strip scrolls to it)
+wheel_widget bottom-tabs-scroll -10
+click_tab bottom-tabs 7
+expect tab Live
+click_widget live-node-0
+expect live selected true
+wait_until live properties > 0 timeout=10
+
+# Paused, stepped, resumed (the game says it's paused in its stats)
+click_widget live-pause
+wait_until live paused true timeout=5
+expect play Paused
+click_widget live-step
+click_widget live-pause
+wait_until live paused false timeout=5
+expect play Playing
+# F6 pauses through the link too
+key F6
+wait_until live paused true timeout=5
+key F5
+wait_until live paused false timeout=5
+
+# A property typed in changes the running game (the project isn't changed)
+scroll_into_view live-scroll live-prop-visible
+click_widget live-prop-visible
+key ctrl+a
+type false
+expect modified false
+
+# Out of the field (keys go to it while typing), then stop
+scroll_into_view live-scroll live-node-0
+click_widget live-node-0
+key shift+F5
+wait_until play Stopped
+expect live connected false

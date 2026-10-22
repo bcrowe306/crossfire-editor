@@ -14,8 +14,6 @@ The features most 2D engines have that this one doesn't, as the user listed them
    (hit flash, outline, dissolve, palette swap) and screen effects (CRT, bloom, grading). Check
    what SDL's GPU renderer allows first, across platforms and the web; the software renderer
    can't run them.
-7. **A live view of the running game**: the editor showing the running game's scene tree and
-   values (editable), a profiler (frame time per system, draw calls), pause and step a frame.
 8. **Scene transitions and stacking**: fades and wipes, background loading with a loading
    screen, scenes over others (a pause menu, a HUD).
 9. **State machines**: for gameplay (idle, run, jump, attack) and animation (which animation

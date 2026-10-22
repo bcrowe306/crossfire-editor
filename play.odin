@@ -63,6 +63,8 @@ PlaySession :: struct {
 	process: os.Process,
 	// Read end of the pipe receiving the child's stdout and stderr
 	pipe: ^os.File,
+	// Write end of the game's stdin: the live view's commands (live_edit.odin; nil for builds)
+	stdin: ^os.File,
 	// Output received since the last newline
 	partial: [dynamic]u8,
 }
@@ -75,7 +77,7 @@ Play_Tick :: struct {}
 playStart :: proc(state: ^State, scene := "") -> skald.Command(Msg) {
 	switch state.playState {
 	case .Paused:
-		if signalGame(state, .Resume) {
+		if pauseGame(state, false) {
 			state.playState = .Playing
 			logLine(state, .Info, fmt.aprintf("Resumed"))
 		}
@@ -182,7 +184,7 @@ afterBuild :: proc(state: ^State) -> skald.Command(Msg) {
 @(private="package")
 playPause :: proc(state: ^State) {
 	if state.playState != .Playing do return
-	if signalGame(state, .Pause) {
+	if pauseGame(state, true) {
 		state.playState = .Paused
 		logLine(state, .Info, fmt.aprintf("Paused"))
 	}
@@ -193,7 +195,7 @@ playPause :: proc(state: ^State) {
 playStop :: proc(state: ^State) {
 	if state.play.stage == .None do return
 	stage := state.play.stage
-	if state.playState == .Paused do signalGame(state, .Resume)
+	if state.playState == .Paused && !state.live.connected do signalGame(state, .Resume)
 	_ = os.process_kill(state.play.process)
 	_, _ = os.process_wait(state.play.process) // Reap it
 	drainOutput(state, flush = true)
@@ -268,6 +270,8 @@ startGame :: proc(state: ^State) -> skald.Command(Msg) {
 	append(&command, playerTarget(state).binary, projectDir)
 	// Developer keys (F9: collision shapes, F10: the debug overlay); exported games never get them
 	append(&command, "--dev")
+	// The live view (the Live tab): commands on its stdin, replies in its output
+	append(&command, "--live")
 	// The machine's sound device (Settings > Editor); exported games use the system's default
 	if device := FixedText_String(&state.settings.audioDevice); device != "" do append(&command, "--audio-device", strings.clone(device, context.temp_allocator))
 	if playScene != "" {
@@ -276,9 +280,11 @@ startGame :: proc(state: ^State) -> skald.Command(Msg) {
 	} else {
 		logLine(state, .Info, fmt.aprintf("Playing %s", projectDir))
 	}
-	if !startProcess(state, command[:], projectDir) {
+	Live_Reset(&state.live)
+	if !startProcess(state, command[:], projectDir, live = true) {
 		return {}
 	}
+	Live_Send(state, "watch")
 	state.play.stage = .Running
 	state.playState = .Playing
 	state.bottomTab = .Console
@@ -287,22 +293,31 @@ startGame :: proc(state: ^State) -> skald.Command(Msg) {
 
 // Starts a child process with stdout and stderr going into one pipe
 @(private="file")
-startProcess :: proc(state: ^State, command: []string, workingDir: string) -> bool {
+startProcess :: proc(state: ^State, command: []string, workingDir: string, live := false) -> bool {
 	reader, writer, pipeErr := os.pipe()
 	if pipeErr != nil {
 		logLine(state, .Error, fmt.aprintf("Play: couldn't create a pipe: %v", pipeErr))
 		return false
 	}
-	process, err := os.process_start({command = command, working_dir = workingDir, stdout = writer, stderr = writer})
-	// The child has its own copy; closing ours lets reads end when the child exits
+	// The game's stdin: the live view writes commands to it
+	inRead, inWrite: ^os.File
+	if live {
+		inRead, inWrite, pipeErr = os.pipe()
+		if pipeErr != nil do inRead, inWrite = nil, nil
+	}
+	process, err := os.process_start({command = command, working_dir = workingDir, stdout = writer, stderr = writer, stdin = inRead})
+	// The child has its own copies; closing ours lets reads end when the child exits
 	os.close(writer)
+	if inRead != nil do os.close(inRead)
 	if err != nil {
+		if inWrite != nil do os.close(inWrite)
 		os.close(reader)
 		logLine(state, .Error, fmt.aprintf("Play: couldn't start %s: %v", command[0], err))
 		return false
 	}
 	state.play.process = process
 	state.play.pipe = reader
+	state.play.stdin = inWrite
 	return true
 }
 
@@ -343,6 +358,11 @@ emitLine :: proc(state: ^State, line: string) {
 		append(&state.play.described, '\n')
 		return
 	}
+	// The live view's replies aren't log lines
+	if state.play.stage == .Running && strings.has_prefix(line, "@@live ") {
+		Live_Ingest(state, strings.trim_right(line[len("@@live "):], "\r"))
+		return
+	}
 	line, level := parseLogLine(strings.trim_right(line, "\r"))
 	if state.play.stage == .Building {
 		outputLine(state, level, strings.clone(line))
@@ -354,6 +374,8 @@ emitLine :: proc(state: ^State, line: string) {
 @(private="file")
 endSession :: proc(state: ^State) {
 	if state.play.pipe != nil do os.close(state.play.pipe)
+	if state.play.stdin != nil do os.close(state.play.stdin)
+	state.live.connected = false
 	delete(state.play.partial)
 	delete(state.play.described)
 	state.play = {}
@@ -525,4 +547,17 @@ parseLogLine :: proc(line: string) -> (text: string, level: LogLevel) {
 	}
 	if strings.contains(line, "Error") || strings.contains(line, "ERROR") do return line, .Error
 	return line, .Info
+}
+
+// Pauses or resumes the game: through its live link (it keeps drawing and answering, and it works
+// everywhere), else with a signal (POSIX only)
+@(private="file")
+pauseGame :: proc(state: ^State, pause: bool) -> bool {
+	if state.live.connected && Live_Send(state, pause ? "pause" : "resume") {
+		state.live.paused = pause
+		state.live.pausePending = true
+		state.live.pauseSent = time.tick_now()
+		return true
+	}
+	return signalGame(state, pause ? .Pause : .Resume)
 }

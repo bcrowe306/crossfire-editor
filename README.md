@@ -373,6 +373,11 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
+**The Live tab:** while a game runs from Play, the bottom panel's **Live** tab shows it: pause it
+and step it a frame at a time, see its frame times (update, physics and draw, with a graph), list
+the running scene's nodes (those scripts made too) and change their values while it plays. Pause
+(F6) goes through it, so it works on Windows too. See the [manual's Live page](docs/manual/live.md).
+
 **Pathfinding:** a **NavRegion** node covers the area characters walk in with a grid, blocked
 wherever static bodies are (a tilemap's or LDtk level's walls count); a **NavAgent** inside a
 character finds the shortest way through it (A*, straightened) with `e.NavAgent_SetTarget` and

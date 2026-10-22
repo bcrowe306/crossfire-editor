@@ -5,7 +5,7 @@ import "gui:skald"
 
 /*
 Bottom panel: Console, Output, Animation (view_animation.odin), Mixer (view_mixer.odin), Git
-(view_git.odin), Tiles (view_tiles.odin) and Timeline (view_timeline.odin) tabs.
+(view_git.odin), Tiles (view_tiles.odin) Timeline (view_timeline.odin) and Live (view_live.odin) tabs.
 Keyboard shortcuts are listed in Settings > Keyboard (Help > Keyboard Shortcuts opens it). The chevron collapses it to just its header;
 clicking a tab while collapsed opens it again.
 */
@@ -58,6 +58,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Git:       content = GitPanel(s, ctx)
 	case .Tiles:     content = TilesPanel(s, ctx)
 	case .Timeline:  content = TimelinePanel(s, ctx)
+	case .Live:      content = LivePanel(s, ctx)
 	}
 
 	return skald.col(

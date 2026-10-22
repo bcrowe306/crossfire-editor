@@ -12,6 +12,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 | Page | What it covers |
 |---|---|
 | [Keyframe animation](animation.md) | Animator nodes and the Timeline: clips, tracks and keys that move, turn, scale, fade and change any node over time; curves; events that call your code |
+| [The Live tab](live.md) | The game running from Play, seen from the editor: pause and step a frame, frame times (update, physics, draw), the running scene's nodes and their values, changed while it plays |
 | [Pathfinding and navigation](navigation.md) | NavRegion grids blocked by walls, NavAgents finding paths (A*) and walking characters along them around each other; doors, chasing, events |
 | [2D lighting](lighting.md) | Lit scenes: an ambient light, point and spot lights, shadows from occluders and static bodies, editing in the dark, lights in scripts and animations |
 | [The UI system](ui.md) | Panels, buttons, progress bars, text fields, scroll boxes and rich text for menus and HUDs: anchors, row / column / grid layouts, themes, 9-patch images, keyboard and gamepad focus, scripts |
@@ -33,7 +34,7 @@ older features follow.
 - **Browser**: the panel on the left listing the project's scenes and assets.
 - **Viewport**: the picture of the scene in the middle, where nodes are placed.
 - **Bottom panel**: the tabs under the viewport (Console, Output, Animation, Mixer, Git, Tiles,
-  Timeline).
+  Timeline, Live).
   Ctrl+J shows or hides it.
 - **Play** (F5): runs the game in its own window, the way players will see it.
 - **Undo** (Ctrl+Z) and **Redo** (Ctrl+Shift+Z): every edit in a scene can be taken back.

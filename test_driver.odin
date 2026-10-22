@@ -199,6 +199,9 @@ Checks:
 	                             The selected UI control's settings ("none" for empty text)
 	nav <cellSize|agentRadius|diagonal|speed|autoMove|width> <value>
 	                             The selected NavRegion's or NavAgent's settings
+	live <connected|paused|nodes|properties|selected> <value>
+	                             The Live tab's view of the running game (counts for nodes and
+	                             properties; selected: true when a node is chosen)
 	scene_lit <true | false>     The open scene's lighting is on
 	light <kind|energy|radius|angle|shadows> <value>
 	                             The selected Light2D's settings
@@ -1464,6 +1467,23 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "autoMove":    found = fmt.tprint(n.autoMove)
 		case "width":       found = fmt.tprint(selected.shapeSize.x)
 		case: return false, fmt.tprintf("unknown nav field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "live":
+		field, _, expected := strings.partition(value, " ")
+		switch field {
+		case "connected":  found = fmt.tprint(s.live.connected)
+		case "paused":     found = fmt.tprint(s.live.paused)
+		case "nodes":      found = fmt.tprint(len(s.live.nodes))
+		case "properties": found = fmt.tprint(len(s.live.properties))
+		case "selected":   found = fmt.tprint(s.live.selected != "")
+		case: return false, fmt.tprintf("unknown live field '%s'", field)
+		}
+		// Counts: "> n" passes for more than n
+		if strings.has_prefix(expected, "> ") {
+			n, _ := strconv.parse_int(expected[2:])
+			have, _ := strconv.parse_int(found)
+			return have > n, found
 		}
 		return found == strings.trim_space(expected), found
 	case "scene_lit":

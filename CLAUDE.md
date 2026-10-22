@@ -169,6 +169,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
 | `bundle.odin` | Running from a macOS app bundle: `Editor_SetupBundle` (the data folder as working folder, settings there, the bundled Vulkan through `bundle_darwin.odin`), `Editor_DemoProject` / `Editor_ShippedDemo` (where the demo is, and the shipped copy), `Folder_Copy`, `Editor_ArgumentPath` |
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
+| `live_edit.odin` | **The live view**: `LiveView` (`State.live`: the running game's tree, chosen node's properties, stats, frame-time history), `Live_Send` (to the game's stdin), `Live_Ingest` (its `@@live` replies), `Live_Update`, `Live_Reset` |
+| `view_live.odin` | The bottom panel's Live tab (`LivePanel`): pause / step, stats and the frame-time graph, the nodes, the chosen node's fields (side by side, or stacked in a narrow panel) |
 | `nav_edit.odin` | **Navigation**: `NodeDef.nav` (`e.NavSettings`; a region's area is `shapeSize`), `Nav_Setting_Changed` (`NavNumberTarget`), the NavRegion and NavAgent inspector rows (`navInspectorRows`) |
 | `light_edit.odin` | **2D lighting**: `NodeDef.light` (`e.LightSettings`), `Light_Setting_Changed`, `Scene_Lighting_Changed`, the light and occluder inspector rows (`lightInspectorRows`; occluders use `shapeRows`), the scene preview's lighting rows (`sceneLightingRows`) |
 | `ui_edit.odin` | **UI controls** (Panel, Button, ProgressBar, TextField, ScrollBox, RichText): `NodeDef.ui` (the engine's `e.UISettings`), `UI_Setting_Changed` / `UIEdit_Update`, the inspector's rows (`uiInspectorRows`), `NodeKind_IsControl` |
@@ -1347,6 +1349,24 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
   `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## The live view (implemented, `live_edit.odin`, `view_live.odin`; engine: live.odin)
+
+- **The link:** `startGame` passes `--live` and `startProcess(..., live = true)` gives the game a
+  stdin pipe (`PlaySession.stdin`, closed by `endSession`); `watch` is sent at once. `emitLine`
+  hands `@@live ` lines to `Live_Ingest` instead of the Console.
+- **Pause** (`playPause`, F6, the toolbar) goes through the link when connected (`pauseGame`),
+  else through the signal (POSIX); Stop no longer needs a SIGCONT first then.
+- **Stale stats:** a stats line the game sent before it read a pause or resume arrives after the
+  editor changed `live.paused`; until one agrees (or 2 s pass, `pausePending`) they're ignored.
+  Without that the Step button vanished under a click and the next click sent pause again
+  (live.script caught it).
+- **Edits** are sent as typed (`set`; the game refuses what doesn't parse, logged); typed text is
+  kept in `live.edits` until another node is chosen, since the node's values come back every
+  half second. Nothing is undoable or saved: it's the running game.
+- Tests: `the_live_view_reads_the_game`, `tests/ui/live.script` (plays the fixture: connects,
+  nodes, properties, pause / step / resume by the tab and F6/F5, an edit; driver check
+  `live <field>` with `> n` counts). User guide: `docs/manual/live.md`.
 
 ## Navigation (implemented, `nav_edit.odin`; engine: navigation.odin)
 
