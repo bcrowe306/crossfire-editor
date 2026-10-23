@@ -105,6 +105,47 @@ Scene_Tree_Resized :: distinct f32
 // Sent by the layout when the workspace size changes
 Workspace_Measured :: distinct [2]f32
 
+// The Console's (output: the Output tab's) Follow toggle in its header: keep the newest line in view
+Log_Follow_Toggled :: struct {
+	output: bool,
+}
+// The view saw the list scrolled up (follow false) or back to its end (true)
+Log_Follow_Set :: struct {
+	output: bool,
+	follow: bool,
+}
+// A level's toggle in the header: show or hide its lines
+Log_Level_Toggled :: struct {
+	output: bool,
+	level: LogLevel,
+}
+// A category picked in the header's category menu: show or hide its lines (the menu stays open)
+Log_Category_Toggled :: struct {
+	output: bool,
+	// Index into the list's `categories`
+	category: int,
+}
+// Show every category again
+Log_Categories_Shown :: struct {
+	output: bool,
+}
+// The header's search box: only lines containing the text, any case (the string is the frame's)
+Log_Search_Changed :: struct {
+	output: bool,
+	text: string,
+}
+// Every filter off: all levels, all categories, no search
+Log_Filters_Cleared :: struct {
+	output: bool,
+}
+// The test driver's `console_fill`: count lines added to the Console, as a running game's would
+// ("<category> line <serial>"; the category string is the frame's)
+Log_Test_Lines :: struct {
+	count: int,
+	level: LogLevel,
+	category: string,
+}
+
 Bottom_Tab_Changed :: distinct int
 Scene_Tab_Changed  :: distinct int
 // A scene tab's × (by tab index, as Scene_Tab_Changed): the tab hides, the scene stays
@@ -1234,6 +1275,15 @@ Msg :: union {
 	Tab_Command,
 	File_Command,
 	Log_Command,
+	// The Console's and Output tab's following and filters (console.odin)
+	Log_Follow_Toggled,
+	Log_Follow_Set,
+	Log_Level_Toggled,
+	Log_Category_Toggled,
+	Log_Categories_Shown,
+	Log_Search_Changed,
+	Log_Filters_Cleared,
+	Log_Test_Lines,
 	Script_Open_External,
 	Asset_Add_To_Scene,
 	Graph_Command,

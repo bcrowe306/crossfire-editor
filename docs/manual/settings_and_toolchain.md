@@ -82,6 +82,9 @@ The colors you set are saved in `editor.ini`'s `[theme]` section, one line each 
 | **Longest merged edit** | 3000 ms | A long run of merged changes is still cut into steps this long (0: never cut) |
 | **Undo steps kept** | 200 | How far back Undo goes; the oldest steps are dropped |
 
+**Console:** **Console lines kept** (5000) is how many lines the Console and the Output tab each
+keep; past it the oldest go. See [the Console](getting_started.md#the-console-and-output-tabs).
+
 **Viewport:** the grid belongs to the project (Project Settings > Grid). **Wheel pans** (off by
 default) makes the mouse wheel move the view and Ctrl + wheel zoom: nicer on a touchpad.
 **Rotation snap** (15°) and **Scale snap** (0.1) are the steps Rotate and Scale drags snap to,

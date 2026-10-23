@@ -140,13 +140,13 @@ project_shaders_new_compile_and_export :: proc(t: ^testing.T) {
 	testing.expect(t, os.exists(joinPath(state.project.rootPath, "assets/shaders/shader.frag.shader", allocator = context.temp_allocator)), "compiled when made")
 	broken := joinPath(state.project.rootPath, "assets/shaders/shader_2.frag", allocator = context.temp_allocator)
 	_ = os.write_entire_file(broken, transmute([]byte)string("#version 450\nvoid main() { nope; }\n"))
-	before := len(state.console)
+	before := len(LogList_Lines(&state.console))
 	{
 		context.logger = log.nil_logger()
 		testing.expect(t, !Shaders_Compile(&state, force = true), "one doesn't compile")
 	}
 	logged := false
-	for line in state.console[before:] do if strings.contains(line.text, "assets/shaders/shader_2.frag:2:") do logged = true
+	for line in LogList_Lines(&state.console)[before:] do if strings.contains(line.text, "assets/shaders/shader_2.frag:2:") do logged = true
 	testing.expect(t, logged, "the Console says where")
 }
 

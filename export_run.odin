@@ -241,7 +241,7 @@ advance :: proc(state: ^State) -> skald.Command(Msg) {
 			continue
 		}
 		step := job.plan.steps[job.step]
-		outputLine(state, .Info, fmt.aprintf("[%s] %s", EXPORT_TARGETS[job.plan.target].label, step.label))
+		outputLine(state, .Info, fmt.aprintf("[%s] %s", EXPORT_TARGETS[job.plan.target].label, step.label), category = LOG_EXPORT_CATEGORY)
 		if step.kind == .Command {
 			if startCommand(state, step) do return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Export_Tick{}))
 			failJob(state, fmt.tprintf("couldn't start %s", step.command[0]))
@@ -254,7 +254,7 @@ advance :: proc(state: ^State) -> skald.Command(Msg) {
 		job.step += 1
 	}
 	summary := fmt.tprintf("Export finished: %d succeeded, %d failed", session.succeeded, session.failed)
-	outputLine(state, session.failed > 0 ? .Warning : .Info, strings.clone(summary))
+	outputLine(state, session.failed > 0 ? .Warning : .Info, strings.clone(summary), category = LOG_EXPORT_CATEGORY)
 	return {}
 }
 
@@ -293,7 +293,7 @@ runFileStep :: proc(state: ^State, step: ExportStep) -> string {
 			// Saved under the name the game asks for (the soname ldd printed), resolving symlinks
 			to := joinPath(step.path, filepath.base(library), allocator = context.temp_allocator)
 			if err := os.copy_file(to, library); err != nil do return fmt.tprintf("couldn't copy %s: %v", library, err)
-			outputLine(state, .Info, fmt.aprintf("  %s", filepath.base(library)))
+			outputLine(state, .Info, fmt.aprintf("  %s", filepath.base(library)), category = LOG_EXPORT_CATEGORY)
 		}
 	case .Make_Folder:
 		if err := os.make_directory_all(step.path); err != nil && !os.is_dir(step.path) do return fmt.tprintf("couldn't create %s: %v", step.path, err)
@@ -364,12 +364,12 @@ startCommand :: proc(state: ^State, step: ExportStep) -> bool {
 	session := &state.exporting
 	reader, writer, pipeErr := os.pipe()
 	if pipeErr != nil do return false
-	outputLine(state, .Info, fmt.aprintf("$ %s", strings.join(step.command, " ", context.temp_allocator)))
+	outputLine(state, .Info, fmt.aprintf("$ %s", strings.join(step.command, " ", context.temp_allocator)), category = LOG_EXPORT_CATEGORY)
 	process, err := os.process_start({command = step.command, working_dir = step.workingDir, stdout = writer, stderr = writer})
 	os.close(writer)
 	if err != nil {
 		os.close(reader)
-		outputLine(state, .Error, fmt.aprintf("%v", err))
+		outputLine(state, .Error, fmt.aprintf("%v", err), category = LOG_EXPORT_CATEGORY)
 		return false
 	}
 	session.running = true
@@ -422,8 +422,8 @@ exportLine :: proc(state: ^State, line: string, capture: bool) {
 		append(&state.exporting.captured, '\n')
 		return
 	}
-	text, level := parseLogLine(strings.trim_right(line, "\r"))
-	outputLine(state, level, strings.clone(text))
+	text, level, category := parseLogLine(strings.trim_right(line, "\r"))
+	outputLine(state, level, strings.clone(text), category = category != "" ? category : LOG_EXPORT_CATEGORY)
 }
 
 /*

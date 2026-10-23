@@ -1,0 +1,140 @@
+# The Console (console.odin, view_bottom.odin): the header's level toggles, category menu, search
+# and Follow toggle; scrolling up pauses following and scrolling back to the end resumes it; a
+# line's menu; the history limit (Settings > Editor); a game's lines arriving with their category
+# and level (the engine's logger), and the Output tab's filters.
+# Builds the project's player (a few seconds unoptimized). Run with: task test:ui
+
+wait 5
+send Bottom_Tab Console
+action Clear_Console
+expect console_lines 0
+console_fill 30 Info game
+console_fill 5 Warning player
+console_fill 3 Error ai
+expect console_lines 38
+expect console_shown 38
+expect console_following true
+
+# Levels: a toggle hides its lines, again shows them
+click_widget console-scroll-level-Warning
+expect console_shown 33
+click_widget console-scroll-level-Info
+expect console_shown 3
+click_widget console-scroll-level-Warning
+click_widget console-scroll-level-Info
+expect console_shown 38
+
+# Search: any case; Escape empties it
+click_widget console-scroll-search
+type AI LINE
+expect console_shown 3
+key escape
+expect console_shown 38
+
+# Categories: the menu lists them checked; picks keep it open
+click_widget console-scroll-categories
+wait_until context_menu open
+expect context_item player (5) checked
+click_context_item player
+expect context_menu open
+expect console_category player hidden
+click_context_item ai
+expect console_category ai hidden
+expect console_shown 30
+key escape
+wait_until context_menu closed
+click_widget console-scroll-categories
+wait_until context_menu open
+click_context_item Show All
+expect console_shown 38
+key escape
+wait_until context_menu closed
+
+# A line's menu: hide its category, then everything again. Scrolled to the top first, which
+# stops following (the lines are the newest's otherwise)
+wheel_widget console-scroll 50
+wait_until console_following false
+right_click_widget console-scroll-line-0
+wait_until context_menu open
+expect context_item Copy Line enabled
+click_context_item Hide 'game'
+expect console_shown 8
+right_click_widget console-scroll-line-30
+wait_until context_menu open
+expect context_item Hide 'player' enabled
+click_context_item Show Everything
+expect console_shown 38
+# Back to the end: following again
+wheel_widget console-scroll -400
+wait_until console_following true
+
+# Following: the toggle, then scrolling up pauses it and back to the end resumes it
+click_widget console-scroll-follow
+expect console_following false
+click_widget console-scroll-follow
+expect console_following true
+console_fill 300 Info game
+wait 3
+wheel_widget console-scroll 5
+wait_until console_following false
+console_fill 20 Info game
+wait 3
+expect console_following false
+wheel_widget console-scroll -400
+wait_until console_following true
+
+# The history limit: Settings > Editor > Console lines kept; the oldest go
+expect setting console_limit 5000
+action Open_Settings
+wait_until settings_dialog open
+click_widget settings-tab-Editor
+scroll_into_view settings-editor-scroll settings-Console_Limit
+click_widget settings-Console_Limit
+key ctrl+a
+type 100
+key RETURN
+click_widget settings-save
+expect setting console_limit 100
+expect console_lines 100
+console_fill 150 Info late
+expect console_lines 100
+expect console_first late line
+
+# A game's lines: its script logs with categories and levels; the engine's are "engine"
+action Clear_Console
+write_project_file scripts/talker.odin package scripts\n\nimport "core:log"\nimport e "engine:."\n\nTalker :: struct {\n\tusing script: e.Script,\n}\n\n@(init)\nregisterTalker :: proc "contextless" () {\n\te.Script_Register(Talker, {\n\t\tready = proc(self: ^Talker) {\n\t\t\te.Log_Warning("Low health: %d", 12, category = "player")\n\t\t\te.Log_Debug("Path from %v", [2]f32{1, 2}, category = "ai")\n\t\t\te.Log_Info("Talker ready")\n\t\t\tlog.info("Plain core:log line")\n\t\t},\n\t})\n}\n
+action Build_Scripts
+wait_until scripts Ready timeout=240
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+send Node_Script_Added Talker
+expect script Talker
+key ctrl+s
+key ctrl+F5
+wait_until play Playing timeout=240
+wait_until console_contains Low health: 12 timeout=30
+expect console_line_category player Warning Low health: 12
+expect console_line_category ai Debug Path from [1, 2]
+expect console_line_category game Info Talker ready
+expect console_line_category game Info Plain core:log line
+expect console_line_category engine Info scripts registered)
+expect console_category player shown
+key shift+F5
+wait_until play Stopped
+
+# The Output tab: the build's lines, with the same filters
+send Bottom_Tab Output
+expect output_category build shown
+expect output_following true
+click_widget output-scroll-level-Info
+click_widget output-scroll-level-Warning
+click_widget output-scroll-level-Error
+click_widget output-scroll-level-Debug
+expect output_shown 0
+right_click_widget output-scroll-area
+wait_until context_menu open
+click_context_item Show Everything
+expect output_category build shown
+quit

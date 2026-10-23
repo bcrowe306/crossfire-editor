@@ -6,6 +6,7 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:time"
+import e "engine:."
 import "gui:skald"
 
 /*
@@ -399,11 +400,12 @@ emitLine :: proc(state: ^State, line: string) {
 		Live_Ingest(state, strings.trim_right(line[len("@@live "):], "\r"))
 		return
 	}
-	line, level := parseLogLine(strings.trim_right(line, "\r"))
+	line, level, category := parseLogLine(strings.trim_right(line, "\r"))
 	if state.play.stage == .Building {
 		outputLine(state, level, strings.clone(line))
 	} else {
-		logLine(state, level, strings.clone(line), echo = false)
+		// The game's lines carry their category (the engine's logger); plain prints are the game's
+		logLine(state, level, strings.clone(line), echo = false, category = category != "" ? category : e.LOG_DEFAULT_CATEGORY)
 	}
 }
 
@@ -545,31 +547,34 @@ absolutePath :: proc(path: string) -> string {
 
 @(private="package")
 clearOutput :: proc(state: ^State) {
-	for line in state.output do delete(line.text)
-	clear(&state.output)
+	LogList_Clear(&state.output)
 }
 
-// Appends a line to the Output tab. text must be heap-allocated; the list owns it
+// Appends a line to the Output tab, in `category` (builds' by default). text must be
+// heap-allocated; the list owns it
 @(private="package")
-outputLine :: proc(state: ^State, level: LogLevel, text: string) {
-	append(&state.output, LogLine{level, text})
+outputLine :: proc(state: ^State, level: LogLevel, text: string, category := LOG_BUILD_CATEGORY) {
+	LogList_Append(&state.output, level, category, text, state.settings.consoleLimit)
 }
 
 /*
-Splits a line from a child process into its text and level. Lines from Odin's console logger,
-like `[WARN ] --- [2026-10-15 18:17:10] [main.odin:45:run()] message`, lose the level tag and
-timestamp (the console shows the level itself); other lines are kept as they are, and count as
-errors if they look like one (compiler errors contain "Error" or "ERROR").
+Splits a line from a child process into its text, level and category. Lines from the engine's
+logger (`[WARN ] [player] message`: `e.Log_ParseLine`) give all three. Lines from Odin's console
+logger, like `[WARN ] --- [2026-10-15 18:17:10] [main.odin:45:run()] message`, lose the level tag
+and timestamp (the console shows the level itself); other lines are kept as they are, and count
+as errors if they look like one (compiler errors contain "Error" or "ERROR"). Those have no
+category: the caller picks one.
 
 Inputs:
 - line: One line of output
 
 Returns:
-- The text to show and its level
+- The text to show, its level and its category ("" when the line didn't say)
 */
-parseLogLine :: proc(line: string) -> (text: string, level: LogLevel) {
+parseLogLine :: proc(line: string) -> (text: string, level: LogLevel, category: string) {
+	if l, c, t, ok := e.Log_ParseLine(line); ok do return t, l, c
 	LEVELS :: [?]struct{tag: string, level: LogLevel}{
-		{"[DEBUG", .Info}, {"[INFO", .Info}, {"[WARN", .Warning}, {"[ERROR", .Error}, {"[FATAL", .Error},
+		{"[DEBUG", .Debug}, {"[INFO", .Info}, {"[WARN", .Warning}, {"[ERROR", .Error}, {"[FATAL", .Error},
 	}
 	for entry in LEVELS {
 		if !strings.has_prefix(line, entry.tag) do continue
@@ -577,13 +582,13 @@ parseLogLine :: proc(line: string) -> (text: string, level: LogLevel) {
 		if separator := strings.index(line, "] --- ["); separator >= 0 {
 			rest := line[separator + len("] --- ["):]
 			if end := strings.index(rest, "] "); end >= 0 {
-				return rest[end + 2:], entry.level
+				return rest[end + 2:], entry.level, ""
 			}
 		}
-		return line, entry.level
+		return line, entry.level, ""
 	}
-	if strings.contains(line, "Error") || strings.contains(line, "ERROR") do return line, .Error
-	return line, .Info
+	if strings.contains(line, "Error") || strings.contains(line, "ERROR") do return line, .Error, ""
+	return line, .Info, ""
 }
 
 // Pauses or resumes the game: through its live link (it keeps drawing and answering, and it works

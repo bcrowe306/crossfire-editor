@@ -60,6 +60,8 @@ expect project_file_contains scripts/assets.odin DATA_FAST_SHIP :: e.DataAsset{"
 # Play: the global starts with the value set in Project Settings
 key F5
 wait_until console_contains Starting with 4 lives timeout=240
+# The template logs in its own category (the engine's logger: the Console reads it with the line)
+expect console_line_category GameState Info Starting with 4 lives
 key shift+F5
 wait_until play Stopped
 quit

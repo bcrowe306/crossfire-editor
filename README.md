@@ -39,7 +39,9 @@ task run      # build and run the editor; it opens the demo project (the first r
 ```
 
 Press **Play** (F5) to run the open project. The first time, the editor builds the engine's game
-player (progress in the **Output** tab), then starts the game; its log appears in the **Console**.
+player (progress in the **Output** tab), then starts the game; its log appears in the **Console**,
+each line with its level and category (the engine's, SDL's, your scripts' own: `e.Log_Info(...,
+category = "player")`), filtered by level, category and text, and following the newest line.
 **Stop** (Shift+F5) closes it.
 
 To open a different project: File > Open Project (Ctrl+O), or `task run -- path/to/project`. To use an engine checkout somewhere
@@ -102,7 +104,7 @@ The Taskfile passes the flags every build needs:
 | Left | Project browser: scenes and assets |
 | Center | Scene tabs and the scene view |
 | Right | Scene node tree and the inspector for the selected node |
-| Bottom | Console / Output / Animation tabs, collapsible (Ctrl+J) |
+| Bottom | Console / Output / Animation tabs, collapsible (Ctrl+J); the Console and Output filter their lines and keep the newest (Settings > Editor > Console lines kept) |
 
 ## Project browser
 

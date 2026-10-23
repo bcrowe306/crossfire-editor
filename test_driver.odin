@@ -32,6 +32,11 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 
 	wait <frames>                    Let frames pass
 	wait_until <check> [timeout=<s>] Wait (default 10 s) until a check passes; fails on timeout
+	console_fill <n> [<Level> [<category>]]   Add n lines to the Console, as a game would
+	                                 (Log_Test_Lines; Info and "game" by default)
+	frame_times <frames> [<lines>]   Time that many frames, adding lines to the Console on each;
+	                                 reports the median, p95 and max. With SKALD_BENCH_UNCAP=1
+	                                 SKALD_BENCH_FRAMES=1000000000 every frame draws, uncapped
 	expect <check>                   Fail unless the check passes now
 	click_widget <key>               Click the center of a widget's visible part, e.g. toolbar-play
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
@@ -196,7 +201,7 @@ Checks:
 	ldtk_level <identifier|first>    The selected LDtkLevel node's level
 	about_dialog <open | closed>, confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
-	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit> <value>
+	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit | console_limit> <value>
 	project_grid <width> <height> <majorEvery> <opacity> <majorOpacity>   The project's viewport grid
 	                             An active (applied) setting
 	chord <Action> <text>        An action's shortcuts as the settings file writes them, e.g.
@@ -206,6 +211,13 @@ Checks:
 	undo <count>                 Steps on the undo stack
 	redo <count>                 Steps on the redo stack
 	console_contains <text>      A console line contains the text
+	console_lines <n>, output_lines <n>   Lines the Console (Output tab) keeps
+	console_shown <n>, output_shown <n>   ... of them its filters let through
+	console_following <true | false>, output_following   The list follows its newest line
+	console_first <text>         The oldest line the Console keeps contains the text
+	console_category <name> <shown | hidden | missing>, output_category   A category's filter
+	console_line_category <category> <Level> <text>   The first Console line containing the text
+	                             has that category and level
 	output_contains <text>       An Output line contains the text
 	export <idle | running>      Whether exports are running
 	archive <idle | busy>        Whether a project archive is being written or unpacked
@@ -391,6 +403,12 @@ Driver :: struct {
 	lastScrollY: f32,
 	windowSettled: time.Tick,
 	ready: bool,
+	// frame_times: frames left to time, lines added each of them, the last frame's start, the
+	// frame times so far (milliseconds)
+	timing: int,
+	timingLines: int,
+	timingLast: time.Tick,
+	times: [dynamic]f64,
 }
 
 // A new window may still be resized (tiled) right after it opens; the script starts once its
@@ -476,6 +494,24 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 		return
 	}
 
+	// frame_times: one frame timed per frame
+	if driver.timing > 0 {
+		now := time.tick_now()
+		if driver.timingLast != {} do append(&driver.times, time.duration_milliseconds(time.tick_diff(driver.timingLast, now)))
+		driver.timingLast = now
+		driver.timing -= 1
+		if driver.timingLines > 0 do skald.send(ctx, Msg(Log_Test_Lines{count = driver.timingLines, level = .Info, category = "spam"}))
+		if driver.timing == 0 {
+			slice.sort(driver.times[:])
+			n := len(driver.times)
+			if n > 0 {
+				report(true, fmt.tprintf("frame_times: %d frames, median %.2f ms, p95 %.2f ms, max %.2f ms (%d console lines)",
+					n, driver.times[n / 2], driver.times[min(n * 95 / 100, n - 1)], driver.times[n - 1], len(LogList_Lines(&s.console))))
+			}
+			clear(&driver.times)
+		}
+		return
+	}
 	// Events queued by the previous command go out one batch per frame
 	if len(driver.pending) > 0 {
 		batch := driver.pending[0]
@@ -1393,6 +1429,28 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		skald.send(ctx, Msg(Node_Picked(index)))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
+		return false
+
+	case "console_fill":
+		// console_fill <n> [<Level> [<category>]]: lines added as a game's would be
+		count := atoi(args, 0, 1)
+		level := LogLevel.Info
+		if len(args) > 1 {
+			if l, ok := reflect.enum_from_name(LogLevel, args[1]); ok do level = l
+		}
+		category := len(args) > 2 ? args[2] : e.LOG_DEFAULT_CATEGORY
+		skald.send(ctx, Msg(Log_Test_Lines{count = count, level = level, category = strings.clone(category, context.temp_allocator)}))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "frame_times":
+		// frame_times <frames> [<lines a frame>]: times that many frames (each forced), adding lines
+		// to the Console each frame. Run with SKALD_BENCH_UNCAP=1 SKALD_BENCH_FRAMES=1000000000 to
+		// draw every frame without waiting for the display
+		driver.timing = max(atoi(args, 0, 120), 2)
+		driver.timingLines = atoi(args, 1, 0)
+		driver.timingLast = {}
 		return false
 
 	case "open_project":
@@ -2501,6 +2559,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "theme":         found = fmt.tprint(s.settings.theme)
 		case "undo_merge_ms": found = fmt.tprint(s.settings.undoMergeMs)
 		case "undo_limit":    found = fmt.tprint(s.settings.undoLimit)
+		case "console_limit": found = fmt.tprint(s.settings.consoleLimit)
 		case: return false, fmt.tprintf("unknown setting '%s'", setting)
 		}
 		return found == strings.trim_space(expected), found
@@ -2604,12 +2663,39 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found := strings.contains(string(data), text)
 		return name == "project_file_contains" ? found : !found, found ? "found" : "not found"
 	case "console_contains", "output_contains":
-		lines := name == "console_contains" ? s.console[:] : s.output[:]
+		lines := LogList_Lines(name == "console_contains" ? &s.console : &s.output)
 		for line in lines do if strings.contains(line.text, value) do return true, "found"
 		return false, fmt.tprintf("%d lines, none match", len(lines))
 	case "console_lacks":
-		for line in s.console do if strings.contains(line.text, value) do return false, line.text
+		for line in LogList_Lines(&s.console) do if strings.contains(line.text, value) do return false, line.text
 		return true, "none"
+	case "console_lines", "output_lines":
+		found = fmt.tprint(len(LogList_Lines(name == "console_lines" ? &s.console : &s.output)))
+	case "console_shown", "output_shown":
+		found = fmt.tprint(len(LogList_Shown(name == "console_shown" ? &s.console : &s.output)))
+	case "console_following", "output_following":
+		found = (name == "console_following" ? s.console : s.output).paused ? "false" : "true"
+	case "console_first":
+		lines := LogList_Lines(&s.console)
+		if len(lines) == 0 do return false, "no lines"
+		return strings.contains(lines[0].text, value), lines[0].text
+	case "console_category", "output_category":
+		// console_category <name> <shown | hidden | missing>
+		list := name == "console_category" ? &s.console : &s.output
+		category, _, want := strings.partition(value, " ")
+		found = "missing"
+		for c in list.categories do if c.name == category do found = c.hidden ? "hidden" : "shown"
+		return found == strings.trim_space(want), found
+	case "console_line_category":
+		// console_line_category <category> <Level> <text>: the first line containing the text came
+		// with that category and level
+		category, _, rest := strings.partition(value, " ")
+		level, _, text := strings.partition(strings.trim_space(rest), " ")
+		for line in LogList_Lines(&s.console) do if strings.contains(line.text, strings.trim_space(text)) {
+			found = fmt.tprintf("%s %v", LogList_CategoryName(&s.console, line), line.level)
+			return found == fmt.tprintf("%s %s", category, level), found
+		}
+		return false, "no such line"
 	case:
 		return false, fmt.tprintf("unknown check '%s'", name)
 	}

@@ -198,6 +198,7 @@ fieldTip :: proc(label: string) -> string {
 	case "Merge edits within": return "Edits to the same field closer together than this become one undo step."
 	case "Longest merged edit": return "A run of merged edits is cut into a new undo step after this long (0: never)."
 	case "Undo steps kept": return "How many undo steps are kept."
+	case "Console lines kept": return "How many lines the Console and the Output tab each keep. Past it, the oldest lines are dropped."
 	case "Grid width":     return "The width of a viewport grid cell, in world units (snapping uses it)."
 	case "Grid height":    return "The height of a viewport grid cell, in world units (snapping uses it)."
 	case "Major lines every": return "A more opaque grid line every this many cells, dividing the grid into blocks. 0: none."

@@ -55,7 +55,7 @@ plugins_build_load_and_run :: proc(t: ^testing.T) {
 	testing.expect(t, waitLoaded(&state, 1), "loaded")
 	list := Plugins_List()
 	if len(list) != 1 || list[0].status != .Loaded {
-		for line in state.output do testing.expectf(t, false, "%s", line.text)
+		for line in LogList_Lines(&state.output) do testing.expectf(t, false, "%s", line.text)
 		return
 	}
 	testing.expect_value(t, list[0].name, "Grid Tools")

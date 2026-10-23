@@ -505,7 +505,7 @@ pluginHostSetup :: proc() {
 	plugins.host = {
 		version = api.PLUGIN_API_VERSION,
 		log = proc(text: string, warning := false) {
-			if pluginState != nil do logLine(pluginState, warning ? .Warning : .Info, strings.clone(text))
+			if pluginState != nil do logLine(pluginState, warning ? .Warning : .Info, strings.clone(text), category = LOG_PLUGIN_CATEGORY)
 		},
 		projectRoot = proc() -> string { return absolutePath(pluginState.project.rootPath) },
 		sceneName = proc() -> string { return hostScene().name },

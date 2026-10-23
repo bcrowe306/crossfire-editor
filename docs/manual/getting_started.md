@@ -91,6 +91,27 @@ name in the inspector) to see what it does.
 **Help > User Manual** (F1) opens this manual, and **Help > Keyboard Shortcuts** lists every
 shortcut (you can change them there too).
 
+### The Console and Output tabs
+
+The **Console** shows what the editor and your game say; the **Output** tab, what building and
+exporting say. Each line has a level (Debug, Info, Warning in yellow, Error in red) and a
+category (what it's about: **engine**, **SDL**, **editor**, **game**, or your scripts' own, see
+[Logging](scripts.md#logging)). The row over the lines filters them:
+
+| Control | What it does |
+|---|---|
+| **Search** | Only lines containing the text, in any case. Escape empties it |
+| **Errors**, **Warnings**, **Info**, **Debug** | Each shows or hides its lines; the number is how many there are |
+| **All categories** | A menu of every category seen so far, checked when shown: pick as many as you like (it stays open), **Show All** shows them again |
+| **↓** (Follow) | Keeps the newest line in view (on at first). Scrolling up stops it, so you can read; scrolling back to the end starts it again |
+
+When some lines are hidden the row says how many show ("12 of 340 lines"). Right-click a line
+to copy it, copy every line shown, hide its category or show only it, or turn every filter off
+(**Show Everything**). The trash button in the panel's corner clears the tab.
+
+The Console keeps the newest 5000 lines and drops the oldest: **Settings > Editor > Console
+lines kept** changes how many.
+
 ## Your first game
 
 A picture and a line of text on the screen. It takes five minutes and no code.

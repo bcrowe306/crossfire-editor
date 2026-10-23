@@ -301,7 +301,6 @@ ScriptKind :: enum {
 GlobalScriptTemplate :: proc(name: string) -> string {
 	return strings.concatenate({`package scripts
 
-import "core:log"
 import e "engine:."
 import sdl "vendor:sdl3"
 
@@ -327,7 +326,8 @@ register_`, name, ` :: proc "contextless" () {
 	e.Script_Register(`, name, `, {
 		// Once, when the game starts (after the scenes are built)
 		ready = proc(self: ^`, name, `) {
-			log.infof("Starting with %d lives", self.lives)
+			// In the Console with its category and level (e.Log_Debug, Log_Info, Log_Warning, Log_Error)
+			e.Log_Info("Starting with %d lives", self.lives, category = "`, name, `")
 		},
 		// Every frame, before the scene updates
 		update = proc(self: ^`, name, `, events: []sdl.Event, dt: f64) {

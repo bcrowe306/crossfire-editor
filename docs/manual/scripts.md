@@ -154,7 +154,52 @@ register_Spinner :: proc "contextless" () {
 ```
 
 (`log` is `import "core:log"`; its messages show in the editor's **Console** tab while the game
-plays.)
+plays. The engine's own logging adds a level and a category to each line: see
+[Logging](#logging).)
+
+## Logging
+
+Write to the Console with `e.Log_Debug`, `e.Log_Info`, `e.Log_Warning` and `e.Log_Error`. The
+text is formatted like `fmt.printf` (`%d` for numbers, `%v` for anything, `%.2f` for two
+decimals), and `category` says what the line is about:
+
+```odin
+e.Log_Info("Level %d started", 3)
+e.Log_Warning("Low health: %d", 12, category = "player")
+e.Log_Debug("Path from %v to %v", [2]f32{0, 0}, [2]f32{100, 40}, category = "ai")
+e.Log(.Error, "save", "Couldn't write slot %d", 2)
+```
+
+| Level | For | Shown |
+|---|---|---|
+| `.Debug` | Details for finding a problem | In games played from the editor; exported games leave them out unless they call `e.Log_SetLevel(.Debug)` |
+| `.Info` | What happens as the game runs | Always |
+| `.Warning` | Something unexpected the game carries on from | Always, in yellow |
+| `.Error` | Something that failed | Always, in red |
+
+A line without a category is in **game**. Pick short names, one per part of your game ("player",
+"ai", "save"): the Console's category menu lists every one it has seen, so you can show only the
+part you're working on. The other categories you'll see:
+
+| Category | What |
+|---|---|
+| **engine** | The engine's own messages (the scene it plays, the renderer, warnings about your scenes) |
+| **SDL** | SDL's messages (the windowing, graphics and sound library under the engine) |
+| **editor** | The editor's messages (opened, saved, imported...) |
+| **plugin** | [Editor plugins](plugins.md)' messages |
+| **build**, **export** | Building and exporting, in the Output tab |
+
+`log.info` and the rest of `core:log` still work: their lines are in **game** (or **engine** for
+the engine's). Plain `fmt.println` lines show too, as **game** Info lines.
+
+**In an exported game** the lines go to the game's standard output (a terminal, when you start it
+from one) and to the computer's log: the debugger's output on Windows, the Console app on macOS,
+the browser's console on the web. Each line reads the same everywhere:
+
+```text
+[INFO ] [engine] Playing 'Asteroids' (3 scenes, start: Title, 2 scripts registered)
+[WARN ] [player] Low health: 12
+```
 
 ## Exported fields
 
@@ -498,6 +543,13 @@ it), a type from the table above, and a build.
 the inspector's dropdown, and check the Console for the warning.
 
 **Things move faster on a faster computer.** Multiply by `dt`.
+
+**My `e.Log_Debug` lines don't show in the exported game.** Exported games leave debug lines
+out. Call `e.Log_SetLevel(.Debug)` (in a global script's `ready`, say) to keep them.
+
+**The Console doesn't show my line.** Check its filters: the level buttons, the category menu
+and the search box (the header says "12 of 340 lines" when some are hidden). Right-click a line
+and choose **Show Everything** to turn them all off.
 
 **Can I see a script run without playing?** No: the viewport doesn't run scripts. Play, and use
 the [Live tab](live.md) to look inside the running game.

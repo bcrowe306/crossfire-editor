@@ -235,6 +235,7 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	draft := &s.settingsDialog.draft
 	msRange :: [2]f32{f32(SETTINGS_UNDO_MS_RANGE[0]), f32(SETTINGS_UNDO_MS_RANGE[1])}
 	limitRange :: [2]f32{f32(SETTINGS_UNDO_LIMIT_RANGE[0]), f32(SETTINGS_UNDO_LIMIT_RANGE[1])}
+	consoleRange :: [2]f32{f32(SETTINGS_CONSOLE_LIMIT_RANGE[0]), f32(SETTINGS_CONSOLE_LIMIT_RANGE[1])}
 	// Scrolls: the Scripts settings at the bottom don't fit the dialog's height
 	content := skald.col(
 		skald.text("Undo", th.color.fg, th.font.size_md),
@@ -243,6 +244,10 @@ editorTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Longest merged edit", numberSetting(ctx, s, .Undo_Group_Max_Ms, f64(draft.undoGroupMaxMs), 250, msRange, "ms")),
 		hint(ctx, "A long run of merged edits is still cut into steps this long. 0 never cuts. Dragging in the viewport is always one step."),
 		settingRow(ctx, "Undo steps kept", numberSetting(ctx, s, .Undo_Limit, f64(draft.undoLimit), 10, limitRange, "")),
+		skald.spacer(th.spacing.sm),
+		skald.text("Console", th.color.fg, th.font.size_md),
+		settingRow(ctx, "Console lines kept", numberSetting(ctx, s, .Console_Limit, f64(draft.consoleLimit), 500, consoleRange, "lines")),
+		hint(ctx, "The Console and the Output tab each keep this many lines; the oldest are dropped."),
 		skald.spacer(th.spacing.sm),
 		skald.text("Viewport", th.color.fg, th.font.size_md),
 		hint(ctx, "The grid is the project's: Project Settings > Grid (View > Grid Settings)."),

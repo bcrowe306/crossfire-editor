@@ -27,7 +27,10 @@ menu bar do the same thing), then `Context_Menu_Closed`.
 	Ctx_Browser       the browser's row (selected first): per scene, asset kind, script, folder
 	Ctx_Scene_Tab     a scene tab: play, set as start, show in the browser, close (others, right)
 	Ctx_Code_Tab      a code tab: save, close (others, saved), copy path, show in the browser
-	Ctx_Log           a Console or Output line: copy it, copy all, clear
+	Ctx_Log           a Console or Output line: copy it, copy all shown, hide or show only its
+	                  category, show everything, clear
+	Ctx_Log_Categories  the Console's (Output's) category button: every category seen, checked
+	                  when shown (picking one keeps the menu open: `ContextMenu.keepOpen`)
 
 Widget key: `context-menu` (the driver's `click_context_item <label>[/<submenu label>]`).
 */
@@ -41,6 +44,7 @@ ContextTarget :: union {
 	Ctx_Scene_Tab,
 	Ctx_Code_Tab,
 	Ctx_Log,
+	Ctx_Log_Categories,
 	Ctx_Graph,
 	Ctx_Align,
 	Ctx_Guide,
@@ -76,10 +80,16 @@ Ctx_Scene_Tab :: distinct int
 // A code tab (0-based)
 Ctx_Code_Tab :: distinct int
 
-// A line of the Console (or the Output tab); -1: below the lines
+// A line of the Console (or the Output tab), by its serial number (`LogList.serial` + its index,
+// so lines dropped meanwhile don't shift it); -1: below the lines
 Ctx_Log :: struct {
 	output: bool,
 	line: int,
+}
+
+// The Console's (or the Output tab's) category filter button: its menu of categories
+Ctx_Log_Categories :: struct {
+	output: bool,
 }
 
 // A box or empty space in one of the bottom panel's graphs (context_menus_panels.odin)
@@ -113,6 +123,9 @@ ContextMenu :: struct {
 	// Where it opened (window px)
 	at: [2]f32,
 	target: ContextTarget,
+	// The item just chosen keeps it open: the next `Context_Menu_Closed` is ignored (several
+	// categories picked in a row)
+	keepOpen: bool,
 }
 
 // What a node menu does to the selection's roots (`Node_Command`)
@@ -154,7 +167,12 @@ FileCommand :: enum {
 // What a log menu does (`Log_Command`)
 LogCommand :: enum {
 	Copy_Line,
+	// The lines the tab shows (its filters applied)
 	Copy_All,
+	// Filter out the line's category
+	Hide_Category,
+	// Show the line's category alone
+	Only_Category,
 }
 
 // The menu for a target, opened at a point (window px)
@@ -227,6 +245,11 @@ ContextMenu_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 		}
 		return {}, true
 	case Context_Menu_Closed:
+		// An item that keeps the menu open (the category filter's) came just before
+		if state.contextMenu.keepOpen {
+			state.contextMenu.keepOpen = false
+			return {}, true
+		}
 		state.contextMenu.open = false
 		return {}, true
 	case Node_Command:
@@ -251,15 +274,28 @@ ContextMenu_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 		state.assetDrag.asset = int(v)
 		return skald.cmd_now(Msg(Asset_Dropped{world = state.viewport.center})), true
 	case Log_Command:
-		log := v.output ? state.output[:] : state.console[:]
+		list := logListOf(state, v.output)
+		log := LogList_Lines(list)
+		// The line by its serial number: older lines may have been dropped since the menu opened
+		line := v.line - list.serial
 		text := ""
 		switch v.op {
 		case .Copy_Line:
-			if v.line >= 0 && v.line < len(log) do text = log[v.line].text
+			if line >= 0 && line < len(log) do text = log[line].text
 		case .Copy_All:
+			// What the tab shows: the lines that pass its filters
 			lines := make([dynamic]string, context.temp_allocator)
-			for line in log do append(&lines, line.text)
+			for i in LogList_Shown(list) do append(&lines, log[i].text)
 			text = strings.join(lines[:], "\n", context.temp_allocator)
+		case .Hide_Category, .Only_Category:
+			if line >= 0 && line < len(log) {
+				category := log[line].category
+				if v.op == .Only_Category {
+					for &c, i in list.categories do c.hidden = i != category
+				} else if category >= 0 && category < len(list.categories) {
+					list.categories[category].hidden = true
+				}
+			}
 		}
 		if text != "" do _ = sdl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 		return {}, true
@@ -310,6 +346,7 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 	case Ctx_Scene_Tab: sceneTabItems(s, &items, int(t))
 	case Ctx_Code_Tab:  codeTabItems(s, &items, int(t))
 	case Ctx_Log:       logItems(s, &items, t)
+	case Ctx_Log_Categories: logCategoryItems(s, &items, t)
 	case Ctx_Graph:     ContextMenu_PanelItems(s, &items, t)
 	case Ctx_Align:     append(&items, ..ViewportTools_AlignItems(s))
 	case Ctx_Guide:
@@ -687,12 +724,37 @@ codeTabItems :: proc(s: ^State, items: ^MenuItems, index: int) {
 
 @(private="file")
 logItems :: proc(s: ^State, items: ^MenuItems, t: Ctx_Log) {
-	log := t.output ? s.output[:] : s.console[:]
+	list := logListOf(s, t.output)
+	log := LogList_Lines(list)
+	// t.line is the line's serial number (`LogList.serial` + its index)
+	index := t.line - list.serial
+	onLine := t.line >= 0 && index >= 0 && index < len(log)
+	category := onLine ? LogList_CategoryName(list, log[index]) : ""
 	append(items,
-		msgItem("Copy Line", Msg(Log_Command{.Copy_Line, t.output, t.line}), disabled = t.line < 0 || t.line >= len(log)),
-		msgItem("Copy All", Msg(Log_Command{.Copy_All, t.output, -1}), disabled = len(log) == 0),
+		msgItem("Copy Line", Msg(Log_Command{.Copy_Line, t.output, t.line}), disabled = !onLine),
+		msgItem(LogList_Filtered(list) ? "Copy All Shown" : "Copy All", Msg(Log_Command{.Copy_All, t.output, -1}), disabled = len(log) == 0),
+		MENU_SEPARATOR,
+		msgItem(onLine ? fmt.tprintf("Hide '%s'", category) : "Hide Category", Msg(Log_Command{.Hide_Category, t.output, t.line}), disabled = !onLine),
+		msgItem(onLine ? fmt.tprintf("Show Only '%s'", category) : "Show Only Category", Msg(Log_Command{.Only_Category, t.output, t.line}), disabled = !onLine),
+		msgItem("Show Everything", Msg(Log_Filters_Cleared{t.output}), disabled = !LogList_Filtered(list)),
 		MENU_SEPARATOR,
 		actionItem(s, "Clear", .Clear_Console, disabled = len(log) == 0))
+}
+
+// The Console's (or Output tab's) category filter, from its header's button: every category seen,
+// checked when shown; picking one flips it and the menu stays open
+@(private="file")
+logCategoryItems :: proc(s: ^State, items: ^MenuItems, t: Ctx_Log_Categories) {
+	list := logListOf(s, t.output)
+	allShown := true
+	for c in list.categories do if c.hidden do allShown = false
+	append(items, msgItem("Show All", Msg(Log_Categories_Shown{t.output}), disabled = allShown), MENU_SEPARATOR)
+	if len(list.categories) == 0 do append(items, msgItem("(no lines yet)", Msg(Log_Categories_Shown{t.output}), disabled = true))
+	for c, i in list.categories {
+		item := msgItem(fmt.tprintf("%s (%d)", c.name, c.count), Msg(Log_Category_Toggled{t.output, i}))
+		item.checked = !c.hidden
+		append(items, item)
+	}
 }
 
 // COMMANDS

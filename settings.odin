@@ -54,6 +54,8 @@ Settings :: struct {
 	// A merged run is cut after this long, 0 = never (throttle)
 	undoGroupMaxMs: int,
 	undoLimit: int,
+	// Lines the Console and the Output tab keep each; the oldest are dropped (console.odin)
+	consoleLimit: int,
 	// The program that opens scripts: a path to its executable, or a name looked up in PATH
 	codeEditorPath: FixedText,
 	// Its arguments, split on spaces: {file} and {line} are replaced ("{file}:{line}")
@@ -102,6 +104,8 @@ SETTINGS_ROTATE_SNAP_RANGE :: [2]f32{1, 90}
 SETTINGS_SCALE_SNAP_RANGE :: [2]f32{0.01, 1}
 SETTINGS_UNDO_MS_RANGE :: [2]int{0, 10000}
 SETTINGS_UNDO_LIMIT_RANGE :: [2]int{1, 10000}
+// Console lines kept
+SETTINGS_CONSOLE_LIMIT_RANGE :: [2]int{100, 100000}
 
 /*
 Text stored inline, so `Settings` stays a plain value that can be copied (the Settings dialog edits
@@ -196,6 +200,7 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 			case "undo_merge_ms":     target, limits = &settings.undoMergeMs, SETTINGS_UNDO_MS_RANGE
 			case "undo_group_max_ms": target, limits = &settings.undoGroupMaxMs, SETTINGS_UNDO_MS_RANGE
 			case "undo_limit":        target, limits = &settings.undoLimit, SETTINGS_UNDO_LIMIT_RANGE
+			case "console_limit":     target, limits = &settings.consoleLimit, SETTINGS_CONSOLE_LIMIT_RANGE
 			case "grid_size", "grid_width", "grid_height", "grid_major_every", "grid_opacity", "grid_major_opacity":
 				// Older files: the grid is the project's now (Project Settings > Grid)
 				continue
@@ -334,8 +339,8 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 	fmt.sbprintf(&b, "[theme]\ncorner_radius = %v\n", settings.cornerRadius)
 	for which in ThemeColor do if which in settings.themeColorsSet do fmt.sbprintf(&b, "%s = %s\n", THEME_COLOR_KEYS[which], ThemeColor_Format(settings.themeColors[which]))
 	strings.write_string(&b, "\n")
-	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\ncode_editor_builtin = %v\ncode_editor_auto_close = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\naseprite_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nhot_reload = %v\nviewport_wheel_pans = %v\nrotate_snap = %v\nscale_snap = %v\nimport_folder = %s\naudio_device = %s\n\n",
-		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit,
+	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\nconsole_limit = %d\ncode_editor_builtin = %v\ncode_editor_auto_close = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\naseprite_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nhot_reload = %v\nviewport_wheel_pans = %v\nrotate_snap = %v\nscale_snap = %v\nimport_folder = %s\naudio_device = %s\n\n",
+		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit, settings.consoleLimit,
 		settings.builtInCodeEditor, settings.autoClosePairs, FixedText_String(&settings.olsPath), FixedText_String(&settings.odinPath), FixedText_String(&settings.ldtkPath),
 		FixedText_String(&settings.asepritePath), FixedText_String(&settings.codeEditorPath), FixedText_String(&settings.codeEditorArgs), settings.optimizedPlay, settings.hotReload, settings.wheelPans, settings.rotateSnap, settings.scaleSnap, FixedText_String(&settings.importFolder), FixedText_String(&settings.audioDevice))
 	strings.write_string(&b, "[keymap]\n")

@@ -3972,7 +3972,7 @@ emscripten_install_finishing :: proc(t: ^testing.T) {
 	}
 	testing.expect(t, !state.emscriptenInstalling && state.exportAfterEmscripten == {}, "done, nothing waiting")
 	found := false
-	for line in state.console do if strings.contains(line.text, "Installing Emscripten failed: no network") do found = true
+	for line in LogList_Lines(&state.console) do if strings.contains(line.text, "Installing Emscripten failed: no network") do found = true
 	testing.expect(t, found, "the reason is in the Console")
 	free_all(context.temp_allocator)
 }

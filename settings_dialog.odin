@@ -43,6 +43,7 @@ SettingsField :: enum {
 	Undo_Merge_Ms,
 	Undo_Group_Max_Ms,
 	Undo_Limit,
+	Console_Limit,
 	Rotate_Snap,
 	Scale_Snap,
 	Corner_Radius,
@@ -118,6 +119,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		case .Undo_Merge_Ms:     draft.undoMergeMs = clamp(int(v.value), SETTINGS_UNDO_MS_RANGE[0], SETTINGS_UNDO_MS_RANGE[1])
 		case .Undo_Group_Max_Ms: draft.undoGroupMaxMs = clamp(int(v.value), SETTINGS_UNDO_MS_RANGE[0], SETTINGS_UNDO_MS_RANGE[1])
 		case .Undo_Limit:        draft.undoLimit = clamp(int(v.value), SETTINGS_UNDO_LIMIT_RANGE[0], SETTINGS_UNDO_LIMIT_RANGE[1])
+		case .Console_Limit:     draft.consoleLimit = clamp(int(v.value), SETTINGS_CONSOLE_LIMIT_RANGE[0], SETTINGS_CONSOLE_LIMIT_RANGE[1])
 		case .Rotate_Snap:       draft.rotateSnap = clamp(f32(v.value), SETTINGS_ROTATE_SNAP_RANGE[0], SETTINGS_ROTATE_SNAP_RANGE[1])
 		case .Scale_Snap:        draft.scaleSnap = clamp(f32(v.value), SETTINGS_SCALE_SNAP_RANGE[0], SETTINGS_SCALE_SNAP_RANGE[1])
 		case .Corner_Radius:     draft.cornerRadius = clamp(f32(v.value), SETTINGS_CORNER_RADIUS_RANGE[0], SETTINGS_CORNER_RADIUS_RANGE[1])
@@ -186,6 +188,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 			return liveTheme(draft), true
 		case .Editor:
 			draft.undoMergeMs, draft.undoGroupMaxMs, draft.undoLimit = defaults.undoMergeMs, defaults.undoGroupMaxMs, defaults.undoLimit
+			draft.consoleLimit = defaults.consoleLimit
 			draft.codeEditorPath, draft.codeEditorArgs, draft.optimizedPlay = defaults.codeEditorPath, defaults.codeEditorArgs, defaults.optimizedPlay
 			draft.hotReload = defaults.hotReload
 			draft.wheelPans = defaults.wheelPans
@@ -203,6 +206,9 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		dialog.capture = {}
 	case Settings_Applied:
 		state.settings = draft^
+		// A lower limit applies at once
+		LogList_Trim(&state.console, state.settings.consoleLimit)
+		LogList_Trim(&state.output, state.settings.consoleLimit)
 		AudioPreview_SetDevice(FixedText_String(&state.settings.audioDevice))
 		dialog.capture = {}
 		if v.close do dialog.open = false

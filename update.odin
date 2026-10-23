@@ -95,6 +95,7 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
 	if command, handled := ContextMenu_Update(&out, m); handled do return out, command
+	if Console_Update(&out, m) do return out, {}
 	if ViewportTools_Update(&out, m) do return out, {}
 	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
 	if command, handled := Session_Update(&out, m); handled do return out, command
@@ -204,6 +205,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Guide_Added, Guide_Moved, Guide_Removed, Guides_Cleared,
 	     Text_Copied:
 		// Handled by ContextMenu_Update and ViewportTools_Update above
+	case Log_Follow_Toggled, Log_Follow_Set, Log_Level_Toggled, Log_Category_Toggled,
+	     Log_Categories_Shown, Log_Search_Changed, Log_Filters_Cleared, Log_Test_Lines:
+		// Handled by Console_Update above
 	case Audio_Field_Changed:
 		node := selectedNode(&out)
 		if node == nil || !isSoundKind(node.kind) do break
@@ -1259,9 +1263,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		out.layout.bottomOpen = !out.layout.bottomOpen
 	case .Clear_Console:
 		// Clears whichever log tab is showing
-		lines := out.bottomTab == .Output ? &out.output : &out.console
-		for line in lines do delete(line.text)
-		clear(lines)
+		LogList_Clear(logListOf(&out, out.bottomTab == .Output))
 
 	case .Tool_Select: out.tool = .Select
 	case .Tool_Move:   out.tool = .Move

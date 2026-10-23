@@ -284,7 +284,7 @@ playReloadLine :: proc(state: ^State, line: string) {
 		append(&reload.described, '\n')
 		return
 	}
-	text, level := parseLogLine(strings.trim_right(line, "\r"))
+	text, level, _ := parseLogLine(strings.trim_right(line, "\r"))
 	outputLine(state, level, strings.clone(text))
 }
 

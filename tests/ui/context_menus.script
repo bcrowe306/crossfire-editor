@@ -123,8 +123,10 @@ wait_until context_menu open
 click_context_item Close Others
 expect scene_tabs MenuScene
 
-# The Console: a line's menu copies it; Clear empties it
+# The Console: a line's menu copies it; Clear empties it. The Console follows its newest line:
+# scrolled to the top first, so the oldest shows
 send Bottom_Tab Console
+wheel_widget console-scroll 500
 right_click_widget console-scroll-line-0
 wait_until context_menu open
 expect context_item Copy Line enabled

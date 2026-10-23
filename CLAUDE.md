@@ -233,7 +233,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
 | `view_inspector_particles.odin` | The inspector's ParticleEmitter settings, built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`, Reset) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
-| `view_bottom.odin` | Bottom panel: Console / Output / Animation / Mixer tabs, collapsible |
+| `view_bottom.odin` | Bottom panel: Console / Output / Animation / Mixer tabs, collapsible; the log tabs' view (`logView`: header of filters, a `virtual_list` of lines, `logFollow`) |
+| `console.odin` | **The Console's and Output tab's lines**: `LogList` (`State.console` / `output`: lines with a level and category, the categories seen, counts, the history limit, filters, following), `LogList_Append` / `Trim` / `Clear` / `Shown`, `LOG_*_CATEGORY`, `LogLevel` (the engine's), `Console_Update` (the `Log_*` messages) |
+| `console_test.odin` | Tests: categories and the limit, filters, the game's lines parsed, the messages and menus, the setting |
 | `mixer.odin` | Mix buses: `BusDef`, `Buses_FromData` (Master first), names (`BusNameProblem`), `Bus_NodeCount`, `isSoundKind`, the Mixer's messages (`Mixer_Update`) |
 | `view_mixer.odin` | The Mixer tab (`MixerPanel`, built in `skald.sized`), like a DAW's: a channel strip per bus (node count, remove, pan, fader beside its level meter, dB, mute, name at the bottom), scrolling sideways; Master pinned on the right, + beside it |
 | `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
@@ -761,12 +763,50 @@ runtime exports will ship.
    with `-o:speed`). Output goes to the **Output** tab.
 3. A project player then runs with `--describe-scripts` (stage `.Describing`); its JSON becomes
    the script catalog (`ScriptCatalog_Parse`), shown by the inspector.
-4. Run `player <absolute project folder>`. Its output goes to the **Console**, with the engine
-   logger's level tag and timestamp stripped (`parseLogLine`).
+4. Run `player <absolute project folder>`. Its output goes to the **Console**: the engine's
+   logger writes `[LEVEL] [category] text` and `parseLogLine` (`e.Log_ParseLine`) gives each line
+   its level and category; other lines are "game" Info lines (compiler-looking errors: Error).
+   See "The Console" below.
 
 **Build Scripts** (Ctrl+B, and once in the background when a project with scripts opens) does steps
 2-3 only. `PlaySession.purpose` says which; `.Describe` is its zero value on purpose, and it must be
 carried across `endSession` between steps (losing it once made describing start the game).
+
+### The Console (implemented, `console.odin`, `view_bottom.odin`; engine: logging.odin)
+
+console.odin's doc comment describes it; what the code relies on:
+- **Lines carry a level and a category index** (`LogLine.category` into `LogList.categories`,
+  kept after Clear so the menu still lists them). `logLine` (the editor's ~250 calls, category
+  "editor" by default), `outputLine` ("build"; exports pass "export"), the game's lines (Play's
+  `emitLine`: the parsed category, else "game"), plugins ("plugin").
+- **The limit** (`Settings.consoleLimit`, `console_limit`, 5000; Settings > Editor) is applied on
+  every append (`LogList_Trim`) and when Settings apply. Kept lines are `lines[start:]`; the
+  array is compacted when `start` reaches half of it. **Use `LogList_Lines`**, never `lines`.
+  `serial` numbers lines across drops: the line menu's `Ctx_Log.line` is a serial, so a menu
+  opened before lines were dropped still copies the right one.
+- **Only visible rows are built:** `logView` filters (`LogList_Shown`, every frame: levels,
+  hidden categories, an ASCII case-folding search) and hands the indexes to `skald.virtual_list`
+  (fixed rows of `logRowHeight`); rows' widget keys are `<list>-line-<index>`, their state keyed
+  by serial. Measured (debug build, fullscreen, Intel UHD 620, `frame_times` with
+  `SKALD_BENCH_UNCAP`): before, a column of every line: 7.6 ms a frame empty, 98 ms with 1000
+  lines, 5.3 s with 5000; now 8.4 ms empty, 10.5 ms with 1000, 10.6 ms with 5000, 12.9 ms at the
+  limit with 10 new lines a frame, 11.3 ms searching.
+- **Following** is view-side: `logFollow` reads the list's Skald scroll state before
+  `virtual_list` builds. Following: it sets the offset to the end (and `reveal_row` the last row,
+  for the first frame after the list was hidden: Skald resets a state not drawn last frame). The
+  offset moving up while following sends `Log_Follow_Set{false}`; moving to the end while paused
+  `{true}`; the header's toggle is `Log_Follow_Toggled`. Paused, the top row's line stays at the
+  top as lines are dropped or filters change (`logScrollSeen`: its serial and offset).
+- **The category menu** is a context menu target (`Ctx_Log_Categories`, opened by the header's
+  button at its corner); `Log_Category_Toggled` sets `ContextMenu.keepOpen`, so the
+  `Context_Menu_Closed` the popup sends after an item is ignored once and several can be picked.
+- Nothing here is undoable (not in `History_Classify`).
+- Driver: `console_fill <n> [Level [category]]` (`Log_Test_Lines`), `frame_times <frames>
+  [lines]`; checks `console_lines`, `console_shown`, `console_following`, `console_first`,
+  `console_category`, `console_line_category`, the `output_*` ones, `setting console_limit`.
+  Tests: `console_test.odin`, `tests/ui/console.script` (the controls, the limit, a game with a
+  script logging with categories and levels). User guide: `docs/manual/getting_started.md`
+  (the Console), `docs/manual/scripts.md#logging`.
 
 ### Built-in code editor (implemented, `code_editor/`, `code_editor_host.odin`, `code_tabs.odin`)
 
@@ -2284,6 +2324,8 @@ Highlights:
   (`ctx.widgets.states`) without touching its state. **Give every widget a test should reach a
   stable `hash_id` key.** Existing keys:
   - toolbar buttons `toolbar-<name>`, panel buttons `panel-<name>`
+  - the Console and Output tabs: `console-scroll` / `output-scroll` (the list; `-area` the list or
+    its placeholder), `-line-<i>`, `-search`, `-level-<Level>`, `-categories`, `-follow`
   - trees `browser-tree` / `scene-tree`, the search box `browser-search`
   - dialog buttons `dialog-<name>`, the viewport `viewport-canvas`
   - Add Node dialog: `add-node-search`, rows `add-node-<Kind>` (e.g. `add-node-Sprite`), `add-node-cancel`

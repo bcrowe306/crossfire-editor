@@ -62,18 +62,6 @@ BottomTab :: enum {
 	Plugins,
 }
 
-LogLevel :: enum {
-	Info,
-	Warning,
-	Error,
-}
-
-// One line in the console panel
-LogLine :: struct {
-	level: LogLevel,
-	text: string,
-}
-
 // Folders shown in the project browser
 BrowserFolder :: enum {
 	Scenes,
@@ -340,10 +328,10 @@ State :: struct {
 	playState: PlayState,
 	bottomTab: BottomTab,
 	layout: Layout,
-	// Console tab: editor messages and the running game's output
-	console: [dynamic]LogLine,
-	// Output tab: build output
-	output: [dynamic]LogLine,
+	// Console tab: editor messages and the running game's output, with its filters (console.odin)
+	console: LogList,
+	// Output tab: build and export output
+	output: LogList,
 	play: PlaySession,
 	exporting: ExportSession,
 }
@@ -450,10 +438,8 @@ State_Destroy :: proc(state: ^State) {
 	TilePainter_Destroy(&state.tilePainter)
 	TimelineEditor_Destroy(&state.timeline)
 	Live_Reset(&state.live)
-	for line in state.console do delete(line.text)
-	delete(state.console)
-	for line in state.output do delete(line.text)
-	delete(state.output)
+	LogList_Destroy(&state.console)
+	LogList_Destroy(&state.output)
 	delete(state.browserSearch)
 	delete(state.addNode.search)
 	Subtree_Destroy(&state.clipboard)
@@ -485,12 +471,14 @@ State_Destroy :: proc(state: ^State) {
 	ExportSession_Destroy(state)
 }
 
-// Appends a line to the console. text must be heap-allocated; the console owns it.
-// echo also writes it to the editor's own log
-logLine :: proc(state: ^State, level: LogLevel, text: string, echo := true) {
-	append(&state.console, LogLine{level, text})
+// Appends a line to the console, in `category` (the editor's own by default), dropping the oldest
+// past Settings' limit. text must be heap-allocated; the console owns it. echo also writes it to
+// the editor's own log
+logLine :: proc(state: ^State, level: LogLevel, text: string, echo := true, category := LOG_EDITOR_CATEGORY) {
+	LogList_Append(&state.console, level, category, text, state.settings.consoleLimit)
 	if !echo do return
 	switch level {
+	case .Debug:   log.debug(text)
 	case .Info:    log.info(text)
 	case .Warning: log.warn(text)
 	case .Error:   log.error(text)
