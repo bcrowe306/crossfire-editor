@@ -42,7 +42,7 @@ expect code_tab mover.odin
 # A scene tree node dropped on the code tab becomes a node field (Camera: row 1, its path from
 # Spaceship); saved and built, the inspector picks the node among the scene's cameras, and the
 # game sets it before ready (no warning when it plays, below)
-drag_row_to scene-tree 1 code-editor
+drag_row_to scene-tree 1 code-editor at_text using script: e.Script,
 wait_until code_contains true camera: ^e.Camera2D `export:"default=../Camera"` timeout=5
 key ctrl+s
 wait_until scripts Ready timeout=240
@@ -99,7 +99,7 @@ wait 30
 right_click_row scene-tree 3
 click_context_item Save as Component
 wait_until components 1 timeout=5
-drag_asset_to components/ code-editor
+drag_asset_to components/ code-editor at_text using script: e.Script,
 wait_until code_contains true : e.ComponentAsset `export:"default=components/ timeout=5
 expect code_contains true e.Scene_AddComponent(self.scene, self.
 # (the drag scrolled the browser to the component: back to the top for the rows below)
@@ -137,7 +137,8 @@ action Build_Scripts
 wait_until scripts Ready timeout=240
 
 # Selected, its preview tells what it is and where it's used: a click on a node using it opens
-# its scene and selects it
+# its scene and selects it (the scene tree back at its top: a tall window scrolls it to ShipLight)
+scroll_by scene-tree-scroll 0
 click_row scene-tree 0
 expect selected World
 click_row browser-tree 6

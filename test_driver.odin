@@ -115,9 +115,12 @@ copy: `open_project {project}`).
 	right_click_widget <key>         Right-click the middle of a widget (a tab, a log line...)
 	drag_guide <top | left> <world>  Pull a guide out of a ruler to a world y (top) or x (left)
 	drag_guide_back <i>              Drag guide i back onto its ruler (it's removed)
-	drag_row_to <tree key> <row> <widget key>
+	drag_row_to <tree key> <row> <widget key> [at_line <n> [<column>] | at_text <text>]
 	                                 Drag a row onto a widget (a scene tree node onto the code tab:
-	                                 code-editor)
+	                                 code-editor). Onto the code tab, say where: a line (1-based;
+	                                 column 1 unless given) or on the first text found (its start),
+	                                 scrolled into view first; without it, the middle of the view
+	                                 (which line that is depends on the window's size)
 	drag_row <tree key> <from> <to> <before | inside | after>
 	                                 Drag a row onto another row (top quarter, middle, bottom
 	                                 quarter); a `to` past the last row drops below the rows
@@ -158,9 +161,9 @@ copy: `open_project {project}`).
 	select_asset <path>              Select an asset in the browser (its folder opened), e.g. a component
 	right_click_asset <path>         Right-click an asset's browser row (its context menu: browser-menu)
 	double_click_asset <path>        Double-click an asset's browser row
-	drag_asset_to <path start> <widget>
+	drag_asset_to <path start> <widget> [at_line <n> [<column>] | at_text <text>]
 	                                 Drag the first asset whose path starts so onto a widget (a
-	                                 component onto the code tab: code-editor)
+	                                 component onto the code tab: code-editor; where, as drag_row_to)
 	import <path>                    Import a file as an asset, as if picked in the Import dialog
 	import_many <path> <path>...     Import several files at once, as the dialog sends them
 	                                 (native file dialogs can't be scripted)
@@ -379,6 +382,7 @@ Checks:
 	code_inlay <line> <text>         A line's inlay hints contain the text (1-based)
 	code_marker <line> <true | false>   A line has a gutter marker
 	code_diagnostic_has <text>       The code tab shows a problem whose message contains it
+	code_diagnostic_lacks <text>     It shows none whose message contains it
 	script_field <script> <field> <true | false>   The catalog's script has the field (a build's
 	                             or the script index's)
 	script_from_index <script> <true | false>   The catalog's script comes from the index
@@ -1083,6 +1087,46 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return true
 		}
 		to := [2]f32{target.x + target.w * 0.5, target.y + target.h * 0.5}
+		// Onto the code tab at a line or after a text: scrolled into view first (a frame later)
+		if len(args) > 3 {
+			path := CodeTabs_Active(s)
+			codeLine, codeColumn := -1, 0
+			switch args[3] {
+			case "at_line":
+				n, _ := strconv.parse_int(len(args) > 4 ? args[4] : "")
+				codeLine = n - 1
+				if len(args) > 5 do codeColumn, _ = strconv.parse_int(args[5])
+				codeColumn = max(codeColumn - 1, 0)
+			case "at_text":
+				_, _, text := strings.partition(rest, " at_text ")
+				codeLine, codeColumn = CodeEditor_FindText(path, text)
+			case:
+				fail(fmt.tprintf("%s: expected at_line <n> or at_text <text> after the widget", line))
+				return true
+			}
+			if codeLine < 0 {
+				fail(fmt.tprintf("%s: no such line or text in the code tab", line))
+				return true
+			}
+			scrolled, open := CodeEditor_RevealLine(path, codeLine)
+			if !open {
+				fail(fmt.tprintf("%s: no code tab shows", line))
+				return true
+			}
+			if scrolled && driver.scrollAttempts < 5 {
+				driver.scrollAttempts += 1
+				driver.line -= 1
+				driver.waitFrames = INPUT_SETTLE_FRAMES
+				return false
+			}
+			driver.scrollAttempts = 0
+			at, shown := CodeEditor_WindowPoint(path, codeLine, codeColumn)
+			if !shown {
+				fail(fmt.tprintf("%s: the code tab isn't shown", line))
+				return true
+			}
+			to = at
+		}
 		pushMouse(.MOUSE_MOTION, from)
 		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, from))
 		STEPS :: 6
@@ -2496,6 +2540,9 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "code_diagnostic_has":
 		found = fmt.tprint(CodeEditor_DiagnosticHas(CodeTabs_Active(s), strings.trim_space(value)))
 		return found == "true", found
+	case "code_diagnostic_lacks":
+		found = fmt.tprint(CodeEditor_DiagnosticHas(CodeTabs_Active(s), strings.trim_space(value)))
+		return found == "false", found
 	case "script_field", "script_from_index":
 		parts := strings.fields(value, context.temp_allocator)
 		if len(parts) < 2 do return false, "expected a script and more"

@@ -98,7 +98,7 @@ expect project_file_contains scripts/mover.odin // a note
 # A scene tree node dropped on the code tab becomes a node field of the script (Camera: row 1),
 # its path from the node the script is on (Spaceship); one undo step in the code. (Saved and
 # built: scripts.script. Not saved here: a build would change the inspector under later steps)
-drag_row_to scene-tree 1 code-editor
+drag_row_to scene-tree 1 code-editor at_text using script: e.Script,
 wait_until code_contains true camera: ^e.Camera2D `export:"default=../Camera"` timeout=5
 expect console_contains Added camera to Mover
 expect code_dirty true

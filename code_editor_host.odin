@@ -577,6 +577,34 @@ CodeEditor_WindowPoint :: proc(path: string, line, column: int, marker := false)
 }
 
 /*
+Scrolls the shown code tab so a line (0-based) is in view, in the middle when it wasn't (the
+caret stays), for the test driver's drops.
+
+Returns:
+- Whether it scrolled (the next frames show it), and whether the file is open
+*/
+CodeEditor_RevealLine :: proc(path: string, line: int) -> (scrolled, ok: bool) {
+	c := CodeEditor_Find(path)
+	if c == nil do return false, false
+	rows := max(1, ce.editor_text_rows(&c.ed))
+	if line >= c.ed.scroll_line && line < c.ed.scroll_line + rows && c.ed.scroll_col == 0 do return false, true
+	c.ed.scroll_line = max(0, line - rows / 2)
+	c.ed.scroll_col = 0
+	ce.editor_clamp_scroll(&c.ed)
+	return true, true
+}
+
+// Where a text first is in an open file (0-based line and byte column; -1 when it isn't there)
+CodeEditor_FindText :: proc(path, text: string) -> (line, column: int) {
+	c := CodeEditor_Find(path)
+	if c == nil || text == "" do return -1, -1
+	for i in 0 ..< cebuf.buffer_line_count(&c.ed.buf) {
+		if at := strings.index(cebuf.buffer_line_str(&c.ed.buf, i), text); at >= 0 do return i, at
+	}
+	return -1, -1
+}
+
+/*
 An open file's buffer for the script index: its version, whether it has unsaved changes, and
 its text when `wantText` (a temp copy). ("", -1, false when it isn't open.)
 */
