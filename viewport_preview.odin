@@ -232,6 +232,9 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		timeline: struct { previewing: bool, clip: int, time: f32 },
 		// Generated collision shapes are drawn into the picture
 		showShapes: bool,
+		// The scene needs the GPU renderer that runs shaders (a GPU emitter switched on): the
+		// render switches renderers, so it must happen at once
+		effects: bool,
 	}
 	// Images saved since: read again in place, at most twice a second (a frame only comes when
 	// something happens: coming back to the editor after saving in Aseprite is one)
@@ -252,12 +255,21 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		textures = preview.texturesVersion,
 		timeline = {s.timeline.previewing && s.bottomTab == .Timeline && s.layout.bottomOpen, s.timeline.clip, s.timeline.playhead},
 		showShapes = s.viewport.showShapes,
+		effects = Preview_SceneUsesShaders(scene),
 	}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	h ~= previewImportSettings(s)
 	for node in scene.nodes {
 		t := struct { position: [2]f32, rotation: f32, scale: [2]f32, visible: bool, layer: int, zIndex: i32, blendMode: e.BlendMode, ySort: bool }{node.position, node.rotation, node.scale, node.visible, node.layer, node.zIndex, node.blendMode, node.ySort}
 		h = hash.fnv64a(([^]u8)(&t)[:size_of(t)], h)
+		// A line's points and look, a trail's look: copied every frame (syncTransforms), no
+		// rebuild, so only here does an edit to them draw again (a scene with nothing animated, or
+		// an unfocused window, which gets no animation frames, showed the line as it was)
+		if node.kind == .Line2D || node.kind == .Trail2D {
+			line := node.line
+			h = hash.fnv64a(([^]u8)(&line)[:size_of(line)], h)
+			if len(node.points) > 0 do h = hash.fnv64a(([^]u8)(raw_data(node.points))[:len(node.points) * size_of(node.points[0])], h)
+		}
 		// Shader parameters change the picture without a rebuild
 		for p in node.shaderParams {
 			h = hash.fnv64a(transmute([]u8)p.name, h)

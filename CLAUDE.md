@@ -1845,6 +1845,14 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   them with no editor change; a scene with a GPU emitter counts as using shaders
   (`Preview_SceneUsesShaders`, `Project_UsesShaders`): the viewport draws it with the GPU
   renderer, and Auto picks it in games.
+- **They're in `Preview_FrameKey`** (a line's settings and points, and whether the scene needs
+  the effects renderer): the viewport renders only when the key changes, and these change
+  without a rebuild. lines.script failed (no white pixel after typing points; `render_path`
+  stayed `shared` after a GPU emitter) whenever the test window didn't have the keyboard: its
+  only redraws came from the AnimatedSprites' frames, which stop while the window isn't
+  focused (`EditorFocused`); a scene without animations never redrew at all. Not a commit: it
+  failed the same way built from 864be8a, the commit that added the script. Test:
+  `line_edits_and_gpu_emitters_draw_the_viewport_again`.
 - Tests: `lines_and_trails_in_the_editor`, `tests/ui/lines.script` (typed points seen in the
   render, width, joints, closed, undo, a trail under a node, an emitter switched to the GPU and
   `render_path effects`, Play: `Renderer: gpu`; checked with Vulkan validation). User guide:

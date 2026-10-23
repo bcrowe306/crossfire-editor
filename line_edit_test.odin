@@ -89,3 +89,28 @@ lines_and_trails_in_the_editor :: proc(t: ^testing.T) {
 		}
 	}
 }
+
+@(test)
+line_edits_and_gpu_emitters_draw_the_viewport_again :: proc(t: ^testing.T) {
+	// The viewport renders only when its frame key changes: a line's points and look, and a GPU
+	// emitter switching renderers, are copied without a rebuild, so they must be in the key
+	dir := "build/test_line_frame_key"
+	state := freshState(dir)
+	defer removeAll(dir)
+	defer State_Destroy(&state)
+	key :: proc(s: ^State) -> u64 { return Preview_FrameKey(s, {640, 360}, 1) }
+	sendTo(&state, Add_Node_Kind_Chosen(.Line2D))
+	line := &state.project.scenes[state.currentScene].nodes[state.selectedNode]
+	before := key(&state)
+	append(&line.points, [2]f32{400, 300}, [2]f32{900, 300})
+	testing.expect(t, key(&state) != before, "new points draw again")
+	before = key(&state)
+	line.line.width += 10
+	testing.expect(t, key(&state) != before, "a new width draws again")
+
+	sendTo(&state, Add_Node_Kind_Chosen(.ParticleEmitter))
+	emitter := &state.project.scenes[state.currentScene].nodes[state.selectedNode]
+	before = key(&state)
+	emitter.particles.gpu = true
+	testing.expect(t, key(&state) != before, "a GPU emitter switches the viewport's renderer at once")
+}
