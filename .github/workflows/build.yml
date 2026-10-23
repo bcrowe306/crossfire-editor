@@ -405,10 +405,13 @@ jobs:
           PY
           cat latest.json
           aws s3 cp latest.json "s3://$BUCKET/latest.json" --endpoint-url "$ENDPOINT" --content-type application/json --cache-control "max-age=60"
-      - name: Tell the website
-        env:
-          TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
-        run: |
-          if [[ -z "$TOKEN" ]]; then echo "No WEBSITE_DISPATCH_TOKEN: the website's hourly check will notice the release"; exit 0; fi
-          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/bcrowe306/crossfire-astro/dispatches -d '{"event_type":"editor-release"}'
+
+  website:
+    name: Website (crossfireengine.io)
+    # The site's own deploy workflow, run here once the release's files are in R2: its manual and
+    # downloads follow the release at once (it also checks hourly). It uses this repository's
+    # CLOUDFLARE_* secrets.
+    needs: downloads
+    if: github.ref_type == 'tag'
+    uses: bcrowe306/crossfire-astro/.github/workflows/deploy.yml@main
+    secrets: inherit
