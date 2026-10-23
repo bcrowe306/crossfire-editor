@@ -55,6 +55,8 @@ wait_until play Stopped
 
 # Removing the second script
 scroll_into_view inspector-scroll inspector-more-script-0-remove
+# Beside the name, never under the scrollbar (a narrow inspector once hid it there)
+expect clear_of_scrollbar inspector-more-script-0-remove inspector-scroll
 click_widget inspector-more-script-0-remove
 expect more_scripts none
 quit

@@ -190,9 +190,10 @@ moreScriptsRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	for &extra, i in node.moreScripts {
+		// The buttons follow the name, not the row's far end: a row in the inspector's scroll isn't
+		// width-limited, and a flexible gap pushed them under its scrollbar in a narrow inspector
 		append(&rows, skald.row(
-			skald.text(fmt.tprintf("%s  %s", ICON_CODE, extra.name), th.color.fg, th.font.size_sm),
-			skald.flex(1, skald.spacer(0)),
+			skald.text(fmt.tprintf("%s  %s", ICON_CODE, extra.name), th.color.fg, th.font.size_sm, max_width = inspectorRowWidth(controlWidth) - 60),
 			smallButton(ctx, fmt.tprintf("inspector-more-script-%d-open", i), ICON_FILE_CODE, "Open the script in your code editor", Msg(Node_Script_Open(extra.name))),
 			smallButton(ctx, fmt.tprintf("inspector-more-script-%d-remove", i), ICON_XMARK, "Remove this script from the node", Msg(Node_Script_Removed(i))),
 			spacing = th.spacing.xs,
