@@ -8,7 +8,7 @@ import e "engine:."
 
 /*
 UI controls in the editor (the engine's ui_controls.odin): Panel, Button, ProgressBar,
-TextField, ScrollBox and RichText nodes.
+TextField, ScrollBox, RichText, Slider and CheckBox nodes.
 
 - **Data:** `NodeDef.ui` is the engine's `e.UISettings` (its strings owned:
   `e.UISettings_Clone` / `_Destroy`; `UISettings_Equal`). Text is the node's `text`, an image its
@@ -41,6 +41,10 @@ UIField :: enum {
 	Direction,
 	Show_Value,
 	Show_Loading,
+	// Sliders: the steps the value snaps to
+	Step,
+	// Check boxes: ticked
+	Checked,
 	Max_Length,
 	Patch_Left,
 	Patch_Top,
@@ -75,7 +79,18 @@ Whether a node kind is a UI control.
 */
 NodeKind_IsControl :: proc(kind: NodeKind) -> bool {
 	#partial switch kind {
-	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText: return true
+	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .Slider, .CheckBox: return true
+	}
+	return false
+}
+
+/*
+Whether a UI control kind can draw an image instead of the theme's fill (sliders, check boxes,
+text fields and rich text can't).
+*/
+UIKind_TakesImage :: proc(kind: NodeKind) -> bool {
+	#partial switch kind {
+	case .Panel, .Button, .ProgressBar, .ScrollBox: return true
 	}
 	return false
 }
@@ -118,6 +133,8 @@ UIEdit_Update :: proc(s: ^State, m: Msg) -> bool {
 	case .Value: u.value = n
 	case .Min: u.minValue = n
 	case .Max: u.maxValue = n
+	case .Step: u.step = max(n, 0)
+	case .Checked: u.checked = v.flag
 	case .Max_Length: u.maxLength = max(int(n), 0)
 	case .Patch_Left: u.patchMargins[0] = max(n, 0)
 	case .Patch_Top: u.patchMargins[1] = max(n, 0)
@@ -257,16 +274,29 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 		append(&rows, inspectorRow(ctx, "Text", skald.text_input(ctx, node.text, NodeTextField.Text, onText,
 			id = skald.hash_id(fmt.tprintf("inspector-Text-%d", key)), width = controlWidth, padding = InspectorFieldPadding(ctx))))
 		append(&rows, note(ctx, "Tags: [color=#ff8000]gold[/color], [size=28]big[/size]. It wraps at its width (0: only at line breaks, \\n).", width))
+	case .Slider:
+		append(&rows, inspectorRow(ctx, "Value", number(ctx, s, key, .Value, u.value, 0.1, 2, numberWidth)))
+		append(&rows, inspectorRow(ctx, "Min", number(ctx, s, key, .Min, u.minValue, 1, 2, numberWidth)))
+		append(&rows, inspectorRow(ctx, "Max", number(ctx, s, key, .Max, u.maxValue, 1, 2, numberWidth)))
+		append(&rows, inspectorRow(ctx, "Step", number(ctx, s, key, .Step, u.step, 0.1, 2, numberWidth, 0)))
+		append(&rows, note(ctx, "Step 0: any value (keys move it by 1/20 of the range).", width))
+		append(&rows, inspectorRow(ctx, "Show percent", check(ctx, key, .Show_Value, u.showValue)))
+		append(&rows, inspectorRow(ctx, "Can't be used", check(ctx, key, .Disabled, u.disabled)))
+	case .CheckBox:
+		append(&rows, inspectorRow(ctx, "Text", skald.text_input(ctx, node.text, NodeTextField.Text, onText,
+			id = skald.hash_id(fmt.tprintf("inspector-Text-%d", key)), width = controlWidth, padding = InspectorFieldPadding(ctx))))
+		append(&rows, inspectorRow(ctx, "Checked", check(ctx, key, .Checked, u.checked)))
+		append(&rows, inspectorRow(ctx, "Can't be used", check(ctx, key, .Disabled, u.disabled)))
 	case .Node2D, .Sprite, .AnimatedSprite, .Camera, .Label, .Menu, .StaticBody, .DynamicBody, .CharacterMover, .Area,
 	     .CollisionShape, .RayCast, .Joint, .ParticleEmitter, .Component, .AudioPlayer, .AudioPlayer2D, .MusicPlayer,
 	     .LDtkLevel, .TileMap, .Animator, .Light2D, .LightOccluder, .NavRegion, .NavAgent, .StateMachine, .ParallaxLayer, .CameraZone, .CameraView,
 	     .VirtualJoystick, .TouchButton, .ScreenEffect, .Line2D, .Trail2D, .Skeleton2D, .Bone2D, .SkinnedMesh, .IKChain, .DialogueBox:
 	}
-	if node.kind != .ProgressBar && node.kind != .Panel && node.kind != .ScrollBox {
+	if node.kind != .ProgressBar && node.kind != .Panel && node.kind != .ScrollBox && node.kind != .Slider {
 		append(&rows, inspectorRow(ctx, "Font size", number(ctx, s, key, .Text_Size, u.textSize, 1, 0, numberWidth, 0, 400)))
 	}
 	// An image instead of the fill (a progress bar's fill), stretched as a 9-patch
-	if node.kind != .TextField && node.kind != .RichText {
+	if UIKind_TakesImage(node.kind) {
 		images := make([dynamic]string, context.temp_allocator)
 		append(&images, TEXTURE_NONE)
 		for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)

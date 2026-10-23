@@ -1,5 +1,6 @@
 # UI controls: a Panel laid out as a centered column, a Button in it with text, an action and a
-# width, a theme made for it from the inspector, edited, made the project's, undone, saved.
+# width, a theme made for it from the inspector, edited, made the project's, undone; a Slider
+# with a range, value and step; a CheckBox with text, ticked and undone; saved.
 # Run with: task test:ui
 
 wait 5
@@ -67,6 +68,54 @@ key ctrl+z
 expect ui_theme none
 key ctrl+y
 expect ui_theme themes/theme.theme.xml
+
+# A Slider (an options screen's volume): its range, value and step
+key escape
+key ctrl+shift+a
+type Slider
+click_widget add-node-Slider
+expect kind Slider
+expect parent none
+scroll_into_view inspector-scroll inspector-ui-Max-{selected}
+click_widget inspector-ui-Max-{selected}
+key ctrl+a
+type 100
+key RETURN
+expect ui max 100
+scroll_into_view inspector-scroll inspector-ui-Value-{selected}
+click_widget inspector-ui-Value-{selected}
+key ctrl+a
+type 80
+key RETURN
+expect ui value 80
+scroll_into_view inspector-scroll inspector-ui-Step-{selected}
+click_widget inspector-ui-Step-{selected}
+key ctrl+a
+type 5
+key RETURN
+expect ui step 5
+
+# A CheckBox: its text, ticked, undone and redone (at the top level: the first Escape leaves the
+# number field, the second deselects the slider)
+key escape
+key escape
+key ctrl+shift+a
+type CheckBox
+click_widget add-node-CheckBox
+expect kind CheckBox
+expect parent none
+scroll_into_view inspector-scroll inspector-Text-{selected}
+click_widget inspector-Text-{selected}
+key ctrl+a
+type Fullscreen
+expect ui text Fullscreen
+scroll_into_view inspector-scroll inspector-ui-Checked-{selected}
+click_widget inspector-ui-Checked-{selected}
+expect ui checked true
+key ctrl+z
+expect ui checked false
+key ctrl+y
+expect ui checked true
 
 key ctrl+s
 expect modified false

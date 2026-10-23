@@ -240,7 +240,7 @@ Checks:
 	                             playhead (2 decimals), playing, the clip the Animator starts with
 	timeline_key <track> <key> <seconds> [value]
 	                             A key of the Timeline's clip (seconds with 2 decimals)
-	ui <layout|anchor|text|action|width|height|theme> <value>
+	ui <layout|anchor|text|action|width|height|theme|value|min|max|step|checked> <value>
 	                             The selected UI control's settings ("none" for empty text)
 	nav <cellSize|agentRadius|diagonal|speed|autoMove|width> <value>
 	                             The selected NavRegion's or NavAgent's settings
@@ -1886,6 +1886,11 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "width":  found = fmt.tprint(u.size.x)
 		case "height": found = fmt.tprint(u.size.y)
 		case "theme":  found = pick(u.theme)
+		case "value":  found = fmt.tprint(u.value)
+		case "min":    found = fmt.tprint(u.minValue)
+		case "max":    found = fmt.tprint(u.maxValue)
+		case "step":   found = fmt.tprint(u.step)
+		case "checked": found = fmt.tprint(u.checked)
 		case: return false, fmt.tprintf("unknown ui field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found

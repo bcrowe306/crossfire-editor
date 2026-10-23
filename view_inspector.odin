@@ -546,7 +546,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, ..skeletonInspectorRows(ctx, s, node, key, controlWidth, numberWidth, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth, atlases = true))))
 	case .Light2D, .LightOccluder:
 		append(&rows, ..lightInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:
+	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .Slider, .CheckBox:
 		append(&rows, ..uiInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .Component:
 		// The component it's an instance of; its own fields are the component's (Open edits them)

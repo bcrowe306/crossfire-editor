@@ -99,6 +99,7 @@ ICON_VOLUME      :: "\uf028"
 ICON_VOLUME_MUTE :: "\uf6a9"
 ICON_LOCATION    :: "\uf3c5"
 ICON_SLIDERS     :: "\uf1de"
+ICON_SQUARE_CHECK :: "\uf14a"
 ICON_COPY        :: "\uf0c5"
 ICON_ARROW_UP    :: "\uf062"
 ICON_ARROW_DOWN  :: "\uf063"
@@ -148,6 +149,8 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	case .TextField:      return ICON_I_CURSOR
 	case .ScrollBox:      return ICON_SCROLL
 	case .RichText:       return ICON_PARAGRAPH
+	case .Slider:         return ICON_SLIDERS
+	case .CheckBox:       return ICON_SQUARE_CHECK
 	case .Light2D:        return ICON_LIGHTBULB
 	case .LightOccluder:  return ICON_SHADOW
 	case .NavRegion:      return ICON_ROUTE

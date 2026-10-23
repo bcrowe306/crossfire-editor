@@ -796,10 +796,10 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.texture != "" do attr(w, "texture", node.texture)
 	case .Component:
 		attr(w, "component", node.component)
-	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText:
+	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .Slider, .CheckBox:
 		u, d := node.ui, e.DEFAULT_UI_SETTINGS
-		if node.kind != .Panel && node.kind != .ScrollBox && node.text != "" do attr(w, "text", node.text)
-		if node.texture != "" && node.kind != .TextField && node.kind != .RichText do attr(w, "texture", node.texture)
+		if node.kind != .Panel && node.kind != .ScrollBox && node.kind != .Slider && node.text != "" do attr(w, "text", node.text)
+		if node.texture != "" && UIKind_TakesImage(node.kind) do attr(w, "texture", node.texture)
 		if u.size.x != 0 do attr(w, "width", u.size.x)
 		if u.size.y != 0 do attr(w, "height", u.size.y)
 		if u.anchor != d.anchor do attr(w, "anchor", u.anchor)
@@ -818,6 +818,9 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if u.direction != d.direction do attr(w, "direction", u.direction)
 		if u.showValue do attr(w, "showValue", true)
 		if u.showLoading do attr(w, "showLoading", true)
+		// A Slider's and a CheckBox's own (the parser reads them only for those kinds)
+		if node.kind == .Slider && u.step != d.step do attr(w, "step", u.step)
+		if node.kind == .CheckBox && u.checked do attr(w, "checked", true)
 		if u.maxLength != 0 do attr(w, "maxLength", u.maxLength)
 		if u.patchMargins != {} do attr(w, "patchMargins", fmt.tprintf("%v %v %v %v", u.patchMargins[0], u.patchMargins[1], u.patchMargins[2], u.patchMargins[3]))
 		if u.textSize != 0 do attr(w, "textSize", u.textSize)

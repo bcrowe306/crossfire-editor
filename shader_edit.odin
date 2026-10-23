@@ -265,7 +265,7 @@ shaderLabel :: proc(path: string) -> string {
 NodeKind_TakesShader :: proc(kind: NodeKind) -> bool {
 	#partial switch kind {
 	case .Node2D, .Sprite, .AnimatedSprite, .Label, .Menu, .TileMap, .LDtkLevel, .Component, .ParticleEmitter,
-	     .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .ParallaxLayer,
+	     .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .Slider, .CheckBox, .ParallaxLayer,
 	     .StaticBody, .DynamicBody, .CharacterMover, .Area, .TouchButton, .VirtualJoystick, .ScreenEffect:
 		return true
 	}

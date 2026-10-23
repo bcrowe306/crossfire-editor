@@ -399,7 +399,7 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection {
 			merge: u64 = 0
 			#partial switch v.field {
-			case .Placeholder, .Width, .Height, .Margin, .Columns, .Padding, .Spacing, .Value, .Min, .Max, .Max_Length, .Patch_Left, .Patch_Top, .Patch_Right, .Patch_Bottom, .Text_Size:
+			case .Placeholder, .Width, .Height, .Margin, .Columns, .Padding, .Spacing, .Value, .Min, .Max, .Step, .Max_Length, .Patch_Left, .Patch_Top, .Patch_Right, .Patch_Bottom, .Text_Size:
 				merge = key("ui", v.field, s.currentScene, selected)
 			}
 			return node(selected, fmt.tprintf("Change %v of %s", v.field, name), merge)

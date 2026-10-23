@@ -323,7 +323,7 @@ skeletonInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 	case .Node2D, .Sprite, .AnimatedSprite, .Camera, .Label, .Menu, .StaticBody, .DynamicBody, .CharacterMover, .Area,
 	     .CollisionShape, .RayCast, .Joint, .ParticleEmitter, .Component, .AudioPlayer, .AudioPlayer2D, .MusicPlayer,
 	     .LDtkLevel, .TileMap, .Animator, .Light2D, .LightOccluder, .NavRegion, .NavAgent, .StateMachine, .ParallaxLayer, .CameraZone, .CameraView,
-	     .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .VirtualJoystick, .TouchButton, .ScreenEffect, .Line2D, .Trail2D, .DialogueBox:
+	     .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .Slider, .CheckBox, .VirtualJoystick, .TouchButton, .ScreenEffect, .Line2D, .Trail2D, .DialogueBox:
 	}
 	return rows[:]
 }
