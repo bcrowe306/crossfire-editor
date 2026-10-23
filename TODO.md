@@ -4,6 +4,48 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
+## Code editor integration (asked 2026-10-23; build in this order)
+
+The goal: the best Odin editing experience there is, because the editor knows the project (scenes,
+assets, actions, animations, the running game). Code and scene editing should feel like one
+environment: no memorizing how to refer to things in code. Everything goes through a small
+provider interface in code_editor (completion, hover, diagnostics, gutter, inlay, drop sources)
+that the editor fills in, so code_editor stays engine-agnostic. Not doing: a debugger (DAP), for now.
+
+1. **Foundation.** The provider interface; a script index built with `core:odin/parser` (scripts,
+   exported fields and tags, events: no build needed; the build's catalog still wins when newer);
+   typed constants in the generated scripts/assets.odin beyond assets: animations
+   (`ANIM_HERO_RUN`), state machine parameters and states, input actions (exist), groups, buses,
+   scenes, dialogue nodes, node paths per scene/component.
+2. **Project-aware strings:** completion and diagnostics inside engine calls' string arguments
+   (node paths from the script's nodes, the sprite's animations, actions, groups, buses...); the
+   engine declares which parameters take which kind of name.
+3. **Code ↔ scene links:** gutter markers on `Script_Register` (the nodes using it; click selects),
+   find usages in scenes, renaming a script field or type carries into scene/component files,
+   the inspector follows the index as fields are typed.
+4. **Context-aware drag and drop into code:** every editor thing is a drop source (scene-tree
+   nodes, inspector property labels, animations, state machine parameters and states, input
+   actions, events, scenes, components, sounds, music, dialogues, Timeline clips, buses, groups).
+   Where it lands decides the shape (in a struct: a field; in a procedure: a statement; on an
+   argument: the constant); a plain drop does the common thing, a menu offers the few useful
+   alternatives with a preview. Inserted code uses the typed constants. Sources describe
+   themselves and the engine describes which procedures act on which kind, so new node kinds
+   get drops with little work.
+5. **Hovers and previews:** asset constants show the image / play the sound / show the
+   animation's frames / the dialogue's first line; color literals get a swatch and the picker;
+   engine procedures show their doc comment and example (the website's docgen output, bundled);
+   F1 opens the API page.
+6. **Live game state in code:** while playing, inlay hints with the selected node's live field
+   values; scrubbing a number literal of an exported default changes the running game (written
+   back on demand); log points without editing code (through hot reload).
+7. **Engine-aware code actions:** add a handler for this node's event, export this field (with a
+   range), generate state machine constants, register this struct as a script, jump from an
+   inspector field to its declaration.
+
+Also queued (advised 2026-10-23, not yet approved): noticing assets added outside the editor
+(scan on project open and window focus; auto-add, mark missing, a Refresh); the Mixer showing a
+running game's levels and sending fader/effect edits to it live.
+
 ## Later (decided not to build yet)
 
 - **Shader editing in the code editor** (asked 2026-10-22, for later). `.frag` files open in code
