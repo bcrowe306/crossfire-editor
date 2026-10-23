@@ -38,7 +38,7 @@ Snail :: struct {
 register_Snail :: proc "contextless" () {
 	e.Script_Register(Snail, {
 		ready = proc(self: ^Snail) {
-			Enemy_Start(&self.enemy, self.node, self.health, 10, false, "dead", 0.7)
+			Enemy_Start(&self.enemy, self.node, self.health, 10, false, ANIM_SNAIL_DEAD, 0.7)
 			self.enemy.hurtSound, self.enemy.defeatSound = SOUND_SNAIL_HURT, SOUND_SNAIL_DEFEAT
 			self.home = self.node.position
 			self.heading = self.patrol != {} && self.patrol.x >= self.home.x ? 1 : -1
@@ -53,11 +53,11 @@ register_Snail :: proc "contextless" () {
 			sprite := self.enemy.sprite
 			if self.hiding > 0 && Enemy_Alive(&self.enemy) {
 				self.hiding -= f32(deltaTime)
-				if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, "hide")
+				if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, ANIM_SNAIL_HIDE)
 				return
 			}
 			if busy do return
-			if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, "walk")
+			if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, ANIM_SNAIL_WALK)
 			x := self.node.position.x
 			turn := !Level_CanWalk(self.scene, e.Node_GetWorldPosition(self.node), self.heading, 12)
 			if self.patrol != {} {
@@ -91,7 +91,7 @@ Boar :: struct {
 register_Boar :: proc "contextless" () {
 	e.Script_Register(Boar, {
 		ready = proc(self: ^Boar) {
-			Enemy_Start(&self.enemy, self.node, self.health, 30, false, "hit", 0.5)
+			Enemy_Start(&self.enemy, self.node, self.health, 30, false, ANIM_BOAR_HIT, 0.5)
 			self.enemy.hurtSound, self.enemy.defeatSound = SOUND_BOAR_HURT, SOUND_BOAR_DEFEAT
 			self.home = self.node.position
 			if self.patrol == {} do self.patrol = self.home
@@ -122,7 +122,7 @@ register_Boar :: proc "contextless" () {
 			}
 			if self.snorting > 0 {
 				self.snorting -= dt
-				if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, "idle")
+				if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, ANIM_BOAR_IDLE)
 				Sprite_FaceLeftSheet(sprite, self.heading)
 				// A shiver before it goes
 				if sprite != nil do sprite.position.x = math.sin(self.snorting * 80) * 1
@@ -133,7 +133,7 @@ register_Boar :: proc "contextless" () {
 			if self.charging && !sees do self.charging = false
 			if self.resting > 0 && !self.charging {
 				self.resting -= dt
-				if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, "idle")
+				if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, ANIM_BOAR_IDLE)
 				return
 			}
 
@@ -157,7 +157,7 @@ register_Boar :: proc "contextless" () {
 				return
 			}
 			self.node.position.x += self.heading * speed * dt
-			if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, self.charging ? "run" : "walk")
+			if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, self.charging ? ANIM_BOAR_RUN : ANIM_BOAR_WALK)
 			Sprite_FaceLeftSheet(sprite, self.heading)
 		},
 	})
@@ -191,7 +191,7 @@ Bee :: struct {
 register_Bee :: proc "contextless" () {
 	e.Script_Register(Bee, {
 		ready = proc(self: ^Bee) {
-			Enemy_Start(&self.enemy, self.node, self.health, 20, true, "hit", 0.6)
+			Enemy_Start(&self.enemy, self.node, self.health, 20, true, ANIM_BEE_HIT, 0.6)
 			self.enemy.hurtSound, self.enemy.defeatSound = SOUND_BEE_HURT, SOUND_BEE_DEFEAT
 			self.enemy.stompable = true
 			self.home = self.node.position
@@ -239,7 +239,7 @@ register_Bee :: proc "contextless" () {
 					}
 					self.node.position += self.agent.velocity * dt + bob * dt
 					Sprite_FaceLeftSheet(sprite, self.agent.velocity.x)
-					if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, Hero_Near(here, 50) ? "attack" : "fly")
+					if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, Hero_Near(here, 50) ? ANIM_BEE_ATTACK : ANIM_BEE_FLY)
 					return
 				}
 				e.NavAgent_Stop(self.agent)
@@ -252,7 +252,7 @@ register_Bee :: proc "contextless" () {
 				if linalg.length(to) < 4 do self.diving = 0
 				else do self.node.position += linalg.normalize(to) * min(self.speed * 2.6 * dt, linalg.length(to))
 				Sprite_FaceLeftSheet(sprite, to.x)
-				if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, "attack")
+				if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, ANIM_BEE_ATTACK)
 				if self.diving <= 0 do self.cooldown = 1.6
 				return
 			}
@@ -278,7 +278,7 @@ register_Bee :: proc "contextless" () {
 			step := min(self.speed * 1.5 * dt, linalg.length(to))
 			if step > 0 do self.node.position += linalg.normalize(to) * step
 			Sprite_FaceLeftSheet(sprite, abs(to.x) > 0.5 ? to.x : self.direction * (self.patrol.x - self.home.x))
-			if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, "fly")
+			if sprite != nil do e.AnimationPlayer_Play(&sprite.animation, ANIM_BEE_FLY)
 		},
 	})
 }

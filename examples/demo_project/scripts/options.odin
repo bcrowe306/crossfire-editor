@@ -165,7 +165,7 @@ Options_Close :: proc(self: ^Options) {
 	// A soft chime: the options are kept
 	Sfx(self.game, SOUND_SAVED, 0.6)
 	if e.Game_TopScene(self.game) == self.scene do e.Game_PopScene(self.game)
-	else do e.Game_ChangeScene(self.game, "TitleScene")
+	else do e.Game_ChangeScene(self.game, SCENE_TITLE_SCENE)
 }
 
 Options_onBack :: proc(self: ^Options, source: ^e.Node, data: e.EventData) {

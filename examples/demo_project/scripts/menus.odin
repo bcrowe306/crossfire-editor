@@ -88,7 +88,7 @@ Pause :: struct {
 
 // Closes the pause menu: the level goes on
 Pause_Close :: proc(self: ^Pause) {
-	e.Audio_SetBusEffects("Music", {})
+	e.Audio_SetBusEffects(BUS_MUSIC, {})
 	Sfx(self.game, SOUND_UI_BACK)
 	e.Game_PopScene(self.game)
 }
@@ -99,7 +99,7 @@ register_Pause :: proc "contextless" () {
 		ready = proc(self: ^Pause) {
 			muffle := e.AudioEffect_Make(.LowPass)
 			muffle.cutoff = self.cutoff
-			e.Audio_SetBusEffects("Music", {muffle})
+			e.Audio_SetBusEffects(BUS_MUSIC, {muffle})
 			if self.resume != nil do e.Control_Focus(self.scene, self.resume)
 		},
 		update = proc(self: ^Pause, _: []sdl.Event, _: f64) {
@@ -117,13 +117,13 @@ Pause_onResume :: proc(self: ^Pause, source: ^e.Node, data: e.EventData) {
 
 // Back to the last rune stone
 Pause_onRestart :: proc(self: ^Pause, source: ^e.Node, data: e.EventData) {
-	e.Audio_SetBusEffects("Music", {})
+	e.Audio_SetBusEffects(BUS_MUSIC, {})
 	if state := State(); state != nil do GameState_Retry(state)
 }
 
 Pause_onQuit :: proc(self: ^Pause, source: ^e.Node, data: e.EventData) {
-	e.Audio_SetBusEffects("Music", {})
-	e.Game_ChangeScene(self.game, "TitleScene")
+	e.Audio_SetBusEffects(BUS_MUSIC, {})
+	e.Game_ChangeScene(self.game, SCENE_TITLE_SCENE)
 }
 
 @(init)

@@ -70,7 +70,7 @@ Progress :: struct {
 }
 
 // The levels in order, and what they're called
-LEVELS :: [?]string{"ForestScene", "HollowScene", "LairScene"}
+LEVELS :: [?]string{SCENE_FOREST_SCENE, SCENE_HOLLOW_SCENE, SCENE_LAIR_SCENE}
 
 // The game state (the global), or nil outside a game
 State :: proc() -> ^GameState {
@@ -162,7 +162,7 @@ GameState_Save :: proc(state: ^GameState) {
 
 // The level's end: the next one starts (saved at its start), or the game is won
 GameState_LevelComplete :: proc(state: ^GameState, next: string) {
-	if next == "" || next == "VictoryScene" {
+	if next == "" || next == SCENE_VICTORY_SCENE {
 		GameState_Victory(state)
 		return
 	}
@@ -178,7 +178,7 @@ GameState_Victory :: proc(state: ^GameState) {
 	state.bestScore = max(state.bestScore, state.run.score)
 	Progress_Destroy(&state.saved)
 	if !e.Save_Game() do log.warn("The game couldn't be saved")
-	e.Game_ChangeScene(state.game, "VictoryScene")
+	e.Game_ChangeScene(state.game, SCENE_VICTORY_SCENE)
 }
 
 // The hero fell: a death counted (and saved), then the game over screen
@@ -186,7 +186,7 @@ GameState_Defeated :: proc(state: ^GameState) {
 	state.saved.deaths += 1
 	state.run.deaths = state.saved.deaths
 	if !e.Save_Game() do log.warn("The game couldn't be saved")
-	e.Game_ChangeScene(state.game, "GameOverScene")
+	e.Game_ChangeScene(state.game, SCENE_GAME_OVER_SCENE)
 }
 
 /*
@@ -219,14 +219,14 @@ GameState_Taken :: proc(state: ^GameState, key: string) -> bool {
 
 // Applies the options: the buses' volumes and the window
 GameState_ApplySettings :: proc(state: ^GameState) {
-	e.Audio_SetBusVolume("Music", state.musicVolume)
-	e.Audio_SetBusVolume("SFX", state.sfxVolume)
+	e.Audio_SetBusVolume(BUS_MUSIC, state.musicVolume)
+	e.Audio_SetBusVolume(BUS_SFX, state.sfxVolume)
 	if e.Game_IsFullscreen(state.game) != state.fullscreen do e.Game_SetFullscreen(state.game, state.fullscreen)
 }
 
 // Plays a sound effect on the SFX bus (the options' sound volume)
 Sfx :: proc(game: ^e.Game, sound: e.SoundAsset, volume: f32 = 1, pitch: f32 = 1) {
-	e.Game_PlaySound(game, sound, bus = "SFX", volume = volume, pitch = pitch)
+	e.Game_PlaySound(game, sound, bus = BUS_SFX, volume = volume, pitch = pitch)
 }
 
 @(init)

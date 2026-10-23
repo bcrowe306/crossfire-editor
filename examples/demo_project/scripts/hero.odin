@@ -139,7 +139,7 @@ Hero_Hurt :: proc(hero: ^Hero, fromX: f32, amount := 1) -> bool {
 	if GameState_Damage(state, amount) {
 		heroDown(hero)
 	} else if hero.brain != nil {
-		e.StateMachine_SetTrigger(hero.brain, "hurt")
+		e.StateMachine_SetTrigger(hero.brain, PARAM_HERO_BRAIN_HURT)
 	}
 	return true
 }
@@ -166,7 +166,7 @@ Hero_Fell :: proc(hero: ^Hero) {
 heroDown :: proc(hero: ^Hero) {
 	hero.dead = true
 	hero.dying = 2
-	if hero.brain != nil do e.StateMachine_SetBool(hero.brain, "dead", true)
+	if hero.brain != nil do e.StateMachine_SetBool(hero.brain, PARAM_HERO_BRAIN_DEAD, true)
 	Sfx(hero.game, SOUND_HERO_DEATH)
 	e.Game_SetTimeScale(hero.game, 0.5)
 }
@@ -292,7 +292,7 @@ register_Hero :: proc "contextless" () {
 			self.attackQueued = max(self.attackQueued - dt, 0)
 			if control && e.Input_IsActionJustPressed(ACTION_ATTACK) do self.attackQueued = 0.25
 			if self.attackQueued > 0 && !attacking && !hurt && self.attackCooldown <= 0 && self.brain != nil {
-				e.StateMachine_SetTrigger(self.brain, "attack")
+				e.StateMachine_SetTrigger(self.brain, PARAM_HERO_BRAIN_ATTACK)
 				self.attackQueued = 0
 				self.attackCooldown = 0.12
 			}
@@ -352,9 +352,9 @@ register_Hero :: proc "contextless" () {
 
 			// The state machine's parameters: it picks the animation
 			if self.brain != nil {
-				e.StateMachine_SetFloat(self.brain, "speed", abs(mover.velocity.x))
-				e.StateMachine_SetFloat(self.brain, "vy", mover.velocity.y)
-				e.StateMachine_SetBool(self.brain, "onFloor", mover.onFloor)
+				e.StateMachine_SetFloat(self.brain, PARAM_HERO_BRAIN_SPEED, abs(mover.velocity.x))
+				e.StateMachine_SetFloat(self.brain, PARAM_HERO_BRAIN_VY, mover.velocity.y)
+				e.StateMachine_SetBool(self.brain, PARAM_HERO_BRAIN_ON_FLOOR, mover.onFloor)
 			}
 			if self.sprite != nil {
 				// The sheet faces right; a negative scale mirrors it

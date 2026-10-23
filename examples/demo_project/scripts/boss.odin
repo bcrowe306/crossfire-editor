@@ -165,7 +165,7 @@ register_Boss :: proc "contextless" () {
 	e.Script_Register(Boss, {
 		ready = proc(self: ^Boss) {
 			currentBoss = self
-			Enemy_Start(&self.enemy, self.node, self.health, 500, false, "hit", 2.4)
+			Enemy_Start(&self.enemy, self.node, self.health, 500, false, ANIM_BOAR_HIT, 2.4)
 			// Its defeat has its own cry (SOUND_BOSS_DEFEAT, below)
 			self.enemy.hurtSound = SOUND_BOSS_HURT
 			self.enemy.stompable = false
@@ -179,7 +179,7 @@ register_Boss :: proc "contextless" () {
 			}
 			if bar := e.Scene_FindNode(self.scene, "HUD/BossBar/BossHealth"); bar != nil && e.Node_Is(bar, e.ProgressBar) do self.bar = cast(^e.ProgressBar)bar
 			if self.enemy.sprite != nil do self.enemy.sprite.tint = {200, 150, 190, 255}
-			play(self, "idle")
+			play(self, ANIM_BOAR_IDLE)
 		},
 		destroy = proc(self: ^Boss) {
 			Enemy_Stop(&self.enemy)
@@ -194,7 +194,7 @@ register_Boss :: proc "contextless" () {
 			if self.aura != nil do self.aura.settings.energy = (0.6 + 0.25 * f32(self.phase)) * (1 + 0.15 * math.sin(self.time * 5))
 
 			if self.mode == .Asleep {
-				play(self, "idle")
+				play(self, ANIM_BOAR_IDLE)
 				return
 			}
 			if !Enemy_Alive(&self.enemy) {
@@ -232,11 +232,11 @@ register_Boss :: proc "contextless" () {
 			switch self.mode {
 			case .Asleep, .Dying:
 			case .Waking, .Roar:
-				play(self, "idle")
+				play(self, ANIM_BOAR_IDLE)
 				if sprite != nil do sprite.position.x = math.sin(self.time * 70) * 1.5
 				if self.time >= self.length do enter(self, .Idle, 0.8 / pace(self))
 			case .Idle:
-				play(self, "walk")
+				play(self, ANIM_BOAR_WALK)
 				hero := currentHero
 				if hero != nil {
 					self.heading = Hero_Feet(hero).x >= here.x ? 1 : -1
@@ -246,11 +246,11 @@ register_Boss :: proc "contextless" () {
 				}
 				if self.time >= self.length do decide(self)
 			case .Paw:
-				play(self, "idle")
+				play(self, ANIM_BOAR_IDLE)
 				if sprite != nil do sprite.position.x = math.sin(self.time * 90) * 2
 				if self.time >= self.length do enter(self, .Charge, 4)
 			case .Charge:
-				play(self, "run")
+				play(self, ANIM_BOAR_RUN)
 				step := self.heading * self.chargeSpeed * pace(self) * dt
 				if Level_Solid(self.scene, here + {self.heading * 70, -16}) {
 					// Into the wall: stunned (and, raging, a shockwave)
@@ -264,12 +264,12 @@ register_Boss :: proc "contextless" () {
 				}
 				if self.time >= self.length do enter(self, .Idle, 0.6)
 			case .Stunned:
-				play(self, "idle")
+				play(self, ANIM_BOAR_IDLE)
 				if sprite != nil do sprite.position.x = math.sin(self.time * 8) * 3
 				if self.time >= self.length do enter(self, .Idle, 0.5)
 			case .Leap:
 				t := clamp(self.time / self.length, 0, 1)
-				play(self, "run")
+				play(self, ANIM_BOAR_RUN)
 				self.node.position.x = self.leapFrom.x + (self.leapTo.x - self.leapFrom.x) * t
 				self.node.position.y = self.leapFrom.y - math.sin(t * math.PI) * 110
 				// Never into a wall

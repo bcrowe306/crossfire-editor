@@ -84,6 +84,7 @@ defeat, starts from the last one you touched.
 | **Creatures** | `scripts/enemy.odin` (health, knockback that never leaves the ground, stomps, the flash) and `scripts/creatures.odin`: snails, boars that snort then charge, bees that dive or hunt |
 | **A boss with phases** | `scripts/boss.odin`: charges into walls (stunned: double damage), leaps with shockwaves, calls bees; a roar between phases; its health in the HUD |
 | **Collectibles and checkpoints** | `scripts/pickups.odin` (coins, gems, potions, pots that spill coins with tweens) and the rune stones (`scripts/world.odin`): taken pickups are remembered by their LDtk iid, so a Continue doesn't bring them back |
+| **Names the compiler checks** | `scripts/assets.odin`, written by the editor: besides the assets, the scripts name scenes (`SCENE_VICTORY_SCENE` in `scripts/game_state.odin`), buses (`BUS_SFX`), animations (`ANIM_BOAR_RUN` in `scripts/creatures.odin` and `scripts/boss.odin`) and the hero's state machine parameters (`PARAM_HERO_BRAIN_SPEED` in `scripts/hero.odin`) through its constants, so a renamed one is a build error |
 
 **Sound**
 

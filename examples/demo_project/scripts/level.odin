@@ -208,11 +208,11 @@ register_Level :: proc "contextless" () {
 			}
 			if self.reverb {
 				hall := e.AudioEffect_Make(.Reverb)
-				e.Audio_SetBusEffects("SFX", {hall})
+				e.Audio_SetBusEffects(BUS_SFX, {hall})
 			}
 		},
 		destroy = proc(self: ^Level) {
-			if self.reverb && self.game != nil do e.Audio_SetBusEffects("SFX", {}, self.game)
+			if self.reverb && self.game != nil do e.Audio_SetBusEffects(BUS_SFX, {}, self.game)
 		},
 		update = proc(self: ^Level, _: []sdl.Event, deltaTime: f64) {
 			dt := f32(deltaTime)
@@ -231,7 +231,7 @@ register_Level :: proc "contextless" () {
 			// Pause: the pause menu over the level
 			if e.Input_IsActionJustPressed(ACTION_PAUSE) && (state == nil || state.cutscene == 0) && currentHero != nil && !currentHero.dead {
 				Sfx(self.game, SOUND_PAUSE)
-				e.Game_PushScene(self.game, "PauseScene")
+				e.Game_PushScene(self.game, SCENE_PAUSE_SCENE)
 				return
 			}
 
