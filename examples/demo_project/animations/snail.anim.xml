@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<animations formatVersion="14" autoplay="walk">
+	<animation name="walk" sheet="assets/mobs/snail_walk.png" grid="Size" cellWidth="48" cellHeight="32" start="0" end="7" fps="8" loop="true"/>
+	<animation name="hide" sheet="assets/mobs/snail_hide.png" grid="Size" cellWidth="48" cellHeight="32" start="0" end="7" fps="18"/>
+	<animation name="dead" sheet="assets/mobs/snail_dead.png" grid="Size" cellWidth="48" cellHeight="32" start="0" end="7" fps="12"/>
+</animations>

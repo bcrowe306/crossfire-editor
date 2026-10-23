@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="14" name="LairScene" screenLayers="8" background="#16040c" lighting="true" ambient="#9a7a8a">
+	<node kind="ParallaxLayer" name="Sky" x="0" y="172" texture="assets/backgrounds/sky_night.png" factorX="0.1" factorY="1" repeatX="true"/>
+	<node kind="ParallaxLayer" name="FarTrees" x="0" y="224" texture="assets/backgrounds/forest_far.png" factorX="0.3" factorY="1" repeatX="true"/>
+	<node kind="ParallaxLayer" name="NearTrees" x="0" y="272" texture="assets/backgrounds/forest_near.png" factorX="0.55" factorY="1" repeatX="true"/>
+	<node kind="LDtkLevel" name="Level" x="0" y="0" ldtk="assets/levels/legacy.ldtk" level="Lair" intGridCollision="Ground" oneWayValues="2" areaValues="4" background="false">
+		<entity name="Hero" component="components/hero.component.xml"/>
+		<entity name="Coin" component="components/coin.component.xml"/>
+		<entity name="Gem" component="components/gem.component.xml"/>
+		<entity name="Potion" component="components/potion.component.xml"/>
+		<entity name="Pot" component="components/pot.component.xml"/>
+		<entity name="Snail" component="components/snail.component.xml"/>
+		<entity name="Boar" component="components/boar.component.xml"/>
+		<entity name="Bee" component="components/bee.component.xml"/>
+		<entity name="Runestone" component="components/runestone.component.xml"/>
+		<entity name="Lorestone" component="components/lorestone.component.xml"/>
+		<entity name="Platform" component="components/platform.component.xml"/>
+		<entity name="Candle" component="components/candle.component.xml"/>
+		<entity name="Exit" component="components/exit.component.xml"/>
+		<entity name="Gate" component="components/gate.component.xml"/>
+		<entity name="Boss" component="components/boss.component.xml"/>
+		<entity name="BossTrigger" make="Rectangle"/>
+	</node>
+	<node kind="CameraZone" name="Arena" x="672" y="0" width="1120" height="480" zoneTransition="0.8"/>
+	<node kind="Camera" name="Camera" x="200" y="300" zoom="3" followMode="SmoothDamp" smoothTime="0.16" deadzoneX="12" deadzoneY="20" targetOffsetY="-30" lookAheadX="44"/>
+	<node kind="MusicPlayer" name="Music" x="0" y="0" sound="assets/music/caves_base.ogg" bus="Music" loop="true" autostart="true" fadeIn="2" fadeOut="1.5">
+		<layer name="drums" sound="assets/music/caves_drums.ogg" volume="0"/>
+	</node>
+	<node kind="Component" name="HUD" x="0" y="0" layer="7" component="components/hud.component.xml"/>
+	<node kind="Node2D" name="Director" x="0" y="0">
+		<script name="Level">
+			<prop name="title" value="III. The Heart of the Forest"/>
+			<prop name="introClip" value="BossIntro"/>
+		</script>
+		<node kind="Animator" name="BossIntro" x="0" y="0">
+			<clip name="intro" length="3.4">
+				<track property="event">
+					<key time="0.1" value="gate"/>
+					<key time="0.9" value="pan"/>
+					<key time="2.1" value="roar"/>
+					<key time="3.4" value="talk"/>
+				</track>
+			</clip>
+			<listener event="onEvent" target=".." handler="onIntroEvent"/>
+		</node>
+	</node>
+</scene>

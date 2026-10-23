@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="14" name="PauseScene" screenLayers="8">
+	<node kind="Panel" name="Dim" x="0" y="0" layer="7" anchor="Full" theme="themes/dim.theme.xml"/>
+	<node kind="Panel" name="Menu" x="0" y="0" layer="7" texture="assets/ui/parchment.png" width="320" anchor="Center" layout="Column" align="Stretch" padding="20" spacing="10" patchMargins="8 8 8 8">
+		<script name="MenuSounds"/>
+		<node kind="RichText" name="Heading" x="0" y="0" layer="7" text="[size=40]Paused[/size]" textAlign="Center"/>
+		<node kind="Button" name="Resume" x="0" y="0" layer="7" text="Resume">
+			<listener event="onPressed" target="../../Director" handler="onResume"/>
+		</node>
+		<node kind="Button" name="Options" x="0" y="0" layer="7" text="Options" action="push:OptionsScene"/>
+		<node kind="Button" name="Restart" x="0" y="0" layer="7" text="Back to the rune stone">
+			<listener event="onPressed" target="../../Director" handler="onRestart"/>
+		</node>
+		<node kind="Button" name="Quit" x="0" y="0" layer="7" text="Quit to title">
+			<listener event="onPressed" target="../../Director" handler="onQuit"/>
+		</node>
+	</node>
+	<node kind="Node2D" name="Director" x="0" y="0">
+		<script name="Pause"/>
+	</node>
+</scene>

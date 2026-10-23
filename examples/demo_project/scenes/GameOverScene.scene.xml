@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="14" name="GameOverScene" screenLayers="8" background="#120a10">
+	<node kind="AudioPlayer" name="Jingle" x="0" y="0" sound="assets/sfx/game_over.ogg" bus="Music" autostart="true"/>
+	<node kind="ParticleEmitter" name="Ashes" x="640" y="-20" layer="7">
+		<particles amount="40" lifetime="7" spread="700,10" size="2,2" sizeVariance="0.5" colorRamp="0:#80606000 0.2:#806060a0 1:#40303000" angle="90" angleSpread="20" velocity="30" velocityVariance="0.5" gravityVelocity="0" wind="10,0"/>
+	</node>
+	<node kind="RichText" name="Heading" x="0" y="120" layer="7" text="[color=#d8a0a0]Your legacy fades...[/color]" anchor="Top" textSize="80" theme="themes/title.theme.xml"/>
+	<node kind="Panel" name="Panel" x="0" y="70" layer="7" texture="assets/ui/parchment.png" width="420" anchor="Center" layout="Column" align="Stretch" padding="22" spacing="14" patchMargins="8 8 8 8">
+		<script name="MenuSounds"/>
+		<node kind="RichText" name="Stats" x="0" y="0" layer="7" textAlign="Center"/>
+		<node kind="Panel" name="Buttons" x="0" y="0" layer="7" layout="Column" align="Stretch" spacing="10" theme="themes/clear.theme.xml">
+			<node kind="Button" name="First" x="0" y="0" layer="7" text="Try again" theme="themes/legacy.theme.xml">
+				<listener event="onPressed" target="../../../Director" handler="onRetry"/>
+			</node>
+			<node kind="Button" name="Title" x="0" y="0" layer="7" text="Back to the title" theme="themes/legacy.theme.xml" action="scene:TitleScene"/>
+		</node>
+	</node>
+	<node kind="Node2D" name="Director" x="0" y="0">
+		<script name="Results"/>
+	</node>
+</scene>

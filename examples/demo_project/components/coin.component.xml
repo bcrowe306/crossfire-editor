@@ -1,7 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component formatVersion="13" name="coin">
-	<node kind="Area" name="Coin" x="0" y="0">
-		<node kind="Sprite" name="Sprite" x="0" y="0" texture="assets/forest/coin.png"/>
-		<node kind="CollisionShape" name="Reach" x="0" y="0" shape="Circle" radius="7"/>
+<component formatVersion="14" name="coin">
+	<node kind="Area" name="Coin" x="0" y="0" groups="pickups">
+		<node kind="Sprite" name="Sprite" x="0" y="0" texture="assets/items/coin.png"/>
+		<node kind="CollisionShape" name="Shape" x="0" y="0" shape="Circle" radius="7"/>
+		<node kind="Animator" name="Bob" x="0" y="0" autoplay="bob">
+			<clip name="bob" length="1.2" loop="true">
+				<track node="Sprite" property="position.y">
+					<key time="0" value="0" ease="InOutSine"/>
+					<key time="0.6" value="-3" ease="InOutSine"/>
+					<key time="1.2" value="0"/>
+				</track>
+				<track node="Sprite" property="scale.x">
+					<key time="0" value="1" ease="InOutSine"/>
+					<key time="0.3" value="0.25" ease="InOutSine"/>
+					<key time="0.6" value="1"/>
+				</track>
+			</clip>
+		</node>
 	</node>
 </component>

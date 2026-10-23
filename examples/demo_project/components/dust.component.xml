@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="dust">
+	<node kind="ParticleEmitter" name="Dust" x="0" y="0">
+		<particles emitting="false" continuous="false" amount="8" lifetime="0.45" burst="1" spread="8,2" size="3,3" sizeVariance="0.5" scaleStart="0.6,0.6" scaleEnd="1.4,1.4" colorRamp="0:#e8dcc0b0 1:#c8b89000" angle="270" angleSpread="80" velocity="35" velocityVariance="0.6" gravityVelocity="-15"/>
+		<script name="Burst"/>
+	</node>
+</component>

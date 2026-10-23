@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="14" name="VictoryScene" screenLayers="8" background="#2a2050" lighting="true" ambient="#c0b0d0">
+	<node kind="ParallaxLayer" name="Sky" x="0" y="-30" texture="assets/backgrounds/sky_dusk.png" factorX="0.05" factorY="1" repeatX="true"/>
+	<node kind="ParallaxLayer" name="FarTrees" x="0" y="64" texture="assets/backgrounds/forest_far.png" factorX="0.25" factorY="1" repeatX="true"/>
+	<node kind="ParallaxLayer" name="NearTrees" x="0" y="110" texture="assets/backgrounds/forest_near.png" factorY="1" repeatX="true"/>
+	<node kind="ParallaxLayer" name="Ground" x="0" y="314" texture="assets/backgrounds/ground.png" factorX="1" factorY="1" repeatX="true"/>
+	<node kind="Camera" name="Camera" x="320" y="180" zoom="2">
+		<node kind="Light2D" name="Sun" x="-200" y="-220" lightColor="#ffe0b0" energy="1.4" lightRadius="560"/>
+		<node kind="ParticleEmitter" name="Petals" x="0" y="-200" blendMode="Add">
+			<particles amount="60" lifetime="6" spread="340,10" size="2,1.5" sizeVariance="0.4" rotationSpread="180" torque="90" torqueSpread="90" colorRamp="0:#ffd0e000 0.15:#ffd0e0 0.8:#ffe8a0 1:#ffe8a000" angle="90" angleSpread="25" velocity="40" velocityVariance="0.5" gravityVelocity="0" wind="12,0"/>
+		</node>
+		<node kind="AnimatedSprite" name="Hero" x="0" y="150" autoplay="idle" animations="assets/characters/hero.aseprite" pivotSlice="pivot"/>
+	</node>
+	<node kind="MusicPlayer" name="Music" x="0" y="0" sound="assets/music/victory.ogg" bus="Music" loop="true" autostart="true" fadeIn="1"/>
+	<node kind="RichText" name="Heading" x="0" y="40" layer="7" text="[color=#ffe7b8]The forest is healed[/color]" anchor="Top" textSize="80" theme="themes/title.theme.xml"/>
+	<node kind="Panel" name="Panel" x="-330" y="20" layer="7" texture="assets/ui/parchment.png" width="380" anchor="Center" layout="Column" align="Stretch" padding="22" spacing="14" patchMargins="8 8 8 8">
+		<script name="MenuSounds"/>
+		<node kind="RichText" name="Stats" x="0" y="0" layer="7"/>
+		<node kind="Panel" name="Buttons" x="0" y="0" layer="7" layout="Column" align="Stretch" spacing="10" theme="themes/clear.theme.xml">
+			<node kind="Button" name="First" x="0" y="0" layer="7" text="Credits" theme="themes/legacy.theme.xml" action="push:CreditsScene"/>
+			<node kind="Button" name="Title" x="0" y="0" layer="7" text="Back to the title" theme="themes/legacy.theme.xml" action="scene:TitleScene"/>
+		</node>
+	</node>
+	<node kind="Node2D" name="Director" x="0" y="0">
+		<script name="Results">
+			<prop name="victory" value="true"/>
+		</script>
+	</node>
+</scene>

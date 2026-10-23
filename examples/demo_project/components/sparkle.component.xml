@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="sparkle">
+	<node kind="ParticleEmitter" name="Sparkle" x="0" y="0" blendMode="Add">
+		<particles emitting="false" continuous="false" amount="14" lifetime="0.5" burst="1" size="2,2" sizeVariance="0.4" scaleEnd="0,0" colorRamp="0:#ffffff 0.5:#fff0a0 1:#ffc04000" angleSpread="180" velocity="60" velocityVariance="0.5" gravityVelocity="-20"/>
+		<script name="Burst"/>
+	</node>
+</component>

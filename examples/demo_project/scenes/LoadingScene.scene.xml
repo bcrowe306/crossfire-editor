@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="14" name="LoadingScene" screenLayers="8" background="#0b0d14">
+	<node kind="AnimatedSprite" name="Hero" x="640" y="400" scaleX="3" scaleY="3" layer="7" autoplay="run" animations="assets/characters/hero.aseprite" pivotSlice="pivot"/>
+	<node kind="Panel" name="Ground" x="0" y="404" layer="7" width="360" height="4" anchor="Top" theme="themes/legacy.theme.xml"/>
+	<node kind="RichText" name="Loading" x="0" y="450" layer="7" text="Loading..." anchor="Top" textSize="30" theme="themes/clear.theme.xml"/>
+	<node kind="ProgressBar" name="Progress" x="0" y="500" layer="7" width="420" height="14" anchor="Top" showLoading="true" theme="themes/legacy.theme.xml"/>
+	<node kind="RichText" name="Tip" x="0" y="560" layer="7" width="760" anchor="Top" textSize="22" textAlign="Center" theme="themes/clear.theme.xml"/>
+	<node kind="Node2D" name="Director" x="0" y="0">
+		<script name="Loading"/>
+	</node>
+</scene>

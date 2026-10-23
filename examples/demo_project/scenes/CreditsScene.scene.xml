@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="14" name="CreditsScene" screenLayers="8">
+	<node kind="Panel" name="Dim" x="0" y="0" layer="7" anchor="Full" theme="themes/dim.theme.xml"/>
+	<node kind="RichText" name="Roll" x="0" y="720" layer="7" text="[size=64][color=#ffe7b8]Legacy of the Wardens[/color][/size] a demo of the Crossfire Engine and Editor [size=34][color=#ffd34d]Made with[/color][/size] The Crossfire Engine and the Crossfire Editor crossfireengine.io [size=34][color=#ffd34d]Art[/color][/size] Legacy Fantasy: High Forest, by Anokolisa anokolisa.itch.io [size=34][color=#ffd34d]Music and sound[/color][/size] Synthesized for this demo (tools/demo/make_sounds.py) [size=34][color=#ffd34d]Fonts[/color][/size] Pixelify Sans, by Stefie Justprince (SIL Open Font License) Jacquarda Bastarda 9, by The Soft Type Project (SIL Open Font License) [size=34][color=#ffd34d]Levels[/color][/size] Built in LDtk&apos;s format (ldtk.io), by Sebastien Benard and contributors [size=34][color=#ffd34d]Libraries[/color][/size] SDL3, SDL_image, SDL_ttf, SDL_mixer; Box2D; FreeType The Odin programming language [size=34][color=#ffd34d]Thank you for playing[/color][/size]" width="1000" anchor="Top" textSize="26" textAlign="Center" theme="themes/clear.theme.xml"/>
+	<node kind="Button" name="Back" x="0" y="-24" layer="7" text="Back" width="220" anchor="Bottom" action="pop"/>
+	<node kind="Node2D" name="Director" x="0" y="0">
+		<script name="Credits"/>
+	</node>
+</scene>

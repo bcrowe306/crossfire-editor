@@ -1,0 +1,68 @@
+<dialogue formatVersion="14" start="Intro">
+	<node name="Intro" x="0" y="0">
+		<line speaker="Elder Rowan" text="Lyra. Wake, child. The forest is crying out."/>
+		<line speaker="Lyra" text="Elder? Your voice... it's coming from the rune stones."/>
+		<line speaker="Elder Rowan" text="The Withering has come back. A blight from the old roots, turning the forest's creatures against it. Snails, boars, even the bees... their eyes burn red now."/>
+		<command text="shake"/>
+		<line speaker="Lyra" text="My mother held it back once. Before she..."/>
+		<line speaker="Elder Rowan" text="She was the last Warden of these woods. Her legacy is all that has kept the blight asleep. It is fading."/>
+		<options>
+			<option text="Then I'll finish what she started." next="Intro_Ready"/>
+			<option text="Why me? I'm no Warden." next="Intro_Why"/>
+		</options>
+	</node>
+	<node name="Intro_Why" x="260" y="-80">
+		<set var="$doubted" value="true"/>
+		<line speaker="Elder Rowan" text="A Warden is not born, Lyra. A Warden is made, step by step, deed by deed."/>
+		<line speaker="Elder Rowan" text="Your mother left you her sword and her name. What you build with them will be your own legacy."/>
+		<jump next="Intro_Ready"/>
+	</node>
+	<node name="Intro_Ready" x="260" y="80">
+		<line speaker="Elder Rowan" text="Go east, through the Whispering Woods and the Shadowed Hollow, to the heart of the forest. The blight's root is there: Grimtusk, the great boar it took first."/>
+		<line speaker="Elder Rowan" text="Free the creatures you can. Touch the rune stones on your way: they will remember you, should you fall."/>
+		<line speaker="Lyra" text="I'll try. For her, and for the forest." if="$doubted"/>
+		<line speaker="Lyra" text="I won't fall. For her, and for the forest." if="not $doubted"/>
+	</node>
+	<node name="Sign_Move" x="0" y="220">
+		<line speaker="Rune" text="Run with {$left} and {$right}. Jump with {$jump}: hold it to jump higher, let go early for a short hop."/>
+		<line speaker="Rune" text="Hold {$down} and jump to drop through a wooden plank."/>
+	</node>
+	<node name="Sign_Attack" x="260" y="220">
+		<line speaker="Rune" text="Strike with {$attack}. Your blade swings twice: a creature caught by both falls quickly."/>
+		<line speaker="Rune" text="Pots hide coins. Break them."/>
+	</node>
+	<node name="Sign_Stomp" x="520" y="220">
+		<line speaker="Rune" text="A boar paws the ground before it charges. Jump over it, or land on its back."/>
+	</node>
+	<node name="Sign_Water" x="780" y="220">
+		<line speaker="Rune" text="The blight has soured the water. Do not touch it. The roots still carry those who wait for them."/>
+	</node>
+	<node name="Hollow_Intro" x="0" y="400">
+		<line speaker="Lyra" text="It's getting dark. The hollow is under that hill: the blight runs deepest there."/>
+		<line speaker="Rune" text="Your mother's lantern still burns. Keep it close."/>
+	</node>
+	<node name="Sign_Shaft" x="260" y="400">
+		<line speaker="Rune" text="Down the shaft lies the hollow's heart. The way out climbs from its far end."/>
+	</node>
+	<node name="Sign_Hunters" x="520" y="400">
+		<line speaker="Rune" text="Here the bees hunt. They find their way around the rock to whoever they hear."/>
+		<command text="drums"/>
+	</node>
+	<node name="Lair_Road" x="0" y="580">
+		<line speaker="Lyra" text="The sky's gone red. It's close now."/>
+		<line speaker="Elder Rowan" text="Whatever you meet in there, Lyra: it was once a friend of these woods."/>
+	</node>
+	<node name="Lair_Boss" x="260" y="580">
+		<line speaker="Grimtusk" text="WARDEN'S WHELP. I SMELL HER ON YOU."/>
+		<line speaker="Lyra" text="Grimtusk. You guarded these woods with her. Fight it!"/>
+		<line speaker="Grimtusk" text="THE ROOTS ARE MINE. THE FOREST IS MINE. YOU WILL FEED THEM, AS SHE DID."/>
+		<command text="shake"/>
+		<line speaker="Rune" text="Make it charge into the walls. Stunned, it is open."/>
+	</node>
+	<node name="Ending" x="0" y="760">
+		<line speaker="Grimtusk" text="...the light. I remember the light. Warden... thank you."/>
+		<line speaker="Elder Rowan" text="The blight is broken. Listen: the forest is singing again."/>
+		<line speaker="Elder Rowan" text="You did not inherit a legacy today, Lyra. You built one."/>
+		<line speaker="Lyra" text="Then it's only the beginning."/>
+	</node>
+</dialogue>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="shards">
+	<node kind="ParticleEmitter" name="Shards" x="0" y="0">
+		<particles emitting="false" continuous="false" amount="18" lifetime="0.7" burst="1" spread="6,8" shape="Rectangle" size="3,2" sizeVariance="0.5" rotationSpread="180" torque="400" torqueSpread="400" colorRamp="0:#9aa36f 0.7:#6b7048 1:#4a4a3000" angle="270" angleSpread="60" velocity="120" velocityVariance="0.5" gravityVelocity="500"/>
+		<script name="Burst"/>
+	</node>
+</component>

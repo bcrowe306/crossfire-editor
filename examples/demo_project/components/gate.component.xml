@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component formatVersion="13" name="gate">
+<component formatVersion="14" name="gate">
 	<node kind="StaticBody" name="Gate" x="0" y="0">
-		<node kind="Sprite" name="Sprite" x="0" y="-56" texture="assets/forest/gate.png"/>
-		<node kind="CollisionShape" name="Block" x="0" y="-56" shape="Rectangle" width="24" height="112"/>
+		<node kind="Sprite" name="Sprite" x="0" y="-56" texture="assets/props/gate.png"/>
+		<node kind="CollisionShape" name="Shape" x="0" y="-56" shape="Rectangle" width="24" height="112" disabled="true"/>
+		<node kind="Animator" name="Drop" x="0" y="0">
+			<clip name="close" length="0.7">
+				<track node="Sprite" property="position.y">
+					<key time="0" value="-180" ease="OutBounce"/>
+					<key time="0.7" value="-56"/>
+				</track>
+				<track property="event">
+					<key time="0.35" value="landed"/>
+				</track>
+			</clip>
+			<listener event="onEvent" target=".." handler="onDropEvent"/>
+		</node>
 	</node>
 </component>

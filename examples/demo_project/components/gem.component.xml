@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="gem">
+	<node kind="Area" name="Gem" x="0" y="0" groups="pickups">
+		<node kind="Light2D" name="Glow" x="0" y="0" lightColor="#7fc8ff" energy="1.2" lightRadius="70"/>
+		<node kind="ParticleEmitter" name="Glint" x="0" y="0">
+			<particles amount="6" lifetime="1.2" spread="12,12" size="1.5,1.5" scaleEnd="0,0" colorRamp="0:#ffffff 1:#7fc8ff00" velocity="6" velocityVariance="1" gravityVelocity="-10"/>
+		</node>
+		<node kind="Sprite" name="Sprite" x="0" y="0" texture="assets/items/gem.png"/>
+		<node kind="CollisionShape" name="Shape" x="0" y="0" shape="Circle" radius="8"/>
+		<node kind="Animator" name="Bob" x="0" y="0" autoplay="bob">
+			<clip name="bob" length="1.6" loop="true">
+				<track node="Sprite" property="position.y">
+					<key time="0" value="0" ease="InOutSine"/>
+					<key time="0.8" value="-4" ease="InOutSine"/>
+					<key time="1.6" value="0"/>
+				</track>
+			</clip>
+		</node>
+	</node>
+</component>

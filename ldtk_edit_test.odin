@@ -166,7 +166,7 @@ ldtk_import_brings_outside_files_in :: proc(t: ^testing.T) {
 }
 
 // The demo that ships with the editor (archives, the macOS bundle) copies and loads with its
-// LDtk level: the scene's LDtkLevel node, its entity components, and the files exports need
+// LDtk levels: each level scene's LDtkLevel node, its entity components, and the files exports need
 @(test)
 shipped_demo_copies_with_its_level :: proc(t: ^testing.T) {
 	os.make_directory("build")
@@ -179,32 +179,43 @@ shipped_demo_copies_with_its_level :: proc(t: ^testing.T) {
 	project, message, _ := Project_Load(root)
 	defer Project_Destroy(&project)
 	testing.expect_value(t, message, "")
-	forest := Project_FindScene(&project, "ForestScene")
-	testing.expect(t, forest >= 0, "the forest scene")
-	if forest < 0 do return
-	level: ^NodeDef
-	for &node in project.scenes[forest].nodes do if node.kind == .LDtkLevel do level = &node
-	testing.expect(t, level != nil, "an LDtkLevel node")
-	if level == nil do return
-	testing.expect_value(t, level.ldtk.file, "assets/forest/forest.ldtk")
-	testing.expect_value(t, level.ldtk.collisionLayer, "Collisions")
-	testing.expect_value(t, len(level.ldtk.entityComponents), 8)
-	for m in level.ldtk.entityComponents {
-		testing.expectf(t, os.exists(joinPath(root, m.component, allocator = context.temp_allocator)), "%s's component %s", m.entity, m.component)
+	testing.expect_value(t, project.startScene, "TitleScene")
+	for pair in ([?][2]string{{"ForestScene", "Forest"}, {"HollowScene", "Hollow"}, {"LairScene", "Lair"}}) {
+		scene := Project_FindScene(&project, pair[0])
+		testing.expectf(t, scene >= 0, "the %s scene", pair[0])
+		if scene < 0 do continue
+		level: ^NodeDef
+		for &node in project.scenes[scene].nodes do if node.kind == .LDtkLevel do level = &node
+		testing.expectf(t, level != nil, "%s has an LDtkLevel node", pair[0])
+		if level == nil do continue
+		testing.expect_value(t, level.ldtk.file, "assets/levels/legacy.ldtk")
+		testing.expect_value(t, level.ldtk.level, pair[1])
+		testing.expect_value(t, level.ldtk.collisionLayer, "Ground")
+		// Every entity type but the boss's trigger (a rectangle) is a component
+		testing.expect_value(t, len(level.ldtk.entityComponents), 16)
+		for m in level.ldtk.entityComponents {
+			if m.component == "" {
+				testing.expectf(t, m.make == .Rectangle, "%s is made as its rectangle", m.entity)
+				continue
+			}
+			testing.expectf(t, os.exists(joinPath(root, m.component, allocator = context.temp_allocator)), "%s's component %s", m.entity, m.component)
+		}
 	}
 
-	// The level's file reads, and an export takes its tilesets and background
-	ldtk, problem := e.LDtk_Load(joinPath(root, level.ldtk.file, allocator = context.temp_allocator))
+	// The levels' file reads, and an export takes what it needs: its tilesets are assets, or
+	// LDtkEdit_ExportFiles adds them
+	ldtk, problem := e.LDtk_Load(joinPath(root, "assets/levels/legacy.ldtk", allocator = context.temp_allocator))
 	testing.expect_value(t, problem, "")
 	if ldtk != nil {
-		testing.expect(t, e.LDtk_FindLevel(ldtk, "Forest") != nil, "the Forest level")
+		for name in ([]string{"Forest", "Hollow", "Lair"}) do testing.expectf(t, e.LDtk_FindLevel(ldtk, name) != nil, "the %s level", name)
 		e.LDtk_Destroy(ldtk)
 	}
 	files := LDtkEdit_ExportFiles(&project, context.temp_allocator)
-	for name in ([]string{"assets/forest/tiles.png", "assets/forest/trees.png", "assets/forest/sky.png"}) {
+	for name in ([]string{"assets/tiles/tiles.png", "assets/levels/entities.png"}) {
 		found := false
 		for f in files do if f == name do found = true
-		testing.expectf(t, found, "exports take %s (%v)", name, files)
+		for a in project.assets do if a.path == name do found = true
+		testing.expectf(t, found, "exports take %s", name)
 	}
 }
 

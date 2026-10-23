@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scene formatVersion="14" name="TitleScene" screenLayers="8" background="#2a2050" lighting="true" ambient="#a898c0">
+	<node kind="ParallaxLayer" name="Sky" x="0" y="-30" texture="assets/backgrounds/sky_dusk.png" factorX="0.05" factorY="1" repeatX="true"/>
+	<node kind="ParallaxLayer" name="FarTrees" x="0" y="64" texture="assets/backgrounds/forest_far.png" factorX="0.25" factorY="1" repeatX="true"/>
+	<node kind="ParallaxLayer" name="NearTrees" x="0" y="110" texture="assets/backgrounds/forest_near.png" factorY="1" repeatX="true"/>
+	<node kind="ParallaxLayer" name="Ground" x="0" y="314" texture="assets/backgrounds/ground.png" factorX="1" factorY="1" repeatX="true"/>
+	<node kind="Camera" name="Camera" x="320" y="180" zoom="2">
+		<node kind="Light2D" name="Sun" x="220" y="-200" lightColor="#ffcf9a" energy="1.25" lightRadius="520"/>
+		<node kind="ParticleEmitter" name="Fireflies" x="0" y="40" blendMode="Add">
+			<particles amount="36" lifetime="5" spread="330,110" size="2,2" sizeVariance="0.5" scaleStart="0.4,0.4" scaleEnd="1.2,1.2" colorRamp="0:#fff4a000 0.3:#fff4a0 0.7:#ffd060 1:#ffb04000" angleSpread="180" velocity="8" velocityVariance="1" gravityVelocity="-4"/>
+		</node>
+		<node kind="AnimatedSprite" name="Hero" x="-170" y="150" autoplay="run" animations="assets/characters/hero.aseprite" pivotSlice="pivot">
+			<node kind="Light2D" name="Lantern" x="0" y="-22" lightColor="#ffd8a0" energy="1.2" lightRadius="110"/>
+		</node>
+	</node>
+	<node kind="MusicPlayer" name="Music" x="0" y="0" sound="assets/music/title.ogg" bus="Music" loop="true" autostart="true" fadeIn="1.5" fadeOut="0.8"/>
+	<node kind="RichText" name="Title" x="0" y="70" layer="7" text="[color=#ffe7b8]Legacy[/color]" anchor="Top" theme="themes/title.theme.xml"/>
+	<node kind="RichText" name="Subtitle" x="0" y="185" layer="7" text="of the Wardens" anchor="Top" textSize="44" theme="themes/title.theme.xml"/>
+	<node kind="Panel" name="Menu" x="0" y="130" layer="7" texture="assets/ui/parchment.png" width="300" anchor="Center" layout="Column" align="Stretch" padding="18" spacing="10" patchMargins="8 8 8 8">
+		<script name="MenuSounds"/>
+		<node kind="Button" name="Continue" x="0" y="0" layer="7" text="Continue">
+			<listener event="onPressed" target="../../Director" handler="onContinue"/>
+		</node>
+		<node kind="Button" name="NewGame" x="0" y="0" layer="7" text="New Game">
+			<listener event="onPressed" target="../../Director" handler="onNewGame"/>
+		</node>
+		<node kind="Button" name="Options" x="0" y="0" layer="7" text="Options" action="push:OptionsScene"/>
+		<node kind="Button" name="Credits" x="0" y="0" layer="7" text="Credits" action="push:CreditsScene"/>
+		<node kind="Button" name="Quit" x="0" y="0" layer="7" text="Quit" action="quit"/>
+	</node>
+	<node kind="RichText" name="Best" x="20" y="-16" layer="7" anchor="Bottom_Left" textSize="22" theme="themes/clear.theme.xml"/>
+	<node kind="RichText" name="Footer" x="-20" y="-16" layer="7" text="[color=#e8d8f0]Made with the Crossfire Engine[/color]" anchor="Bottom_Right" textSize="20" theme="themes/clear.theme.xml"/>
+	<node kind="Node2D" name="Director" x="0" y="0">
+		<script name="Title"/>
+		<node kind="Animator" name="Intro" x="0" y="0" autoplay="intro">
+			<clip name="intro" length="1.4">
+				<track node="../Title" property="opacity">
+					<key time="0" value="0" ease="OutQuad"/>
+					<key time="0.9" value="1"/>
+				</track>
+				<track node="../Subtitle" property="opacity">
+					<key time="0" value="0"/>
+					<key time="0.4" value="0" ease="OutQuad"/>
+					<key time="1.2" value="1"/>
+				</track>
+				<track node="../Menu" property="position">
+					<key time="0" value="0, 500" ease="OutBack"/>
+					<key time="0.3" value="0, 500" ease="OutBack"/>
+					<key time="1.1" value="0, 130"/>
+				</track>
+			</clip>
+		</node>
+	</node>
+</scene>

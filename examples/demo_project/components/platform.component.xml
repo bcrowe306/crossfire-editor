@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="platform">
+	<node kind="StaticBody" name="Platform" x="0" y="0">
+		<node kind="Sprite" name="Sprite" x="0" y="-8" texture="assets/props/platform.png"/>
+		<node kind="CollisionShape" name="Top" x="0" y="-13" shape="Rectangle" width="46" height="6" oneWay="true"/>
+		<node kind="Animator" name="Move" x="0" y="0" autoplay="move">
+			<clip name="move" length="2" loop="true">
+				<track property="script.t">
+					<key time="0" value="0" ease="InOutSine"/>
+					<key time="1" value="1" ease="InOutSine"/>
+					<key time="2" value="0"/>
+				</track>
+			</clip>
+		</node>
+	</node>
+</component>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="hud">
+	<node kind="Panel" name="HUD" x="0" y="0" layer="7" anchor="Full" theme="themes/clear.theme.xml">
+		<script name="Hud"/>
+		<node kind="Panel" name="BarTop" x="0" y="-80" layer="7" height="80" anchor="Top_Wide" theme="themes/cinema.theme.xml"/>
+		<node kind="Panel" name="BarBottom" x="0" y="80" layer="7" height="80" anchor="Bottom_Wide" theme="themes/cinema.theme.xml"/>
+		<node kind="Panel" name="Stats" x="16" y="14" layer="7" texture="assets/ui/parchment.png" layout="Row" align="Center" padding="12" spacing="8" patchMargins="8 8 8 8" theme="themes/legacy.theme.xml">
+			<node kind="Panel" name="HeartIcon" x="0" y="0" layer="7" texture="assets/ui/icon_heart.png" width="22" height="22"/>
+			<node kind="ProgressBar" name="Health" x="0" y="0" layer="7" width="150" height="16" value="5" max="5"/>
+			<node kind="RichText" name="HealthText" x="0" y="0" layer="7" text="5/5"/>
+			<node kind="Panel" name="CoinIcon" x="0" y="0" layer="7" texture="assets/items/coin.png" width="20" height="20"/>
+			<node kind="RichText" name="Coins" x="0" y="0" layer="7" text="0"/>
+			<node kind="Panel" name="GemIcon" x="0" y="0" layer="7" texture="assets/items/gem.png" width="20" height="20"/>
+			<node kind="RichText" name="Gems" x="0" y="0" layer="7" text="0/3"/>
+		</node>
+		<node kind="Panel" name="ScoreBox" x="-16" y="14" layer="7" texture="assets/ui/parchment.png" anchor="Top_Right" layout="Row" align="Center" padding="12" patchMargins="8 8 8 8" theme="themes/legacy.theme.xml">
+			<node kind="RichText" name="Score" x="0" y="0" layer="7" text="0"/>
+		</node>
+		<node kind="RichText" name="Toast" x="0" y="110" layer="7" anchor="Top" theme="themes/clear.theme.xml"/>
+		<node kind="Panel" name="BossBar" x="0" y="96" layer="7" visible="false" texture="assets/ui/wood.png" anchor="Top" layout="Column" align="Center" padding="10" spacing="6" patchMargins="8 8 8 8" theme="themes/legacy.theme.xml">
+			<node kind="RichText" name="BossName" x="0" y="0" layer="7" text="[color=#ffb0b0]Grimtusk, the Withered King[/color]" theme="themes/clear.theme.xml"/>
+			<node kind="ProgressBar" name="BossHealth" x="0" y="0" layer="7" width="460" height="18" value="1"/>
+		</node>
+		<node kind="DialogueBox" name="Dialogue" x="160" y="548" layer="7" dialogue="dialogues/story.dialogue.xml" boxWidth="960" boxHeight="150" typeSpeed="45" textSize="26" boxFont="assets/fonts/PixelifySans.ttf" boxPadding="20" boxColor="#1a120ce8" textColor="#f7e8c8" nameColor="#ffd34d" pickColor="#ffd34d" boxAutostart="false">
+			<listener event="onLine" target=".." handler="onDialogueLine"/>
+		</node>
+	</node>
+</component>

@@ -151,8 +151,9 @@ Crossfire Editor $version ($platform), a development build
 
     ./crossfire-editor [project folder]     (crossfire-editor.exe on Windows)
 
-With no folder it opens the demo project in examples/demo_project, beside the editor: a small
-space game, and a platformer level made in LDtk (the menu's "Forest (LDtk)").
+With no folder it opens the demo project in examples/demo_project, beside the editor: "Legacy
+of the Wardens", a platformer in three LDtk levels (press F5 to play it; its README says what
+each part shows).
 Linux: ./install-desktop-entry.sh adds it to your application menu, with its icon.
 The editor needs a Vulkan driver (on macOS: brew install molten-vk vulkan-loader).
 

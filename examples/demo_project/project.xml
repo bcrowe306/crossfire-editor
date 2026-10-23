@@ -1,53 +1,126 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project formatVersion="13" name="Asteroids Demo" width="1280" height="720" scaleMode="Letterbox" background="#0f121e" startScene="MenuScene" gravityY="0">
-	<scene name="MenuScene" path="scenes/MenuScene.scene.xml"/>
-	<scene name="PlayScene" path="scenes/PlayScene.scene.xml"/>
+<project formatVersion="14" name="Legacy of the Wardens" width="1280" height="720" scaleMode="Letterbox" shaders="true" background="#0b0d14" startScene="TitleScene" gravityY="0" uiTheme="themes/legacy.theme.xml" transition="Fade" transitionTime="0.7" transitionColor="#0b0d14" loadingScene="LoadingScene" icon="assets/items/gem.png">
+	<scene name="TitleScene" path="scenes/TitleScene.scene.xml"/>
 	<scene name="OptionsScene" path="scenes/OptionsScene.scene.xml"/>
-	<scene name="TestScene" path="scenes/TestScene.scene.xml"/>
+	<scene name="CreditsScene" path="scenes/CreditsScene.scene.xml"/>
+	<scene name="LoadingScene" path="scenes/LoadingScene.scene.xml"/>
 	<scene name="ForestScene" path="scenes/ForestScene.scene.xml"/>
-	<asset path="assets/ship.png" kind="Image"/>
-	<asset path="assets/balloons.png" kind="Image"/>
-	<asset path="assets/light.png" kind="Image"/>
-	<asset path="assets/Spaceship_12_1.png" kind="Image"/>
-	<asset path="assets/pickup.wav" kind="Audio"/>
-	<asset path="assets/hit.wav" kind="Audio"/>
-	<asset path="data/scout.data.json" kind="Data"/>
-	<asset path="data/hauler.data.json" kind="Data"/>
-	<asset path="components/star.component.xml" kind="Component"/>
-	<asset path="assets/forest/hero.png" kind="Image"/>
-	<asset path="assets/forest/snail.png" kind="Image"/>
-	<asset path="assets/forest/coin.png" kind="Image"/>
-	<asset path="assets/forest/key.png" kind="Image"/>
-	<asset path="assets/forest/gate.png" kind="Image"/>
-	<asset path="assets/forest/chest.png" kind="Image"/>
-	<asset path="assets/forest/chest_open.png" kind="Image"/>
-	<asset path="assets/forest/boar.png" kind="Image"/>
-	<asset path="assets/forest/bee.png" kind="Image"/>
-	<asset path="assets/forest/sounds/jump.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/coin.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/stomp.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/key.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/gate.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/win.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/swing.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/hit.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/defeat.ogg" kind="Audio"/>
-	<asset path="assets/forest/sounds/hurt.ogg" kind="Audio"/>
-	<asset path="assets/forest/forest.ldtk" kind="LDtk"/>
+	<scene name="HollowScene" path="scenes/HollowScene.scene.xml"/>
+	<scene name="LairScene" path="scenes/LairScene.scene.xml"/>
+	<scene name="PauseScene" path="scenes/PauseScene.scene.xml"/>
+	<scene name="GameOverScene" path="scenes/GameOverScene.scene.xml"/>
+	<scene name="VictoryScene" path="scenes/VictoryScene.scene.xml"/>
+	<asset path="assets/backgrounds/forest_far.png" kind="Image"/>
+	<asset path="assets/backgrounds/ground.png" kind="Image"/>
+	<asset path="assets/backgrounds/forest_near.png" kind="Image"/>
+	<asset path="assets/backgrounds/sky_day.png" kind="Image"/>
+	<asset path="assets/backgrounds/sky_dusk.png" kind="Image"/>
+	<asset path="assets/backgrounds/sky_night.png" kind="Image"/>
+	<asset path="assets/characters/hero.aseprite" kind="Image"/>
+	<asset path="assets/fonts/JacquardaBastarda9.ttf" kind="Font"/>
+	<asset path="assets/fonts/PixelifySans.ttf" kind="Font"/>
+	<asset path="assets/items/coin.png" kind="Image"/>
+	<asset path="assets/items/gem.png" kind="Image"/>
+	<asset path="assets/items/potion.png" kind="Image"/>
+	<asset path="assets/levels/entities.png" kind="Image"/>
+	<asset path="assets/levels/legacy.ldtk" kind="LDtk"/>
+	<asset path="assets/mobs/bee_attack.aseprite" kind="Image"/>
+	<asset path="assets/mobs/bee_fly.aseprite" kind="Image"/>
+	<asset path="assets/mobs/bee_hit.aseprite" kind="Image"/>
+	<asset path="assets/mobs/boar_hit.aseprite" kind="Image"/>
+	<asset path="assets/mobs/boar_idle.aseprite" kind="Image"/>
+	<asset path="assets/mobs/boar_run.aseprite" kind="Image"/>
+	<asset path="assets/mobs/boar_walk.aseprite" kind="Image"/>
+	<asset path="assets/mobs/snail_dead.png" kind="Image"/>
+	<asset path="assets/mobs/snail_hide.png" kind="Image"/>
+	<asset path="assets/mobs/snail_walk.png" kind="Image"/>
+	<asset path="assets/music/boss.ogg" kind="Music"/>
+	<asset path="assets/music/caves_base.ogg" kind="Music"/>
+	<asset path="assets/music/caves_drums.ogg" kind="Music"/>
+	<asset path="assets/music/forest_base.ogg" kind="Music"/>
+	<asset path="assets/music/forest_drums.ogg" kind="Music"/>
+	<asset path="assets/music/title.ogg" kind="Music"/>
+	<asset path="assets/music/victory.ogg" kind="Music"/>
+	<asset path="assets/props/candle.png" kind="Image"/>
+	<asset path="assets/props/gate.png" kind="Image"/>
+	<asset path="assets/props/lorestone.png" kind="Image"/>
+	<asset path="assets/props/mine.png" kind="Image"/>
+	<asset path="assets/props/platform.png" kind="Image"/>
+	<asset path="assets/props/pot.png" kind="Image"/>
+	<asset path="assets/props/rune_dark.png" kind="Image"/>
+	<asset path="assets/props/rune_lit.png" kind="Image"/>
+	<asset path="assets/props/runestone.png" kind="Image"/>
+	<asset path="assets/sfx/bee_buzz.ogg" kind="Audio"/>
+	<asset path="assets/sfx/boss_charge.ogg" kind="Audio"/>
+	<asset path="assets/sfx/boss_defeat.ogg" kind="Audio"/>
+	<asset path="assets/sfx/boss_roar.ogg" kind="Audio"/>
+	<asset path="assets/sfx/boss_slam.ogg" kind="Audio"/>
+	<asset path="assets/sfx/boss_stun.ogg" kind="Audio"/>
+	<asset path="assets/sfx/checkpoint.ogg" kind="Audio"/>
+	<asset path="assets/sfx/coin.ogg" kind="Audio"/>
+	<asset path="assets/sfx/dialogue_blip.ogg" kind="Audio"/>
+	<asset path="assets/sfx/enemy_defeat.ogg" kind="Audio"/>
+	<asset path="assets/sfx/enemy_hurt.ogg" kind="Audio"/>
+	<asset path="assets/sfx/game_over.ogg" kind="Audio"/>
+	<asset path="assets/sfx/gate_open.ogg" kind="Audio"/>
+	<asset path="assets/sfx/heart.ogg" kind="Audio"/>
+	<asset path="assets/sfx/hero_death.ogg" kind="Audio"/>
+	<asset path="assets/sfx/hero_hurt.ogg" kind="Audio"/>
+	<asset path="assets/sfx/jump.ogg" kind="Audio"/>
+	<asset path="assets/sfx/land.ogg" kind="Audio"/>
+	<asset path="assets/sfx/level_complete.ogg" kind="Audio"/>
+	<asset path="assets/sfx/pause.ogg" kind="Audio"/>
+	<asset path="assets/sfx/platform.ogg" kind="Audio"/>
+	<asset path="assets/sfx/pot_break.ogg" kind="Audio"/>
+	<asset path="assets/sfx/saved.ogg" kind="Audio"/>
+	<asset path="assets/sfx/shard.ogg" kind="Audio"/>
+	<asset path="assets/sfx/slash_hit.ogg" kind="Audio"/>
+	<asset path="assets/sfx/splash.ogg" kind="Audio"/>
+	<asset path="assets/sfx/step.ogg" kind="Audio"/>
+	<asset path="assets/sfx/stomp.ogg" kind="Audio"/>
+	<asset path="assets/sfx/swing.ogg" kind="Audio"/>
+	<asset path="assets/sfx/ui_back.ogg" kind="Audio"/>
+	<asset path="assets/sfx/ui_move.ogg" kind="Audio"/>
+	<asset path="assets/sfx/ui_select.ogg" kind="Audio"/>
+	<asset path="assets/sfx/ui_toggle.ogg" kind="Audio"/>
+	<asset path="assets/sfx/victory.ogg" kind="Audio"/>
+	<asset path="assets/tiles/tiles.png" kind="Image"/>
+	<asset path="assets/ui/icon_heart.png" kind="Image"/>
+	<asset path="assets/ui/parchment.png" kind="Image"/>
+	<asset path="assets/ui/wood.png" kind="Image"/>
+	<asset path="animations/boar.anim.xml" kind="Animation"/>
+	<asset path="animations/bee.anim.xml" kind="Animation"/>
+	<asset path="animations/snail.anim.xml" kind="Animation"/>
+	<asset path="dialogues/story.dialogue.xml" kind="Dialogue"/>
+	<asset path="themes/legacy.theme.xml" kind="Theme"/>
+	<asset path="themes/title.theme.xml" kind="Theme"/>
+	<asset path="themes/clear.theme.xml" kind="Theme"/>
+	<asset path="themes/cinema.theme.xml" kind="Theme"/>
+	<asset path="themes/dim.theme.xml" kind="Theme"/>
 	<asset path="components/hero.component.xml" kind="Component"/>
-	<asset path="components/coin.component.xml" kind="Component"/>
 	<asset path="components/snail.component.xml" kind="Component"/>
-	<asset path="components/key.component.xml" kind="Component"/>
-	<asset path="components/gate.component.xml" kind="Component"/>
-	<asset path="components/chest.component.xml" kind="Component"/>
 	<asset path="components/boar.component.xml" kind="Component"/>
 	<asset path="components/bee.component.xml" kind="Component"/>
+	<asset path="components/boss.component.xml" kind="Component"/>
+	<asset path="components/coin.component.xml" kind="Component"/>
+	<asset path="components/gem.component.xml" kind="Component"/>
+	<asset path="components/potion.component.xml" kind="Component"/>
+	<asset path="components/pot.component.xml" kind="Component"/>
+	<asset path="components/runestone.component.xml" kind="Component"/>
+	<asset path="components/lorestone.component.xml" kind="Component"/>
+	<asset path="components/platform.component.xml" kind="Component"/>
+	<asset path="components/candle.component.xml" kind="Component"/>
+	<asset path="components/exit.component.xml" kind="Component"/>
+	<asset path="components/gate.component.xml" kind="Component"/>
+	<asset path="components/hud.component.xml" kind="Component"/>
 	<asset path="components/blood.component.xml" kind="Component"/>
-	<asset path="components/coinparticles.component.xml" kind="Component"/>
-	<global script="GameState">
-		<prop name="ship" value="data/scout.data.json"/>
-	</global>
-	<global script="Hud"/>
+	<asset path="components/sparks.component.xml" kind="Component"/>
+	<asset path="components/sparkle.component.xml" kind="Component"/>
+	<asset path="components/dust.component.xml" kind="Component"/>
+	<asset path="components/shards.component.xml" kind="Component"/>
+	<global script="GameState"/>
+	<bus name="Music"/>
+	<bus name="SFX"/>
 	<action name="ui_left">
 		<key key="Left"/>
 		<key key="A"/>
@@ -81,16 +154,42 @@
 		<key key="Escape"/>
 		<gamepad button="East"/>
 	</action>
+	<action name="left">
+		<key key="A"/>
+		<key key="Left"/>
+		<gamepad button="DpadLeft"/>
+		<axis axis="LeftX" direction="-1"/>
+	</action>
+	<action name="right">
+		<key key="D"/>
+		<key key="Right"/>
+		<gamepad button="DpadRight"/>
+		<axis axis="LeftX" direction="1"/>
+	</action>
+	<action name="down">
+		<key key="S"/>
+		<key key="Down"/>
+		<gamepad button="DpadDown"/>
+		<axis axis="LeftY" direction="1"/>
+	</action>
 	<action name="jump">
 		<key key="Space"/>
-		<key key="Up"/>
-		<key key="W"/>
+		<key key="K"/>
 		<gamepad button="South"/>
 	</action>
 	<action name="attack">
 		<key key="J"/>
-		<key key="X"/>
 		<mouse button="Left"/>
 		<gamepad button="West"/>
+	</action>
+	<action name="interact">
+		<key key="W"/>
+		<key key="Up"/>
+		<gamepad button="North"/>
+	</action>
+	<action name="pause">
+		<key key="Escape"/>
+		<key key="P"/>
+		<gamepad button="Start"/>
 	</action>
 </project>

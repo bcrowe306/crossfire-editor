@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<animations formatVersion="14" autoplay="fly">
+	<animation name="fly" sheet="assets/mobs/bee_fly.aseprite#sheet" grid="Size" cellWidth="64" cellHeight="64" start="0" end="3" fps="12" loop="true"/>
+	<animation name="attack" sheet="assets/mobs/bee_attack.aseprite#sheet" grid="Size" cellWidth="64" cellHeight="64" start="0" end="3" fps="16" loop="true"/>
+	<animation name="hit" sheet="assets/mobs/bee_hit.aseprite#sheet" grid="Size" cellWidth="64" cellHeight="64" start="0" end="3" fps="10"/>
+</animations>

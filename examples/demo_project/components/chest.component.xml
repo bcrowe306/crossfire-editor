@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<component formatVersion="13" name="chest">
-	<node kind="Area" name="Chest" x="0" y="0">
-		<node kind="Sprite" name="Sprite" x="0" y="-16" texture="assets/forest/chest.png"/>
-		<node kind="CollisionShape" name="Reach" x="0" y="-12" shape="Rectangle" width="28" height="24"/>
-	</node>
-</component>

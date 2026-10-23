@@ -1,11 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<scene formatVersion="13" name="OptionsScene">
-	<node kind="Label" name="Title" x="640" y="120" layer="7" text="Options" fontSize="64" color="#ebf0ff"/>
-	<node kind="Label" name="Info" x="640" y="260" layer="7" text="Ship" fontSize="32" color="#ebf0ff">
-		<script name="ShipPicker"/>
+<scene formatVersion="14" name="OptionsScene" screenLayers="8">
+	<node kind="Panel" name="Dim" x="0" y="0" layer="7" anchor="Full" theme="themes/dim.theme.xml"/>
+	<node kind="Panel" name="Panel" x="0" y="0" layer="7" texture="assets/ui/parchment.png" width="600" anchor="Center" layout="Column" align="Stretch" padding="24" spacing="12" patchMargins="8 8 8 8">
+		<script name="MenuSounds"/>
+		<node kind="RichText" name="Heading" x="0" y="0" layer="7" text="[size=40]Options[/size]" textAlign="Center"/>
+		<node kind="Panel" name="Music" x="0" y="0" layer="7" layout="Row" align="Center" spacing="12" theme="themes/clear.theme.xml">
+			<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Music" width="150" theme="themes/legacy.theme.xml"/>
+			<node kind="Slider" name="Slider" x="0" y="0" layer="7" width="360" height="22" value="0.8" showValue="true" step="0.05" theme="themes/legacy.theme.xml"/>
+		</node>
+		<node kind="Panel" name="Sounds" x="0" y="0" layer="7" layout="Row" align="Center" spacing="12" theme="themes/clear.theme.xml">
+			<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Sounds" width="150" theme="themes/legacy.theme.xml"/>
+			<node kind="Slider" name="Slider" x="0" y="0" layer="7" width="360" height="22" value="0.9" showValue="true" step="0.05" theme="themes/legacy.theme.xml"/>
+		</node>
+		<node kind="CheckBox" name="Fullscreen" x="0" y="0" layer="7" text="Fullscreen"/>
+		<node kind="Panel" name="ControlsHeading" x="0" y="0" layer="7" layout="Row" align="End" spacing="10" theme="themes/clear.theme.xml">
+			<node kind="RichText" name="Label" x="0" y="0" layer="7" text="[size=28]Controls[/size]" width="170" theme="themes/legacy.theme.xml"/>
+			<node kind="RichText" name="KeyHeading" x="0" y="0" layer="7" text="[color=#7a6040]Keyboard[/color]" width="150" textSize="20" textAlign="Center" theme="themes/legacy.theme.xml"/>
+			<node kind="RichText" name="PadHeading" x="0" y="0" layer="7" text="[color=#7a6040]Gamepad[/color]" width="190" textSize="20" textAlign="Center" theme="themes/legacy.theme.xml"/>
+		</node>
+		<node kind="ScrollBox" name="Controls" x="0" y="0" layer="7" height="250" padding="4" spacing="6" theme="themes/clear.theme.xml">
+			<node kind="Panel" name="Left" x="0" y="0" layer="7" layout="Row" align="Center" spacing="10" theme="themes/clear.theme.xml">
+				<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Left" width="170" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Key" x="0" y="0" layer="7" text="-" width="150" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Pad" x="0" y="0" layer="7" text="-" width="190" theme="themes/legacy.theme.xml"/>
+			</node>
+			<node kind="Panel" name="Right" x="0" y="0" layer="7" layout="Row" align="Center" spacing="10" theme="themes/clear.theme.xml">
+				<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Right" width="170" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Key" x="0" y="0" layer="7" text="-" width="150" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Pad" x="0" y="0" layer="7" text="-" width="190" theme="themes/legacy.theme.xml"/>
+			</node>
+			<node kind="Panel" name="Down" x="0" y="0" layer="7" layout="Row" align="Center" spacing="10" theme="themes/clear.theme.xml">
+				<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Down / drop" width="170" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Key" x="0" y="0" layer="7" text="-" width="150" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Pad" x="0" y="0" layer="7" text="-" width="190" theme="themes/legacy.theme.xml"/>
+			</node>
+			<node kind="Panel" name="Jump" x="0" y="0" layer="7" layout="Row" align="Center" spacing="10" theme="themes/clear.theme.xml">
+				<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Jump" width="170" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Key" x="0" y="0" layer="7" text="-" width="150" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Pad" x="0" y="0" layer="7" text="-" width="190" theme="themes/legacy.theme.xml"/>
+			</node>
+			<node kind="Panel" name="Attack" x="0" y="0" layer="7" layout="Row" align="Center" spacing="10" theme="themes/clear.theme.xml">
+				<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Attack" width="170" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Key" x="0" y="0" layer="7" text="-" width="150" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Pad" x="0" y="0" layer="7" text="-" width="190" theme="themes/legacy.theme.xml"/>
+			</node>
+			<node kind="Panel" name="Read" x="0" y="0" layer="7" layout="Row" align="Center" spacing="10" theme="themes/clear.theme.xml">
+				<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Read" width="170" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Key" x="0" y="0" layer="7" text="-" width="150" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Pad" x="0" y="0" layer="7" text="-" width="190" theme="themes/legacy.theme.xml"/>
+			</node>
+			<node kind="Panel" name="Pause" x="0" y="0" layer="7" layout="Row" align="Center" spacing="10" theme="themes/clear.theme.xml">
+				<node kind="RichText" name="Label" x="0" y="0" layer="7" text="Pause" width="170" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Key" x="0" y="0" layer="7" text="-" width="150" theme="themes/legacy.theme.xml"/>
+				<node kind="Button" name="Pad" x="0" y="0" layer="7" text="-" width="190" theme="themes/legacy.theme.xml"/>
+			</node>
+		</node>
+		<node kind="RichText" name="Hint" x="0" y="0" layer="7" textSize="20" textAlign="Center"/>
+		<node kind="Panel" name="Buttons" x="0" y="0" layer="7" layout="Row" justify="Center" spacing="16" theme="themes/clear.theme.xml">
+			<node kind="Button" name="Reset" x="0" y="0" layer="7" text="Reset controls" width="200" theme="themes/legacy.theme.xml">
+				<listener event="onPressed" target="../../../Director" handler="onReset"/>
+			</node>
+			<node kind="Button" name="Back" x="0" y="0" layer="7" text="Back" width="200" theme="themes/legacy.theme.xml">
+				<listener event="onPressed" target="../../../Director" handler="onBack"/>
+			</node>
+		</node>
 	</node>
-	<node kind="Label" name="Hint" x="640" y="320" layer="7" text="Left / Right: choose your ship (saved)" fontSize="22" color="#96a0b9"/>
-	<node kind="Menu" name="OptionsMenu" x="640" y="420">
-		<item label="Back" action="scene:MenuScene"/>
+	<node kind="Node2D" name="Director" x="0" y="0">
+		<script name="Options"/>
 	</node>
 </scene>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="potion">
+	<node kind="Area" name="Potion" x="0" y="0" groups="pickups">
+		<node kind="Sprite" name="Sprite" x="0" y="-8" texture="assets/items/potion.png"/>
+		<node kind="CollisionShape" name="Shape" x="0" y="-7" shape="Circle" radius="7"/>
+		<node kind="Animator" name="Bob" x="0" y="0" autoplay="bob">
+			<clip name="bob" length="1.4" loop="true">
+				<track node="Sprite" property="position.y">
+					<key time="0" value="-8" ease="InOutSine"/>
+					<key time="0.7" value="-11" ease="InOutSine"/>
+					<key time="1.4" value="-8"/>
+				</track>
+			</clip>
+		</node>
+	</node>
+</component>

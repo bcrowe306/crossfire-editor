@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="lorestone">
+	<node kind="Area" name="Lorestone" x="0" y="0">
+		<node kind="Sprite" name="Stone" x="0" y="-20" texture="assets/props/lorestone.png"/>
+		<node kind="Sprite" name="Rune" x="0" y="-22" scaleX="0.5" scaleY="0.5" texture="assets/props/rune_dark.png"/>
+		<node kind="RichText" name="Prompt" x="0" y="-50" layer="5" text="Read" anchor="Bottom" textSize="20" theme="themes/clear.theme.xml"/>
+		<node kind="CollisionShape" name="Shape" x="0" y="-16" shape="Rectangle" width="40" height="32"/>
+	</node>
+</component>

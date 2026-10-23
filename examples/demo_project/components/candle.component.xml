@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="candle">
+	<node kind="Node2D" name="Candle" x="0" y="0">
+		<node kind="Light2D" name="Light" x="0" y="-14" lightColor="#ffb060" energy="1.1" lightRadius="120"/>
+		<node kind="Sprite" name="Sprite" x="0" y="-8" texture="assets/props/candle.png"/>
+		<node kind="ParticleEmitter" name="Embers" x="0" y="-15" blendMode="Add">
+			<particles amount="6" lifetime="0.9" spread="2,1" size="1,1" scaleEnd="0,0" colorRamp="0:#fff0a0 0.5:#ff9a30 1:#ff400000" angle="270" angleSpread="15" velocity="14" velocityVariance="0.5" gravityVelocity="-10"/>
+		</node>
+	</node>
+</component>

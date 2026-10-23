@@ -269,10 +269,19 @@ tasks:
       - odin build {{.ENGINE_DIR}}/player -o:speed -out:{{.BUILD_DIR}}/player/player
 
   play:demo:
-    desc: Run the demo project in the player, without the editor
-    deps: [player]
+    desc: Run the demo project (with its scripts) in its own player, without the editor
+    deps: [box2d, sdl]
     cmds:
-      - '{{.BUILD_DIR}}/player/player {{.DEMO_PROJECT}}'
+      - odin build tools/demo/player -collection:engine={{.ENGINE_DIR}} -collection:project={{.DEMO_PROJECT}} -out:{{.BUILD_DIR}}/demo_player
+      - '{{.BUILD_DIR}}/demo_player {{.DEMO_PROJECT}}'
+
+  demo:playtest:
+    desc: Play the demo headless (keys pressed by a bot), check every mechanic and level, save frames to build/playtest (PART=title|forest|hollow|lair|gameover for one)
+    deps: [box2d, sdl]
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}/playtest
+      - odin build tools/demo/playtest -collection:engine={{.ENGINE_DIR}} -collection:project={{.DEMO_PROJECT}} -out:{{.BUILD_DIR}}/playtest_bin
+      - SDL_VIDEO_DRIVER=offscreen SDL_AUDIO_DRIVER=dummy {{.BUILD_DIR}}/playtest_bin {{.DEMO_PROJECT}} {{.BUILD_DIR}}/playtest {{.PART}}
 
   clean:
     desc: Delete build output

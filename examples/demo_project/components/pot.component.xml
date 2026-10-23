@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="pot">
+	<node kind="Area" name="Pot" x="0" y="0">
+		<node kind="Sprite" name="Sprite" x="0" y="-16" texture="assets/props/pot.png"/>
+		<node kind="CollisionShape" name="Shape" x="0" y="-10" shape="Rectangle" width="14" height="20"/>
+	</node>
+</component>

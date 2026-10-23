@@ -1,15 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component formatVersion="13" name="hero">
-	<node kind="CharacterMover" name="Hero" x="0" y="0">
-		<node kind="AnimatedSprite" name="Sprite" x="0" y="-36" texture="assets/forest/hero.png" columns="15" rows="4" autoplay="idle">
-			<animation name="idle" start="0" end="3" fps="6" loop="true"/>
-			<animation name="run" start="15" end="22" fps="14" loop="true"/>
-			<animation name="jump" start="32" end="35" fps="8" loop="true"/>
-			<animation name="fall" start="38" end="41" fps="10" loop="true"/>
-			<animation name="attack" start="45" end="52" fps="16"/>
+<component formatVersion="14" name="hero">
+	<node kind="CharacterMover" name="Hero" x="0" y="0" groups="hero">
+		<node kind="AnimatedSprite" name="Sprite" x="0" y="0" zIndex="5" shader="builtin:hit_flash" autoplay="idle" animations="assets/characters/hero.aseprite" pivotSlice="pivot">
+			<shaderParam name="flashColor" value="#ffe0e0"/>
 		</node>
-		<node kind="CollisionShape" name="Body" x="0" y="-20" shape="Capsule" radius="7" height="40"/>
-		<node kind="AudioPlayer" name="HitSound" x="0" y="0" sound="assets/forest/sounds/hit.ogg"/>
-		<node kind="AudioPlayer" name="SwingSound" x="0" y="0" sound="assets/forest/sounds/swing.ogg"/>
+		<node kind="StateMachine" name="Brain" x="0" y="0" start="idle" animates="../Sprite">
+			<param name="speed" type="Float"/>
+			<param name="vy" type="Float"/>
+			<param name="onFloor" type="Bool" value="true"/>
+			<param name="dead" type="Bool"/>
+			<param name="attack" type="Trigger"/>
+			<param name="hurt" type="Trigger"/>
+			<state name="idle" animation="idle" x="40" y="40"/>
+			<state name="run" animation="run" x="240" y="40"/>
+			<state name="jump" animation="jump" x="40" y="180"/>
+			<state name="fall" animation="fall" x="240" y="180"/>
+			<state name="land" animation="land" x="440" y="180"/>
+			<state name="attack" animation="attack" x="440" y="40"/>
+			<state name="hurt" animation="hurt" x="640" y="40"/>
+			<state name="dead" animation="dead" x="640" y="180"/>
+			<transition from="*" to="dead" when="dead"/>
+			<transition from="*" to="hurt" when="hurt"/>
+			<transition from="hurt" to="idle" when="!dead" after="0.3"/>
+			<transition from="*" to="attack" when="attack"/>
+			<transition from="attack" to="idle" when="onFloor" onFinished="true"/>
+			<transition from="attack" to="fall" when="!onFloor" onFinished="true"/>
+			<transition from="idle" to="run" when="onFloor and speed &gt; 20"/>
+			<transition from="run" to="idle" when="speed &lt;= 20"/>
+			<transition from="idle" to="jump" when="!onFloor and vy &lt; 0"/>
+			<transition from="idle" to="fall" when="!onFloor and vy &gt;= 0"/>
+			<transition from="run" to="jump" when="!onFloor and vy &lt; 0"/>
+			<transition from="run" to="fall" when="!onFloor and vy &gt;= 0"/>
+			<transition from="jump" to="fall" when="vy &gt;= 0"/>
+			<transition from="jump" to="land" when="onFloor"/>
+			<transition from="fall" to="land" when="onFloor"/>
+			<transition from="land" to="jump" when="!onFloor and vy &lt; 0"/>
+			<transition from="land" to="run" when="speed &gt; 20"/>
+			<transition from="land" to="idle" when="onFloor" onFinished="true"/>
+		</node>
+		<node kind="CollisionShape" name="Body" x="0" y="-17" shape="Capsule" radius="6" height="32"/>
+		<node kind="Light2D" name="Lantern" x="0" y="-22" lightColor="#ffd8a0" energy="1.1" lightRadius="150"/>
 	</node>
 </component>

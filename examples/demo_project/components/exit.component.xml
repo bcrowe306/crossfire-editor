@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="exit">
+	<node kind="Area" name="Exit" x="0" y="0">
+		<node kind="Sprite" name="Mine" x="8" y="-70" texture="assets/props/mine.png"/>
+		<node kind="Node2D" name="Portal" x="0" y="-30">
+			<node kind="Light2D" name="Light" x="0" y="0" lightColor="#b07cff" energy="1.6" lightRadius="140"/>
+			<node kind="ParticleEmitter" name="Swirl" x="0" y="0" blendMode="Add">
+				<particles amount="60" lifetime="1.4" spread="4,4" size="2.5,2.5" sizeVariance="0.5" scaleEnd="0.1,0.1" torque="90" colorRamp="0:#ffffff 0.3:#c8a0ff 1:#6a30c000" angleSpread="180" velocity="28" velocityVariance="0.3" gravityVelocity="0"/>
+			</node>
+			<node kind="Sprite" name="Rune" x="0" y="0" scaleX="1.5" scaleY="1.5" texture="assets/props/rune_lit.png"/>
+		</node>
+		<node kind="CollisionShape" name="Shape" x="0" y="-20" shape="Rectangle" width="24" height="40"/>
+	</node>
+</component>

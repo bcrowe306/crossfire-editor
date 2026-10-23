@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="runestone">
+	<node kind="Area" name="Runestone" x="0" y="0">
+		<node kind="Light2D" name="Glow" x="0" y="-40" lightColor="#6ec8ff" energy="0" lightRadius="120"/>
+		<node kind="Sprite" name="Stone" x="0" y="-36" texture="assets/props/runestone.png"/>
+		<node kind="Sprite" name="Rune" x="0" y="-40" texture="assets/props/rune_dark.png"/>
+		<node kind="Sprite" name="RuneLit" x="0" y="-40" visible="false" texture="assets/props/rune_lit.png"/>
+		<node kind="ParticleEmitter" name="Motes" x="0" y="-30">
+			<particles emitting="false" amount="14" lifetime="1.8" spread="26,30" size="1.5,1.5" scaleEnd="0.2,0.2" colorRamp="0:#bfe8ff 1:#4ea8de00" angle="270" angleSpread="20" velocity="14" velocityVariance="0.5" gravityVelocity="-8"/>
+		</node>
+		<node kind="ParticleEmitter" name="Burst" x="0" y="-40">
+			<particles emitting="false" continuous="false" amount="40" lifetime="0.9" burst="1" size="2,2" sizeVariance="0.5" scaleEnd="0,0" colorRamp="0:#ffffff 0.4:#8fd0ff 1:#4ea8de00" angleSpread="180" velocity="90" velocityVariance="0.6" gravityVelocity="30"/>
+		</node>
+		<node kind="CollisionShape" name="Shape" x="0" y="-24" shape="Rectangle" width="36" height="48"/>
+	</node>
+</component>

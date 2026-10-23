@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component formatVersion="14" name="sparks">
+	<node kind="ParticleEmitter" name="Sparks" x="0" y="0" blendMode="Add">
+		<particles emitting="false" continuous="false" amount="16" lifetime="0.4" burst="1" spread="3,3" shape="Rectangle" size="2,2" sizeVariance="0.5" scaleEnd="0.2,0.2" colorRamp="0:#ffffff 0.4:#ffe080 1:#ff802000" angle="270" angleVariance="1" angleSpread="70" velocity="170" velocityVariance="0.6" gravityVelocity="380"/>
+		<script name="Burst"/>
+	</node>
+</component>
