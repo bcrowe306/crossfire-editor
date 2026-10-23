@@ -171,7 +171,9 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 			// The position inside (or right at the end of an unclosed) string or comment
 			// (At the end of a line comment is still in it; after a block comment's `*/` isn't)
 			line_comment_end := at_line && tok.end == pos.col && tok.kind == .Comment && tok.start < pos.col && strings.has_prefix(line[tok.start:], "//")
-			if at_line && tok.start < pos.col && pos.col < tok.end || line_comment_end {
+			// Right at the end of a string that isn't closed yet (`"Fo` being typed) is in it too
+			open_string_end := at_line && tok.end == pos.col && tok.kind == .String && tok.start < pos.col && !string_closed(line[tok.start:tok.end])
+			if at_line && tok.start < pos.col && pos.col < tok.end || line_comment_end || open_string_end {
 				if tok.kind == .Comment {
 					out.kind = .Comment
 					done = true
@@ -345,6 +347,19 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 		}
 	}
 	return out
+}
+
+// Whether a string token ends with its closing quote (`"a"`, `'a'`, a raw string's backquote)
+@(private="file")
+string_closed :: proc(text: string) -> bool {
+	if len(text) < 2 do return false
+	quote := text[0]
+	if text[len(text) - 1] != quote do return false
+	if quote == '`' do return true
+	// An escaped closing quote doesn't close it: count the backslashes before it
+	slashes := 0
+	for i := len(text) - 2; i > 0 && text[i] == '\\'; i -= 1 do slashes += 1
+	return slashes % 2 == 0
 }
 
 // The `}` matching the `{` at `open` (the buffer's end when it isn't closed)

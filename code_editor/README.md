@@ -125,9 +125,9 @@ character for completion, the `Syntax_Context` of the position, its user data, a
 
 | Kind | Procedure | When it's called | What it gives, and how it's merged |
 |---|---|---|---|
-| `.Completion` | `Completion_Provider_Proc` | each completion request (typing, Ctrl+Space) | `Provider_Completion`s, merged with the server's list: the server's in its order, then the providers' that aren't already there. A provider item with a server item's label folds into it (the server's insert text stays, the provider's documentation is added, the higher `priority` taken); the first provider to offer a label wins. Within prefix and fuzzy matches, higher `priority` first. Without a server, the providers' items show at once |
+| `.Completion` | `Completion_Provider_Proc` | each completion request (typing, Ctrl+Space), and a typed character of the provider's `trigger_chars` (`"\"/"`: then only the providers are asked, the server's last items aren't listed) | `Provider_Completion`s, merged with the server's list: the server's in its order, then the providers' that aren't already there. A provider item with a server item's label folds into it (the server's insert text stays, the provider's documentation is added, the higher `priority` taken); the first provider to offer a label wins. Within prefix and fuzzy matches, higher `priority` first. Without a server, the providers' items show at once. `replace_start` replaces from another column than the typed word's start (a path, a name with spaces; the list still filters by the word, so `filter_text` is the label from there) |
 | `.Hover` | `Hover_Provider_Proc` | the pointer resting on a cell (the server is asked at the same time) | `Hover_Content`: blocks of `Hover_Text` (plain or markdown), `Hover_Image` (RGBA8 pixels, drawn at most `HOVER_IMAGE_MAX` px on a side) or `Hover_Widget` (a size and a `draw(renderer, rect, data)` the host paints), shown above the server's answer |
-| `.Diagnostics` | `Diagnostic_Provider_Proc` | once per text version, after it's been still for `PROVIDER_DEBOUNCE`, and when invalidated | `Provider_Diagnostic`s (buffer positions), merged with the server's: squiggles, gutter, Problems panel, F8. One the server reports on the same line with the same message isn't repeated. They move with edits until the provider runs again |
+| `.Diagnostics` | `Diagnostic_Provider_Proc` | once per text version, after it's been still for `PROVIDER_DEBOUNCE`, and when invalidated | `Provider_Diagnostic`s (buffer positions), merged with the server's: squiggles, gutter, Problems panel, F8. One the server reports on the same line with the same message isn't repeated. They move with edits until the provider runs again, their `fixes` (`Provider_Fix`: a title, edits, `preferred`) too: Ctrl+. lists the fixes of the diagnostics at the caret (else on its line) before the server's code actions, at once and without a server |
 | `.Gutter` | `Gutter_Provider_Proc` (+ `Gutter_Click_Proc`) | as diagnostics | `Gutter_Marker`s (line, `Gutter_Icon`, color, tooltip, an id): drawn in the marker column (a diagnostic's mark wins), the tooltip on hover, `on_click` called with the marker |
 | `.Inlay` | `Inlay_Provider_Proc` | as diagnostics | `Inlay_Hint`s (position, label, `Inlay_Kind`): drawn dimmed after the line's text (hints that move the text are for later) |
 | `.Drop` | `Drop_Provider_Proc` | `editor_drop(ed, x, y, request)` / `editor_drop_at`, when the host drops something | the `Drop_Request` (the host's kind, value, data) and where it landed; the first provider returning true decides: `Drop_Result.edits` (applied as one undo step, the server told), the caret, a message |
@@ -142,10 +142,13 @@ buffer and the language's tokenizer, no parse, so it works on half-typed code. `
 `Proc_Body` (`proc_name`: a declaration's name or a literal's field, `ready = proc...`),
 `Call_Argument` (`call_name` as written, `e.Node_FindPath`, the `argument` index and where it
 starts) or `Comment`; `in_string` says the position is inside a string literal (a call's string
-argument is `Call_Argument` with it set), `in_proc` whether any procedure encloses it.
+argument is `Call_Argument` with it set; right at the end of one not closed yet counts), `in_proc`
+whether any procedure encloses it.
 
 Tests: `editor/providers_test.odin` (merging and ranking, without a server, hovers and gutter
-tooltips and clicks, diagnostics merged, shifted and debounced, syntax contexts, drops).
+tooltips and clicks, diagnostics merged, shifted and debounced, syntax contexts, drops),
+`editor/providers_names_test.odin` (quick fixes in the Ctrl+. menu with and without a server,
+moved by edits; trigger characters; `replace_start`; a string being typed).
 
 ### Event injection hook (automated testing / scripting)
 
@@ -255,7 +258,8 @@ Diagnostic tags are honoured: *unnecessary* code (e.g. an unused import)
 is drawn faded, *deprecated* code struck through. **Ctrl/Cmd+.** asks the
 server for quick fixes (`textDocument/codeAction`) at the caret and shows
 them in a menu (preferred first; Enter/click applies the edit as one undo
-step). **Ctrl/Cmd+Shift+M** toggles a Problems panel docked at the bottom
+step); a host's providers' fixes for their diagnostics there come first
+(see Providers). **Ctrl/Cmd+Shift+M** toggles a Problems panel docked at the bottom
 listing every file's problems; clicking one jumps there — for another file
 the editor raises a request the host services
 (`editor_take_open_request` + `editor_load_file` +

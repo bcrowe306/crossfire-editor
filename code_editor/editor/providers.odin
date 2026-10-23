@@ -5,7 +5,8 @@
 //
 //   completion    items merged into the completion list (ranked, duplicates folded)
 //   hover         content blocks shown with the server's hover (text, an image, a host widget)
-//   diagnostics   problems merged with the server's (squiggles, gutter, Problems panel)
+//   diagnostics   problems merged with the server's (squiggles, gutter, Problems panel), with
+//                 quick fixes (Ctrl+.'s menu, before the server's code actions)
 //   gutter        markers in the gutter (an icon, a tooltip, a click callback)
 //   inlay hints   notes drawn after a line's text
 //   drops         a host's drop on the code: the editor works out where it landed (the
@@ -87,6 +88,11 @@ Provider_Completion :: struct {
 	// Ranking: among items that match the typed prefix as well, higher comes first (the
 	// server's items are 0)
 	priority:      int,
+	// The column (bytes, on the position's line) where the text it replaces starts; unset: the
+	// typed word's start (the editor's anchor). For text that isn't one word (a path, a name with
+	// spaces): the list still filters by the typed word, so `filter_text` should be the part of
+	// the label from that word on
+	replace_start: Maybe(int),
 }
 
 // Hover content: blocks drawn in order
@@ -131,6 +137,17 @@ Provider_Diagnostic :: struct {
 	message:    string,
 	// Who says so ("crossfire"); shown in the tooltip and the Problems panel
 	source:     string,
+	// Quick fixes, offered by the code actions menu (Ctrl+.) with the caret on the problem
+	fixes:      []Provider_Fix,
+}
+
+// A quick fix for a provider's diagnostic: its edits (buffer positions in the text as it is when
+// the provider runs; the editor moves them with later edits), applied as one undo step
+Provider_Fix :: struct {
+	title:     string,
+	edits:     []Text_Edit,
+	// Listed first and selected (like the server's preferred actions)
+	preferred: bool,
 }
 
 // The shapes a gutter marker can have
@@ -215,6 +232,9 @@ Provider :: struct {
 	kind:       Provider_Kind,
 	name:       string,
 	user_data:  rawptr,
+	// Completion: characters that open the list when typed (as '.' does), asking only the
+	// providers ('"', '/' for names in strings). The provider decides whether it has anything there
+	trigger_chars: string,
 	completion: Completion_Provider_Proc,
 	hover:      Hover_Provider_Proc,
 	diagnostic: Diagnostic_Provider_Proc,
@@ -239,7 +259,10 @@ Provider_Registry :: struct {
 
 // Frees a registry's list (the providers' user data is the host's)
 provider_registry_destroy :: proc(reg: ^Provider_Registry) {
-	for p in reg.providers do delete(p.name)
+	for p in reg.providers {
+		delete(p.name)
+		delete(p.trigger_chars)
+	}
 	delete(reg.providers)
 	reg.providers = nil
 }
@@ -254,6 +277,7 @@ Example:
 provider_register :: proc(reg: ^Provider_Registry, p: Provider) {
 	p := p
 	p.name = strings.clone(p.name)
+	p.trigger_chars = strings.clone(p.trigger_chars)
 	p.calls, p.last, p.worst = 0, 0, 0
 	append(&reg.providers, p)
 	reg.generation += 1
@@ -327,8 +351,32 @@ provided_clear_diagnostics :: proc(p: ^Provided) {
 	for d in p.diagnostics {
 		delete(d.message)
 		delete(d.source)
+		provider_fixes_free(d.fixes)
 	}
 	clear(&p.diagnostics)
+}
+
+// Copies quick fixes (owned: free with provider_fixes_free)
+@(private)
+provider_fixes_clone :: proc(fixes: []Provider_Fix) -> []Provider_Fix {
+	if len(fixes) == 0 do return nil
+	out := make([]Provider_Fix, len(fixes))
+	for f, i in fixes {
+		edits := make([]Text_Edit, len(f.edits))
+		for e, j in f.edits do edits[j] = {e.start, e.end, strings.clone(e.text)}
+		out[i] = {strings.clone(f.title), edits, f.preferred}
+	}
+	return out
+}
+
+@(private)
+provider_fixes_free :: proc(fixes: []Provider_Fix) {
+	for f in fixes {
+		delete(f.title)
+		for e in f.edits do delete(e.text)
+		delete(f.edits)
+	}
+	delete(fixes)
 }
 
 @(private)
@@ -378,6 +426,10 @@ provided_shift :: proc(p: ^Provided, ch: buf.Change) {
 	for &d in p.diagnostics {
 		d.start = buf.position_after_change(d.start, ch)
 		d.end = buf.position_after_change(d.end, ch)
+		for f in d.fixes do for &e in f.edits {
+			e.start = buf.position_after_change(e.start, ch)
+			e.end = buf.position_after_change(e.end, ch)
+		}
 	}
 	for &m in p.markers do m.line = buf.position_after_change({m.line, 0}, ch).line
 	for &h in p.inlays do h.pos = buf.position_after_change(h.pos, ch)
@@ -456,7 +508,7 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 			start, end := clamp_pos(&ed.buf, d.start), clamp_pos(&ed.buf, d.end)
 			if buf.position_less(end, start) do start, end = end, start
 			sev := d.severity == {} ? Diagnostic_Severity.Warning : d.severity
-			append(&p.diagnostics, Provider_Diagnostic{start, end, sev, strings.clone(d.message), strings.clone(d.source)})
+			append(&p.diagnostics, Provider_Diagnostic{start, end, sev, strings.clone(d.message), strings.clone(d.source), provider_fixes_clone(d.fixes)})
 		}
 		p.diag_seq += 1
 	}
@@ -477,6 +529,28 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 	}
 	slice.stable_sort_by(p.inlays[:], proc(a, b: Inlay_Hint) -> bool { return buf.position_less(a.pos, b.pos) })
 	p.seq += 1
+}
+
+/*
+The quick fixes of the providers' diagnostics at a position: those whose range holds it (its
+end included), else those on its line (the editor's; valid until the providers run again).
+*/
+editor_provider_fixes_at :: proc(ed: ^Editor, pos: buf.Position, allocator := context.temp_allocator) -> []Provider_Fix {
+	out := make([dynamic]Provider_Fix, allocator)
+	for d in ed.provided.diagnostics {
+		if !buf.position_less(pos, d.start) && !buf.position_less(d.end, pos) do for f in d.fixes do append(&out, f)
+	}
+	if len(out) == 0 {
+		for d in ed.provided.diagnostics do if d.start.line <= pos.line && pos.line <= d.end.line do for f in d.fixes do append(&out, f)
+	}
+	return out[:]
+}
+
+// Whether a typed character opens completion for a provider (its `trigger_chars`)
+editor_provider_trigger_char :: proc(ed: ^Editor, ch: u8) -> bool {
+	if ed.providers == nil do return false
+	for p in ed.providers.providers do if p.kind == .Completion && strings.index_byte(p.trigger_chars, ch) >= 0 do return true
+	return false
 }
 
 // The gutter markers on a line (a slice of the editor's list)
@@ -557,6 +631,7 @@ editor_query_completion_providers :: proc(ed: ^Editor, pos: buf.Position, prefix
 			documentation = strings.clone(c.documentation), doc_markdown = c.doc_markdown,
 			insert_text = strings.clone(c.insert_text), is_snippet = c.is_snippet,
 			filter_text = strings.clone(c.filter_text), kind = c.kind, priority = c.priority,
+			replace_start = c.replace_start,
 		})
 	}
 }
@@ -600,7 +675,7 @@ editor_merge_completions :: proc(ed: ^Editor) {
 	cs.items_seq += 1
 	// Labels already listed (the first item with each)
 	listed := make(map[string]int, allocator = context.temp_allocator)
-	if ed.lsp_enabled {
+	if ed.lsp_enabled && !cs.providers_only {
 		for item in ed.lsp.last_completion {
 			if item.label not_in listed do listed[item.label] = len(cs.items)
 			append(&cs.items, Completion_Entry{item = item})
@@ -625,12 +700,20 @@ editor_merge_completions :: proc(ed: ^Editor) {
 		}
 		if folded do continue
 		listed[c.label] = len(cs.items)
+		item := lspc.CompletionItem{
+			label = strings.clone(c.label), kind = c.kind, detail = strings.clone(c.detail),
+			insert_text = strings.clone(c.insert_text), filter_text = strings.clone(c.filter_text),
+			is_snippet = c.is_snippet, documentation = strings.clone(c.documentation), doc_markdown = c.doc_markdown,
+		}
+		// Replacing from another column than the word's start: an edit range on the anchor's line
+		if col, set := c.replace_start.?; set && cs.anchor.line < buf.buffer_line_count(&ed.buf) {
+			line := buf.buffer_line_str(&ed.buf, cs.anchor.line)
+			item.has_text_edit = true
+			item.text_edit_range.start = {cs.anchor.line, lspc.byte_col_to_utf16(line, clamp(col, 0, len(line)))}
+			item.text_edit_range.end = item.text_edit_range.start
+		}
 		append(&cs.items, Completion_Entry{
-			item = lspc.CompletionItem{
-				label = strings.clone(c.label), kind = c.kind, detail = strings.clone(c.detail),
-				insert_text = strings.clone(c.insert_text), filter_text = strings.clone(c.filter_text),
-				is_snippet = c.is_snippet, documentation = strings.clone(c.documentation), doc_markdown = c.doc_markdown,
-			},
+			item = item,
 			provided = true,
 			owned = true,
 			priority = c.priority,

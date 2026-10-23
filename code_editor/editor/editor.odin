@@ -187,6 +187,7 @@ editor_destroy :: proc(ed: ^Editor) {
 	provided_completions_free(&ed.completion.provided)
 	delete(ed.completion.provided)
 	provided_destroy(&ed.provided)
+	provider_fixes_free(ed.actions.fixes)
 }
 
 DEFAULT_LINE_SPACING :: 1.4

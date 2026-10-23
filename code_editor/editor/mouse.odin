@@ -322,7 +322,7 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 	case .Find:
 		editor_find_click(ed, ev.x, ev.y)
 	case .Code_Actions:
-		if hit.row >= 0 && hit.row < len(ed.lsp.last_code_actions) {
+		if hit.row >= 0 && hit.row < editor_code_action_count(ed) {
 			editor_apply_code_action(ed, hit.row)
 		}
 	case .Problems:
@@ -573,7 +573,7 @@ editor_handle_mouse_wheel :: proc(ed: ^Editor, ev: sdl.MouseWheelEvent) -> bool 
 		return true
 	case .Code_Actions:
 		if rect, ok := editor_code_actions_layout(ed); ok {
-			ed.actions.scroll = overlay_scroll_clamp(ed.actions.scroll + overlay_wheel_rows(ed, dy), len(ed.lsp.last_code_actions), popup_rows_of(ed, rect))
+			ed.actions.scroll = overlay_scroll_clamp(ed.actions.scroll + overlay_wheel_rows(ed, dy), editor_code_action_count(ed), popup_rows_of(ed, rect))
 		}
 		return true
 	case .Context_Menu:

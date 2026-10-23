@@ -333,9 +333,9 @@ snapshot_state :: proc(e: ^ed.Editor, frame: int) -> State {
 	}
 	s.problems = {open = e.problems.open, count = len(problems), rows = prow}
 
-	titles := make([]string, len(e.lsp.last_code_actions) if e.lsp_enabled else 0, context.temp_allocator)
+	titles := make([]string, ed.editor_code_action_count(e), context.temp_allocator)
 	for &title, i in titles {
-		title = e.lsp.last_code_actions[i].title
+		title, _ = ed.editor_code_action_title(e, i)
 	}
 	s.code_actions = {
 		active = e.actions.active, visible = ed.editor_code_actions_visible(e), selected = e.actions.selected,

@@ -32,6 +32,9 @@ Completion_State :: struct {
 	items_seq: int,
 	// What the completion providers offered at the last request (owned)
 	provided:  [dynamic]Provider_Completion,
+	// The last request asked only the providers (a provider's trigger character): the
+	// server's last items aren't listed
+	providers_only: bool,
 	selected: int,
 	// First visible row of the popup list (for lists longer than
 	// COMPLETION_MAX_VISIBLE).
@@ -90,9 +93,10 @@ editor_lsp_col :: proc(ed: ^Editor, pos: buf.Position) -> int {
 
 // editor_request_completion opens the completion popup for the word at the
 // primary cursor, asks the completion providers and the attached LSP for
-// candidates, and merges them. No-op without either.
-editor_request_completion :: proc(ed: ^Editor, trigger := Provider_Trigger.Invoked, trigger_char: u8 = 0) {
-	server := editor_lsp_ready(ed)
+// candidates, and merges them. No-op without either. `providers_only`: a
+// provider's trigger character opened it, so the server isn't asked.
+editor_request_completion :: proc(ed: ^Editor, trigger := Provider_Trigger.Invoked, trigger_char: u8 = 0, providers_only := false) {
+	server := !providers_only && editor_lsp_ready(ed)
 	if !server && !editor_has_provider(ed, .Completion) {
 		return
 	}
@@ -106,6 +110,7 @@ editor_request_completion :: proc(ed: ^Editor, trigger := Provider_Trigger.Invok
 	cs.scroll = 0
 	clear(&cs.filtered)
 	cs.request_prefix_len = c.pos.col - cs.anchor.col
+	cs.providers_only = !server
 	line := buf.buffer_line_str(&ed.buf, c.pos.line)
 	editor_query_completion_providers(ed, c.pos, line[cs.anchor.col:min(c.pos.col, len(line))], trigger, trigger_char)
 	if !server {
@@ -159,6 +164,10 @@ editor_after_text_input :: proc(ed: ^Editor, text: string) {
 	}
 	last := text[len(text) - 1]
 	switch {
+	case editor_provider_trigger_char(ed, last):
+		// A provider's character ('"' in a call's argument): only the providers know what fits
+		editor_close_completion(ed)
+		editor_request_completion(ed, .Typed, last, providers_only = true)
 	case last == '.':
 		editor_request_completion(ed, .Typed, '.')
 	case last == '(' || last == ',':
@@ -198,7 +207,7 @@ editor_update_lsp_ui :: proc(ed: ^Editor) {
 			editor_refilter_completion(ed)
 			// isIncomplete: the server only sent part of the list, so a
 			// longer/shorter prefix needs a fresh query, not just filtering.
-			if cs.active && !cs.waiting && ed.lsp_enabled && ed.lsp.completion_incomplete {
+			if cs.active && !cs.waiting && !cs.providers_only && ed.lsp_enabled && ed.lsp.completion_incomplete {
 				if prefix, ok := editor_completion_prefix(ed); ok && len(prefix) != cs.request_prefix_len {
 					editor_request_completion(ed)
 				}
