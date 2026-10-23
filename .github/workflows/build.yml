@@ -382,6 +382,12 @@ jobs:
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
+          # Until the bucket exists (R2 enabled in Cloudflare), skip with a warning: the website
+          # falls back to GitHub's releases.
+          if ! aws s3api head-bucket --bucket "$BUCKET" --endpoint-url "$ENDPOINT" 2>/dev/null; then
+            echo "::warning::R2 bucket $BUCKET not reachable: release files not uploaded"
+            exit 0
+          fi
           for f in dist/*; do
             aws s3 cp "$f" "s3://$BUCKET/releases/$TAG/$(basename "$f")" --endpoint-url "$ENDPOINT" --no-progress
           done
