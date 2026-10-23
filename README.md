@@ -11,8 +11,8 @@ with the [Skald](https://github.com/bcrowe306/Skald) GUI framework.
 
 **Status:** early. Projects load from and save to XML. You can edit scenes in the engine-rendered
 viewport, the node tree and the inspector, undo and redo edits, and **Play** runs the project in
-the engine. **Export** builds the game for Linux x86_64 and the web (other targets are listed, but
-not implemented yet).
+the engine. **Export** builds the game for Linux, Windows, macOS and the web (Steam and consoles are
+listed, but not implemented yet).
 
 ## Requirements
 
@@ -33,8 +33,9 @@ not implemented yet).
 git clone --recursive https://github.com/bcrowe306/crossfire-editor odin_sdl_editor
 git clone --recursive https://github.com/bcrowe306/crossfire-engine odin_sdl_engine
 cd odin_sdl_editor
-task setup    # fetch the Skald submodule, build Odin's STB libraries (once per Odin install)
-task run      # build and run the editor; it opens the demo project
+task setup    # fetch the submodules, build Odin's STB libraries and the engine's Box2D (once)
+task run      # build and run the editor; it opens the demo project (the first run also
+              # builds the static SDL and the shader tools: CMake, a C++ compiler, Python 3)
 ```
 
 Press **Play** (F5) to run the open project. The first time, the editor builds the engine's game
@@ -62,7 +63,7 @@ Run `task` to list them all.
 
 | Command | What it does |
 |---|---|
-| `task setup` | One-time setup: `task submodules` + `task stb` |
+| `task setup` | One-time setup: `task submodules` + `task stb` + `task box2d` |
 | `task submodules` | Fetch or update the submodules (Skald, emsdk) |
 | `task box2d` | Build the engine's Box2D (once; builds and checks do it when needed) |
 | `task emsdk` | Install the Emscripten toolchain web exports need (about 1 GB into `third_party/emsdk`, once per machine), and build SDL3_mixer for the web |

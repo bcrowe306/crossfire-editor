@@ -196,4 +196,5 @@ it again.
 
 **Windows warns about the game when players open it.** Windows (SmartScreen) and macOS
 (Gatekeeper) warn about programs that aren't signed with a paid certificate. Players can still
-run it (Windows: More info > Run anyway; macOS: right-click > Open).
+run it (Windows: More info > Run anyway; macOS: after the first try, System Settings > Privacy &
+Security > Open Anyway).
