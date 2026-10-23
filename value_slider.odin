@@ -43,7 +43,10 @@ valueSlider :: proc(
 	// To the step (a tenth of it while fine-tuning), within the range
 	settle :: proc(v, lo, hi, step: f32) -> f32 {
 		v := step > 0 ? math.round(v / step) * step : v
-		return math.clamp(v, lo, hi)
+		v = math.clamp(v, lo, hi)
+		// Rounding a little under zero gives -0, which files would get as "-0"
+		if v == 0 do v = 0
+		return v
 	}
 
 	// Tab reaches the track; while it has focus the arrow keys step it (Shift: 10 steps)
