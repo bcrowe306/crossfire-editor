@@ -11,7 +11,7 @@ import e "engine:."
 @(private="file")
 consoleState :: proc() -> State {
 	return State{
-		project = Project_CreateDemo("unused"),
+		project = Project_CreateTestProject("unused"),
 		browserSelection = {kind = .None},
 		selectedNode = -1,
 		busSelection = -1,

@@ -1086,23 +1086,25 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 }
 
 /*
-Builds the sample project: a menu, a play scene with sprites and animations, and an options
-screen. Its images ship in `examples/demo_project/assets`.
+Builds the built-in outline of the demo project, for when the editor has no shipped copy of
+`examples/demo_project` to open (release archives and bundles ship it; see `Editor_DemoProject`):
+its title screen and options made of UI controls (no images: those ship with the full demo),
+and an empty level to start from.
 
 Inputs:
 - rootPath: Folder the project is saved in
 
 Returns:
-- The sample project. Its strings are heap-allocated and owned by the project
+- The project. Its strings are heap-allocated and owned by the project
 */
 Project_CreateDemo :: proc(rootPath: string) -> Project {
 	project := Project{
-		name = strings.clone("Asteroids Demo"),
+		name = strings.clone("Legacy of the Wardens"),
 		rootPath = strings.clone(rootPath),
 		gameSize = {1280, 720},
 		scaleMode = .Letterbox,
-		background = {15, 18, 30, 255},
-		startScene = strings.clone("MenuScene"),
+		background = {42, 32, 80, 255},
+		startScene = strings.clone("TitleScene"),
 		physics = e.DEFAULT_PHYSICS,
 		window = e.DEFAULT_WINDOW_SETTINGS,
 		grid = e.DEFAULT_GRID_SETTINGS,
@@ -1110,51 +1112,71 @@ Project_CreateDemo :: proc(rootPath: string) -> Project {
 		audioOutput = e.DEFAULT_AUDIO_OUTPUT,
 		exports = ExportSettings_Default(),
 	}
-	TITLE_COLOR :: sdl.Color{235, 240, 255, 255}
-	TEXT_COLOR :: sdl.Color{150, 160, 185, 255}
+	project.transition = e.DEFAULT_TRANSITION
+	project.transition.kind = .Fade
 
-	menu := SceneDef{name = strings.clone("MenuScene")}
-	setText(&menu, addNode(&menu, "Title", .Label, -1, {640, 180}), "ASTEROIDS", 80, TITLE_COLOR)
-	mainMenu := addNode(&menu, "MainMenu", .Menu, -1, {640, 320})
-	addItem(&menu, mainMenu, "Play", "scene:PlayScene")
-	addItem(&menu, mainMenu, "Options", "scene:OptionsScene")
-	addItem(&menu, mainMenu, "Quit", "quit")
-	append(&project.scenes, menu)
-
-	play := SceneDef{name = strings.clone("PlayScene")}
-	// Positions are relative to the parent
-	world := addNode(&play, "World", .Node2D, -1, {0, 0})
-	addNode(&play, "Camera", .Camera, world, {640, 360})
-	ship := addNode(&play, "Spaceship", .Sprite, world, {640, 430})
-	setTexture(&play, ship, "assets/ship.png")
-	// Rides along with the ship
-	setAnimation(&play, addNode(&play, "ShipLight", .AnimatedSprite, ship, {0, 60}), "assets/light.png", 2, 1, 4, .Forward)
-	play.nodes[len(play.nodes) - 1].scale = {0.4, 0.4}
-	props := addNode(&play, "Props", .Node2D, world, {640, 360})
-	setAnimation(&play, addNode(&play, "Balloon", .AnimatedSprite, props, {-340, -60}), "assets/balloons.png", 4, 1, 3, .Forward)
-	setAnimation(&play, addNode(&play, "BalloonPingPong", .AnimatedSprite, props, {340, -100}), "assets/balloons.png", 4, 1, 5, .PingPong)
-	setAnimation(&play, addNode(&play, "WarningLight", .AnimatedSprite, props, {-480, 260}), "assets/light.png", 2, 1, 2, .Forward)
-	setAnimation(&play, addNode(&play, "WarningLight2", .AnimatedSprite, props, {480, 260}), "assets/light.png", 2, 1, 3, .Forward)
-	hud := addNode(&play, "HUD", .Node2D, -1, {1240, 24})
-	back := addNode(&play, "BackMenu", .Menu, hud, {-180, 0})
-	addItem(&play, back, "Menu", "scene:MenuScene")
-	play.nodes[hud].layer = 7
-	play.nodes[back].layer = 7
-	append(&project.scenes, play)
+	title := SceneDef{name = strings.clone("TitleScene")}
+	heading := addNode(&title, "Title", .RichText, -1, {0, 120})
+	setControl(&title, heading, "[size=72][color=#ffe7b8]Legacy of the Wardens[/color][/size]", .Top)
+	note := addNode(&title, "Note", .RichText, -1, {0, 230})
+	setControl(&title, note, "[color=#d8c8f0]The built-in outline of the demo: the full game ships beside the editor (examples/demo_project).[/color]", .Top)
+	title.nodes[note].ui.size.x = 900
+	title.nodes[note].ui.textAlign = .Center
+	menu := addNode(&title, "Menu", .Panel, -1, {0, 90})
+	setControl(&title, menu, "", .Center)
+	title.nodes[menu].ui.layout = .Column
+	title.nodes[menu].ui.align = .Stretch
+	title.nodes[menu].ui.size.x = 280
+	for item in ([?][3]string{{"Play", "Play", "scene:LevelScene"}, {"Options", "Options", "push:OptionsScene"}, {"Quit", "Quit", "quit"}}) {
+		button := addNode(&title, item[0], .Button, menu, {0, 0})
+		setControl(&title, button, item[1], .Top_Left)
+		delete(title.nodes[button].ui.action)
+		title.nodes[button].ui.action = strings.clone(item[2])
+	}
+	append(&project.scenes, title)
 
 	options := SceneDef{name = strings.clone("OptionsScene")}
-	setText(&options, addNode(&options, "Title", .Label, -1, {640, 120}), "Options", 64, TITLE_COLOR)
-	setText(&options, addNode(&options, "Info", .Label, -1, {640, 260}), "Settings will live here.", 28, TEXT_COLOR)
-	optionsMenu := addNode(&options, "OptionsMenu", .Menu, -1, {640, 420})
-	addItem(&options, optionsMenu, "Back", "scene:MenuScene")
+	panel := addNode(&options, "Panel", .Panel, -1, {0, 0})
+	setControl(&options, panel, "", .Center)
+	options.nodes[panel].ui.layout = .Column
+	options.nodes[panel].ui.align = .Stretch
+	options.nodes[panel].ui.size.x = 420
+	setControl(&options, addNode(&options, "Heading", .RichText, panel, {0, 0}), "[size=40]Options[/size]", .Top_Left)
+	music := addNode(&options, "Music", .Slider, panel, {0, 0})
+	setControl(&options, music, "", .Top_Left)
+	options.nodes[music].ui.value = 0.8
+	options.nodes[music].ui.step = 0.05
+	options.nodes[music].ui.showValue = true
+	setControl(&options, addNode(&options, "Fullscreen", .CheckBox, panel, {0, 0}), "Fullscreen", .Top_Left)
+	back := addNode(&options, "Back", .Button, panel, {0, 0})
+	setControl(&options, back, "Back", .Top_Left)
+	delete(options.nodes[back].ui.action)
+	options.nodes[back].ui.action = strings.clone("pop")
 	append(&project.scenes, options)
 
-	for path in ([]string{"assets/ship.png", "assets/balloons.png", "assets/light.png"}) {
-		append(&project.assets, AssetDef{path = strings.clone(path), kind = .Image})
-	}
+	level := SceneDef{name = strings.clone("LevelScene")}
+	level.settings.screenLayers = {.Layer8}
+	addNode(&level, "Camera", .Camera, -1, {640, 360})
+	setControl(&level, addNode(&level, "Hint", .RichText, -1, {0, 0}), "[size=36]Your first level: add an LDtkLevel or a TileMap[/size]", .Center)
+	toTitle := addNode(&level, "Title", .Button, -1, {0, -24})
+	setControl(&level, toTitle, "Back to the title", .Bottom)
+	delete(level.nodes[toTitle].ui.action)
+	level.nodes[toTitle].ui.action = strings.clone("scene:TitleScene")
+	append(&project.scenes, level)
+
 	project.buses = Buses_FromData(nil)
 	project.actions = DefaultActions()
 	return project
+}
+
+// A UI control's text and anchor, on layer 8 (the level's camera leaves it alone: a screen layer)
+@(private="file")
+setControl :: proc(scene: ^SceneDef, index: int, text: string, anchor: e.UIAnchor) {
+	node := &scene.nodes[index]
+	delete(node.text)
+	node.text = strings.clone(text)
+	node.ui.anchor = anchor
+	node.layer = 7
 }
 
 // Appends a node to the end of the scene and returns its index. Callers add children right
@@ -1170,37 +1192,4 @@ addNode :: proc(scene: ^SceneDef, name: string, kind: NodeKind, parent: int, pos
 	}
 	append(&scene.nodes, node)
 	return len(scene.nodes) - 1
-}
-
-@(private="file")
-setText :: proc(scene: ^SceneDef, index: int, text: string, size: f32, color: sdl.Color) {
-	node := &scene.nodes[index]
-	delete(node.text)
-	node.text = strings.clone(text)
-	node.fontSize = size
-	node.color = color
-	node.layer = 7
-}
-
-@(private="file")
-setTexture :: proc(scene: ^SceneDef, index: int, path: string) {
-	node := &scene.nodes[index]
-	delete(node.texture)
-	node.texture = strings.clone(path)
-}
-
-@(private="file")
-setAnimation :: proc(scene: ^SceneDef, index: int, path: string, columns, rows: int, fps: f32, mode: e.AnimationPlayMode) {
-	node := &scene.nodes[index]
-	delete(node.animations[0].sheet)
-	node.animations[0].sheet = strings.clone(path)
-	node.animations[0].grid = {mode = .Cells, columns = columns, rows = rows}
-	node.animations[0].fps = fps
-	node.animations[0].loop = true
-	node.animations[0].playMode = mode
-}
-
-@(private="file")
-addItem :: proc(scene: ^SceneDef, index: int, label, action: string) {
-	append(&scene.nodes[index].items, MenuItemDef{strings.clone(label), strings.clone(action)})
 }

@@ -23,7 +23,7 @@ import sdl "vendor:sdl3"
 @(private="file")
 testState :: proc() -> State {
 	state := State{
-		project = Project_CreateDemo("unused"),
+		project = Project_CreateTestProject("unused"),
 		browserSelection = {kind = .None},
 		currentScene = 1, // PlayScene
 		selectedNode = -1,
@@ -290,7 +290,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	dir := tempDir("odin_sdl_editor_round_trip")
 	defer removeAll(dir)
 
-	original := Project_CreateDemo(dir)
+	original := Project_CreateTestProject(dir)
 	defer Project_Destroy(&original)
 	// Characters that need escaping, and non-default values, must survive
 	label := &original.scenes[0].nodes[0]
@@ -373,7 +373,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 
 @(test)
 saving_is_deterministic :: proc(t: ^testing.T) {
-	project := Project_CreateDemo("unused")
+	project := Project_CreateTestProject("unused")
 	defer Project_Destroy(&project)
 	for &scene in project.scenes {
 		testing.expect_value(t, SceneToXML(&scene, context.temp_allocator), SceneToXML(&scene, context.temp_allocator))
@@ -383,7 +383,7 @@ saving_is_deterministic :: proc(t: ^testing.T) {
 
 @(test)
 scene_xml_nests_children :: proc(t: ^testing.T) {
-	project := Project_CreateDemo("unused")
+	project := Project_CreateTestProject("unused")
 	defer Project_Destroy(&project)
 	text := SceneToXML(&project.scenes[1], context.temp_allocator)
 
@@ -788,7 +788,7 @@ opening_a_scene_fits_the_view :: proc(t: ^testing.T) {
 // A temp project folder with the demo project saved in it
 @(private="file")
 tempProject :: proc(name: string) -> Project {
-	project := Project_CreateDemo(tempDir(name))
+	project := Project_CreateTestProject(tempDir(name))
 	Project_Save(&project)
 	return project
 }
@@ -1783,11 +1783,11 @@ unsaved_changes_new_and_open_project :: proc(t: ^testing.T) {
 
 	// Open the first project back (no changes, so no prompt)
 	send(&state, Open_Project_Chosen{path = "build/test_projects/Demo"})
-	testing.expect_value(t, state.project.name, "Asteroids Demo")
+	testing.expect_value(t, state.project.name, "Test Game")
 	testing.expect_value(t, len(state.project.scenes), 3)
 	// A folder that isn't a project leaves the current one open
 	send(&state, Open_Project_Chosen{path = "build/test_projects/nothing"})
-	testing.expect_value(t, state.project.name, "Asteroids Demo")
+	testing.expect_value(t, state.project.name, "Test Game")
 
 	// Quit with changes asks; Don't Save quits
 	send(&state, Node_Picked(0))
@@ -2252,7 +2252,7 @@ project_settings_dialog :: proc(t: ^testing.T) {
 	testing.expect_value(t, state.project.startScene, "OptionsScene")
 	testing.expect(t, Project_IsModified(&state))
 	send(&state, Action.Undo)
-	testing.expect_value(t, state.project.name, "Asteroids Demo")
+	testing.expect_value(t, state.project.name, "Test Game")
 	testing.expect_value(t, state.project.startScene, "MenuScene")
 	free_all(context.temp_allocator)
 }
@@ -2513,7 +2513,7 @@ export_parse_ldd :: proc(t: ^testing.T) {
 export_settings_saved_with_project :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_export_settings")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	testing.expect_value(t, Project_Save(&project), "")
 	file, _ := filepath.join({dir, EXPORT_SETTINGS_FILE}, context.temp_allocator)
@@ -2574,7 +2574,7 @@ export_settings_dialog :: proc(t: ^testing.T) {
 physics_nodes_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_physics")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	project.physics = {pixelsPerMeter = 64, gravity = {5, 600}, debugDraw = true}
 	scene := &project.scenes[1]
@@ -2708,7 +2708,7 @@ physics_project_settings :: proc(t: ^testing.T) {
 physics_joints_in_editor :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_joints")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	project.physics.smoothing = false
 	scene := &project.scenes[1]
@@ -2798,7 +2798,7 @@ physics_joint_edits_and_renames :: proc(t: ^testing.T) {
 globals_and_data_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_globals_data")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	g := GlobalDef{script = strings.clone("GameState")}
 	Props_Set(&g.props, "lives", "5", "3")
@@ -2852,7 +2852,7 @@ globals_and_data_round_trip :: proc(t: ^testing.T) {
 generated_asset_constants :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_assets_file")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	append(&project.assets, AssetDef{path = strings.clone("assets/laser.wav"), kind = .Audio}, AssetDef{path = strings.clone("other/ship.png"), kind = .Image}, AssetDef{path = strings.clone("fonts/title font.ttf"), kind = .Font})
 	_, _ = Project_CreateData(&project, "Fast Ship", "ShipStats")
@@ -2936,7 +2936,7 @@ globals_dialog_and_data_edits :: proc(t: ^testing.T) {
 particle_emitter_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_particles")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	scene := &project.scenes[1]
 	plain := Scene_InsertNode(scene, "Plain", .ParticleEmitter, -1)
@@ -3276,7 +3276,7 @@ animation_frame_times_repeats_and_renames :: proc(t: ^testing.T) {
 animations_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_animations")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	scene := &project.scenes[1]
 	hero := &scene.nodes[nodeIndex(scene, "Balloon")]
@@ -3320,7 +3320,7 @@ animations_round_trip :: proc(t: ^testing.T) {
 input_actions_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_input")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	testing.expect_value(t, len(project.actions), 6) // The default ui_* actions
 	jump := ActionDef{name = strings.clone("jump"), deadzone = 0.25}
@@ -3406,7 +3406,7 @@ components_save_open_instance :: proc(t: ^testing.T) {
 	state := testState()
 	defer State_Destroy(&state)
 	Project_Destroy(&state.project)
-	state.project = Project_CreateDemo(dir)
+	state.project = Project_CreateTestProject(dir)
 	testing.expect_value(t, Project_Save(&state.project), "")
 	scene := playScene(&state)
 	props := nodeIndex(scene, "Props")
@@ -3523,7 +3523,7 @@ components_rename_and_make_unique :: proc(t: ^testing.T) {
 	state := testState()
 	defer State_Destroy(&state)
 	Project_Destroy(&state.project)
-	state.project = Project_CreateDemo(dir)
+	state.project = Project_CreateTestProject(dir)
 	testing.expect_value(t, Project_Save(&state.project), "")
 	scene := playScene(&state)
 	state.selectedNode = nodeIndex(scene, "Props")
@@ -3566,7 +3566,7 @@ components_rename_and_make_unique :: proc(t: ^testing.T) {
 sound_nodes_and_buses_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_sound")
 	defer removeAll(dir)
-	project := Project_CreateDemo(dir)
+	project := Project_CreateTestProject(dir)
 	defer Project_Destroy(&project)
 	testing.expect_value(t, len(project.buses), 1)
 	testing.expect_value(t, project.buses[0].name, e.MASTER_BUS)
@@ -3947,7 +3947,7 @@ new_components_start_with_a_chosen_root :: proc(t: ^testing.T) {
 	state := testState()
 	defer State_Destroy(&state)
 	Project_Destroy(&state.project)
-	state.project = Project_CreateDemo(dir)
+	state.project = Project_CreateTestProject(dir)
 	testing.expect_value(t, Project_Save(&state.project), "")
 	before := len(state.project.scenes)
 	send(&state, Component_New{})

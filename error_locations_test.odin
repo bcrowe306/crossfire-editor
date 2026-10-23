@@ -71,7 +71,7 @@ go_to_error_opens_the_file_at_the_line :: proc(t: ^testing.T) {
 	outside := scratchDir("editor_test_error_outside")
 	defer removeAll(outside)
 	state := State{
-		project = Project_CreateDemo("unused"),
+		project = Project_CreateTestProject("unused"),
 		browserSelection = {kind = .None},
 		selectedNode = -1,
 		busSelection = -1,

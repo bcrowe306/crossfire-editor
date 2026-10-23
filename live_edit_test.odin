@@ -14,7 +14,7 @@ sendTo :: proc(state: ^State, msg: Msg) {
 
 @(test)
 the_live_view_reads_the_game :: proc(t: ^testing.T) {
-	state := State{project = Project_CreateDemo("build/test_live"), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default(),
+	state := State{project = Project_CreateTestProject("build/test_live"), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default(),
 		timeline = {node = -1, track = -1, key = -1}, themeSelection = -1, dataSelection = -1}
 	defer State_Destroy(&state)
 	live := &state.live
@@ -59,7 +59,7 @@ sentLines :: proc(reader: ^os.File) -> string {
 
 @(test)
 the_toolbar_shows_and_hides_the_games_collision_shapes :: proc(t: ^testing.T) {
-	state := State{project = Project_CreateDemo("build/test_live_shapes"), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default(),
+	state := State{project = Project_CreateTestProject("build/test_live_shapes"), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default(),
 		timeline = {node = -1, track = -1, key = -1}, themeSelection = -1, dataSelection = -1}
 	defer State_Destroy(&state)
 
