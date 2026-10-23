@@ -444,7 +444,7 @@ e2e_test_lsp :: proc(e: ^ed.Editor, ctx: ^E2E_Ctx, primary_mod: sdl.Keymod, rend
 
 	println_row := -1
 	for idx, row in e.completion.filtered {
-		if e.lsp.last_completion[idx].label == "println" {
+		if e.completion.items[idx].item.label == "println" {
 			println_row = row
 		}
 	}
@@ -452,7 +452,7 @@ e2e_test_lsp :: proc(e: ^ed.Editor, ctx: ^E2E_Ctx, primary_mod: sdl.Keymod, rend
 		fmt.tprintf("%d filtered items", len(e.completion.filtered)))
 	all_match := true
 	for idx in e.completion.filtered {
-		label := e.lsp.last_completion[idx].label
+		label := e.completion.items[idx].item.label
 		all_match &&= len(label) >= 3 && strings.equal_fold(label[:3], "pri")
 	}
 	e2e_check(ctx, "every listed item matches the typed prefix", all_match)

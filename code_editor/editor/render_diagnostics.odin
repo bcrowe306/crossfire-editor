@@ -231,3 +231,69 @@ diag_tip_scroll_key :: proc(ed: ^Editor) -> u64 {
 	t := &ed.diag_tip
 	return u64(u32(t.pos.line)) << 32 | u64(u32(t.pos.col)) << 4 | u64(t.source) << 1 | u64(t.line_only)
 }
+
+// render_provider_markers draws a line's provider gutter markers (providers.odin) in the
+// marker column, when no diagnostic marker is there (the diagnostic's wins; the marker's
+// tooltip still shows)
+@(private)
+render_provider_markers :: proc(ed: ^Editor, renderer: ^sdl.Renderer, diags: []Diag, line: int, origin_x, y: f32, theme: Theme) {
+	markers := editor_gutter_markers_on(ed, line)
+	if len(markers) == 0 {
+		return
+	}
+	if _, ok := line_severity(diags, line); ok {
+		return
+	}
+	m := markers[0]
+	color := m.color if m.color.a > 0 else theme.diag_info
+	size := max(ed.char_h * 0.45, 5)
+	cx := origin_x + editor_gutter_width(ed) - 3 - size / 2
+	cy := y + ed.char_h / 2
+	switch m.icon {
+	case .Dot:
+		fill_rect(renderer, {cx - size / 2, cy - size / 2, size, size}, color)
+	case .Ring:
+		r := sdl.FRect{cx - size / 2, cy - size / 2, size, size}
+		sdl.SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+		sdl.RenderRect(renderer, &r)
+	case .Diamond:
+		for i in 0 ..< int(size) {
+			half := size / 2 - abs(f32(i) - size / 2)
+			fill_rect(renderer, {cx - half, cy - size / 2 + f32(i), 2 * half, 1}, color)
+		}
+	case .Triangle:
+		// Pointing right, its base on the left
+		for i in 0 ..< int(size) {
+			w := size / 2 - abs(f32(i) - size / 2)
+			fill_rect(renderer, {cx - size / 2, cy - size / 2 + f32(i), 2 * w, 1}, color)
+		}
+	case .Bar:
+		fill_rect(renderer, {cx - 1.5, y + 2, 3, ed.char_h - 4}, color)
+	}
+}
+
+// render_inlays draws a line's inlay hints after its text (dimmed, a cell apart)
+@(private)
+render_inlays :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, text: string, line: int, x, y: f32, theme: Theme) {
+	hints := editor_inlays_on(ed, line)
+	if len(hints) == 0 || font == nil {
+		return
+	}
+	vcol := visual_col_of(text, len(text), ed.tab_width) + 2
+	for h in hints {
+		color := theme.text_comment
+		switch h.kind {
+		case .Note:      color = theme.popup_text_dim
+		case .Type:      color = theme.text_type
+		case .Parameter: color = theme.text_property
+		case .Value:     color = theme.text_constant
+		}
+		color.a = 200
+		px := x + f32(vcol - ed.scroll_col) * ed.char_w
+		w := f32(text_cols(h.label)) * ed.char_w
+		bg := theme.current_line
+		fill_rect(renderer, {px - 2, y + 2, w + 4, ed.char_h - 4}, bg)
+		draw_text(renderer, font, h.label, px, y, color, ed.char_h)
+		vcol += text_cols(h.label) + 2
+	}
+}

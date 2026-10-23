@@ -282,7 +282,7 @@ snapshot_state :: proc(e: ^ed.Editor, frame: int) -> State {
 	n := min(len(cs.filtered), STATE_MAX_ITEMS)
 	items := make([]string, n, context.temp_allocator)
 	for i in 0 ..< n {
-		items[i] = e.lsp.last_completion[cs.filtered[i]].label
+		items[i] = e.completion.items[cs.filtered[i]].item.label
 	}
 	s.completion.items = items
 

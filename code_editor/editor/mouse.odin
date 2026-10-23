@@ -333,6 +333,10 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 	case .Signature, .Completion_Docs, .Hover, .Diag_Tooltip:
 	case .Gutter:
 		editor_close_completion(ed)
+		// A provider's marker in the marker column: its click callback
+		if ev.x >= ed.origin_x + editor_gutter_width(ed) - GUTTER_MARKER_SPACE - 2 && editor_click_gutter_marker(ed, hit.pos.line) {
+			return true
+		}
 		resize(&b.cursors, 1)
 		start, end := line_range_at(ed, hit.pos.line)
 		b.cursors[0] = {pos = end, sel = {anchor = start, active = true}}
@@ -559,7 +563,7 @@ editor_handle_mouse_wheel :: proc(ed: ^Editor, ev: sdl.MouseWheelEvent) -> bool 
 		return true
 	case .Hover:
 		if rect, lines, ok := editor_hover_layout(ed); ok {
-			popup_scroll_by(&ed.hover.scroll, u64(ed.hover.seen_seq), overlay_wheel_rows(ed, dy), len(lines), popup_rows_of(ed, rect))
+			popup_scroll_by(&ed.hover.scroll, editor_hover_scroll_key(ed), overlay_wheel_rows(ed, dy), len(lines), popup_rows_of(ed, rect))
 		}
 		return true
 	case .Diag_Tooltip:

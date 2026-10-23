@@ -183,7 +183,7 @@ test_hover_taller_than_the_view_scrolls :: proc(t: ^testing.T) {
 		rows := popup_rows_of(&ed, rect)
 		testing.expectf(t, rows < len(lines), "fewer rows (%d) than lines (%d)", rows, len(lines))
 		mouse_wheel(&ed, rect.x + 5, rect.y + 5, 0, -2)
-		testing.expect_value(t, popup_scroll_get(&ed.hover.scroll, u64(ed.hover.seen_seq)), 2)
+		testing.expect_value(t, popup_scroll_get(&ed.hover.scroll, editor_hover_scroll_key(&ed)), 2)
 		testing.expect(t, ed.hover.visible, "still showing")
 	})
 }

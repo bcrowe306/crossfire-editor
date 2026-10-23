@@ -274,17 +274,30 @@ render_drop_caret :: proc(ed: ^Editor, renderer: ^sdl.Renderer, theme: Theme) {
 // --- LSP hover info -----------------------------------------------------------------
 
 Hover_Info :: struct {
+	// Waiting for the server's answer about `pos`
 	requested: bool,
 	pos:       buf.Position,
+	// A gutter hover (a marker's tooltip): only `pos.line` counts, the server isn't asked
+	line_only: bool,
 	seen_seq:  int,
 	visible:   bool,
+	// The providers were asked about `pos` (their blocks: ed.provided.hover); shown_seq counts
+	// what was shown, for the scroll key
+	asked:     bool,
+	shown_seq: int,
 	// Its scroll, when it's taller than the view leaves it (per answer)
 	scroll:    Popup_Scroll,
 }
 
-// editor_update_hover asks the server for hover info once the pointer has
-// rested on a code cell without diagnostics, and shows the answer if the
-// pointer is still there. Called from editor_update_diagnostics.
+// The hover's scroll key: the server's answer and what was shown
+editor_hover_scroll_key :: proc(ed: ^Editor) -> u64 {
+	return u64(ed.hover.seen_seq) | u64(ed.hover.shown_seq) << 32
+}
+
+// editor_update_hover shows hover info once the pointer has rested on a code
+// cell without diagnostics: the hover providers' blocks at once, the server's
+// answer (asked then) when it comes; on the gutter, a marker's tooltip. Called
+// from editor_update_diagnostics.
 @(private)
 editor_update_hover :: proc(ed: ^Editor) {
 	tip := &ed.diag_tip
@@ -292,25 +305,42 @@ editor_update_hover :: proc(ed: ^Editor) {
 	if h.requested && ed.lsp_enabled && ed.lsp.hover_seq != h.seen_seq {
 		h.requested = false
 		h.seen_seq = ed.lsp.hover_seq
-		h.visible = len(strings.trim_space(ed.lsp.last_hover)) > 0 && tip.hover_valid && tip.hover_pos == h.pos
+		still := tip.hover_valid && !tip.hover_line_only && tip.hover_pos == h.pos
+		h.visible = still && (len(strings.trim_space(ed.lsp.last_hover)) > 0 || len(ed.provided.hover) > 0)
+		h.shown_seq += 1
 	}
-	if h.visible || h.requested || !tip.hover_valid || tip.hover_line_only || tip.source != .None {
+	if h.visible || h.requested || !tip.hover_valid || tip.source != .None {
 		return
 	}
 	if ed.mouse.drag != .None || ed.menu.open || time.tick_since(tip.hover_since) < DIAG_HOVER_DELAY {
 		return
 	}
-	if len(editor_diagnostics_at(ed, tip.hover_pos)) > 0 || !editor_lsp_ready(ed) {
+	if len(editor_diagnostics_at(ed, tip.hover_pos, tip.hover_line_only)) > 0 {
+		return // the diagnostic's tooltip shows
+	}
+	if tip.hover_line_only {
+		if h.asked && h.line_only && h.pos.line == tip.hover_pos.line {
+			return // already asked about this line
+		}
+		h.pos, h.line_only, h.asked = {tip.hover_pos.line, 0}, true, true
+		editor_query_hover_providers(ed, h.pos, true)
+		h.visible = len(ed.provided.hover) > 0
+		h.shown_seq += 1
 		return
 	}
-	if h.pos == tip.hover_pos && h.seen_seq == ed.lsp.hover_seq && h.seen_seq != 0 {
+	if h.asked && !h.line_only && h.pos == tip.hover_pos {
 		return // already asked about this cell; the answer was empty
 	}
-	editor_sync_lsp(ed)
-	h.requested = true
-	h.pos = tip.hover_pos
-	lspc.client_request_hover(&ed.lsp, ed.document_uri, h.pos.line, editor_lsp_col(ed, h.pos))
-	h.seen_seq = ed.lsp.hover_seq
+	h.pos, h.line_only, h.asked = tip.hover_pos, false, true
+	editor_query_hover_providers(ed, h.pos, false)
+	h.visible = len(ed.provided.hover) > 0
+	h.shown_seq += 1
+	if editor_lsp_ready(ed) {
+		editor_sync_lsp(ed)
+		h.requested = true
+		lspc.client_request_hover(&ed.lsp, ed.document_uri, h.pos.line, editor_lsp_col(ed, h.pos))
+		h.seen_seq = ed.lsp.hover_seq
+	}
 }
 
 editor_hide_hover :: proc(ed: ^Editor) {
@@ -321,21 +351,68 @@ editor_hide_hover :: proc(ed: ^Editor) {
 // The hover tooltip is at most this many columns wide (less in a narrow editor)
 HOVER_MAX_COLS :: 100
 
+// The size a hover image or widget is drawn at (images scaled down to HOVER_IMAGE_MAX)
+@(private)
+hover_block_size :: proc(b: Hover_Block) -> (w, h: f32) {
+	switch v in b {
+	case Hover_Image:
+		scale := min(1, f32(HOVER_IMAGE_MAX) / f32(max(v.width, v.height)))
+		return f32(v.width) * scale, f32(v.height) * scale
+	case Hover_Widget:
+		return v.width, v.height
+	case Hover_Text:
+	}
+	return 0, 0
+}
+
+// editor_hover_lines lays out what the hover shows: the providers' blocks, then the server's
+// answer, a blank line between them. An image or widget takes as many lines as it's tall
+// (`Doc_Line.block`, `block_row`)
+editor_hover_lines :: proc(ed: ^Editor, cols: int) -> []Doc_Line {
+	out := make([dynamic]Doc_Line, context.temp_allocator)
+	gap :: proc(out: ^[dynamic]Doc_Line) { if len(out) > 0 do append(out, Doc_Line{text = ""}) }
+	for b, i in ed.provided.hover {
+		switch v in b {
+		case Hover_Text:
+			lines := completion_doc_lines(lspc.CompletionItem{documentation = v.text, doc_markdown = v.markdown}, cols, POPUP_MAX_LINES)
+			if len(lines) == 0 do continue
+			gap(&out)
+			append(&out, ..lines)
+		case Hover_Image, Hover_Widget:
+			_, h := hover_block_size(b)
+			rows := max(1, int((h + ed.char_h - 1) / max(ed.char_h, 1)))
+			gap(&out)
+			for r in 0 ..< rows do append(&out, Doc_Line{block = i + 1, block_row = r})
+		}
+	}
+	if !ed.hover.line_only && ed.lsp_enabled && len(strings.trim_space(ed.lsp.last_hover)) > 0 && ed.hover.seen_seq == ed.lsp.hover_seq && !ed.hover.requested {
+		lines := completion_doc_lines(lspc.CompletionItem{documentation = ed.lsp.last_hover, doc_markdown = ed.lsp.last_hover_markdown}, cols, POPUP_MAX_LINES)
+		if len(lines) > 0 {
+			gap(&out)
+			append(&out, ..lines)
+		}
+	}
+	return out[:]
+}
+
 // editor_hover_layout places the hover tooltip above the hovered cell
 // (below when there's no room).
 editor_hover_layout :: proc(ed: ^Editor) -> (rect: sdl.FRect, lines: []Doc_Line, ok: bool) {
-	if !ed.hover.visible || !ed.lsp_enabled || editor_completion_visible(ed) {
+	if !ed.hover.visible || editor_completion_visible(ed) {
 		return
 	}
 	// As wide as the text area allows (100 columns at most); as many lines as fit (it scrolls)
-	lines = completion_doc_lines(lspc.CompletionItem{documentation = ed.lsp.last_hover, doc_markdown = ed.lsp.last_hover_markdown},
-		popup_max_cols(ed, HOVER_MAX_COLS), POPUP_MAX_LINES)
+	lines = editor_hover_lines(ed, popup_max_cols(ed, HOVER_MAX_COLS))
 	if len(lines) == 0 {
 		return
 	}
 	widest := 0
 	for l in lines {
 		widest = max(widest, text_cols(l.text))
+		if l.block > 0 && l.block_row == 0 {
+			w, _ := hover_block_size(ed.provided.hover[l.block - 1])
+			widest = max(widest, int((w + ed.char_w - 1) / max(ed.char_w, 1)))
+		}
 	}
 	// Room for the scrollbar
 	w := f32(widest + 1) * ed.char_w + 2 * POPUP_PAD
@@ -355,15 +432,47 @@ render_hover :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, them
 	}
 	draw_popup_box(renderer, rect, theme)
 	rows := popup_rows_of(ed, rect)
-	scroll := overlay_scroll_clamp(popup_scroll_get(&ed.hover.scroll, u64(ed.hover.seen_seq)), len(all_lines), rows)
+	scroll := overlay_scroll_clamp(popup_scroll_get(&ed.hover.scroll, editor_hover_scroll_key(ed)), len(all_lines), rows)
 	render_overlay_scrollbar(renderer, rect, len(all_lines), rows, scroll, theme)
+	inner := sdl.FRect{rect.x + 1, rect.y + POPUP_PAD, rect.w - 2, f32(rows) * ed.char_h}
+	drawn := make(map[int]bool, allocator = context.temp_allocator)
 	for l, i in all_lines[scroll:min(scroll + rows, len(all_lines))] {
 		x := rect.x + POPUP_PAD
 		y := rect.y + POPUP_PAD + f32(i) * ed.char_h
+		if l.block > 0 {
+			// An image or widget: drawn once, from its first line (clipped when scrolled into)
+			if drawn[l.block] do continue
+			drawn[l.block] = true
+			block := ed.provided.hover[l.block - 1]
+			bw, bh := hover_block_size(block)
+			box := sdl.FRect{x, y - f32(l.block_row) * ed.char_h, bw, bh}
+			saved := clip_push(renderer, inner)
+			switch v in block {
+			case Hover_Image:
+				render_hover_image(renderer, v, box)
+			case Hover_Widget:
+				v.draw(renderer, box, v.data)
+			case Hover_Text:
+			}
+			clip_pop(renderer, saved)
+			continue
+		}
 		if !l.code {
 			draw_text(renderer, font, l.text, x, y, theme.popup_text, ed.char_h)
 			continue
 		}
 		draw_code_line(ed, renderer, font, theme, l.text, x, y)
 	}
+}
+
+// Draws a hover image into a box (a texture made for the frame: hovers are drawn rarely)
+@(private)
+render_hover_image :: proc(renderer: ^sdl.Renderer, img: Hover_Image, box: sdl.FRect) {
+	texture := sdl.CreateTexture(renderer, .ABGR8888, .STATIC, i32(img.width), i32(img.height))
+	if texture == nil do return
+	defer sdl.DestroyTexture(texture)
+	_ = sdl.SetTextureBlendMode(texture, {.BLEND})
+	if !sdl.UpdateTexture(texture, nil, raw_data(img.pixels), i32(img.width * 4)) do return
+	box := box
+	_ = sdl.RenderTexture(renderer, texture, nil, &box)
 }

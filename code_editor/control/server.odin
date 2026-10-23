@@ -361,7 +361,7 @@ check_expect :: proc(e: ^ed.Editor, x: Cmd_Expect) -> string {
 		// Search every listed item, not just the snapshot's first few.
 		actual = fmt.tprintf("%d items starting %v", s.completion.count, s.completion.items)
 		for idx in e.completion.filtered {
-			pass ||= s.completion.visible && e.lsp.last_completion[idx].label == x.want
+			pass ||= s.completion.visible && e.completion.items[idx].item.label == x.want
 		}
 	case .Signature:
 		actual = s.signature.label

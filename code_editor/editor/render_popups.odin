@@ -129,7 +129,7 @@ the widest label with its type, and the widest text on the right (capped).
 @(private)
 completion_columns :: proc(ed: ^Editor) -> (kind_cols, label_cols, detail_cols: int) {
 	for idx in ed.completion.filtered {
-		item := ed.lsp.last_completion[idx]
+		item := ed.completion.items[idx].item
 		tag, type_suffix, right := completion_row_parts(item)
 		if tag != "" do kind_cols = COMPLETION_KIND_COLS
 		label_cols = max(label_cols, text_cols(item.label) + text_cols(type_suffix))
@@ -276,7 +276,7 @@ render_completion_popup :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 	detail_col := kind_cols + widest_label + 2
 	detail_room := total_cols - detail_col - (len(cs.filtered) > visible ? 1 : 0)
 	for row in cs.scroll ..< last {
-		item := ed.lsp.last_completion[cs.filtered[row]]
+		item := ed.completion.items[cs.filtered[row]].item
 		y := rect.y + POPUP_PAD + f32(row - cs.scroll) * ed.char_h
 		x := rect.x + POPUP_PAD
 
@@ -447,6 +447,9 @@ COMPLETION_DOC_MAX_LINES :: 16
 Doc_Line :: struct {
 	text: string,
 	code: bool, // render with syntax highlighting
+	// A hover's image or widget on this line (1-based index into its blocks; 0 none), and which
+	// of its lines this is
+	block, block_row: int,
 }
 
 // completion_doc_lines turns the selected item's detail + documentation
@@ -456,13 +459,13 @@ completion_doc_lines :: proc(item: lspc.CompletionItem, cols := COMPLETION_DOC_C
 	out := make([dynamic]Doc_Line, context.temp_allocator)
 	if len(item.detail) > 0 {
 		for w in wrap_code(item.detail, cols) {
-			append(&out, Doc_Line{w, true})
+			append(&out, Doc_Line{text = w, code = true})
 		}
 	}
 	doc := strings.trim_space(item.documentation)
 	if len(doc) > 0 {
 		if len(out) > 0 {
-			append(&out, Doc_Line{"", false})
+			append(&out, Doc_Line{text = ""})
 		}
 		in_code := false
 		rest := doc
@@ -473,7 +476,7 @@ completion_doc_lines :: proc(item: lspc.CompletionItem, cols := COMPLETION_DOC_C
 			}
 			if in_code {
 				// A long signature wraps too (it ran off the editor)
-				for w in wrap_code(line, cols) do append(&out, Doc_Line{w, true})
+				for w in wrap_code(line, cols) do append(&out, Doc_Line{text = w, code = true})
 				continue
 			}
 			if item.doc_markdown && strings.trim_space(line) == "---" {
@@ -486,7 +489,7 @@ completion_doc_lines :: proc(item: lspc.CompletionItem, cols := COMPLETION_DOC_C
 				l, _ = strings.remove_all(l, "**", context.temp_allocator)
 			}
 			for w in wrap_text(l, cols) {
-				append(&out, Doc_Line{w, false})
+				append(&out, Doc_Line{text = w})
 			}
 		}
 	}
@@ -496,7 +499,7 @@ completion_doc_lines :: proc(item: lspc.CompletionItem, cols := COMPLETION_DOC_C
 	}
 	if len(out) > max_lines {
 		resize(&out, max_lines)
-		out[max_lines - 1] = Doc_Line{"…", false}
+		out[max_lines - 1] = Doc_Line{text = "…"}
 	}
 	return out[:]
 }
@@ -560,7 +563,7 @@ render_completion_docs :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.
 completion_doc_scroll_key :: proc(ed: ^Editor) -> u64 {
 	cs := &ed.completion
 	item := cs.selected >= 0 && cs.selected < len(cs.filtered) ? cs.filtered[cs.selected] : -1
-	return u64(ed.lsp.completion_seq) << 32 | u64(u32(item + 1))
+	return u64(ed.completion.items_seq) << 32 | u64(u32(item + 1))
 }
 
 // popup_max_cols is how wide a popup's text may be: the text area's width

@@ -13,11 +13,15 @@ editor_update :: proc(ed: ^Editor) {
 	editor_update_diagnostics(ed)
 	editor_consume_buffer_changes(ed)
 	editor_update_snippet(ed)
+	editor_update_providers(ed)
 	if ed.lsp_enabled {
 		lspc.client_poll(&ed.lsp)
 		editor_supervise_lsp(ed)
 		editor_sync_lsp(ed)
-		editor_update_lsp_ui(ed)
+	}
+	// The completion list works with providers alone too
+	editor_update_lsp_ui(ed)
+	if ed.lsp_enabled {
 		editor_update_code_actions(ed)
 		editor_update_navigation(ed)
 	}
@@ -72,11 +76,19 @@ editor_consume_buffer_changes :: proc(ed: ^Editor) {
 	changes, reset := buf.buffer_take_changes(&ed.buf)
 	if reset {
 		ed.diag_overlay.reset_pending = true
+		// The text was replaced: what providers said about it is gone until they're asked again
+		if len(ed.provided.diagnostics) > 0 do ed.provided.diag_seq += 1
+		provided_clear_diagnostics(&ed.provided)
+		provided_clear_markers(&ed.provided)
+		provided_clear_inlays(&ed.provided)
+		ed.provided.version = -1
+		ed.provided.seq += 1
 		editor_clear_lsp_pending(ed)
 		ed.lsp_need_full = true
 	}
 	for ch in changes {
 		snippet_shift_stops(ed, ch)
+		provided_shift(&ed.provided, ch)
 		for &d in ed.diag_overlay.items {
 			d.start = buf.position_after_change(d.start, ch)
 			d.end = buf.position_after_change(d.end, ch)

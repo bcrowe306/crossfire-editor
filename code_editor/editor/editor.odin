@@ -63,6 +63,10 @@ Editor :: struct {
 	nav:          Navigation,
 	hover:        Hover_Info,
 
+	// The host's providers (providers.odin; nil: none) and what the cached ones last said
+	providers: ^Provider_Registry,
+	provided:  Provided,
+
 	// Viewport / scrolling (in cells, not pixels). scroll_col is a visual
 	// column (tabs expanded), not a byte offset.
 	scroll_line: int,
@@ -135,6 +139,11 @@ editor_init :: proc(
 	}
 	ed.injected_events = make([dynamic]sdl.Event, allocator)
 	ed.completion.filtered = make([dynamic]int, allocator)
+	ed.completion.items = make([dynamic]Completion_Entry, allocator)
+	ed.completion.provided = make([dynamic]Provider_Completion, allocator)
+	ed.provided.version = -1
+	ed.provided.generation = -1
+	ed.provided.seen_version = -1
 	ed.signature.selected = -1
 	ed.diag_overlay.built_seq = -1
 	ed.width_cache_version = -1
@@ -173,6 +182,11 @@ editor_destroy :: proc(ed: ^Editor) {
 	navigation_destroy(&ed.nav)
 	delete(ed.snippet.stops)
 	delete(ed.completion.filtered)
+	completion_entries_free(&ed.completion.items)
+	delete(ed.completion.items)
+	provided_completions_free(&ed.completion.provided)
+	delete(ed.completion.provided)
+	provided_destroy(&ed.provided)
 }
 
 DEFAULT_LINE_SPACING :: 1.4

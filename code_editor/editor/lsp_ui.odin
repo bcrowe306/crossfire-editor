@@ -24,9 +24,14 @@ Completion_State :: struct {
 	// Start of the word being completed. The typed prefix is the text
 	// between `anchor` and the primary cursor.
 	anchor:   buf.Position,
-	// Indices into `ed.lsp.last_completion` matching the typed prefix, in
-	// display order.
+	// Indices into `items` matching the typed prefix, in display order.
 	filtered: [dynamic]int,
+	// The merged list: the server's last items and the providers' (providers.odin,
+	// editor_merge_completions), rebuilt when either answers; items_seq counts the rebuilds
+	items:     [dynamic]Completion_Entry,
+	items_seq: int,
+	// What the completion providers offered at the last request (owned)
+	provided:  [dynamic]Provider_Completion,
 	selected: int,
 	// First visible row of the popup list (for lists longer than
 	// COMPLETION_MAX_VISIBLE).
@@ -84,13 +89,14 @@ editor_lsp_col :: proc(ed: ^Editor, pos: buf.Position) -> int {
 }
 
 // editor_request_completion opens the completion popup for the word at the
-// primary cursor and asks the attached LSP for candidates. No-op without an
-// LSP client or an open document.
-editor_request_completion :: proc(ed: ^Editor) {
-	if !editor_lsp_ready(ed) {
+// primary cursor, asks the completion providers and the attached LSP for
+// candidates, and merges them. No-op without either.
+editor_request_completion :: proc(ed: ^Editor, trigger := Provider_Trigger.Invoked, trigger_char: u8 = 0) {
+	server := editor_lsp_ready(ed)
+	if !server && !editor_has_provider(ed, .Completion) {
 		return
 	}
-	editor_sync_lsp(ed)
+	if server do editor_sync_lsp(ed)
 	c := editor_primary_cursor(ed)
 	cs := &ed.completion
 	cs.active = true
@@ -100,6 +106,15 @@ editor_request_completion :: proc(ed: ^Editor) {
 	cs.scroll = 0
 	clear(&cs.filtered)
 	cs.request_prefix_len = c.pos.col - cs.anchor.col
+	line := buf.buffer_line_str(&ed.buf, c.pos.line)
+	editor_query_completion_providers(ed, c.pos, line[cs.anchor.col:min(c.pos.col, len(line))], trigger, trigger_char)
+	if !server {
+		// Only the providers: their items show now
+		cs.waiting = false
+		editor_merge_completions(ed)
+		editor_refilter_completion(ed)
+		return
+	}
 	lspc.client_request_completion(&ed.lsp, ed.document_uri, c.pos.line, editor_lsp_col(ed, c.pos))
 	cs.seen_seq = ed.lsp.completion_seq
 }
@@ -139,22 +154,27 @@ editor_close_signature_help :: proc(ed: ^Editor) {
 // character of a word opens completion, and '(' / ',' open signature help.
 // Only applies with a single cursor (popups track the primary cursor).
 editor_after_text_input :: proc(ed: ^Editor, text: string) {
-	if !editor_lsp_ready(ed) || len(ed.buf.cursors) != 1 || len(text) == 0 {
+	if !editor_completion_available(ed) || len(ed.buf.cursors) != 1 || len(text) == 0 {
 		return
 	}
 	last := text[len(text) - 1]
 	switch {
 	case last == '.':
-		editor_request_completion(ed)
+		editor_request_completion(ed, .Typed, '.')
 	case last == '(' || last == ',':
 		editor_request_signature_help(ed)
+	case is_ident_byte(last) && ed.completion.active && !completion_prefix_ok(ed):
+		// The list was for an earlier word (text typed faster than frames: the update that
+		// would close it hasn't run): start again for this one
+		editor_close_completion(ed)
+		editor_after_text_input(ed, text)
 	case is_ident_byte(last) && !ed.completion.active:
 		c := editor_primary_cursor(ed)
 		start := editor_word_start_before(ed, c.pos)
 		line := buf.buffer_line_str(&ed.buf, c.pos.line)
 		// Don't pop up for numeric literals.
 		if start < c.pos.col && !(line[start] >= '0' && line[start] <= '9') {
-			editor_request_completion(ed)
+			editor_request_completion(ed, .Typed, last)
 		}
 	}
 }
@@ -164,23 +184,21 @@ editor_after_text_input :: proc(ed: ^Editor, text: string) {
 // editor_update_lsp_ui picks up fresh LSP responses and keeps both popups
 // consistent with the current cursor/buffer. Called from editor_update.
 editor_update_lsp_ui :: proc(ed: ^Editor) {
-	if !ed.lsp_enabled {
-		return
-	}
 	c := editor_primary_cursor(ed)
 
 	cs := &ed.completion
 	if cs.active {
-		fresh := cs.waiting && ed.lsp.completion_seq != cs.seen_seq
+		fresh := cs.waiting && ed.lsp_enabled && ed.lsp.completion_seq != cs.seen_seq
 		if fresh {
 			cs.waiting = false
 			cs.seen_seq = ed.lsp.completion_seq
+			editor_merge_completions(ed)
 		}
 		if fresh || c.pos != cs.last_pos || ed.buf.version != cs.last_version {
 			editor_refilter_completion(ed)
 			// isIncomplete: the server only sent part of the list, so a
 			// longer/shorter prefix needs a fresh query, not just filtering.
-			if cs.active && !cs.waiting && ed.lsp.completion_incomplete {
+			if cs.active && !cs.waiting && ed.lsp_enabled && ed.lsp.completion_incomplete {
 				if prefix, ok := editor_completion_prefix(ed); ok && len(prefix) != cs.request_prefix_len {
 					editor_request_completion(ed)
 				}
@@ -188,6 +206,9 @@ editor_update_lsp_ui :: proc(ed: ^Editor) {
 		}
 	}
 
+	if !ed.lsp_enabled {
+		return
+	}
 	ss := &ed.signature
 	if ss.active && !editor_cursor_in_call(ed) {
 		// OLS treats the position just past a call's ')' as still inside
@@ -244,6 +265,12 @@ editor_cursor_in_call :: proc(ed: ^Editor) -> bool {
 		state = next
 	}
 	return depth > 0
+}
+
+@(private)
+completion_prefix_ok :: proc(ed: ^Editor) -> bool {
+	_, ok := editor_completion_prefix(ed)
+	return ok
 }
 
 // editor_completion_prefix returns the text typed since the popup opened
@@ -317,19 +344,27 @@ editor_refilter_completion :: proc(ed: ^Editor) {
 	}
 
 	prev_label := ""
-	if cs.selected >= 0 && cs.selected < len(cs.filtered) {
-		prev_label = ed.lsp.last_completion[cs.filtered[cs.selected]].label
+	if cs.selected >= 0 && cs.selected < len(cs.filtered) && cs.filtered[cs.selected] < len(cs.items) {
+		prev_label = cs.items[cs.filtered[cs.selected]].item.label
 	}
 
 	clear(&cs.filtered)
-	// Prefix matches first, then fuzzy matches, each in server order.
+	// Prefix matches first, then fuzzy matches; within each, higher provider priority first,
+	// then the merged list's order (the server's, then the providers')
 	for want in ([]int{2, 1}) {
-		for item, i in ed.lsp.last_completion {
-			key := item.filter_text if len(item.filter_text) > 0 else item.label
+		first := len(cs.filtered)
+		for en, i in cs.items {
+			key := en.item.filter_text if len(en.item.filter_text) > 0 else en.item.label
 			if completion_match(key, prefix) == want {
 				append(&cs.filtered, i)
 			}
 		}
+		Ranked :: struct { items: []Completion_Entry }
+		context.user_ptr = &Ranked{cs.items[:]}
+		slice.stable_sort_by(cs.filtered[first:], proc(a, b: int) -> bool {
+			items := (^Ranked)(context.user_ptr).items
+			return items[a].priority > items[b].priority
+		})
 	}
 	if len(cs.filtered) == 0 {
 		editor_close_completion(ed)
@@ -339,7 +374,7 @@ editor_refilter_completion :: proc(ed: ^Editor) {
 	// Keep the same item selected across refilters when it's still listed.
 	cs.selected = 0
 	for idx, row in cs.filtered {
-		if ed.lsp.last_completion[idx].label == prev_label {
+		if cs.items[idx].item.label == prev_label {
 			cs.selected = row
 			break
 		}
@@ -364,7 +399,7 @@ editor_completion_selected_item :: proc(ed: ^Editor) -> (item: lspc.CompletionIt
 	if !editor_completion_visible(ed) {
 		return {}, false
 	}
-	return ed.lsp.last_completion[ed.completion.filtered[ed.completion.selected]], true
+	return ed.completion.items[ed.completion.filtered[ed.completion.selected]].item, true
 }
 
 editor_completion_move :: proc(ed: ^Editor, delta: int) {

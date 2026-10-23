@@ -102,6 +102,51 @@ editor state, so multiple `Editor` instances can coexist (e.g. multiple open
 tabs/panes), each owning its own buffer, keymap, and (optionally) its own
 LSP client instance via `editor_attach_lsp`.
 
+### Providers: what the host adds to the language server
+
+A host knows things OLS doesn't (its project's assets, scenes, which code is used where). It
+adds them through **providers** (`editor/providers.odin`): plain procedures with a user-data
+pointer, so the editor stays independent of any host. Register them once in a
+`Provider_Registry` the host owns, and point every editor at it:
+
+```odin
+reg: ed.Provider_Registry
+ed.provider_register(&reg, ed.Provider{kind = .Completion, name = "project", completion = my_completions, user_data = &my_data})
+ed.provider_register(&reg, ed.Provider{kind = .Gutter, name = "users", gutter = my_markers, on_click = my_marker_clicked})
+ed.editor_set_providers(&editor, &reg)
+// when the host's own data changed (re-run diagnostics, gutter and inlay providers):
+ed.provider_registry_invalidate(&reg)
+```
+
+Every provider gets a `Provider_Document` (path, the read-only `^buf.Buffer`, its version), a
+position where it applies, and a `Provider_Context` (why it's called, the typed prefix and
+character for completion, the `Syntax_Context` of the position, its user data, and
+`ctx.allocator`, the frame's temp allocator: the editor copies what it keeps).
+
+| Kind | Procedure | When it's called | What it gives, and how it's merged |
+|---|---|---|---|
+| `.Completion` | `Completion_Provider_Proc` | each completion request (typing, Ctrl+Space) | `Provider_Completion`s, merged with the server's list: the server's in its order, then the providers' that aren't already there. A provider item with a server item's label folds into it (the server's insert text stays, the provider's documentation is added, the higher `priority` taken); the first provider to offer a label wins. Within prefix and fuzzy matches, higher `priority` first. Without a server, the providers' items show at once |
+| `.Hover` | `Hover_Provider_Proc` | the pointer resting on a cell (the server is asked at the same time) | `Hover_Content`: blocks of `Hover_Text` (plain or markdown), `Hover_Image` (RGBA8 pixels, drawn at most `HOVER_IMAGE_MAX` px on a side) or `Hover_Widget` (a size and a `draw(renderer, rect, data)` the host paints), shown above the server's answer |
+| `.Diagnostics` | `Diagnostic_Provider_Proc` | once per text version, after it's been still for `PROVIDER_DEBOUNCE`, and when invalidated | `Provider_Diagnostic`s (buffer positions), merged with the server's: squiggles, gutter, Problems panel, F8. One the server reports on the same line with the same message isn't repeated. They move with edits until the provider runs again |
+| `.Gutter` | `Gutter_Provider_Proc` (+ `Gutter_Click_Proc`) | as diagnostics | `Gutter_Marker`s (line, `Gutter_Icon`, color, tooltip, an id): drawn in the marker column (a diagnostic's mark wins), the tooltip on hover, `on_click` called with the marker |
+| `.Inlay` | `Inlay_Provider_Proc` | as diagnostics | `Inlay_Hint`s (position, label, `Inlay_Kind`): drawn dimmed after the line's text (hints that move the text are for later) |
+| `.Drop` | `Drop_Provider_Proc` | `editor_drop(ed, x, y, request)` / `editor_drop_at`, when the host drops something | the `Drop_Request` (the host's kind, value, data) and where it landed; the first provider returning true decides: `Drop_Result.edits` (applied as one undo step, the server told), the caret, a message |
+
+**Keep providers fast and non-blocking:** they run on the editor's thread. Look things up in data
+the host already has; do slow work on the host's own worker and invalidate when it's done.
+`editor_provider_stats(ed)` gives each provider's calls and last and slowest times.
+
+**The syntactic context** (`editor_syntax_context_at(ed, pos)`, `Syntax_Context`): from the
+buffer and the language's tokenizer, no parse, so it works on half-typed code. `kind` is
+`Top_Level`, `Struct_Body` / `Enum_Body` / `Union_Body` (with the type's `name` and its braces),
+`Proc_Body` (`proc_name`: a declaration's name or a literal's field, `ready = proc...`),
+`Call_Argument` (`call_name` as written, `e.Node_FindPath`, the `argument` index and where it
+starts) or `Comment`; `in_string` says the position is inside a string literal (a call's string
+argument is `Call_Argument` with it set), `in_proc` whether any procedure encloses it.
+
+Tests: `editor/providers_test.odin` (merging and ranking, without a server, hovers and gutter
+tooltips and clicks, diagnostics merged, shifted and debounced, syntax contexts, drops).
+
 ### Event injection hook (automated testing / scripting)
 
 `editor` exposes `editor_inject_key`, `editor_inject_text`,
@@ -482,7 +527,10 @@ deferred `didOpen` once `initialize` has completed, pushes a full-text
   or with Ctrl/Cmd+Space. The list filters locally as you type (prefix
   matches first, then fuzzy), Up/Down/PageUp/PageDown select, Enter/Tab
   accept (honoring the item's `textEdit`/`insertText`, as one undo step),
-  Escape dismisses, and moving the cursor out of the word closes it.
+  Escape dismisses, and moving the cursor out of the word closes it. Text typed
+  faster than frames (a paste of keys, a test script) opens the list again for
+  the word being typed. The list is the server's items merged with the host's
+  completion providers' (see "Providers" above).
 - The selected item's **documentation** shows in a panel beside the list.
   **Snippets** are supported (the editor enables OLS's via
   `initializationOptions`, see `DEFAULT_LSP_INIT_OPTIONS`): placeholders

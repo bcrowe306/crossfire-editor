@@ -35,6 +35,8 @@ Diag :: struct {
 	// The range as the server sent it (UTF-16, server's text version),
 	// used to recognise the same diagnostic when it's republished.
 	raw:         lspc.Range,
+	// A provider's (providers.odin), not the server's
+	provided:    bool,
 }
 
 // Diag_Overlay is the editor's own copy of the current document's
@@ -48,6 +50,8 @@ Diag_Overlay :: struct {
 	built_seq:    int, // lsp.diagnostics_seq the items came from (-1: never)
 	built_server: int, // supervisor crash count at build time
 	built_key:    string,
+	// ed.provided.diag_seq the providers' part came from
+	built_provided: int,
 	// The buffer was reset (text replaced) since the last refresh: shifted
 	// positions are meaningless, rebuild from scratch.
 	reset_pending: bool,
@@ -108,15 +112,23 @@ editor_refresh_diag_overlay :: proc(ed: ^Editor) {
 	editor_consume_buffer_changes(ed)
 	reset := o.reset_pending
 	o.reset_pending = false
-	if !ed.lsp_enabled || len(ed.document_key) == 0 {
-		diag_overlay_clear(o)
-		o.built_seq = -1
-		return
+	server := ed.lsp_enabled && len(ed.document_key) > 0
+	stale := reset || o.built_provided != ed.provided.diag_seq
+	if server {
+		stale ||= o.built_seq != ed.lsp.diagnostics_seq || o.built_server != ed.lsp_supervisor.total_crashes || o.built_key != ed.document_key
+	} else {
+		stale ||= o.built_seq != -1
 	}
-	stale := reset || o.built_seq != ed.lsp.diagnostics_seq ||
-		o.built_server != ed.lsp_supervisor.total_crashes || o.built_key != ed.document_key
 	if !stale {
 		return // edits were already applied by editor_consume_buffer_changes
+	}
+	o.built_provided = ed.provided.diag_seq
+	if !server {
+		// Only the providers' (a server's come back when one attaches)
+		diag_overlay_clear(o)
+		o.built_seq = -1
+		diag_overlay_add_provided(ed, o)
+		return
 	}
 
 	// Servers often republish diagnostics they haven't recomputed (OLS
@@ -149,7 +161,7 @@ editor_refresh_diag_overlay :: proc(ed: ^Editor) {
 		}
 		if keep_old {
 			for prev in old {
-				if prev.raw == d.range && prev.message == d.message && int(prev.severity) == clamp(d.severity, 1, 4) {
+				if !prev.provided && prev.raw == d.range && prev.message == d.message && int(prev.severity) == clamp(d.severity, 1, 4) {
 					start, end = prev.start, prev.end
 					break
 				}
@@ -164,6 +176,27 @@ editor_refresh_diag_overlay :: proc(ed: ^Editor) {
 			source      = strings.clone(d.source),
 			unnecessary = d.unnecessary,
 			deprecated  = d.deprecated,
+		})
+	}
+	diag_overlay_add_provided(ed, o)
+}
+
+// Adds the providers' diagnostics to the overlay (one the server already reports on the same
+// line with the same message isn't repeated), then sorts it
+@(private)
+diag_overlay_add_provided :: proc(ed: ^Editor, o: ^Diag_Overlay) {
+	server_count := len(o.items)
+	outer: for d in ed.provided.diagnostics {
+		for s in o.items[:server_count] {
+			if s.start.line == d.start.line && s.message == d.message do continue outer
+		}
+		append(&o.items, Diag{
+			start    = d.start,
+			end      = d.end,
+			severity = d.severity,
+			message  = strings.clone(d.message),
+			source   = strings.clone(d.source),
+			provided = true,
 		})
 	}
 	slice.sort_by(o.items[:], proc(a, b: Diag) -> bool {
@@ -316,7 +349,8 @@ editor_track_diag_hover :: proc(ed: ^Editor, hit: Hit, x, y: f32) {
 	tip.hover_valid = valid
 	tip.hover_pos = pos
 	tip.hover_line_only = line_only
-	if ed.hover.visible && (!valid || line_only || pos != ed.hover.pos) {
+	moved := line_only != ed.hover.line_only || (line_only ? pos.line != ed.hover.pos.line : pos != ed.hover.pos)
+	if ed.hover.visible && (!valid || moved) {
 		editor_hide_hover(ed)
 	}
 	if tip.source == .Mouse && (!valid || len(editor_diagnostics_at(ed, pos, line_only)) == 0) {

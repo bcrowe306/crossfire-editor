@@ -229,6 +229,7 @@ editor_render :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, x, 
 
 		render_line_number(ed, renderer, font, ln + 1, ln == primary.pos.line, origin_x, y, theme)
 		render_gutter_marker(ed, renderer, diags, ln, origin_x, y, theme)
+		render_provider_markers(ed, renderer, diags, ln, origin_x, y, theme)
 
 		line := buf.buffer_line_str(&ed.buf, ln)
 		tokens, next_state := ed.language.tokenize(line, state, context.temp_allocator)
@@ -236,6 +237,7 @@ editor_render :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, x, 
 		render_find_highlights(ed, renderer, ln, origin_x + editor_gutter_width(ed), y, theme)
 		render_selection(ed, renderer, ln, origin_x + editor_gutter_width(ed), y, theme)
 		render_line_tokens(ed, renderer, font, line, tokens, origin_x + editor_gutter_width(ed), y, theme)
+		render_inlays(ed, renderer, font, line, ln, origin_x + editor_gutter_width(ed), y, theme)
 		render_squiggles(ed, renderer, diags, ln, origin_x + editor_gutter_width(ed), y, theme)
 		render_cursors_on_line(ed, renderer, ln, origin_x + editor_gutter_width(ed), y, theme)
 		sdl.SetRenderClipRect(renderer, &prev_clip if had_clip else nil)
