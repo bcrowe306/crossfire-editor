@@ -39,6 +39,9 @@ games never do.
   again. Step through a jump, a collision, an animation, frame by frame.
 - **Resume** (or F5): it carries on.
 
+To see the running game's collision shapes, click the toolbar's collision shapes button beside
+Stop (or press F9): they show at once ([Seeing the shapes](physics.md#seeing-the-shapes)).
+
 The editor's pause used to stop the game's program (on Linux and macOS only); with the Live tab
 the game pauses itself, so it works on every computer.
 
@@ -92,9 +95,9 @@ A value the game can't use ("abc" for a speed) is refused: the Console says so.
 ## How it works
 
 Play starts the game with `--live`. The editor writes commands to the game's input (watch, select
-a node, set a value, pause, resume, step) and the game answers in its output, in lines starting
-with `@@live` that the editor takes out of the Console. See the engine's `live.odin` for the
-details, if you build your own tools.
+a node, set a value, pause, resume, step, show or hide the collision shapes) and the game answers
+in its output, in lines starting with `@@live` that the editor takes out of the Console. See the
+engine's `live.odin` for the details, if you build your own tools.
 
 ## Questions
 

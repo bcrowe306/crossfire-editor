@@ -564,7 +564,7 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		}
 		#partial switch v {
 		case .Toggle_Physics_Debug:
-			return {scope = .Project, label = s.project.physics.debugDraw ? "Hide collision shapes" : "Show collision shapes"}
+			return {scope = .Project, label = PhysicsDebug_Shown(s) ? "Hide collision shapes" : "Show collision shapes"}
 		case .Nudge_Left, .Nudge_Right, .Nudge_Up, .Nudge_Down,
 		     .Nudge_Left_Large, .Nudge_Right_Large, .Nudge_Up_Large, .Nudge_Down_Large:
 			if !hasSelection do break

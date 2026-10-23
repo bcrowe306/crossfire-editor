@@ -283,3 +283,94 @@ ldtk_entity_rules_and_collision_kinds_in_the_inspector :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(settings(&state, nodeAt).collisionValues) + len(settings(&state, nodeAt).oneWayValues), 0)
 	free_all(context.temp_allocator)
 }
+
+@(test)
+ldtk_collision_shows_in_the_viewport :: proc(t: ^testing.T) {
+	sync.guard(&previewTestLock)
+	defer Preview_Destroy()
+	os.make_directory("build")
+	dir := "build/test_ldtk_shapes"
+	removeAll(dir)
+	defer removeAll(dir)
+	os.make_directory(dir)
+	root := joinPath(dir, "Game", allocator = context.temp_allocator)
+	state := ldtkState(root)
+	defer State_Destroy(&state)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	index, problem := Project_ImportAsset(&state.project, "tests/fixtures/ldtk/world.ldtk")
+	testing.expect_value(t, problem, "")
+	if index < 0 do return
+	nodeAt := Scene_AddLDtkAt(&state.project.scenes[0], state.project.assets[index].path, -1, {})
+	state.selectedNode = nodeAt
+	// The fixture's level at 1:1, filling a 128 x 64 view; shapes shown (the editor's default)
+	state.viewport = {center = {64, 32}, zoom = 1, size = {128, 64}, showShapes = true}
+	SOLID :: [3]u8{120, 200, 120}
+	near :: proc(pixels: []u8, rgb: [3]u8) -> int {
+		count := 0
+		for i := 0; i + 3 < len(pixels); i += 4 {
+			if abs(int(pixels[i]) - int(rgb.r)) <= 8 && abs(int(pixels[i + 1]) - int(rgb.g)) <= 8 && abs(int(pixels[i + 2]) - int(rgb.b)) <= 8 do count += 1
+		}
+		return count
+	}
+	kinds :: proc(state: ^State) -> (counts: [GeneratedShapeKind]int) {
+		for shape in Preview_GeneratedShapes(state, context.temp_allocator) do counts[shape.kind] += 1
+		return
+	}
+
+	// No collision layer: nothing generated, nothing drawn
+	pixels, ok := Preview_Render(&state, {128, 64}, 1)
+	testing.expect(t, ok, "rendered")
+	testing.expect_value(t, len(Preview_GeneratedShapes(&state, context.temp_allocator)), 0)
+	if ok do testing.expect_value(t, near(pixels, SOLID), 0)
+
+	// The Walls layer: the floor and two walls, merged into 3 rectangles, where the cells are
+	sendTo(&state, LDtk_Setting_Changed{field = .Collision_Layer, text = "Walls"})
+	pixels, ok = Preview_Render(&state, {128, 64}, 1)
+	shapes := Preview_GeneratedShapes(&state, context.temp_allocator)
+	testing.expect_value(t, len(shapes), 3)
+	floor := false
+	for shape in shapes {
+		testing.expect(t, shape.owner == nodeAt && shape.kind == .Solid, "solid, from the level node")
+		if shape.corners[0] == {16, 48} && shape.corners[2] == {112, 64} do floor = true
+	}
+	testing.expect(t, floor, "the floor's cells 1-6 of the bottom row")
+	if ok do testing.expectf(t, near(pixels, SOLID) > 50, "outlined in green: %d pixels", near(pixels, SOLID))
+	// Moved with its node
+	state.project.scenes[0].nodes[nodeAt].position = {8, 0}
+	pixels, ok = Preview_Render(&state, {128, 64}, 1)
+	floor = false
+	for shape in Preview_GeneratedShapes(&state, context.temp_allocator) do if shape.corners[0] == {24, 48} do floor = true
+	testing.expect(t, floor, "the floor moved with the node")
+	state.project.scenes[0].nodes[nodeAt].position = {}
+
+	// Hidden with the viewport's toggle (the picture changes: a new frame key); shown again
+	key := Preview_FrameKey(&state, {128, 64}, 1)
+	sendTo(&state, Action.Toggle_Collision_Shapes)
+	testing.expect(t, !state.viewport.showShapes, "off")
+	testing.expect(t, Preview_FrameKey(&state, {128, 64}, 1) != key, "a new picture")
+	pixels, ok = Preview_Render(&state, {128, 64}, 1)
+	if ok do testing.expect_value(t, near(pixels, SOLID), 0)
+	sendTo(&state, Action.Toggle_Collision_Shapes)
+
+	// One-way, then an Area: their own kinds and colors; undo takes the kind back
+	sendTo(&state, LDtk_Setting_Changed{field = .Collision_Value_Kind, name = "1", text = LDTK_KIND_LABELS[.One_Way]})
+	pixels, ok = Preview_Render(&state, {128, 64}, 1)
+	counts := kinds(&state)
+	testing.expectf(t, counts[.One_Way] == 3 && counts[.Solid] == 0, "one-way: %v", counts)
+	if ok do testing.expect(t, near(pixels, GENERATED_SHAPE_COLORS[.One_Way]) > 50 && near(pixels, SOLID) == 0, "drawn amber")
+	sendTo(&state, LDtk_Setting_Changed{field = .Collision_Value_Kind, name = "1", text = LDTK_KIND_LABELS[.Area]})
+	pixels, ok = Preview_Render(&state, {128, 64}, 1)
+	counts = kinds(&state)
+	testing.expectf(t, counts[.Area] == 3 && counts[.One_Way] == 0, "an area: %v", counts)
+	if ok do testing.expect(t, near(pixels, GENERATED_SHAPE_COLORS[.Area]) > 50, "drawn purple")
+	sendTo(&state, Action.Undo)
+	Preview_Render(&state, {128, 64}, 1)
+	counts = kinds(&state)
+	testing.expectf(t, counts[.One_Way] == 3, "undone: one-way again: %v", counts)
+
+	// A hidden level node shows none
+	state.project.scenes[0].nodes[nodeAt].visible = false
+	Preview_Render(&state, {128, 64}, 1)
+	testing.expect_value(t, len(Preview_GeneratedShapes(&state, context.temp_allocator)), 0)
+	free_all(context.temp_allocator)
+}

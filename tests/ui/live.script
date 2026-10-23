@@ -1,5 +1,6 @@
 # The Live tab: the game played from the editor, watched while it runs: its nodes, a node's
-# properties, pausing (the tab's button and F6) and stepping, a property changed in the game.
+# properties, pausing (the tab's button and F6) and stepping, a property changed in the game, the
+# game's collision shapes from the toolbar and F9.
 # Run with: task test:ui
 
 wait 5
@@ -8,6 +9,7 @@ key F5
 wait_until play Playing timeout=240
 wait_until live connected true timeout=30
 wait_until live nodes > 0 timeout=10
+
 
 # The Live tab (the tiled window's tab strip scrolls to it)
 wheel_widget bottom-tabs-scroll -10
@@ -43,9 +45,25 @@ key ctrl+a
 type false
 expect modified false
 
-# Out of the field (keys go to it while typing), then stop
+# Out of the field (keys go to it while typing)
 scroll_into_view live-scroll live-node-0
 click_widget live-node-0
+
+# The toolbar's collision shapes button shows them in the running game at once (the project's
+# setting too); F9 in the editor hides them again. The game says so in its stats and log
+expect live shapes false
+expect physics_debug_shown off
+click_widget toolbar-physics-debug
+wait_until live shapes true timeout=5
+expect physics_debug on
+expect physics_debug_shown on
+wait_until console_contains Collision shapes shown (the editor) timeout=5
+key F9
+wait_until live shapes false timeout=5
+expect physics_debug off
+expect physics_debug_shown off
+
+# Stopped
 key shift+F5
 wait_until play Stopped
 expect live connected false

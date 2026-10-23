@@ -118,8 +118,11 @@ Under the values, the collision's **Layers**, **Collides**, **Friction** and **B
 body ([Physics](physics.md#layers-who-collides-with-whom)): they apply to the StaticBody and the
 Areas the level makes.
 
-The inspector's **How it's built** counts the solid, one-way and area cells. To see the shapes
-themselves, press **F9** while the game plays from Play ([Seeing the shapes](physics.md#seeing-the-shapes)).
+The inspector's **How it's built** counts the solid, one-way and area cells. The viewport draws
+the shapes themselves over the level, the same rectangles the game gets: solid ones green, one-way
+platforms amber, areas purple. The polygon button in the viewport's header (**Shift+C**, or **View
+> Show Collision Shapes**) hides and shows them. In the running game, the toolbar's collision
+shapes button beside Play, or **F9**, shows them ([Seeing the shapes](physics.md#seeing-the-shapes)).
 
 ## Entities
 
@@ -310,7 +313,9 @@ opens (the inspector says when it can't be read). Tilesets must be where the LDt
 them: import the `.ldtk` with the editor, which brings them along.
 
 **The player falls through the ground.** Choose the IntGrid layer in **Collision**, and check its
-values are **Solid**. The player's body must collide with the level's layers (**Collides**).
+values are **Solid**: the viewport then outlines the ground in green (with the viewport's
+collision shapes on, **Shift+C**). The player's body must collide with the level's layers
+(**Collides**).
 
 **My entities are just rectangles.** Choose a component in their **Becomes**, or write a script
 named like them: the inspector says what each type becomes and why.

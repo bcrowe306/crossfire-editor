@@ -381,10 +381,13 @@ Games get 2D physics from the engine (Box2D). Add these nodes like any other (Ct
 
 A body needs a CollisionShape under it. The inspector edits each body's collision layers (which
 of layers 1-16 it's on, and which it collides with), friction, bounce, mass and more. Shapes and
-rays and joints are drawn in the viewport (Shift+C, or the viewport's shapes button, hides them).
-**Scene > Show Collision Shapes in Game** (or Project Settings > Show shapes) makes the game draw
-them when you Play; it's saved with the project, and **exports never draw them**. While a game
-runs from the editor, **F9** shows and hides them (and **F10** the engine's debug overlay: frame
+rays and joints are drawn in the viewport, and so is the collision LDtk levels and TileMaps make
+(solid green, one-way amber, areas purple; Shift+C, View > Show Collision Shapes or the
+viewport's shapes button hides them). The toolbar's collision shapes button beside Play, Pause
+and Stop (F9; also **Scene > Show Collision Shapes in Game** or Project Settings > Show shapes)
+makes the game draw them when you Play, and in a game already running at once; it's saved with
+the project, and **exports never draw them**. While a game runs from the editor, **F9** in its
+window shows and hides them (and **F10** the engine's debug overlay: frame
 rate, frame times, node and body counts). A CollisionShape marked **One way** is a platform:
 only its top stops what lands on it. Project Settings also has the world's scale
 (pixels per meter), gravity and Smooth motion (moving bodies glide on high-refresh screens).

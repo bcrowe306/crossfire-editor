@@ -94,6 +94,31 @@ NumberEdit :: struct {
 	text: string,
 }
 
+// A number field's text box is never narrower than this; the gap between it and its buttons
+@(private="file")
+NUMBER_FIELD_MIN_BOX :: 40
+@(private="file")
+NUMBER_FIELD_GAP :: 2
+
+@(private="file")
+numberFieldButtonWidth :: proc(th: ^skald.Theme) -> f32 {
+	return max(f32(18), th.font.size_md * 1.4)
+}
+
+/*
+The narrowest a number field is drawn (its smallest text box and the − and + buttons): a row
+holding one beside something else must leave it this much to fit `controlWidth`.
+
+Inputs:
+- th: The theme (the buttons follow its font size)
+
+Returns:
+- The width in pixels
+*/
+NumberField_MinWidth :: proc(th: ^skald.Theme) -> f32 {
+	return NUMBER_FIELD_MIN_BOX + 2 * (numberFieldButtonWidth(th) + NUMBER_FIELD_GAP)
+}
+
 /*
 Builds a number field.
 
@@ -103,7 +128,8 @@ Inputs:
 - value: The current value
 - step: How much − and + change it
 - decimals: Decimals shown
-- width: Total width, buttons included. The box has tight vertical padding (2 px)
+- width: Total width, buttons included, at least `NumberField_MinWidth` (narrower is drawn that
+  wide). The box has tight vertical padding (2 px)
 - minValue, maxValue: The allowed range
 */
 numberField :: proc(
@@ -130,8 +156,7 @@ numberField :: proc(
 		skald.send(ctx, NumberTarget_Msg(target, clamp(value + f64(steps) * step, minValue, maxValue)))
 	}
 	text := editing && focused ? s.numberEdit.text : formatNumber(value, decimals)
-	buttonWidth := max(f32(18), th.font.size_md * 1.4)
-	gap := f32(2)
+	buttonWidth, gap := numberFieldButtonWidth(th), f32(NUMBER_FIELD_GAP)
 
 	Payload :: struct {
 		target: NumberTarget,
@@ -140,7 +165,7 @@ numberField :: proc(
 	}
 	input := skald.text_input(ctx, text, Payload{target, id, minValue, maxValue},
 		proc(p: Payload, v: string) -> Msg { return Number_Text_Changed{p.target, p.id, v, p.lo, p.hi} },
-		id = id, width = max(width - 2 * (buttonWidth + gap), 40), padding = {th.spacing.sm, 2})
+		id = id, width = max(width - 2 * (buttonWidth + gap), NUMBER_FIELD_MIN_BOX), padding = {th.spacing.sm, 2})
 
 	stepButton :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, width: f32) -> skald.View {
 		th := ctx.theme

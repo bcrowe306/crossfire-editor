@@ -1248,9 +1248,14 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .Toggle_Lighting:
 		out.viewport.unlit = !out.viewport.unlit
 	case .Toggle_Physics_Debug:
-		// A project setting (undoable, saved with the project); exports turn it off
-		out.project.physics.debugDraw = !out.project.physics.debugDraw
-		message := out.project.physics.debugDraw ? "The game shows its collision shapes (not in exports; F9 toggles them while playing)" : "The game hides its collision shapes (F9 shows them while playing)"
+		// A project setting (undoable, saved with the project); exports turn it off. It flips
+		// what the toolbar shows: a running game's shapes (F9 may have changed them there), which
+		// the project then agrees with, and the game too, over the live link
+		on := !PhysicsDebug_Shown(&out)
+		out.project.physics.debugDraw = on
+		sent := Live_SetShapes(&out, on)
+		message := on ? "The game shows its collision shapes (not in exports; F9 toggles them while playing)" : "The game hides its collision shapes (F9 shows them while playing)"
+		if sent do message = on ? "The game shows its collision shapes, now and when played (not in exports)" : "The game hides its collision shapes, now and when played"
 		logLine(&out, .Info, strings.clone(message))
 	case .Toggle_Snap:
 		out.viewport.snap = !out.viewport.snap
@@ -1351,17 +1356,22 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		AudioPreview_Stop()
 
 	case .Undo:
+		shapes := out.project.physics.debugDraw
 		if label, ok := History_Undo(&out); ok {
 			logLine(&out, .Info, fmt.aprintf("Undo: %s", label))
 		} else {
 			logLine(&out, .Info, strings.clone("Nothing to undo"))
 		}
+		// The game's collision shapes follow an undone toggle (Toggle_Physics_Debug)
+		if out.project.physics.debugDraw != shapes do Live_SetShapes(&out, out.project.physics.debugDraw)
 	case .Redo:
+		shapes := out.project.physics.debugDraw
 		if label, ok := History_Redo(&out); ok {
 			logLine(&out, .Info, fmt.aprintf("Redo: %s", label))
 		} else {
 			logLine(&out, .Info, strings.clone("Nothing to redo"))
 		}
+		if out.project.physics.debugDraw != shapes do Live_SetShapes(&out, out.project.physics.debugDraw)
 	case .Rename_Node:
 		startRename(&out, out.selectedNode)
 	case .Build_Scripts:

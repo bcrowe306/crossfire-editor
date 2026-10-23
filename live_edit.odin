@@ -14,7 +14,9 @@ The live view: the game run with Play, seen and changed while it plays (the engi
   `@@live ` are taken out of the Console and read by `Live_Ingest` into `State.live`.
 - **What's asked:** `watch` when the game starts (stats four times a second, the scene's tree twice
   a second); `select <id>` when a node is chosen (its properties come with each tree); `set <id>
-  <property> <value>` as a property is typed in; `pause`, `resume`, `step`.
+  <property> <value>` as a property is typed in; `pause`, `resume`, `step`; `shapes on` / `off`
+  from the toolbar's collision shapes button (`Live_SetShapes`; the stats say whether they're
+  shown, so the button follows F9 pressed in the game).
 - **The view** (view_live.odin, the bottom panel's Live tab): the stats with a graph of frame
   times, the running scene's nodes, the chosen node's properties to edit, and the pause and step
   buttons. Nothing here is saved or undoable: the running game changes, not the project.
@@ -44,6 +46,11 @@ LiveView :: struct {
 	// are ignored until one agrees (or a couple of seconds pass)
 	pausePending: bool,
 	pauseSent: time.Tick,
+	// The game shows its physics debug shapes (as it said; F9 in the game toggles them)
+	shapes: bool,
+	// `shapes` was sent: stats saying otherwise are ignored until one agrees (as for pausing)
+	shapesPending: bool,
+	shapesSent: time.Tick,
 }
 
 LiveNode :: struct {
@@ -118,6 +125,13 @@ Live_Ingest :: proc(s: ^State, text: string) {
 			live.paused = paused
 			live.pausePending = false
 		}
+		shapes, _ := object["shapes"].(json.Boolean)
+		if live.shapesPending && shapes != live.shapes && time.duration_seconds(time.tick_since(live.shapesSent)) < 2 {
+			// Sent before the game read our shapes command
+		} else {
+			live.shapes = shapes
+			live.shapesPending = false
+		}
 		append(&live.history, live.stats.frame)
 		if len(live.history) > LIVE_HISTORY do ordered_remove(&live.history, 0)
 	case "tree":
@@ -150,6 +164,35 @@ Live_Ingest :: proc(s: ^State, text: string) {
 		ok, _ := object["ok"].(json.Boolean)
 		if !ok do logLine(s, .Warning, fmt.aprintf("Live: %s isn't a value of %s", live.edits[str(object, "property")], str(object, "property")))
 	}
+}
+
+/*
+Shows or hides the running game's physics debug shapes over the link (the toolbar's button:
+`Toggle_Physics_Debug`). Shown at once; the game's next stats agree.
+
+Inputs:
+- s: Editor state
+- on: Show them
+
+Returns:
+- Whether it was sent (a game runs with the link)
+*/
+Live_SetShapes :: proc(s: ^State, on: bool) -> bool {
+	if !s.live.connected || !Live_Send(s, on ? "shapes on" : "shapes off") do return false
+	s.live.shapes = on
+	s.live.shapesPending = true
+	s.live.shapesSent = time.tick_now()
+	return true
+}
+
+/*
+Whether the game's collision shapes are on, as the toolbar shows them: the running game's (it
+may have toggled them with F9), else the project's development setting
+(`project.physics.debugDraw`).
+*/
+PhysicsDebug_Shown :: proc(s: ^State) -> bool {
+	if s.live.connected && s.playState != .Stopped do return s.live.shapes
+	return s.project.physics.debugDraw
 }
 
 /*

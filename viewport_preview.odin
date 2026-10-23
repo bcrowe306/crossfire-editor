@@ -178,6 +178,9 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	sdl.SetRenderDrawColor(r, bg.r, bg.g, bg.b, 255)
 	sdl.RenderFillRect(r, &game)
 	e.Scene_DrawWithView(preview.scene, r, view, screenLayersUseView = true, positionOnlyScale = s.viewport.zoom * pixelScale)
+	// The collision LDtk levels and TileMaps make (not scene nodes, so the overlay can't outline
+	// them): drawn into the picture, the shapes the game will have
+	if s.viewport.showShapes do drawGeneratedShapes(s, r, view)
 	preview.drawnSize = size
 
 	// Shared: it's in Skald's image once SDL's target is the window again
@@ -227,6 +230,8 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		background: [4]u8,
 		textures: int,
 		timeline: struct { previewing: bool, clip: int, time: f32 },
+		// Generated collision shapes are drawn into the picture
+		showShapes: bool,
 	}
 	// Images saved since: read again in place, at most twice a second (a frame only comes when
 	// something happens: coming back to the editor after saving in Aseprite is one)
@@ -246,6 +251,7 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		background = transmute([4]u8)SceneSettings_Background(&s.project, scene),
 		textures = preview.texturesVersion,
 		timeline = {s.timeline.previewing && s.bottomTab == .Timeline && s.layout.bottomOpen, s.timeline.clip, s.timeline.playhead},
+		showShapes = s.viewport.showShapes,
 	}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	h ~= previewImportSettings(s)
@@ -1133,4 +1139,121 @@ syncThemes :: proc(s: ^State, game: ^e.Game) {
 	clear(&game.themes)
 	for path, data in previewThemes do if Project_FindTheme(&s.project, path) >= 0 do game.themes[path] = data
 	game.uiTheme = s.project.uiTheme
+}
+
+// GENERATED COLLISION
+
+// What a collision shape an LDtkLevel or TileMap node makes is (`GeneratedShape`)
+GeneratedShapeKind :: enum {
+	// A solid cell or tile (under the "Collision" StaticBody)
+	Solid,
+	// A one-way platform (`CollisionShape.oneWay`, under "Collision")
+	One_Way,
+	// An area's cells or tiles (under an Area, named after the value or the tiles' `area`)
+	Area,
+}
+
+/*
+A collision shape the engine built for an LDtkLevel node's IntGrid collision or a TileMap's tile
+collision: not in the scene file, so the viewport draws it from the preview scene
+(`Preview_GeneratedShapes`), the same shapes the game makes.
+*/
+GeneratedShape :: struct {
+	// The editor node that made it (an LDtkLevel or a TileMap)
+	owner: int,
+	kind: GeneratedShapeKind,
+	// Its corners in the world (top left first, clockwise)
+	corners: [4][2]f32,
+}
+
+// The colors generated shapes are drawn in: solid like the engine's static bodies, areas like its
+// Areas (its F9 debug drawing), one-way platforms amber
+GENERATED_SHAPE_COLORS := [GeneratedShapeKind][3]u8{
+	.Solid   = {120, 200, 120},
+	.One_Way = {255, 190, 70},
+	.Area    = {200, 120, 255},
+}
+
+/*
+The collision shapes the previewed scene's LDtkLevel and TileMap nodes built (their merged
+rectangles), as the engine made them. Nodes hidden in the tree are left out. Empty when the
+preview isn't the open scene as it is now.
+
+Inputs:
+- s: Editor state (the open scene)
+- allocator: Where the list goes
+
+Returns:
+- The shapes, by node in scene order
+*/
+Preview_GeneratedShapes :: proc(s: ^State, allocator := context.allocator) -> [dynamic]GeneratedShape {
+	shapes := make([dynamic]GeneratedShape, allocator)
+	scene := &s.project.scenes[s.currentScene]
+	makers := false
+	for &def in scene.nodes do if def.kind == .LDtkLevel || def.kind == .TileMap do makers = true
+	if !makers || !Preview_IsCurrent(s) do return shapes
+	for &def, i in scene.nodes {
+		if def.kind != .LDtkLevel && def.kind != .TileMap do continue
+		built := Preview_Node(i)
+		if built == nil || !e.Node_IsVisibleInTree(built) do continue
+		// A TileMap's bodies are its children; an LDtkLevel's are its levels' (views') children.
+		// Entities (in their layers) are left alone: what they are is drawn as they are
+		bodies := make([dynamic]^e.Node, context.temp_allocator)
+		for child in built.children {
+			if e.Node_Is(child, e.StaticBody) || e.Node_Is(child, e.Area) do append(&bodies, child)
+			if e.Node_Is(child, e.LDtkLevelView) {
+				for body in child.children do if e.Node_Is(body, e.StaticBody) || e.Node_Is(body, e.Area) do append(&bodies, body)
+			}
+		}
+		for body in bodies {
+			if !body.visible do continue
+			isArea := e.Node_Is(body, e.Area)
+			for child in body.children {
+				if !e.Node_Is(child, e.CollisionShape) do continue
+				shape := cast(^e.CollisionShape)child
+				if shape.disabled do continue
+				bounds, ok := e.Node_GetLocalBounds(shape)
+				if !ok do continue
+				world := e.Node_GetWorldTransform(shape)
+				kind := isArea ? GeneratedShapeKind.Area : shape.oneWay ? .One_Way : .Solid
+				append(&shapes, GeneratedShape{owner = i, kind = kind, corners = {
+					e.Transform2D_Apply(world, {bounds.x, bounds.y}),
+					e.Transform2D_Apply(world, {bounds.x + bounds.w, bounds.y}),
+					e.Transform2D_Apply(world, {bounds.x + bounds.w, bounds.y + bounds.h}),
+					e.Transform2D_Apply(world, {bounds.x, bounds.y + bounds.h}),
+				}})
+			}
+		}
+	}
+	return shapes
+}
+
+// Draws the generated collision shapes over the scene (Toggle_Collision_Shapes): filled faintly
+// and outlined in their kind's color, one-way platforms with a heavier top edge
+@(private="file")
+drawGeneratedShapes :: proc(s: ^State, r: ^sdl.Renderer, view: e.Transform2D) {
+	shapes := Preview_GeneratedShapes(s, context.temp_allocator)
+	if len(shapes) == 0 do return
+	blend: sdl.BlendMode
+	sdl.GetRenderDrawBlendMode(r, &blend)
+	sdl.SetRenderDrawBlendMode(r, sdl.BLENDMODE_BLEND)
+	defer sdl.SetRenderDrawBlendMode(r, blend)
+	// Points in screen pixels: the view applied here, so the top edge's second line is a pixel
+	e.SetDrawState(e.TRANSFORM2D_IDENTITY)
+	for shape in shapes {
+		rgb := GENERATED_SHAPE_COLORS[shape.kind]
+		color := sdl.Color{rgb.r, rgb.g, rgb.b, 255}
+		fill := color
+		fill.a = shape.kind == .Area ? 30 : 60
+		points: [4]sdl.FPoint
+		for c, k in shape.corners {
+			p := e.Transform2D_Apply(view, c)
+			points[k] = {p.x, p.y}
+		}
+		e.DrawPolygon(r, points[:], fill)
+		e.DrawPolygonOutline(r, points[:], color)
+		if shape.kind == .One_Way {
+			e.DrawLine(r, {points[0].x, points[0].y + 1}, {points[1].x, points[1].y + 1}, color)
+		}
+	}
 }

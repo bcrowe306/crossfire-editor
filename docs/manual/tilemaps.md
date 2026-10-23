@@ -185,6 +185,11 @@ In the inspector:
 
 Collision comes from the TileMap's **Frame** (below), and painted tiles count like the file's.
 
+The viewport draws that collision over the tiles, as the game gets it: solid rectangles green,
+one-way platforms amber, areas purple. The polygon button in the viewport's header (**Shift+C**)
+hides and shows it with the other collision shapes
+([Seeing the shapes](physics.md#seeing-the-shapes)).
+
 ## Animated tiles
 
 A tilemap in Aseprite can be different in each frame: water moving, torches flickering. Tick the

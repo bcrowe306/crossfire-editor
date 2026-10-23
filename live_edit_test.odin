@@ -1,5 +1,7 @@
 package crossfire_editor
 
+import "core:os"
+import "core:strings"
 import "core:testing"
 
 // The live view: the game's replies read into State.live (the tree's depths, stats and their
@@ -43,4 +45,72 @@ the_live_view_reads_the_game :: proc(t: ^testing.T) {
 	// Garbage is ignored
 	Live_Ingest(&state, `not json`)
 	Live_Ingest(&state, `{"type":"nonsense"}`)
+}
+
+// What the editor wrote to the game's stdin since the last call
+@(private="file")
+sentLines :: proc(reader: ^os.File) -> string {
+	buffer: [256]u8
+	hasData, _ := os.pipe_has_data(reader)
+	if !hasData do return ""
+	n, _ := os.read(reader, buffer[:])
+	return strings.clone(string(buffer[:n]), context.temp_allocator)
+}
+
+@(test)
+the_toolbar_shows_and_hides_the_games_collision_shapes :: proc(t: ^testing.T) {
+	state := State{project = Project_CreateDemo("build/test_live_shapes"), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default(),
+		timeline = {node = -1, track = -1, key = -1}, themeSelection = -1, dataSelection = -1}
+	defer State_Destroy(&state)
+
+	// Not playing: the project's setting, a project undo step
+	testing.expect(t, !PhysicsDebug_Shown(&state), "off at first")
+	sendTo(&state, Action.Toggle_Physics_Debug)
+	testing.expect(t, state.project.physics.debugDraw && PhysicsDebug_Shown(&state), "on")
+	testing.expect_value(t, len(state.history.undo), 1)
+	testing.expect_value(t, state.history.undo[0].label, "Show collision shapes")
+	sendTo(&state, Action.Undo)
+	testing.expect(t, !state.project.physics.debugDraw, "undone")
+
+	// Playing with the link: the game is told at once, and the button shows what it says
+	reader, writer, err := os.pipe()
+	testing.expect_value(t, err, nil)
+	if err != nil do return
+	defer os.close(reader)
+	state.play.stdin = writer
+	defer { os.close(writer); state.play.stdin = nil }
+	state.playState = .Playing
+	Live_Ingest(&state, `{"type":"stats","fps":60,"frame":16.7,"update":0.5,"physics":0.2,"draw":1.1,"nodes":3,"drawn":2,"paused":false,"shapes":false}`)
+	testing.expect(t, state.live.connected && !PhysicsDebug_Shown(&state), "the game hides them")
+	sendTo(&state, Action.Toggle_Physics_Debug)
+	testing.expect(t, state.project.physics.debugDraw && state.live.shapes && PhysicsDebug_Shown(&state), "shown, in the project and the game")
+	testing.expect_value(t, sentLines(reader), "shapes on\n")
+	// Stats the game sent before it read that are ignored; then it agrees
+	Live_Ingest(&state, `{"type":"stats","paused":false,"shapes":false}`)
+	testing.expect(t, PhysicsDebug_Shown(&state), "still shown (a stale line)")
+	Live_Ingest(&state, `{"type":"stats","paused":false,"shapes":true}`)
+	testing.expect(t, state.live.shapes && !state.live.shapesPending, "the game agrees")
+
+	// F9 in the game hid them: the button follows; a click shows them again, which the project
+	// already says (no undo step)
+	Live_Ingest(&state, `{"type":"stats","paused":false,"shapes":false}`)
+	testing.expect(t, !PhysicsDebug_Shown(&state) && state.project.physics.debugDraw, "hidden in the game only")
+	steps := len(state.history.undo)
+	sendTo(&state, Action.Toggle_Physics_Debug)
+	testing.expect(t, PhysicsDebug_Shown(&state) && state.project.physics.debugDraw, "shown again")
+	testing.expect_value(t, len(state.history.undo), steps)
+	testing.expect_value(t, sentLines(reader), "shapes on\n")
+
+	// Undoing the toggle hides them in the game too
+	sendTo(&state, Action.Undo)
+	testing.expect(t, !state.project.physics.debugDraw && !state.live.shapes, "undone, in the game too")
+	testing.expect_value(t, sentLines(reader), "shapes off\n")
+	sendTo(&state, Action.Redo)
+	testing.expect_value(t, sentLines(reader), "shapes on\n")
+
+	// Stopped: the project's setting again
+	state.playState = .Stopped
+	Live_Reset(&state.live)
+	testing.expect(t, PhysicsDebug_Shown(&state), "the project's")
+	free_all(context.temp_allocator)
 }

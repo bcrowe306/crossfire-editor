@@ -169,7 +169,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `asset_fields.odin` | A browser asset dropped on a code tab: a field of its handle type (`AssetField_Type`, `AssetField_Line`, `AssetField_Insert`) |
 | `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`) |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
-| `viewport_preview.odin` | Engine-rendered preview of the open scene (the shared GPU renderer straight into a Skald image; fallbacks: a GPU readback, software) |
+| `viewport_preview.odin` | Engine-rendered preview of the open scene (the shared GPU renderer straight into a Skald image; fallbacks: a GPU readback, software); the collision LDtk levels and TileMaps build, drawn into it (`Preview_GeneratedShapes`) |
 | `gpu_share.odin` | **The shared GPU renderer**: SDL's Vulkan renderer on Skald's device (`SharedGPU_Renderer`, `SharedGPU_Shutdown`), `GPUTarget` (a Skald `image_create_target` image as an SDL render target: `_Ensure`, `_Begin` / `_End`, `_Draw`, `_ReadPixels` for tests), used by the viewport and the code tabs |
 | `viewport_math.odin` | Viewport pan/zoom math and drag (move/rotate/scale) math |
 | `add_node.odin` | Add Node dialog logic: `AddNode_Kinds` (search over the engine's `SCENE_NODE_KINDS`), `AddNode_Create` (parent, unique name) |
@@ -191,7 +191,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `Scene_ResolvePath`, the inspector's rows |
 | `view_states.odin` | The bottom panel's States tab (`StatesPanel`): the graph (`graphCanvas`: boxes, arrows with their conditions, Any state; click, drag, double-click), the selected state's and transition's fields, the parameters |
 | `scene_flow_edit.odin` | **Scene changes**: `Project.transition` / `loadingScene`, Project Settings > General's rows (`sceneFlowSettingRows`, on the dialog's draft), `Project_Settings_Transition_Changed` / `_Loading_Changed` |
-| `live_edit.odin` | **The live view**: `LiveView` (`State.live`: the running game's tree, chosen node's properties, stats, frame-time history), `Live_Send` (to the game's stdin), `Live_Ingest` (its `@@live` replies), `Live_Update`, `Live_Reset` |
+| `live_edit.odin` | **The live view**: `LiveView` (`State.live`: the running game's tree, chosen node's properties, stats, frame-time history), `Live_Send` (to the game's stdin), `Live_Ingest` (its `@@live` replies), `Live_Update`, `Live_Reset`, the game's collision shapes (`Live_SetShapes`, `PhysicsDebug_Shown`) |
 | `view_live.odin` | The bottom panel's Live tab (`LivePanel`): pause / step, stats and the frame-time graph, the nodes, the chosen node's fields (side by side, or stacked in a narrow panel) |
 | `nav_edit.odin` | **Navigation**: `NodeDef.nav` (`e.NavSettings`; a region's area is `shapeSize`), `Nav_Setting_Changed` (`NavNumberTarget`), the NavRegion and NavAgent inspector rows (`navInspectorRows`) |
 | `light_edit.odin` | **2D lighting**: `NodeDef.light` (`e.LightSettings`), `Light_Setting_Changed`, `Scene_Lighting_Changed`, the light and occluder inspector rows (`lightInspectorRows`; occluders use `shapeRows`), the scene preview's lighting rows (`sceneLightingRows`) |
@@ -210,7 +210,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `settings.default.ini` | Default settings, built into the editor |
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors; `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
-| `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings |
+| `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings; `NumberField_MinWidth` (never drawn narrower) |
 | `code_editor/` | **The built-in code editor**: an Odin code editor on SDL3 (buffer, keymap, syntax, LSP client, `editor` = package `code_editor`, its own README, tests and Taskfile). Changed here: its `editor` package renamed `code_editor` (Odin package names must be unique: it was `editor`, ours then; ours is `crossfire_editor` now), and SDL_ttf calls taking `[^]u8` for this Odin |
 | `code_editor_host.odin` | Hosting it in Skald: `CodeEditor` per open file (a `ce.Editor`), the shown one drawn by the shared GPU renderer into `CODE_IMAGE` (else a software renderer and surface, uploaded when the pixels change), the SDL event watch feeding it input, focus (`CodeEditor_Frame`, `CODE_EDITOR_PASSTHROUGH`), the bundled font (Liberation Mono), `Code_FindOLS` |
 | `code_tabs.odin` | Code tabs: `Script_Open` (built-in or external), `CodeTabs_Open` / `Close` / `SaveAll`, their messages (`CodeTabs_Update`), the tabs' view, the status line, the close prompt |
@@ -317,9 +317,11 @@ Skald is not immediate-mode and not a retained widget tree:
   (`LinkedAxis`; from 0 it moves by the same amount). Number widths leave room for that button:
   anything spilling into the reserved scrollbar strip is covered by the scrollbar and can't be
   clicked.
-  **Every inspector row must fit `controlWidth`**: it happened twice (the link button, then the
-  script Open button beside a dropdown held at its minimum width). Put extra buttons on their own
-  row, and check a new button with a UI click in a narrow window.
+  **Every inspector row must fit `controlWidth`**: it happened three times (the link button, the
+  script Open button beside a dropdown held at its minimum width, the Camera's limit checkbox
+  beside a number field held at `NumberField_MinWidth`). Put extra buttons on their own row, and
+  check a new button with a UI click in a narrow window: `send Right_Sidebar_Width <px>` narrows
+  the inspector, `clear_of_scrollbar <key> inspector-scroll` checks the row's end.
 - **A tab strip wider than its panel must scroll (`hScroll`), not overflow:** the bottom panel's
   tabs ran past the panel into the inspector beside it in a tiled window, unclipped, and a
   dropdown's choice there also clicked the tab under it (mixer.script caught it once Tiles and
@@ -452,7 +454,8 @@ behave (`viewportOnly`, `textChord`).
   - arrows nudge (Shift ×10), Esc deselect, Delete
   - Ctrl+D duplicate, Ctrl+C/X/V copy/cut/paste nodes (not while typing)
   - Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (not while typing: the text field undoes typing)
-  - F5/F6/Shift+F5 play controls, Ctrl+I import, Ctrl+, settings
+  - F5/F6/Shift+F5 play controls, F9 the game's collision shapes (as F9 in the game), Ctrl+I
+    import, Ctrl+, settings
 - `KeymapDispatch` runs at the start of `view`, before the menu bar, so each shortcut fires once.
 - **Plain keys are ignored while a text or number field has focus** (`IsTyping`), and are hidden
   from menu hints then.
@@ -1245,11 +1248,29 @@ kinds (bodies, CollisionShape, RayCast, Joint) like any others:
   overlay outlines shapes in their body's kind color (muted when disabled or without a body), draws
   rays, and joints (`drawJoint`: anchor ring, red without body B; lines to the bodies; Distance's
   offset point; the slide axis of Prismatic and Wheel). `viewport.showShapes`
-  (`Toggle_Collision_Shapes`, Shift+C, the `panel-viewport-shapes` button) hides them. Shapes
-  have engine bounds, so picking and selection boxes work as for sprites.
+  (`Toggle_Collision_Shapes`, Shift+C, the `panel-viewport-shapes` button, View > Show Collision
+  Shapes, the empty viewport's Show submenu) hides them. Shapes have engine bounds, so picking and
+  selection boxes work as for sprites.
+- **Generated collision** (viewport_preview.odin): what LDtkLevel nodes (IntGrid collision) and
+  TileMaps (tile collision) build isn't in the scene tree, so the overlay can't outline it.
+  `Preview_GeneratedShapes` reads the preview scene's own built shapes (the node's StaticBody /
+  Area children, a level view's for LDtk; entity layers left alone) as `GeneratedShape`s (owner,
+  `GeneratedShapeKind` Solid / One_Way / Area, world corners), and `Preview_Render` draws them
+  **into the picture** after the scene (`drawGeneratedShapes`, while `showShapes`:
+  `GENERATED_SHAPE_COLORS`, filled faintly and outlined, one-way with a heavier top edge), so
+  the driver's `viewport_has_color` sees them. `showShapes` is in `Preview_FrameKey`. Tests:
+  `ldtk_collision_shows_in_the_viewport` (rectangles, pixels per kind, the toggle, moved and
+  hidden nodes), `tilemaps_in_the_editor`; ldtk.script (`generated_shapes`, colors, the header
+  button, Shift+C, the context menu).
 - **Debug drawing in the game is a development setting of the project** (`project.physics.debugDraw`,
-  project.xml's `physicsDebug`): Project Settings > Show shapes, or Scene > Show Collision Shapes
-  in Game (`Toggle_Physics_Debug`, a `.Project` undo step). Play uses it (the player reads
+  project.xml's `physicsDebug`): the toolbar's `toolbar-physics-debug` button beside Stop (F9),
+  Project Settings > Show shapes, or Scene > Show Collision Shapes in Game (`Toggle_Physics_Debug`,
+  a `.Project` undo step). **While a game runs** the button shows the game's state
+  (`PhysicsDebug_Shown`: `live.shapes`, from every stats line's `shapes`, so F9 pressed in the
+  game shows) and a click sets the opposite in both: the project (no undo step when it already
+  agreed) and the game over the live link (`Live_SetShapes`: `shapes on|off`; stale stats
+  ignored like a pause's, `shapesPending`). Undo / redo of the toggle reach the game too. Test:
+  `the_toolbar_shows_and_hides_the_games_collision_shapes`; physics.script, live.script. Play uses it (the player reads
   project.xml). **Exports never ship it:** they write `data/project.xml` with
   `Export_ProjectXML` (the project with development settings off) instead of copying the file.
   Play also passes `--dev`, so F9 toggles the shapes while the game runs, and F10 the engine's
@@ -1416,7 +1437,9 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   `LDtkEdit_Update`; each is a node undo step (collision values typing merges).
 - **Two parsed copies:** the inspector's (`LDtkEdit_Project`, a thread-local cache by full path,
   re-read when the file's modification time changes) and the preview game's (`Game_LoadLDtk`).
-  The viewport's rebuild signature includes the file's time (`LDtkSettings_Signature`), and
+  The viewport's rebuild signature includes the file's time (`LDtkSettings_Signature`: every
+  setting the build reads, the one-way and area lists and whole entity rules too; one-way to an
+  area once changed nothing else and didn't rebuild), and
   `rebuild` drops the preview game's changed projects (`forgetChangedLDtk`) after destroying the
   old scene, so saving in LDtk rebuilds the level when the editor next draws.
 - **Import** (`Project_ImportAsset` -> `LDtkEdit_Import` for `.ldtk` from outside):
@@ -1445,7 +1468,8 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   a list of every entity (position, fields) whose rows center the viewport on it
   (`LDtk_Entity_Framed`). ldtk.script clicks one; `ldtk_inspector_says_what_entities_become`.
 - **Collision settings:** with a collision layer, the inspector shows the generated body's
-  layers, mask, friction and bounce (`bodySurfaceRows`, shared with body nodes).
+  layers, mask, friction and bounce (`bodySurfaceRows`, shared with body nodes). The viewport
+  draws the generated collision (Physics: Generated collision).
 - **Entity rules and collision kinds** (the engine's `LDtkEntityRule`, `LDtkCollisionKind`): per
   entity type a **Becomes** select (`Entity_Make`: Auto, Its rectangle, Code, Nothing, then the
   project's components; `LDTK_MAKE_LABELS`) and a **Runs** select (`Entity_Script`: Auto, No
@@ -1839,6 +1863,10 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   (`CameraTargets_Resolve`) and rewrite the paths after (`CameraTargets_Repath`, with the move's
   `newIndex`). Other node paths (script node fields, CameraView's `viewCamera`, IK targets)
   still aren't rewritten.
+- **The Limits rows fit controlWidth:** checkbox and number in one row only when the number
+  gets `NumberField_MinWidth` (a numberField is never drawn narrower: a 40 px box and two step
+  buttons); in a narrower inspector the number goes under its checkbox (`stacked`). camera.script
+  checks at a 215 px sidebar (`send Right_Sidebar_Width`, `clear_of_scrollbar`).
 - **Viewport:** the preview builds cameras without the settings (`toSceneData` leaves `camera`
   zero: no target, no limits), so the camera stays where it's placed and parallax shows the scene
   as placed; a selected camera draws its limits, dead zone, a line to its target and a ring where
@@ -1895,6 +1923,7 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   editor changed `live.paused`; until one agrees (or 2 s pass, `pausePending`) they're ignored.
   Without that the Step button vanished under a click and the next click sent pause again
   (live.script caught it).
+- **Collision shapes** (`shapes on|off`, `Live_SetShapes`, `live.shapes`): see Physics.
 - **Edits** are sent as typed (`set`; the game refuses what doesn't parse, logged); typed text is
   kept in `live.edits` until another node is chosen, since the node's values come back every
   half second. Nothing is undoable or saved: it's the running game.
@@ -2385,7 +2414,8 @@ Highlights:
   is clicked with `click_widget toolbar-play`; its rectangle is read from Skald's widget store
   (`ctx.widgets.states`) without touching its state. **Give every widget a test should reach a
   stable `hash_id` key.** Existing keys:
-  - toolbar buttons `toolbar-<name>`, panel buttons `panel-<name>`
+  - toolbar buttons `toolbar-<name>` (`toolbar-physics-debug`: the game's collision shapes),
+    panel buttons `panel-<name>`
   - the Console and Output tabs: `console-scroll` / `output-scroll` (the list; `-area` the list or
     its placeholder), `-line-<i>`, `-search`, `-level-<Level>`, `-categories`, `-follow`
   - trees `browser-tree` / `scene-tree`, the search box `browser-search`

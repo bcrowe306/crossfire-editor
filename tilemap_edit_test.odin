@@ -88,5 +88,15 @@ tilemaps_in_the_editor :: proc(t: ^testing.T) {
 		p = pixels[(1 * 16 + 2) * 4:][:4]
 		testing.expectf(t, p[2] > 200 && p[0] < 50, "then blue: %v", p)
 	}
+	// With the viewport's collision shapes on: the tile collision the engine built, drawn over it
+	state.viewport.showShapes = true
+	_, ok = Preview_Render(&state, {16, 8}, 1)
+	counts: [GeneratedShapeKind]int
+	for shape in Preview_GeneratedShapes(&state, context.temp_allocator) {
+		counts[shape.kind] += 1
+		testing.expect_value(t, shape.owner, at)
+	}
+	// Ground's solid tiles (merged into 2), its one-way tile and Decor's, the spikes' Area
+	testing.expectf(t, counts[.Solid] == 2 && counts[.One_Way] == 2 && counts[.Area] == 1, "the tiles' collision: %v", counts)
 	free_all(context.temp_allocator)
 }

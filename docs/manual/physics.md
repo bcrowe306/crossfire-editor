@@ -87,7 +87,10 @@ bottom of a body's inspector: see
 [Collision from sprites and physics materials](collision_and_materials.md).
 
 The viewport outlines shapes in their body's color, and each shape can be clicked and moved like
-any node. The polygon button in the viewport's header (**Shift+C**) hides or shows the outlines.
+any node. The polygon button in the viewport's header (**Shift+C**, also **View > Show Collision
+Shapes** and **Show > Collision Shapes** in the menu of a right click on empty space) hides or
+shows the outlines, and the collision LDtk levels and TileMaps make
+([Seeing the shapes](#seeing-the-shapes)).
 
 ## Body settings
 
@@ -149,13 +152,25 @@ browser and tick **Own gravity** in its settings under the browser, then set x a
 
 ## Seeing the shapes
 
-In the editor, the viewport always outlines shapes (Shift+C hides them).
+In the editor, the viewport outlines shapes, rays and joints. It also draws the collision that
+nodes make for themselves when they're built, which isn't in the scene tree: an
+[LDtk level's](levels.md#collision-from-an-intgrid-layer) IntGrid collision and a
+[TileMap's](tilemaps.md#collision-solid-one-way-and-area-tiles) tile collision. Those are the
+shapes the game gets (neighbouring cells merged into rectangles), filled faintly and outlined:
+solid ones green, one-way platforms amber (with a heavier top edge), areas purple. The viewport
+header's polygon button, **Shift+C** or **View > Show Collision Shapes** hides and shows all of
+them.
 
 In the game, collision shapes are invisible. While you develop, it helps to see them:
 
-- Tick **Show shapes** in Project Settings, or **Scene > Show Collision Shapes in Game**.
-- Or, while a game started with Play runs, press **F9** to show and hide them. (**F10** shows
-  the engine's debug overlay: frame rate and counts.)
+- Click the **collision shapes button** on the toolbar, beside Play, Pause and Stop (**F9** in
+  the editor). It's highlighted while the shapes are on. It's the project's development setting,
+  like **Show shapes** in Project Settings or **Scene > Show Collision Shapes in Game**, and
+  undoable like them. While a game started with Play runs, a click also shows or hides them in
+  that game at once.
+- Or, while a game started with Play runs, press **F9** in the game's window to show and hide
+  them there. The toolbar's button follows what the game shows. (**F10** shows the engine's debug
+  overlay: frame rate and counts.)
 
 Each body's shapes are drawn in a color for its kind: static green, dynamic blue (grey-blue while
 asleep), movers orange, Areas purple, with joints and rays. Exported games never draw them and F9

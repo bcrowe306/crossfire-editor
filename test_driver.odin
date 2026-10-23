@@ -115,6 +115,8 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	                                 New_Data_Opened (no value), Scene_Tab_Changed <tab index>,
 	                                 Code_Open_Requested <file> (opens it in a code tab),
 	                                 Open_Grid_Settings (View > Grid Settings: Project Settings > Grid)
+	                                 Right_Sidebar_Width <px> (the inspector's sidebar, as its
+	                                 divider dragged; at least MIN_SIDEBAR_WIDTH)
 	archive_project <path>           Export Project Archive to a file, as if picked in its dialog
 	open_archive <archive> | <folder>
 	                                 Open Project Archive: unpack the archive into the folder (as
@@ -242,7 +244,7 @@ Checks:
 	states <states|transitions|params|start|selected|position> <value>
 	                             The States tab's machine: counts, its start, the selected state's name
 	                             ("none") and position ("x, y")
-	live <connected|paused|nodes|properties|selected> <value>
+	live <connected|paused|shapes|nodes|properties|selected> <value>
 	                             The Live tab's view of the running game (counts for nodes and
 	                             properties; selected: true when a node is chosen)
 	live prop <name> <value>     The chosen node's property as the running game sent it
@@ -294,6 +296,11 @@ Checks:
 	project_file_contains <path> <text>   A project file contains the text (after saving)
 	project_file_lacks <path> <text>      A project file doesn't contain the text
 	shapes <on | off>            The viewport outlines collision shapes, rays and joints
+	generated_shapes <solid> <one-way> <area>
+	                             The collision shapes the open scene's LDtkLevels and TileMaps
+	                             built in the viewport (drawn while `shapes` is on)
+	physics_debug_shown <on | off>   What the toolbar's collision shapes button shows (a running
+	                             game's, else the project's)
 	particle <setting> <value>   A ParticleEmitter setting of the selected node, as scene files
 	                             store it (e.g. particle amount 50, particle size 5,5)
 	particle_near <setting> <value> <tolerance>   A numeric particle setting is within tolerance
@@ -345,6 +352,8 @@ Checks:
 	recent_menu <i> <folder name | none>   The File menu's i-th recent project (its folder's name)
 	widget_inside <key> <container key>  All of the widget's rect is inside the container's (content
 	                                 that overflows a dialog is drawn, but outside it)
+	clear_of_scrollbar <key> <scroll key>   The widget ends left of the scroll's scrollbar strip
+	                                 (INSPECTOR_SCROLLBAR_WIDTH): an inspector row fits controlWidth
 	scrolled <scroll key> <true | false>  A scroll container is scrolled down from its top
 	widget_bottom_near <key> <other key> <px>   The two widgets' bottoms are within px (one fills the other)
 	row_visible <tree key> <row> <true | false>   A tree row is wholly inside its scroll's view
@@ -1375,6 +1384,13 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// A bottom tab by its name (the strip scrolls in a narrow window)
 		case "Bottom_Tab":
 			if tab, ok := reflect.enum_from_name(BottomTab, value); ok do msg = Bottom_Tab_Changed(int(tab))
+		case "Right_Sidebar_Width":
+			// The right sidebar (the inspector) that wide, as a drag of its divider would make it
+			if width, ok := strconv.parse_f32(value); ok {
+				layout := s.layout
+				left, _ := FittedSidebarWidths(&layout)
+				msg = Center_Resized(layout.workspace.x - left - DIVIDER - width - DIVIDER)
+			}
 		case "Dialogue_Created":      msg = Dialogue_Created{}
 		case "Dialogue_Select_Node":  if i, ok := strconv.parse_int(value); ok do msg = Dialogue_View{op = .Select_Node, index = i}
 		// A node's texture or region as its dropdown would set it (atlas_edit.odin)
@@ -1857,6 +1873,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		switch field {
 		case "connected":  found = fmt.tprint(s.live.connected)
 		case "paused":     found = fmt.tprint(s.live.paused)
+		case "shapes":     found = fmt.tprint(s.live.shapes)
 		case "nodes":      found = fmt.tprint(len(s.live.nodes))
 		case "properties": found = fmt.tprint(len(s.live.properties))
 		case "selected":   found = fmt.tprint(s.live.selected != "")
@@ -2337,6 +2354,15 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		if !innerOk || !outerOk do return false, "not both drawn"
 		inside := inner.x >= outer.x - 0.5 && inner.y >= outer.y - 0.5 && inner.x + inner.w <= outer.x + outer.w + 0.5 && inner.y + inner.h <= outer.y + outer.h + 0.5
 		return inside, fmt.tprintf("%v in %v", inner, outer)
+	case "clear_of_scrollbar":
+		key, _, container := strings.partition(value, " ")
+		// The widget's whole rect, not clipped: what spills under the scrollbar is the point
+		_, innerOk := widgetRect(ctx, key)
+		inner := ctx.widgets.states[skald.hash_id(key)].last_rect
+		outer, outerOk := widgetRect(ctx, strings.trim_space(container))
+		if !innerOk || !outerOk do return false, "not both drawn"
+		limit := outer.x + outer.w - INSPECTOR_SCROLLBAR_WIDTH
+		return inner.x + inner.w <= limit + 0.5, fmt.tprintf("ends at %.1f, the scrollbar starts at %.1f (%v in %v)", inner.x + inner.w, limit, inner, outer)
 	case "widget_visible":
 		key, _, expected := strings.partition(value, " ")
 		_, visible := widgetRect(ctx, key)
@@ -2694,6 +2720,12 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = s.viewport.showShapes ? "on" : "off"
 	case "physics_debug":
 		found = s.project.physics.debugDraw ? "on" : "off"
+	case "physics_debug_shown":
+		found = PhysicsDebug_Shown(s) ? "on" : "off"
+	case "generated_shapes":
+		counts: [GeneratedShapeKind]int
+		for shape in Preview_GeneratedShapes(s, context.temp_allocator) do counts[shape.kind] += 1
+		found = fmt.tprintf("%d %d %d", counts[.Solid], counts[.One_Way], counts[.Area])
 	case "project_file_contains", "project_file_lacks":
 		path, _, text := strings.partition(value, " ")
 		data, err := os.read_entire_file(joinPath(s.project.rootPath, path, allocator = context.temp_allocator), context.temp_allocator)

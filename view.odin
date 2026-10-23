@@ -156,6 +156,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Play/Pause Animations", .Toggle_Animation, keys),
 			{separator = true},
 			item("Show Grid", .Toggle_Grid, keys),
+			{label = "Show Collision Shapes", shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Toggle_Collision_Shapes, keys.typing)), msg = Msg(Action.Toggle_Collision_Shapes), checked = s.viewport.showShapes},
 			item("Snap to Grid", .Toggle_Snap, keys),
 			{label = "Grid Settings...", msg = Msg(Open_Grid_Settings{})},
 			{separator = true},
@@ -167,7 +168,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Play This Scene", .Play_Scene, keys),
 			{label = "Show Collision Shapes in Game", msg = Msg(Action.Toggle_Physics_Debug),
 			 shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Toggle_Physics_Debug, keys.typing)),
-			 checked = s.project.physics.debugDraw},
+			 checked = PhysicsDebug_Shown(s)},
 			{label = "New Scene", msg = Msg(Scene_Action{.New, -1})},
 			item("Pause", .Pause, keys),
 			item("Stop", .Stop, keys),
@@ -212,6 +213,8 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		toolButton(ctx, "play-scene", ICON_PLAY_SCENE, actionTip(s, fmt.tprintf("Play %s (this scene)", s.project.scenes[s.currentScene].name), .Play_Scene), Action.Play_Scene, disabled = running),
 		toolButton(ctx, "pause", ICON_PAUSE, actionTip(s, "Pause", .Pause), Action.Pause, active = s.playState == .Paused, disabled = s.playState != .Playing),
 		toolButton(ctx, "stop", ICON_STOP, actionTip(s, "Stop", .Stop), Action.Stop, disabled = s.playState == .Stopped),
+		// The game's collision shapes (project.physics.debugDraw; a running game's at once, over the live link)
+		toolButton(ctx, "physics-debug", ICON_POLYGON, actionTip(s, physicsDebugTip(s), .Toggle_Physics_Debug), Action.Toggle_Physics_Debug, active = PhysicsDebug_Shown(s)),
 		skald.flex(1, skald.spacer(0)),
 
 		toolButton(ctx, "export", ICON_EXPORT, actionTip(s, "Export", .Export), Action.Export),
@@ -220,6 +223,16 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		cross_align = .Center,
 		bg = th.color.surface,
 	)
+}
+
+// The toolbar's collision shapes button's tooltip: what a click does, now and when played
+@(private="file")
+physicsDebugTip :: proc(s: ^State) -> string {
+	shown := PhysicsDebug_Shown(s)
+	if s.live.connected && s.playState != .Stopped {
+		return shown ? "Hide the running game's collision shapes (and when played)" : "Show the running game's collision shapes (and when played)"
+	}
+	return shown ? "The game shows its collision shapes: click to hide them (development only, not in exports)" : "Show collision shapes in the game (development only, not in exports)"
 }
 
 // Icon button with a tooltip. Its widget id is hash_id("toolbar-<key>"): buttons made by a

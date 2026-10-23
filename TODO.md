@@ -8,9 +8,6 @@ owns it.
 
 3. **Clickable errors in the code editor:** compile errors (Output tab, Console, the problems
    panel) open the file at the line and column in a code tab.
-5. **Collision shapes:** a toggle for showing collision shapes in the viewport that also covers
-   LDtk levels' generated collision (drawn in the viewport), and a toolbar toggle beside the
-   play controls for the game's debug shapes.
 8. **Restart** on the toolbar beside Play / Pause / Stop: stops the running game and plays it
    again (rebuilding scripts when they changed).
 

@@ -175,22 +175,28 @@ cameraInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 	)
 	if c.follow.lookAhead != {} do append(&rows, inspectorRow(ctx, "Look ease", number(ctx, s, key, .Look_Ahead_Smoothing, c.follow.lookAheadSmoothing, 0.5, 1, numberWidth, 0, 100)))
 
-	// Limits: a switch and (when on) a value per side, in one row that fits controlWidth
+	// Limits: a switch and (when on) a value per side, in one row when both fit controlWidth (a
+	// number field is never drawn narrower than NumberField_MinWidth), else the value under its
+	// switch (a narrow inspector)
 	header(ctx, &rows, "Limits")
-	limitWidth := min(numberWidth, controlWidth - (th.font.size_md + 4) - th.spacing.xs)
-	limit :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, c: e.CameraSettings, side: e.CameraSide, on, field: CameraField, value: f32, width: f32) -> skald.View {
+	checkWidth := th.font.size_md + 4
+	limitWidth := min(numberWidth, controlWidth - checkWidth - th.spacing.xs)
+	stacked := limitWidth < NumberField_MinWidth(th)
+	if stacked do limitWidth = numberWidth
+	limit :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, c: e.CameraSettings, side: e.CameraSide, on, field: CameraField, value: f32, width: f32, stacked: bool) -> skald.View {
 		Payload :: struct { field: CameraField }
 		check := skald.checkbox(ctx, side in c.limits, "", Payload{on}, proc(p: Payload, v: bool) -> Msg { return Camera_Changed{field = p.field, flag = v} },
 			id = skald.hash_id(fmt.tprintf("inspector-camera-%v-%d", on, key)))
 		if side not_in c.limits do return check
-		return skald.row(check, numberField(ctx, s, fmt.tprintf("inspector-camera-%v-%d", field, key), CameraNumber(field), f64(value), 16, 0, width, -1000000, 1000000),
-			spacing = ctx.theme.spacing.xs, cross_align = .Center)
+		number := numberField(ctx, s, fmt.tprintf("inspector-camera-%v-%d", field, key), CameraNumber(field), f64(value), 16, 0, width, -1000000, 1000000)
+		if stacked do return skald.col(check, number, spacing = 2)
+		return skald.row(check, number, spacing = ctx.theme.spacing.xs, cross_align = .Center)
 	}
 	append(&rows,
-		inspectorRow(ctx, "Limit left", limit(ctx, s, key, c, .Left, .Limit_Left_On, .Limit_Left, c.limitMin.x, limitWidth)),
-		inspectorRow(ctx, "Limit top", limit(ctx, s, key, c, .Top, .Limit_Top_On, .Limit_Top, c.limitMin.y, limitWidth)),
-		inspectorRow(ctx, "Limit right", limit(ctx, s, key, c, .Right, .Limit_Right_On, .Limit_Right, c.limitMax.x, limitWidth)),
-		inspectorRow(ctx, "Limit bottom", limit(ctx, s, key, c, .Bottom, .Limit_Bottom_On, .Limit_Bottom, c.limitMax.y, limitWidth)),
+		inspectorRow(ctx, "Limit left", limit(ctx, s, key, c, .Left, .Limit_Left_On, .Limit_Left, c.limitMin.x, limitWidth, stacked)),
+		inspectorRow(ctx, "Limit top", limit(ctx, s, key, c, .Top, .Limit_Top_On, .Limit_Top, c.limitMin.y, limitWidth, stacked)),
+		inspectorRow(ctx, "Limit right", limit(ctx, s, key, c, .Right, .Limit_Right_On, .Limit_Right, c.limitMax.x, limitWidth, stacked)),
+		inspectorRow(ctx, "Limit bottom", limit(ctx, s, key, c, .Bottom, .Limit_Bottom_On, .Limit_Bottom, c.limitMax.y, limitWidth, stacked)),
 	)
 
 	// Shake: what e.Camera2D_Shake(camera) does without a strength or duration

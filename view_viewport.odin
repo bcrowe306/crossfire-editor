@@ -148,7 +148,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			s.viewport.animate ? "Pause viewport animations (P)" : "Play viewport animations (P)", Action.Toggle_Animation),
 		toggleButton(s, ctx, "viewport-grid", ICON_GRID, "Show grid", .Toggle_Grid, s.viewport.gridVisible),
 		toggleButton(s, ctx, "viewport-snap", ICON_MAGNET, "Snap to grid", .Toggle_Snap, s.viewport.snap),
-		toggleButton(s, ctx, "viewport-shapes", ICON_POLYGON, "Show collision shapes", .Toggle_Collision_Shapes, s.viewport.showShapes),
+		toggleButton(s, ctx, "viewport-shapes", ICON_POLYGON, "Show collision shapes, rays and joints, and the collision LDtk levels and TileMaps make", .Toggle_Collision_Shapes, s.viewport.showShapes),
 		toggleButton(s, ctx, "viewport-lighting", ICON_LIGHTBULB, "Show lit scenes lit", .Toggle_Lighting, !s.viewport.unlit),
 		toggleButton(s, ctx, "viewport-local-axes", ICON_COMPASS, "Move along the selected node's own axes (turned with it)", .Toggle_Local_Axes, s.viewport.localAxes),
 		alignButton(s, ctx),

@@ -67,7 +67,14 @@ action Toggle_Physics_Debug
 expect physics_debug on
 key ctrl+z
 expect physics_debug off
-action Toggle_Physics_Debug
+# The toolbar's button beside the play controls, and F9 (its default key): a project undo step
+click_widget toolbar-physics-debug
+expect physics_debug on
+expect physics_debug_shown on
+key F9
+expect physics_debug off
+key ctrl+z
+expect physics_debug on
 
 # Play the scene: the player builds with physics and runs it
 key ctrl+F5

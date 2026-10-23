@@ -182,9 +182,11 @@ LDtkSettings_Equal :: proc(a, b: e.LDtkLevelSettings) -> bool {
 // The settings as text, for the viewport's rebuild signature (the file's modification time too:
 // saving in LDtk rebuilds the level)
 LDtkSettings_Signature :: proc(b: ^strings.Builder, root: string, settings: ^e.LDtkLevelSettings) {
-	fmt.sbprintf(b, "%s|%s|%v|%s|%v|%v|%v|%v", settings.file, settings.level, settings.allLevels, settings.collisionLayer,
-		settings.collisionValues[:], settings.spawnEntities, settings.background, settings.smoothTiles)
-	for m in settings.entityComponents do fmt.sbprintf(b, "|%s=%s", m.entity, m.component)
+	// Every setting the build reads: the kinds' lists (one-way to an area changes no other) and
+	// each entity rule whole
+	fmt.sbprintf(b, "%s|%s|%v|%s|%v|%v|%v|%v|%v|%v", settings.file, settings.level, settings.allLevels, settings.collisionLayer,
+		settings.collisionValues[:], settings.oneWayValues[:], settings.areaValues[:], settings.spawnEntities, settings.background, settings.smoothTiles)
+	for m in settings.entityComponents do fmt.sbprintf(b, "|%s=%s,%v,%s,%v", m.entity, m.component, m.make, m.script, m.noScript)
 	if settings.file != "" do fmt.sbprintf(b, "|%v", ldtkModified(joinPath(root, settings.file, allocator = context.temp_allocator)))
 }
 

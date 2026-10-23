@@ -40,6 +40,9 @@ click_widget inspector-ldtk-file-11
 click_overlay_item 1
 wait 3
 expect ldtk_preview 1 3 0
+# No collision yet: nothing drawn in the static bodies' green
+expect generated_shapes 0 0 0
+expect viewport_has_color #78c878 6 false
 
 # The Walls layer becomes collision: the floor and two walls, merged into 3 rectangles
 scroll_into_view inspector-scroll inspector-ldtk-collision-11
@@ -47,6 +50,24 @@ click_widget inspector-ldtk-collision-11
 click_overlay_item 1
 wait 3
 expect ldtk_preview 1 3 3
+# The viewport draws that collision (its shapes toggle is on): the 3 rectangles, in green
+expect shapes on
+expect generated_shapes 3 0 0
+wait_until viewport_has_color #78c878 6 true timeout=5
+# Hidden with the viewport header's button, shown again with Shift+C; the empty viewport's
+# context menu has it too
+click_widget panel-viewport-shapes
+expect shapes off
+wait_until viewport_has_color #78c878 6 false timeout=5
+key shift+c
+expect shapes on
+wait_until viewport_has_color #78c878 6 true timeout=5
+right_click_world 1000 150
+wait_until context_menu open
+expect context_item Show/Collision Shapes checked
+key escape
+# (The right click on empty space deselected the level)
+select_node LDtkLevel
 # The body it becomes: its layers, what it collides with, its surface
 scroll_into_view inspector-scroll inspector-Friction-11
 expect widget_visible inspector-Friction-11 true
@@ -97,6 +118,10 @@ click_overlay_item 3
 wait 3
 expect ldtk_areas wall 3
 expect ldtk_preview 1 1 0
+# Drawn as an area now (purple), not solid
+expect generated_shapes 0 0 3
+wait_until viewport_has_color #c878ff 6 true timeout=5
+expect viewport_has_color #78c878 6 false
 key ctrl+s
 expect project_file_contains scenes/PlayScene.scene.xml make="Skip"
 expect project_file_contains scenes/PlayScene.scene.xml noScript="true"
