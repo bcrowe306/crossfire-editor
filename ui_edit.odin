@@ -274,6 +274,7 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 		append(&rows, inspectorRow(ctx, "Text", skald.text_input(ctx, node.text, NodeTextField.Text, onText,
 			id = skald.hash_id(fmt.tprintf("inspector-Text-%d", key)), width = controlWidth, padding = InspectorFieldPadding(ctx))))
 		append(&rows, note(ctx, "Tags: [color=#ff8000]gold[/color], [size=28]big[/size]. It wraps at its width (0: only at line breaks, \\n).", width))
+		append(&rows, inspectorRow(ctx, "Text align", enumChoice(ctx, key, .Text_Align, u.textAlign, controlWidth)))
 	case .Slider:
 		append(&rows, inspectorRow(ctx, "Value", number(ctx, s, key, .Value, u.value, 0.1, 2, numberWidth)))
 		append(&rows, inspectorRow(ctx, "Min", number(ctx, s, key, .Min, u.minValue, 1, 2, numberWidth)))

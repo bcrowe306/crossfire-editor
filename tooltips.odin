@@ -47,7 +47,7 @@ fieldTip :: proc(label: string) -> string {
 	case "Gap":            return "Space between the controls in it, in pixels (-1: the theme's)."
 	case "Action":         return "What pressing it does: go to a scene, quit, or nothing (scripts listen to its onPressed event either way)."
 	case "Can't be used":  return "Grayed out: it can't be pressed, typed in, dragged, ticked or focused."
-	case "Text align":     return "Where its text goes: Auto (centered on buttons), Left, Center or Right."
+	case "Text align":     return "Where its text goes: Auto (centered on buttons, left in rich text), Left, Center or Right (each line of rich text, across its width)."
 	case "Value":          return "The value, between Min and Max (scripts: e.ProgressBar_SetValue, e.Slider_SetValue)."
 	case "Min":            return "The value of an empty bar, or of a slider at its left end."
 	case "Max":            return "The value of a full bar, or of a slider at its right end."
