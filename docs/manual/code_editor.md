@@ -20,6 +20,7 @@ If you'd rather use another program (Zed, VS Code...), you can: see
 - [Closing a tab](#closing-a-tab)
 - [Files changed on disk](#files-changed-on-disk)
 - [Completion and errors: the Odin language server](#completion-and-errors-the-odin-language-server)
+- [What the editor adds: your project in the code](#what-the-editor-adds-your-project-in-the-code)
 - [Going to definitions](#going-to-definitions)
 - [Going to an error from the Output tab or the Console](#going-to-an-error-from-the-output-tab-or-the-console)
 - [Find and replace](#find-and-replace)
@@ -148,6 +149,40 @@ What it gives you:
 The editor writes `scripts/ols.json` for the language server, so it knows where the engine and
 your project's scripts are. It keeps it up to date by itself. If you write your own `ols.json`
 (without the editor's `_generated_by` line), the editor leaves it alone.
+
+## What the editor adds: your project in the code
+
+The language server knows Odin; the editor knows your project. It adds what only it knows to the
+code tab, with or without the language server:
+
+- **Your project's names complete.** The constants of `scripts/assets.odin` (see
+  [Scripts](scripts.md#assets-in-code-scriptsassetsodin): every asset, scene, animation, state,
+  parameter, group, bus, dialogue node and node path) are in the completion list, each saying what
+  it names: type `SCENE_` for the scenes, `ANIM_HERO_` for the hero's animations. They don't show
+  after a `.` (that's a member), in comments or inside strings.
+- **Hovers say what things are.** Rest the mouse on a constant to see what it names
+  (`Scene ForestScene (8 nodes)`, `Animation "run" of assets/characters/hero.aseprite`). On a
+  script's name: which nodes run it, its exported fields with their defaults, its events, and
+  whether that comes from the last build or from the source you're typing (not built yet).
+- **Problems the build wouldn't tell you.** A field tagged `export:""` with a type the inspector
+  can't edit (`[3]f32`, a map...), an option that isn't one (`export:"defualt=3"`), or a `min=`,
+  `max=` or number `default=` that isn't a number is underlined as a warning as soon as you type
+  it. The game itself only warns about those when it runs.
+- **Who runs a script.** The line with `Script_Register(Hero, ...)` (or `NodeType_Register`) has a
+  mark in the margin and a note after it: `3 nodes`, `a global`, or `no node uses it`. Rest the
+  mouse on the mark for the list of nodes; **click it to select the first one** (its scene opens
+  when it's in another).
+- **Drops land where you drop them.** A scene tree node or a browser asset dropped **between a
+  call's brackets** goes in as its constant: `e.Node_FindPath(self.node, |)` becomes
+  `e.Node_FindPath(self.node, PATH_HERO_SPRITE)`, `e.Game_PlaySound(self.game, |)` gets
+  `SOUND_COIN`. Dropped anywhere else it adds a field to the script's struct, as described in
+  [Dropping nodes and assets onto the code](#dropping-nodes-and-assets-onto-the-code).
+
+**The inspector follows what you type.** The editor reads the scripts' source as you type (the
+**script index**; it never waits for a build): a field you add to a script's struct shows in the
+inspector a moment later, before you save or build, with "Fields from the source: not built
+yet." under it. After a build, the build's description is used again for every file that hasn't
+changed since.
 
 ## Going to definitions
 
@@ -300,8 +335,10 @@ Turn it off with **Settings > Editor > Auto-close**.
 
 ## Dropping nodes and assets onto the code
 
-You can drag things into the code to add **exported fields** (the values the inspector shows) to
-the script's struct:
+Where you drop decides what goes in. **Between a call's brackets** (on an argument), a node or
+asset goes in as its constant from `scripts/assets.odin` (`PATH_HERO_SPRITE`, `SOUND_COIN`; a
+node without one goes in as its path in quotes). **Anywhere else** you drag things into the code
+to add **exported fields** (the values the inspector shows) to the script's struct:
 
 - **A node from the scene tree:** drag it onto the code. The script gets a field pointing at that
   node, named after it, like `camera: ^e.Camera2D` with the node's path as its default. When the
@@ -354,6 +391,14 @@ arguments.
 **An error shows in the code, but the game builds.** Or the other way round: the underlines come
 from the language server, which can be a moment behind, or a different version from the compiler.
 The **Output** tab after Build Scripts (Ctrl+B) has the compiler's own word.
+
+**A constant doesn't complete, or completes but the build says it doesn't exist.** The editor
+writes `scripts/assets.odin` when you save the project (and before every build): a scene, node
+or animation you just added gets its constant then. Save (Ctrl+S) first.
+
+**The inspector says "Fields from the source: not built yet."** The fields come from the script's
+source, which changed since the last build (or there's been none). They're right for editing; the
+game runs the new code once it's built (Ctrl+B, or Play).
 
 **I pressed Ctrl+D in the code and it didn't duplicate my node.** While you type code, Ctrl+D
 selects the next match. Click the scene tree or the viewport first.

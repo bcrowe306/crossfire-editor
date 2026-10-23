@@ -288,9 +288,12 @@ Once the scripts are built, the inspector's **Script** section shows a row per e
 under the Script dropdown. Hover a field's name to see its type, range and default. Every change
 is undoable (Ctrl+Z), and only values that differ from the default are written to the scene.
 
-Before the first build (or while a build fails), the inspector can't know the fields yet: it
-says "Build the scripts (Ctrl+B) to edit Mover's fields." and lists the stored values, read only.
-Nothing is lost meanwhile.
+The editor also reads the scripts' **source** as you type or save them (the script index): a field
+you add shows in the inspector a moment later, before any build, with "Fields from the source:
+not built yet." under the dropdown. Once the scripts are built, the build's description is used
+for every file that hasn't changed since. When the editor can't tell (a script it can't read yet),
+the inspector says "Build the scripts (Ctrl+B) to edit Mover's fields." and lists the stored
+values, read only. Nothing is lost meanwhile.
 
 ## Building: Ctrl+B and the Output tab
 
@@ -319,7 +322,11 @@ Scripts open in **code tabs** beside the scene tabs, in the editor's built-in co
   or `self.` for your struct's fields.
 - Errors and warnings marked as you type, go to definition, find references, quick fixes.
 - **Ctrl+W** closes the code tab; saving a script (and Play) saves the open tabs.
-- Drops: a scene tree node or a browser asset dropped on a code tab adds a field for it (above).
+- Drops: a scene tree node or a browser asset dropped on a code tab adds a field for it (above);
+  dropped between a call's brackets, it goes in as its constant.
+- Your project in the code: its constants complete, hovers say what they name and which nodes run
+  a script, `export` tags the inspector can't use are flagged, and `Script_Register` lines show
+  who runs them.
 
 You can use another program instead: untick **Edit > Settings... > Editor > Code editor** and
 set its path and arguments there (Zed by default). The editor writes `scripts/ols.json` so that
@@ -432,9 +439,40 @@ ATLAS_ITEMS :: "atlases/items.atlas.xml"
 DATA_GOBLIN :: e.DataAsset{"data/goblin.data.json"}  // EnemyStats
 
 ACTION_JUMP :: "jump"
+
+// Animations, per animation set and per AnimatedSprite with its own: e.AnimationPlayer_Play(&sprite.animation, ANIM_HERO_RUN)
+// - assets/characters/hero.aseprite
+ANIM_HERO_IDLE :: "idle"
+ANIM_HERO_RUN :: "run"
+
+// State machines' states and parameters: e.StateMachine_SetFloat(brain, PARAM_HERO_BRAIN_SPEED, speed)
+// - Brain in component hero
+STATE_HERO_BRAIN_IDLE :: "idle"
+PARAM_HERO_BRAIN_SPEED :: "speed"
+
+// Node groups: e.Scene_GetGroup(scene, GROUP_ENEMIES)
+GROUP_ENEMIES :: "enemies"
+
+// Mix buses: e.Audio_SetBusVolume(BUS_MUSIC, 0.5)
+BUS_MASTER :: "Master"
+BUS_MUSIC :: "Music"
+
+// Scenes: e.Game_ChangeScene(game, SCENE_FOREST_SCENE)
+SCENE_FOREST_SCENE :: "ForestScene"
+SCENE_GAME_OVER :: "GameOver"
+
+// Dialogue nodes: e.Dialogue_Start(runner, data, DIALOGUE_NODE_STORY_START)
+DIALOGUE_NODE_STORY_START :: "Start"
+
+// Node paths: in a component from its root, in a scene from its top level ("/"). e.Node_FindPath(self.node, PATH_HERO_SPRITE)
+// - scene ForestScene
+PATH_FOREST_SCENE_HUD :: "/HUD"
+PATH_FOREST_SCENE_HUD_BOSS_BAR :: "/HUD/BossBar"
+// - component hero
+PATH_HERO_SPRITE :: "Sprite"
 ```
 
-A constant's name is its file's name in capitals, anything but letters and digits turned into
+An **asset's** constant is its file's name in capitals, anything but letters and digits turned into
 one underscore: `hero-run.png` is `TEXTURE_HERO_RUN`, `boss fight.ogg` is `SOUND_BOSS_FIGHT`.
 
 | Prefix | Assets |
@@ -447,6 +485,46 @@ one underscore: `hero-run.png` is `TEXTURE_HERO_RUN`, `boss fight.ogg` is `SOUND
 | `ANIMATION_` | Animation assets (and Aseprite files' tags) |
 | `SHADER_`, `ATLAS_`, `DIALOGUE_`, `LDTK_` | Shaders, atlases, dialogues, LDtk projects |
 | `ACTION_`, `ACHIEVEMENT_` | Input action names, Steam achievement names |
+
+### Names of everything else
+
+The file also has a constant for the names your code passes to the engine as strings, so a typo
+or a renamed animation is a compile error instead of something that quietly doesn't happen:
+
+| Constant | Its value | Use it with |
+|---|---|---|
+| `ANIM_<SET>_<NAME>` | An animation's name, per animation asset (`animations/boar.anim.xml`: `ANIM_BOAR_RUN`) and per Aseprite file with tags (`hero.aseprite`: `ANIM_HERO_RUN`) | `e.AnimationPlayer_Play(&sprite.animation, ANIM_BOAR_RUN)` |
+| `ANIM_<OWNER>_<SPRITE>_<NAME>` | An animation of an AnimatedSprite that has its own (not an asset's): OWNER is its scene or component | the same |
+| `STATE_<OWNER>_<MACHINE>_<STATE>`, `PARAM_<OWNER>_<MACHINE>_<PARAM>` | A StateMachine node's states and parameters | `e.StateMachine_SetBool(brain, PARAM_HERO_BRAIN_ON_FLOOR, true)` |
+| `GROUP_<NAME>` | A group any node is in | `e.Scene_GetGroup(self.scene, GROUP_ENEMIES)` |
+| `BUS_<NAME>` | A mix bus (Master too) | `e.Audio_SetBusVolume(BUS_MUSIC, 0.5)` |
+| `SCENE_<NAME>` | A scene's name | `e.Game_ChangeScene(self.game, SCENE_GAME_OVER)` |
+| `DIALOGUE_NODE_<DIALOGUE>_<NODE>` | A node of a dialogue | `e.Dialogue_Start(runner, data, DIALOGUE_NODE_STORY_START)` |
+| `PATH_<COMPONENT>_<NODE>...` | A node's path in a component, from its root (the node the component is, where its root's scripts run) | `e.Node_FindPath(self.node, PATH_HERO_SPRITE)` |
+| `PATH_<SCENE>_<NODE>...` | A node's path in a scene, from the scene's top level: it starts with `/`, so it works from any node; a Component instance's own nodes are listed under it | `e.Node_FindPath(self.node, PATH_FOREST_SCENE_HUD_BOSS_BAR)`, `e.Scene_FindNode(self.scene, PATH_FOREST_SCENE_HUD)` |
+
+How these names are made:
+
+- **Words are split as you wrote them:** `bossBar`, `BossBar`, `boss bar` and `boss_bar` are all
+  `BOSS_BAR`; `HUDBar` is `HUD_BAR`; `ForestScene` is `FOREST_SCENE`. (Asset, action and
+  achievement constants keep the names they've always had, without the split, so code using them
+  keeps building: `ACTION_MOVELEFT` for `moveLeft`.)
+- **A path joins its nodes' names:** the HUD's BossBar in ForestScene is
+  `PATH_FOREST_SCENE_HUD_BOSS_BAR`.
+- **The file stays in the same order when you save:** each kind has its section, under a comment,
+  and inside it a `// - ...` line for each animation set, state machine, scene or component.
+  Scenes, components, groups and paths are sorted by name (moving a node among its siblings
+  changes nothing); a set's animations and a machine's states and parameters keep their order.
+- **Two things that would get the same name** (nodes `Boss Bar` and `BossBar` side by side): the
+  first in that order keeps it, the next gets `_2`, then `_3`. Asset constants come first, so
+  theirs never change.
+- An Aseprite file without tags gets no `ANIM_` constants (it plays its frames as `default`).
+- Nodes with the same name side by side share a path: it's listed once (`Node_FindPath` finds the
+  first).
+
+The file is written when you save the project and before every build, so a node or animation you
+just added gets its constant once you save. Constants nothing uses yet don't make the next Play
+build the game again: only a change to one your scripts use does.
 
 Use these rather than typing paths: a typo is a compile error instead of a missing sound, the
 code editor completes them, and removing an asset turns every place that used it into a build
@@ -469,7 +547,7 @@ All of these take what a script already has: `self.node`, `self.scene`, `self.ga
 | `e.Scene_AddComponent(self.scene, COMPONENT_BULLET, position = ...)` | Adds a copy of a component (a bullet, an explosion) |
 | `e.Scene_RemoveNode(self.scene, node.id)` | Removes a node and its children (next frame) |
 | `e.Asset_Texture(self.game, TEXTURE_SHIP)` | An image, for a Sprite's `texture` |
-| `e.Game_ChangeScene(self.game, "Level2")` | Goes to another scene |
+| `e.Game_ChangeScene(self.game, SCENE_LEVEL_2)` | Goes to another scene (its constant, or its name: `"Level2"`) |
 | `e.Global(GameState)` | A global script (see [Globals, data and saves](globals_data_saves.md)) |
 
 A gun that shoots on the "shoot" action:
@@ -513,7 +591,7 @@ Calls :: proc(self: ^Enemy) {
 		sprite.texture = e.Asset_Texture(self.game, TEXTURE_SHIP)
 	}
 	// Another scene
-	if self.health <= 0 do e.Game_ChangeScene(self.game, "GameOver")
+	if self.health <= 0 do e.Game_ChangeScene(self.game, SCENE_GAME_OVER)
 	// The scene's name
 	log.infof("in %s", self.scene.name)
 }

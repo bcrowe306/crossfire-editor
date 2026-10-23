@@ -12,17 +12,13 @@ environment: no memorizing how to refer to things in code. Everything goes throu
 provider interface in code_editor (completion, hover, diagnostics, gutter, inlay, drop sources)
 that the editor fills in, so code_editor stays engine-agnostic. Not doing: a debugger (DAP), for now.
 
-1. **Foundation.** The provider interface; a script index built with `core:odin/parser` (scripts,
-   exported fields and tags, events: no build needed; the build's catalog still wins when newer);
-   typed constants in the generated scripts/assets.odin beyond assets: animations
-   (`ANIM_HERO_RUN`), state machine parameters and states, input actions (exist), groups, buses,
-   scenes, dialogue nodes, node paths per scene/component.
 2. **Project-aware strings:** completion and diagnostics inside engine calls' string arguments
    (node paths from the script's nodes, the sprite's animations, actions, groups, buses...); the
    engine declares which parameters take which kind of name.
-3. **Code ↔ scene links:** gutter markers on `Script_Register` (the nodes using it; click selects),
-   find usages in scenes, renaming a script field or type carries into scene/component files,
-   the inspector follows the index as fields are typed.
+3. **Code ↔ scene links:** find usages in scenes, renaming a script field or type carries into
+   scene/component files. (Round 1 already did a marker on `Script_Register` lines listing the
+   nodes using it, a click selecting the first, and the inspector following the index as fields
+   are typed: build on those.)
 4. **Context-aware drag and drop into code:** every editor thing is a drop source (scene-tree
    nodes, inspector property labels, animations, state machine parameters and states, input
    actions, events, scenes, components, sounds, music, dialogues, Timeline clips, buses, groups).

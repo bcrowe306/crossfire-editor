@@ -37,9 +37,12 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   shaders and screen effects, skeletons (meshes, IK, DragonBones), dialogue, state machines, the
   Timeline (Animators), touch controls.
 - **Game code:** Odin scripts on nodes (several per node), node types, globals, data resources,
-  events and listeners; the built-in code editor (OLS completion, clickable errors) or an
-  external one; Play / Play Scene / Restart, hot reload, the live view of the running game;
-  editor plugins (plugin_api/).
+  events and listeners; the built-in code editor (OLS completion, clickable errors, and the
+  project's own completions, hovers, problems, gutter markers and drops through code_editor's
+  providers) or an external one; the script index (the scripts' declarations read from their
+  source as they're typed, before any build); typed constants for assets, animations, states,
+  groups, buses, scenes, dialogue nodes and node paths (scripts/assets.odin); Play / Play
+  Scene / Restart, hot reload, the live view of the running game; editor plugins (plugin_api/).
 - **Export:** Linux, Windows and macOS (built on their own OS, or for projects without scripts
   from the prebuilt players every release carries) and the web (Emscripten, installed on
   demand); headless (`--export <target>`).
@@ -184,8 +187,11 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_browser_info.odin` | The preview for scripts (`scriptInfoPreview`: what each registered script and data type is, where it's used) and scenes (`scenePreview`: facts, actions, the scene's own settings) |
 | `scene_settings.odin` | A scene's own settings (`SceneDef.settings`, the engine's `e.SceneSettings`): their messages and undo |
 | `node_listeners.odin`, `view_inspector_events.odin` | **Listening to node events**: the inspector's Events section (`eventsSection`), the Listen... dialog (`listenerDialogView`), attaching (`Listener_Attach`: the listener on the node, the handler appended to the script's file) |
-| `asset_fields.odin` | A browser asset dropped on a code tab: a field of its handle type (`AssetField_Type`, `AssetField_Line`, `AssetField_Insert`) |
-| `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`) |
+| `asset_fields.odin` | A browser asset dropped on a code tab (outside a call's brackets: code_providers.odin's drop provider decides): a field of its handle type (`AssetField_Type`, `AssetField_Line`, `AssetField_Insert`) |
+| `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`, through the drop provider) |
+| `script_index.odin` | **The script index**: `ScriptIndex` (`State.scriptIndex`), `ScriptIndex_ParseSource` (core:odin/parser: structs, fields with types, tags, comments, enums, `Script_Register` / `Data_Register` / `NodeType_Register` calls), `ScriptIndex_Take` (a broken file keeps its last good declarations), `ScriptIndex_Derive` (ScriptDescs like the catalog's, events, problems), `ScriptIndex_Plan` (changed files and still code tab buffers), `ScriptIndex_Tick` / `_Parsed` (the worker), `ScriptIndex_Apply` / `_TakeBuild` (merged into `State.scripts`, the build authoritative where newer) |
+| `script_constants.odin` | **scripts/assets.odin's constants**: `Scripts_Constants` (every constant, sections, `GeneratedConstant`), `Scripts_AssetsSource` (the file), `ConstantWords` (the new kinds' names), `Constants_ChangeMatters` / `Scripts_NewestFor` (a change to unused constants doesn't rebuild the player), Aseprite tags cached on the heap |
+| `code_providers.odin` | **The code editor's providers**: `CodeProviders_Registry` (completion of the constants, hovers on constants and scripts, the index's problems, Script_Register markers and inlay hints, drops), `CodeProviders_Begin` / `_End` (the State they read), `Code_Marker_Clicked`, `scriptUsers`, `CodeProviders_Constants` (cached per project version) |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
 | `viewport_preview.odin` | Engine-rendered preview of the open scene (the shared GPU renderer straight into a Skald image; fallbacks: a GPU readback, software); the collision LDtk levels and TileMaps build, drawn into it (`Preview_GeneratedShapes`) |
 | `gpu_share.odin` | **The shared GPU renderer**: SDL's Vulkan renderer on Skald's device (`SharedGPU_Renderer`, `SharedGPU_Shutdown`), `GPUTarget` (a Skald `image_create_target` image as an SDL render target: `_Ensure`, `_Begin` / `_End`, `_Draw`, `_ReadPixels` for tests), used by the viewport and the code tabs |
@@ -231,7 +237,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings; `NumberField_MinWidth` (never drawn narrower) |
 | `code_editor/` | **The built-in code editor**: an Odin code editor on SDL3 (buffer, keymap, syntax, LSP client, `editor` = package `code_editor`, its own README, tests and Taskfile). Changed here: its `editor` package renamed `code_editor` (Odin package names must be unique: it was `editor`, ours then; ours is `crossfire_editor` now), and SDL_ttf calls taking `[^]u8` for this Odin |
-| `code_editor_host.odin` | Hosting it in Skald: `CodeEditor` per open file (a `ce.Editor`), the shown one drawn by the shared GPU renderer into `CODE_IMAGE` (else a software renderer and surface, uploaded when the pixels change), the SDL event watch feeding it input, focus (`CodeEditor_Frame`, `CODE_EDITOR_PASSTHROUGH`), the bundled font (Liberation Mono), `Code_FindOLS` |
+| `code_editor_host.odin` | Hosting it in Skald: `CodeEditor` per open file (a `ce.Editor`, pointed at the providers' registry), the shown one drawn by the shared GPU renderer into `CODE_IMAGE` (else a software renderer and surface, uploaded when the pixels change), the SDL event watch feeding it input, focus (`CodeEditor_Frame`, `CODE_EDITOR_PASSTHROUGH`), the bundled font (Liberation Mono), `Code_FindOLS`, drops (`CodeEditor_Drop`), buffers for the index (`CodeEditor_Buffer`), test probes (`CodeEditor_HoverText`, `_LineNotes`, `_CompletionProvided`, `_WindowPoint`) |
 | `code_tabs.odin` | Code tabs: `Script_Open` (built-in or external), `CodeTabs_Open` / `Close` / `SaveAll`, their messages (`CodeTabs_Update`), the tabs' view, the status line, the close prompt |
 | `scripts.odin` | Project scripts: the catalog from `--describe-scripts`, script files, New Script template, opening in the code editor, node script values |
 | `project_scenes.odin` | Scene list operations: add, copy, rename (updating references), remove, start scene, names; deleting old scene files on save |
@@ -249,7 +255,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
-| `project_data.odin` | Global scripts (`GlobalDef`) and data resources (`DataDef`) in the project; prop editing for any owner (`PropTarget`); creating, loading and saving data files; the generated `scripts/assets.odin` (`Scripts_AssetsSource` / `Scripts_WriteAssetsFile`) |
+| `project_data.odin` | Global scripts (`GlobalDef`) and data resources (`DataDef`) in the project; prop editing for any owner (`PropTarget`); creating, loading and saving data files; writing the generated `scripts/assets.odin` (`Scripts_WriteAssetsFile`, `ASSETS_FILE_MARKER`; its content: script_constants.odin) |
 | `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
 | `view_inspector_particles.odin` | The inspector's ParticleEmitter settings, built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`, Reset) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
@@ -1009,13 +1015,92 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
   (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 
+### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`; code_editor's `providers.odin`)
+
+Round 1 of TODO.md's "Code editor integration". What the code relies on:
+
+- **The provider interface is code_editor's** (`code_editor/editor/providers.odin`, its README's
+  "Providers"): completion, hover, diagnostics, gutter markers, inlay hints and drops, each a
+  plain procedure with a user-data pointer in a `ce.Provider_Registry`; code_editor imports
+  nothing of the engine or the editor. Merging is code_editor's: completion items fold into the
+  server's by label (docs added, priority taken; `Completion_State.items` is the merged list,
+  `filtered` indexes it, never `lsp.last_completion` any more), hovers show the providers' blocks
+  then the server's text (`Hover_Text` / `Hover_Image` / `Hover_Widget`), diagnostics join the
+  overlay (`Diag.provided`; moved with edits; one the server has on the same line and message
+  is dropped). Diagnostics, gutter and inlay providers run once per text version after
+  `PROVIDER_DEBOUNCE` (250 ms) and on `provider_registry_invalidate`; completion and hover when
+  asked. They all work without OLS. A word typed faster than frames (the test driver's `type`)
+  restarts the list for the new word (`completion_prefix_ok`).
+- **The editor's providers read State through package state** (`codeProviders.state`, set by
+  `CodeProviders_Begin` in `CodeEditor_View` and `CodeEditor_Drop`, nil otherwise): providers run
+  inside the code editor's calls, which only happen there. `CodeProviders_Begin` invalidates the
+  cached providers when the history version, the index's or catalog's generation, or the scene or
+  asset count changed. A gutter click can't change State from inside the code editor: it leaves
+  the script's name (`CodeProviders_TakeClick`) for the view to send as `Code_Marker_Clicked`.
+- **The syntactic context** (`ce.editor_syntax_context_at`) is a tokenizer scan, not a parse:
+  brackets on a stack, what each opened decided from the tokens before it (`Name :: struct`,
+  `proc` and `proc "contextless"` parameter lists, `if` / `for` / `when` blocks, literals). The
+  drop provider uses `Call_Argument` (not in a string) to insert a constant; anything else keeps
+  the old field insert (`NodeField_Insert`, `AssetField_Insert`), so drops in the struct or below
+  it behave as before. Drops carry the mouse (`Tree_Drag_Dropped_On_Code{mouse}`,
+  `Asset_Dropped_On_Code{mouse}`), turned into the editor's pixels with the shown view's rect and
+  scale (`host.shownRect`, `shownScale`).
+- **The script index** (script_index.odin's doc block): `core:odin/parser` per file, the AST in a
+  growing virtual arena freed at once; results copied to the heap. Parsing runs on a
+  `skald.cmd_thread` worker with copied texts (`ScriptIndex_Tick` every 0.5 s while a project is
+  open, started from `view` like the plugins' tick); one parse at a time (`running`, `again`).
+  A code tab's dirty buffer is parsed once its version stayed the same for a tick (the
+  debounce); a disk file when its modification time changed (a save of what was already parsed
+  only moves the time: same hash). Events follow the engine's rule (an `EventSubject` field
+  tagged `event:"..."`, named `script.<field>`); field types are read from the text (`f32`,
+  `^e.Camera2D`: any pointer to another package's type counts as a node, the build decides;
+  another package's non-pointer type is skipped, not reported). Problems are only what's sure:
+  a type the engine can't export, an unknown tag option, a min / max / number default that isn't
+  a number. Each problem and registration keeps its line's text, so the providers find it again
+  in a buffer edited since (`relocate`, 200 lines either way).
+- **The catalog stays authoritative** (`ScriptIndex_Apply`): `takeDescription` keeps a copy of
+  the build's catalog (`ScriptIndex_TakeBuild`, `scriptIndex.built`) and the newest script source
+  when the build started (`State.scriptsBuildSource`, set in `buildPlayer` and hot reload's
+  build); `State.scripts` is that copy with the index's description of each script, data type and
+  node type whose file changed since (newer on disk, or unsaved in a tab), matched by file base
+  name (the scripts package is flat). A built script whose changed file no longer registers it
+  goes. The status isn't touched. `ScriptCatalog.generation` counts changes.
+- **Constants** (script_constants.odin's doc block has the naming): `Scripts_Constants` is the
+  one list (the file, completion, hovers, drops). Asset, action and achievement names didn't
+  change (`ConstantName`); the new kinds use `ConstantWords` (camelCase split). Sections in a
+  fixed order with a comment each and `// - <owner>` lines; owners, groups, scenes and paths
+  sorted by name; collisions `_2` in that order, one `used` map for the whole file. Aseprite tags
+  are read once per file time into a heap cache with a lock (`aseTags`): `Project_Save` writes
+  the file, and unit tests on several threads save projects (the `AsepriteEdit_File` cache
+  would have kept their allocators' memory). Paths need the engine's `Scene_FindNode` to take a
+  leading "/" (engine, 2026-10-23).
+- **Scene edits don't rebuild the game:** node paths change with every node added, so a player
+  build keeps the assets.odin it was built with (`<binary>.constants.txt`, `Constants_Snapshot`)
+  and `playerIsCurrent` / hot reload (`Scripts_NewestFor`) ignore assets.odin unless a constant
+  it had is gone or changed and another script file names it (`Constants_ChangeMatters`).
+- **Measured** (2026-10-23, the demo: 13 files, 3517 lines, 452 constants): a full index 8-10 ms
+  optimized (16 ms debug), one file again (hero.odin, 392 lines) 1.3-1.9 ms (2.5 ms debug), all
+  on the worker; the constants 2 ms (`script_index_demo_project_timing` logs them).
+- **Tests:** code_editor's `providers_test.odin`; `script_index_test.odin` (reading, broken code
+  and incremental updates, the plan, the merge with a build, the timing),
+  `script_constants_test.odin` (names, collisions, determinism, an empty project, rebuild
+  decisions), `code_providers_test.odin` (completion, problems, markers, a drop in a real code
+  tab), `tests/ui/code_providers.script` (marker and hint, a marker click selecting the node, a
+  typed field reaching the catalog, a problem, a constant completing, its hover; driver:
+  `code_hover`, `code_click_marker`, `code_completion_provided`, `code_hover_has`,
+  `code_inlay`, `code_marker`, `code_diagnostic_has`, `script_field`, `script_from_index`,
+  `key <combo> <times>`).
+
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 
 - `NodeDef.script` and `props` (name/value text, only values that differ from the field's default)
   are written as `<script name><prop name value/></script>` (format version 3).
 - The catalog (`State.scripts`: status Unknown/Building/Ready/Failed, and each script's fields)
-  comes only from builds. Before one, nodes keep their script and values; the inspector lists the
-  stored values read-only.
+  comes from builds, merged with the **script index** (script_index.odin, below) for every file
+  changed since the build (or all, before one): those `ScriptDesc`s have `fromIndex` and the
+  inspector says "Fields from the source: not built yet". The status is the build's either way.
+  A script neither knows: nodes keep their script and values; the inspector lists the stored
+  values read-only.
 - Inspector: a dropdown of built scripts (or None), New (the New Script dialog: name, then
   `Project_CreateScript` writes `scripts/<snake_name>.odin` from `ScriptTemplate`, attaches it,
   opens it and builds), Open (`Script_OpenInEditor`: an `os.Process_Desc` with the program as
@@ -1051,7 +1136,8 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   event is gone show "(no such event)" once the scripts are built. Tests:
   `scripts_publish_events_in_the_editor`; scripts.script (New Event, build, listen, play).
 - **Assets dropped on a code tab** (asset_fields.odin; the browser's `browserDrag`, which now
-  starts for every asset kind with a handle type and for LDtk projects): an exported field of
+  starts for every asset kind with a handle type and for LDtk projects; between a call's brackets
+  the drop provider inserts the asset's constant instead, code_providers.odin): an exported field of
   its handle type (`TextureAsset`, `SoundAsset`, `MusicAsset`, `FontAsset`, `ComponentAsset`,
   `DataAsset` with `kind=<type>`) defaulting to the asset, with a comment using it (a
   component: `e.Scene_AddComponent(self.scene, self.coin, position = e.Node_GetWorldPosition(self.node))`:
@@ -1072,7 +1158,8 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   before its closing brace through the code editor's buffer (`CodeEditor_InsertAtLine`: one
   undo step, no auto-indent), named after the node (`NodeField_Name`), defaulting to its path
   from the node using the script (the selected one, else the scene's first; none: from the top
-  level). Tests: code_editor.script (the drop), scripts.script (built, the inspector's picker,
+  level). Between a call's brackets the drop provider inserts the node's `PATH_` constant
+  instead (code_providers.odin). Tests: code_editor.script (the drop), scripts.script (built, the inspector's picker,
   played without a warning); the driver's `drag_row_to <tree> <row> <widget>`.
 - **Code completion:** `Scripts_WriteOLSConfig` writes `scripts/ols.json` for OLS (the Odin
   language server): collections `engine` (this editor's engine checkout) and `project`. Written
