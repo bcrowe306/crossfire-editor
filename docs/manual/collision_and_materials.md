@@ -38,7 +38,7 @@ capsules, polygons. Two tools save time:
 The body gets CollisionShape nodes named **Traced**, **Traced2**, ...: each a convex polygon of
 at most 8 points (what the physics engine takes), together covering the sprite's opaque pixels.
 They follow the sprite's position, rotation and scale under the body. An AnimatedSprite is traced
-from its first frame.
+from its first animation's first frame (on that animation's sheet).
 
 They're ordinary shapes: select one to see its points, delete the ones you don't need, or add
 your own beside them. **Make Shapes** again (after changing the image or the settings) replaces

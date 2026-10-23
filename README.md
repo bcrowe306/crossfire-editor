@@ -590,15 +590,16 @@ still work for anything else.
 ## Animations
 
 Select an AnimatedSprite and open the bottom panel's **Animation** tab (or the inspector's **Edit
-Animations**). A sprite's image is a sprite sheet (a grid of frames: columns, rows, margin and
-spacing); its animations are named runs of those frames, each with its own speed, looping and play
-mode (forward, reverse, ping-pong):
+Animations**). A sprite's animations are named runs of frames, each on its own sprite sheet (cut
+into a grid: so many columns × rows, or frames of a size in pixels; a margin and gaps), with its
+own speed, looping and play mode (forward, reverse, ping-pong):
 
 - The toolbar along the top picks the animation (a dropdown) and adds, duplicates, removes and
   reorders them; the star marks the one the sprite starts with (**Starts with this**, or the
-  inspector's **Starts with**). The selected animation's frames, speed, looping and mode, and the
-  sprite sheet's grid, are there too.
-- Every frame of the sheet is shown as a thumbnail: click one to start the animation there,
+  inspector's **Starts with**). The selected animation's sheet (pick it, or drag an image from the
+  browser onto the panel), grid, frames (first and last, or how many), speed, looping and mode are
+  there too.
+- Every frame of its sheet is shown as a thumbnail: click one to start the animation there,
   Shift+click to end it there (or type the numbers).
 - The preview plays the animation as the game will, and the viewport plays it on the sprite.
 

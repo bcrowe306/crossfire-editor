@@ -60,10 +60,19 @@ Trace_Sprites :: proc(scene: ^SceneDef, body: int) -> []int {
 	if body < 0 || body >= len(scene.nodes) do return out[:]
 	end := body + 1 + Scene_DescendantCount(scene, body)
 	for i in body + 1 ..< end {
-		kind := scene.nodes[i].kind
-		if (kind == .Sprite || kind == .AnimatedSprite) && scene.nodes[i].texture != "" do append(&out, i)
+		if Trace_Picture(&scene.nodes[i]) != "" do append(&out, i)
 	}
 	return out[:]
+}
+
+// The picture a sprite's trace reads: a Sprite's texture, an AnimatedSprite's first animation's
+// sheet ("": none)
+Trace_Picture :: proc(node: ^NodeDef) -> string {
+	#partial switch node.kind {
+	case .Sprite: return node.texture
+	case .AnimatedSprite: return len(node.animations) > 0 ? node.animations[0].sheet : ""
+	}
+	return ""
 }
 
 // The sprite a trace of `body` uses (-1: none)
@@ -81,24 +90,21 @@ Returns:
 */
 Trace_Pieces :: proc(project: ^Project, scene: ^SceneDef, body, sprite: int, settings: TraceSettings) -> ([][][2]f32, string) {
 	node := &scene.nodes[sprite]
-	pixels, w, h, ok := Image_LoadRGBA(joinPath(project.rootPath, node.texture, allocator = context.temp_allocator))
-	if !ok do return nil, fmt.tprintf("Couldn't read %s", node.texture)
-	// An AnimatedSprite draws one cell of its sheet: the first animation's first
-	if node.kind == .AnimatedSprite && node.columns > 0 && node.rows > 0 {
-		cell := 0
-		if len(node.animations) > 0 do cell = max(node.animations[0].start, 0)
-		margin, spacing := int(node.margin), int(node.spacing)
-		cw := (w - 2 * margin - (node.columns - 1) * spacing) / node.columns
-		ch := (h - 2 * margin - (node.rows - 1) * spacing) / node.rows
-		if cw <= 0 || ch <= 0 do return nil, "The sheet's grid doesn't fit the image"
-		cx := margin + (cell % node.columns) * (cw + spacing)
-		cy := margin + (cell / node.columns) * (ch + spacing)
+	picture := Trace_Picture(node)
+	pixels, w, h, ok := Image_LoadRGBA(joinPath(project.rootPath, picture, allocator = context.temp_allocator))
+	if !ok do return nil, fmt.tprintf("Couldn't read %s", picture)
+	// An AnimatedSprite draws one cell of its sheet: the first animation's first, cut by its grid
+	if node.kind == .AnimatedSprite && len(node.animations) > 0 {
+		first := node.animations[0]
+		rect := e.SheetGrid_CellRect(first.grid, {f32(w), f32(h)}, max(first.start, 0))
+		cx, cy, cw, ch := int(rect.x), int(rect.y), int(rect.w), int(rect.h)
+		if cw <= 0 || ch <= 0 || cx < 0 || cy < 0 || cx + cw > w || cy + ch > h do return nil, "The sheet's grid doesn't fit the image"
 		crop := make([]u8, cw * ch * 4, context.temp_allocator)
 		for y in 0 ..< ch do copy(crop[y * cw * 4:][:cw * 4], pixels[((cy + y) * w + cx) * 4:][:cw * 4])
 		pixels, w, h = crop, cw, ch
 	}
 	pieces := e.Image_CollisionPolygons(pixels, w, h, u8(clamp(settings.threshold, 1, 255)), max(settings.detail, 0), offset = {-f32(w) / 2, -f32(h) / 2})
-	if len(pieces) == 0 do return nil, fmt.tprintf("%s has no pixels at least %d opaque", node.texture, settings.threshold)
+	if len(pieces) == 0 do return nil, fmt.tprintf("%s has no pixels at least %d opaque", picture, settings.threshold)
 	// Where the sprite draws, in the body's space
 	world := Scene_WorldTransforms(scene)
 	toBody := e.Transform2D_Multiply(e.Transform2D_Inverse(world[body]), world[sprite])

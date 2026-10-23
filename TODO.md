@@ -17,11 +17,6 @@ owns it.
    play controls for the game's debug shapes.
 8. **Restart** on the toolbar beside Play / Pause / Stop: stops the running game and plays it
    again (rebuilding scripts when they changed).
-9. **AnimatedSprite: a sheet per animation.** Each animation has its own name, sheet image, grid
-   (columns x rows, or cell width x height), margin, gap, start, end / total frames, FPS, loop
-   and loop type; the node keeps no single sheet. The Animation panel edits all of it per
-   animation; animation assets (`.anim.xml`) and Aseprite sets follow; older files migrate
-   (the node's sheet becomes every animation's).
 
 ## Later (decided not to build yet)
 

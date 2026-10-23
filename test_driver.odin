@@ -351,10 +351,12 @@ Checks:
 	sound <sound | bus | volume | pitch | pan | loop | autostart | range> <value>
 	                             The selected sound node's settings ("none" for no sound; bus "Master")
 	animations <count>           Animations of the selected AnimatedSprite
-	animation <name | start | end | fps | loop | mode> <value>
-	                             The Animation panel's selected animation (start and end resolved)
+	animation <name | start | end | count | fps | loop | mode | sheet | grid | columns | rows | cell | margin | gap | cells> <value>
+	                             The Animation panel's selected animation (start and end resolved;
+	                             sheet "none" for none; grid Cells or Size; cell <w>x<h>; cells:
+	                             how many its sheet has)
 	autoplay <name | none>       The animation the selected sprite starts with
-	sheet_loaded <true | false>  The Animation panel uploaded the selected sprite's sheet (thumbnails)
+	sheet_loaded <true | false>  The Animation panel uploaded the selected animation's sheet (thumbnails)
 	globals <A,B | none>         The project's global scripts, in order
 	draft_globals <A,B | none>   The Project Settings dialog's globals
 	data_count <n>               The project's data resources
@@ -2478,17 +2480,28 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "animation_sets":
 		found = fmt.tprint(len(s.project.animationSets))
 	case "animation":
-		src, animation, _ := AnimEdit_Selection(s)
+		_, animation, _ := AnimEdit_Selection(s)
 		if animation == nil do return false, "no animation selected"
 		field, _, expected := strings.partition(value, " ")
-		start, end := AnimationDef_Range(animation^, max(src.columns^ * src.rows^, 1))
+		cells := AnimEdit_Cells(s.project.rootPath, animation^)
+		start, end := AnimationDef_Range(animation^, cells)
+		g := animation.grid
 		switch field {
-		case "name":  found = animation.name
-		case "start": found = fmt.tprint(start)
-		case "end":   found = fmt.tprint(end)
-		case "fps":   found = fmt.tprint(animation.fps)
-		case "loop":  found = fmt.tprint(animation.loop)
-		case "mode":  found = fmt.tprint(animation.playMode)
+		case "name":    found = animation.name
+		case "start":   found = fmt.tprint(start)
+		case "end":     found = fmt.tprint(end)
+		case "count":   found = fmt.tprint(end - start + 1)
+		case "fps":     found = fmt.tprint(animation.fps)
+		case "loop":    found = fmt.tprint(animation.loop)
+		case "mode":    found = fmt.tprint(animation.playMode)
+		case "sheet":   found = animation.sheet == "" ? "none" : animation.sheet
+		case "grid":    found = fmt.tprint(g.mode)
+		case "columns": found = fmt.tprint(g.columns)
+		case "rows":    found = fmt.tprint(g.rows)
+		case "cell":    found = fmt.tprintf("%vx%v", g.cellSize.x, g.cellSize.y)
+		case "margin":  found = fmt.tprint(g.margin)
+		case "gap":     found = fmt.tprint(g.spacing)
+		case "cells":   found = fmt.tprint(cells)
 		case: return false, fmt.tprintf("unknown animation field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
@@ -2496,8 +2509,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		if selected == nil do return false, "nothing selected"
 		found = selected.autoplay == "" ? "none" : selected.autoplay
 	case "sheet_loaded":
-		src := AnimEdit_Source(s)
-		found = src.kind != .None ? fmt.tprint(AnimationPanel_SheetLoaded(s, src.texture^)) : "false"
+		_, animation, _ := AnimEdit_Selection(s)
+		found = animation != nil ? fmt.tprint(AnimationPanel_SheetLoaded(s, animation.sheet)) : "false"
 	case "input_actions":
 		found = fmt.tprint(len(s.project.actions))
 	case "draft_input_actions":

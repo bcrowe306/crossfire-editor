@@ -54,7 +54,8 @@ NodeDef :: struct {
 	// Editor-only: whether its children are shown in the scene tree
 	expanded: bool,
 
-	// Sprite, AnimatedSprite, ParticleEmitter (Texture shape): image path relative to the project folder
+	// Sprite, ParticleEmitter (Texture shape), SkinnedMesh: image path relative to the project
+	// folder (an AnimatedSprite's sheets are its animations')
 	texture: string,
 	// Label
 	text: string,
@@ -63,13 +64,8 @@ NodeDef :: struct {
 	centered: bool,
 	// Camera
 	zoom: f32,
-	// AnimatedSprite: the texture is a columns x rows grid of frames (margin pixels around it,
-	// spacing between cells); its animations are named ranges of them (at least one), and
-	// autoplay names the one it starts with ("" = the first). See the Animation panel
-	columns: int,
-	rows: int,
-	margin: f32,
-	spacing: f32,
+	// AnimatedSprite: its animations (at least one), each a range of the cells of its own sheet,
+	// and autoplay names the one it starts with ("" = the first). See the Animation panel
 	animations: [dynamic]AnimationDef,
 	autoplay: string,
 	// An animation asset it plays instead of its own sheet and animations ("" for its own; owned)
@@ -452,8 +448,6 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		color = defaults.color,
 		centered = defaults.centered,
 		zoom = defaults.zoom,
-		columns = defaults.columns,
-		rows = defaults.rows,
 		autoplay = strings.clone(""),
 		component = strings.clone(""),
 		sound = strings.clone(""),
@@ -511,12 +505,16 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 }
 
 /*
-An AnimatedSprite's animation: a named range of its sheet's cells (the engine's
+An AnimatedSprite's animation: a named range of the cells of its own sheet (the engine's
 `e.AnimationData`; `end` -1 is the last cell).
 */
 AnimationDef :: struct {
 	// Owned
 	name: string,
+	// Its sprite sheet: an image path relative to the project folder ("" for none; owned)
+	sheet: string,
+	// How the sheet is cut into cells: columns x rows, or cells of a size (the engine's)
+	grid: e.SheetGrid,
 	start: int,
 	end: int,
 	fps: f32,
@@ -530,9 +528,9 @@ AnimationDef :: struct {
 	events: [dynamic]string,
 }
 
-// The animation a new AnimatedSprite gets: every cell, looping (name owned)
-AnimationDef_Default :: proc(name := "default") -> AnimationDef {
-	return {name = strings.clone(name), start = 0, end = -1, fps = e.DEFAULT_SCENE_NODE.fps, loop = true, playMode = .Forward}
+// The animation a new AnimatedSprite gets: every cell of a sheet, looping (name and sheet owned)
+AnimationDef_Default :: proc(name := "default", sheet := "", grid := e.DEFAULT_SHEET_GRID) -> AnimationDef {
+	return {name = strings.clone(name), sheet = strings.clone(sheet), grid = grid, start = 0, end = -1, fps = e.DEFAULT_ANIMATION_FPS, loop = true, playMode = .Forward}
 }
 
 // Frees a node's strings and lists
@@ -975,10 +973,6 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 			color = node.color,
 			centered = node.centered,
 			zoom = node.zoom,
-			columns = node.columns,
-			rows = node.rows,
-			margin = node.margin,
-			spacing = node.spacing,
 			autoplay = strings.clone(node.autoplay),
 			collisionLayer = node.collisionLayer,
 			collisionMask = node.collisionMask,
@@ -1017,10 +1011,10 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 		}
 		append(&def.points, ..node.points[:])
 		if node.kind == .AnimatedSprite {
+			// Older files' one sheet is every animation's already (the engine's parser)
 			for a in node.animations do append(&def.animations, AnimationDef_FromData(a))
-			// Files before format 7: one animation of every cell, at the node's speed (not with an
-			// animation asset: its animations are the asset's)
-			if len(def.animations) == 0 && node.animationSet == "" do append(&def.animations, AnimationDef{name = strings.clone("default"), start = 0, end = -1, fps = node.fps, loop = node.loop, playMode = node.playMode})
+			// A sprite has an animation (not with an animation asset: its animations are the asset's)
+			if len(def.animations) == 0 && node.animationSet == "" do append(&def.animations, AnimationDef_Default())
 			def.animationSet = strings.clone(node.animationSet)
 		}
 		if node.kind == .Sprite || node.kind == .AnimatedSprite {
@@ -1189,10 +1183,10 @@ setTexture :: proc(scene: ^SceneDef, index: int, path: string) {
 
 @(private="file")
 setAnimation :: proc(scene: ^SceneDef, index: int, path: string, columns, rows: int, fps: f32, mode: e.AnimationPlayMode) {
-	setTexture(scene, index, path)
 	node := &scene.nodes[index]
-	node.columns = columns
-	node.rows = rows
+	delete(node.animations[0].sheet)
+	node.animations[0].sheet = strings.clone(path)
+	node.animations[0].grid = {mode = .Cells, columns = columns, rows = rows}
 	node.animations[0].fps = fps
 	node.animations[0].loop = true
 	node.animations[0].playMode = mode

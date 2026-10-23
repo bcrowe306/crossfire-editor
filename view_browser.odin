@@ -287,6 +287,9 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 		codeArea := ctx.widgets.states[skald.hash_id("code-editor")].last_rect
 		if s.assetDrag.active && s.codeTab > 0 && pointIn(codeArea, mouse) {
 			skald.send(ctx, Msg(Asset_Dropped_On_Code{}))
+		} else if s.assetDrag.active && s.project.assets[s.assetDrag.asset].kind == .Image && AnimationPanel_TakesDrop(s, ctx, mouse) {
+			// An image on the Animation panel: the selected animation's sheet
+			skald.send(ctx, Msg(Anim_Sheet_Dropped{}))
 		} else if s.assetDrag.active && overViewport {
 			skald.send(ctx, Msg(Asset_Dropped{world = world}))
 		} else {
@@ -312,6 +315,7 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 	case overViewport && kind == .Component: hint = "drop to add an instance"
 	case overViewport && kind == .Image: hint = "drop to add a Sprite"
 	case overViewport && kind == .LDtk: hint = "drop to add the level"
+	case kind == .Image && AnimationPanel_TakesDrop(s, ctx, mouse): hint = "drop to make it the animation's sheet"
 	case kind != .Image && kind != .Component && kind != .LDtk: hint = "drag into a script's code tab"
 	}
 	return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},

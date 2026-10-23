@@ -2,6 +2,7 @@ package crossfire_editor
 
 import "core:fmt"
 import "core:math"
+import "core:path/filepath"
 import "core:reflect"
 import "core:strings"
 import "core:time"
@@ -10,7 +11,8 @@ import "gui:skald"
 
 /*
 The Animation panel's logic (its view is view_animation.odin): animations, which are named ranges
-of a sprite sheet's cells (`AnimationDef`), each with a speed (or each frame's duration), looping
+of the cells of their own sprite sheets (`AnimationDef`: a sheet cut into columns x rows, or into
+cells of a size, with a margin and gaps), each with a speed (or each frame's duration), looping
 and a play mode, and which one plays first. They're the panel's source (`AnimSource`,
 animation_sets_edit.odin): the selected AnimatedSprite's own, the animation asset it uses, or the
 one the browser shows in the panel (`AnimEditor.asset`); an Aseprite file's are read only.
@@ -56,6 +58,28 @@ AnimEdit_Selection :: proc(s: ^State) -> (src: AnimSource, animation: ^Animation
 	if src.kind == .None || len(src.animations^) == 0 do return src, nil, -1
 	index = clamp(s.animEditor.selected, 0, len(src.animations^) - 1)
 	return src, &src.animations[index], index
+}
+
+/*
+How many cells an animation's sheet has: its grid on the image (`e.SheetGrid_CellCount`; a grid of
+cell sizes needs the image's size, `Image_Size`, read once per file time).
+
+Inputs:
+- root: The project folder
+- animation: The animation
+
+Returns:
+- The cells (at least 1)
+*/
+AnimEdit_Cells :: proc(root: string, animation: AnimationDef) -> int {
+	return e.SheetGrid_CellCount(animation.grid, AnimEdit_SheetSize(root, animation.sheet))
+}
+
+// An animation's sheet's size in pixels (0 when it has none or it can't be read)
+AnimEdit_SheetSize :: proc(root, sheet: string) -> [2]f32 {
+	if sheet == "" do return {}
+	size, _ := Image_Size(joinPath(root, sheet, allocator = context.temp_allocator))
+	return {f32(size.x), f32(size.y)}
 }
 
 /*
@@ -158,7 +182,7 @@ AnimEdit_NameProblem :: proc(animations: []AnimationDef, index: int, name: strin
 AnimEdit_IsEdit :: proc(m: Msg) -> bool {
 	#partial switch v in m {
 	case Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed, Anim_Loop_Changed, Anim_Mode_Changed,
-	     Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Sheet_Texture_Changed:
+	     Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed:
 		return true
 	case Number_Text_Changed:
 		_, isAnim := v.target.(AnimField)
@@ -177,6 +201,13 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	ed := &s.animEditor
 	src, animation, index := AnimEdit_Selection(s)
 	restart :: proc(ed: ^AnimEditor) { ed.clock = 0 }
+	// An image dropped on the panel: the drag ends either way
+	dropped := ""
+	if _, isDrop := m.(Anim_Sheet_Dropped); isDrop {
+		asset := s.assetDrag.asset
+		s.assetDrag = {}
+		if asset >= 0 && asset < len(s.project.assets) && s.project.assets[asset].kind == .Image do dropped = s.project.assets[asset].path
+	}
 	// An Aseprite file's animations are read only (edited in Aseprite)
 	if src.readOnly && AnimEdit_IsEdit(m) do return {}, true
 	list := src.animations
@@ -187,7 +218,7 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		ed.selected = int(v)
 		restart(ed)
 	case Anim_Set_From_Node:
-		// The sprite's own sheet and animations become an asset it uses (the file isn't undone)
+		// The sprite's own animations (and their sheets) become an asset it uses (the file isn't undone)
 		if src.kind != .Node do break
 		node := src.node
 		at, problem := Project_CreateAnimationSet(&s.project, node.name, AnimationSet_OfNode(node))
@@ -200,19 +231,17 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		node.animationSet = strings.clone(path)
 		for &a in node.animations do AnimationDef_Destroy(&a)
 		clear(&node.animations)
-		delete(node.texture)
-		node.texture = strings.clone("")
 		delete(node.autoplay)
 		node.autoplay = strings.clone("")
 		logLine(s, .Info, fmt.aprintf("Saved the animations of %s as %s, which it plays now", node.name, path))
 	case Anim_Set_New:
-		at, problem := Project_CreateAnimationSet(&s.project, "animations", AnimationSetDef{columns = 1, rows = 1})
+		at, problem := Project_CreateAnimationSet(&s.project, "animations", AnimationSetDef{})
 		if at < 0 {
 			logLine(s, .Error, fmt.aprintf("Couldn't make the animations: %s", problem))
 			break
 		}
 		path := s.project.animationSets[at].path
-		logLine(s, .Info, fmt.aprintf("Made %s: pick its sheet in the Animation panel", path))
+		logLine(s, .Info, fmt.aprintf("Made %s: pick its animation's sheet in the Animation panel", path))
 		delete(ed.asset)
 		ed.asset = strings.clone(path)
 		ed.selected = 0
@@ -230,7 +259,8 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		}
 	case Anim_Added:
 		if src.kind == .None do break
-		added := AnimationDef_Default()
+		// Every frame of the sheet the selected animation uses (its grid too)
+		added := animation != nil ? AnimationDef_Default(sheet = animation.sheet, grid = animation.grid) : AnimationDef_Default()
 		delete(added.name)
 		added.name = AnimEdit_UniqueName(list[:], "animation")
 		append(list, added)
@@ -273,20 +303,46 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		delete(animation.name)
 		animation.name = strings.clone(v.text)
 	case Anim_Sheet_Texture_Changed:
-		if src.kind != .Set do break
-		delete(src.texture^)
-		src.texture^ = strings.clone(string(v) == TEXTURE_NONE ? "" : string(v))
-	case Anim_Field_Changed:
-		if src.kind == .None do break
-		// A set's grid (a node's is a node field: the inspector's)
-		#partial switch v.field {
-		case .Columns: src.columns^ = clamp(int(v.value), 1, 64); return {}, true
-		case .Rows:    src.rows^ = clamp(int(v.value), 1, 64); return {}, true
-		case .Margin:  src.margin^ = clamp(f32(v.value), 0, 1000); return {}, true
-		case .Spacing: src.spacing^ = clamp(f32(v.value), 0, 1000); return {}, true
-		}
+		// The selected animation's sheet
 		if animation == nil do break
-		cells := max(src.columns^ * src.rows^, 1)
+		delete(animation.sheet)
+		animation.sheet = strings.clone(string(v) == TEXTURE_NONE ? "" : string(v))
+		restart(ed)
+	case Anim_Sheet_Dropped:
+		if animation == nil || dropped == "" do break
+		delete(animation.sheet)
+		animation.sheet = strings.clone(dropped)
+		logLine(s, .Info, fmt.aprintf("%s plays on %s now", animation.name, filepath.base(dropped)))
+		restart(ed)
+	case Anim_Grid_Mode_Changed:
+		// The other mode's values from the image, so the cells stay where they are
+		if animation == nil do break
+		mode, ok := reflect.enum_from_name(e.SheetGridMode, string(v))
+		if !ok || mode == animation.grid.mode do break
+		columns, rows, cell := e.SheetGrid_Layout(animation.grid, AnimEdit_SheetSize(s.project.rootPath, animation.sheet))
+		// Only the mode's own values are kept (as a file keeps them)
+		animation.grid.mode = mode
+		switch mode {
+		case .Cells:
+			animation.grid.columns, animation.grid.rows = columns, rows
+			animation.grid.cellSize = {}
+		case .Size:
+			animation.grid.cellSize = cell.x >= 1 && cell.y >= 1 ? {math.floor(cell.x), math.floor(cell.y)} : {32, 32}
+			animation.grid.columns, animation.grid.rows = 1, 1
+		}
+	case Anim_Field_Changed:
+		if animation == nil do break
+		// Its sheet's grid
+		grid := &animation.grid
+		#partial switch v.field {
+		case .Columns:     grid.columns = clamp(int(v.value), 1, 256); return {}, true
+		case .Rows:        grid.rows = clamp(int(v.value), 1, 256); return {}, true
+		case .Cell_Width:  grid.cellSize.x = clamp(f32(int(v.value)), 1, 4096); return {}, true
+		case .Cell_Height: grid.cellSize.y = clamp(f32(int(v.value)), 1, 4096); return {}, true
+		case .Margin:      grid.margin = clamp(f32(v.value), 0, 1000); return {}, true
+		case .Spacing:     grid.spacing = clamp(f32(v.value), 0, 1000); return {}, true
+		}
+		cells := AnimEdit_Cells(s.project.rootPath, animation^)
 		start, end := AnimationDef_Range(animation^, cells)
 		#partial switch v.field {
 		case .Start:
@@ -296,6 +352,10 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		case .End:
 			animation.end = clamp(int(v.value), 0, cells - 1)
 			animation.start = min(start, animation.end)
+		case .Frames:
+			// From the start, as many as the sheet has left
+			animation.start = start
+			animation.end = start + clamp(int(v.value), 1, cells - start) - 1
 		case .FPS:
 			animation.fps = clamp(f32(v.value), 0, 120)
 		}
@@ -311,7 +371,7 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		autoplay^ = strings.clone(animation.name)
 	case Anim_Frame_Clicked:
 		if animation == nil do break
-		cells := max(src.columns^ * src.rows^, 1)
+		cells := AnimEdit_Cells(s.project.rootPath, animation^)
 		frame := clamp(v.frame, 0, cells - 1)
 		start, end := AnimationDef_Range(animation^, cells)
 		if v.end {

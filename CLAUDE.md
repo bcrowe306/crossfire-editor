@@ -201,7 +201,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `tile_paint.odin` | **Tile painting**: `TilePainter` (tool, brush, layer, terrain), its messages, `TilePaint_Update` (strokes, fills, terrains, growing grids, copying file layers), `TilePaint_CellAt` |
 | `view_tiles.odin` | The bottom panel's Tiles tab: layer and tileset choices, tools, flips, the tile palette (`TilesPanel`) |
 | `docs/manual/` | **The user manual**: a page per feature for users new to the editor (`README.md` lists them in reading order). Help > User Manual (F1, `Manual_Open`: `MANUAL_URL` + page) and panels' Manual buttons open it. **Every new feature gets a page here.** Pages are ready for a static site (Astro, later): YAML frontmatter `title` / `description` (quoted when they hold `: `) / `order` (the reading order, unique, README 0; a new page takes its place and the ones after it move up), plain relative links, no GitHub-only syntax (no `> [!NOTE]`, no `<details>`), a Questions section at the end, examples that compile |
-| `aseprite_edit.odin` | Aseprite files: the parsed-file cache (`AsepriteEdit_File`), the browser preview (`AsepriteEdit_Preview`, `AsepriteEdit_Summary`), Open in Aseprite (`AsepriteEdit_Open`, Settings > Editor > Aseprite program), `Image_LoadRGBA` (any image, Aseprite files through the engine) |
+| `aseprite_edit.odin` | Aseprite files: the parsed-file cache (`AsepriteEdit_File`), the browser preview (`AsepriteEdit_Preview`, `AsepriteEdit_Summary`), Open in Aseprite (`AsepriteEdit_Open`, Settings > Editor > Aseprite program), `Image_LoadRGBA` (any image, Aseprite files through the engine), `Image_Size` (its size, cached per file time: the header only) |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
@@ -247,8 +247,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `bus_effects_edit.odin` | **Bus effects**: `BusDef.effects` / `effectCount` (a plain array), `Bus_Effects_Opened` (the Mixer's FX: `State.busSelection`) and `Bus_Effect_Added` / `_Removed` / `_Moved` / `_Changed` (`.Project` steps), `busEffectsInspector`; the preview hears them (`AudioPreview_SetEffects` from `Mixer_RoutePreview`) |
 | `music_layers_edit.odin` | **Music layers**: `NodeDef.musicLayers` (`MusicLayerDef`: clone, destroy, equal), `Music_Layer_Added` / `_Removed` / `_Changed` (node steps), the MusicPlayer's Layers rows (`musicLayerRows`) |
 | `view_inspector_audio.odin` | The inspector's sound node settings (`audioInspectorRows`): sound or music, bus, Open Mixer, volume / pitch / pan sliders, loop, autostart, a 2D player's range and falloff, music's fades, Preview |
-| `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with, frames, FPS, loop, mode, the sheet's image and grid; groups in a `wrap_row`) over the preview and the sheet's frame thumbnails (`frameStrip`, cells drawn from the sheet uploaded once with stb_image); one scroll for all |
-| `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimationDef_FrameAt` / `StepAt` (the frame at a time, as the engine plays it, durations too), `AnimationDef_Range`, unique names, `AnimEdit_IsEdit` |
+| `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with; the selected animation's sheet, grid mode and values, margin, gap; frames, count, FPS, loop, mode; small groups in a `wrap_row`) over the preview and the thumbnails of its sheet's frames (`frameStrip`, cells drawn from the sheet uploaded once: `Image_LoadRGBA`); one scroll for all, which takes images dropped from the browser (`AnimationPanel_TakesDrop`) |
+| `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimEdit_Cells` / `AnimEdit_SheetSize` (an animation's sheet's cells, from `Image_Size`), `AnimationDef_FrameAt` / `StepAt` (the frame at a time, as the engine plays it, durations too), `AnimationDef_Range`, unique names, `AnimEdit_IsEdit` |
 | `animation_sets_edit.odin` | **Animation assets**: `AnimationSetDef` (`.anim.xml`, `Project.animationSets`: load, save when changed, make: `Project_CreateAnimationSet`), `AnimationDef` / set clone, equal and engine conversions, an Aseprite file's tags as a set (`AsepriteEdit_AnimationSet`), the panel's `AnimSource` (`AnimEdit_Source`), the browser preview, `Scene_AddAnimatedSpriteAt` |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
@@ -1132,6 +1132,13 @@ MyGame/
   .editor/                 per-user editor state (gitignored; not used yet)
 ```
 
+- **Version 14:** an AnimatedSprite's animations each have their own sheet (`AnimationDef.sheet`,
+  `grid`: the engine's `e.SheetGrid`, Cells or Size), written on each `<animation>` (`sheet`,
+  `columns` / `rows` or `grid="Size" cellWidth cellHeight`, `margin`, `spacing`), in scene files
+  and `.anim.xml` files; NodeDef and AnimationSetDef have no sheet (no `columns`, `rows`, `margin`,
+  `spacing`). Older files migrate in the engine's parser (the node's or file's sheet becomes every
+  animation's; a node without animations gets "default"), so `Project_Load` just copies them;
+  they're rewritten in the new format only when saved.
 - **Version 13** also: CollisionShape `oneWay` (the inspector's One way checkbox,
   `NodeFlag.One_Way`); **translation tables**: `.csv` assets of kind Translation (the browser's
   Translations folder, its preview parsed by the engine's `e.Locale_LoadCSV`; not in
@@ -1159,7 +1166,8 @@ MyGame/
 - **Version 10:** sound nodes, `<bus>` elements in project.xml, asset kind Music.
 - **Version 9:** components (`.component.xml` files, asset kind Component) and Component nodes.
 - **Version 8:** input actions in project.xml.
-- **Version 7:** AnimatedSprite `<animation>` children, `margin`, `spacing`, `autoplay`.
+- **Version 7:** AnimatedSprite `<animation>` children, `margin`, `spacing`, `autoplay` (the sheet
+  moved into each animation in version 14).
 - **Version 6:** ParticleEmitter nodes; their settings are a `<particles>` child element (the
   engine's `e.FormatParticleSettings`: only what differs from the defaults).
 - **Node kinds** are the engine's `SceneNodeKind` (the editor's `NodeKind` is an alias):
@@ -1368,7 +1376,8 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
   (`make_tilemap.py`).
 - **Slices, layers, events** (aseprite_edit.odin's `asepriteSpriteRows`, `sliceShapeRows`; the
   engine's aseprite_nodes.odin): a Sprite or AnimatedSprite showing an Aseprite file
-  (`AsepriteEdit_NodeSource`) gets layer checkboxes (`Aseprite_Layer_Toggled`, ticking from what's
+  (`AsepriteEdit_NodeSource`: an AnimatedSprite's animation asset, else the first of its
+  animations whose sheet is one; in a game the playing animation's file counts) gets layer checkboxes (`Aseprite_Layer_Toggled`, ticking from what's
   drawn, the last stays: `AsepriteEdit_ToggleLayer`), a Pivot slice (slices with a pivot), a
   Sprite a 9-patch (slices with a center) and its size; an AnimatedSprite lists its frame events
   (the Animation panel too). A CollisionShape near one (`AsepriteEdit_ShapeSprite`, the engine's
@@ -1485,13 +1494,13 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
 - **The panel edits an `AnimSource`** (`AnimEdit_Source`): the set the browser shows in it
   (`AnimEditor.asset`: an asset's Edit Animations, an Aseprite preview's Animations; Back to the
   sprite clears it), else the selected sprite's set, else its own. Every message goes through the
-  source's pointers; a set's grid is `AnimField.Columns`... (a node's stays its NodeFields) and
-  its sheet `Anim_Sheet_Texture_Changed`. Aseprite's are read only (edits are dropped).
+  source's pointers (its animations and autoplay: the sheets are the animations'). Aseprite's are
+  read only (edits are dropped).
 - **Undo:** edits to a set are `.Project` steps (History_Classify checks `AnimEdit_IsEdit` first;
   the snapshot holds every set, restored by file like data resources); a project step that
   doesn't touch the open scene's nodes keeps the selection, so the panel keeps showing it.
 - **Making one:** the inspector's Save as Animation Asset (`Anim_Set_From_Node`: the sprite's own
-  sheet and animations go into `animations/<name>.anim.xml`, the sprite uses it; the node's step
+  animations, their sheets with them, go into `animations/<name>.anim.xml`, the sprite uses it; the node's step
   is undone, the file stays), or the browser's New Animations (`Anim_Set_New`, an empty one).
   The browser's Animations folder shows once there's one (row counts in tests stay put).
 - **Using one:** the inspector's Animations choice, dragging the asset into the viewport (an
@@ -1506,29 +1515,47 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
 - Tests: `animation_assets_are_made_saved_edited_and_undone`, `tests/ui/animation_assets.script`
   (driver checks `anim_source`, `animation_set`, `animation_sets`).
 
-- **Model:** an AnimatedSprite's sheet is `texture`, `columns` x `rows`, `margin`, `spacing`; its
-  `animations` (`AnimationDef`: name, start, end (-1 = last cell), fps, loop, play mode; at least
-  one) and `autoplay` (the one it starts with, "" = the first). Scene files: `<animation>` children
-  (format 7). Files before that get one "default" animation from the node's old fps/loop/playMode
-  when loaded (`Project_Load`), so NodeDef has no node-level fps/loop/playMode any more.
+- **Model:** an AnimatedSprite has `animations` (`AnimationDef`: name, **its own sheet** (`sheet`,
+  a path) and `grid` (`e.SheetGrid`: mode Cells with `columns` x `rows`, or Size with `cellSize`,
+  plus `margin`, `spacing`; only the mode's own values are kept, as files keep them), start, end
+  (-1 = last cell), fps, loop, play mode; at least one) and `autoplay` (the one it starts with, "" =
+  the first); the node has no sheet (format 14: `NodeDef.texture` stays "" for it). Scene files:
+  `<animation>` children. Older files' node sheet (and before format 7 the node's fps/loop/
+  playMode as one "default" animation) are moved into the animations by the engine's parser.
+- **Cells:** a Size grid's count needs the image's size: `AnimEdit_Cells` reads it through
+  `Image_Size` (stb_image's header, or the Aseprite file; cached per file time on the heap under a
+  lock, since tests run on several threads; freed by `AsepriteEdit_Destroy`). Without an image a
+  Size grid is one cell. Start, end, count and frame clicks clamp to those cells.
 - **Panel** (bottom panel, Animation tab; the inspector's Edit Animations opens it): a toolbar on
   top, the frames below, so it uses the panel's width. The toolbar: a dropdown picking the
-  animation (a star on the starting one), add / duplicate (unique name) / remove (one stays) / move
-  up and down, the name (kept while typed until valid and unused), Starts with this, frames, FPS,
-  loop, mode, the sheet's image and grid. Its controls are small groups in a `skald.wrap_row`, so
+  animation (a star on the starting one), add (`Anim_Added`: every cell of the selected
+  animation's sheet, its grid too) / duplicate (unique name) / remove (one stays) / move up and
+  down, the name (kept while typed until valid and unused), Starts with this; then the selected
+  animation's sheet (`Anim_Sheet_Texture_Changed`, or an image dragged from the browser and
+  released over the panel: `Anim_Sheet_Dropped`, which ends the drag and takes
+  `State.assetDrag`'s asset), its grid mode (`Anim_Grid_Mode_Changed`: switching works the other
+  mode's values out from the image, so the cells stay put) and values (`AnimField.Columns`, `Rows`,
+  `Cell_Width`, `Cell_Height`), margin and gap (`Margin`, `Spacing`), the cells it makes; then
+  frames, count (`AnimField.Frames`: sets the end from the start), FPS, loop, mode. Its controls
+  are small groups in a `skald.wrap_row`, so
   they wrap onto more lines in a narrow panel (a group wider than a line would spill into the
   scrollbar strip: keep groups small). Below: a preview playing the animation and a thumbnail per
-  sheet cell (click = start, Shift+click = end; the animation's cells lit). The preview runs on `Anim_Tick` at ANIMATION_PREVIEW_FPS while it
+  cell of its sheet (click = start, Shift+click = end; the animation's cells lit). The preview runs on `Anim_Tick` at ANIMATION_PREVIEW_FPS while it
   plays and the panel shows. The viewport plays the panel's animation on the sprite too
   (`Preview_Render`).
 - **Thumbnails:** the sheet is uploaded once per file (`image_load_pixels`); `drawCell` draws a
   cell with Skald's `draw_image_region` (a pixel rect of an image, inset half a texel so
   neighbouring cells don't bleed in).
-- **Undo:** every edit is a `.Node` step (History_Classify); the selection, preview and typed
-  name are panel state (`State.animEditor`).
+- **Undo:** every edit is a `.Node` step (History_Classify; sheet, drop and grid mode too); the
+  selection, preview and typed name are panel state (`State.animEditor`).
+- **Inspector:** an AnimatedSprite's rows are Animations, **Sheets** (the sheets its animations
+  use, read only), Starts with, Edit Animations, Save as Animation Asset.
 - Tests: `animation_frames_over_time`, `animation_panel_edits`, `animations_round_trip`,
-  `tests/ui/animation.script` (the driver's `click_frame`, checks `animations`, `animation`,
-  `autoplay`, `sheet_loaded`). `scroll_into_view` centers a laid-out widget, and passes when the
+  `animations_have_their_own_sheets_in_the_panel` (two sheets, the Size grid, counts, a drop,
+  undo, the round trip), `tests/ui/animation.script` (the driver's `click_frame`, `drag_asset_to
+  ... animation-scroll`; checks `animations`, `animation` (its sheet, grid, columns, rows, cell,
+  margin, gap, cells, count too), `autoplay`, `sheet_loaded`), `tests/ui/animation_assets.script`
+  (a set's second animation on another sheet, cut by size). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
 
 ## Collision from sprites and physics materials (implemented, `collision_trace_edit.odin`, `material_edit.odin`; engine: collision_trace.odin, physics_material.odin)
@@ -1543,7 +1570,8 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
 - **Collision from sprite** (`State.trace`, view state): the body inspector's section under its
   shapes; `Collision_Traced` is a `.Scene` step that removes the body's direct CollisionShape
   children named `Traced...` and inserts one Polygon per piece (`e.Image_CollisionPolygons` on
-  `Image_LoadRGBA`, an AnimatedSprite's first animation cell cropped), mapped through the sprite's
+  `Image_LoadRGBA`, an AnimatedSprite's first animation's first cell cropped from that animation's
+  sheet by its grid: `Trace_Picture`), mapped through the sprite's
   transform relative to the body. A trace that changes nothing records no step.
 - Tests: `physics_materials_in_the_editor`, `collision_from_a_sprite_in_the_editor`,
   `tests/ui/collision_tools.script` (driver `select_node`, checks `traced`, `material`,

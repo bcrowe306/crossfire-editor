@@ -744,8 +744,7 @@ toSceneData :: proc(scene: ^SceneDef) -> e.SceneData {
 			processMode = node.processMode, blendMode = node.blendMode, zIndex = node.zIndex, ySort = node.ySort,
 			groups = groupList(node.groups),
 			texture = node.texture, text = node.text, fontSize = node.fontSize, color = node.color,
-			centered = node.centered, zoom = node.zoom, columns = node.columns, rows = node.rows,
-			margin = node.margin, spacing = node.spacing, animations = animationData(node.animations[:]), autoplay = node.autoplay, animationSet = node.animationSet, items = items,
+			centered = node.centered, zoom = node.zoom, animations = animationData(node.animations[:]), autoplay = node.autoplay, animationSet = node.animationSet, items = items,
 			asepriteLayers = node.asepriteLayers, pivotSlice = node.pivotSlice, nineSlice = node.nineSlice, nineSize = node.nineSize, slice = node.slice, region = node.region,
 			collisionLayer = node.collisionLayer, collisionMask = node.collisionMask,
 			friction = node.friction, restitution = node.restitution, density = node.density,
@@ -837,14 +836,11 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		strings.write_bytes(&b, node.color[:])
 		strings.write_byte(&b, node.centered ? 1 : 0)
 		strings.write_f32(&b, node.zoom, 'g')
-		strings.write_int(&b, node.columns)
-		strings.write_int(&b, node.rows)
-		strings.write_f32(&b, node.margin, 'g')
-		strings.write_f32(&b, node.spacing, 'g')
 		strings.write_string(&b, node.autoplay)
 		fmt.sbprintf(&b, "|%s|%s|%s|%v|%s|%s", node.asepriteLayers, node.pivotSlice, node.nineSlice, node.nineSize, node.slice, node.region)
+		// Its animations, each with its own sheet and grid
 		for a in node.animations {
-			fmt.sbprintf(&b, "|%s %d %d %v %v %v %d %v", a.name, a.start, a.end, a.fps, a.loop, a.playMode, a.repeat, a.durations[:])
+			fmt.sbprintf(&b, "|%s %s %v %d %d %v %v %v %d %v", a.name, a.sheet, a.grid, a.start, a.end, a.fps, a.loop, a.playMode, a.repeat, a.durations[:])
 		}
 		// An animation asset: what it holds (an Aseprite file's: its time)
 		if node.animationSet != "" {

@@ -56,49 +56,63 @@ a game started with Play too.
 ## Animated sprites
 
 1. **Add Node** > **AnimatedSprite**.
-2. In the inspector, **Sheet**: the sprite sheet's picture.
-3. **Columns** and **Rows**: how many frames across and down the sheet. A strip of 8 frames in one
-   row is 8 columns, 1 row.
-4. If your sheet has a border or gaps between frames: **Margin** (pixels around the edge before
-   the first frame) and **Spacing** (pixels between frames).
+2. In the inspector, **Edit Animations**: the bottom panel's **Animation** tab opens on it.
+3. **Sheet**: the sprite sheet's picture (or drag the picture from the browser onto the panel).
+4. **Grid**: how the sheet is cut into frames, either
+   - **Cells**: how many frames across and down. A strip of 8 frames in one row is 8 × 1; or
+   - **Size**: one frame's width and height in pixels (32 × 32): the panel works out how many fit.
+5. If your sheet has a border or gaps between frames: **Margin** (pixels around the edge before
+   the first frame) and **Gap** (pixels between frames).
 
 The sprite starts with one animation, **default**: every frame, looping, at 8 frames a second.
 Press **P** (or the play button above the viewport) to see it play in the viewport.
+
+**Every animation has its own sheet.** An "idle" can come from `hero_idle.png` and a "run" from
+`hero_run.png`, each with its own grid; or they can share one sheet, using different frames of
+it. A new animation starts on the sheet of the one you were editing.
 
 Its other inspector rows:
 
 | Setting | What it does |
 |---|---|
 | **Animations** | **its own** animations, or an animation asset's ([below](#animation-assets-animations-sprites-share)) |
+| **Sheets** | The sheets its animations use (each animation's is set in the Animation panel) |
 | **Starts with** | The animation it plays when the scene starts (the first one, unless you pick another) |
 | **N animations** / **Edit Animations** | Opens the Animation panel on this sprite |
-| **Save as Animation Asset** | Makes its sheet and animations a file other sprites can use |
+| **Save as Animation Asset** | Makes its animations (and their sheets) a file other sprites can use |
 
 Like Sprites, AnimatedSprites are drawn centered on their position.
 
 ## The Animation panel
 
-A sheet usually holds several animations: frames 0 to 3 are "idle", 4 to 9 "run", 10 to 12 "jump".
-The bottom panel's **Animation** tab (the inspector's **Edit Animations** opens it) names them.
+A sprite usually has several animations: "idle", "run", "jump". Each plays some frames of its
+own sheet: frames 0 to 3 of one sheet, or 4 to 9 of the same one, or every frame of another. The
+bottom panel's **Animation** tab (the inspector's **Edit Animations** opens it) names them and
+sets each one's sheet, frames and speed.
 
 **Its toolbar:**
 
 | Control | What it does |
 |---|---|
 | The dropdown | Which animation you're editing. ★ marks the one the sprite starts with |
-| **+** | A new animation (every frame) |
+| **+** | A new animation: every frame of the sheet the selected one uses |
 | Copy, trash, ↑, ↓ | Duplicate it, remove it (a sprite keeps at least one), move it up or down the list |
 | **Name** | Its name: what scripts play it by. Two animations can't share a name |
 | **★ Starts with this** | The sprite plays it when the scene starts |
+| **Sheet** | Its sprite sheet's picture. Dragging a picture from the browser onto the panel sets it too |
+| **Grid** | How its sheet is cut into frames: **Cells** (so many across × down) or **Size** (a frame's width × height in pixels). Beside it, the other one, worked out from the picture: the frames' size, or how many fit |
+| **Margin**, **Gap** | Pixels around the sheet's edge before the first frame, and between frames |
 | **Frames** ... **to** ... | Its first and last frame |
+| **Count** | How many frames it plays from its first (sets the last) |
 | **FPS** | Frames per second: how fast it plays |
 | **Loop** | Plays again from the start when it ends; unticked, it stops on its last frame |
 | The mode | **Forward**, **Reverse** (last frame to first), **PingPong** (there and back), **PingPongReverse** (back and there) |
-| **Sheet**, **Grid**, **Margin**, **Gap** | The sheet's picture and how it's cut into frames (the same as the inspector's Sheet, Columns × Rows, Margin and Spacing) |
+
+The toolbar's controls wrap onto more lines when the panel is narrow.
 
 **Under the toolbar**, the preview plays the animation (its play button pauses it) and shows which
-frame it's on. Beside it, every frame of the sheet as a thumbnail, numbered, the animation's frames
-lit:
+frame it's on. Beside it, every frame of the animation's sheet as a thumbnail, numbered, the
+animation's frames lit:
 
 - **click** a frame: the animation starts there;
 - **Shift+click** a frame: it ends there.
@@ -110,7 +124,7 @@ can be undone.
 
 Ten enemies of the same kind should share one set of animations: change the "walk" once and all
 ten change. An **animation asset** is such a set in a file of its own (`animations/<name>.anim.xml`):
-a sheet, its grid and its animations.
+its animations, each with its own sheet and grid.
 
 **Making one:**
 
@@ -118,7 +132,7 @@ a sheet, its grid and its animations.
   Animation Asset**. The file is made from them (named after the sprite), and the sprite now plays
   it. Or
 - once the browser has an **Animations** folder, right-click it > **New Animations**: an empty one
-  opens in the Animation panel; pick its sheet there.
+  opens in the Animation panel; pick its animation's sheet there.
 
 **Using one:**
 
@@ -279,19 +293,29 @@ attached.
 
 ```xml
 <node kind="Sprite" name="Tree" x="200" y="300" texture="assets/tree.png"/>
-<node kind="AnimatedSprite" name="Coin" x="400" y="300" texture="assets/coin.png" columns="8" autoplay="spin">
-	<animation name="spin" start="0" end="7" fps="12" loop="true"/>
+<node kind="AnimatedSprite" name="Coin" x="400" y="300" autoplay="spin">
+	<animation name="spin" sheet="assets/coin.png" columns="8" rows="1" start="0" end="7" fps="12" loop="true"/>
+	<animation name="sparkle" sheet="assets/sparkle.png" grid="Size" cellWidth="16" cellHeight="16" spacing="1" fps="20"/>
 </node>
 <node kind="AnimatedSprite" name="Hero" x="100" y="500" animations="assets/hero.aseprite" autoplay="idle"/>
 <node kind="Label" name="Title" x="640" y="80" text="My Game" fontSize="48" color="#ffd700"/>
 ```
 
+Each `<animation>` names its own `sheet` and grid: `columns` × `rows`, or `grid="Size"` with
+`cellWidth` × `cellHeight`, plus `margin` and `spacing`. Files saved by older versions had one
+sheet on the node (`texture`, `columns`, `rows`): they open as before, every animation on that
+sheet.
+
 ## Questions
 
-**My sprite sheet shows all its frames at once, tiny.** Set its **Columns** and **Rows**.
+**My sprite sheet shows all its frames at once, tiny.** Set the animation's **Grid**: its
+columns and rows, or with **Size** a frame's width and height.
 
-**The animation shows bits of the next frame.** The grid is off: check Columns, Rows, Margin and
-Spacing against the sheet.
+**The animation shows bits of the next frame.** The grid is off: check the Grid, Margin and Gap
+against the sheet.
+
+**My animations need different sheets.** Give each its own: pick the animation in the Animation
+panel's dropdown and set its **Sheet**.
 
 **My animation doesn't play in the viewport.** Press **P**, or the play button above the viewport.
 

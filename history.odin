@@ -304,6 +304,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change an animation of %s", name))
 	case Anim_Frame_Clicked:
 		if hasSelection do return node(selected, fmt.tprintf("Change the frames of an animation of %s", name))
+	case Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change the sheet of an animation of %s", name))
 	case Anim_Autoplay_Set:
 		if hasSelection do return node(selected, fmt.tprintf("Change the first animation of %s", name))
 	// The States tab: its StateMachine's step (not necessarily the selected node); a drag is one
@@ -614,10 +616,6 @@ fieldLabel :: proc(field: NodeField) -> string {
 	case .Z_Index:    return "z index"
 	case .Font_Size:  return "font size"
 	case .Zoom:       return "zoom"
-	case .Columns:    return "columns"
-	case .Rows:       return "rows"
-	case .Margin:     return "sheet margin"
-	case .Spacing:    return "sheet spacing"
 	case .Friction:        return "friction"
 	case .Restitution:     return "bounce"
 	case .Density:         return "density"
@@ -878,8 +876,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.processMode != b.processMode || a.blendMode != b.blendMode || a.zIndex != b.zIndex || a.ySort != b.ySort ||
 	   a.groups != b.groups ||
 	   a.texture != b.texture || a.text != b.text || a.fontSize != b.fontSize || a.color != b.color ||
-	   a.centered != b.centered || a.zoom != b.zoom || a.columns != b.columns || a.rows != b.rows ||
-	   a.margin != b.margin || a.spacing != b.spacing || a.autoplay != b.autoplay || !animationsEqual(a.animations[:], b.animations[:]) || a.animationSet != b.animationSet ||
+	   a.centered != b.centered || a.zoom != b.zoom || a.autoplay != b.autoplay || !animationsEqual(a.animations[:], b.animations[:]) || a.animationSet != b.animationSet ||
 	   a.asepriteLayers != b.asepriteLayers || a.pivotSlice != b.pivotSlice || a.nineSlice != b.nineSlice || a.nineSize != b.nineSize || a.region != b.region || a.slice != b.slice ||
 	   len(a.items) != len(b.items) ||
 	   a.script != b.script || len(a.props) != len(b.props) ||

@@ -2,7 +2,10 @@ package crossfire_editor
 
 import "core:fmt"
 import "core:math"
+import "core:path/filepath"
+import "core:strings"
 import "gui:skald"
+import e "engine:."
 import sdl "vendor:sdl3"
 
 INSPECTOR_LABEL_WIDTH :: 82
@@ -475,15 +478,16 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		editButton := skald.button(ctx, fmt.tprintf("%s  Edit Animations", ICON_FILM), Msg(Bottom_Tab_Changed(int(BottomTab.Animation))),
 			id = skald.hash_id(fmt.tprintf("inspector-edit-animations-%d", key)),
 			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
-		if node.animationSet == "" {
-			append(&rows,
-				inspectorRow(ctx, "Sheet", textureSelect(ctx, s, key, node.texture, controlWidth)),
-				inspectorRow(ctx, "Columns", number(ctx, s, key, .Columns, f32(node.columns), 1, 0, numberWidth, 1, 64)),
-				inspectorRow(ctx, "Rows", number(ctx, s, key, .Rows, f32(node.rows), 1, 0, numberWidth, 1, 64)),
-				inspectorRow(ctx, "Margin", number(ctx, s, key, .Margin, node.margin, 1, 0, numberWidth, 0, 1000)),
-				inspectorRow(ctx, "Spacing", number(ctx, s, key, .Spacing, node.spacing, 1, 0, numberWidth, 0, 1000)),
-			)
+		// Each animation has its own sheet (edited in the Animation panel): the ones they use
+		sheets := make([dynamic]string, context.temp_allocator)
+		for a in animations {
+			name := a.sheet == "" ? "(none)" : filepath.base(strings.trim_suffix(a.sheet, e.ASEPRITE_SHEET_SUFFIX))
+			known := false
+			for other in sheets do if other == name do known = true
+			if !known do append(&sheets, name)
 		}
+		sheetText := len(sheets) == 0 ? "none yet" : strings.join(sheets[:], ", ", context.temp_allocator)
+		append(&rows, inspectorRow(ctx, "Sheets", skald.text(sheetText, th.color.fg_muted, th.font.size_xs, max_width = controlWidth)))
 		append(&rows,
 			inspectorRow(ctx, "Starts with", skald.select(ctx, node.autoplay == "" ? ANIMATION_FIRST : node.autoplay, choices[:], NodeTextField.Autoplay, onText,
 				id = skald.hash_id(fmt.tprintf("inspector-autoplay-%d", key)), width = controlWidth)),

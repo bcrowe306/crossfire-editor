@@ -247,13 +247,19 @@ Project_RemoveAsset :: proc(project: ^Project, index: int, deleteFile: bool) -> 
 }
 
 /*
-How many nodes, across all scenes, use an asset path.
+How many nodes, across all scenes, use an asset path (as their texture, or an animation's sheet),
+and animation assets' animations.
 */
 AssetUsage :: proc(project: ^Project, path: string) -> int {
 	count := 0
-	for &scene in project.scenes {
-		for node in scene.nodes do if node.texture == path do count += 1
+	uses :: proc(animations: []AnimationDef, path: string) -> bool {
+		for a in animations do if a.sheet == path || strings.trim_suffix(a.sheet, e.ASEPRITE_SHEET_SUFFIX) == path do return true
+		return false
 	}
+	for &scene in project.scenes {
+		for node in scene.nodes do if node.texture == path || uses(node.animations[:], path) do count += 1
+	}
+	for set in project.animationSets do if uses(set.animations[:], path) do count += 1
 	return count
 }
 

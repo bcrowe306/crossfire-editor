@@ -11,27 +11,37 @@ The Animation panel (the bottom panel's Animation tab): the animation editor for
 AnimatedSprite. A toolbar on top, the frames below, using the panel's whole width:
 
 	+---------------------------------------------------------------------------------+
-	| [walk v] + dup - up dn   Name [walk]   * Starts with this   Frames [0] to [3]     |
-	| FPS [10]  [x] Loop  [Forward v]   Sheet [hero.png v]   Grid 4 x 2   Margin  Gap  |
+	| [walk v] + dup - up dn   Name [walk]   * Starts with this                         |
+	| Sheet [walk.png v]  Grid [Cells v]  [4] x [2]  Margin [0]  Gap [0]  8 frames      |
+	| Frames [0] to [3]  Count [4]  FPS [10]  [x] Loop  [Forward v]                     |
 	+------------+--------------------------------------------------------------------+
-	|  preview   | [0][1][2][3][4][5][6][7]  a thumbnail of every cell of the sheet,  |
+	|  preview   | [0][1][2][3][4][5][6][7]  a thumbnail of every cell of its sheet,  |
 	|  > 2 / 4   |  the selected animation's cells lit                                |
 	+------------+--------------------------------------------------------------------+
 
-- The animation dropdown picks the animation; the buttons add, duplicate, remove and move it.
-  The star marks the one the sprite starts with (or the inspector's Starts with).
-- The selected animation's name, first and last frame, speed, looping and play mode, then the
-  sprite sheet's image and grid (the same as the inspector's). The toolbar's groups wrap onto as
-  many lines as the panel's width needs; the whole panel scrolls when it's short.
-- The frames: click a thumbnail to start the animation there, Shift+click to end it there.
+- The animation dropdown picks the animation; the buttons add (every frame of the selected one's
+  sheet), duplicate, remove and move it. The star marks the one the sprite starts with (or the
+  inspector's Starts with).
+- The selected animation's name; its own sheet (an image, or one dragged from the browser onto
+  the panel) and grid: columns x rows, or (Grid: Size) a cell's width x height in pixels, the
+  other worked out from the image; margin and gap; its first and last frame (or how many),
+  speed, looping and play mode. The toolbar's groups wrap onto as many lines as the panel's
+  width needs (they're kept small: the tiled window is narrow); the whole panel scrolls when
+  it's short.
+- The frames: the selected animation's sheet; click a thumbnail to start the animation there,
+  Shift+click to end it there.
 - The preview plays the animation as the game will (`AnimationDef_FrameAt`); the viewport plays
   it on the sprite too.
 
 Logic and messages: animation_edit.odin. Widget keys: `animation-select` (the dropdown),
 `animation-add`, `animation-duplicate`, `animation-remove`, `animation-up`, `animation-down`,
-`animation-name-<node>`, `animation-start-<node>`, `animation-end-<node>`, `animation-fps-<node>`,
-`animation-loop-<node>`, `animation-mode-<node>`, `animation-autoplay`, `animation-sheet-<node>`,
-`animation-frames` (the thumbnails), `animation-preview`, `animation-play`.
+`animation-name-<node>`, `animation-sheet-<node>`, `animation-grid-<node>` (Cells or Size),
+`animation-Columns-<node>`, `animation-Rows-<node>`, `animation-Cell_Width-<node>`,
+`animation-Cell_Height-<node>`, `animation-Margin-<node>`, `animation-Spacing-<node>`,
+`animation-start-<node>`, `animation-end-<node>`, `animation-count-<node>`, `animation-fps-<node>`,
+`animation-loop-<node>`, `animation-mode-<node>`, `animation-autoplay`, `animation-frames` (the
+thumbnails), `animation-preview`, `animation-play`, `animation-scroll` (the panel: images dropped
+on it).
 */
 
 // Thumbnail size and gap in the frame strip
@@ -52,8 +62,9 @@ AnimationPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		return placeholder(ctx, "Select an AnimatedSprite node (or an animation asset in the browser) to edit its animations.")
 	}
 	if animation == nil do return placeholder(ctx, fmt.tprintf("%s has no animations.", AnimSource_Name(src)))
-	sheet := sheetImage(ctx, s, src.texture^)
-	cells := max(src.columns^ * src.rows^, 1)
+	// The selected animation's own sheet
+	sheet := sheetImage(ctx, s, animation.sheet)
+	cells := AnimEdit_Cells(s.project.rootPath, animation^)
 	// Widget keys: the node's index for its own animations (the UI tests use it), else apart
 	key := src.kind == .Node ? s.selectedNode : -2 - max(src.setIndex, 0)
 
@@ -69,8 +80,8 @@ AnimationPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	toolbar := make([dynamic]skald.View, context.temp_allocator)
 	append(&toolbar, ..sourceLabel(ctx, s, src))
 	append(&toolbar, ..animationPicker(ctx, s, src, animation^, index, key))
+	append(&toolbar, ..sheetSettings(ctx, s, src, animation^, key, cells))
 	append(&toolbar, ..animationDetails(ctx, s, src, animation^, key, cells))
-	append(&toolbar, ..sheetSettings(ctx, s, src, key, cells))
 	stripWidth := max(width - PREVIEW_SIZE - gap * 3, THUMB_SIZE)
 	return skald.scroll(ctx, {0, 0}, skald.col(
 		skald.wrap_row(..toolbar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = gap, width = width, bg = th.color.surface),
@@ -169,7 +180,7 @@ animationPicker :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animat
 	append(&groups,
 		group(ctx, "", skald.text(ICON_FILM, th.color.fg_muted, th.font.size_sm), picker),
 		group(ctx, "",
-			tool(ctx, "animation-add", ICON_PLUS, "New animation (every frame)", Msg(Anim_Added{})),
+			tool(ctx, "animation-add", ICON_PLUS, "New animation (every frame of this one's sheet)", Msg(Anim_Added{})),
 			tool(ctx, "animation-duplicate", ICON_COPY, "Duplicate this animation", Msg(Anim_Duplicated{})),
 			tool(ctx, "animation-remove", ICON_TRASH, "Remove this animation (a sprite keeps one)", Msg(Anim_Removed{}), disabled = count <= 1),
 			tool(ctx, "animation-up", ICON_ARROW_UP, "Move it up the list", Msg(Anim_Moved(-1)), disabled = index <= 0),
@@ -181,7 +192,7 @@ animationPicker :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animat
 	return groups[:]
 }
 
-// Toolbar: the animation's frames, speed, looping and play mode
+// Toolbar: the animation's frames (first and last, or how many), speed, looping and play mode
 @(private="file")
 animationDetails :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animation: AnimationDef, key, cells: int) -> []skald.View {
 	th := ctx.theme
@@ -212,6 +223,7 @@ animationDetails :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 			numberField(ctx, s, fmt.tprintf("animation-start-%d", key), AnimField.Start, f64(start), 1, 0, NUMBER_WIDTH, 0, f64(cells - 1)),
 			toolLabel(ctx, "to"),
 			numberField(ctx, s, fmt.tprintf("animation-end-%d", key), AnimField.End, f64(end), 1, 0, NUMBER_WIDTH, 0, f64(cells - 1))),
+		group(ctx, "Count", numberField(ctx, s, fmt.tprintf("animation-count-%d", key), AnimField.Frames, f64(end - start + 1), 1, 0, NUMBER_WIDTH, 1, f64(cells - start))),
 		group(ctx, "FPS", numberField(ctx, s, fmt.tprintf("animation-fps-%d", key), AnimField.FPS, f64(animation.fps), 1, 0, NUMBER_WIDTH, 0, 120)),
 		skald.checkbox(ctx, animation.loop, "Loop", proc(v: bool) -> Msg { return Anim_Loop_Changed(v) }, id = skald.hash_id(fmt.tprintf("animation-loop-%d", key))),
 		skald.select(ctx, fmt.tprintf("%v", animation.playMode), modes, proc(v: string) -> Msg { return Anim_Mode_Changed(v) },
@@ -222,48 +234,50 @@ animationDetails :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 	return groups[:]
 }
 
-// Toolbar: the sprite sheet's image and grid (a node's: the inspector edits the same fields)
+// Toolbar: the selected animation's sheet: its image (a dropdown, or an image dropped on the
+// panel), its grid (columns x rows, or a cell's size), margin and gap
 @(private="file")
-sheetSettings :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, key, cells: int) -> []skald.View {
+sheetSettings :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animation: AnimationDef, key, cells: int) -> []skald.View {
 	th := ctx.theme
 	groups := make([dynamic]skald.View, context.temp_allocator)
+	columns, rows, cell := e.SheetGrid_Layout(animation.grid, AnimEdit_SheetSize(s.project.rootPath, animation.sheet))
 	if src.readOnly {
-		append(&groups, skald.text(fmt.tprintf("Sheet: every frame, %d x %d", src.columns^, src.rows^), th.color.fg_muted, th.font.size_xs))
+		append(&groups, skald.text(fmt.tprintf("Sheet: %s, every frame, %d x %d", filepath.base(strings.trim_suffix(animation.sheet, e.ASEPRITE_SHEET_SUFFIX)), columns, rows),
+			th.color.fg_muted, th.font.size_xs))
 		return groups[:]
 	}
 	images := make([dynamic]string, context.temp_allocator)
 	append(&images, TEXTURE_NONE)
 	for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)
-	texture := src.texture^
-	sheet: skald.View
-	if src.kind == .Node {
-		sheet = skald.select(ctx, texture == "" ? TEXTURE_NONE : texture, images[:], NodeTextField.Texture,
-			proc(field: NodeTextField, v: string) -> Msg { return Node_Text_Changed{field, v} },
-			id = skald.hash_id(fmt.tprintf("animation-sheet-%d", key)), width = 150, placeholder = "Choose an image")
-	} else {
-		sheet = skald.select(ctx, texture == "" ? TEXTURE_NONE : texture, images[:], proc(v: string) -> Msg { return Anim_Sheet_Texture_Changed(v) },
-			id = skald.hash_id(fmt.tprintf("animation-sheet-%d", key)), width = 150, placeholder = "Choose an image")
+	sheet := skald.select(ctx, animation.sheet == "" ? TEXTURE_NONE : animation.sheet, images[:], proc(v: string) -> Msg { return Anim_Sheet_Texture_Changed(v) },
+		id = skald.hash_id(fmt.tprintf("animation-sheet-%d", key)), width = 150, placeholder = "Choose an image")
+	modes := make([]string, len(e.SheetGridMode), context.temp_allocator)
+	for mode in e.SheetGridMode do modes[mode] = fmt.tprintf("%v", mode)
+	gridMode := skald.select(ctx, fmt.tprintf("%v", animation.grid.mode), modes, proc(v: string) -> Msg { return Anim_Grid_Mode_Changed(v) },
+		id = skald.hash_id(fmt.tprintf("animation-grid-%d", key)), width = 74)
+	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: AnimField, value: f32, lo, hi: f64) -> skald.View {
+		return numberField(ctx, s, fmt.tprintf("animation-%v-%d", field, key), field, f64(value), 1, 0, NUMBER_WIDTH, lo, hi)
 	}
-	// A node's grid is its node fields; an asset's, the panel's own
-	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, key: int, field: NodeField, value: f32, lo, hi: f64) -> skald.View {
-		id := fmt.tprintf("animation-%v-%d", field, key)
-		if src.kind == .Node do return numberField(ctx, s, id, field, f64(value), 1, 0, NUMBER_WIDTH, lo, hi)
-		anim: AnimField
-		#partial switch field {
-		case .Columns: anim = .Columns
-		case .Rows:    anim = .Rows
-		case .Margin:  anim = .Margin
-		case .Spacing: anim = .Spacing
-		}
-		return numberField(ctx, s, id, anim, f64(value), 1, 0, NUMBER_WIDTH, lo, hi)
+	// The grid's values: columns x rows, or a cell's size; the other is shown, worked out from the image
+	values, derived: skald.View
+	switch animation.grid.mode {
+	case .Cells:
+		values = group(ctx, "", number(ctx, s, key, .Columns, f32(max(animation.grid.columns, 1)), 1, 256), toolLabel(ctx, "×"), number(ctx, s, key, .Rows, f32(max(animation.grid.rows, 1)), 1, 256))
+		derived = skald.text(cell.x > 0 && cell.y > 0 ? fmt.tprintf("cells %.0f × %.0f px", cell.x, cell.y) : "", th.color.fg_muted, th.font.size_xs)
+	case .Size:
+		values = group(ctx, "", number(ctx, s, key, .Cell_Width, animation.grid.cellSize.x, 1, 4096), toolLabel(ctx, "×"), number(ctx, s, key, .Cell_Height, animation.grid.cellSize.y, 1, 4096), toolLabel(ctx, "px"))
+		derived = skald.text(fmt.tprintf("%d × %d cells", columns, rows), th.color.fg_muted, th.font.size_xs)
 	}
 	append(&groups,
 		group(ctx, "Sheet", sheet),
-		group(ctx, "Grid", number(ctx, s, src, key, .Columns, f32(src.columns^), 1, 64), toolLabel(ctx, "×"), number(ctx, s, src, key, .Rows, f32(src.rows^), 1, 64)),
-		group(ctx, "Margin", number(ctx, s, src, key, .Margin, src.margin^, 0, 1000)),
-		group(ctx, "Gap", number(ctx, s, src, key, .Spacing, src.spacing^, 0, 1000)),
+		group(ctx, "Grid", gridMode),
+		values,
+		group(ctx, "Margin", number(ctx, s, key, .Margin, animation.grid.margin, 0, 1000)),
+		group(ctx, "Gap", number(ctx, s, key, .Spacing, animation.grid.spacing, 0, 1000)),
 		skald.text(fmt.tprintf("%d frames", cells), th.color.fg_muted, th.font.size_xs),
+		derived,
 	)
+	if animation.sheet == "" do append(&groups, skald.text("Pick a sheet, or drag an image from the browser onto this panel.", th.color.warning, th.font.size_xs))
 	return groups[:]
 }
 
@@ -315,13 +329,13 @@ frameStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animation: 
 	start, end := AnimationDef_Range(animation, cells)
 	Strip :: struct {
 		sheet: SheetImage,
-		grid: SheetGrid,
+		grid: e.SheetGrid,
 		cells, perRow, start, end, current: int,
 		lit, dim, edge, current_color, text, muted: skald.Color,
 		font: f32,
 	}
 	strip := new_clone(Strip{
-		sheet = sheet, grid = gridOf(src), cells = cells, perRow = perRow, start = start, end = end,
+		sheet = sheet, grid = animation.grid, cells = cells, perRow = perRow, start = start, end = end,
 		current = s.animEditor.playing ? AnimationDef_FrameAt(animation, cells, s.animEditor.clock) : -1,
 		lit = th.color.primary, dim = th.color.surface, edge = th.color.border, current_color = th.color.fg,
 		text = th.color.fg, muted = th.color.fg_muted, font = th.font.size_xs,
@@ -352,8 +366,8 @@ animationPreview :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 	start, end := AnimationDef_Range(animation, cells)
 	backwards := animation.playMode == .Reverse || animation.playMode == .PingPongReverse
 	frame := s.animEditor.playing ? AnimationDef_FrameAt(animation, cells, s.animEditor.clock) : (backwards ? end : start)
-	Preview :: struct { sheet: SheetImage, grid: SheetGrid, frame: int, bg, edge: skald.Color }
-	preview := new_clone(Preview{sheet, gridOf(src), frame, th.color.surface, th.color.border}, context.temp_allocator)
+	Preview :: struct { sheet: SheetImage, grid: e.SheetGrid, frame: int, bg, edge: skald.Color }
+	preview := new_clone(Preview{sheet, animation.grid, frame, th.color.surface, th.color.border}, context.temp_allocator)
 	canvas := skald.canvas(ctx, preview, proc(pv: ^Preview, p: skald.Canvas_Painter) {
 		skald.draw_rect(p.r, p.bounds, pv.bg, 4)
 		drawCell(p.r, pv.sheet, pv.grid, pv.frame, {p.bounds.x + 4, p.bounds.y + 4, p.bounds.w - 8, p.bounds.h - 8}, {1, 1, 1, 1})
@@ -375,18 +389,6 @@ animationPreview :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 	)
 }
 
-// A sheet's grid (what drawing a cell needs from the node)
-@(private="file")
-SheetGrid :: struct {
-	columns, rows: int,
-	margin, spacing: f32,
-}
-
-@(private="file")
-gridOf :: proc(src: AnimSource) -> SheetGrid {
-	return {src.columns^, src.rows^, src.margin^, src.spacing^}
-}
-
 // A sprite sheet uploaded to Skald, to draw its cells
 SheetImage :: struct {
 	// The Skald image name ("" if it isn't loaded)
@@ -399,7 +401,7 @@ SheetImage :: struct {
 sheets: map[string]SheetImage
 
 /*
-The node's sprite sheet as a Skald image, loaded (`Image_LoadRGBA`: stb_image, or the engine for
+An animation's sprite sheet as a Skald image, loaded (`Image_LoadRGBA`: stb_image, or the engine for
 Aseprite files) and uploaded the first time.
 */
 @(private="file")
@@ -432,6 +434,20 @@ AnimationPanel_FrameCenter :: proc(frame: int) -> [2]f32 {
 	return {f32(frame % stripColumns) * (THUMB_SIZE + THUMB_GAP) + THUMB_SIZE * 0.5, f32(frame / stripColumns) * (THUMB_SIZE + THUMB_GAP + 12) + THUMB_SIZE * 0.5}
 }
 
+/*
+Whether the mouse is over the Animation panel showing an animation it can edit (a sheet dragged
+from the browser drops there).
+*/
+AnimationPanel_TakesDrop :: proc(s: ^State, ctx: ^skald.Ctx(Msg), mouse: [2]f32) -> bool {
+	if s.bottomTab != .Animation || !s.layout.bottomOpen do return false
+	src, animation, _ := AnimEdit_Selection(s)
+	if animation == nil || src.readOnly do return false
+	state, drawn := ctx.widgets.states[skald.hash_id("animation-scroll")]
+	if !drawn do return false
+	area := state.clip_rect.w > 0 ? state.clip_rect : state.last_rect
+	return pointIn(area, mouse)
+}
+
 // Whether the panel has uploaded a sheet (for the UI tests: thumbnails can be drawn)
 AnimationPanel_SheetLoaded :: proc(s: ^State, texture: string) -> bool {
 	path := joinPath(s.project.rootPath, texture, allocator = context.temp_allocator)
@@ -441,9 +457,9 @@ AnimationPanel_SheetLoaded :: proc(s: ^State, texture: string) -> bool {
 
 // Draws one cell of a sheet into `box`, keeping its shape (centered)
 @(private="file")
-drawCell :: proc(r: ^skald.Renderer, sheet: SheetImage, grid: SheetGrid, frame: int, box: skald.Rect, tint: skald.Color) {
+drawCell :: proc(r: ^skald.Renderer, sheet: SheetImage, grid: e.SheetGrid, frame: int, box: skald.Rect, tint: skald.Color) {
 	if sheet.name == "" do return
-	cell := e.SpriteSheet_CellRect(sheet.size, grid.columns, grid.rows, grid.margin, grid.spacing, frame)
+	cell := e.SheetGrid_CellRect(grid, sheet.size, frame)
 	if cell.w <= 0 || cell.h <= 0 do return
 	scale := min(box.w / cell.w, box.h / cell.h)
 	shown := skald.Rect{box.x + (box.w - cell.w * scale) * 0.5, box.y + (box.h - cell.h * scale) * 0.5, cell.w * scale, cell.h * scale}

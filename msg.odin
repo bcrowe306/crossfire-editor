@@ -482,11 +482,6 @@ NodeField :: enum {
 	Z_Index,
 	Font_Size,
 	Zoom,
-	Columns,
-	Rows,
-	// AnimatedSprite sheet: pixels around the grid and between cells
-	Margin,
-	Spacing,
 	// Physics
 	Friction,
 	Restitution,
@@ -749,15 +744,25 @@ Anim_Name_Typed :: struct {
 AnimField :: enum {
 	Start,
 	End,
+	// How many frames it plays (moves its end)
+	Frames,
 	FPS,
-	// An animation asset's grid (a node's own grid is its NodeFields)
+	// Its sheet's grid: columns x rows, or a cell's size (`Anim_Grid_Mode_Changed`)
 	Columns,
 	Rows,
+	Cell_Width,
+	Cell_Height,
+	// Pixels around the grid and between cells
 	Margin,
 	Spacing,
 }
-// An animation asset's sheet image (TEXTURE_NONE for none)
+// The selected animation's sheet image (TEXTURE_NONE for none)
 Anim_Sheet_Texture_Changed :: distinct string
+// An image dragged from the browser was released over the Animation panel: the selected
+// animation's sheet (the dragged asset is State.assetDrag's)
+Anim_Sheet_Dropped :: struct {}
+// How the selected animation's sheet is cut: an `e.SheetGridMode` by name (Cells, Size)
+Anim_Grid_Mode_Changed :: distinct string
 // The browser shows an animation asset in the Animation panel (its path; "": the selected sprite's)
 Anim_Asset_Shown :: distinct string
 // The inspector's Save as Animation Asset: the selected sprite's own animations become an asset it uses
@@ -1243,6 +1248,8 @@ Msg :: union {
 	Input_Device_Changed,
 	Anim_Selected,
 	Anim_Sheet_Texture_Changed,
+	Anim_Sheet_Dropped,
+	Anim_Grid_Mode_Changed,
 	Anim_Asset_Shown,
 	Anim_Set_From_Node,
 	Anim_Set_New,

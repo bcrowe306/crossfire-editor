@@ -1,5 +1,5 @@
 # Animation assets: a sprite's own animations saved as one it plays, edited in the Animation panel
-# (undone), an Aseprite file's tags as another sprite's animations (read only), dragged into the
+# (undone; a second animation on its own sheet, cut by cell size), an Aseprite file's tags as another sprite's animations (read only), dragged into the
 # viewport, saved and played.
 # Run with: task test:ui
 #
@@ -33,6 +33,43 @@ expect animations 1
 expect selected Balloon
 key ctrl+y
 expect animations 2
+
+# Each of the asset's animations has its own sheet: the second on light.png (128 x 64), cut by
+# cell size; undone; the first keeps the balloons
+scroll_into_view animation-scroll animation-select
+click_widget animation-select
+wait 3
+click_overlay_item 1
+scroll_into_view animation-scroll animation-sheet--2
+click_widget animation-sheet--2
+wait 3
+click_overlay_item 3
+expect animation sheet assets/light.png
+scroll_into_view animation-scroll animation-grid--2
+click_widget animation-grid--2
+wait 3
+click_overlay_item 1
+expect animation grid Size
+expect animation cell 32x64
+scroll_into_view animation-scroll animation-Cell_Height--2
+click_widget animation-Cell_Height--2
+key ctrl+a
+type 32
+expect animation cell 32x32
+expect animation cells 8
+scroll_into_view animation-scroll animation-Margin--2-inc
+click_widget animation-Margin--2-inc
+expect animation margin 1
+key ctrl+z
+expect animation margin 0
+expect animation cells 8
+scroll_into_view animation-scroll animation-select
+click_widget animation-select
+wait 3
+click_overlay_item 0
+expect animation sheet assets/balloons.png
+expect animation grid Cells
+expect animation cells 4
 
 # An Aseprite file's tags: another sprite's animations, read only
 import tests/fixtures/aseprite/tags3.aseprite
@@ -68,6 +105,9 @@ key ctrl+s
 expect project_file_contains scenes/PlayScene.scene.xml animations="animations/balloon.anim.xml"
 expect project_file_contains scenes/PlayScene.scene.xml animations="assets/tags3.aseprite"
 expect project_file_contains project.xml kind="Animation"
+expect project_file_contains animations/balloon.anim.xml sheet="assets/balloons.png" columns="4" rows="1"
+expect project_file_contains animations/balloon.anim.xml sheet="assets/light.png" grid="Size" cellWidth="32" cellHeight="32"
+expect project_file_lacks animations/balloon.anim.xml texture=
 action Play_Scene
 wait_until play Playing
 wait 3

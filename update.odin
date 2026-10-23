@@ -184,7 +184,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by UIEdit_Update and ThemeEdit_Update above
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
-	     Anim_Sheet_Texture_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,
+	     Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,
 	     Anim_Loop_Changed, Anim_Mode_Changed, Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Playback_Toggled,
 	     Anim_Tick, Anim_Tick_Requested:
 		// Handled by AnimEdit_Update above
@@ -995,10 +995,6 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Z_Index:    node.zIndex = i32(clamp(v.value, -1_000_000, 1_000_000))
 		case .Font_Size:  node.fontSize = max(value, 1)
 		case .Zoom:       node.zoom = max(value, 0.05)
-		case .Columns:    node.columns = max(int(v.value), 1)
-		case .Rows:       node.rows = max(int(v.value), 1)
-		case .Margin:     node.margin = max(value, 0)
-		case .Spacing:    node.spacing = max(value, 0)
 		case .Friction:        node.friction = max(value, 0)
 		case .Restitution:     node.restitution = clamp(value, 0, 1)
 		case .Density:         node.density = max(value, 0)

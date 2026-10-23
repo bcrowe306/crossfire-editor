@@ -8,8 +8,9 @@ import "gui:skald"
 import e "engine:."
 
 /*
-Animation assets in the editor (the engine's animation_sets.odin plays them): a sheet and named
-animations that AnimatedSprite nodes share (`NodeDef.animationSet`, the scene file's `animations`).
+Animation assets in the editor (the engine's animation_sets.odin plays them): named animations, each
+on its own sheet, that AnimatedSprite nodes share (`NodeDef.animationSet`, the scene file's
+`animations`).
 
 - **Kinds:** an `.anim.xml` file is an asset of kind Animation (`AnimationSetDef`, in
   `Project.animationSets`, loaded with the project, written by Save when changed: like data
@@ -26,16 +27,10 @@ ANIMATION_FOLDER :: "animations"
 // Their files' extension
 ANIMATION_EXTENSION :: ".anim.xml"
 
-// An animation asset (an `.anim.xml` file): its sheet and animations
+// An animation asset (an `.anim.xml` file): its animations, each on its own sheet
 AnimationSetDef :: struct {
 	// The file, relative to the project folder (owned)
 	path: string,
-	// The sheet image (owned)
-	texture: string,
-	// Its grid
-	columns, rows: int,
-	// Pixels around the grid and between cells
-	margin, spacing: f32,
 	// The animation it starts with ("": the first; owned)
 	autoplay: string,
 	// Its animations (owned)
@@ -46,6 +41,7 @@ AnimationSetDef :: struct {
 AnimationDef_Clone :: proc(a: AnimationDef) -> AnimationDef {
 	copy := a
 	copy.name = strings.clone(a.name)
+	copy.sheet = strings.clone(a.sheet)
 	copy.durations = make([dynamic]f32, 0, len(a.durations))
 	append(&copy.durations, ..a.durations[:])
 	copy.events = make([dynamic]string, 0, len(a.events))
@@ -56,6 +52,7 @@ AnimationDef_Clone :: proc(a: AnimationDef) -> AnimationDef {
 // Frees an animation's strings and lists
 AnimationDef_Destroy :: proc(a: ^AnimationDef) {
 	delete(a.name)
+	delete(a.sheet)
 	delete(a.durations)
 	for event in a.events do delete(event)
 	delete(a.events)
@@ -63,7 +60,7 @@ AnimationDef_Destroy :: proc(a: ^AnimationDef) {
 
 // Whether two animations are the same
 AnimationDef_Equal :: proc(a, b: AnimationDef) -> bool {
-	if a.name != b.name || a.start != b.start || a.end != b.end || a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || a.repeat != b.repeat || len(a.durations) != len(b.durations) do return false
+	if a.name != b.name || a.sheet != b.sheet || a.grid != b.grid || a.start != b.start || a.end != b.end || a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || a.repeat != b.repeat || len(a.durations) != len(b.durations) do return false
 	for d, i in a.durations do if d != b.durations[i] do return false
 	if len(a.events) != len(b.events) do return false
 	for event, i in a.events do if event != b.events[i] do return false
@@ -72,7 +69,7 @@ AnimationDef_Equal :: proc(a, b: AnimationDef) -> bool {
 
 // An engine animation as the editor's (owned)
 AnimationDef_FromData :: proc(a: e.AnimationData) -> AnimationDef {
-	def := AnimationDef{name = strings.clone(a.name), start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, repeat = a.repeat}
+	def := AnimationDef{name = strings.clone(a.name), sheet = strings.clone(a.sheet), grid = a.grid, start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, repeat = a.repeat}
 	def.durations = make([dynamic]f32, 0, len(a.durations))
 	append(&def.durations, ..a.durations[:])
 	def.events = make([dynamic]string, 0, len(a.events))
@@ -80,16 +77,15 @@ AnimationDef_FromData :: proc(a: e.AnimationData) -> AnimationDef {
 	return def
 }
 
-// The editor's animation as the engine's (its name and durations borrowed)
+// The editor's animation as the engine's (its name, sheet and lists borrowed)
 AnimationDef_ToData :: proc(a: AnimationDef) -> e.AnimationData {
-	return {name = a.name, start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, durations = a.durations, repeat = a.repeat, events = a.events}
+	return {name = a.name, sheet = a.sheet, grid = a.grid, start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, durations = a.durations, repeat = a.repeat, events = a.events}
 }
 
 // A copy of a set (owning everything)
 AnimationSetDef_Clone :: proc(set: AnimationSetDef) -> AnimationSetDef {
 	copy := set
 	copy.path = strings.clone(set.path)
-	copy.texture = strings.clone(set.texture)
 	copy.autoplay = strings.clone(set.autoplay)
 	copy.animations = make([dynamic]AnimationDef, 0, len(set.animations))
 	for a in set.animations do append(&copy.animations, AnimationDef_Clone(a))
@@ -99,7 +95,6 @@ AnimationSetDef_Clone :: proc(set: AnimationSetDef) -> AnimationSetDef {
 // Frees a set's strings and lists
 AnimationSetDef_Destroy :: proc(set: ^AnimationSetDef) {
 	delete(set.path)
-	delete(set.texture)
 	delete(set.autoplay)
 	for &a in set.animations do AnimationDef_Destroy(&a)
 	delete(set.animations)
@@ -108,9 +103,7 @@ AnimationSetDef_Destroy :: proc(set: ^AnimationSetDef) {
 
 // Whether two sets are the same
 AnimationSetDef_Equal :: proc(a, b: AnimationSetDef) -> bool {
-	if a.path != b.path || a.texture != b.texture || a.columns != b.columns || a.rows != b.rows || a.margin != b.margin || a.spacing != b.spacing {
-		return false
-	}
+	if a.path != b.path do return false
 	if a.autoplay != b.autoplay || len(a.animations) != len(b.animations) do return false
 	for x, i in a.animations do if !AnimationDef_Equal(x, b.animations[i]) do return false
 	return true
@@ -118,8 +111,7 @@ AnimationSetDef_Equal :: proc(a, b: AnimationSetDef) -> bool {
 
 // An engine set as the editor's (owned)
 AnimationSetDef_FromData :: proc(path: string, set: e.AnimationSetData) -> AnimationSetDef {
-	def := AnimationSetDef{path = strings.clone(path), texture = strings.clone(set.texture), columns = set.columns, rows = set.rows,
-		margin = set.margin, spacing = set.spacing, autoplay = strings.clone(set.autoplay)}
+	def := AnimationSetDef{path = strings.clone(path), autoplay = strings.clone(set.autoplay)}
 	def.animations = make([dynamic]AnimationDef, 0, len(set.animations))
 	for a in set.animations do append(&def.animations, AnimationDef_FromData(a))
 	return def
@@ -127,7 +119,7 @@ AnimationSetDef_FromData :: proc(path: string, set: e.AnimationSetData) -> Anima
 
 // The editor's set as the engine's (strings borrowed; the list temp allocated)
 AnimationSetDef_ToData :: proc(set: ^AnimationSetDef) -> e.AnimationSetData {
-	data := e.AnimationSetData{texture = set.texture, columns = set.columns, rows = set.rows, margin = set.margin, spacing = set.spacing, autoplay = set.autoplay}
+	data := e.AnimationSetData{autoplay = set.autoplay}
 	data.animations = make([dynamic]e.AnimationData, 0, len(set.animations), context.temp_allocator)
 	for a in set.animations do append(&data.animations, AnimationDef_ToData(a))
 	return data
@@ -136,9 +128,9 @@ AnimationSetDef_ToData :: proc(set: ^AnimationSetDef) -> e.AnimationSetData {
 // Reads an `.anim.xml` file (owned), or an empty set and why
 Project_LoadAnimationSet :: proc(rootPath, path: string) -> (AnimationSetDef, string) {
 	text, err := os.read_entire_file(joinPath(rootPath, path, allocator = context.temp_allocator), context.temp_allocator)
-	if err != nil do return {path = strings.clone(path), columns = 1, rows = 1}, fmt.tprintf("Couldn't read %s", path)
+	if err != nil do return {path = strings.clone(path)}, fmt.tprintf("Couldn't read %s", path)
 	parsed, parseErr := e.ParseAnimationSet(string(text), context.temp_allocator)
-	if parseErr != .None do return {path = strings.clone(path), columns = 1, rows = 1}, fmt.tprintf("%s isn't an animation file (%v)", path, parseErr)
+	if parseErr != .None do return {path = strings.clone(path)}, fmt.tprintf("%s isn't an animation file (%v)", path, parseErr)
 	return AnimationSetDef_FromData(path, parsed), ""
 }
 
@@ -162,8 +154,8 @@ Project_SaveAnimationSets :: proc(project: ^Project) -> string {
 }
 
 /*
-Makes a new animation asset, `animations/<name>.anim.xml` (numbered when taken), from a sheet and
-animations (copied), and writes its file.
+Makes a new animation asset, `animations/<name>.anim.xml` (numbered when taken), from animations
+(copied, their sheets too), and writes its file.
 
 Inputs:
 - project: The project
@@ -197,10 +189,9 @@ Project_CreateAnimationSet :: proc(project: ^Project, name: string, from: Animat
 	return len(project.animationSets) - 1, ""
 }
 
-// A node's own sheet and animations as a set (borrowed: for Project_CreateAnimationSet to copy)
+// A node's own animations as a set (borrowed: for Project_CreateAnimationSet to copy)
 AnimationSet_OfNode :: proc(node: ^NodeDef) -> AnimationSetDef {
-	return {texture = node.texture, columns = node.columns, rows = node.rows, margin = node.margin, spacing = node.spacing,
-		autoplay = node.autoplay, animations = node.animations}
+	return {autoplay = node.autoplay, animations = node.animations}
 }
 
 /*
@@ -223,7 +214,7 @@ Asset_IsAnimations :: proc(asset: AssetDef) -> bool {
 // What the Animation panel edits
 AnimSourceKind :: enum {
 	None,
-	// The selected AnimatedSprite's own sheet and animations
+	// The selected AnimatedSprite's own animations
 	Node,
 	// An animation asset (an `.anim.xml` file)
 	Set,
@@ -232,8 +223,8 @@ AnimSourceKind :: enum {
 }
 
 /*
-What the Animation panel shows and edits: pointers to a sheet and its animations, wherever they
-live (valid for the frame).
+What the Animation panel shows and edits: pointers to animations (each with its own sheet) and the
+one played first, wherever they live (valid for the frame).
 */
 AnimSource :: struct {
 	kind: AnimSourceKind,
@@ -245,9 +236,6 @@ AnimSource :: struct {
 	setIndex: int,
 	// The asset's path (.Set, .Aseprite)
 	path: string,
-	texture: ^string,
-	columns, rows: ^int,
-	margin, spacing: ^f32,
 	autoplay: ^string,
 	animations: ^[dynamic]AnimationDef,
 	// Aseprite's: shown, not edited
@@ -262,11 +250,11 @@ AnimEdit_Source :: proc(s: ^State) -> AnimSource {
 	ofSet :: proc(s: ^State, path: string, node: ^NodeDef) -> AnimSource {
 		if i := Project_FindAnimationSet(&s.project, path); i >= 0 {
 			set := &s.project.animationSets[i]
-			return {.Set, node, set, i, path, &set.texture, &set.columns, &set.rows, &set.margin, &set.spacing, &set.autoplay, &set.animations, false}
+			return {.Set, node, set, i, path, &set.autoplay, &set.animations, false}
 		}
 		if e.Aseprite_IsFile(path) {
 			if set := AsepriteEdit_AnimationSet(s.project.rootPath, path); set != nil {
-				return {.Aseprite, node, set, -1, path, &set.texture, &set.columns, &set.rows, &set.margin, &set.spacing, &set.autoplay, &set.animations, true}
+				return {.Aseprite, node, set, -1, path, &set.autoplay, &set.animations, true}
 			}
 		}
 		return {kind = .None, node = node, path = path}
@@ -277,7 +265,7 @@ AnimEdit_Source :: proc(s: ^State) -> AnimSource {
 	node := &scene.nodes[s.selectedNode]
 	if node.kind != .AnimatedSprite do return {}
 	if node.animationSet != "" do return ofSet(s, node.animationSet, node)
-	return {.Node, node, nil, -1, "", &node.texture, &node.columns, &node.rows, &node.margin, &node.spacing, &node.autoplay, &node.animations, false}
+	return {.Node, node, nil, -1, "", &node.autoplay, &node.animations, false}
 }
 
 // What a source is called: its node's name, or its file's
@@ -319,8 +307,8 @@ Scene_AddAnimatedSpriteAt :: proc(scene: ^SceneDef, path: string, parent: int, w
 }
 
 /*
-The browser's preview of an animation asset: its sheet, its animations (frames, speed, looping),
-how many sprites use it, and Edit Animations (the Animation panel).
+The browser's preview of an animation asset: its animations (sheet, frames, speed, looping), how
+many sprites use it, and Edit Animations (the Animation panel).
 */
 AnimationSet_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> skald.View {
 	th := ctx.theme
@@ -339,13 +327,13 @@ AnimationSet_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -
 	} else {
 		set := &s.project.animationSets[i]
 		users := AnimationSet_UserCount(&s.project, set.path)
-		sheet := set.texture == "" ? "no sheet yet" : filepath.base(set.texture)
-		append(&rows, text(ctx, fmt.tprintf("Sheet: %s, %d x %d cells · used by %d sprite%s", sheet, set.columns, set.rows, users, users == 1 ? "" : "s")))
+		append(&rows, text(ctx, fmt.tprintf("Used by %d sprite%s", users, users == 1 ? "" : "s")))
 		for a in set.animations {
-			start, end := AnimationDef_Range(a, max(set.columns * set.rows, 1))
+			start, end := AnimationDef_Range(a, AnimEdit_Cells(s.project.rootPath, a))
 			speed := len(a.durations) > 0 ? "own durations" : fmt.tprintf("%v fps", a.fps)
 			first := set.autoplay == a.name ? "  (first)" : ""
-			append(&rows, text(ctx, fmt.tprintf("•  %s: frames %d-%d, %s%s%s", a.name, start, end, speed, a.loop ? ", loops" : "", first)))
+			sheet := a.sheet == "" ? "no sheet yet" : filepath.base(a.sheet)
+			append(&rows, text(ctx, fmt.tprintf("•  %s: %s, frames %d-%d, %s%s%s", a.name, sheet, start, end, speed, a.loop ? ", loops" : "", first)))
 		}
 		append(&rows, text(ctx, "Drag it into the viewport for an AnimatedSprite playing it, or pick it in an AnimatedSprite's Animations."))
 	}

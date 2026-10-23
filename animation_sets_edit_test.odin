@@ -4,6 +4,7 @@ import "core:os"
 import "core:strings"
 import "core:sync"
 import "core:testing"
+import e "engine:."
 
 // Animation assets in the editor: made from a sprite's own animations, saved and loaded, edited in
 // the Animation panel (project undo steps), Aseprite files' read only, drawn in the viewport, and
@@ -38,9 +39,9 @@ animation_assets_are_made_saved_edited_and_undone :: proc(t: ^testing.T) {
 	hero := Scene_InsertNode(scene, "Hero", .AnimatedSprite, -1)
 	state.selectedNode = hero
 	node := &scene.nodes[hero]
-	delete(node.texture)
-	node.texture = strings.clone(asePath)
-	node.columns, node.rows = 2, 2
+	delete(node.animations[0].sheet)
+	node.animations[0].sheet = strings.clone(asePath)
+	node.animations[0].grid = {mode = .Cells, columns = 2, rows = 2}
 	node.animations[0].durations = make([dynamic]f32)
 	append(&node.animations[0].durations, 0.1, 0.2, 0.1, 0.3)
 
@@ -52,7 +53,7 @@ animation_assets_are_made_saved_edited_and_undone :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(state.project.animationSets), 1)
 	testing.expect(t, os.exists(joinPath(root, "animations/hero.anim.xml", allocator = context.temp_allocator)), "its file")
 	src := AnimEdit_Source(&state)
-	testing.expect(t, src.kind == .Set && len(src.animations^) == 1 && src.columns^ == 2, "the panel shows the asset")
+	testing.expect(t, src.kind == .Set && len(src.animations^) == 1 && src.animations[0].grid.columns == 2 && src.animations[0].sheet == asePath, "the panel shows the asset")
 	testing.expect_value(t, len(src.animations[0].durations), 4)
 	// Undo: the sprite has its own animations again (the file stays, like components)
 	sendTo(&state, Action.Undo)
@@ -65,9 +66,9 @@ animation_assets_are_made_saved_edited_and_undone :: proc(t: ^testing.T) {
 	sendTo(&state, Anim_Added{})
 	sendTo(&state, Anim_Field_Changed{.Columns, 4})
 	set := &state.project.animationSets[0]
-	testing.expect(t, len(set.animations) == 2 && set.columns == 4, "edited")
+	testing.expect(t, len(set.animations) == 2 && set.animations[1].grid.columns == 4 && set.animations[1].sheet == asePath && set.animations[0].grid.columns == 2, "edited: the new one on the same sheet")
 	sendTo(&state, Action.Undo)
-	testing.expect_value(t, state.project.animationSets[0].columns, 2)
+	testing.expect_value(t, state.project.animationSets[0].animations[1].grid.columns, 2)
 	sendTo(&state, Action.Undo)
 	testing.expect_value(t, len(state.project.animationSets[0].animations), 1)
 	sendTo(&state, Action.Redo)
@@ -122,5 +123,83 @@ animation_assets_are_made_saved_edited_and_undone :: proc(t: ^testing.T) {
 	testing.expect_value(t, AnimEdit_Source(&state).path, "animations/animations.anim.xml")
 	sendTo(&state, Anim_Asset_Shown(""))
 	testing.expect_value(t, AnimEdit_Source(&state).kind, AnimSourceKind.Node)
+	free_all(context.temp_allocator)
+}
+
+@(test)
+animations_have_their_own_sheets_in_the_panel :: proc(t: ^testing.T) {
+	os.make_directory("build")
+	dir := "build/test_animation_sheets"
+	removeAll(dir)
+	defer removeAll(dir)
+	root := joinPath(dir, "Game", allocator = context.temp_allocator)
+	state := State{project = Project_CreateEmpty(root, "Game"), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default()}
+	state.settings.builtInCodeEditor = false
+	defer State_Destroy(&state)
+	testing.expect_value(t, Project_Save(&state.project), "")
+	// 320 x 100 (four balloons) and 128 x 64 (two lights)
+	balloons, problem := Project_ImportAsset(&state.project, "tests/fixtures/ui_project/assets/balloons.png")
+	testing.expect_value(t, problem, "")
+	light, problem2 := Project_ImportAsset(&state.project, "tests/fixtures/ui_project/assets/light.png")
+	testing.expect_value(t, problem2, "")
+	if balloons < 0 || light < 0 do return
+	balloonsPath, lightPath := state.project.assets[balloons].path, state.project.assets[light].path
+
+	scene := &state.project.scenes[0]
+	state.selectedNode = Scene_InsertNode(scene, "Hero", .AnimatedSprite, -1)
+	animations :: proc(state: ^State) -> ^[dynamic]AnimationDef { return &state.project.scenes[0].nodes[state.selectedNode].animations }
+	testing.expect_value(t, animations(&state)[0].sheet, "")
+
+	// The first animation's sheet: 4 x 1 cells
+	sendTo(&state, Anim_Sheet_Texture_Changed(balloonsPath))
+	sendTo(&state, Anim_Field_Changed{.Columns, 4})
+	testing.expect_value(t, animations(&state)[0].sheet, balloonsPath)
+	testing.expect_value(t, AnimEdit_Cells(state.project.rootPath, animations(&state)[0]), 4)
+
+	// A new one starts on the selected one's sheet and grid, then gets its own sheet
+	sendTo(&state, Anim_Added{})
+	testing.expect_value(t, state.animEditor.selected, 1)
+	added := animations(&state)[1]
+	testing.expect(t, added.sheet == balloonsPath && added.grid.columns == 4, "the selected animation's sheet")
+	sendTo(&state, Anim_Sheet_Texture_Changed(lightPath))
+	// Cut by cell size: from the 4 x 1 grid on 128 x 64, 32 x 64 cells; then 64 wide: two cells
+	sendTo(&state, Anim_Grid_Mode_Changed("Size"))
+	testing.expect_value(t, animations(&state)[1].grid.mode, e.SheetGridMode.Size)
+	testing.expect_value(t, animations(&state)[1].grid.cellSize, [2]f32{32, 64})
+	sendTo(&state, Anim_Field_Changed{.Cell_Width, 64})
+	testing.expect_value(t, AnimEdit_Cells(state.project.rootPath, animations(&state)[1]), 2)
+	// Its frames by count: no more than the sheet has
+	sendTo(&state, Anim_Field_Changed{.Frames, 5})
+	testing.expect_value(t, [2]int{animations(&state)[1].start, animations(&state)[1].end}, [2]int{0, 1})
+	sendTo(&state, Anim_Field_Changed{.Frames, 1})
+	testing.expect_value(t, animations(&state)[1].end, 0)
+	// Back to columns x rows: the ones the cell size made
+	sendTo(&state, Anim_Grid_Mode_Changed("Cells"))
+	testing.expect(t, animations(&state)[1].grid.columns == 2 && animations(&state)[1].grid.rows == 1, "2 x 1")
+	// The first keeps its own
+	testing.expect(t, animations(&state)[0].sheet == balloonsPath && animations(&state)[0].grid.mode == .Cells, "the first's sheet")
+
+	// An image dragged from the browser onto the panel: the selected animation's sheet
+	state.assetDrag = {pressed = true, active = true, asset = balloons}
+	sendTo(&state, Anim_Sheet_Dropped{})
+	testing.expect_value(t, animations(&state)[1].sheet, balloonsPath)
+	testing.expect(t, !state.assetDrag.pressed && !state.assetDrag.active, "the drag ended")
+
+	// Saved and loaded: each animation's sheet and grid
+	testing.expect_value(t, Project_Save(&state.project), "")
+	text := SceneToXML(&state.project.scenes[0], context.temp_allocator)
+	testing.expect(t, strings.count(text, `sheet="`) == 2 && !strings.contains(text, `texture=`), text)
+	loaded, message, _ := Project_Load(root)
+	defer Project_Destroy(&loaded)
+	testing.expect_value(t, message, "")
+	testing.expect(t, NodeDef_Equal(loaded.scenes[0].nodes[state.selectedNode], state.project.scenes[0].nodes[state.selectedNode]), "round trip")
+
+	// Every edit undoes: back to one animation without a sheet
+	for _ in 0 ..< 20 do sendTo(&state, Action.Undo)
+	testing.expect_value(t, len(animations(&state)), 1)
+	testing.expect_value(t, animations(&state)[0].sheet, "")
+	for _ in 0 ..< 3 do sendTo(&state, Action.Redo)
+	testing.expect_value(t, len(animations(&state)), 2)
+	testing.expect_value(t, animations(&state)[1].sheet, balloonsPath)
 	free_all(context.temp_allocator)
 }

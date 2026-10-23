@@ -188,8 +188,8 @@ A component is a file in `components/`, holding its root node and everything und
 ```xml
 <component name="coin">
 	<node kind="Area" name="Coin">
-		<node kind="AnimatedSprite" name="Sprite" texture="assets/coin.png" columns="8">
-			<animation name="spin" start="0" end="7" fps="12" loop="true"/>
+		<node kind="AnimatedSprite" name="Sprite">
+			<animation name="spin" sheet="assets/coin.png" columns="8" rows="1" start="0" end="7" fps="12" loop="true"/>
 		</node>
 		<node kind="CollisionShape" name="Shape" shape="Circle" radius="12"/>
 	</node>

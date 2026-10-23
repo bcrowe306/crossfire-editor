@@ -1,9 +1,11 @@
 package crossfire_editor
 
+import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
+import "core:sync"
 import "core:time"
 import "gui:skald"
 import stbi "vendor:stb/image"
@@ -55,7 +57,68 @@ AsepriteEdit_Destroy :: proc() {
 	}
 	delete(asepriteCache)
 	asepriteCache = nil
+	sync.guard(&imageSizesLock)
+	for path in imageSizes do delete(path, runtime.heap_allocator())
+	delete(imageSizes)
+	imageSizes = nil
 }
+
+/*
+An image's size in pixels, as `Image_LoadRGBA` would read it (an Aseprite file's first frame, or
+its `#sheet` of every frame), read again only when the file changes (stb_image reads the header
+alone).
+
+Inputs:
+- path: The image's full path
+
+Returns:
+- Its width and height, and false when it can't be read
+*/
+Image_Size :: proc(path: string) -> (size: [2]int, ok: bool) {
+	if path == "" do return
+	file := strings.trim_suffix(path, e.ASEPRITE_SHEET_SUFFIX)
+	modified := ldtkModified(file)
+	{
+		sync.guard(&imageSizesLock)
+		if entry, found := imageSizes[path]; found && entry.modified == modified do return entry.size, entry.ok
+	}
+	if e.Aseprite_IsFile(file) {
+		if ase, err := e.Aseprite_Load(file); err == .None {
+			size, ok = {ase.width, ase.height}, ase.width > 0 && ase.height > 0
+			if file != path {
+				columns, rows := e.Aseprite_SheetGrid(ase)
+				size = {columns * ase.width, rows * ase.height}
+			}
+			e.Aseprite_Destroy(ase)
+		}
+	} else {
+		w, h, channels: i32
+		if stbi.info(strings.clone_to_cstring(path, context.temp_allocator), &w, &h, &channels) != 0 do size, ok = {int(w), int(h)}, w > 0 && h > 0
+	}
+	// Shared by every thread (the tests run on several): on the heap, under a lock
+	sync.guard(&imageSizesLock)
+	if entry, found := &imageSizes[path]; found {
+		entry^ = {size, ok, modified}
+	} else {
+		if imageSizes == nil do imageSizes = make(map[string]ImageSizeEntry, runtime.heap_allocator())
+		imageSizes[strings.clone(path, runtime.heap_allocator())] = {size, ok, modified}
+	}
+	return
+}
+
+@(private="file")
+imageSizesLock: sync.Mutex
+
+@(private="file")
+ImageSizeEntry :: struct {
+	size: [2]int,
+	ok: bool,
+	modified: time.Time,
+}
+
+// Images' sizes by full path (Image_Size), with the file's time when read
+@(private="file")
+imageSizes: map[string]ImageSizeEntry
 
 @(private="file")
 AsepriteCacheEntry :: struct {
@@ -245,7 +308,7 @@ Aseprite_Layer_Toggled :: struct {
 
 /*
 The Aseprite file a node shows (relative to the project), "" when it doesn't: a Sprite's
-texture, an AnimatedSprite's animation asset or its own sheet.
+texture, an AnimatedSprite's animation asset or the first of its own animations' sheets that is one.
 */
 AsepriteEdit_NodeSource :: proc(node: ^NodeDef) -> string {
 	#partial switch node.kind {
@@ -253,7 +316,11 @@ AsepriteEdit_NodeSource :: proc(node: ^NodeDef) -> string {
 		if e.Aseprite_IsFile(node.texture) do return node.texture
 	case .AnimatedSprite:
 		if node.animationSet != "" do return e.Aseprite_IsFile(node.animationSet) ? node.animationSet : ""
-		if e.Aseprite_IsFile(node.texture) do return node.texture
+		// Its own animations: the first whose sheet is an Aseprite file (its frames, or its first
+		// frame cut into cells)
+		for a in node.animations {
+			if file := strings.trim_suffix(a.sheet, e.ASEPRITE_SHEET_SUFFIX); e.Aseprite_IsFile(file) do return file
+		}
 	}
 	return ""
 }

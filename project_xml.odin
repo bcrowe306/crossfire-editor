@@ -491,11 +491,6 @@ AnimationSetToXML :: proc(set: ^AnimationSetDef, allocator := context.allocator)
 	w := xmlWriter(allocator)
 	open(&w, "animations")
 	attr(&w, "formatVersion", e.PROJECT_FORMAT_VERSION)
-	if set.texture != "" do attr(&w, "texture", set.texture)
-	attr(&w, "columns", set.columns)
-	attr(&w, "rows", set.rows)
-	if set.margin != 0 do attr(&w, "margin", set.margin)
-	if set.spacing != 0 do attr(&w, "spacing", set.spacing)
 	if set.autoplay != "" do attr(&w, "autoplay", set.autoplay)
 	if len(set.animations) == 0 {
 		closeEmpty(&w)
@@ -507,11 +502,24 @@ AnimationSetToXML :: proc(set: ^AnimationSetDef, allocator := context.allocator)
 	return strings.to_string(w.builder)
 }
 
-// An `<animation>`: `fps` always, the rest when not the default (durations in milliseconds)
+// An `<animation>`: its sheet and grid (columns x rows, or a cell's size; margin and gap when
+// set), `fps` always, the rest when not the default (durations in milliseconds)
 @(private="file")
 writeAnimation :: proc(w: ^XMLWriter, a: AnimationDef) {
 	open(w, "animation")
 	attr(w, "name", a.name)
+	if a.sheet != "" do attr(w, "sheet", a.sheet)
+	switch a.grid.mode {
+	case .Cells:
+		attr(w, "columns", max(a.grid.columns, 1))
+		attr(w, "rows", max(a.grid.rows, 1))
+	case .Size:
+		attr(w, "grid", a.grid.mode)
+		attr(w, "cellWidth", a.grid.cellSize.x)
+		attr(w, "cellHeight", a.grid.cellSize.y)
+	}
+	if a.grid.margin != 0 do attr(w, "margin", a.grid.margin)
+	if a.grid.spacing != 0 do attr(w, "spacing", a.grid.spacing)
 	attr(w, "start", a.start)
 	attr(w, "end", a.end)
 	attr(w, "fps", a.fps)
@@ -617,11 +625,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 			if node.nineSize.y > 0 do attr(w, "nineHeight", node.nineSize.y)
 		}
 	case .AnimatedSprite:
-		attr(w, "texture", node.texture)
-		attr(w, "columns", node.columns)
-		attr(w, "rows", node.rows)
-		if node.margin != 0 do attr(w, "margin", node.margin)
-		if node.spacing != 0 do attr(w, "spacing", node.spacing)
+		// Its sheets are its animations' (format 14)
 		if node.autoplay != "" do attr(w, "autoplay", node.autoplay)
 		if node.animationSet != "" do attr(w, "animations", node.animationSet)
 		if node.asepriteLayers != "" do attr(w, "layers", node.asepriteLayers)

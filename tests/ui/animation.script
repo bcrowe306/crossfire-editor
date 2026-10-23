@@ -1,5 +1,6 @@
 # The Animation panel (a toolbar over the frames): open it from the inspector, add an animation, set its frames by clicking
-# thumbnails, its speed and mode, make it the one the sprite starts with, preview it, undo, save.
+# thumbnails, its speed and mode, make it the one the sprite starts with, preview it, undo; another animation on its own
+# sheet (dropped from the browser), cut by cell size, its frames by count; save.
 # Run with: task test:ui
 #
 # PlayScene's rows: World, Camera, Spaceship, ShipLight, Props, Balloon (node 5, a 4x1 sheet)
@@ -85,8 +86,62 @@ expect animations 3
 key ctrl+z
 expect animations 2
 
+# Another sheet for a new animation: it starts on the selected one's sheet; an image dragged from
+# the browser onto the panel becomes its sheet; cut by cell size (the other values worked out from
+# the image: 128 x 64); its frames by count; a gap, undone. The others keep theirs
+scroll_into_view animation-scroll animation-add
+click_widget animation-add
+expect animations 3
+expect animation sheet assets/balloons.png
+expect animation columns 4
+drag_asset_to assets/light animation-scroll
+expect animation sheet assets/light.png
+wait_until sheet_loaded true
+expect animation cells 4
+scroll_into_view animation-scroll animation-grid-5
+click_widget animation-grid-5
+wait 3
+click_overlay_item 1
+expect animation grid Size
+expect animation cell 32x64
+expect animation cells 4
+scroll_into_view animation-scroll animation-Cell_Width-5
+click_widget animation-Cell_Width-5
+key ctrl+a
+type 64
+expect animation cell 64x64
+expect animation cells 2
+expect animation count 2
+scroll_into_view animation-scroll animation-count-5-dec
+click_widget animation-count-5-dec
+expect animation count 1
+expect animation end 0
+scroll_into_view animation-scroll animation-Spacing-5-inc
+click_widget animation-Spacing-5-inc
+expect animation gap 1
+key ctrl+z
+expect animation gap 0
+expect animation cells 2
+# Back to columns x rows: 2 x 1, from the cell size
+scroll_into_view animation-scroll animation-grid-5
+click_widget animation-grid-5
+wait 3
+click_overlay_item 0
+expect animation grid Cells
+expect animation columns 2
+expect animation rows 1
+scroll_into_view animation-scroll animation-select
+click_widget animation-select
+wait 3
+click_overlay_item 1
+expect animation name pop
+expect animation sheet assets/balloons.png
+expect animation cells 4
+
 key ctrl+s
 wait_until modified false
 expect project_file_contains scenes/PlayScene.scene.xml autoplay="pop"
-expect project_file_contains scenes/PlayScene.scene.xml <animation name="pop" start="1" end="2" fps="9"/>
+expect project_file_contains scenes/PlayScene.scene.xml <animation name="pop" sheet="assets/balloons.png" columns="4" rows="1" start="1" end="2" fps="9"/>
+expect project_file_contains scenes/PlayScene.scene.xml <animation name="animation" sheet="assets/light.png" columns="2" rows="1" start="0" end="0"
+expect project_file_lacks scenes/PlayScene.scene.xml texture="assets/balloons.png"
 quit
