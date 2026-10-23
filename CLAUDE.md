@@ -19,35 +19,42 @@ local folder names stay `odin_sdl_editor/` and `odin_sdl_engine/`.
   app ID `io.github.bcrowe306.crossfire-editor`, which the window carries, so the desktop shows
   the icon for the running window too).
 - The data folder (`Toolchain_DataDir`) is `crossfire-editor` (it was `odin_sdl_editor`: an Odin
-  installed there before needs installing again). Users create projects, build scenes from nodes,
-manage assets, run their game, and export it to the web and desktop platforms (later: Steam,
-consoles and handhelds).
+  installed there before needs installing again).
 
-**Status:** early but usable.
-- **Works:**
-  - The viewport renders the scene with the engine and supports selecting, moving, rotating and
-    scaling nodes, with a keyboard-driven keymap.
-  - Projects load from and save to disk as XML (`examples/demo_project` opens by default).
-  - The project browser searches, previews images and sounds, and imports/removes assets.
-  - The inspector edits node properties. **Play** runs the project in the engine's player.
-  - The scene tree has a context menu, copy/paste/duplicate, and drag to reorder and reparent.
-  - Undo/redo covers every scene edit. Settings (appearance, undo, keymap) are edited in a dialog
-    and saved to editor.ini next to the executable.
-  - **Scripts**: Odin code attached to nodes, created from the inspector, edited in the built-in
-    code editor's tabs (`code_editor/`, with OLS completion) or an external editor (Zed by default), exported fields edited in the inspector, built into a per-project
-    player for Play.
-  - Multi-select (Ctrl/Shift+click, box select, Ctrl+A), a viewport grid with snapping, inline
-    rename, dragging images from the browser into the viewport, New/Open Project with an
-    unsaved-changes prompt.
-  - **Physics** (the engine's Box2D integration): body, shape, Area and RayCast nodes edited in the
-    inspector, shapes and rays outlined in the viewport, physics settings in Project Settings.
-  - **Particles**: ParticleEmitter nodes, every setting edited in the inspector (sliders, linked
-    pairs, color pickers with alpha, a color ramp editor, reset), played live in the viewport.
-  - **Sound**: AudioPlayer, AudioPlayer2D (positional) and MusicPlayer (streamed) nodes edited
-    in the inspector (sound, bus, sliders, Preview); mix buses in the bottom panel's Mixer tab.
-  - **Export** to Linux x86_64 and the web (WebAssembly, through Emscripten). Every other target
-    is listed with its settings and reports "not implemented yet".
-- **Not yet:** the other export targets, non-PNG/BMP images on the web, CI.
+Users create projects, build scenes from nodes, manage assets, write game code, run their game
+and export it to the desktop platforms and the web (later: Steam, consoles).
+
+**Status (2026-10-23):** usable, released as development builds (`v0.1.0-dev.N`).
+- **Editing:** the engine-rendered viewport (select, move, rotate, scale; guides, grid, snapping,
+  align, the Zoom and Pan tools), the scene tree (drag, rename, copy / paste, components),
+  multi-select, right-click menus everywhere, undo / redo of every edit, Settings (look, keymap,
+  toolchain) and Project Settings, recent projects, project archives, the Git tab.
+- **Node kinds** edited in the inspector, most with their own panel: sprites and Aseprite files
+  (layers, slices, tags), AnimatedSprites and animation assets (the Animation panel), TileMaps
+  (the Tiles tab), LDtk levels, physics (bodies, shapes, joints, materials, collision traced
+  from sprites), particles (CPU and GPU), sound (players, the Mixer, bus effects, music layers),
+  UI controls and themes, 2D lighting, navigation, cameras and camera tools, lines and trails,
+  shaders and screen effects, skeletons (meshes, IK, DragonBones), dialogue, state machines, the
+  Timeline (Animators), touch controls.
+- **Game code:** Odin scripts on nodes (several per node), node types, globals, data resources,
+  events and listeners; the built-in code editor (OLS completion, clickable errors) or an
+  external one; Play / Play Scene / Restart, hot reload, the live view of the running game;
+  editor plugins (plugin_api/).
+- **Export:** Linux, Windows and macOS (built on their own OS, or for projects without scripts
+  from the prebuilt players every release carries) and the web (Emscripten, installed on
+  demand); headless (`--export <target>`).
+- **CI and releases** (`.github/workflows/build.yml`, a `v*` tag): Linux x86_64, Windows x86_64
+  and macOS arm64 built and tested (unit tests, a headless export run, UI scripts on macOS),
+  published as a GitHub release (archives with every prebuilt player, an AppImage, a Windows
+  installer, a macOS disk image), uploaded to R2, then the website deployed.
+- **The website** [crossfireengine.io](https://crossfireengine.io) (`../crossfire_astro`,
+  bcrowe306/crossfire-astro) publishes this repository's `docs/manual/` and the engine's doc
+  comments (see "Documentation").
+- **Not yet:** Steam and console exports (Steam's settings exist, the engine has a stub
+  backend), CI players for Linux ARM64, Windows ARM64 and macOS x86_64 (those export only on
+  their own machine, untested), images other than PNG and BMP on the web, a Developer ID
+  signature and notarization on macOS, a running game's levels in the Mixer's meters, picking up
+  files added to `assets/` outside the editor.
 
 Sections marked "planned" describe where it's going. Update this file as they become real.
 
@@ -442,8 +449,9 @@ features (particles) appear without editor work.
   and menus are scaled by the zoom), `Scene_Build` returning its nodes, `Node_GetLocalBounds`.
 - `sdl.FlushRenderer` before reading the surface is required: SDL batches draw commands.
 - Animations play in real time while `viewport.animate` is on (P). The view sends `Viewport_Tick`
-  each frame then, to keep frames coming. **Game-code nodes will also update in the preview**; when
-  game code arrives, they'll need an "in editor" flag so game logic doesn't run there.
+  each frame then, to keep frames coming. **Game code doesn't run in the preview:** scenes are
+  built with `attachScripts = false`, so scripts aren't attached and a node type of game code is
+  built as its base kind.
 - Opening a scene fits the game area to the view.
 
 **View and overlays** (`view_viewport.odin`): a canvas with these overlays:
@@ -1099,8 +1107,9 @@ Live_Property_Edited`).
 
 Both are child processes (`core:os` `process_start` with a pipe). A `Play_Tick` message every 0.1 s
 (`skald.cmd_delay`) drains the pipe and checks for exit with `process_wait(…, 0)`, so there are no
-threads. **Stop** kills the child. **Pause/Resume** send SIGSTOP/SIGCONT; they aren't supported on
-Windows yet. Quitting the editor stops the game.
+threads. **Stop** kills the child. **Pause/Resume** go through the live link (`pause` / `resume`,
+every OS); only without it do they fall back to SIGSTOP/SIGCONT (POSIX). Quitting the editor
+stops the game.
 
 ### Undo / redo (implemented, `history.odin`)
 
@@ -1187,7 +1196,7 @@ MyGame/
   assets/                  images, audio, fonts, referenced by relative path
   export.ini               export targets and their settings (only once changed)
   export/<target>/         export output (the default folder; gitignored in this repo's examples)
-  .editor/                 per-user editor state (gitignored; not used yet)
+  .editor/                 per-user editor state (gitignored): guides.ini (the viewport's guides)
 ```
 
 - **Version 14:** an AnimatedSprite's animations each have their own sheet (`AnimationDef.sheet`,
@@ -1241,8 +1250,8 @@ MyGame/
 - **Round trips:** `editor_test.odin` saves the demo with tricky values (escapes, non-default
   fields), reloads it, and compares every field. Extend it whenever a property is added.
 - **Not handled yet:**
-  - Scene files of deleted or renamed scenes aren't removed.
   - The editor doesn't scan `assets/` for files added outside the editor.
+  - (Scene files of deleted or renamed scenes are removed now: `Project_CleanSceneFiles`.)
 - **Constants in `scripts/assets.odin`** take their names from files, actions and achievements
   through `ConstantName` (letters and digits upper-cased, anything else one underscore): a
   dash once went in as it was (`TEXTURE_HERO-RUN`), which isn't an Odin name.
@@ -2233,8 +2242,10 @@ targets that differ from the defaults; the file isn't created for untouched proj
   tab. The tab's Export button applies the dialog, then exports the shown target
   (`Export_Target_Run` is the undo step, `Export_Requested` follows it with `cmd_now`, so the save
   happens after the step and the project isn't left "modified").
-- Unimplemented targets fail with `Export_NotImplementedReason`. Desktop targets only build for the
-  host (`Export_Implemented`); today that means Linux x86_64.
+- Unimplemented targets fail with `Export_NotImplementedReason`. A desktop target exports on its
+  own OS, or anywhere from its prebuilt player beside the editor for a project without scripts
+  (`Export_Implemented`; releases carry Linux x86_64, Windows x86_64 and macOS arm64 players). Web
+  exports everywhere; Steam and consoles don't yet.
 
 **Running:** `Export_Start` saves the project, then turns each target into a job: its
 `Export_Plan` (in the job's own arena). Steps are child-process commands (output to the Output tab,
@@ -2313,18 +2324,16 @@ executable). **Headless:** `crossfire-editor <project> --export <target>` (`Expo
 runs a plan without a window (installing Emscripten first for the web); CI exports the UI fixture
 on each OS with it and starts the game with the player's `--quit-after`.
 
+**Built since it was planned:** CI and releases on GitHub Actions ("CI and releases"), Windows
+and macOS exports (above), SDL3_mixer built by the automatic Emscripten install.
+
 **Future work (decided, not built):**
-- **CI/CD on GitHub Actions:** build the editor and engine on every desktop platform (a runner per
-  OS and architecture), run the unit and UI tests, show build statuses, and publish development
-  binaries as releases. The other desktop export targets get built there too.
-- The remaining targets: Windows (`-subsystem:windows` for Hide console; SDL can be static there
-  now, `Export_StaticSDLBuilt` knows its `sdl3_static.lib`),
-  macOS (`.app` bundle, dylibs in `Contents/Frameworks`, signing and notarization), Linux ARM64,
-  Steam (Steamworks SDK, depots via `steamcmd`; Steam Deck = the Linux build), consoles (licensed
-  SDKs).
+- The remaining targets: Linux ARM64, Windows ARM64 and macOS x86_64 players on CI (runners per
+  architecture; today they export only on their own machine, untested); a macOS game's Developer
+  ID signature and notarization; Steam (Steamworks SDK, depots via `steamcmd`; Steam Deck = the
+  Linux build); consoles (licensed SDKs).
 - Other image formats on the web: build SDL3_image for Emscripten like SDL3_mixer (it needs
   libpng/libjpeg ports, which Emscripten has).
-- Fold the SDL3_mixer build into the automatic toolchain setup above.
 
 ## macOS app bundle (`Taskfile.macos.yml`, `tools/macos/`)
 
@@ -2378,7 +2387,7 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
   from the implemented exports, so on a Mac there was none and Play never used the prebuilt
   player (the installed app's toolchain.script found it).
 - **Later:** a Developer ID signature and notarization with gon (`task macos:notarize`,
-  `tools/macos/gon.json.example`, `entitlements.plist`); an app icon.
+  `tools/macos/gon.json.example`, `entitlements.plist`). (The app icon is done: see Branding.)
 - OLS is pinned in code_editor (`OLS_REF`): `c96dea91` is the newest that builds with Odin
   dev-2026-10 (newer OLS needs `core:odin/tool-format`). UI test tasks build it (`ols`):
   toolchain.script expects a language server.
@@ -2388,11 +2397,13 @@ the same tasks (the Taskfile is included as `macos:`). Everything but Odin is in
 **The website and downloads** (2026-10-22): after `release`, the `downloads` job uploads the
 release's files to Cloudflare R2 (bucket `crossfire-downloads`, served at
 downloads.crossfireengine.io: `releases/<tag>/<file>` and `latest.json`) with the repository's
-`R2_*` / `CLOUDFLARE_ACCOUNT_ID` secrets, then dispatches `editor-release` to the website repo
-(bcrowe306/crossfire-astro) when a `WEBSITE_DISPATCH_TOKEN` secret exists; otherwise the
-website's hourly check notices the new release. The website (crossfireengine.io) publishes this
-repo's `docs/manual/` at the release's tag: keep the manual's frontmatter and relative links as
-they are (see `docs/manual/`'s row in the code map). Issue templates: `.github/ISSUE_TEMPLATE/`.
+`R2_*` / `CLOUDFLARE_ACCOUNT_ID` secrets. Then the `website` job (`needs: downloads`, tags only)
+calls the website's own workflow, `bcrowe306/crossfire-astro/.github/workflows/deploy.yml@main`,
+with `secrets: inherit` (it deploys with this repository's `CLOUDFLARE_*` secrets), so a release
+deploys the site at once, no token needed; the site's hourly check is the fallback. The website
+(crossfireengine.io) publishes this repo's `docs/manual/` at the release's tag: keep the manual's
+frontmatter and relative links as they are (see "Documentation"). After a tag, watch the build,
+then the `website` job, then the live site. Issue templates: `.github/ISSUE_TEMPLATE/`.
 
 **Linux and Windows packages:** an AppImage (`tools/linux/make_appimage.sh`, `task
 linux:appimage`; CI's combine job makes it from the Linux archive with every player; appimagetool
@@ -2427,13 +2438,22 @@ failed, fixes it and builds again with the next tag.
   player (`prebuilt/<target>/player`; SDL DLLs beside both on Windows only without the static SDL,
   which CI now builds there too: `ldd` checks no SDL library is loaded), and the engine's
   sources in `engine/` (git-tracked files without `third_party/`, plus `box2d/lib` and `sdl/lib`;
-  about 17 MB). Each archive has only its own platform's player: exports only build for the host
-  so far. Projects with scripts need Odin (Settings > Toolchain installs it) and a linker.
+  about 17 MB). Each build job's archive has its own platform's player; the `combine` jobs then
+  add the others' (above). Projects with scripts need Odin (Settings > Toolchain installs it) and a linker.
 
 ## Documentation (required)
 
-All public code in this repo and the engine has **Odin-style doc comments**, and the docs are
-published to GitHub Pages.
+All public code in this repo and the engine has **Odin-style doc comments**, and users read the
+docs on the website, [crossfireengine.io](https://crossfireengine.io) (below).
+
+**Every change updates its docs, in the same commit or the one beside it:** the manual
+(`docs/manual/`: a page per feature; a new feature gets a page), the doc comments, both repos'
+CLAUDE.md (this file's status block, code map and sections), the READMEs, and the website's own
+pages (`../crossfire_astro/src/content/docs/getting-started/`, `examples/`, the hand-built pages)
+when what they say changed. A change isn't done until they agree with it. **After pushing or
+tagging, watch the website deploy** (crossfire-astro's Deploy workflow: after a release tag, the
+editor's `website` job calls it; then crossfireengine.io itself, fetched with a cache-busting
+query) and fix it if it fails.
 
 ### Writing docs
 
@@ -2467,21 +2487,29 @@ Example:
 - **Private helpers** (`@(private)` / `@(private="file")`) get a short `//` comment when the reason
   isn't obvious.
 
-### Generating and hosting
+### Publishing: the website
 
-The site is built with Odin's own generator, the one behind pkg.odin-lang.org
-(github.com/odin-lang/pkg.odin-lang.org):
+The website, crossfireengine.io (Astro + Starlight; the workspace's `../crossfire_astro`,
+bcrowe306/crossfire-astro; its CLAUDE.md and README have the details), publishes:
+- **The manual:** this repo's `docs/manual/` at the newest editor release's tag
+  (`scripts/sync-manual.mjs` copies it into `src/content/docs/manual/`, generated and gitignored
+  there). Keep its pages as the site needs them: frontmatter `title` / `description` (quoted when
+  they hold `: `) / `order`, plain relative links, no GitHub-only syntax, examples that compile.
+- **The engine's API reference:** the engine's doc comments at its newest tag
+  (`scripts/build-api.mjs` with the site's `tools/docgen`; every engine file needs an area in
+  `scripts/api-groups.json`). The editor's own doc comments aren't published; `odin doc .`
+  reads them.
+- **Every Odin example on the site is type-checked** (`npm run docs && node
+  scripts/check-examples.mjs`, run by the site's CI before deploying): the manual's blocks, the
+  engine's `Example:` blocks, the plugin API's (against `plugin_api/`). ```odin nocheck skips a
+  block; a `// Given: name: Type` first line declares what a snippet uses.
+- **When it updates:** the editor's release workflow deploys it after each release (its `website`
+  job calls crossfire-astro's `deploy.yml` with `secrets: inherit`), and it checks hourly for a
+  release the live site doesn't describe. So doc fixes here reach the site with the next release
+  tag. Its Download page reads the release files on downloads.crossfireengine.io (R2).
 
-1. Build the generator: `odin build . -out:odin-doc` in a checkout of that repo.
-2. Make a file that imports every package to document (e.g. `docs/all/all.odin`).
-3. Run `odin doc docs/all/all.odin -file -all-packages -doc-format -out:editor`.
-4. Write a JSON config (`docs/config.json`): `hide_core`, `hide_base`, `url_prefix`, and a
-   `collections` entry with `name`, `source_url`, `base_url`, `root_path`, `license` and `home`.
-5. Run `odin-doc editor.odin-doc docs/config.json` inside the output directory.
-6. Deploy that directory with a GitHub Actions workflow (`.github/workflows/docs.yml`) to GitHub Pages.
-
-The generator renders Markdown through `vendor:commonmark`, which must be installed on Linux CI.
-Neither the docs workflow nor `docs/` exists yet.
+The old GitHub Pages plan (Odin's pkg.odin-lang.org generator and a `docs.yml` here) was dropped:
+there is no Pages site for the editor.
 
 ## Conventions
 
@@ -2611,8 +2639,8 @@ Highlights:
 - **SDL3_mixer for the web is built from a submodule** (`third_party/SDL_mixer`, 2026-10-16),
   because Emscripten has no port; its version follows the native library's.
 - **Emscripten is a pinned git submodule** (`third_party/emsdk`, 2026-10-16): reproducible web
-  builds with a known version; installing it (`task emsdk`, ~1 GB) is a separate step, to be
-  automated (see Export, future work).
+  builds with a known version; installing it (`task emsdk`, ~1 GB) is a separate step in a
+  checkout; users' editors install it on demand (Export: "Emscripten for the user").
 - **The editor gets the engine through a workspace path.** The `engine` collection is set from
   `ENGINE_DIR` in the Taskfile, not a submodule.
 - **Scenes load at runtime from XML.** An engine-side loader and a generic player read them; no
@@ -2624,7 +2652,8 @@ Highlights:
   compiled into a per-project player; each script registers itself (`e.Script_Register` from an
   `@(init) proc "contextless"`), scene files attach it by name, and the editor learns its exported
   fields from `player --describe-scripts`. See "Scripts" above and the engine's `script.odin`.
-- **Scripts are edited in an external editor**, set in Settings: the program
+- **Scripts open in the built-in code editor** by default (Settings > Editor's built-in code
+  editor), **or an external editor**, set in Settings: the program
   (`code_editor_path`, a path or a name found in PATH, default `zed`; the user uses Zed) and its
   arguments (`code_editor_args`, default `{file}:{line}`). Older files' single `code_editor`
   command is split on load. **Zed's app binary (`zed-editor`) can't open files in a running Zed**

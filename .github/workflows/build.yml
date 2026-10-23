@@ -359,8 +359,7 @@ jobs:
 
   # The release's files on downloads.crossfireengine.io (Cloudflare R2, bucket crossfire-downloads):
   # releases/<tag>/<file>, and latest.json describing them, which the website's Download page reads.
-  # Then, with a WEBSITE_DISPATCH_TOKEN secret (a fine-grained token allowed to dispatch to
-  # crossfire-astro), the website rebuilds at once; without it, its hourly check notices the release.
+  # The `website` job then deploys the site (it also checks hourly).
   downloads:
     name: Downloads (R2)
     needs: release

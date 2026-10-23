@@ -9,17 +9,22 @@ The game editor for the [Crossfire Engine](https://github.com/bcrowe306/crossfir
 (the `odin_sdl_engine` repository), written in [Odin](https://odin-lang.org)
 with the [Skald](https://github.com/bcrowe306/Skald) GUI framework.
 
-**Status:** early. Projects load from and save to XML. You can edit scenes in the engine-rendered
-viewport, the node tree and the inspector, undo and redo edits, and **Play** runs the project in
-the engine. **Export** builds the game for Linux, Windows, macOS and the web (Steam and consoles are
-listed, but not implemented yet).
+**Status:** early but usable, released as development builds for Linux, Windows and macOS.
+Projects load from and save to XML. You edit scenes in the engine-rendered viewport, the scene
+tree and the inspector (with panels for animations, tiles, the Timeline, state machines,
+dialogue, the mixer and more), write game code in Odin, undo and redo every edit, and **Play**
+runs the project in the engine. **Export** builds the game for Linux, Windows, macOS and the web
+(Steam and consoles are listed, but not implemented yet). Downloads and the documentation are on
+the website, [crossfireengine.io](https://crossfireengine.io).
 
 ## Requirements
 
 - Odin (`dev-2026-10` nightly or newer)
 - [Task](https://taskfile.dev) to run the build commands
-- SDL3 (plus SDL3_image, SDL3_ttf, SDL3_mixer for the engine) and a Vulkan loader. Per-platform
-  setup is in `Skald/PLATFORMS.md`.
+- A Vulkan loader. SDL3, SDL3_image, SDL3_ttf and SDL3_mixer are built from the engine's
+  submodules (`task sdl`, needs CMake; `task run` does it) and linked into the editor and every
+  game; without that build the system's SDL3 libraries are used. Per-platform setup is in
+  `Skald/PLATFORMS.md`.
 - For web exports only: Python 3 and `task emsdk` (Emscripten, about 1 GB, installed into the
   `third_party/emsdk` submodule; it also builds SDL3_mixer from the `third_party/SDL_mixer`
   submodule for game sound).
@@ -717,7 +722,10 @@ instead, and web exports always use WebGL. The game's log says which one it got
 
 ## Exporting
 
-**File > Project Settings > Export** lists every target. Check the ones you want, set each one's
+Desktop targets export on their own OS; a project **without scripts** exports to any of Linux
+x86_64, Windows x86_64 and macOS arm64 from any of them, from the prebuilt players every release
+carries (projects with scripts compile, so they need that OS). **File > Project Settings > Export**
+lists every target. Check the ones you want, set each one's
 options, then **File > Export** (Ctrl+Shift+E) exports all checked targets; the Export button in the
 tab exports the target shown. Exporting saves the project first; progress is in the **Output** tab.
 Settings are saved in the project's `export.ini`, and output goes to `export/<target>` in the
@@ -727,7 +735,9 @@ project folder unless you choose another folder.
 |---|---|---|
 | Linux x86_64 | Works (on Linux x86_64) | **One file**: the game, with the project's files inside it (Single file; off: `data/` beside it) and SDL built in (once the engine's `tools/build_sdl_static.sh` has run, `task sdl`; else its libraries go in `lib/`); optional `.tar.gz`. Runs from anywhere: no arguments needed. Runs on the glibc it was built with or newer: export on an older Linux to reach more players |
 | Web (WebAssembly) | Works | `index.html`, `.js`, `.wasm`, `.data`: serve the folder over HTTP (`python3 -m http.server`); optional `.zip` for itch.io. Sound works (WAV, OGG, MP3, FLAC) and starts after the first click or key press, as browsers require; images must be PNG or BMP. Needs `task emsdk` |
-| Linux ARM64, Windows, macOS | Not implemented | Planned: built on CI, one runner per OS |
+| Windows x86_64 | Works | `<name>.exe`, the project's files inside it (Single file) and SDL built in (the static SDL); Hide console; optional `.zip` |
+| macOS arm64 | Works | `<name>.app`, signed ad hoc on a Mac (the project in `Contents/Resources/data`); optional `.tar.gz` |
+| Linux ARM64, Windows ARM64, macOS x86_64 | Untested | Built on their own machine only: releases have no prebuilt player for them yet |
 | Steam | Not implemented | Planned: uploads desktop builds |
 | PlayStation 5, Xbox Series, Switch | Not implemented | Need the platforms' licensed SDKs |
 
@@ -795,9 +805,13 @@ scripts showing most of the engine's features. Its README says what to look at f
 Pushing a version tag (`v0.2.0`, or `v0.2.0-dev.1` for a pre-release) builds and tests the editor
 with the engine on Linux x86_64, Windows x86_64 and macOS arm64 (`.github/workflows/build.yml`)
 and, when all three pass, publishes them as a [release](https://github.com/bcrowe306/crossfire-editor/releases):
-one archive per platform with the built editor and the SDL3 libraries it needs (no sources). The
-badges above show the latest build. Play and Export in a release still need Odin (`dev-2026-10`)
-and the engine's sources at `../odin_sdl_engine` (the archive's README.txt says how).
+a Linux archive and AppImage, a Windows archive and installer, and a macOS disk image, each with
+the editor, the engine's sources (`engine/`), every platform's prebuilt player and the demo
+project. The files go to downloads.crossfireengine.io too, and the website
+([crossfireengine.io](https://crossfireengine.io)) is deployed with the release's manual. The
+badges above show the latest build. Projects without scripts play and export with nothing else
+installed; projects with scripts need Odin (`dev-2026-10`; Settings > Toolchain installs it) and a
+linker.
 
 ## macOS app
 
@@ -814,8 +828,11 @@ archives for Linux and Windows have the demo in `examples/demo_project`, beside 
 ## Documentation
 
 The **user manual** ([docs/manual](docs/manual/README.md)) explains each feature step by step for
-people new to the editor; Help > User Manual (F1) opens it. Source code uses Odin-style doc comments; `odin doc .` prints them. Contributor and design notes,
-including the planned project format and export targets, are in [CLAUDE.md](CLAUDE.md).
+people new to the editor; Help > User Manual (F1) opens it. It's published with the engine's API
+reference on [crossfireengine.io](https://crossfireengine.io) (from each release). Source code uses
+Odin-style doc comments; `odin doc .` prints them. Contributor and design notes, including the
+project format and the export targets, are in [CLAUDE.md](CLAUDE.md). Every change updates the
+docs it touches: the manual, doc comments, CLAUDE.md, this README and the website's pages.
 
 ## License
 
