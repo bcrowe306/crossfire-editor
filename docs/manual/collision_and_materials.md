@@ -80,6 +80,11 @@ back to the body's values. Areas don't have materials (they stop nothing).
 | `material, ok := e.Game_LoadPhysicsMaterial(game, "materials/ice.material.xml")` | Reads a material file (once per game) |
 
 ```odin
+// A crate's script (on a DynamicBody)
+Crate :: struct {
+	using script: e.Script,
+}
+
 // A body that turns to ice when frozen
 freeze :: proc(self: ^Crate) {
 	ice, ok := e.Game_LoadPhysicsMaterial(self.game, "materials/ice.material.xml")

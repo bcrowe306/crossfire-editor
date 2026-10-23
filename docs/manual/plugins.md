@@ -115,6 +115,10 @@ script's fields as `"script.speed"`.
 ## Commands
 
 ```odin
+countNodes :: proc(host: ^api.Host) {
+	host.log(fmt.tprintf("The scene has %d nodes", host.nodeCount()))
+}
+
 commands := []api.Command{
 	{name = "Count Nodes", description = "Logs how many nodes the scene has", run = countNodes},
 }
@@ -126,15 +130,15 @@ command changes in the project is **one undo step**: Ctrl+Z puts it all back.
 ## Importers
 
 ```odin
-importers := []api.Importer{
-	{extensions = {"csv"}, description = "speaker,text lines into a dialogue", run = importCSV},
-}
-
 importCSV :: proc(host: ^api.Host, source: string) -> (asset: string, problem: string) {
 	// Read `source` (the file the user picked), write what the project needs inside its folder,
 	// list it with host.addAsset, and return the asset to select
-	...
+	// ...
 	return "dialogues/talk.dialogue.xml", ""
+}
+
+importers := []api.Importer{
+	{extensions = {"csv"}, description = "speaker,text lines into a dialogue", run = importCSV},
 }
 ```
 

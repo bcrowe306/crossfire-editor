@@ -41,7 +41,7 @@ Aseprite files, which are pixel art and use Pixels.
 From a script, images are filtered the way the project says; to change one while the game runs:
 
 ```odin
-e.ResourceManager_SetTextureFilter(&game.resourceManager, e.JoinPath(game.projectDir, TEXTURE_HERO), .Pixel)
+e.ResourceManager_SetTextureFilter(&game.resourceManager, e.JoinPath(game.projectDir, TEXTURE_SHIP.path), .Pixel)
 ```
 
 ## Texture atlases
@@ -74,6 +74,7 @@ From a script, the editor writes a constant for each atlas (`ATLAS_ITEMS` in
 `scripts/assets.odin`):
 
 ```odin
+// Given: coin: ^e.Sprite
 // Show another of the atlas's images
 e.Sprite_SetRegion(coin, ATLAS_ITEMS, "gem")
 

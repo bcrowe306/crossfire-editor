@@ -167,9 +167,15 @@ camera when the boss lands, or spawn the enemies when the cutscene ends.
    in **Event** ("footstep", "land").
 2. Select the Animator, open the inspector's **Events** section and **Listen...** to `onEvent`
    with the node whose script should react. The editor writes the handler into that script
-   (here a Hero script with a `step: e.SoundAsset` field):
+   (here a Hero script with a footstep sound field):
 
 ```odin
+Hero :: struct {
+	using script: e.Script,
+	// The footstep sound, chosen in the inspector
+	step: e.SoundAsset `export:""`,
+}
+
 Hero_onAnimEvent :: proc(self: ^Hero, source: ^e.Node, data: e.EventData) {
 	name := data.(string)
 	switch name {

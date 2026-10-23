@@ -101,6 +101,7 @@ the seconds you give. The old song keeps playing until its fade ends. Its layers
 add the new song's layers after the crossfade if it has some.
 
 ```odin
+// Given: music: ^e.MusicPlayer
 e.MusicPlayer_CrossfadeTo(music, "assets/boss_theme.ogg", 3)
 ```
 

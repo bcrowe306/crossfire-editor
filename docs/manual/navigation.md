@@ -108,10 +108,18 @@ It slows down over the last stretch and stops at the target. Its events (listen 
 | `e.NavRegion_FindPath(region, from, to)` | A path's points without an agent (to draw a route, check a distance) |
 | `e.NavGrid_LineClear(&region.grid, a, b)` | Whether nothing blocks the straight line (line of sight on the grid) |
 
-A guard chasing the player (its script has two more fields: `player: ^e.Node`, the node to
-chase, chosen in the inspector, and `repath: f32`):
+A guard chasing the player (its script has two more fields: the node to chase, and a countdown):
 
 ```odin
+Guard :: struct {
+	using script: e.Script,
+	nav: ^e.NavAgent `export:"default=NavAgent"`,
+	// The node to chase, chosen in the inspector
+	player: ^e.Node `export:""`,
+	// Seconds until the next path
+	repath: f32,
+}
+
 Guard_update :: proc(self: ^Guard, events: []sdl.Event, dt: f64) {
 	self.repath -= f32(dt)
 	if self.repath <= 0 {

@@ -265,6 +265,7 @@ In code, the settings' names are the scene file's: **Amount** is `amount`, **Sta
 **Listen...** to **onFinished** to have the editor write a handler into a script. Or from code:
 
 ```odin
+// Given: boom: ^e.ParticleEmitter
 // Remove the emitter once its particles are gone
 e.Event_Subscribe(&boom.onFinished, proc(_: ^e.EventSubject, source: rawptr, _: e.EventData, _: rawptr) {
 	emitter := cast(^e.ParticleEmitter)source

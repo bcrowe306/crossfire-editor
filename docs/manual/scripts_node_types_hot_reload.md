@@ -48,6 +48,11 @@ Every change is undoable (Ctrl+Z), like any other edit.
 - A script finds its node's other scripts with `e.Node_GetScript`:
 
 ```odin
+Health :: struct {
+	using script: e.Script,
+	hp: int `export:"default=10"`,
+}
+
 Blinker :: struct {
 	using script: e.Script,
 	// Blinks a second

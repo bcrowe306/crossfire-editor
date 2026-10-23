@@ -214,8 +214,12 @@ A script can find the TileMap node (an exported field of type `^e.TileMapNode`, 
 `e.Scene_FindNode`) and read or change its tiles. Positions are in the world, the same as nodes'.
 
 ```odin
+// Given: hitPoint: [2]f32, seedPoint: [2]f32
+// (hitPoint: where the hero's head hit a block; seedPoint: where a seed landed)
+level := cast(^e.TileMapNode)e.Scene_FindNode(self.scene, "Level")
+
 // The tile under the hero's feet, and one of its properties
-tile, layer, found := e.TileMap_TileAt(self.level, "Ground", e.Node_GetWorldPosition(self.node))
+tile, layer, found := e.TileMap_TileAt(level, "Ground", e.Node_GetWorldPosition(self.node))
 if found {
 	if damage, has := e.TileMap_TileProperty(layer, tile, "damage"); has {
 		// ...
@@ -223,12 +227,14 @@ if found {
 }
 
 // Break the block the hero hit: empty its cell
-if column, row, ok := e.TileMap_CellAt(self.level, "Ground", hitPoint); ok {
-	e.TileMap_SetTile(self.level, "Ground", column, row, 0)
+if column, row, ok := e.TileMap_CellAt(level, "Ground", hitPoint); ok {
+	e.TileMap_SetTile(level, "Ground", column, row, 0)
 }
 
 // Grow grass where a seed lands: the terrain picks the right tiles
-e.TileMap_SetTerrain(self.level, "Ground", column, row, "grass")
+if column, row, ok := e.TileMap_CellAt(level, "Ground", seedPoint); ok {
+	e.TileMap_SetTerrain(level, "Ground", column, row, "grass")
+}
 ```
 
 | Procedure | What it does |

@@ -280,6 +280,16 @@ Nodes **announce things** through events: a body was hit, a sound finished, a me
 pressed, a CharacterMover landed. A script can **listen** to another node's event without any
 code to find that node.
 
+The examples below use a Hero script that counts the coins it picks up:
+
+```odin
+Hero :: struct {
+	using script: e.Script,
+	// Coins picked up so far
+	coins: int,
+}
+```
+
 ### Listening to an event
 
 1. Select the node whose event you want (say, a coin's Area).
@@ -364,6 +374,8 @@ SOUND_LASER :: e.SoundAsset{"assets/laser.wav"}
 MUSIC_THEME :: e.MusicAsset{"assets/theme.ogg"}
 FONT_PIXEL :: e.FontAsset{"assets/pixel.ttf"}
 COMPONENT_BULLET :: e.ComponentAsset{"components/Bullet.component.xml"}
+COMPONENT_COIN :: e.ComponentAsset{"components/Coin.component.xml"}
+ATLAS_ITEMS :: "atlases/items.atlas.xml"
 DATA_GOBLIN :: e.DataAsset{"data/goblin.data.json"}  // EnemyStats
 
 ACTION_JUMP :: "jump"

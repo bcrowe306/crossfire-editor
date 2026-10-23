@@ -390,6 +390,7 @@ joint.
 A rope that snaps when pulled too hard:
 
 ```odin
+// Given: rope: ^e.Joint
 if linalg.length(e.Joint_GetForce(rope)) > 50000 do e.Scene_RemoveNode(scene, rope.id)
 ```
 

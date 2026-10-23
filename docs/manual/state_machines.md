@@ -51,17 +51,22 @@ A character that stands, runs and jumps:
    **When** to `speed > 10`. From **run**, a transition to **idle**: `speed <= 10`. Select **jump**
    and choose **+ Transition to: \*** (from any state): **When** `jump`. From **jump** to **idle**:
    `grounded`, **After** 0.1 (so it leaves the ground first).
-7. **Feed it** from the character's script:
+7. **Feed it** from the character's script (its node fields, chosen in the inspector: the machine
+   and the CharacterMover):
 
 ```odin
+Hero :: struct {
+	using script: e.Script,
+	brain: ^e.StateMachine `export:""`,
+	mover: ^e.CharacterMover `export:""`,
+}
+
 Hero_update :: proc(self: ^Hero, events: []sdl.Event, dt: f64) {
 	e.StateMachine_SetFloat(self.brain, "speed", abs(self.mover.velocity.x))
 	e.StateMachine_SetBool(self.brain, "grounded", self.mover.onFloor)
 	if e.Input_IsActionJustPressed("jump", self.game) do e.StateMachine_SetTrigger(self.brain, "jump")
 }
 ```
-
-(`brain: ^e.StateMachine` and `mover: ^e.CharacterMover` are the script's node fields.)
 
 8. **Play** (F5): the animations follow what the character does. The **Live** tab shows the
    machine's **state** as it changes (select it in the Live tab's list).
@@ -116,7 +121,17 @@ The machine's events, in the inspector's **Events** (Listen...):
 | **onStateEntered** | It entered a state (data: the state's name) |
 | **onStateExited** | It left a state (data: the state's name) |
 
+With a sound field added to the Hero for the attack:
+
 ```odin
+Hero :: struct {
+	using script: e.Script,
+	brain: ^e.StateMachine `export:""`,
+	mover: ^e.CharacterMover `export:""`,
+	// The attack's sound, chosen in the inspector
+	swing: e.SoundAsset `export:""`,
+}
+
 Hero_onBrainStateEntered :: proc(self: ^Hero, source: ^e.Node, data: e.EventData) {
 	switch data.(string) {
 	case "attack": e.Game_PlaySound(self.game, self.swing)

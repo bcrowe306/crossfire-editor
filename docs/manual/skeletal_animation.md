@@ -129,9 +129,9 @@ arm.rotation = 45
 // Where a bone's tip is in the world (to spawn a bullet at the gun's muzzle)
 muzzle := e.Bone2D_Tip(arm)
 
-// Move an IK target: the arm reaches for it next frame
+// Move an IK target to the mouse: the arm reaches for it next frame
 target := e.Scene_FindNode(scene, "Hero/HandTarget")
-e.Node_SetWorldPosition(target, mousePosition)
+e.Node_SetWorldPosition(target, e.Scene_ScreenToWorld(scene, e.Input_GetMousePosition()))
 
 // Bones moved for a new rest pose: bind the mesh again
 body := cast(^e.SkinnedMesh)e.Scene_FindNode(scene, "Hero/Body")
