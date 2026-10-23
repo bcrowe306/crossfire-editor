@@ -96,7 +96,8 @@ add it as a task and to the README's command table.
 | `task run:debug` | Build with `-debug` and run (unoptimized: the viewport ran at ~14 fps vs 60) |
 | `task run:fullscreen` | Optimized, with `-define:EDITOR_FULLSCREEN=true` |
 | `task player` | Build the engine's player into `build/player/player` |
-| `task play:demo` | Run the demo project in the player, without the editor |
+| `task play:demo` | Run the demo project (its scripts linked into its own player: `tools/demo/player`), without the editor |
+| `task demo:playtest` | Play the demo headless (`tools/demo/playtest`: a bot pressing keys), check its mechanics and levels, save frames to `build/playtest/` (`PART=title|forest|hollow|lair|gameover`) |
 | `task clean` | Delete build output |
 
 - **Windows:** Task's own shell can't start a `.sh` file there, so the tasks that run the engine's
@@ -120,7 +121,8 @@ add it as a task and to the README's command table.
   archives ship it there), else in the working folder (a checkout); from a macOS bundle a copy
   in `~/Documents/Crossfire Editor`, made on first run from the bundle's
   `Resources/demo_project` (`Editor_ShippedDemo`, `Folder_Copy`). Only when there's no shipped
-  demo to copy does `Project_CreateDemo` write a reduced built-in one.
+  demo to copy does `Project_CreateDemo` write a reduced built-in one (an outline of the demo:
+  its title, options and an empty level, made of UI controls, no images).
 - Skald is imported as `import "gui:skald"` (`-collection:gui=Skald`, set by the Taskfile).
 - Runtime needs a Vulkan loader and SDL3 (plus SDL3_image, SDL3_ttf, SDL3_mixer through the engine).
   Per-OS setup is in `Skald/PLATFORMS.md`.
@@ -158,7 +160,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `context_menus_panels.odin` | The bottom panel's menus (`Ctx_Graph`): States, Dialogue nodes and steps, Timeline tracks and keys, Mixer strips, Git changes, Live nodes, Animation frames, plugins |
 | `viewport_tools.odin` | **Viewport tools**: Align and Distribute (`Align_Nodes`, `Align_Moves` on `Viewport_NodeShapes`' boxes), the Zoom tool's click or box (`ViewportTools_ZoomBox`), guides (`SceneDef.guides`, `Guide_*` messages, `Guides_Snap` / `Guides_SnapNode`, `.editor/guides.ini`: `Guides_Save` / `Guides_Load`) |
 | `editor_theme.odin` | **The editor's look**, edited live in Settings > Appearance: `ThemeColor` (Skald's roles), `Settings.themeColors` / `themeColorsSet` / `cornerRadius`, `EditorTheme_Apply` (in `Settings_Theme`), `THEME_PRESETS`, `ThemeColor_Format` / `_Parse` (editor.ini's `[theme]`) |
-| `project.odin` | Project model (`Project`, `SceneDef`, `NodeDef`, `AssetDef`), node insert/remove, world transforms, `Project_Load` (through the engine's parser), the demo project |
+| `project.odin` | Project model (`Project`, `SceneDef`, `NodeDef`, `AssetDef`), node insert/remove, world transforms, `Project_Load` (through the engine's parser), the built-in outline of the demo (`Project_CreateDemo`) |
 | `project_xml.odin` | `Project_Save`, XML writer (`ProjectToXML`, `SceneToXML`, `EscapeXML`) |
 | `assets.odin` | Importing (copy into `assets/`), removing, usage counts, asset kinds by extension |
 | `audio_preview.odin` | Sound playback for the preview panel (SDL3_mixer; package state) |
@@ -271,8 +273,12 @@ Skald is not immediate-mode and not a retained widget tree:
 | `editor_test.odin` | Unit tests for the model, XML round trips, transforms, assets, search, viewport math, keymap and update |
 | `tests/ui/*.script` | UI test scripts, run by `task test:ui` |
 | `tests/fixtures/` | Files tests import (`beep.wav`: a generated 1.5 s tone) |
-| `examples/demo_project/` | The demo project, shipped with the editor: the Asteroids game and the forest level (ForestScene: an LDtk level, `assets/forest/`, with entity components and scripts). Its README lists what each part demonstrates |
-| `tools/demo/make_forest.py` | Made the forest level from the Legacy-Fantasy and GameSounds packs: copies and cuts the images (a combined hero sheet), copies the sounds, and writes `forest.ldtk` from LDtk's JSON schema (every required key; validated), with auto-layer rules and the tiles they make. Rerun only to start the level over: it's edited in LDtk now |
+| `test_project_test.odin` | `Project_CreateTestProject`: the unit tests' sample project (the old built-in demo: a menu, a play scene with a tree of sprites, options); the outline demo's test |
+| `examples/demo_project/` | The demo game, "Legacy of the Wardens", shipped with the editor (see "The demo project" below). Its README lists what each part demonstrates |
+| `tools/demo/make_demo.py`, `tools/demo/hero.lua` | Made the demo's art (from the Legacy-Fantasy pack: ImageMagick, and Aseprite for the hero's file) and its three LDtk levels (`assets/levels/legacy.ldtk`, from LDtk's JSON schema: every required key, validated; auto-layer rules and the tiles they make). Rerun only to start over: the levels are edited in LDtk now |
+| `tools/demo/make_sounds.py` | Synthesizes every sound effect and the music (layers of equal length, seamless loops), Python's standard library and ffmpeg (OGG Vorbis) |
+| `tools/demo/playtest/` | The demo's headless playtest (`task demo:playtest`) |
+| `tools/demo/player/` | The demo's own player (the engine's player with its scripts): `task play:demo` |
 
 **Layout rules learned building it:**
 - `skald.split` only sizes its **first** pane. Panels that should keep their size (sidebars, bottom
@@ -1248,7 +1254,7 @@ MyGame/
 - **Writer rules:** attributes are written in a fixed order, and only the ones that apply to the
   node's kind and differ from `e.DEFAULT_SCENE_NODE`. Values are escaped (`EscapeXML`). Output is
   deterministic, so saving an unchanged project produces identical files; a test checks it.
-- **Round trips:** `editor_test.odin` saves the demo with tricky values (escapes, non-default
+- **Round trips:** `editor_test.odin` saves the test project (`Project_CreateTestProject`) with tricky values (escapes, non-default
   fields), reloads it, and compares every field. Extend it whenever a property is added.
 - **Not handled yet:**
   - The editor doesn't scan `assets/` for files added outside the editor.
@@ -1550,14 +1556,12 @@ Component node, and from scripts with `e.Scene_AddComponent(scene, COMPONENT_X)`
 - **Play reloads** saved LDtk files (the engine's LDtk_WatchFiles in dev runs): tiles, collision
   and backgrounds update in the running game, layers added or removed appear or go, and
   entities placed or deleted spawn or go (the others keep running).
-- **The demo's forest level** (ForestScene, `examples/demo_project/assets/forest/forest.ldtk`)
-  uses all of it: auto-layer rules, IntGrid collision, parallax layers, entities mapped to
-  components with scripts named like them, fields (enemies' patrol, speed, health), an EntityRef.
-  Combat (the hero's attack, snails, boars, bees, blood, the engine's hitstop and camera shake,
-  the HUD) is in its scripts; the demo README lists where. Test:
-  `shipped_demo_copies_with_its_level` (copied like a bundle's first run, loaded, its files
-  exported). It was checked playing (a headless program driving the hero through each mechanic)
-  and rendered, in the game and as the editor shows it.
+- **The demo's levels** (ForestScene, HollowScene, LairScene, all in
+  `examples/demo_project/assets/levels/legacy.ldtk`) use all of it: auto-layer rules, IntGrid
+  collision with one-way and Area values, entities mapped to components with scripts named like
+  them, fields (patrols, speeds, health, dialogue nodes, next scenes), a rectangle entity and an
+  EntityRef. Test: `shipped_demo_copies_with_its_level` (copied like a bundle's first run,
+  loaded, every level scene's node and components, the files exports need).
 
 ## Input actions (implemented; engine: input.odin)
 
@@ -2240,6 +2244,50 @@ Their files' doc comments describe them; what the code relies on:
   undo). The driver's `click_at` / `drag_widget [shift]` press at fractions of a widget,
   `click_overlay_item` clicks a popup's choice (a dropdown's), `scroll_by` scrolls; checks
   `particle`, `particle_near`, `particle_linked`, `ramp_stops`, `ramp_stop`.
+
+## The demo project (`examples/demo_project`, `tools/demo/`)
+
+"Legacy of the Wardens" (2026-10-23; it replaced the Asteroids demo and its forest level): a
+platformer that shows as much of the engine as one game can. Its README says what each part
+demonstrates and where; what the code here relies on:
+- **What's in it:** a title screen of UI controls (parallax, particles, lighting, an Animator),
+  Options and Credits pushed over it, a loading scene, three LDtk levels (one `.ldtk` file,
+  three scenes: ForestScene, HollowScene, LairScene), a pause menu, game over and victory scenes,
+  27 scripts (`scripts/`: GameState is the one global), 21 components, three animation sets, one
+  dialogue, four themes. Format 14, saved by the editor's writer: load + `Project_Save` leaves
+  every file as it is (`shipped_demo_saves_unchanged`; after a hand edit, `DEMO_RESAVE=1` on
+  that test writes the writer's version back into the demo).
+- **Assets:** the art is cut from the workspace's `Legacy-Fantasy/` pack by `make_demo.py` (and
+  `hero.lua`, with Aseprite). **No sound comes from the workspace's GameSounds pack**: its license
+  (GameBurp's, sold through Sonniss) forbids sharing the files, and the demo ships as source in
+  this repository and the releases, so `make_sounds.py` synthesizes every sound and the music.
+  The fonts are SIL OFL (Pixelify Sans, Jacquarda Bastarda 9; their licenses beside them).
+  About 5 MB; keep it small (releases ship it): the `.ldtk` is compact JSON, music is OGG
+  quality 1, and the LDtk levels have no tree layers (the scenes' ParallaxLayers draw the forest).
+- **The levels** are generated from layouts in `make_demo.py` (fills and entity lists, with the
+  hero's reach in mind: steps up at most 4 cells, gaps at most 6); after a change, run the
+  playtest. The Ground layer's values: 1 grass, 3 stone (solid; one IntGrid group for the rules),
+  2 planks (one-way), 4 water (an Area named Water).
+- **The playtest** (`tools/demo/playtest`, `task demo:playtest`, about 10 minutes: the software
+  renderer draws one frame in ten): the engine's player set up on an offscreen window
+  (`Player_Setup`, `renderer = "software"`), frames stepped at 1/60 s with SDL key events, checks
+  printed, frames saved as PNG from the renderer. A bot runs each level (jumps at walls, gaps and
+  water, rides platforms, climbs planks; where it's stuck 6 s it's moved on and the place
+  reported). Saves go to "Legacy Playtest". Run it after changing the demo or the engine.
+  `PLAYTEST_RENDERER=gpu` plays it on the GPU renderer (the hit flash's shader runs; it
+  works with SDL's offscreen video driver here).
+- **Exports checked** (2026-10-23): Linux x86_64 single file (14 MB, needing only libc), run
+  from another folder; Web (8.6 MB) in headless Chromium: the title draws, a synthetic Enter
+  starts a new game (saved to localStorage), the forest draws. That run found the engine's web
+  heap bug (every web export stopped before its first scene).
+- **Tests:** `shipped_demo_copies_with_its_level` (each level scene, its components, the files an
+  export takes), `shipped_demo_saves_unchanged`; the outline demo (`Project_CreateDemo`) has `built_in_demo_outline_saves_and_loads`;
+  the unit tests' own sample project is `Project_CreateTestProject` (test_project_test.odin).
+- **Engine changes it led to** (2026-10-23): Slider and CheckBox controls, `Game_PlaySound` on a
+  bus with volume, pitch and pan, RichText alignment, scroll boxes hiding a row's controls and
+  scrolling to the keys' focus, pushed scenes starting fresh and ignoring the press that opened
+  them, `CreateLabel` copying its font path, the project icon read from the project's folder, Escape quitting only games
+  whose actions don't use it, web exports' heap memory through Emscripten's malloc.
 
 ## Export (implemented, `export.odin`, `export_run.odin`)
 

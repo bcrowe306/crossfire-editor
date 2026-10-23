@@ -98,7 +98,8 @@ Run `task` to list them all.
 | `task run:fullscreen` | Run fullscreen. Useful on tiling window managers, which shrink the window into a tile |
 | `task prebuilt` | Build this platform's prebuilt player (optimized) next to the editors: projects without scripts then play and export without compiling |
 | `task player` | Build the engine's game player into `build/player/` |
-| `task play:demo` | Run the demo project in the player, without the editor |
+| `task play:demo` | Run the demo project (with its scripts, in its own player), without the editor |
+| `task demo:playtest` | Play the demo headless with a bot: every mechanic and level checked, frames saved to `build/playtest/` (`PART=title`, `forest`, `hollow`, `lair` or `gameover` for one part) |
 | `task clean` | Delete build output |
 
 The Taskfile passes the flags every build needs:
@@ -435,7 +436,7 @@ becomes an *instance* of it. Then:
   `scripts/assets.odin`; exported `e.ComponentAsset` fields get a picker).
   `e.Scene_GetComponentInstances` lists a component's instances.
 - A one-shot ParticleEmitter tells when it's done: subscribe to its `onFinished` event (the demo's
-  blood removes itself that way).
+  sparks, blood and dust remove themselves that way).
 
 ## Aseprite
 
@@ -570,10 +571,10 @@ LDtk does (cover, stretch, repeat, nine-slice...), and the inspector and browser
 the levels. LDtk's internal icons are a commercial pack the engine can't include: put your copy
 (`finalbossblues-icons_full_16.png`) beside the `.ldtk` file to see them.
 
-The demo project's **forest level** (ForestScene, from its menu) uses all of this: a platformer
-with auto-tiled ground, IntGrid collision, parallax trees, and entities (a sword-fighting hero,
-coins, snails, boars, bees, a key that opens a gate through an entity reference) that are
-components with scripts, with blood particles, hitstop, camera shake and a HUD.
+The demo project's three levels (ForestScene, HollowScene, LairScene, in one LDtk project) use all
+of this: auto-tiled grass and stone, IntGrid collision with one-way planks and water as an Area,
+and entities (a sword-fighting hero, coins, gems, pots, snails, boars, bees, rune stones, moving
+platforms, a boss and its trigger rectangle) that are components with scripts and LDtk fields.
 
 In code:
 
@@ -645,7 +646,8 @@ setting, in groups (Emission, Shape, Rotation, Color, Motion, Forces, Collision)
 The viewport plays emitters live (P pauses viewport animations), and picks up changes as you drag a
 slider. In code: `e.ParticleEmitter_Start(emitter)` fires a one-shot emitter (emitting and
 continuous off, burst 1), `e.ParticleEmitter_Stop`, and `emitter.settings` changes any setting.
-The demo's ship exhaust and pickup sparks show both.
+The demo's candles and gems (continuous) and its hit sparks, dust and pot shards (one-shot bursts
+added from code) show both.
 
 ## Sound
 
@@ -796,9 +798,11 @@ credentials (it never stops to ask for a password).
 
 A project is a folder with `project.xml`, a `scenes/` folder with one XML file per scene, and
 `assets/`. The format is specified in the engine's `project_format.odin`.
-[`examples/demo_project`](examples/demo_project) is the demo that ships with the editor: a small
-space game (a menu, a play scene, an options screen) and a platformer level made in LDtk, with
-scripts showing most of the engine's features. Its README says what to look at for each.
+[`examples/demo_project`](examples/demo_project) is the demo that ships with the editor, "Legacy of
+the Wardens": a platformer with a title screen, options (controls, volumes, fullscreen), an opening
+dialogue, three LDtk levels and a boss, built to show most of the engine's features working
+together. Its README says what to look at for each. The editor's tools/demo/ made its art, levels,
+sounds and music, and plays it headless (`task demo:playtest`).
 
 ## Releases
 

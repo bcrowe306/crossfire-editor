@@ -67,6 +67,10 @@ While a scene is open over another, the one under it **doesn't update** (its scr
 and animations wait) but is still drawn. For a HUD that runs alongside the level, open it with
 `e.Game_PushScene(game, "Hud", pauseBelow = false)`: both update.
 
+A scene opened over another starts fresh each time, like a scene you go to: its scripts get
+`ready` again (a pause menu can focus its first button there), and the key or button press that
+opened it doesn't also press anything in it.
+
 Going to another scene closes everything open over the old one.
 
 ## Loading screens

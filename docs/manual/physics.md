@@ -295,8 +295,9 @@ After each move, the mover tells you where it ended up:
 | `velocity` | What's left of its velocity after the move |
 | `dropThrough` | Set it to fall through one-way platforms |
 
-The demo project's forest level has a complete hero (`scripts/hero.odin`): running, jumping with
-a little forgiveness for late presses, short hops, attacks.
+The demo project has a complete hero (`scripts/hero.odin`): speeding up and slowing down,
+jumping with a little forgiveness for late presses (coyote time, a jump buffer), short hops,
+dropping through one-way planks, riding moving platforms, attacks.
 
 ## RayCast nodes
 

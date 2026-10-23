@@ -273,8 +273,9 @@ e.Event_Subscribe(&boom.onFinished, proc(_: ^e.EventSubject, source: rawptr, _: 
 }, nil)
 ```
 
-The demo project's forest level does both: `scripts/coin_collect.odin` (a coin's sparkle) and
-the blood burst in `scripts/effects.odin`.
+The demo project does both: its sparkles, sparks, dust and blood are one-shot components added
+from code (`scripts/effects.odin`, `scripts/pickups.odin`), each removed by its `Burst` script when
+its `onFinished` event comes.
 
 ## How it's stored
 

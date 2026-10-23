@@ -17,8 +17,8 @@ scene exactly as the game draws it, turns its IntGrid into collision, and turns 
 nodes with your components and scripts. You keep drawing in LDtk; the editor and the running game
 follow your saves.
 
-The demo project's forest level (ForestScene, `assets/forest/forest.ldtk`) uses everything on
-this page.
+The demo project's three levels (ForestScene, HollowScene and LairScene, all in
+`assets/levels/legacy.ldtk`) use everything on this page.
 
 - [Importing an LDtk project](#importing-an-ldtk-project)
 - [Putting a level in a scene](#putting-a-level-in-a-scene)
@@ -100,7 +100,7 @@ How layers are drawn:
 
 ## Collision from an IntGrid layer
 
-Choose the IntGrid layer in **Collision** (the forest's is called Collisions). Each of its values
+Choose the IntGrid layer in **Collision** (the demo's is called Ground). Each of its values
 gets a row, named after the value in LDtk ("1 Ground", "2 Platform"), where you choose what it
 becomes:
 
@@ -158,8 +158,8 @@ entity's name.
 3. In the LDtkLevel's inspector, set the Coin entity's **Becomes** to the component. **Runs** stays
    **Auto**: the `Coin` script runs on every coin.
 
-Now every coin you place in LDtk is a working coin in the game. The forest's hero, coins, enemies,
-key, gate and chest are made this way.
+Now every coin you place in LDtk is a working coin in the game. The demo's hero, coins, gems,
+creatures, rune stones, platforms and boss are made this way.
 
 ## Fields: settings from LDtk
 
@@ -256,8 +256,8 @@ ex_fields :: proc(self: ^e.Script) {
 ```
 
 **Entity references** (LDtk's EntityRef fields, drawn as arrows between entities) let the level
-decide which lever opens which door, not the code: the forest's key opens the gate its "opens" field
-points at (`scripts/key.odin`).
+decide which lever opens which door, not the code: the demo's boss trigger closes the gate its
+"gate" field points at (`scripts/level.odin`).
 
 **Entities made by code:** register what an entity type becomes, and set its **Becomes** to Auto or
 Code:
@@ -280,7 +280,7 @@ registerSpawners :: proc "contextless" () {
 | `e.LDtk_EntityRefNode(node, "door")`, `e.LDtk_EntityRefNodes(node, "lamps")` | The node an EntityRef field points at; the nodes of an array of them |
 | `e.LDtk_FindEntityByIid(level, iid)` | An entity's node by its LDtk iid |
 | `e.LDtk_RegisterEntity("Torch", spawn)` | Makes an entity type's nodes in code |
-| `e.Asset_LDtk(game, LDTK_FOREST)` | The whole LDtk project's data (worlds, levels, layers, definitions), from its constant in `scripts/assets.odin` |
+| `e.Asset_LDtk(game, LDTK_LEGACY)` | The whole LDtk project's data (worlds, levels, layers, definitions), from its constant in `scripts/assets.odin` |
 
 The LDtkLevel node's events (inspector > **Events** > **Listen...**): **onEntitySpawned** (an
 entity's node was made, when the level is built or a reload added one; its data is the node) and
@@ -295,7 +295,7 @@ The LDtkLevel node in the scene file names the file and level, the collision lay
 and the entity rules that aren't Auto:
 
 ```xml
-<node kind="LDtkLevel" name="Level" x="0" y="0" ldtk="assets/forest/forest.ldtk" level="Forest" intGridCollision="Collisions" oneWayValues="2" areaValues="4">
+<node kind="LDtkLevel" name="Level" x="0" y="0" ldtk="assets/levels/legacy.ldtk" level="Forest" intGridCollision="Ground" oneWayValues="2" areaValues="4">
 	<entity name="Hero" component="components/hero.component.xml"/>
 	<entity name="Coin" component="components/coin.component.xml"/>
 	<entity name="Marker" make="Skip"/>

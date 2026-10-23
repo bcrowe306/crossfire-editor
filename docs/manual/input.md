@@ -78,8 +78,9 @@ New projects start with six actions, named like Godot's:
 | `ui_cancel` | Escape, East button |
 
 The engine uses them itself: menus, UI controls and dialogue boxes move their focus, press and
-go back with them, on the keyboard and gamepads alike. Your scripts can use them too (the demo's
-ship flies with them). Change their bindings freely; keep the names.
+go back with them, on the keyboard and gamepads alike. Your scripts can use them too. The demo's
+hero has its own actions (left, right, jump, attack...), so players can rebind them in its Options
+without changing the menus' keys. Change their bindings freely; keep the names.
 
 ## Reading actions in scripts
 
@@ -367,5 +368,9 @@ game runs too.
 
 **Pressing a key in Project Settings doesn't add a gamepad button.** Gamepad buttons and sticks
 are added from the Gamepad and Stick, trigger dropdowns.
+
+**Escape quits my game.** A game quits on Escape unless one of its actions uses the key. The
+default `ui_cancel` binds it, so most games keep Escape for themselves; a project that removed
+it from every action quits on it. Bind it to an action (a pause key) to handle it yourself.
 
 **The player's controls reset every time.** Call `e.Input_LoadBindings()` when the game starts.

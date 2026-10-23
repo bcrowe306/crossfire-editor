@@ -197,7 +197,7 @@ from one) and to the computer's log: the debugger's output on Windows, the Conso
 the browser's console on the web. Each line reads the same everywhere:
 
 ```text
-[INFO ] [engine] Playing 'Asteroids' (3 scenes, start: Title, 2 scripts registered)
+[INFO ] [engine] Playing 'Legacy of the Wardens' (10 scenes, start: TitleScene, 27 scripts registered)
 [WARN ] [player] Low health: 12
 ```
 

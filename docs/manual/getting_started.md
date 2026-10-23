@@ -41,10 +41,11 @@ Open **System Settings > Privacy & Security** and choose **Open Anyway** for Cro
 
 ## The demo project
 
-The first time you start the editor it opens the **demo project**: a small space game (a menu, a
-play scene, an options screen) and a platformer level made in LDtk. Press **F5** to play it. Look
-around: click things in the scene tree, see their settings in the inspector, change some and play
-again. You can't break anything you can't undo (Ctrl+Z).
+The first time you start the editor it opens the **demo project**, "Legacy of the Wardens": a
+platformer with a title screen, options, an opening dialogue, three levels made in LDtk and a boss.
+Press **F5** to play it. Look around: click things in the scene tree, see their settings in the
+inspector, change some and play again. You can't break anything you can't undo (Ctrl+Z). Its
+README (in the project's folder) says where each feature is used.
 
 Where the demo lives:
 

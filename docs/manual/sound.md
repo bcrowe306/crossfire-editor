@@ -133,9 +133,21 @@ here.
 
 ## Sound in scripts
 
-**A sound once**, from anywhere: `e.Game_PlaySound` plays a sound on Master, loading it the first
-time. Give it a `SoundAsset`: a field the inspector fills in, or a constant from
-`scripts/assets.odin` (the editor writes one for each sound: `SOUND_LASER`).
+**A sound once**, from anywhere: `e.Game_PlaySound` plays a sound, loading it the first time.
+Give it a `SoundAsset`: a field the inspector fills in, or a constant from
+`scripts/assets.odin` (the editor writes one for each sound: `SOUND_LASER`). It plays on Master
+unless you name a **bus**, and it can be quieter, higher or panned:
+
+```odin
+// Given: self: ^e.Script, SOUND_COIN: e.SoundAsset
+// On the "SFX" bus, so the options' sound volume (that bus's) turns it down too
+e.Game_PlaySound(self.game, SOUND_COIN, bus = "SFX")
+// Quieter and a little lower (vary the pitch to keep repeats from sounding the same)
+e.Game_PlaySound(self.game, SOUND_COIN, bus = "SFX", volume = 0.6, pitch = 0.9)
+```
+
+A sound played this way follows its bus while it plays: turn the bus down and it gets quieter.
+Up to 32 play at once; another one cuts the oldest off.
 
 ```odin
 Player :: struct {
@@ -166,6 +178,7 @@ code tab to add one), like `engine` and `music` above.
 | Code | What it does |
 |---|---|
 | `e.Game_PlaySound(game, SOUND_X)` | Plays a sound once, on Master (a path works too: `"assets/hit.wav"`) |
+| `e.Game_PlaySound(game, SOUND_X, bus = "SFX", volume = 0.5, pitch = 1.2, pan = -1)` | The same on a bus, at a volume, pitch and pan |
 | `e.AudioPlayer_Play(player)` | Plays a node's sound from the start (again, if it was playing) |
 | `e.AudioPlayer_Stop(player)` | Stops it (music fades out over its **Fade out**) |
 | `e.AudioPlayer_Pause(player)`, `e.AudioPlayer_Resume(player)` | Pauses and carries on |

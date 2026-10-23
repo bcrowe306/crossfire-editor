@@ -217,7 +217,8 @@ and Height.
 | `[size=32]big[/size]` | Sets the text size between |
 
 Tags nest: `[size=30][color=#ffd040]Crossfire[/color][/size]`. It wraps at its Width (0: only at
-line breaks).
+line breaks). **Text align** puts each line at the left (Auto), in the middle or at the right of
+its width (or, with no width, of its widest line): centered titles, credits, a score on the right.
 
 ## Themes: how controls look
 
