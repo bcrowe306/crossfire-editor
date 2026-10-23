@@ -209,7 +209,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_live.odin` | The bottom panel's Live tab (`LivePanel`): pause / step, stats and the frame-time graph, the nodes, the chosen node's fields (side by side, or stacked in a narrow panel) |
 | `nav_edit.odin` | **Navigation**: `NodeDef.nav` (`e.NavSettings`; a region's area is `shapeSize`), `Nav_Setting_Changed` (`NavNumberTarget`), the NavRegion and NavAgent inspector rows (`navInspectorRows`) |
 | `light_edit.odin` | **2D lighting**: `NodeDef.light` (`e.LightSettings`), `Light_Setting_Changed`, `Scene_Lighting_Changed`, the light and occluder inspector rows (`lightInspectorRows`; occluders use `shapeRows`), the scene preview's lighting rows (`sceneLightingRows`) |
-| `ui_edit.odin` | **UI controls** (Panel, Button, ProgressBar, TextField, ScrollBox, RichText): `NodeDef.ui` (the engine's `e.UISettings`), `UI_Setting_Changed` / `UIEdit_Update`, the inspector's rows (`uiInspectorRows`), `NodeKind_IsControl` |
+| `ui_edit.odin` | **UI controls** (Panel, Button, ProgressBar, TextField, ScrollBox, RichText, Slider, CheckBox): `NodeDef.ui` (the engine's `e.UISettings`), `UI_Setting_Changed` / `UIEdit_Update`, the inspector's rows (`uiInspectorRows`), `NodeKind_IsControl`, `UIKind_TakesImage` |
 | `theme_edit.odin` | **UI themes** (`.theme.xml` assets, kind Theme): `ThemeDef`, `Project.themes` / `uiTheme`, load / save / create, the theme inspector (`themeInspector`, `State.themeSelection`), `Theme_*` messages |
 | `timeline_edit.odin` | **The Timeline** (Animator nodes): `TimelineEditor` (the Animator edited, playhead, selection), `Timeline_Changed` (edits: node steps on the Animator) / `Timeline_View` (panel only), `Timeline_Update`, `Timeline_Follow`, track paths (`Timeline_ResolvePath`, `Timeline_PathTo`), `Timeline_Properties`, `Timeline_NodeValue` (what Key records) |
 | `view_timeline.odin` | The bottom panel's Timeline tab (`TimelinePanel`: clip and transport toolbars, the tracks canvas with the ruler, keys and playhead, the key editor) and the Animator's inspector rows (`animatorInspectorRows`) |
@@ -1207,7 +1207,8 @@ MyGame/
   animation's; a node without animations gets "default"), so `Project_Load` just copies them;
   they're rewritten in the new format only when saved. Also in 14 (no version of its own): a
   Camera's `target` and follow, limit (`limitsOff` too) and shake attributes (`NodeDef.camera`,
-  `cameraTarget`; see "Camera follow target").
+  `cameraTarget`; see "Camera follow target"), and the Slider and CheckBox UI controls (`step`,
+  `checked`; themes' `checkColor`: see "UI controls and themes").
 - **Version 13** also: CollisionShape `oneWay` (the inspector's One way checkbox,
   `NodeFlag.One_Way`); **translation tables**: `.csv` assets of kind Translation (the browser's
   Translations folder, its preview parsed by the engine's `e.Locale_LoadCSV`; not in
@@ -2092,10 +2093,20 @@ Their files' doc comments describe them; what the code relies on:
   resolved path is made only when it changes; the game's `themes` map is cleared before it's
   freed). `Theme_Created{forSelected}` (a control's New Theme button) gives the control the
   new theme and is a node step (the file stays).
+- **Sliders and check boxes** (format 14, no bump): a Slider's rows are Value, Min, Max, Step
+  (`UIField.Step`, `u.step`, 0 and up), Show percent, Can't be used; a CheckBox's Text, Checked
+  (`UIField.Checked`), Can't be used. Neither has an Image row (`UIKind_TakesImage`) nor writes
+  `texture`; a Slider has no Font size row (as a ProgressBar) and writes no `text`. The writer
+  writes `step` only for Sliders and `checked` only for CheckBoxes (the parser reads them only
+  for those kinds). Their tooltips share the labels Value / Min / Max / Show percent with the
+  ProgressBar's, so those texts fit both.
 - **Labels** differ from other kinds' where the meaning differs ("Grid columns", "Gap", "Edge
   margin", "Can't be used", "UI theme"): tooltips are per label.
-- Tests: `ui_controls_and_themes_in_the_editor`, `tests/ui/ui_controls.script` (driver checks
-  `ui <field>`, `themes`, `theme <field>`, `ui_theme`). User guide: `docs/manual/ui.md`.
+- Tests: `ui_controls_and_themes_in_the_editor` (a slider's and a check box's settings, undo,
+  the built preview nodes, their written attributes, the round trip), `tests/ui/ui_controls.script`
+  (a Slider's max, value and step, a CheckBox's text and Checked with undo; driver checks
+  `ui <field>`: `value`, `min`, `max`, `step`, `checked` too; `themes`, `theme <field>`,
+  `ui_theme`). User guide: `docs/manual/ui.md`.
 
 ## Keyframe animation: the Timeline (implemented, `timeline_edit.odin`, `view_timeline.odin`; engine: animator.odin)
 

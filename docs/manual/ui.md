@@ -1,6 +1,6 @@
 ---
 title: The UI system
-description: Panels, buttons, progress bars, text fields, scroll boxes and rich text for menus and HUDs, with layouts and themes.
+description: Panels, buttons, progress bars, text fields, scroll boxes, rich text, sliders and check boxes for menus, HUDs and options screens, with layouts and themes.
 order: 21
 ---
 
@@ -18,6 +18,8 @@ the scene like any other nodes, and the editor's viewport shows them as the game
 | **TextField** | A box the player types a line of text in: a name, a code |
 | **ScrollBox** | A column of controls that scrolls when there are more than fit: an inventory, a level list, credits |
 | **RichText** | Text with colors and sizes, wrapped to a width: a dialogue line, an item's description |
+| **Slider** | A value the player drags a knob along a track to pick: music and sound volume, brightness |
+| **CheckBox** | A box the player ticks, with its text beside it: fullscreen, subtitles, vibration |
 
 (The older **Label** and **Menu** nodes still work: a Label is one line of plain text, a Menu a
 ready-made list of buttons, checkboxes and sliders. The controls here are for building your own
@@ -128,12 +130,15 @@ Panels hold panels: a column of rows makes a form, a row of columns a two-page m
 - a Panel: what its controls need, laid out, plus padding
 - a RichText: its text (with a width set, it wraps at that width and grows down)
 - a TextField: ten characters' room; a ProgressBar: 200 x 20; a ScrollBox: 300 x 200
+- a Slider: a 200 pixel track with room for its knob at each end (220 x 20), plus its percentage
+  when it shows one
+- a CheckBox: its box, a gap and its text
 
 ## Each control's settings
 
 **Every control:** Width, Height, Anchor (or Expand, in a row or column), **Font size** (0: the
-theme's), **UI theme** ([Themes](#themes-how-controls-look)), **Image** (except text fields and
-rich text: [Images](#images-and-9-patches)).
+theme's; not on panels, scroll boxes, progress bars and sliders), **UI theme** ([Themes](#themes-how-controls-look)),
+**Image** (except text fields, rich text, sliders and check boxes: [Images](#images-and-9-patches)).
 
 **Button**
 
@@ -169,6 +174,37 @@ Click it (or move the focus to it) and type; Backspace, Delete, Left, Right, Hom
 and **Enter** fires its **onSubmitted** event. Every change fires **onChanged**. A click elsewhere
 takes the focus away.
 
+**Slider**
+
+| Setting | What it does |
+|---|---|
+| **Value**, **Min**, **Max** | The value and its range: the left end is Min, the right end Max |
+| **Step** | The steps the value snaps to: 5 on a 0 to 100 slider gives 0, 5, 10... (0: any value) |
+| **Show percent** | Writes "80%" right of the track |
+| **Can't be used** | Grayed out; can't be dragged or focused |
+
+Press anywhere on it and the value jumps there; keep the button down and drag, and the knob
+follows the mouse (even past the slider's ends). While it has the focus, **Left** and **Right**
+(the ui_left and ui_right actions, so a gamepad's d-pad too) move the value by one step, or by a
+twentieth of the range when Step is 0; **Up** and **Down** still move the focus. Every change
+the player makes fires its **onValueChanged** event, with the new value.
+
+The track is the theme's **Bar background** with the filled part in **Bar fill**; the knob is
+drawn in the button colors (**Button color**, **Hovered** under the mouse, **Pressed** while
+dragged).
+
+**CheckBox**
+
+| Setting | What it does |
+|---|---|
+| **Text** | Its text, right of the box; `@key` translates |
+| **Checked** | Ticked when the scene starts |
+| **Can't be used** | Grayed out; can't be ticked or focused |
+
+A click (on the box or its text), or Enter / Space / a gamepad's accept button while it has the
+focus, ticks or unticks it and fires its **onToggled** event (true when ticked). The box is
+the theme's **Field color** (the button colors under the mouse), the tick its **Check mark**.
+
 **ScrollBox**: a column (Align, Padding, Gap apply). What doesn't fit wholly is hidden; the mouse
 wheel over it scrolls it, and moving the focus to a hidden button scrolls to it. Give it a Width
 and Height.
@@ -200,8 +236,9 @@ the built-in one) and every value, grouped:
 | Panels | Panel color, border color and width, corner radius, padding, spacing |
 | Buttons | Button color, hovered, pressed, disabled, button text, focus outline |
 | Text fields | Field color, placeholder, caret |
-| Progress bars | Bar background, bar fill |
+| Progress bars | Bar background, bar fill (sliders' tracks too) |
 | Scroll boxes | Scrollbar |
+| Check boxes | Check mark |
 
 Colors have a picker and an alpha slider (transparency); numbers a slider (type a value in its box,
 or reset it with the button beside it). The viewport shows every change at once.
@@ -221,7 +258,7 @@ button: a Button with an Image and no text.
 
 ## Keyboard and gamepad
 
-Buttons and text fields take **focus**: the focused one has an outline (the theme's focus color).
+Buttons, text fields, sliders and check boxes take **focus**: the focused one has an outline (the theme's focus color).
 Players move it without a mouse:
 
 - If the project has the **ui_*** input actions (Project Settings > Input: ui_up, ui_down,
@@ -230,7 +267,8 @@ Players move it without a mouse:
 - Otherwise the arrow keys and Tab move it, Enter or Space press.
 
 The focus moves to the nearest control in the direction pressed. When nothing has focus, the
-first press focuses the first control. In a text field, Left and Right move the caret instead.
+first press focuses the first control. In a text field, Left and Right move the caret instead;
+on a slider, they move its value.
 
 ## UI in scripts
 
@@ -250,19 +288,46 @@ Hud_update :: proc(self: ^Hud, events: []sdl.Event, dt: f64) {
 }
 ```
 
-Listen to a button in the inspector's **Events** (its `onPressed`), or a text field's
-`onSubmitted`, like any node's events.
+Listen to a button in the inspector's **Events** (its `onPressed`), a text field's
+`onSubmitted`, a slider's `onValueChanged` or a check box's `onToggled`, like any node's events.
+An options screen, with a script on its panel:
+
+```odin
+Options :: struct {
+	using script: e.Script,
+	music: ^e.Slider `export:"default=Music"`,
+	fullscreen: ^e.CheckBox `export:"default=Fullscreen"`,
+}
+
+Options_ready :: proc(self: ^Options) {
+	e.Slider_SetValue(self.music, 80)
+	e.CheckBox_SetChecked(self.fullscreen, e.Game_IsFullscreen(self.game))
+	e.Event_Subscribe(&self.music.onValueChanged, proc(_: ^e.EventSubject, _: rawptr, data: e.EventData, _: rawptr) {
+		e.Audio_SetBusVolume("Music", data.(f32) / 100)
+	}, nil)
+	e.Event_Subscribe(&self.fullscreen.onToggled, proc(_: ^e.EventSubject, source: rawptr, data: e.EventData, _: rawptr) {
+		box := cast(^e.CheckBox)source
+		e.Game_SetFullscreen(box.scene.game, data.(bool))
+	}, nil)
+}
+```
+
+Setting them from code (`e.Slider_SetValue`, `e.CheckBox_SetChecked`) sends no event, so a
+script can show the saved settings without acting on them again.
 
 | Procedure | What it does |
 |---|---|
 | `e.Control_SetText(control, text)` | A button's, field's or rich text's text |
 | `e.ProgressBar_SetValue(bar, value)` | A bar's value (kept in its range) |
+| `e.Slider_SetValue(slider, value)` | A slider's value (kept in its range, snapped to its step; no event) |
+| `e.CheckBox_SetChecked(box, checked)` | Ticks or unticks a check box (no event) |
+| `slider.settings.value`, `box.settings.checked` | What the player chose |
 | `e.Control_Focus(scene, control)` | Gives it the focus (nil: takes it away) |
 | `e.Control_Focused(scene)` | The focused control |
 | `e.Control_GetRect(control)` | Where it is on the screen |
 | `control.offset = {x, y}` | Moves it from its anchor (its `position` is the layout's) |
 | `control.settings.disabled = true` | Grays it out (any setting can be changed) |
-| `e.CreatePanel`, `e.CreateButton`, `e.CreateProgressBar`, `e.CreateTextField`, `e.CreateScrollBox`, `e.CreateRichText` | Make controls from code |
+| `e.CreatePanel`, `e.CreateButton`, `e.CreateProgressBar`, `e.CreateTextField`, `e.CreateScrollBox`, `e.CreateRichText`, `e.CreateSlider`, `e.CreateCheckBox` | Make controls from code |
 
 An **Animator** can animate controls too: its Position track moves a control's offset (a menu
 sliding in).
@@ -286,6 +351,10 @@ aren't the defaults:
 	<node kind="RichText" name="Title" text="[size=40]My Game[/size]"/>
 	<node kind="Button" name="Play" text="Play" action="scene:Level1"/>
 	<node kind="Button" name="Quit" text="Quit" action="quit"/>
+</node>
+<node kind="Panel" name="Options" anchor="Center" layout="Column">
+	<node kind="Slider" name="Music" value="80" max="100" step="5" showValue="true"/>
+	<node kind="CheckBox" name="Fullscreen" text="Fullscreen" checked="true"/>
 </node>
 ```
 
