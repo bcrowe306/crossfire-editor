@@ -42,7 +42,9 @@ Press **Play** (F5) to run the open project. The first time, the editor builds t
 player (progress in the **Output** tab), then starts the game; its log appears in the **Console**,
 each line with its level and category (the engine's, SDL's, your scripts' own: `e.Log_Info(...,
 category = "player")`), filtered by level, category and text, and following the newest line.
-**Stop** (Shift+F5) closes it.
+A compile error in the Output tab, or a crash's location in the Console, is a link: a click opens
+the file there in a code tab. **Stop** (Shift+F5) closes the game; **Restart** (Ctrl+Shift+F5)
+stops it and plays it again the same way, rebuilding changed scripts.
 
 To open a different project: File > Open Project (Ctrl+O), or `task run -- path/to/project`. To use an engine checkout somewhere
 else: `task run ENGINE_DIR=/path/to/odin_sdl_engine`.
@@ -100,7 +102,7 @@ The Taskfile passes the flags every build needs:
 
 | Area | Contents |
 |---|---|
-| Top | Menu bar and toolbar: file actions, undo/redo, tools, play controls, export |
+| Top | Menu bar and toolbar: file actions, undo/redo, tools, play controls (Restart too), export; in a narrow window the tools move into an overflow menu |
 | Left | Project browser: scenes and assets |
 | Center | Scene tabs and the scene view |
 | Right | Scene node tree and the inspector for the selected node |

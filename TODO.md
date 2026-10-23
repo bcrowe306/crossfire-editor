@@ -4,13 +4,6 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
-## UX round 3 (asked 2026-10-23)
-
-3. **Clickable errors in the code editor:** compile errors (Output tab, Console, the problems
-   panel) open the file at the line and column in a code tab.
-8. **Restart** on the toolbar beside Play / Pause / Stop: stops the running game and plays it
-   again (rebuilding scripts when they changed).
-
 ## Later (decided not to build yet)
 
 - **Shader editing in the code editor** (asked 2026-10-22, for later). `.frag` files open in code
