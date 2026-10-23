@@ -1,5 +1,6 @@
 package crossfire_editor
 
+import "core:log"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
@@ -69,8 +70,12 @@ code_providers_in_a_code_tab :: proc(t: ^testing.T) {
 
 	_ = Script_Open(&state, path, 1)
 	c := CodeEditor_Find(path)
-	testing.expect(t, c != nil, "open")
-	if c == nil do return
+	if c == nil {
+		// Say why: the path, the tabs, the console
+		testing.expectf(t, false, "open %q: tabs %v", path, state.codeTabs[:])
+		for line in state.console.lines[state.console.start:] do log.errorf("console: %s", line.text)
+		return
+	}
 
 	CodeProviders_Begin(&state)
 	ce.editor_run_cached_providers(&c.ed)
