@@ -38,6 +38,10 @@ task run      # build and run the editor; it opens the demo project (the first r
               # builds the static SDL and the shader tools: CMake, a C++ compiler, Python 3)
 ```
 
+On Windows, run these in **Git Bash** (from Git for Windows): the tasks run the engine's bash
+scripts with its `bash`. Box2D builds with LLVM's clang and llvm-lib, the static SDL with Visual
+Studio and CMake; Odin's Windows release has the STB libraries built already.
+
 Press **Play** (F5) to run the open project. The first time, the editor builds the engine's game
 player (progress in the **Output** tab), then starts the game; its log appears in the **Console**,
 each line with its level and category (the engine's, SDL's, your scripts' own: `e.Log_Info(...,
@@ -72,7 +76,7 @@ Run `task` to list them all.
 | `task box2d` | Build the engine's Box2D (once; builds and checks do it when needed) |
 | `task emsdk` | Install the Emscripten toolchain web exports need (about 1 GB into `third_party/emsdk`, once per machine), and build SDL3_mixer for the web |
 | `task web:mixer` | Rebuild SDL3_mixer for the web (`build/web/`); exports build it themselves when it's missing |
-| `task stb` | Build Odin's STB libraries, which Skald needs. Skipped if already built |
+| `task stb` | Build Odin's STB libraries, which Skald needs. Skipped if already built (Odin's Windows release has them; otherwise its `build.bat` runs, from a Visual Studio developer prompt) |
 | `task check` | Type-check the editor, with vet |
 | `task sdl` | Build the engine's static SDL once (needs CMake): the editor and your games then have SDL built in |
 | `task shadertools` | Build the shader compilers once (glslang, SDL_shadercross; needs CMake, a C++ compiler, Python 3): your projects' own GLSL shaders compile with them |

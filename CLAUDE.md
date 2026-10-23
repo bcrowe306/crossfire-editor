@@ -71,12 +71,12 @@ add it as a task and to the README's command table.
 |---|---|
 | `task setup` | One-time setup: `submodules` + `stb` + `box2d` |
 | `task box2d` | Build the engine's Box2D (`<engine>/tools/build_box2d.sh` into `<engine>/box2d/lib`). A dependency of `check`, `test`, the builds and `run`; skipped when built |
-| `task sdl` | Build the engine's static SDL (`<engine>/tools/build_sdl_static.sh` into `<engine>/sdl/lib`; CMake; Linux, macOS). The editor and every game then link SDL in (a single executable). A dependency like `box2d`; skipped when built |
+| `task sdl` | Build the engine's static SDL (`<engine>/tools/build_sdl_static.sh` into `<engine>/sdl/lib`; CMake; Linux, macOS, Windows with Visual Studio). The editor and every game then link SDL in (a single executable). A dependency like `box2d`; skipped when built |
 | `task box2d:web` | The engine's Box2D for web exports (`task emsdk` runs it; exports build it when missing) |
 | `task submodules` | `git submodule update --init --recursive` (Skald, emsdk) |
 | `task emsdk` | Install Emscripten into the `third_party/emsdk` submodule (`EMSDK_VERSION`, ~1 GB, once per machine), then `web:mixer`. Web exports need it |
 | `task web:mixer` | Build SDL3_mixer for the web (`tools/build_web_mixer.sh` → `build/web/libSDL3_mixer.a`); exports also build it when it's missing |
-| `task stb` | Build Odin's STB libraries Skald needs (`build_stb.sh`). Skipped when already built for the active Odin install |
+| `task stb` | Build Odin's STB libraries Skald needs (`build_stb.sh`; Windows: Odin's `build.bat`, needing `cl` and `lib`, though Odin's Windows release has them built). Skipped when already built for the active Odin install |
 | `task check` | Type-check with `-vet-unused -vet-packages:crossfire_editor` (Skald itself doesn't pass vet) |
 | `task test` | Unit tests (`editor_test.odin`) |
 | `task test:code-editor` | The built-in code editor's own unit tests (`code_editor/`, its Taskfile) |
@@ -92,6 +92,12 @@ add it as a task and to the README's command table.
 | `task play:demo` | Run the demo project in the player, without the editor |
 | `task clean` | Delete build output |
 
+- **Windows:** Task's own shell can't start a `.sh` file there, so the tasks that run the engine's
+  bash scripts (`box2d`, `sdl`, `shadertools`) put `{{.SH}}` (`bash ` on Windows, nothing elsewhere)
+  before them: run `task` in Git Bash, whose `bash` is then in PATH. `box2d`'s status checks
+  `{{.BOX2D_LIB}}` (`box2d_windows_amd64.lib` there, `.a` elsewhere); `stb` runs Odin's `build.bat`
+  there (`platforms:`) and checks for `stb_truetype.lib`. Checked with `task --dry --force` on a
+  copy of the Taskfile with the OS filled in (Windows can't be run here).
 - `EDITOR_FULLSCREEN` exists for checking the full layout on a tiling window manager (Hyprland
   here), which otherwise squeezes the window into a tile.
 - **Engine location:** the Taskfile's `ENGINE_DIR` (default `../odin_sdl_engine`, override with

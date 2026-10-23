@@ -29,6 +29,12 @@ vars:
   VET: -vet-unused -vet-packages:crossfire_editor
   # Windows: the executable's icon (crossfire.rc)
   ICON_RESOURCE: '{{if eq OS "windows"}}-resource:crossfire.rc{{end}}'
+  # How tasks run the engine's bash scripts (tools/*.sh): directly on Linux and macOS; on Windows
+  # through bash (Git Bash's, from the PATH: run task in Git Bash), since Task's own shell can't
+  # start a .sh file there
+  SH: '{{if eq OS "windows"}}bash {{end}}'
+  # Box2D's library file for this machine (tools/build_box2d.sh's name for it)
+  BOX2D_LIB: 'box2d_{{OS}}_{{ARCH}}{{if eq OS "windows"}}.lib{{else}}.a{{end}}'
 
 # Building and bundling for macOS (an .app and a disk image): task macos:dist, task macos:verify
 includes:
@@ -62,10 +68,10 @@ tasks:
     # Once per `task` run: several tasks depend on it, and Task would run it for each, in parallel
     run: once
     status:
-      - test -f {{.ENGINE_DIR}}/box2d/lib/box2d_{{OS}}_{{ARCH}}.a
+      - test -f {{.ENGINE_DIR}}/box2d/lib/{{.BOX2D_LIB}}
     cmds:
       - git -C {{.ENGINE_DIR}} submodule update --init third_party/box2d
-      - '{{.ENGINE_DIR}}/tools/build_box2d.sh'
+      - '{{.SH}}{{.ENGINE_DIR}}/tools/build_box2d.sh'
 
   prebuilt:
     desc: Build the engine's player (optimized, static SDL) as this platform's prebuilt player, beside the debug and release editors (build/prebuilt/<target>/player, build/release/prebuilt/...) - projects without scripts then play and export without compiling (releases ship one)
@@ -89,7 +95,7 @@ tasks:
     status:
       - ls {{.ENGINE_DIR}}/sdl/lib/*/libSDL3.a || ls {{.ENGINE_DIR}}/sdl/lib/*/sdl3_static.lib
     cmds:
-      - '{{.ENGINE_DIR}}/tools/build_sdl_static.sh'
+      - '{{.SH}}{{.ENGINE_DIR}}/tools/build_sdl_static.sh'
 
   shadertools:
     desc: Build the shader compilers (glslang, SDL_shadercross) into <engine>/shader_tools (its tools/build_shader_tools.sh; needs CMake, a C++ compiler, Python 3). The editor compiles projects' GLSL shaders with them; skipped when built
@@ -98,7 +104,7 @@ tasks:
     status:
       - ls {{.ENGINE_DIR}}/shader_tools/*/shadercross*
     cmds:
-      - '{{.ENGINE_DIR}}/tools/build_shader_tools.sh'
+      - '{{.SH}}{{.ENGINE_DIR}}/tools/build_shader_tools.sh'
 
   box2d:web:
     desc: Build the engine's Box2D for web exports (needs emsdk). Exports also build it when it's missing
@@ -135,13 +141,16 @@ tasks:
       - tools/build_web_mixer.sh {{.EMSDK_DIR}} third_party/SDL_mixer build/web
 
   stb:
-    desc: Build Odin's STB libraries (once per Odin install; Linux and macOS)
+    desc: Build Odin's STB libraries Skald needs (once per Odin install). Windows' come built with Odin's release; without them it runs Odin's build.bat (cl and lib in PATH, a Visual Studio developer prompt)
     cmds:
-      - cd "$(odin root)/vendor/stb/src" && sh build_stb.sh
+      - cmd: cd "$(odin root)/vendor/stb/src" && sh build_stb.sh
+        platforms: [linux, darwin]
+      - cmd: cd "$(odin root)/vendor/stb/src" && cmd /c build.bat
+        platforms: [windows]
     status:
-      # Already built for this Odin install
-      # (for this OS: Odin's Linux release carries the macOS libraries in lib/darwin/, not its own)
-      - 'if [ "$(uname -s)" = Darwin ]; then test -f "$(odin root)/vendor/stb/lib/darwin/stb_truetype.a"; else test -f "$(odin root)/vendor/stb/lib/stb_truetype.a"; fi'
+      # Already built for this Odin install, for this OS: Odin's Linux release carries the macOS
+      # libraries in lib/darwin/, not its own; its Windows release has the .lib files
+      - '{{if eq OS "darwin"}}test -f "$(odin root)/vendor/stb/lib/darwin/stb_truetype.a"{{else if eq OS "windows"}}test -f "$(odin root)/vendor/stb/lib/stb_truetype.lib"{{else}}test -f "$(odin root)/vendor/stb/lib/stb_truetype.a"{{end}}'
 
   check:
     desc: Type-check the editor with vet
