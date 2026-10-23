@@ -463,7 +463,9 @@ Inputs:
 - allocator: Allocator for the result
 
 Returns:
-- The text with `& < > " '` replaced by entities
+- The text with `& < > " '` replaced by entities, and line breaks and tabs by character
+  references (`&#10;`, `&#13;`, `&#9;`): an XML parser reads a raw line break in an attribute as a
+  space, so a RichText's lines ran together after a save and a load
 */
 EscapeXML :: proc(text: string, allocator := context.allocator) -> string {
 	b := strings.builder_make(allocator)
@@ -474,6 +476,9 @@ EscapeXML :: proc(text: string, allocator := context.allocator) -> string {
 		case '>':  strings.write_string(&b, "&gt;")
 		case '"':  strings.write_string(&b, "&quot;")
 		case '\'': strings.write_string(&b, "&apos;")
+		case '\n': strings.write_string(&b, "&#10;")
+		case '\r': strings.write_string(&b, "&#13;")
+		case '\t': strings.write_string(&b, "&#9;")
 		case:      strings.write_rune(&b, r)
 		}
 	}

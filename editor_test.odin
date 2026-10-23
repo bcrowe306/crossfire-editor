@@ -283,6 +283,9 @@ bottom_tab_opens_collapsed_panel :: proc(t: ^testing.T) {
 escape_xml_covers_special_characters :: proc(t: ^testing.T) {
 	escaped := EscapeXML(`a&b <c> "d" 'e'`, context.temp_allocator)
 	testing.expect_value(t, escaped, "a&amp;b &lt;c&gt; &quot;d&quot; &apos;e&apos;")
+	// Line breaks survive a load: raw ones in an attribute are read back as spaces
+	lines := EscapeXML("Credits\n\tArt\r\n", context.temp_allocator)
+	testing.expect_value(t, lines, "Credits&#10;&#9;Art&#13;&#10;")
 }
 
 @(test)
@@ -295,7 +298,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	// Characters that need escaping, and non-default values, must survive
 	label := &original.scenes[0].nodes[0]
 	delete(label.text)
-	label.text = strings.clone(`Tom & "Jerry" <3`)
+	label.text = strings.clone("Tom & \"Jerry\" <3\nand\tSpike")
 	label.centered = false
 	original.scenes[1].nodes[1].zoom = 2.5
 	// A Camera's follow target and settings (only enabled limits are written)
