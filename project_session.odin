@@ -354,6 +354,12 @@ switchProject :: proc(state: ^State, project: Project) {
 	ScriptCatalog_Clear(&state.scripts)
 	state.scripts.status = .Unknown
 	state.scriptsAutoBuilt = false
+	// The index starts over on the new project's scripts (its tick goes on)
+	ticking := state.scriptIndex.ticking
+	running := state.scriptIndex.running
+	ScriptIndex_Destroy(&state.scriptIndex)
+	state.scriptIndex.ticking = ticking
+	state.scriptIndex.running = running
 	Scripts_Refresh(state)
 	// Another folder: its version control is read again
 	state.git.stale = true

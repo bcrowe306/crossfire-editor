@@ -286,7 +286,7 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 		world, overViewport := ViewportWorldAt(s, ctx, mouse)
 		codeArea := ctx.widgets.states[skald.hash_id("code-editor")].last_rect
 		if s.assetDrag.active && s.codeTab > 0 && pointIn(codeArea, mouse) {
-			skald.send(ctx, Msg(Asset_Dropped_On_Code{}))
+			skald.send(ctx, Msg(Asset_Dropped_On_Code{mouse}))
 		} else if s.assetDrag.active && s.project.assets[s.assetDrag.asset].kind == .Image && AnimationPanel_TakesDrop(s, ctx, mouse) {
 			// An image on the Animation panel: the selected animation's sheet
 			skald.send(ctx, Msg(Anim_Sheet_Dropped{}))

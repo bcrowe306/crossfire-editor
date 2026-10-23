@@ -98,6 +98,9 @@ copy: `open_project {project}`).
 	save_viewport_render <png>       Write the viewport's last render (the engine's pixels, never the
 	                                 screen) to a file, to look at
 	code_import_path <zed | vscode> <file>   Where the shown code tab imports key bindings from
+	code_hover <line> <column>       Rest the pointer on a position of the shown code tab (1-based;
+	                                 `caret <columns>`: on the caret's line, columns from it)
+	code_click_marker <line>         Click the gutter marker column beside a line (1-based)
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
 	scroll_into_view <scroll key> <widget key>
@@ -149,7 +152,7 @@ copy: `open_project {project}`).
 	                                 holding Shift or Ctrl, or turned sideways
 	click <x> <y>                    Click a window position (logical pixels)
 	move <x> <y>                     Move the mouse
-	key <combo>                      Press a key: F5, DELETE, ctrl+s, shift+F5 (SDL scancode names;
+	key <combo> [times]              Press a key (times over): F5, DELETE, ctrl+s, shift+F5 (SDL scancode names;
 	                                 ctrl is Cmd on macOS, as the keymap's is; control is Control)
 	type <text>                      Type text into the focused field
 	select_asset <path>              Select an asset in the browser (its folder opened), e.g. a component
@@ -369,7 +372,16 @@ Checks:
 	                             that render is the image on screen
 	code_lsp <Off | Starting | Running | Failed>   The shown code tab's language server
 	code_completion <true | false>   The completion list shows
-	code_completion_has <label>      The server's last completion list has that item
+	code_completion_has <label>      The server's last completion list (or the shown one) has that item
+	code_completion_provided <label> The shown completion list lists it, from the project's
+	                             providers (code_providers.odin; folded into OLS's same item or not)
+	code_hover_has <text>            The code tab's hover shows the text (whitespace aside: it wraps)
+	code_inlay <line> <text>         A line's inlay hints contain the text (1-based)
+	code_marker <line> <true | false>   A line has a gutter marker
+	code_diagnostic_has <text>       The code tab shows a problem whose message contains it
+	script_field <script> <field> <true | false>   The catalog's script has the field (a build's
+	                             or the script index's)
+	script_from_index <script> <true | false>   The catalog's script comes from the index
 	widget_visible <key> <true | false>   Some of the widget was drawn last frame, not clipped away
 	recent_menu <i> <folder name | none>   The File menu's i-th recent project (its folder's name)
 	in_window <key>              The widget's whole rect is inside the window (not pushed off its edge)
@@ -1312,6 +1324,33 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "code_hover", "code_click_marker":
+		// A position of the shown code tab, as the pointer reaches it (real motion: the hover
+		// comes after the editor's dwell), or a click on a line's gutter marker
+		parts := strings.fields(rest, context.temp_allocator)
+		lineNumber, _ := strconv.parse_int(len(parts) > 0 ? parts[0] : "")
+		column := 1
+		if len(parts) > 1 do column, _ = strconv.parse_int(parts[1])
+		// `caret <columns>`: the caret's line, that many columns from it (-3: three back)
+		if len(parts) > 0 && parts[0] == "caret" {
+			lineNumber, column = CodeEditor_Caret(CodeTabs_Active(s))
+			if len(parts) > 1 {
+				delta, _ := strconv.parse_int(parts[1])
+				column += delta
+			}
+		}
+		marker := command == "code_click_marker"
+		at, ok := CodeEditor_WindowPoint(CodeTabs_Active(s), lineNumber - 1, column - 1, marker)
+		if !ok {
+			fail(fmt.tprintf("%s: the code tab isn't shown", line))
+			return true
+		}
+		if marker do click(at)
+		else do pushMouse(.MOUSE_MOTION, at)
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "code_dialog_pick":
 		// Answers the file dialog the code editor asked for (Open, Save As): a project path
 		if s.codeDialog == .None {
@@ -1681,9 +1720,15 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		return false
 
 	case "key":
-		if !pressKey(rest) {
-			fail(fmt.tprintf("%s: unknown key", line))
-			return true
+		// `key <combo> [times]`
+		combo, _, times := strings.partition(rest, " ")
+		count := 1
+		if n, isNumber := strconv.parse_int(strings.trim_space(times)); isNumber do count = max(n, 1)
+		for _ in 0 ..< count {
+			if !pressKey(combo) {
+				fail(fmt.tprintf("%s: unknown key", line))
+				return true
+			}
 		}
 		report(true, line)
 		return false
@@ -2426,6 +2471,44 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(CodeEditor_CompletionHas(CodeTabs_Active(s), strings.trim_space(value)))
 		_, items := CodeEditor_CompletionVisible(CodeTabs_Active(s))
 		return found == "true", fmt.tprintf("%s; %d items from the server", found, items)
+	case "code_completion_provided":
+		found = fmt.tprint(CodeEditor_CompletionProvided(CodeTabs_Active(s), strings.trim_space(value)))
+		visible, items := CodeEditor_CompletionVisible(CodeTabs_Active(s))
+		return found == "true", fmt.tprintf("%s; shown %v; %d items from the server; in the list: %v", found, visible, items, CodeEditor_CompletionHas(CodeTabs_Active(s), strings.trim_space(value)))
+	case "code_hover_has":
+		// Whitespace aside: a narrow tab wraps the hover anywhere
+		found = CodeEditor_HoverText(CodeTabs_Active(s))
+		squeeze :: proc(text: string) -> string {
+			b := strings.builder_make(context.temp_allocator)
+			for r in text do if r != ' ' && r != '\n' && r != '\t' do strings.write_rune(&b, r)
+			return strings.to_string(b)
+		}
+		return strings.contains(squeeze(found), squeeze(value)), found
+	case "code_inlay", "code_marker":
+		number, _, expected := strings.partition(value, " ")
+		n, _ := strconv.parse_int(number)
+		inlays, marker := CodeEditor_LineNotes(CodeTabs_Active(s), n - 1)
+		if name == "code_marker" {
+			found = fmt.tprint(marker)
+			return found == strings.trim_space(expected), found
+		}
+		return strings.contains(inlays, strings.trim_space(expected)), inlays
+	case "code_diagnostic_has":
+		found = fmt.tprint(CodeEditor_DiagnosticHas(CodeTabs_Active(s), strings.trim_space(value)))
+		return found == "true", found
+	case "script_field", "script_from_index":
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 2 do return false, "expected a script and more"
+		desc := ScriptCatalog_Find(&s.scripts, parts[0])
+		if name == "script_from_index" {
+			found = fmt.tprint(desc != nil && desc.fromIndex)
+			return found == parts[1], found
+		}
+		if len(parts) < 3 do return false, "expected a script, a field and true or false"
+		has := false
+		if desc != nil do for f in desc.fields do if f.name == parts[1] do has = true
+		found = fmt.tprint(has)
+		return found == parts[2], fmt.tprintf("%s (%s)", found, desc == nil ? "no such script" : desc.fromIndex ? "from the index" : "from a build")
 	case "code_completion":
 		visible, items := CodeEditor_CompletionVisible(CodeTabs_Active(s))
 		found = fmt.tprint(visible)

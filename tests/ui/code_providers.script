@@ -1,0 +1,69 @@
+# The code editor's providers (code_providers.odin) and the script index (script_index.odin), end
+# to end: Script_Register's line shows who runs the script (a gutter marker, an inlay hint; a
+# click on the marker selects the node), a field typed in the struct reaches the inspector's
+# catalog before any build, a field that can't be exported is flagged, the project's constants
+# complete (merged with OLS's when it runs) and a hover says what a constant names.
+# Run with: task test:ui SCRIPT=tests/ui/code_providers.script
+#
+# PlayScene's rows: World, Camera, Spaceship (2), ...
+# The new script's lines: 13 Probe :: struct {, 15 its speed field, 20 e.Script_Register(Probe, {
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Probe
+click_widget new-script-create
+expect script Probe
+expect code_tab probe.odin
+wait_until code_focused true timeout=5
+
+# The gutter and an inlay hint on Script_Register's line: Spaceship runs it
+wait_until code_marker 20 true timeout=15
+wait_until code_inlay 20 1 node timeout=15
+expect code_marker 13 false
+# Line 20 in view, then a click on its marker selects the node running it
+key ctrl+HOME
+key DOWN 22
+click_row scene-tree 0
+expect selected World
+code_click_marker 20
+wait_until selected Spaceship timeout=5
+wait_until console_contains Selected Spaceship timeout=5
+
+# A field typed (not saved, not built) reaches the catalog through the index
+wait_until code_focused true timeout=5
+key ctrl+HOME
+key DOWN 14
+key END
+key RETURN
+type lives: int `export:"default=3"`,
+expect code_contains true lives: int `export:"default=3"`,
+wait_until script_field Probe lives true timeout=20
+expect script_from_index Probe true
+expect code_dirty true
+
+# A field that can't be exported is a problem in the code tab (the engine only warns when it runs)
+key RETURN
+type grid: [3]f32 `export:""`,
+wait_until code_diagnostic_has can't be exported timeout=20
+expect script_field Probe grid false
+
+# The project's constants complete: a scene's name
+key ctrl+END
+key RETURN
+type probe :: proc() -> string {
+key RETURN
+type return SCENE_PL
+wait_until code_completion_provided SCENE_PLAY_SCENE timeout=20
+key RETURN
+expect code_contains true return SCENE_PLAY_SCENE
+expect code_completion false
+
+# A hover over it says what it names
+code_hover caret -3
+wait_until code_hover_has Scene PlayScene timeout=15

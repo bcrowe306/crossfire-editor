@@ -192,9 +192,15 @@ Tree_Drag_Dropped :: struct {
 // Released anywhere else
 Tree_Drag_Cancelled :: struct {}
 // A browser asset released over the code tab: a field of its handle type goes into the script (asset_fields.odin)
-Asset_Dropped_On_Code :: struct {}
+Asset_Dropped_On_Code :: struct {
+	// Where it was dropped (window coordinates)
+	mouse: [2]f32,
+}
 // Released over the code tab: a node field for the dragged node goes into its script (node_fields.odin)
-Tree_Drag_Dropped_On_Code :: struct {}
+Tree_Drag_Dropped_On_Code :: struct {
+	// Where it was dropped (window coordinates)
+	mouse: [2]f32,
+}
 
 // Scene management in the project browser (project_scenes.odin)
 SceneOp :: enum {
@@ -1193,6 +1199,9 @@ Msg :: union {
 	Dialogue_Created,
 	DialogueBox_Setting_Changed,
 	Plugins_Tick,
+	ScriptIndex_Tick,
+	ScriptIndex_Parsed,
+	Code_Marker_Clicked,
 	Plugin_Command_Run,
 	Plugin_Row_Changed,
 	Plugin_New_Requested,

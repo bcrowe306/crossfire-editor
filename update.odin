@@ -115,6 +115,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if SkeletonEdit_Update(&out, m) do return out, {}
 	if DialogueEdit_Update(&out, m) do return out, {}
 	if command, handled := Plugins_Update(&out, m); handled do return out, command
+	if command, handled := ScriptIndex_Update(&out, m); handled do return out, command
+	if command, handled := CodeProviders_Update(&out, m); handled do return out, command
 	if DialogueBoxEdit_Update(&out, m) do return out, {}
 	if LineEdit_Update(&out, m) do return out, {}
 	if command, handled := ShaderEdit_Update(&out, m); handled do return out, command
@@ -162,6 +164,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by DialogueEdit_Update and DialogueBoxEdit_Update above
 	case Plugins_Tick, Plugin_Command_Run, Plugin_Row_Changed, Plugin_New_Requested, Plugins_Rebuild_Requested:
 		// Handled by Plugins_Update above
+	case ScriptIndex_Tick, ScriptIndex_Parsed:
+		// Handled by ScriptIndex_Update above
+	case Code_Marker_Clicked:
+		// Handled by CodeProviders_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
 	case TileMap_Setting_Changed:
@@ -573,8 +579,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Asset_Dropped_On_Code:
 		asset := out.assetDrag.asset
 		out.assetDrag = {}
-		message, added := AssetField_Insert(&out, asset)
-		logLine(&out, added ? .Info : .Warning, strings.clone(message))
+		// Where it lands decides what goes in: its constant on a call's argument, else a field
+		// (code_providers.odin)
+		message, added := CodeEditor_Drop(&out, CodeTabs_Active(&out), v.mouse, CODE_DROP_ASSET, asset)
+		if message != "" do logLine(&out, added ? .Info : .Warning, strings.clone(message))
 	case Asset_Dropped:
 		asset := out.assetDrag.asset
 		out.assetDrag = {}
@@ -932,8 +940,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Tree_Drag_Dropped_On_Code:
 		node := out.treeDrag.node
 		out.treeDrag = {}
-		message, added := NodeField_Insert(&out, node)
-		logLine(&out, added ? .Info : .Warning, strings.clone(message))
+		// Where it lands decides what goes in: its path constant on a call's argument, else a
+		// node field (code_providers.odin)
+		message, added := CodeEditor_Drop(&out, CodeTabs_Active(&out), v.mouse, CODE_DROP_NODE, node)
+		if message != "" do logLine(&out, added ? .Info : .Warning, strings.clone(message))
 	case Tree_Drag_Dropped:
 		scene := &out.project.scenes[out.currentScene]
 		node := out.treeDrag.node

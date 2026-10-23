@@ -172,7 +172,7 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 		if s.treeDrag.active && valid {
 			skald.send(ctx, Msg(Tree_Drag_Dropped{target = target, position = position}))
 		} else if overCode {
-			skald.send(ctx, Msg(Tree_Drag_Dropped_On_Code{}))
+			skald.send(ctx, Msg(Tree_Drag_Dropped_On_Code{mouse}))
 		} else {
 			skald.send(ctx, Msg(Tree_Drag_Cancelled{}))
 		}
@@ -787,6 +787,11 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
 		for prop in node.props do append(&rows, inspectorRowView(ctx, prop.name, skald.text(prop.value, th.color.fg_muted, th.font.size_sm)))
 		return rows[:]
+	}
+	// Read from the source by the script index: the file changed since the last build (or
+	// there's been none), so the game runs the old fields until it's built
+	if desc.fromIndex {
+		append(&rows, skald.text(fmt.tprintf("Fields from the source: not built yet%s.", keyParen(s, .Build_Scripts)), th.color.fg_muted, th.font.size_xs, max_width = 260))
 	}
 	if len(desc.fields) == 0 {
 		append(&rows, skald.text("No exported fields (tag a field with export:\"\" to edit it here).", th.color.fg_muted, th.font.size_xs, max_width = 260))

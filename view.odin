@@ -32,6 +32,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	// Plugins are built and loaded while the project has a plugins/ folder (plugin_host.odin)
 	if !state.pluginsTicking && Plugins_Present(&state) do skald.send(ctx, Msg(Plugins_Tick{}))
+	// The script index follows the scripts' source while a project is open (script_index.odin)
+	if !state.scriptIndex.ticking && state.project.rootPath != "" do skald.send(ctx, Msg(ScriptIndex_Tick{}))
 	Session_UpdateTitle(&state)
 	Branding_SetWindowIcon()
 	Git_View_Tick(&state, ctx)

@@ -145,6 +145,8 @@ buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 	state.play.purpose = purpose
 	// The scripts compile against the current asset constants
 	if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, strings.clone(message))
+	// What the build sees: the script index describes files changed after this
+	state.scriptsBuildSource = Scripts_NewestSource(&state.project)
 	target := playerTarget(state)
 	if Project_HasScripts(&state.project) do state.scripts.status = .Building
 	if target.prebuilt || playerIsCurrent(target) {
@@ -159,6 +161,8 @@ buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 	}
 	command := playerBuildCommand(state, odin, target, target.binary)
 	outputLine(state, .Info, fmt.aprintf("$ %s", strings.join(command, " ", context.temp_allocator)))
+	// The constants it's built with, to tell later changes apart
+	if target.project != "" do Constants_Snapshot(&state.project, target.binary)
 
 	if !startProcess(state, command, "") {
 		state.scripts.status = .Failed
@@ -327,6 +331,9 @@ takeDescription :: proc(state: ^State, described: string, exitCode: int) -> bool
 	outputLine(state, .Info, fmt.aprintf("%d script%s: %s", len(scripts), len(scripts) == 1 ? "" : "s", scriptNames(scripts[:])))
 	if len(dataTypes) > 0 do outputLine(state, .Info, fmt.aprintf("%d data type%s: %s", len(dataTypes), len(dataTypes) == 1 ? "" : "s", scriptNames(dataTypes[:])))
 	if len(nodeTypes) > 0 do outputLine(state, .Info, fmt.aprintf("%d node type%s: %s", len(nodeTypes), len(nodeTypes) == 1 ? "" : "s", scriptNames(nodeTypes[:])))
+	// Kept for the script index, which describes what changed since (script_index.odin). Last:
+	// the merge replaces the lists above
+	ScriptIndex_TakeBuild(state)
 	return true
 }
 
@@ -532,7 +539,12 @@ main :: proc() {
 playerIsCurrent :: proc(target: PlayerTarget) -> bool {
 	built, err := os.modification_time_by_path(target.binary)
 	if err != nil do return false
-	for dir in target.inputs do if time.diff(newestSource(dir), built) <= 0 do return false
+	for dir, i in target.inputs {
+		// The scripts: a change to assets.odin's constants that no script uses doesn't count
+		// (editing a scene rewrites its node paths: script_constants.odin)
+		newest := target.project != "" && i == 1 ? Scripts_NewestFor(dir, target.binary) : newestSource(dir)
+		if time.diff(newest, built) <= 0 do return false
+	}
 	return true
 }
 

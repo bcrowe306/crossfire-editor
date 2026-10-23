@@ -5,6 +5,7 @@ import "core:log"
 import "core:os"
 import "core:strconv"
 import "core:strings"
+import "core:time"
 import "gui:skald"
 import sdl "vendor:sdl3"
 
@@ -245,6 +246,11 @@ State :: struct {
 	history: History,
 	// What the last build said about the project's scripts, and its script files (scripts.odin)
 	scripts: ScriptCatalog,
+	// The script index (script_index.odin): the scripts' declarations read from their source,
+	// merged into `scripts` where the source is newer than the build
+	scriptIndex: ScriptIndex,
+	// The newest script source when the last build started (the index compares files with it)
+	scriptsBuildSource: time.Time,
 	scriptFiles: [dynamic]string,
 	// A background build of the scripts was requested once for this project
 	scriptsAutoBuilt: bool,
@@ -460,6 +466,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.session.recent)
 	History_Destroy(&state.history)
 	ScriptCatalog_Clear(&state.scripts)
+	ScriptIndex_Destroy(&state.scriptIndex)
 	for f in state.scriptFiles do delete(f)
 	delete(state.scriptFiles)
 	delete(state.dialogue.path)

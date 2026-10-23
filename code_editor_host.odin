@@ -141,6 +141,10 @@ host: struct {
 	watched: map[string]time.Time,
 	watchedDir: string,
 	lastWatch: time.Time,
+	// Where the shown code view was last drawn (window coordinates) and the display's scale:
+	// drops and the test driver turn window points into the editor's pixels with them
+	shownRect: skald.Rect,
+	shownScale: f32,
 }
 
 /*
@@ -180,6 +184,8 @@ CodeEditor_Open :: proc(path, scriptsDir: string, olsPath: string, configDir := 
 	} else if lightTheme {
 		ce.editor_set_theme(&c.ed, ce.ayu_light_theme())
 	}
+	// The project's completions, hovers, problems, markers, hints and drops (code_providers.odin)
+	ce.editor_set_providers(&c.ed, CodeProviders_Registry())
 	// The first file starts the language server every tab shares
 	if host.server == nil && olsPath != "" && scriptsDir != "" {
 		if ce.editor_attach_lsp(&c.ed, []string{olsPath}, scriptsDir) {
@@ -251,6 +257,7 @@ CodeEditor_Shutdown :: proc() {
 	GPUTarget_Destroy(&host.target)
 	host.onGPU = false
 	host.serversStarted = 0
+	CodeProviders_Shutdown()
 }
 
 // Whether a file's editor has unsaved changes
@@ -504,12 +511,102 @@ CodeEditor_CompletionVisible :: proc(path: string) -> (visible: bool, items: int
 	return ce.editor_completion_visible(&c.ed), len(c.ed.lsp.last_completion)
 }
 
-// Whether the last completion list from the server has an item with that label (tests)
+// Whether the last completion list (the server's, or the shown one merged with the providers')
+// has an item with that label (tests)
 CodeEditor_CompletionHas :: proc(path, label: string) -> bool {
 	c := CodeEditor_Find(path)
 	if c == nil do return false
 	for item in c.ed.lsp.last_completion do if item.label == label do return true
+	for en in c.ed.completion.items do if en.item.label == label do return true
 	return false
+}
+
+// Whether the shown completion list lists that item, from a provider (or folded into by one;
+// tests): the project's items reach the code tab
+CodeEditor_CompletionProvided :: proc(path, label: string) -> bool {
+	c := CodeEditor_Find(path)
+	if c == nil || !ce.editor_completion_visible(&c.ed) do return false
+	for i in c.ed.completion.filtered do if c.ed.completion.items[i].item.label == label do return c.ed.completion.items[i].provided
+	return false
+}
+
+// The hover the code tab shows, its lines joined ("" when none; temp allocated)
+CodeEditor_HoverText :: proc(path: string) -> string {
+	c := CodeEditor_Find(path)
+	if c == nil do return ""
+	_, lines, ok := ce.editor_hover_layout(&c.ed)
+	if !ok do return ""
+	b := strings.builder_make(context.temp_allocator)
+	for l, i in lines {
+		if i > 0 do strings.write_byte(&b, '\n')
+		strings.write_string(&b, l.text)
+	}
+	return strings.to_string(b)
+}
+
+// A line's inlay hints, joined (0-based line; temp allocated), and whether it has a gutter marker
+CodeEditor_LineNotes :: proc(path: string, line: int) -> (inlays: string, marker: bool) {
+	c := CodeEditor_Find(path)
+	if c == nil do return "", false
+	labels := make([dynamic]string, context.temp_allocator)
+	for h in ce.editor_inlays_on(&c.ed, line) do append(&labels, h.label)
+	return strings.join(labels[:], " ", context.temp_allocator), len(ce.editor_gutter_markers_on(&c.ed, line)) > 0
+}
+
+// Whether the code tab shows a problem whose message contains the text (tests)
+CodeEditor_DiagnosticHas :: proc(path, text: string) -> bool {
+	c := CodeEditor_Find(path)
+	if c == nil do return false
+	for d in ce.editor_diagnostics(&c.ed) do if strings.contains(d.message, text) do return true
+	return false
+}
+
+/*
+Where a code position is in the window (0-based line and byte column; the shown file only), or
+the middle of its line's gutter marker column (`marker`), for the test driver's pointer.
+*/
+CodeEditor_WindowPoint :: proc(path: string, line, column: int, marker := false) -> ([2]f32, bool) {
+	c := CodeEditor_Find(path)
+	if c == nil || host.lastShown != c || host.shownScale <= 0 do return {}, false
+	x, y := ce.editor_position_to_screen(&c.ed, {line, column})
+	if marker do x = c.ed.origin_x + ce.editor_gutter_width(&c.ed) - ce.GUTTER_MARKER_SPACE / 2 - 2
+	// The middle of the cell (or row)
+	x += marker ? 0 : c.ed.char_w / 2
+	y += c.ed.char_h / 2
+	return {host.shownRect.x + x / host.shownScale, host.shownRect.y + y / host.shownScale}, true
+}
+
+/*
+An open file's buffer for the script index: its version, whether it has unsaved changes, and
+its text when `wantText` (a temp copy). ("", -1, false when it isn't open.)
+*/
+CodeEditor_Buffer :: proc(path: string, wantText := false) -> (text: string, version: int, dirty: bool) {
+	c := CodeEditor_Find(path)
+	if c == nil do return "", -1, false
+	if wantText do text = ce.editor_to_string(&c.ed, context.temp_allocator)
+	return text, c.ed.buf.version, c.ed.buf.dirty
+}
+
+/*
+Something dropped on the shown code tab at a window point: the code editor works out where it
+landed (a struct, a procedure, a call's argument) and the providers decide what goes there
+(code_providers.odin's projectDrop).
+
+Inputs:
+- kind: CODE_DROP_NODE (index: a node of the current scene) or CODE_DROP_ASSET (an asset)
+
+Returns:
+- What happened, for the Console, and whether a provider took it
+*/
+CodeEditor_Drop :: proc(state: ^State, path: string, mouse: [2]f32, kind: string, index: int) -> (message: string, handled: bool) {
+	c := CodeEditor_Find(path)
+	if c == nil do return "No script is shown", false
+	scale := host.shownScale > 0 ? host.shownScale : 1
+	x := (mouse.x - host.shownRect.x) * scale
+	y := (mouse.y - host.shownRect.y) * scale
+	CodeProviders_Begin(state)
+	defer CodeProviders_End()
+	return ce.editor_drop(&c.ed, x, y, ce.Drop_Request{kind = kind, data = rawptr(uintptr(index))})
 }
 
 // Asks the language server for completions at the caret again (the popup shows the answer)
@@ -616,6 +713,10 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	if !host.watching do host.watching = sdl.AddEventWatch(eventWatch, nil)
 	rect := ctx.widgets.states[id].last_rect
 	scale := ctx.renderer != nil ? max(ctx.renderer.scale, 1) : 1
+	host.shownRect, host.shownScale = rect, scale
+	// The providers read the project while the code editor runs (code_providers.odin)
+	CodeProviders_Begin(s)
+	defer CodeProviders_End()
 	focused := ctx.widgets.focused_id == id
 	popupOpen := len(ctx.widgets.overlay_rects_prev) > 0 || ctx.widgets.modal_rect_prev.w > 0
 	mouse := ctx.input.mouse_pos
@@ -689,6 +790,10 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	}
 	ce.editor_update(&c.ed)
 	if c.ed.lsp_enabled && c.ed.lsp_doc_open do c.openedIn = serverProcess(c)
+	// A gutter marker clicked: select the node running its script
+	if script := CodeProviders_TakeClick(); script != "" {
+		skald.send(ctx, Msg(Code_Marker_Clicked{script}))
+	}
 	if other, line, character, ok := ce.editor_take_open_request(&c.ed); ok {
 		skald.send(ctx, Msg(Code_Open_Requested{strings.clone(other, context.temp_allocator), line, character}))
 	}
@@ -781,9 +886,13 @@ codeRenderKey :: proc(c: ^CodeEditor, size: [2]int, scale: f32) -> u64 {
 		scale: f32,
 		version, cursors, scrollLine, scrollCol: int,
 		diagnostics, completions, signatures: int,
+		// What the providers said (markers, hints, problems), the hover and the merged list
+		provided, hover, items: int,
+		hoverShown: bool,
 	}
 	key := Key{size, scale, c.ed.buf.version, len(c.ed.buf.cursors), c.ed.scroll_line, c.ed.scroll_col,
-		c.ed.lsp.diagnostics_seq, c.ed.lsp.completion_seq, c.ed.lsp.signature_seq}
+		c.ed.lsp.diagnostics_seq, c.ed.lsp.completion_seq, c.ed.lsp.signature_seq,
+		c.ed.provided.seq, c.ed.hover.shown_seq, c.ed.completion.items_seq, c.ed.hover.visible}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	if len(c.ed.buf.cursors) > 0 do h = hash.fnv64a(slice.to_bytes(c.ed.buf.cursors[:]), h)
 	return h

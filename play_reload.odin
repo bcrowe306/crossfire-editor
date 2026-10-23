@@ -83,7 +83,8 @@ playReloadTick :: proc(state: ^State) -> (skald.Command(Msg), bool) {
 		reload.look -= 1
 		if reload.look > 0 do return {}, false
 		reload.look = PLAY_RELOAD_LOOK
-		newest := newestSource(playReloadScripts(state))
+		// A change to assets.odin's constants no script uses isn't one (script_constants.odin)
+		newest := Scripts_NewestFor(playReloadScripts(state), playerTarget(state).binary)
 		if time.diff(reload.built, newest) <= 0 do return {}, false
 		playReloadBuild(state, newest)
 	case .Building, .Describing:
@@ -183,6 +184,10 @@ playReloadBuild :: proc(state: ^State, newest: time.Time) {
 	outputLine(state, .Info, fmt.aprintf("Hot reload: $ %s", strings.join(command, " ", context.temp_allocator)))
 	logLine(state, .Info, fmt.aprintf("Hot reload: scripts changed, building the game again..."))
 	reload.building = newest
+	// The constants it's built with (beside the binary it replaces when it's through)
+	Constants_Snapshot(&state.project, playerTarget(state).binary)
+	// What this build sees (the script index describes files changed after it)
+	state.scriptsBuildSource = Scripts_NewestSource(&state.project)
 	// Not again until this one is through
 	reload.built = newest
 	if playReloadStart(state, command) do reload.stage = .Building

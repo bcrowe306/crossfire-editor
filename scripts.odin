@@ -39,6 +39,8 @@ ScriptCatalog :: struct {
 	// Node types game code registers (the engine's custom_nodes.odin: `e.NodeType_Register`),
 	// each with its base kind (`ScriptDesc.base`) and fields
 	nodeTypes: [dynamic]ScriptDesc,
+	// Bumped when the lists change (a build, or the script index: script_index.odin)
+	generation: int,
 }
 
 ScriptCatalogStatus :: enum {
@@ -60,6 +62,9 @@ ScriptDesc :: struct {
 	events: [dynamic]e.NodeEventInfo,
 	// A node type's built-in kind (what it embeds); unused for scripts and data types
 	base: NodeKind,
+	// Read from the source by the script index (script_index.odin), not from a build: the
+	// file changed since the last build, or there's been none
+	fromIndex: bool,
 }
 
 ScriptFieldDesc :: struct {
@@ -71,6 +76,10 @@ ScriptFieldDesc :: struct {
 	// "scene": a string naming a scene
 	hint: string,
 	enumNames: [dynamic]string,
+	// The comment above it in the source, and its 1-based line (the script index's; "" and 0
+	// from a build)
+	comment: string,
+	line: int,
 }
 
 /*
@@ -81,8 +90,8 @@ Returns:
 */
 ScriptCatalog_Parse :: proc(text: string) -> ([dynamic]ScriptDesc, bool) {
 	scripts, dataTypes, nodeTypes, ok := ScriptCatalog_ParseAll(text)
-	scriptDescs_Destroy(&dataTypes)
-	scriptDescs_Destroy(&nodeTypes)
+	ScriptDescs_Destroy(&dataTypes)
+	ScriptDescs_Destroy(&nodeTypes)
 	return scripts, ok
 }
 
@@ -154,16 +163,16 @@ ScriptCatalog_ParseAll :: proc(text: string) -> (scripts, dataTypes, nodeTypes: 
 
 // Frees the catalog's scripts and data types
 ScriptCatalog_Clear :: proc(catalog: ^ScriptCatalog) {
-	scriptDescs_Destroy(&catalog.nodeTypes)
+	ScriptDescs_Destroy(&catalog.nodeTypes)
 	catalog.nodeTypes = {}
-	scriptDescs_Destroy(&catalog.dataTypes)
+	ScriptDescs_Destroy(&catalog.dataTypes)
 	catalog.dataTypes = {}
-	scriptDescs_Destroy(&catalog.scripts)
+	ScriptDescs_Destroy(&catalog.scripts)
 	catalog.scripts = {}
 }
 
-@(private="file")
-scriptDescs_Destroy :: proc(list: ^[dynamic]ScriptDesc) {
+// Frees a list of descriptions
+ScriptDescs_Destroy :: proc(list: ^[dynamic]ScriptDesc) {
 	for &d in list {
 		delete(d.name)
 		delete(d.file)
@@ -171,6 +180,7 @@ scriptDescs_Destroy :: proc(list: ^[dynamic]ScriptDesc) {
 			delete(field.name)
 			delete(field.defaultValue)
 			delete(field.hint)
+			delete(field.comment)
 			for n in field.enumNames do delete(n)
 			delete(field.enumNames)
 		}
@@ -179,6 +189,27 @@ scriptDescs_Destroy :: proc(list: ^[dynamic]ScriptDesc) {
 		delete(d.events)
 	}
 	delete(list^)
+}
+
+// A copy of a description, owning its strings and lists
+ScriptDesc_Clone :: proc(d: ScriptDesc) -> ScriptDesc {
+	c := d
+	c.name = strings.clone(d.name)
+	c.file = strings.clone(d.file)
+	c.fields = make([dynamic]ScriptFieldDesc, 0, len(d.fields))
+	for f in d.fields {
+		g := f
+		g.name = strings.clone(f.name)
+		g.defaultValue = strings.clone(f.defaultValue)
+		g.hint = strings.clone(f.hint)
+		g.comment = strings.clone(f.comment)
+		g.enumNames = make([dynamic]string, 0, len(f.enumNames))
+		for n in f.enumNames do append(&g.enumNames, strings.clone(n))
+		append(&c.fields, g)
+	}
+	c.events = make([dynamic]e.NodeEventInfo, 0, len(d.events))
+	for ev in d.events do append(&c.events, e.NodeEventInfo{name = strings.clone(ev.name), description = strings.clone(ev.description), dataHint = strings.clone(ev.dataHint), offset = ev.offset})
+	return c
 }
 
 // The described data type with that name, or nil
