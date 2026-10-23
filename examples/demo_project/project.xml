@@ -51,16 +51,19 @@
 	<asset path="assets/props/rune_lit.png" kind="Image"/>
 	<asset path="assets/props/runestone.png" kind="Image"/>
 	<asset path="assets/sfx/bee_buzz.ogg" kind="Audio"/>
+	<asset path="assets/sfx/bee_defeat.ogg" kind="Audio"/>
+	<asset path="assets/sfx/bee_hurt.ogg" kind="Audio"/>
+	<asset path="assets/sfx/boar_defeat.ogg" kind="Audio"/>
+	<asset path="assets/sfx/boar_hurt.ogg" kind="Audio"/>
 	<asset path="assets/sfx/boss_charge.ogg" kind="Audio"/>
 	<asset path="assets/sfx/boss_defeat.ogg" kind="Audio"/>
+	<asset path="assets/sfx/boss_hurt.ogg" kind="Audio"/>
 	<asset path="assets/sfx/boss_roar.ogg" kind="Audio"/>
 	<asset path="assets/sfx/boss_slam.ogg" kind="Audio"/>
 	<asset path="assets/sfx/boss_stun.ogg" kind="Audio"/>
 	<asset path="assets/sfx/checkpoint.ogg" kind="Audio"/>
 	<asset path="assets/sfx/coin.ogg" kind="Audio"/>
 	<asset path="assets/sfx/dialogue_blip.ogg" kind="Audio"/>
-	<asset path="assets/sfx/enemy_defeat.ogg" kind="Audio"/>
-	<asset path="assets/sfx/enemy_hurt.ogg" kind="Audio"/>
 	<asset path="assets/sfx/game_over.ogg" kind="Audio"/>
 	<asset path="assets/sfx/gate_open.ogg" kind="Audio"/>
 	<asset path="assets/sfx/heart.ogg" kind="Audio"/>
@@ -75,6 +78,8 @@
 	<asset path="assets/sfx/saved.ogg" kind="Audio"/>
 	<asset path="assets/sfx/shard.ogg" kind="Audio"/>
 	<asset path="assets/sfx/slash_hit.ogg" kind="Audio"/>
+	<asset path="assets/sfx/snail_defeat.ogg" kind="Audio"/>
+	<asset path="assets/sfx/snail_hurt.ogg" kind="Audio"/>
 	<asset path="assets/sfx/splash.ogg" kind="Audio"/>
 	<asset path="assets/sfx/step.ogg" kind="Audio"/>
 	<asset path="assets/sfx/stomp.ogg" kind="Audio"/>

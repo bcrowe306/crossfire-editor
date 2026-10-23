@@ -166,6 +166,8 @@ register_Boss :: proc "contextless" () {
 		ready = proc(self: ^Boss) {
 			currentBoss = self
 			Enemy_Start(&self.enemy, self.node, self.health, 500, false, "hit", 2.4)
+			// Its defeat has its own cry (SOUND_BOSS_DEFEAT, below)
+			self.enemy.hurtSound = SOUND_BOSS_HURT
 			self.enemy.stompable = false
 			self.enemy.weight = 0.15
 			self.phase = 1

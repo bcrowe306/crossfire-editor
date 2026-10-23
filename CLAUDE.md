@@ -276,7 +276,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `test_project_test.odin` | `Project_CreateTestProject`: the unit tests' sample project (the old built-in demo: a menu, a play scene with a tree of sprites, options); the outline demo's test |
 | `examples/demo_project/` | The demo game, "Legacy of the Wardens", shipped with the editor (see "The demo project" below). Its README lists what each part demonstrates |
 | `tools/demo/make_demo.py`, `tools/demo/hero.lua` | Made the demo's art (from the Legacy-Fantasy pack: ImageMagick, and Aseprite for the hero's file) and its three LDtk levels (`assets/levels/legacy.ldtk`, from LDtk's JSON schema: every required key, validated; auto-layer rules and the tiles they make). Rerun only to start over: the levels are edited in LDtk now |
-| `tools/demo/make_sounds.py` | Synthesizes every sound effect and the music (layers of equal length, seamless loops), Python's standard library and ffmpeg (OGG Vorbis) |
+| `tools/demo/make_sounds.py` | Synthesizes the demo's music (layers of equal length, seamless loops) and the bees' buzz, Python's standard library and ffmpeg (OGG Vorbis) |
+| `tools/demo/pick_sounds.py` | Copies the demo's sound effects from the workspace's GameSounds pack under the names its scripts use (the table of picks) |
 | `tools/demo/playtest/` | The demo's headless playtest (`task demo:playtest`) |
 | `tools/demo/player/` | The demo's own player (the engine's player with its scripts): `task play:demo` |
 
@@ -1252,7 +1253,9 @@ MyGame/
   - Menu buttons carry an action: `scene:<Name>` or `quit`.
   - Hidden nodes and their children aren't drawn at runtime.
 - **Writer rules:** attributes are written in a fixed order, and only the ones that apply to the
-  node's kind and differ from `e.DEFAULT_SCENE_NODE`. Values are escaped (`EscapeXML`). Output is
+  node's kind and differ from `e.DEFAULT_SCENE_NODE`. Values are escaped (`EscapeXML`), line
+  breaks and tabs too (`&#10;`: an XML parser reads a raw line break in an attribute as a space,
+  and the demo's credits roll lost its lines to a save and a load). Output is
   deterministic, so saving an unchanged project produces identical files; a test checks it.
 - **Round trips:** `editor_test.odin` saves the test project (`Project_CreateTestProject`) with tricky values (escapes, non-default
   fields), reloads it, and compares every field. Extend it whenever a property is added.
@@ -2258,9 +2261,12 @@ demonstrates and where; what the code here relies on:
   every file as it is (`shipped_demo_saves_unchanged`; after a hand edit, `DEMO_RESAVE=1` on
   that test writes the writer's version back into the demo).
 - **Assets:** the art is cut from the workspace's `Legacy-Fantasy/` pack by `make_demo.py` (and
-  `hero.lua`, with Aseprite). **No sound comes from the workspace's GameSounds pack**: its license
-  (GameBurp's, sold through Sonniss) forbids sharing the files, and the demo ships as source in
-  this repository and the releases, so `make_sounds.py` synthesizes every sound and the music.
+  `hero.lua`, with Aseprite); the sound effects are files of the workspace's GameSounds pack
+  (GameBurp), copied under the demo's names by `pick_sounds.py` (its table says which file is
+  which effect; each creature has its own cries: `Enemy.hurtSound` / `defeatSound`). Both packs
+  ship with their owners' permission (the user's decision, 2026-10-23; the user updates the
+  license text). `make_sounds.py` synthesizes the music and the bees' buzz (the pack has
+  neither); `--all-sfx` also writes its older synthesized effects.
   The fonts are SIL OFL (Pixelify Sans, Jacquarda Bastarda 9; their licenses beside them).
   About 5 MB; keep it small (releases ship it): the `.ldtk` is compact JSON, music is OGG
   quality 1, and the LDtk levels have no tree layers (the scenes' ParallaxLayers draw the forest).

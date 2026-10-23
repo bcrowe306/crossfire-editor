@@ -89,7 +89,7 @@ defeat, starts from the last one you touched.
 
 | Feature | Where to look |
 |---|---|
-| **Mix buses** | Music and SFX (the Mixer tab): every sound effect plays on SFX (`Sfx` in `scripts/game_state.odin`: `e.Game_PlaySound` with a bus, a volume and a pitch); the options set the buses' volumes |
+| **Mix buses** | Music and SFX (the Mixer tab): every sound effect (each creature with its own cries: `Enemy.hurtSound` / `defeatSound` in `scripts/enemy.odin`) plays on SFX (`Sfx` in `scripts/game_state.odin`: `e.Game_PlaySound` with a bus, a volume and a pitch); the options set the buses' volumes |
 | **Music layers** | Each level's MusicPlayer streams its theme with a drums layer at volume 0 that fades in when creatures come near (`e.MusicPlayer_SetLayerVolume` in `scripts/level.odin`) |
 | **Crossfades** | The boss's theme crossfades in after its speech, the victory theme after its defeat (`e.MusicPlayer_CrossfadeTo`) |
 | **Bus effects** | A reverb on SFX in the caves (`e.Audio_SetBusEffects`), a low-pass on Music while paused |
@@ -100,7 +100,8 @@ defeat, starts from the last one you touched.
   the three levels from their layouts (it was run once; the levels are now meant to be edited in
   LDtk). `tools/demo/hero.lua` (run by it, with Aseprite) puts the hero's animations into one
   Aseprite file.
-- `tools/demo/make_sounds.py` synthesizes every sound effect and the music (no recordings).
+- `tools/demo/pick_sounds.py` copies the sound effects from the GameSounds pack (the file for each
+  effect is listed there); `tools/demo/make_sounds.py` synthesizes the music and the bees' buzz.
 - `tools/demo/playtest` plays the demo headless (`task demo:playtest`): a bot presses keys through
   the title, the options, each level and the boss, checks every mechanic and saves frames as PNG
   files (`build/playtest/`).
@@ -117,12 +118,14 @@ Delete them to start over.
 
 ## Credits and licenses
 
-- **Art:** "Legacy Fantasy - High Forest" by Anokolisa (anokolisa.itch.io). Its terms allow using
-  and altering the art in any project, commercial or not, but not selling or redistributing the
-  art itself as assets; credit is appreciated. The pictures here are cut, combined and tinted from
-  the pack (`tools/demo/make_demo.py`).
-- **Music and sound effects:** made for this demo by `tools/demo/make_sounds.py`, under the editor's
-  license (MIT).
+- **Art:** "Legacy Fantasy - High Forest" by Anokolisa (anokolisa.itch.io), used with the
+  permission of its owner; the project's owner will update the license to say so. The pictures
+  here are cut, combined and tinted from the pack (`tools/demo/make_demo.py`).
+- **Sound effects:** from the GameSounds pack by GameBurp, used with the permission of its owner;
+  the license will be updated the same way. `tools/demo/pick_sounds.py` lists which file each
+  effect is.
+- **Music** (and the bees' buzz): made for this demo by `tools/demo/make_sounds.py`, under the
+  editor's license (MIT).
 - **Fonts:** Pixelify Sans (Copyright 2021 The Pixelify Sans Project Authors) and Jacquarda
   Bastarda 9 (Copyright 2023 The Soft Type Project Authors), both under the SIL Open Font
   License 1.1: `assets/fonts/*-OFL.txt`.

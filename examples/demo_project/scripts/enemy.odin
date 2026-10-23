@@ -40,6 +40,8 @@ Enemy :: struct {
 	// How much a hit pushes it (the boss barely moves)
 	weight: f32,
 	shaders: bool,
+	// Its cries: when hurt, when defeated (its script sets them after Enemy_Start; none: silent)
+	hurtSound, defeatSound: e.SoundAsset,
 }
 
 // Every enemy alive in the scene (registered in ready, removed in destroy)
@@ -117,10 +119,10 @@ Enemy_Hurt :: proc(enemy: ^Enemy, damage: int, fromX: f32) -> bool {
 		enemy.dying = enemy.deathTime
 		if state := State(); state != nil do state.run.score += enemy.points
 		Effects_Score(scene, Enemy_Center(enemy) - {0, 12}, enemy.points)
-		Sfx(scene.game, SOUND_ENEMY_DEFEAT, 0.9)
+		if enemy.defeatSound.path != "" do Sfx(scene.game, enemy.defeatSound, 0.9)
 		if enemy.sprite != nil do e.AnimationPlayer_Play(&enemy.sprite.animation, enemy.deathAnimation, true)
 	} else {
-		Sfx(scene.game, SOUND_ENEMY_HURT, 0.7, rand.float32_range(0.9, 1.15))
+		if enemy.hurtSound.path != "" do Sfx(scene.game, enemy.hurtSound, 0.7, rand.float32_range(0.9, 1.15))
 	}
 	return defeated
 }

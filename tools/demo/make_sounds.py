@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Makes the demo project's sound effects and music (examples/demo_project/assets/sfx/, music/).
 
-Every sound the demo ships is synthesized here from code alone, so the files are ours to license
-with the project (MIT): the workspace's commercial sound pack forbids sharing its files. Run it
-to (re)make them all; every run gives the same samples (fixed seeds, no clock):
+The demo's music and its bees' buzz are synthesized here from code alone: the workspace's
+GameSounds pack, where its other sound effects come from (tools/demo/pick_sounds.py), has no
+music and no insect. The other effects below were the demo's first ones and stay as a
+synthesizer example; they're written only with --all-sfx (pick_sounds.py's replace them). Every
+run gives the same samples (fixed seeds, no clock):
 
-    python3 -I tools/demo/make_sounds.py [<out folder>]
+    python3 -I tools/demo/make_sounds.py [--all-sfx] [<out folder>]
 
 (default: examples/demo_project/assets beside this script's editor checkout; it writes
 <out>/sfx/*.ogg and <out>/music/*.ogg). Python 3 standard library only; needs ffmpeg with
@@ -1414,6 +1416,8 @@ def sfx_victory():
 
 
 SFX = [name[4:] for name in list(globals()) if name.startswith("sfx_")]
+# What the demo ships of them (the others come from GameSounds: pick_sounds.py)
+SHIPPED_SFX = ["bee_buzz"]
 MUSIC = {"forest": track_forest, "caves": track_caves, "title": track_title, "boss": track_boss, "victory": track_victory}
 LAYERS = {"forest": ("forest_base", "forest_drums"), "caves": ("caves_base", "caves_drums")}
 
@@ -1541,7 +1545,11 @@ def check(out):
 
 
 def main():
-    out = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_OUT
+    global SFX
+    args = [a for a in sys.argv[1:] if a != "--all-sfx"]
+    if "--all-sfx" not in sys.argv[1:]:
+        SFX = SHIPPED_SFX
+    out = os.path.abspath(args[0]) if args else DEFAULT_OUT
     for tool in ("ffmpeg", "ffprobe"):
         if not shutil.which(tool):
             sys.exit(f"make_sounds: {tool} is needed (install ffmpeg, with libvorbis)")

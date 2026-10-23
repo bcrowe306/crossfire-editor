@@ -39,6 +39,7 @@ register_Snail :: proc "contextless" () {
 	e.Script_Register(Snail, {
 		ready = proc(self: ^Snail) {
 			Enemy_Start(&self.enemy, self.node, self.health, 10, false, "dead", 0.7)
+			self.enemy.hurtSound, self.enemy.defeatSound = SOUND_SNAIL_HURT, SOUND_SNAIL_DEFEAT
 			self.home = self.node.position
 			self.heading = self.patrol != {} && self.patrol.x >= self.home.x ? 1 : -1
 		},
@@ -91,6 +92,7 @@ register_Boar :: proc "contextless" () {
 	e.Script_Register(Boar, {
 		ready = proc(self: ^Boar) {
 			Enemy_Start(&self.enemy, self.node, self.health, 30, false, "hit", 0.5)
+			self.enemy.hurtSound, self.enemy.defeatSound = SOUND_BOAR_HURT, SOUND_BOAR_DEFEAT
 			self.home = self.node.position
 			if self.patrol == {} do self.patrol = self.home
 			self.heading = self.patrol.x >= self.home.x ? 1 : -1
@@ -190,6 +192,7 @@ register_Bee :: proc "contextless" () {
 	e.Script_Register(Bee, {
 		ready = proc(self: ^Bee) {
 			Enemy_Start(&self.enemy, self.node, self.health, 20, true, "hit", 0.6)
+			self.enemy.hurtSound, self.enemy.defeatSound = SOUND_BEE_HURT, SOUND_BEE_DEFEAT
 			self.enemy.stompable = true
 			self.home = self.node.position
 			if self.patrol == {} do self.patrol = self.home + {40, 0}
