@@ -235,7 +235,8 @@ device, or the one given with `--audio-device "<name>"` (`--list-audio-devices` 
 
 **Editor plugins.** Odin packages in a project's `plugins/` folder, built and loaded by the editor
 (and again when saved): commands in the Plugins tab, importers for other file formats, extra
-inspector rows. New Plugin writes one to start from. User guide:
+inspector rows. Plugins read and change nodes' properties, AnimatedSprites' animations (their
+sheets, grids, frames, speeds and frame times) included. New Plugin writes one to start from. User guide:
 [docs/manual/plugins.md](docs/manual/plugins.md).
 
 **Dialogue.** New Dialogue makes a conversation edited in the Dialogue tab (nodes of lines,
@@ -534,7 +535,10 @@ An Aseprite file is one as it is: each tag is an animation, with its frames' dur
 direction (forward, reverse, ping-pong) and its repeats. Pick it in the AnimatedSprite's
 **Animations**, or drag it into the viewport. A sprite's own animations become an asset with
 **Save as Animation Asset**, and the Animation panel edits it; scripts switch sprites with
-`e.AnimatedSprite_UseAnimations(sprite, ANIMATION_HERO)`.
+`e.AnimatedSprite_UseAnimations(sprite, ANIMATION_HERO)`. The panel sets each animation's frames
+(first and last, or how many), speed or each frame's own time in milliseconds, looping or how
+many times it plays, and says when a sheet's grid leaves pixels over. Renaming an animation
+renames it in the state machines and Timeline keys that play it.
 
 ## LDtk levels
 

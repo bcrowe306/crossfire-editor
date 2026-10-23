@@ -53,6 +53,28 @@ expect animation fps 9
 scroll_into_view animation-scroll animation-loop-5
 click_widget animation-loop-5
 expect animation loop false
+# Not looping: it plays twice. Frame times instead of FPS (9: 111 ms each), one typed, the
+# other stepped and undone
+scroll_into_view animation-scroll animation-repeat-5-inc
+click_widget animation-repeat-5-inc
+expect animation repeat 2
+scroll_into_view animation-scroll animation-durations-5
+click_widget animation-durations-5
+expect animation durations 111 111
+scroll_into_view animation-scroll animation-duration-1-5
+click_widget animation-duration-1-5
+key ctrl+a
+type 250
+expect animation durations 111 250
+scroll_into_view animation-scroll animation-duration-0-5-inc
+click_widget animation-duration-0-5-inc
+expect animation durations 121 250
+key ctrl+z
+expect animation durations 111 250
+# Off again: FPS for every frame
+scroll_into_view animation-scroll animation-durations-5
+click_widget animation-durations-5
+expect animation durations none
 
 # The sprite starts with it; the star marks it in the dropdown, which picks the animation
 scroll_into_view animation-scroll animation-autoplay
@@ -112,6 +134,16 @@ type 64
 expect animation cell 64x64
 expect animation cells 2
 expect animation count 2
+expect animation_note none
+# 50 px cells leave 28 px of the 128 over: the panel says so
+key ctrl+a
+type 50
+expect animation cells 2
+expect animation_note Left over (not part of any frame): 28 px on the right
+key ctrl+a
+type 64
+expect animation cell 64x64
+expect animation_note none
 scroll_into_view animation-scroll animation-count-5-dec
 click_widget animation-count-5-dec
 expect animation count 1
@@ -141,7 +173,7 @@ expect animation cells 4
 key ctrl+s
 wait_until modified false
 expect project_file_contains scenes/PlayScene.scene.xml autoplay="pop"
-expect project_file_contains scenes/PlayScene.scene.xml <animation name="pop" sheet="assets/balloons.png" columns="4" rows="1" start="1" end="2" fps="9"/>
+expect project_file_contains scenes/PlayScene.scene.xml <animation name="pop" sheet="assets/balloons.png" columns="4" rows="1" start="1" end="2" fps="9" repeat="2"/>
 expect project_file_contains scenes/PlayScene.scene.xml <animation name="animation" sheet="assets/light.png" columns="2" rows="1" start="0" end="0"
 expect project_file_lacks scenes/PlayScene.scene.xml texture="assets/balloons.png"
 quit

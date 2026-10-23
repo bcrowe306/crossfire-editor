@@ -112,6 +112,30 @@ Properties are written the way the inspector shows them: `"name"`, `"kind"` (rea
 `"z_index"`, `"texture"`, `"text"`, `"color"` (`"#ff8000"`), `"region"`, `"script"` (read only), and a
 script's fields as `"script.speed"`.
 
+An **AnimatedSprite's animations** (its own, or those of the animation asset it plays; an
+Aseprite file's can be read, not changed):
+
+| Property | Is |
+|---|---|
+| `"animations"` | the names, comma-separated (read only) |
+| `"animation_set"` | the animation asset's path (`""`: its own animations) |
+| `"autoplay"` | the one it starts with (`""`: the first) |
+| `"animation.walk.sheet"` | the image the animation `walk` plays from |
+| `"animation.walk.grid"` | `"Cells"` (columns x rows) or `"Size"` (cells of a size) |
+| `"animation.walk.columns"`, `"rows"`, `"cell_size"` (`"w, h"`) | the grid; the values the mode doesn't set are worked out from the image |
+| `"animation.walk.margin"`, `"spacing"` | pixels around the cells and between them |
+| `"animation.walk.start"`, `"end"` | its first and last cell (`-1`: the sheet's last) |
+| `"animation.walk.frames"` | `"first, last"`: the cells it plays (read only) |
+| `"animation.walk.fps"`, `"loop"`, `"play_mode"`, `"repeat"` | how it plays (`"Forward"`, `"Reverse"`, `"PingPong"`, `"PingPongReverse"`) |
+| `"animation.walk.durations"` | each frame's time in milliseconds, space separated (`""`: FPS for all) |
+| `"animation.walk.sheet_size"`, `"cells"` | the image's size in pixels and its cell count (read only) |
+
+```odin
+// Given: host: ^api.Host, node: int
+sheet, _ := host.getProperty(node, "animation.walk.sheet")
+host.setProperty(node, "animation.walk.durations", "100 100 250")
+```
+
 ## Commands
 
 ```odin

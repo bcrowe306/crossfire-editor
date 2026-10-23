@@ -198,7 +198,7 @@ animationDetails :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 	th := ctx.theme
 	start, end := AnimationDef_Range(animation, cells)
 	timing := ""
-	if len(animation.durations) > 0 {
+	if len(animation.durations) > 0 && src.readOnly {
 		ms := make([dynamic]string, context.temp_allocator)
 		for d in animation.durations do append(&ms, fmt.tprintf("%.0f", d * 1000))
 		timing = fmt.tprintf("Durations (ms): %s", strings.join(ms[:], " ", context.temp_allocator))
@@ -229,7 +229,26 @@ animationDetails :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 		skald.select(ctx, fmt.tprintf("%v", animation.playMode), modes, proc(v: string) -> Msg { return Anim_Mode_Changed(v) },
 			id = skald.hash_id(fmt.tprintf("animation-mode-%d", key)), width = 110),
 	)
-	if timing != "" do append(&groups, skald.text(fmt.tprintf("%s (they set the speed, not FPS)", timing), th.color.fg_muted, th.font.size_xs))
+	// Not looping: how many times it plays
+	// (a ping-pong's: passes, one way each; 0 is two, there and back)
+	if !animation.loop {
+		pingPong := animation.playMode == .PingPong || animation.playMode == .PingPongReverse
+		times := pingPong ? (animation.repeat > 0 ? animation.repeat : 2) : max(animation.repeat, 1)
+		append(&groups, group(ctx, "Plays", numberField(ctx, s, fmt.tprintf("animation-repeat-%d", key), AnimField.Repeat, f64(times), 1, 0, NUMBER_WIDTH, 1, 1000), toolLabel(ctx, pingPong ? "passes" : "times")))
+	}
+	// Each frame's own time (in ms), instead of FPS for all
+	own := len(animation.durations) > 0
+	append(&groups, skald.checkbox(ctx, own, "Frame times", proc(v: bool) -> Msg { return Anim_Durations_Toggled(v) }, id = skald.hash_id(fmt.tprintf("animation-durations-%d", key))))
+	if own {
+		for frame in 0 ..= end - start {
+			ms := frame < len(animation.durations) && animation.durations[frame] > 0 ? animation.durations[frame] * 1000 : AnimEdit_FpsDuration(animation) * 1000
+			// Times belong to cells (from the first), whichever way it plays
+			cell := start + frame
+			append(&groups, group(ctx, fmt.tprintf("%d:", cell),
+				numberField(ctx, s, fmt.tprintf("animation-duration-%d-%d", frame, key), AnimDurationTarget(frame), f64(ms), 10, 0, NUMBER_WIDTH, 1, 60000), toolLabel(ctx, "ms")))
+		}
+		append(&groups, skald.text("Frame times are in ms; FPS is for frames without one.", th.color.fg_muted, th.font.size_xs))
+	}
 	if eventText != "" do append(&groups, skald.text(eventText, th.color.fg_muted, th.font.size_xs))
 	return groups[:]
 }
@@ -268,6 +287,7 @@ sheetSettings :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animatio
 		values = group(ctx, "", number(ctx, s, key, .Cell_Width, animation.grid.cellSize.x, 1, 4096), toolLabel(ctx, "×"), number(ctx, s, key, .Cell_Height, animation.grid.cellSize.y, 1, 4096), toolLabel(ctx, "px"))
 		derived = skald.text(fmt.tprintf("%d × %d cells", columns, rows), th.color.fg_muted, th.font.size_xs)
 	}
+	note := AnimEdit_SheetNote(s.project.rootPath, animation)
 	append(&groups,
 		group(ctx, "Sheet", sheet),
 		group(ctx, "Grid", gridMode),
@@ -277,6 +297,7 @@ sheetSettings :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animatio
 		skald.text(fmt.tprintf("%d frames", cells), th.color.fg_muted, th.font.size_xs),
 		derived,
 	)
+	if note != "" do append(&groups, skald.text(note, th.color.warning, th.font.size_xs))
 	if animation.sheet == "" do append(&groups, skald.text("Pick a sheet, or drag an image from the browser onto this panel.", th.color.warning, th.font.size_xs))
 	return groups[:]
 }

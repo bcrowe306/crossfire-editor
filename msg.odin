@@ -757,6 +757,15 @@ AnimField :: enum {
 	// Pixels around the grid and between cells
 	Margin,
 	Spacing,
+	// Times a non-looping animation plays (0 or 1: once)
+	Repeat,
+}
+// Frame times on (each frame of its range gets its own, starting at 1 / fps) or off (fps for all)
+Anim_Durations_Toggled :: distinct bool
+// One frame's time, in milliseconds (`frame` from the animation's first: see AnimDurationTarget)
+Anim_Duration_Changed :: struct {
+	frame: int,
+	ms: f64,
 }
 // The selected animation's sheet image (TEXTURE_NONE for none)
 Anim_Sheet_Texture_Changed :: distinct string
@@ -1266,6 +1275,8 @@ Msg :: union {
 	Anim_Mode_Changed,
 	Anim_Autoplay_Set,
 	Anim_Frame_Clicked,
+	Anim_Durations_Toggled,
+	Anim_Duration_Changed,
 	Anim_Playback_Toggled,
 	Anim_Tick,
 	Anim_Tick_Requested,

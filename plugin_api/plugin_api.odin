@@ -128,6 +128,23 @@ What the editor lets a plugin do. Node indices are into the open scene (or compo
 none (the top level as a parent). Properties are text: "name", "kind", "position" ("x, y"),
 "rotation", "scale" ("x, y"), "visible", "layer", "z_index", "texture", "text", "color",
 "region", "script" (its first script's name), "script.<field>" (a script field's value).
+
+An AnimatedSprite's animations (its own, or the animation asset's it plays: an Aseprite file's
+are read only): "animations" (their names, comma-separated; read only), "animation_set" (the
+asset's path, "" for its own), "autoplay" (the one it starts with, "" the first), and per
+animation "animation.<name>.<field>" with the fields "sheet" (its image's path), "grid" ("Cells"
+or "Size"), "columns", "rows" (worked out from the image for a Size grid), "cell_size" ("w, h",
+worked out for a Cells grid), "margin", "spacing", "start", "end" (-1: the sheet's last cell),
+"frames" ("first, last": the cells it plays, resolved; read only), "fps", "loop", "play_mode"
+("Forward", "Reverse", "PingPong", "PingPongReverse"), "repeat", "durations" (each frame's time
+in milliseconds, space separated; "" for fps), "sheet_size" ("w, h" in pixels; read only),
+"cells" (how many the sheet has; read only). Since PLUGIN_API_VERSION 1 (the Host didn't change:
+an older editor returns false for them).
+
+Example:
+	// Given: host: ^api.Host, node: int
+	sheet, _ := host.getProperty(node, "animation.walk.sheet")
+	host.setProperty(node, "animation.walk.durations", "100 100 250")
 */
 Host :: struct {
 	// PLUGIN_API_VERSION of the editor

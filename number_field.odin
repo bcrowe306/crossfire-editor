@@ -29,6 +29,8 @@ NumberTarget :: union {
 	SceneGravityTarget,
 	// The Animation panel's selected animation
 	AnimField,
+	// One of its frames' times (the frame, from its first)
+	AnimDurationTarget,
 	// The selected TileMap's frame
 	TileMapFrameTarget,
 	// The Timeline's clip length, speed and key time
@@ -52,6 +54,9 @@ NumberTarget :: union {
 }
 
 GameSizeTarget :: distinct int
+
+// A frame of the Animation panel's selected animation, from its first (its time in ms)
+AnimDurationTarget :: distinct int
 
 // Project Settings' physics numbers
 PhysicsTarget :: enum {
@@ -193,6 +198,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case GridTarget:     return Project_Settings_Grid_Changed{t, value}
 	case SceneGravityTarget: return Scene_Gravity_Changed{t.scene, t.axis, value}
 	case AnimField:      return Anim_Field_Changed{t, value}
+	case AnimDurationTarget: return Anim_Duration_Changed{int(t), value}
 	case TileMapFrameTarget: return TileMap_Setting_Changed{field = .Frame, value = value}
 	case UINumberTarget: return UI_Setting_Changed{field = UIField(t), value = value}
 	case NavNumberTarget: return Nav_Setting_Changed{field = NavField(t), value = value}

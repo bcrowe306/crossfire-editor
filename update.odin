@@ -189,7 +189,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
 	     Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,
-	     Anim_Loop_Changed, Anim_Mode_Changed, Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Playback_Toggled,
+	     Anim_Loop_Changed, Anim_Mode_Changed, Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Durations_Toggled, Anim_Duration_Changed, Anim_Playback_Toggled,
 	     Anim_Tick, Anim_Tick_Requested:
 		// Handled by AnimEdit_Update above
 	case Input_New_Name_Changed, Input_Action_Added, Input_Defaults_Added, Input_Action_Selected, Input_Action_Removed,

@@ -95,7 +95,8 @@ AnimationDef_Range :: proc(animation: AnimationDef, cells: int) -> (start, end: 
 
 /*
 The cell an animation shows `t` seconds after it starts, as the engine's player steps it: at
-`fps`, forward, backward or there and back (PingPong), looping or stopping on its last frame.
+`fps` (or its frames' durations), forward, backward or there and back (PingPong), looping, or
+playing `repeat` times (once for 0 or 1) and stopping on its last frame.
 
 Returns:
 - The sheet cell
@@ -106,19 +107,22 @@ AnimationDef_FrameAt :: proc(animation: AnimationDef, cells: int, t: f64) -> int
 	backwards := animation.playMode == .Reverse || animation.playMode == .PingPongReverse
 	if (animation.fps <= 0 && len(animation.durations) == 0) || count <= 1 do return backwards ? end : start
 	step := AnimationDef_StepAt(animation, count, t)
+	times := max(animation.repeat, 1)
+	// A ping-pong's repeat counts passes, one way each (as the engine and Aseprite count them; 0: two)
+	passes := animation.repeat > 0 ? animation.repeat : 2
 	switch animation.playMode {
 	case .Forward:
-		return start + (animation.loop ? step % count : min(step, count - 1))
+		return start + (animation.loop ? step % count : min(step, times * count - 1) % count)
 	case .Reverse:
-		return end - (animation.loop ? step % count : min(step, count - 1))
+		return end - (animation.loop ? step % count : min(step, times * count - 1) % count)
 	case .PingPong:
-		// start .. end .. start+1: one cycle is 2 * (count - 1) steps
+		// start .. end .. start+1: one cycle is 2 * (count - 1) steps; the last one ends on start
 		cycle := 2 * (count - 1)
-		at := animation.loop ? step % cycle : min(step, cycle)
+		at := animation.loop ? step % cycle : min(step, passes * (count - 1)) % cycle
 		return start + (at < count ? at : cycle - at)
 	case .PingPongReverse:
 		cycle := 2 * (count - 1)
-		at := animation.loop ? step % cycle : min(step, cycle)
+		at := animation.loop ? step % cycle : min(step, passes * (count - 1)) % cycle
 		return end - (at < count ? at : cycle - at)
 	}
 	return start
@@ -133,7 +137,8 @@ AnimationDef_StepAt :: proc(animation: AnimationDef, count: int, t: f64) -> int 
 	// The frames a forward pass visits, in order: their durations repeat for the steps after
 	durationOf :: proc(animation: AnimationDef, frame: int) -> f64 {
 		if frame >= 0 && frame < len(animation.durations) && animation.durations[frame] > 0 do return f64(animation.durations[frame])
-		return animation.fps > 0 ? 1 / f64(animation.fps) : 0.1
+		// As the engine's Animation_FrameDuration: 1 / fps, or 0 (it holds there) without an fps
+		return animation.fps > 0 ? 1 / f64(animation.fps) : 0
 	}
 	step := 0
 	left := max(t, 0)
@@ -149,7 +154,7 @@ AnimationDef_StepAt :: proc(animation: AnimationDef, count: int, t: f64) -> int 
 			if animation.playMode == .PingPongReverse do frame = count - 1 - frame
 		}
 		d := durationOf(animation, frame)
-		if left < d do break
+		if d <= 0 || left < d do break
 		left -= d
 		step += 1
 	}
@@ -182,11 +187,13 @@ AnimEdit_NameProblem :: proc(animations: []AnimationDef, index: int, name: strin
 AnimEdit_IsEdit :: proc(m: Msg) -> bool {
 	#partial switch v in m {
 	case Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed, Anim_Loop_Changed, Anim_Mode_Changed,
-	     Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed:
+	     Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed,
+	     Anim_Durations_Toggled, Anim_Duration_Changed:
 		return true
 	case Number_Text_Changed:
 		_, isAnim := v.target.(AnimField)
-		return isAnim
+		_, isDuration := v.target.(AnimDurationTarget)
+		return isAnim || isDuration
 	}
 	return false
 }
@@ -295,11 +302,13 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		delete(ed.nameText)
 		ed.nameId, ed.nameText = v.id, strings.clone(v.text)
 		if animation == nil || AnimEdit_NameProblem(list[:], index, v.text) != "" do break
-		// The autoplay setting follows the rename
+		// The autoplay setting follows the rename, and so do the state machines and Timeline keys
+		// that play it by name
 		if autoplay^ == animation.name {
 			delete(autoplay^)
 			autoplay^ = strings.clone(v.text)
 		}
+		AnimEdit_RenameReferences(s, src, animation.name, v.text)
 		delete(animation.name)
 		animation.name = strings.clone(v.text)
 	case Anim_Sheet_Texture_Changed:
@@ -334,14 +343,17 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		if animation == nil do break
 		// Its sheet's grid
 		grid := &animation.grid
+		gridChanged := true
 		#partial switch v.field {
-		case .Columns:     grid.columns = clamp(int(v.value), 1, 256); return {}, true
-		case .Rows:        grid.rows = clamp(int(v.value), 1, 256); return {}, true
-		case .Cell_Width:  grid.cellSize.x = clamp(f32(int(v.value)), 1, 4096); return {}, true
-		case .Cell_Height: grid.cellSize.y = clamp(f32(int(v.value)), 1, 4096); return {}, true
-		case .Margin:      grid.margin = clamp(f32(v.value), 0, 1000); return {}, true
-		case .Spacing:     grid.spacing = clamp(f32(v.value), 0, 1000); return {}, true
+		case .Columns:     grid.columns = clamp(int(v.value), 1, 256)
+		case .Rows:        grid.rows = clamp(int(v.value), 1, 256)
+		case .Cell_Width:  grid.cellSize.x = clamp(f32(int(v.value)), 1, 4096)
+		case .Cell_Height: grid.cellSize.y = clamp(f32(int(v.value)), 1, 4096)
+		case .Margin:      grid.margin = clamp(f32(v.value), 0, 1000)
+		case .Spacing:     grid.spacing = clamp(f32(v.value), 0, 1000)
+		case:              gridChanged = false
 		}
+		if gridChanged do break
 		cells := AnimEdit_Cells(s.project.rootPath, animation^)
 		start, end := AnimationDef_Range(animation^, cells)
 		#partial switch v.field {
@@ -358,7 +370,27 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 			animation.end = start + clamp(int(v.value), 1, cells - start) - 1
 		case .FPS:
 			animation.fps = clamp(f32(v.value), 0, 120)
+		case .Repeat:
+			// Once is 0, as files keep it; a ping-pong's are passes (1 is one way: kept)
+			animation.repeat = clamp(int(v.value), 0, 1000)
+			pingPong := animation.playMode == .PingPong || animation.playMode == .PingPongReverse
+			if animation.repeat <= 1 && !pingPong do animation.repeat = 0
 		}
+	case Anim_Durations_Toggled:
+		if animation == nil do break
+		clear(&animation.durations)
+		if !bool(v) do break
+		// Every frame of its range at its fps, in whole milliseconds (as files keep them)
+		start, end := AnimationDef_Range(animation^, AnimEdit_Cells(s.project.rootPath, animation^))
+		for _ in start ..= end do append(&animation.durations, AnimEdit_FpsDuration(animation^))
+		restart(ed)
+	case Anim_Duration_Changed:
+		if animation == nil || v.frame < 0 do break
+		start, end := AnimationDef_Range(animation^, AnimEdit_Cells(s.project.rootPath, animation^))
+		if v.frame > end - start do break
+		// Frames past the list get the fps's time first
+		for len(animation.durations) <= v.frame do append(&animation.durations, AnimEdit_FpsDuration(animation^))
+		animation.durations[v.frame] = f32(clamp(math.round(v.ms), 1, 60000)) / 1000
 	case Anim_Loop_Changed:
 		if animation != nil do animation.loop = bool(v)
 	case Anim_Mode_Changed:
@@ -407,5 +439,99 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	case:
 		return {}, false
 	}
+	// Frame times cover every frame of the range: frames it gained get the fps's time
+	if AnimEdit_IsEdit(m) {
+		if _, a, _ := AnimEdit_Selection(s); a != nil && len(a.durations) > 0 {
+			start, end := AnimationDef_Range(a^, AnimEdit_Cells(s.project.rootPath, a^))
+			for len(a.durations) < end - start + 1 do append(&a.durations, AnimEdit_FpsDuration(a^))
+		}
+	}
 	return {}, true
+}
+
+// A frame's time at an animation's fps, in whole milliseconds (100 ms without an fps)
+AnimEdit_FpsDuration :: proc(animation: AnimationDef) -> f32 {
+	if animation.fps <= 0 do return 0.1
+	return f32(math.round(1000 / f64(animation.fps))) / 1000
+}
+
+/*
+Renames an animation where it's played by name: the states of StateMachines whose sprite plays
+the source's animations, and the "animation" keys of Timeline tracks on such a sprite. A node's
+own animations: in its scene; an animation asset's: every scene's sprites using it.
+
+Inputs:
+- s: The editor state
+- src: Where the animation is (`AnimEdit_Source`)
+- old, new: Its name before and after
+
+Returns:
+- How many references changed
+*/
+AnimEdit_RenameReferences :: proc(s: ^State, src: AnimSource, old, new: string) -> int {
+	changed := 0
+	rename :: proc(text: ^string, old, new: string) -> int {
+		if text^ != old do return 0
+		delete(text^)
+		text^ = strings.clone(new)
+		return 1
+	}
+	// Whether a scene's node is a sprite playing these animations
+	plays :: proc(s: ^State, src: AnimSource, scene: ^SceneDef, si, node: int) -> bool {
+		if node < 0 || node >= len(scene.nodes) || scene.nodes[node].kind != .AnimatedSprite do return false
+		if src.kind == .Node do return si == s.currentScene && &scene.nodes[node] == src.node
+		return src.path != "" && scene.nodes[node].animationSet == src.path
+	}
+	for &scene, si in s.project.scenes {
+		// An asset's rename is a project step, whose snapshot holds scenes, not components:
+		// components keep the old name (logged by the caller's count)
+		if src.kind == .Set && Scene_IsComponent(&scene) do continue
+		for &node, i in scene.nodes {
+			#partial switch node.kind {
+			case .StateMachine:
+				if !plays(s, src, &scene, si, States_Target(&scene, i)) do continue
+				for &state in node.stateMachine.states do changed += rename(&state.animation, old, new)
+			case .Animator:
+				for &clip in node.animator.clips do for &track in clip.tracks {
+					if track.property != "animation" || !plays(s, src, &scene, si, Timeline_ResolvePath(&scene, i, track.node)) do continue
+					for &k in track.keys do changed += rename(&k.value, old, new)
+				}
+			}
+		}
+	}
+	return changed
+}
+
+// Whether a scene has nodes that play animations by name (renaming one there is a scene step)
+Scene_PlaysAnimationsByName :: proc(scene: ^SceneDef) -> bool {
+	for node in scene.nodes do if node.kind == .StateMachine || node.kind == .Animator do return true
+	return false
+}
+
+/*
+What an animation's grid doesn't use, for the panel: a Size grid's pixels past its last whole
+cells ("Left over (not part of any frame): 12 px on the right"), which are never drawn (frames
+are all one size, and what's left is usually padding, so they stay ignored), or a Cells grid's
+cells that aren't whole pixels (they'd blur or shift). "" when the grid fits.
+
+Inputs:
+- root: The project folder
+- animation: The animation
+
+Returns:
+- The note (temp allocated), or ""
+*/
+AnimEdit_SheetNote :: proc(root: string, animation: AnimationDef) -> string {
+	size := AnimEdit_SheetSize(root, animation.sheet)
+	if left := e.SheetGrid_Leftover(animation.grid, size); left.x >= 1 || left.y >= 1 {
+		parts := make([dynamic]string, context.temp_allocator)
+		if left.x >= 1 do append(&parts, fmt.tprintf("%.0f px on the right", left.x))
+		if left.y >= 1 do append(&parts, fmt.tprintf("%.0f px at the bottom", left.y))
+		return fmt.tprintf("Left over (not part of any frame): %s", strings.join(parts[:], " and ", context.temp_allocator))
+	}
+	_, _, cell := e.SheetGrid_Layout(animation.grid, size)
+	if animation.grid.mode == .Cells && size.x > 0 && (cell.x != math.floor(cell.x) || cell.y != math.floor(cell.y)) {
+		return fmt.tprintf("Cells are %.1f × %.1f px: not whole pixels (check the columns, rows, margin and gap)", cell.x, cell.y)
+	}
+	return ""
 }

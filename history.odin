@@ -189,6 +189,7 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			field := ""
 			if f, isField := m.(Anim_Field_Changed); isField do field = fmt.tprint(f.field)
 			if n, isNumber := m.(Number_Text_Changed); isNumber do field = fmt.tprint(n.target)
+			if d, isDuration := m.(Anim_Duration_Changed); isDuration do field = fmt.tprint(AnimDurationTarget(d.frame))
 			_, typing := m.(Anim_Name_Typed)
 			merge := field != "" || typing ? key("anim-set", src.path, field, typing, s.animEditor.selected) : 0
 			return {scope = .Project, label = fmt.tprintf("Change the animations in %s", filepath.base(src.path)), mergeKey = merge}
@@ -267,6 +268,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isAnim := v.target.(AnimField); isAnim && hasSelection {
 			return node(selected, fmt.tprintf("Change an animation of %s", name), key("anim", field, s.currentScene, selected, s.animEditor.selected))
 		}
+		if frame, isDuration := v.target.(AnimDurationTarget); isDuration && hasSelection {
+			return node(selected, fmt.tprintf("Change a frame time of an animation of %s", name), key("anim-duration", int(frame), s.currentScene, selected, s.animEditor.selected))
+		}
 		if field, isTimeline := v.target.(TimelineNumber); isTimeline {
 			if _, i := Timeline_Animator(s); i >= 0 do return node(i, fmt.tprintf("Change the %v in the clips of %s", field, scene.nodes[i].name), key("timeline-number", field, i, s.timeline.clip, s.timeline.track, s.timeline.key))
 		}
@@ -302,6 +306,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	case Anim_Moved:
 		if hasSelection do return node(selected, fmt.tprintf("Reorder the animations of %s", name))
 	case Anim_Name_Typed:
+		// State machines and Timeline keys playing it by name follow: then the scene is the step
+		if hasSelection && Scene_PlaysAnimationsByName(scene) do return {scope = .Scene, label = fmt.tprintf("Rename an animation of %s", name), mergeKey = key("anim-name", s.currentScene, selected, s.animEditor.selected)}
 		if hasSelection do return node(selected, fmt.tprintf("Rename an animation of %s", name), key("anim-name", s.currentScene, selected, s.animEditor.selected))
 	case Anim_Field_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change an animation of %s", name), key("anim", v.field, s.currentScene, selected, s.animEditor.selected))
@@ -309,6 +315,10 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if hasSelection do return node(selected, fmt.tprintf("Change an animation of %s", name))
 	case Anim_Frame_Clicked:
 		if hasSelection do return node(selected, fmt.tprintf("Change the frames of an animation of %s", name))
+	case Anim_Durations_Toggled:
+		if hasSelection do return node(selected, fmt.tprintf("Change the frame times of an animation of %s", name))
+	case Anim_Duration_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change a frame time of an animation of %s", name), key("anim-duration", v.frame, s.currentScene, selected, s.animEditor.selected))
 	case Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change the sheet of an animation of %s", name))
 	case Anim_Autoplay_Set:

@@ -3162,6 +3162,117 @@ animation_panel_edits :: proc(t: ^testing.T) {
 }
 
 @(test)
+animation_frame_times_repeats_and_renames :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	balloon := nodeIndex(scene, "Balloon") // 4x1 sheet at 3 fps
+	state.selectedNode = balloon
+	anim :: proc(state: ^State) -> ^AnimationDef { return &playScene(state).nodes[state.selectedNode].animations[0] }
+
+	// Frame times on: each frame of its range at its fps, in whole ms; then edited one by one
+	send(&state, Anim_Field_Changed{.FPS, 3})
+	send(&state, Anim_Durations_Toggled(true))
+	testing.expect_value(t, len(anim(&state).durations), 4)
+	testing.expect_value(t, anim(&state).durations[0], f32(0.333))
+	send(&state, Anim_Duration_Changed{2, 500})
+	send(&state, NumberTarget_Msg(AnimDurationTarget(0), 100))
+	testing.expect_value(t, anim(&state).durations[2], f32(0.5))
+	testing.expect_value(t, anim(&state).durations[0], f32(0.1))
+	send(&state, Anim_Duration_Changed{9, 100}) // past its frames: nothing
+	testing.expect_value(t, len(anim(&state).durations), 4)
+	// The preview steps by them: 0.1 s on cell 0, 0.333 on 1, 0.5 on 2
+	testing.expect_value(t, AnimationDef_FrameAt(anim(&state)^, 4, 0.05), 0)
+	testing.expect_value(t, AnimationDef_FrameAt(anim(&state)^, 4, 0.2), 1)
+	testing.expect_value(t, AnimationDef_FrameAt(anim(&state)^, 4, 0.5), 2)
+	// Saved in ms and read back equal
+	xml := SceneToXML(scene, context.temp_allocator)
+	testing.expect(t, strings.contains(xml, `durations="100 333 500 333"`), xml)
+	send(&state, Anim_Durations_Toggled(false))
+	testing.expect_value(t, len(anim(&state).durations), 0)
+	send(&state, Action.Undo)
+	testing.expect_value(t, len(anim(&state).durations), 4)
+
+	// Plays a number of times when it doesn't loop; once is 0
+	send(&state, Anim_Loop_Changed(false))
+	send(&state, Anim_Field_Changed{.Repeat, 2})
+	testing.expect_value(t, anim(&state).repeat, 2)
+	once := anim(&state)^
+	once.durations = nil
+	once.fps = 10
+	// 0 1 2 3 0 1 2 3, then holds on 3
+	testing.expect_value(t, AnimationDef_FrameAt(once, 4, 0.45), 0)
+	testing.expect_value(t, AnimationDef_FrameAt(once, 4, 0.75), 3)
+	testing.expect_value(t, AnimationDef_FrameAt(once, 4, 5), 3)
+	// A ping-pong's repeat counts passes, one way each: 2 is 0 1 2 3 2 1 0, then 0
+	once.playMode = .PingPong
+	testing.expect_value(t, AnimationDef_FrameAt(once, 4, 0.45), 2)
+	testing.expect_value(t, AnimationDef_FrameAt(once, 4, 5), 0)
+	// 3 goes on to 1 2 3 and stops on the far end
+	once.repeat = 3
+	testing.expect_value(t, AnimationDef_FrameAt(once, 4, 0.75), 1)
+	testing.expect_value(t, AnimationDef_FrameAt(once, 4, 5), 3)
+	// Frame times with no fps: a frame without one holds, as the engine's player does
+	held := once
+	held.loop, held.fps, held.playMode = true, 0, .Forward
+	held.durations = make([dynamic]f32, 0, 1, context.temp_allocator)
+	append(&held.durations, 0.1)
+	testing.expect_value(t, AnimationDef_FrameAt(held, 4, 5), 1)
+	send(&state, Anim_Field_Changed{.Repeat, 1})
+	testing.expect_value(t, anim(&state).repeat, 0)
+
+	// A rename follows into the state machines and Timeline keys playing it, in one undo step
+	props := nodeIndex(scene, "Props")
+	machine := Scene_InsertNode(scene, "Brain", .StateMachine, props)
+	animator := Scene_InsertNode(scene, "Anim", .Animator, props)
+	scene = playScene(&state)
+	balloon = nodeIndex(scene, "Balloon")
+	state.selectedNode = balloon
+	m := &scene.nodes[machine]
+	delete(m.stateMachine.target)
+	m.stateMachine.target = strings.clone("../Balloon")
+	delete(m.stateMachine.states[0].animation)
+	m.stateMachine.states[0].animation = strings.clone("default")
+	keys := make([dynamic]e.AnimatorKeyData)
+	append(&keys, e.AnimatorKeyData{time = 0, value = strings.clone("default")})
+	tracks := make([dynamic]e.AnimatorTrackData)
+	append(&tracks, e.AnimatorTrackData{node = strings.clone("Balloon"), property = strings.clone("animation"), step = true, keys = keys})
+	append(&scene.nodes[animator].animator.clips, e.AnimatorClipData{name = strings.clone("show"), length = 1, tracks = tracks})
+	send(&state, Anim_Name_Typed{1, "float"})
+	scene = playScene(&state)
+	testing.expect_value(t, scene.nodes[balloon].animations[0].name, "float")
+	testing.expect_value(t, scene.nodes[machine].stateMachine.states[0].animation, "float")
+	testing.expect_value(t, scene.nodes[animator].animator.clips[0].tracks[0].keys[0].value, "float")
+	send(&state, Action.Undo)
+	scene = playScene(&state)
+	testing.expect_value(t, scene.nodes[balloon].animations[0].name, "default")
+	testing.expect_value(t, scene.nodes[machine].stateMachine.states[0].animation, "default")
+	testing.expect_value(t, scene.nodes[animator].animator.clips[0].tracks[0].keys[0].value, "default")
+
+	// The plugin API reads and sets them
+	node := &scene.nodes[balloon]
+	value, ok := hostGetAnimationProperty(&state, node, "animations")
+	testing.expect(t, ok && value == "default", value)
+	value, ok = hostGetAnimationProperty(&state, node, "animation.default.sheet")
+	testing.expect(t, ok && value == "assets/balloons.png", value)
+	value, _ = hostGetAnimationProperty(&state, node, "animation.default.columns")
+	testing.expect_value(t, value, "4")
+	value, _ = hostGetAnimationProperty(&state, node, "animation.default.durations")
+	testing.expect_value(t, value, "100 333 500 333")
+	_, ok = hostSetAnimationProperty(&state, node, "animation.default.fps", "12")
+	testing.expect(t, ok && node.animations[0].fps == 12, "fps set")
+	_, ok = hostSetAnimationProperty(&state, node, "animation.default.durations", "50 x")
+	testing.expect(t, !ok && len(node.animations[0].durations) == 4, "a bad list changes nothing")
+	_, ok = hostSetAnimationProperty(&state, node, "animation.default.grid", "Size")
+	testing.expect(t, ok && node.animations[0].grid.mode == .Size, "grid set")
+	_, ok = hostSetAnimationProperty(&state, node, "animation.nope.fps", "3")
+	testing.expect(t, !ok, "no such animation")
+	handled, _ := hostSetAnimationProperty(&state, node, "text", "x")
+	testing.expect(t, !handled, "not an animation property")
+	free_all(context.temp_allocator)
+}
+
+@(test)
 animations_round_trip :: proc(t: ^testing.T) {
 	dir := tempDir("editor_test_animations")
 	defer removeAll(dir)

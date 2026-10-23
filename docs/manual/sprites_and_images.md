@@ -100,12 +100,14 @@ sets each one's sheet, frames and speed.
 | **Name** | Its name: what scripts play it by. Two animations can't share a name |
 | **★ Starts with this** | The sprite plays it when the scene starts |
 | **Sheet** | Its sprite sheet's picture. Dragging a picture from the browser onto the panel sets it too |
-| **Grid** | How its sheet is cut into frames: **Cells** (so many across × down) or **Size** (a frame's width × height in pixels). Beside it, the other one, worked out from the picture: the frames' size, or how many fit |
+| **Grid** | How its sheet is cut into frames: **Cells** (so many across × down) or **Size** (a frame's width × height in pixels). Beside it, the other one, worked out from the picture: the frames' size, or how many fit. With **Size**, pixels the frames don't fill at the right or bottom are left out of every frame, and the panel says how many ("Left over: 12 px on the right"); with **Cells**, it warns when frames aren't whole pixels |
 | **Margin**, **Gap** | Pixels around the sheet's edge before the first frame, and between frames |
 | **Frames** ... **to** ... | Its first and last frame |
-| **Count** | How many frames it plays from its first (sets the last) |
+| **Count** | How many frames it plays from its first (sets the last). Change either the last frame or the count: the other follows |
 | **FPS** | Frames per second: how fast it plays |
 | **Loop** | Plays again from the start when it ends; unticked, it stops on its last frame |
+| **Plays** ... **times** | Without Loop: how many times it plays before stopping. A ping-pong counts **passes**, one way each, as Aseprite does: 2 is there and back, 3 ends on the far frame |
+| **Frame times** | Ticked, each frame gets its own time in milliseconds (a field per frame, starting at the FPS's time): hold a pose longer, snap through a swing. Unticked, FPS times them all |
 | The mode | **Forward**, **Reverse** (last frame to first), **PingPong** (there and back), **PingPongReverse** (back and there) |
 
 The toolbar's controls wrap onto more lines when the panel is narrow.
@@ -118,7 +120,8 @@ animation's frames lit:
 - **Shift+click** a frame: it ends there.
 
 The viewport plays the animation you're editing on the sprite, so you see it in place. Every edit
-can be undone.
+can be undone. Renaming an animation renames it in the [state machines](state_machines.md) and
+[Timeline](animation.md) keys that play it.
 
 ## Animation assets: animations sprites share
 

@@ -128,9 +128,12 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	// The scene's lighting, unless the viewport shows it unlit
 	ambient := scene.settings.ambient.a > 0 ? scene.settings.ambient : e.DEFAULT_AMBIENT
 	e.Scene_SetLighting(preview.scene, scene.settings.lighting && !s.viewport.unlit, ambient, scene.settings.bodyShadows)
-	// The animation open in the Animation panel plays on its sprite
-	if s.bottomTab == .Animation && s.layout.bottomOpen {
-		if _, animation, _ := AnimEdit_Selection(s); animation != nil {
+	// The animation open in the Animation panel plays on its sprite: only when the panel shows
+	// what the selected sprite plays (its own, or its asset), not an asset picked in the browser
+	if s.bottomTab == .Animation && s.layout.bottomOpen && s.selectedNode >= 0 && s.selectedNode < len(scene.nodes) {
+		src, animation, _ := AnimEdit_Selection(s)
+		sprite := &scene.nodes[s.selectedNode]
+		if animation != nil && src.node == sprite && (s.animEditor.asset == "" || sprite.animationSet == s.animEditor.asset) {
 			if node := Preview_Node(s.selectedNode); node != nil && e.Node_Is(node, e.AnimatedSprite) {
 				player := &(cast(^e.AnimatedSprite)node).animation
 				if e.AnimationPlayer_CurrentName(player) != animation.name do e.AnimationPlayer_Play(player, animation.name)

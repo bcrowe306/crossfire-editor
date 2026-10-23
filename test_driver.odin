@@ -373,10 +373,12 @@ Checks:
 	sound <sound | bus | volume | pitch | pan | loop | autostart | range> <value>
 	                             The selected sound node's settings ("none" for no sound; bus "Master")
 	animations <count>           Animations of the selected AnimatedSprite
-	animation <name | start | end | count | fps | loop | mode | sheet | grid | columns | rows | cell | margin | gap | cells> <value>
+	animation <name | start | end | count | fps | loop | mode | sheet | grid | columns | rows | cell | margin | gap | cells | repeat | durations> <value> (durations: ms, space separated, or none)
 	                             The Animation panel's selected animation (start and end resolved;
 	                             sheet "none" for none; grid Cells or Size; cell <w>x<h>; cells:
 	                             how many its sheet has)
+	animation_note <text | none>  What the selected animation's grid leaves unused (`AnimEdit_SheetNote`: "Left over
+	                             (not part of any frame): 28 px on the right", or cells not whole pixels)
 	autoplay <name | none>       The animation the selected sprite starts with
 	sheet_loaded <true | false>  The Animation panel uploaded the selected animation's sheet (thumbnails)
 	globals <A,B | none>         The project's global scripts, in order
@@ -2663,9 +2665,20 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "margin":  found = fmt.tprint(g.margin)
 		case "gap":     found = fmt.tprint(g.spacing)
 		case "cells":   found = fmt.tprint(cells)
+		case "repeat":  found = fmt.tprint(animation.repeat)
+		case "durations":
+			// Milliseconds, space separated ("none" without frame times)
+			ms := make([dynamic]string, context.temp_allocator)
+			for d in animation.durations do append(&ms, fmt.tprint(int(d * 1000 + 0.5)))
+			found = len(ms) == 0 ? "none" : strings.join(ms[:], " ", context.temp_allocator)
 		case: return false, fmt.tprintf("unknown animation field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
+	case "animation_note":
+		_, animation, _ := AnimEdit_Selection(s)
+		if animation == nil do return false, "no animation selected"
+		found = AnimEdit_SheetNote(s.project.rootPath, animation^)
+		if found == "" do found = "none"
 	case "autoplay":
 		if selected == nil do return false, "nothing selected"
 		found = selected.autoplay == "" ? "none" : selected.autoplay

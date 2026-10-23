@@ -256,8 +256,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `bus_effects_edit.odin` | **Bus effects**: `BusDef.effects` / `effectCount` (a plain array), `Bus_Effects_Opened` (the Mixer's FX: `State.busSelection`) and `Bus_Effect_Added` / `_Removed` / `_Moved` / `_Changed` (`.Project` steps), `busEffectsInspector`; the preview hears them (`AudioPreview_SetEffects` from `Mixer_RoutePreview`) |
 | `music_layers_edit.odin` | **Music layers**: `NodeDef.musicLayers` (`MusicLayerDef`: clone, destroy, equal), `Music_Layer_Added` / `_Removed` / `_Changed` (node steps), the MusicPlayer's Layers rows (`musicLayerRows`) |
 | `view_inspector_audio.odin` | The inspector's sound node settings (`audioInspectorRows`): sound or music, bus, Open Mixer, volume / pitch / pan sliders, loop, autostart, a 2D player's range and falloff, music's fades, Preview |
-| `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with; the selected animation's sheet, grid mode and values, margin, gap; frames, count, FPS, loop, mode; small groups in a `wrap_row`) over the preview and the thumbnails of its sheet's frames (`frameStrip`, cells drawn from the sheet uploaded once: `Image_LoadRGBA`); one scroll for all, which takes images dropped from the browser (`AnimationPanel_TakesDrop`) |
-| `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimEdit_Cells` / `AnimEdit_SheetSize` (an animation's sheet's cells, from `Image_Size`), `AnimationDef_FrameAt` / `StepAt` (the frame at a time, as the engine plays it, durations too), `AnimationDef_Range`, unique names, `AnimEdit_IsEdit` |
+| `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with; the selected animation's sheet, grid mode and values, margin, gap; frames, count, FPS, loop, mode, Plays (repeat), Frame times and each frame's ms; the sheet's leftover note; small groups in a `wrap_row`) over the preview and the thumbnails of its sheet's frames (`frameStrip`, cells drawn from the sheet uploaded once: `Image_LoadRGBA`); one scroll for all, which takes images dropped from the browser (`AnimationPanel_TakesDrop`) |
+| `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimEdit_Cells` / `AnimEdit_SheetSize` (an animation's sheet's cells, from `Image_Size`), `AnimationDef_FrameAt` / `StepAt` (the frame at a time, as the engine plays it, durations and repeats too), `AnimationDef_Range`, unique names, `AnimEdit_IsEdit`, `AnimEdit_SheetNote` (leftover pixels), `AnimEdit_FpsDuration`, `AnimEdit_RenameReferences` (state machines and Timeline keys follow a rename) |
 | `animation_sets_edit.odin` | **Animation assets**: `AnimationSetDef` (`.anim.xml`, `Project.animationSets`: load, save when changed, make: `Project_CreateAnimationSet`), `AnimationDef` / set clone, equal and engine conversions, an Aseprite file's tags as a set (`AsepriteEdit_AnimationSet`), the panel's `AnimSource` (`AnimEdit_Source`), the browser preview, `Scene_AddAnimatedSpriteAt` |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
@@ -1591,8 +1591,18 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
 - **Viewport:** the preview game gets the in-memory sets and the Aseprite files' (parsed by the
   editor) before each build (`provideComponents`), and the rebuild signature includes a set's
   text or an Aseprite file's time.
-- **Durations** (Aseprite frames each have one) and `repeat` round-trip; the panel shows them
-  (`AnimationDef_StepAt` previews them) but doesn't edit them yet.
+- **Durations** (Aseprite frames each have one) and `repeat` round-trip; the panel edits both
+  (see the panel below) and previews them (`AnimationDef_StepAt`, `AnimationDef_FrameAt`).
+- **Renames follow** (`AnimEdit_RenameReferences`): a renamed animation is renamed in the states
+  of StateMachines whose sprite plays the source (a node's own: in its scene; a set's: every
+  sprite using it) and in Timeline tracks' "animation" keys on such a sprite. A node's rename is
+  a `.Scene` step when the scene has a StateMachine or an Animator (`Scene_PlaysAnimationsByName`).
+  An asset's rename leaves components alone (its `.Project` step's snapshot holds scenes only).
+- **Frame times cover the range:** after an edit, frames the range gained get the fps's time
+  (`AnimEdit_Update`'s end), and the preview holds a frame without a time when fps is 0, as the
+  engine does. A ping-pong's repeat is passes (the engine's rule; the panel says "passes").
+- **The viewport plays the panel's animation** only when the panel shows what the selected sprite
+  plays (not an asset picked in the browser).
 - Tests: `animation_assets_are_made_saved_edited_and_undone`, `tests/ui/animation_assets.script`
   (driver checks `anim_source`, `animation_set`, `animation_sets`).
 
@@ -1617,7 +1627,15 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   `State.assetDrag`'s asset), its grid mode (`Anim_Grid_Mode_Changed`: switching works the other
   mode's values out from the image, so the cells stay put) and values (`AnimField.Columns`, `Rows`,
   `Cell_Width`, `Cell_Height`), margin and gap (`Margin`, `Spacing`), the cells it makes; then
-  frames, count (`AnimField.Frames`: sets the end from the start), FPS, loop, mode. Its controls
+  frames, count (`AnimField.Frames`: sets the end from the start), FPS, loop, mode; without Loop,
+  Plays ... times (`AnimField.Repeat`; once is stored as 0); **Frame times**
+  (`Anim_Durations_Toggled`: on fills each frame of its range with the fps's time in whole ms,
+  `AnimEdit_FpsDuration`; off clears them) and, when on, a number per frame in ms
+  (`AnimDurationTarget`, `Anim_Duration_Changed`; keys `animation-duration-<frame>-<node>`;
+  durations belong to cells from the first, whichever way it plays, as the engine's). Under the
+  sheet's values, `AnimEdit_SheetNote`: a Size grid's leftover pixels (`e.SheetGrid_Leftover`:
+  still not part of any frame, since frames are one size and leftovers are usually padding) or
+  a Cells grid's fractional cells. Its controls
   are small groups in a `skald.wrap_row`, so
   they wrap onto more lines in a narrow panel (a group wider than a line would spill into the
   scrollbar strip: keep groups small). Below: a preview playing the animation and a thumbnail per
@@ -1627,15 +1645,19 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
 - **Thumbnails:** the sheet is uploaded once per file (`image_load_pixels`); `drawCell` draws a
   cell with Skald's `draw_image_region` (a pixel rect of an image, inset half a texel so
   neighbouring cells don't bleed in).
-- **Undo:** every edit is a `.Node` step (History_Classify; sheet, drop and grid mode too); the
+- **Undo:** every edit is a `.Node` step (History_Classify; sheet, drop, grid mode and frame
+  times too; a frame's time merges per frame); the
   selection, preview and typed name are panel state (`State.animEditor`).
 - **Inspector:** an AnimatedSprite's rows are Animations, **Sheets** (the sheets its animations
   use, read only), Starts with, Edit Animations, Save as Animation Asset.
-- Tests: `animation_frames_over_time`, `animation_panel_edits`, `animations_round_trip`,
+- **Plugins** read and set animations through `getProperty` / `setProperty`
+  (`hostGetAnimationProperty` / `hostSetAnimationProperty` in plugin_host.odin; the names are in
+  plugin_api's Host doc): no Host change, so PLUGIN_API_VERSION stays 1.
+- Tests: `animation_frames_over_time`, `animation_panel_edits`, `animation_frame_times_repeats_and_renames` (frame times, repeats, renames into state machines and keys with undo, the plugin properties), `animations_round_trip`,
   `animations_have_their_own_sheets_in_the_panel` (two sheets, the Size grid, counts, a drop,
   undo, the round trip), `tests/ui/animation.script` (the driver's `click_frame`, `drag_asset_to
   ... animation-scroll`; checks `animations`, `animation` (its sheet, grid, columns, rows, cell,
-  margin, gap, cells, count too), `autoplay`, `sheet_loaded`), `tests/ui/animation_assets.script`
+  margin, gap, cells, count, repeat, durations too), `animation_note`, `autoplay`, `sheet_loaded`; frame times, Plays, a leftover note), `tests/ui/animation_assets.script`
   (a set's second animation on another sheet, cut by size). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
 

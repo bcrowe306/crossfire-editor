@@ -586,6 +586,7 @@ hostGetProperty :: proc(node: int, property: string) -> (string, bool) {
 	case "region":   return n.region, true
 	case "script":   return n.script, true
 	}
+	if value, ok := hostGetAnimationProperty(pluginState, n, property); ok do return value, true
 	if strings.has_prefix(property, "script.") {
 		field := property[len("script."):]
 		for code in NodeDef_Codes(pluginState, n) {
@@ -625,6 +626,7 @@ hostSetProperty :: proc(node: int, property, value: string) -> bool {
 	case "color":    c, ok := e.ParseColor(value); if ok do n.color = c; return ok
 	case "region":   return text(&n.region, value)
 	}
+	if handled, ok := hostSetAnimationProperty(pluginState, n, property, value); handled do return ok
 	if strings.has_prefix(property, "script.") {
 		// The first code with that field, in the engine's order: its node type, its first
 		// script, its more scripts (before a build: its first script)
@@ -652,6 +654,154 @@ hostSetProperty :: proc(node: int, property, value: string) -> bool {
 		}
 	}
 	return false
+}
+
+/*
+An AnimatedSprite's animations for the plugin API: its own, or those of the animation asset it
+uses (an `.anim.xml` file's, editable; an Aseprite file's, read only), and the autoplay text.
+*/
+@(private="file")
+hostAnimations :: proc(state: ^State, n: ^NodeDef) -> (list: ^[dynamic]AnimationDef, autoplay: ^string, readOnly: bool) {
+	if n.kind != .AnimatedSprite do return nil, nil, true
+	if n.animationSet == "" do return &n.animations, &n.autoplay, false
+	if i := Project_FindAnimationSet(&state.project, n.animationSet); i >= 0 {
+		set := &state.project.animationSets[i]
+		return &set.animations, &set.autoplay, false
+	}
+	if set := AsepriteEdit_AnimationSet(state.project.rootPath, n.animationSet); set != nil do return &set.animations, &set.autoplay, true
+	return nil, nil, true
+}
+
+// "animation.<name>.<field>": the animation (nil if there's none) and the field
+@(private="file")
+hostAnimationField :: proc(state: ^State, n: ^NodeDef, property: string) -> (animation: ^AnimationDef, field: string, readOnly: bool) {
+	if !strings.has_prefix(property, "animation.") do return nil, "", true
+	rest := property[len("animation."):]
+	// Names may hold dots: the field is after the last one
+	dot := strings.last_index_byte(rest, '.')
+	if dot < 0 do return nil, "", true
+	list, _, ro := hostAnimations(state, n)
+	if list == nil do return nil, "", true
+	for &a in list do if a.name == rest[:dot] do return &a, rest[dot + 1:], ro
+	return nil, "", true
+}
+
+/*
+The plugin API's animation properties of an AnimatedSprite (plugin_api's Host doc lists them):
+"animations" (names, comma-separated), "animation_set", "autoplay", and
+"animation.<name>.<field>": sheet, grid, columns, rows, cell_size, margin, spacing, start, end,
+frames (the cells it plays, resolved), fps, loop, play_mode, repeat, durations (ms, space
+separated), sheet_size (the image's pixels, read only), cells (the sheet's, read only).
+*/
+@(private)
+hostGetAnimationProperty :: proc(state: ^State, n: ^NodeDef, property: string) -> (string, bool) {
+	if n.kind != .AnimatedSprite do return "", false
+	switch property {
+	case "animation_set": return n.animationSet, true
+	case "animations", "autoplay":
+		list, autoplay, _ := hostAnimations(state, n)
+		if list == nil do return "", false
+		if property == "autoplay" do return autoplay^, true
+		names := make([dynamic]string, context.temp_allocator)
+		for a in list do append(&names, a.name)
+		return strings.join(names[:], ",", context.temp_allocator), true
+	}
+	a, field, _ := hostAnimationField(state, n, property)
+	if a == nil do return "", false
+	root := state.project.rootPath
+	switch field {
+	case "sheet":     return a.sheet, true
+	case "grid":      return fmt.tprint(a.grid.mode), true
+	case "columns", "rows":
+		columns, rows, _ := e.SheetGrid_Layout(a.grid, AnimEdit_SheetSize(root, a.sheet))
+		return fmt.tprint(field == "columns" ? columns : rows), true
+	case "cell_size":
+		_, _, cell := e.SheetGrid_Layout(a.grid, AnimEdit_SheetSize(root, a.sheet))
+		return fmt.tprintf("%v, %v", cell.x, cell.y), true
+	case "margin":    return fmt.tprint(a.grid.margin), true
+	case "spacing":   return fmt.tprint(a.grid.spacing), true
+	case "start":     return fmt.tprint(a.start), true
+	case "end":       return fmt.tprint(a.end), true
+	case "frames":
+		start, end := AnimationDef_Range(a^, AnimEdit_Cells(root, a^))
+		return fmt.tprintf("%d, %d", start, end), true
+	case "fps":       return fmt.tprint(a.fps), true
+	case "loop":      return a.loop ? "true" : "false", true
+	case "play_mode": return fmt.tprint(a.playMode), true
+	case "repeat":    return fmt.tprint(a.repeat), true
+	case "durations":
+		ms := make([dynamic]string, context.temp_allocator)
+		for d in a.durations do append(&ms, fmt.tprint(int(d * 1000 + 0.5)))
+		return strings.join(ms[:], " ", context.temp_allocator), true
+	case "sheet_size":
+		size := AnimEdit_SheetSize(root, a.sheet)
+		return fmt.tprintf("%v, %v", size.x, size.y), true
+	case "cells":     return fmt.tprint(AnimEdit_Cells(root, a^)), true
+	}
+	return "", false
+}
+
+// Sets an animation property (`hostGetAnimationProperty`): whether the property is one, and whether it was set
+@(private)
+hostSetAnimationProperty :: proc(state: ^State, n: ^NodeDef, property, value: string) -> (handled: bool, ok: bool) {
+	if n.kind != .AnimatedSprite do return false, false
+	text :: proc(field: ^string, value: string) {
+		delete(field^)
+		field^ = strings.clone(value)
+	}
+	switch property {
+	case "animation_set":
+		// "" for its own animations again (it then needs one)
+		text(&n.animationSet, value)
+		if value == "" && len(n.animations) == 0 do append(&n.animations, AnimationDef_Default())
+		return true, true
+	case "autoplay":
+		_, autoplay, readOnly := hostAnimations(state, n)
+		if autoplay == nil || readOnly do return true, false
+		text(autoplay, value)
+		return true, true
+	case "animations", "frames", "sheet_size", "cells":
+		return true, false
+	}
+	if !strings.has_prefix(property, "animation.") do return false, false
+	a, field, readOnly := hostAnimationField(state, n, property)
+	if a == nil || readOnly do return true, false
+	number :: proc(value: string) -> (f32, bool) { return strconv.parse_f32(strings.trim_space(value)) }
+	whole :: proc(value: string) -> (int, bool) { return strconv.parse_int(strings.trim_space(value)) }
+	switch field {
+	case "sheet": text(&a.sheet, value); return true, true
+	case "grid":
+		mode, found := reflect.enum_from_name(e.SheetGridMode, strings.trim_space(value))
+		if found do a.grid.mode = mode
+		return true, found
+	case "columns": v, found := whole(value); if found do a.grid.columns = clamp(v, 1, 256); return true, found
+	case "rows":    v, found := whole(value); if found do a.grid.rows = clamp(v, 1, 256); return true, found
+	case "cell_size":
+		x, _, y := strings.partition(value, ",")
+		w, okW := number(x)
+		h, okH := number(y)
+		if okW && okH do a.grid.cellSize = {clamp(w, 1, 4096), clamp(h, 1, 4096)}
+		return true, okW && okH
+	case "margin":  v, found := number(value); if found do a.grid.margin = clamp(v, 0, 1000); return true, found
+	case "spacing": v, found := number(value); if found do a.grid.spacing = clamp(v, 0, 1000); return true, found
+	case "start":   v, found := whole(value); if found do a.start = max(v, 0); return true, found
+	case "end":     v, found := whole(value); if found do a.end = max(v, -1); return true, found
+	case "fps":     v, found := number(value); if found do a.fps = clamp(v, 0, 120); return true, found
+	case "loop":    a.loop = value == "true"; return true, value == "true" || value == "false"
+	case "play_mode":
+		mode, found := reflect.enum_from_name(e.AnimationPlayMode, strings.trim_space(value))
+		if found do a.playMode = mode
+		return true, found
+	case "repeat":  v, found := whole(value); if found do a.repeat = clamp(v, 0, 1000) <= 1 ? 0 : clamp(v, 0, 1000); return true, found
+	case "durations":
+		// All or nothing: a bad number changes none
+		parts := strings.fields(value, context.temp_allocator)
+		for part in parts do if ms, found := strconv.parse_f32(part); !found || ms < 0 do return true, false
+		clear(&a.durations)
+		for part in parts do append(&a.durations, (strconv.parse_f32(part) or_else 0) / 1000)
+		return true, true
+	}
+	return true, false
 }
 
 // A new plugin's source: one of each thing a plugin can add
