@@ -461,7 +461,10 @@ code). The Aseprite file is never changed: painted layers are stored in the scen
 - **Tiles from code:** `e.TileMap_SetTile(level, "Ground", column, row, 0)` breaks a block
   (`e.TileMap_CellAt` finds the cell under a point); collision follows.
 
-**Camera tools:** **ParallaxLayer** backgrounds move slower than the world (tiled if asked) for
+**Camera tools:** a **Camera**'s **Target** makes it follow that node by itself (follow mode,
+dead zone, aim offset, look-ahead), never showing past the limits ticked on its sides, with its
+own zoom and shake settings; selected, it draws its limits, dead zone and target in the viewport.
+**ParallaxLayer** backgrounds move slower than the world (tiled if asked) for
 depth; **CameraZone** rooms keep the camera inside the room the player is in and slide it into the
 next; `e.Camera2D_ZoomTo` zooms smoothly; a **CameraView** shows what another Camera sees in a
 rectangle on screen (split screen, minimaps, picture in picture). See the

@@ -224,13 +224,14 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		index := s.rename.node
 		if s.rename.active && index >= 0 && index < len(scene.nodes) {
 			// Renaming a body joints name changes them too: the whole scene is the step
-			if isBodyKind(scene.nodes[index].kind) && Scene_JointsReferTo(scene, scene.nodes[index].name) {
+			if isBodyKind(scene.nodes[index].kind) && Scene_JointsReferTo(scene, scene.nodes[index].name) || Scene_HasCameraTargets(scene) {
 				return {scope = .Scene, label = fmt.tprintf("Rename %s", scene.nodes[index].name)}
 			}
 			return node(index, fmt.tprintf("Rename %s", scene.nodes[index].name))
 		}
 	case Node_Renamed:
-		if hasSelection && isBodyKind(scene.nodes[selected].kind) && Scene_JointsReferTo(scene, name) {
+		// Joints naming a body, cameras' target paths follow: the whole scene is the step
+		if hasSelection && (isBodyKind(scene.nodes[selected].kind) && Scene_JointsReferTo(scene, name) || Scene_HasCameraTargets(scene)) {
 			return {scope = .Scene, label = fmt.tprintf("Rename %s", name), mergeKey = key("rename", s.currentScene, selected)}
 		}
 		if hasSelection do return node(selected, fmt.tprintf("Rename %s", name), key("rename", s.currentScene, selected))
@@ -270,6 +271,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		}
 		if field, isCam := v.target.(CameraToolNumber); isCam && hasSelection {
 			return node(selected, fmt.tprintf("Change %v of %s", CameraToolField(field), name), key("camtool", CameraToolField(field), s.currentScene, selected))
+		}
+		if field, isCamera := v.target.(CameraNumber); isCamera && hasSelection {
+			return node(selected, fmt.tprintf("Change %v of %s", CameraField(field), name), key("camera", CameraField(field), s.currentScene, selected))
 		}
 		if _, isAfter := v.target.(SMAfterTarget); isAfter {
 			if _, i := States_Machine(s); i >= 0 do return node(i, "Change a transition's wait", key("states-after", i, s.states.transition))
@@ -326,6 +330,9 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	// Camera tools: sliders merge while dragged
 	case Camera_Tool_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), v.field == .Factor_X || v.field == .Factor_Y ? key("camtool", v.field, s.currentScene, selected) : 0)
+	// A Camera's settings: numbers merge while stepped (typing is Number_Text_Changed above)
+	case Camera_Changed:
+		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name), v.field != .Target && v.field != .Follow_Mode && v.text == "" && !v.flag ? key("camera", v.field, s.currentScene, selected) : 0)
 	// Navigation: typing a number merges
 	case Nav_Setting_Changed:
 		if hasSelection do return node(selected, fmt.tprintf("Change %v of %s", v.field, name))
@@ -892,7 +899,7 @@ NodeDef_Equal :: proc(a, b: NodeDef) -> bool {
 	   a.motorSpeed != b.motorSpeed || a.maxMotor != b.maxMotor || a.enableSpring != b.enableSpring ||
 	   a.hertz != b.hertz || a.dampingRatio != b.dampingRatio || a.collideConnected != b.collideConnected ||
 	   a.particles != b.particles || a.component != b.component ||
-	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera || a.touch != b.touch || a.touchActions != b.touchActions ||
+	   a.sound != b.sound || a.bus != b.bus || a.material != b.material || a.audio != b.audio || !MusicLayers_Equal(a.musicLayers, b.musicLayers) || !LDtkSettings_Equal(a.ldtk, b.ldtk) || !TileMapSettings_Equal(a.tilemap, b.tilemap) || !e.AnimatorSettings_Equal(a.animator, b.animator) || !UISettings_Equal(a.ui, b.ui) || a.light != b.light || a.nav != b.nav || !e.StateMachineSettings_Equal(a.stateMachine, b.stateMachine) || a.cameraTools != b.cameraTools || a.viewCamera != b.viewCamera || a.camera != b.camera || a.cameraTarget != b.cameraTarget || a.touch != b.touch || a.touchActions != b.touchActions ||
 	   a.shader != b.shader || !propsEqual(a.shaderParams[:], b.shaderParams[:]) || a.effectScreenLayers != b.effectScreenLayers || a.line != b.line ||
 	   a.boneLength != b.boneLength || !e.MeshData_Equal(a.mesh, b.mesh) || a.ik != b.ik || a.ikTip != b.ikTip || a.ikTarget != b.ikTarget ||
 	   a.dialogue != b.dialogue || a.dialogueStart != b.dialogueStart || a.dialogueBox != b.dialogueBox {

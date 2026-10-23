@@ -509,7 +509,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			inspectorRow(ctx, "Centered", flag(ctx, key, .Centered, node.centered)),
 		)
 	case .Camera:
-		append(&rows, inspectorRow(ctx, "Zoom", number(ctx, s, key, .Zoom, node.zoom, 0.1, 2, numberWidth, 0.05, 20)))
+		append(&rows, ..cameraInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 	case .StaticBody, .DynamicBody, .CharacterMover, .Area, .CollisionShape, .RayCast, .Joint:
 		append(&rows, ..physicsInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
 		if node.kind == .CollisionShape do append(&rows, ..sliceShapeRows(ctx, s, node, key, controlWidth))

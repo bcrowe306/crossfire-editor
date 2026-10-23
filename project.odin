@@ -62,8 +62,11 @@ NodeDef :: struct {
 	fontSize: f32,
 	color: sdl.Color,
 	centered: bool,
-	// Camera
+	// Camera: its zoom, and how it follows its target, its limits and shake (a plain value), and
+	// the node it follows by itself (a path from it, "" none; owned): camera_edit.odin
 	zoom: f32,
+	camera: e.CameraSettings,
+	cameraTarget: string,
 	// AnimatedSprite: its animations (at least one), each a range of the cells of its own sheet,
 	// and autoplay names the one it starts with ("" = the first). See the Animation panel
 	animations: [dynamic]AnimationDef,
@@ -448,6 +451,8 @@ NodeDef_Make :: proc(name: string, kind: NodeKind, parent: int) -> NodeDef {
 		color = defaults.color,
 		centered = defaults.centered,
 		zoom = defaults.zoom,
+		camera = defaults.camera,
+		cameraTarget = strings.clone(""),
 		autoplay = strings.clone(""),
 		component = strings.clone(""),
 		sound = strings.clone(""),
@@ -572,6 +577,7 @@ NodeDef_Destroy :: proc(node: ^NodeDef) {
 	e.UISettings_Destroy(&node.ui)
 	e.StateMachineSettings_Destroy(&node.stateMachine)
 	delete(node.viewCamera)
+	delete(node.cameraTarget)
 	delete(node.touchActions)
 	delete(node.shader)
 	for p in node.shaderParams { delete(p.name); delete(p.value) }
@@ -973,6 +979,8 @@ NodeDef_FromData :: proc(node: e.SceneNodeData) -> NodeDef {
 			color = node.color,
 			centered = node.centered,
 			zoom = node.zoom,
+			camera = node.camera,
+			cameraTarget = strings.clone(node.cameraTarget),
 			autoplay = strings.clone(node.autoplay),
 			collisionLayer = node.collisionLayer,
 			collisionMask = node.collisionMask,

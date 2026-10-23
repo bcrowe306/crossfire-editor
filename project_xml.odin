@@ -637,6 +637,7 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		if node.centered != defaults.centered do attr(w, "centered", node.centered)
 	case .Camera:
 		if node.zoom != defaults.zoom do attr(w, "zoom", node.zoom)
+		writeCamera(w, node)
 	case .StaticBody, .DynamicBody, .CharacterMover, .Area:
 		if node.collisionLayer != defaults.collisionLayer do attr(w, "collisionLayer", e.FormatPhysicsLayers(node.collisionLayer, context.temp_allocator))
 		if node.collisionMask != defaults.collisionMask do attr(w, "collisionMask", e.FormatPhysicsLayers(node.collisionMask, context.temp_allocator))
@@ -887,6 +888,33 @@ writeNode :: proc(w: ^XMLWriter, node: ^NodeDef) {
 		}
 	case .Node2D, .Menu, .ScreenEffect:
 	}
+}
+
+// A Camera's follow target, follow settings, limits and shake (only what isn't the default)
+@(private="file")
+writeCamera :: proc(w: ^XMLWriter, node: ^NodeDef) {
+	c, d := node.camera, e.DEFAULT_CAMERA_SETTINGS
+	if node.cameraTarget != "" do attr(w, "target", node.cameraTarget)
+	if c.follow.mode != d.follow.mode do attr(w, "followMode", c.follow.mode)
+	if c.follow.smoothing != d.follow.smoothing do attr(w, "smoothing", c.follow.smoothing)
+	if c.follow.smoothTime != d.follow.smoothTime do attr(w, "smoothTime", c.follow.smoothTime)
+	if c.follow.speed != d.follow.speed do attr(w, "followSpeed", c.follow.speed)
+	if c.follow.maxSpeed != d.follow.maxSpeed do attr(w, "maxSpeed", c.follow.maxSpeed)
+	if c.follow.deadzone.x != d.follow.deadzone.x do attr(w, "deadzoneX", c.follow.deadzone.x)
+	if c.follow.deadzone.y != d.follow.deadzone.y do attr(w, "deadzoneY", c.follow.deadzone.y)
+	if c.follow.offset.x != d.follow.offset.x do attr(w, "targetOffsetX", c.follow.offset.x)
+	if c.follow.offset.y != d.follow.offset.y do attr(w, "targetOffsetY", c.follow.offset.y)
+	if c.follow.lookAhead.x != d.follow.lookAhead.x do attr(w, "lookAheadX", c.follow.lookAhead.x)
+	if c.follow.lookAhead.y != d.follow.lookAhead.y do attr(w, "lookAheadY", c.follow.lookAhead.y)
+	if c.follow.lookAheadSmoothing != d.follow.lookAheadSmoothing do attr(w, "lookAheadSmoothing", c.follow.lookAheadSmoothing)
+	// A side's attribute is there only when that side is limited
+	if .Left in c.limits do attr(w, "limitLeft", c.limitMin.x)
+	if .Top in c.limits do attr(w, "limitTop", c.limitMin.y)
+	if .Right in c.limits do attr(w, "limitRight", c.limitMax.x)
+	if .Bottom in c.limits do attr(w, "limitBottom", c.limitMax.y)
+	if c.shake.strength != d.shake.strength do attr(w, "shakeStrength", c.shake.strength)
+	if c.shake.duration != d.shake.duration do attr(w, "shakeDuration", c.shake.duration)
+	if c.shake.frequency != d.shake.frequency do attr(w, "shakeFrequency", c.shake.frequency)
 }
 
 // A shape's kind and size (a CollisionShape's, a LightOccluder's)

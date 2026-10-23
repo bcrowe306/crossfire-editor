@@ -34,7 +34,7 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 | [Components](components.md) | Save a group of nodes (an enemy, a coin, a door) as a component, edit it in its own tab, place instances of it in any scene, and add or remove them from scripts |
 | [LDtk levels](levels.md) | Draw your levels in the LDtk level editor and use them in scenes, with tile layers, IntGrid collision, entities that become components with scripts, and levels that update while the game plays |
 | [Tilemaps](tilemaps.md) | TileMap nodes: drawing levels from tiles, painting them in the editor, terrains (autotiling), collision from tiles, animated tiles, changing tiles from scripts |
-| [Camera tools](camera_tools.md) | Parallax backgrounds, rooms the camera stays in (camera zones), smooth zoom, camera views for split screen, minimaps and picture in picture |
+| [Camera tools](camera_tools.md) | A camera following a node by itself (limits, dead zone, look-ahead, shake), parallax backgrounds, rooms the camera stays in (camera zones), smooth zoom, camera views for split screen, minimaps and picture in picture |
 | [2D lighting](lighting.md) | Lit scenes: an ambient light, point and spot lights, shadows from occluders and static bodies, editing in the dark, lights in scripts and animations |
 | [Shaders and screen effects](shaders.md) | Built-in effects (hit flash, outline, dissolve, palette swap), your own GLSL shaders, ScreenEffect nodes (CRT, bloom, color grading), shaders in scripts and the Timeline |
 | [The UI system](ui.md) | Panels, buttons, progress bars, text fields, scroll boxes and rich text for menus and HUDs: anchors, row / column / grid layouts, themes, 9-patch images, keyboard and gamepad focus, scripts |

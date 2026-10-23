@@ -298,6 +298,16 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 	label.text = strings.clone(`Tom & "Jerry" <3`)
 	label.centered = false
 	original.scenes[1].nodes[1].zoom = 2.5
+	// A Camera's follow target and settings (only enabled limits are written)
+	cam := &original.scenes[1].nodes[1]
+	assert(cam.kind == .Camera)
+	delete(cam.cameraTarget)
+	cam.cameraTarget = Scene_NodePath(&original.scenes[1], 1, 2)
+	cam.camera.follow = {mode = .SmoothDamp, smoothing = 3, smoothTime = 0.4, speed = 250, maxSpeed = 900, deadzone = {64, 32}, offset = {0, -40}, lookAhead = {80, 0}, lookAheadSmoothing = 0}
+	cam.camera.limits = {.Left, .Bottom}
+	cam.camera.limitMin = {-16, 0}
+	cam.camera.limitMax = {0, 720.5}
+	cam.camera.shake = {strength = 7, duration = 0.35, frequency = 25}
 	original.scenes[1].nodes[2].visible = false
 	original.scenes[1].nodes[2].rotation = 45
 	// Format 13's per-node settings
@@ -350,6 +360,7 @@ project_round_trips_through_xml :: proc(t: ^testing.T) {
 				testing.expectf(t, a.text == b.text && a.fontSize == b.fontSize && a.color == b.color && a.centered == b.centered, "%s/%s: label", scene.name, a.name)
 			}
 			if a.kind == .Camera do testing.expect_value(t, b.zoom, a.zoom)
+			if a.kind == .Camera do testing.expectf(t, b.camera == a.camera && b.cameraTarget == a.cameraTarget, "%s/%s: camera settings %v %q", scene.name, a.name, b.camera, b.cameraTarget)
 			if testing.expect_value(t, len(b.items), len(a.items)) {
 				for item, k in a.items {
 					testing.expect_value(t, b.items[k].label, item.label)

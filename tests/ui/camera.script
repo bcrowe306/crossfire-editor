@@ -1,0 +1,101 @@
+# A Camera's follow target and settings: the Target dropdown, follow mode and smooth time, dead
+# zone, aim offset, look-ahead, a limit turned on and set (another turned on and undone), shake
+# and zoom; renaming the target keeps the path; saved.
+# Run with: task test:ui SCRIPT=tests/ui/camera.script
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+select_node Camera
+expect kind Camera
+expect cam target none
+
+# Target: (none), "..", then ../Spaceship
+scroll_into_view inspector-scroll inspector-camera-Target-{selected}
+click_widget inspector-camera-Target-{selected}
+click_overlay_item 2
+expect cam target ../Spaceship
+
+# Follow mode: Snap, Exponential, SmoothDamp, Linear
+scroll_into_view inspector-scroll inspector-camera-Follow_Mode-{selected}
+click_widget inspector-camera-Follow_Mode-{selected}
+click_overlay_item 2
+expect cam mode SmoothDamp
+scroll_into_view inspector-scroll inspector-camera-Smooth_Time-{selected}
+click_widget inspector-camera-Smooth_Time-{selected}
+key ctrl+a
+type 0.5
+key RETURN
+expect cam smoothTime 0.5
+scroll_into_view inspector-scroll inspector-camera-Max_Speed-{selected}
+click_widget inspector-camera-Max_Speed-{selected}-inc
+expect cam maxSpeed 50
+
+scroll_into_view inspector-scroll inspector-camera-Deadzone_X-{selected}
+click_widget inspector-camera-Deadzone_X-{selected}
+key ctrl+a
+type 120
+key RETURN
+expect cam deadzoneX 120
+scroll_into_view inspector-scroll inspector-camera-Offset_Y-{selected}
+click_widget inspector-camera-Offset_Y-{selected}
+key ctrl+a
+type -40
+key RETURN
+expect cam offsetY -40
+scroll_into_view inspector-scroll inspector-camera-Look_Ahead_X-{selected}
+click_widget inspector-camera-Look_Ahead_X-{selected}
+key ctrl+a
+type 60
+key RETURN
+expect cam lookAheadX 60
+
+# Limits: the left one on and set; the right one on (at the game's edge), then undone
+scroll_into_view inspector-scroll inspector-camera-Limit_Left_On-{selected}
+click_widget inspector-camera-Limit_Left_On-{selected}
+expect cam limits Left
+scroll_into_view inspector-scroll inspector-camera-Limit_Left-{selected}
+click_widget inspector-camera-Limit_Left-{selected}
+key ctrl+a
+type -64
+key RETURN
+expect cam limitLeft -64
+scroll_into_view inspector-scroll inspector-camera-Limit_Right_On-{selected}
+click_widget inspector-camera-Limit_Right_On-{selected}
+expect cam limits Left,Right
+expect cam limitRight 1280
+key escape
+select_node Camera
+key ctrl+z
+expect cam limits Left
+
+# Shake and zoom
+scroll_into_view inspector-scroll inspector-camera-Shake_Strength-{selected}
+click_widget inspector-camera-Shake_Strength-{selected}
+key ctrl+a
+type 8
+key RETURN
+expect cam shakeStrength 8
+scroll_into_view inspector-scroll inspector-Zoom-{selected}
+click_widget inspector-Zoom-{selected}
+key ctrl+a
+type 1.5
+key RETURN
+expect cam zoom 1.5
+
+# Renaming the target: the camera's path follows
+key escape
+click_row scene-tree 2
+expect selected Spaceship
+key F2
+expect renaming true
+key ctrl+a
+type Hero
+key RETURN
+expect renaming false
+select_node Camera
+expect cam target ../Hero
+
+key ctrl+s
+expect modified false

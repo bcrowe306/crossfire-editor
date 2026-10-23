@@ -81,6 +81,7 @@ NodeDef_Clone :: proc(node: NodeDef) -> NodeDef {
 	copy.ui = e.UISettings_Clone(node.ui)
 	copy.stateMachine = e.StateMachineSettings_Clone(node.stateMachine)
 	copy.viewCamera = strings.clone(node.viewCamera)
+	copy.cameraTarget = strings.clone(node.cameraTarget)
 	copy.touchActions = strings.clone(node.touchActions)
 	copy.shader = strings.clone(node.shader)
 	copy.shaderParams = make([dynamic]ScriptPropDef, 0, len(node.shaderParams))
@@ -327,6 +328,8 @@ Returns:
 Scene_MoveNode :: proc(scene: ^SceneDef, node, target: int, position: DropPosition) -> (int, bool) {
 	if !Scene_CanMoveNode(scene, node, target, position) do return node, false
 	world := Scene_WorldTransforms(scene)
+	// Cameras keep following the same nodes (their paths are fixed after the move)
+	cameraTargets := CameraTargets_Resolve(scene)
 	count := len(scene.nodes)
 
 	// Each node's children in order; slot `count` holds the top-level nodes
@@ -380,6 +383,7 @@ Scene_MoveNode :: proc(scene: ^SceneDef, node, target: int, position: DropPositi
 	// A mirrored transform: keep the X axis and flip Y
 	if local.x.x * local.y.y - local.y.x * local.x.y < 0 do scale.y = -scale.y
 	moved.scale = {tidy(scale.x), tidy(scale.y)}
+	CameraTargets_Repath(scene, cameraTargets, newIndex)
 	return newIndex[node], true
 }
 

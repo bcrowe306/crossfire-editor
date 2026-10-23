@@ -122,6 +122,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if Live_Update(&out, m) do return out, {}
 	if States_Update(&out, m) do return out, {}
 	if CameraTools_Update(&out, m) do return out, {}
+	if CameraEdit_Update(&out, m) do return out, {}
 	if SceneFlowEdit_Update(&out, m) do return out, {}
 	if ThemeEdit_Update(&out, m) do return out, {}
 	if MaterialEdit_Update(&out, m) do return out, {}
@@ -174,6 +175,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by SceneFlowEdit_Update above
 	case Camera_Tool_Changed:
 		// Handled by CameraTools_Update above
+	case Camera_Changed:
+		// Handled by CameraEdit_Update above
 	case SM_Changed, SM_View:
 		// Handled by States_Update above
 	case Live_Command, Live_Selected, Live_Property_Edited:
@@ -526,8 +529,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if out.rename.active && index >= 0 && index < len(scene.nodes) && text != "" && text != scene.nodes[index].name {
 			logLine(&out, .Info, fmt.aprintf("Renamed %s to %s", scene.nodes[index].name, text))
 			if isBodyKind(scene.nodes[index].kind) do Scene_RenameJointReferences(scene, scene.nodes[index].name, text)
+			// Cameras keep following the same nodes
+			targets := CameraTargets_Resolve(scene)
 			delete(scene.nodes[index].name)
 			scene.nodes[index].name = strings.clone(text)
+			CameraTargets_Repath(scene, targets)
 		}
 		delete(out.rename.text)
 		out.rename = {}
@@ -944,9 +950,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if node := selectedNode(&out); node != nil {
 			// Joints follow a renamed body
 			if isBodyKind(node.kind) do Scene_RenameJointReferences(&out.project.scenes[out.currentScene], node.name, string(v))
+			// Cameras keep following the same nodes
+			targets := CameraTargets_Resolve(&out.project.scenes[out.currentScene])
 			// Msg strings only live for the frame (see Skald's gotchas), so keep a copy
 			delete(node.name)
 			node.name = strings.clone(string(v))
+			CameraTargets_Repath(&out.project.scenes[out.currentScene], targets)
 		}
 	case Node_Visibility_Changed:
 		if node := selectedNode(&out); node != nil do node.visible = bool(v)

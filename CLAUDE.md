@@ -186,6 +186,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
 | `material_edit.odin` | **Physics materials**: `MaterialDef` (`Project.materials`), load / save / create, `Material_Field_Changed` / `Material_Created`, the material inspector (`materialInspector`) and a body's Material rows (`materialBodyRows`) |
 | `collision_trace_edit.odin` | **Collision from sprite**: `TraceSettings` (`State.trace`), `Trace_Sprites`, `Trace_Pieces`, `Trace_MakeShapes` (`Collision_Traced`), the body inspector's rows (`traceInspectorRows`) |
+| `camera_edit.odin` | **A Camera's follow target and settings**: `NodeDef.camera` (`e.CameraSettings`) and `cameraTarget`, `Camera_Changed` (`CameraNumber`), the Camera's inspector rows (`cameraInspectorRows`: Zoom; Follow, Limits, Shake groups), keeping target paths through renames and moves (`CameraTargets_Resolve` / `_Repath`, `Scene_HasCameraTargets`) |
 | `camera_tools_edit.odin` | **Camera tools**: `NodeDef.cameraTools` (`e.CameraToolSettings`) and `viewCamera`, `Camera_Tool_Changed` (`CameraToolNumber`), the ParallaxLayer / CameraZone / CameraView inspector rows (`cameraToolInspectorRows`) |
 | `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `Scene_ResolvePath`, the inspector's rows |
 | `view_states.odin` | The bottom panel's States tab (`StatesPanel`): the graph (`graphCanvas`: boxes, arrows with their conditions, Any state; click, drag, double-click), the selected state's and transition's fields, the parameters |
@@ -1138,7 +1139,9 @@ MyGame/
   and `.anim.xml` files; NodeDef and AnimationSetDef have no sheet (no `columns`, `rows`, `margin`,
   `spacing`). Older files migrate in the engine's parser (the node's or file's sheet becomes every
   animation's; a node without animations gets "default"), so `Project_Load` just copies them;
-  they're rewritten in the new format only when saved.
+  they're rewritten in the new format only when saved. Also in 14 (no version of its own): a
+  Camera's `target` and follow, limit and shake attributes (`NodeDef.camera`, `cameraTarget`;
+  see "Camera follow target").
 - **Version 13** also: CollisionShape `oneWay` (the inspector's One way checkbox,
   `NodeFlag.One_Way`); **translation tables**: `.csv` assets of kind Translation (the browser's
   Translations folder, its preview parsed by the engine's `e.Locale_LoadCSV`; not in
@@ -1814,6 +1817,37 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   `Steam: stub backend (app 480)`; driver checks `touch <field>`, `steam <field>`). User guide:
   `docs/manual/touch_and_steam.md`.
 
+## Camera follow target (implemented, `camera_edit.odin`; engine: camera.odin)
+
+- `NodeDef.camera` is the engine's `e.CameraSettings`, plain (`==`: NodeDef_Equal), defaulting
+  to `e.DEFAULT_CAMERA_SETTINGS` (`NodeDef_Make` from DEFAULT_SCENE_NODE); `cameraTarget` is
+  owned (Make, Clone, Destroy, FromData). The writer (`writeCamera`) puts what isn't the default;
+  a limit side's value only when it's on (so a side turned off loses its value when saved).
+  Format 14, added without a version (the engine's history says so).
+- **Inspector:** Zoom, then sub-headers (the particle groups' pattern: a spacer and an xs text)
+  Follow (Target: a select of every other node's path from the camera, `CAMERA_TARGET_NONE`, and
+  a warning when `Scene_ResolvePath` finds nothing; Follow mode; the mode's own strength only;
+  Max speed except for Snap; Dead zone, Aim offset, Look ahead X / Y; Look ease once there's a
+  look-ahead), Limits (per side a checkbox and, when on, a number in one row:
+  `limitWidth` leaves room for the box inside controlWidth; a Right or Bottom side turned on at 0
+  starts at the game's size), Shake (size, time, rate). Labels avoid other kinds' ("Aim offset X":
+  a joint's is "Offset X"; "Shake size": a motor's is "Strength").
+- **Undo:** `Camera_Changed` is a node step (numbers merge per field; typing is
+  Number_Text_Changed's `CameraNumber` case). Renames (`Rename_Committed`, `Node_Renamed`) are
+  `.Scene` steps when any camera has a target, since they may rewrite its path.
+- **Paths kept:** `Scene_MoveNode` and both renames resolve every camera's target first
+  (`CameraTargets_Resolve`) and rewrite the paths after (`CameraTargets_Repath`, with the move's
+  `newIndex`). Other node paths (script node fields, CameraView's `viewCamera`, IK targets)
+  still aren't rewritten.
+- **Viewport:** the preview builds cameras without the settings (`toSceneData` leaves `camera`
+  zero: no target, no limits), so the camera stays where it's placed and parallax shows the scene
+  as placed; a selected camera draws its limits, dead zone, a line to its target and a ring where
+  it aims (`drawCameraGuides`, view_viewport.odin).
+- Tests: `camera_follow_settings_in_the_editor` (messages, clamps, undo, clone / equal, renames
+  and moves keeping the path, saved and parsed by the engine), `project_round_trips_through_xml`
+  (every setting), `tests/ui/camera.script` (driver check `cam <field>`). User guide:
+  `docs/manual/camera_tools.md#following-a-target`.
+
 ## Camera tools (implemented, `camera_tools_edit.odin`; engine: camera_tools.odin)
 
 - `NodeDef.cameraTools` is plain (`==`), `viewCamera` owned; zones' and views' sizes are
@@ -2364,6 +2398,8 @@ Highlights:
     `settings-save` / `settings-apply` / `settings-cancel` (see view_settings.odin)
   - Project Settings: `project-settings-tab-<Tab>`; Export tab `export-enable-<Target>`,
     `export-target-<Target>`, `export-field-<Field>`, `export-run`, `export-cancel`
+  - Camera inspector: `inspector-camera-<CameraField>-<node>` (numbers, the Target and Follow mode
+    selects, the limits' `Limit_<Side>_On` checkboxes), zoom `inspector-Zoom-<node>`
   - ParticleEmitter inspector: `inspector-particle-<setting>-<node>` (`-x` / `-y` for pairs,
     `-alpha` for colors), `inspector-particle-link-<setting>`, `inspector-particles-reset-<node>`,
     `inspector-ramp-<node>` and its `-add-`, `-remove-`, `-position-`, `-color-`, `-alpha-` controls

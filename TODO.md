@@ -8,10 +8,6 @@ owns it.
 
 3. **Clickable errors in the code editor:** compile errors (Output tab, Console, the problems
    panel) open the file at the line and column in a code tab.
-4. **Camera2D target:** a Target field (a node path) the camera follows by itself, plus in the
-   inspector: follow settings (mode, smoothing, deadzone, max speed), offset and look-ahead,
-   limits (left / top / right / bottom: never shows past them), zoom and shake settings. Drawn
-   in the viewport (limits, deadzone).
 5. **Collision shapes:** a toggle for showing collision shapes in the viewport that also covers
    LDtk levels' generated collision (drawn in the viewport), and a toolbar toggle beside the
    play controls for the game's debug shapes.

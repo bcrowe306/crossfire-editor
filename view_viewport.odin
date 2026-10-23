@@ -844,6 +844,8 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case node.kind == .Camera:
 				drawCameraFrame(r, p.bounds, v, shape, node.zoom, s.project.gameSize, kindColor(.Camera))
+				// Selected: its limits, dead zone and a line to its target (camera_edit.odin)
+				if i == s.selectedNode do drawCameraGuides(r, p.bounds, v, scene, i, data.shapes[:])
 				skald.draw_circle(r, origin, MARKER_RADIUS, kindColor(.Camera), aa = true)
 				drawTextTop(r, fmt.tprintf("%s %s", NodeKindIcon(node.kind), node.name), origin.x + 8, origin.y - 8, th.color.fg_muted, th.font.size_xs)
 			case node.kind == .AudioPlayer2D && i == s.selectedNode && node.audio.maxDistance > 0:
@@ -1077,6 +1079,51 @@ drawCameraFrame :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportStat
 	for corner, i in corners do points[i] = viewToWindow(canvas, Viewport_WorldToView(v, e.Transform2D_Apply(frame, corner)))
 	points[4] = points[0]
 	skald.draw_polyline(r, points, 1, {color.r, color.g, color.b, 0.7}, aa = true)
+}
+
+// A selected camera's guides: the sides it can't show past (lines across the view), its dead zone
+// around its view's middle, and a line to its follow target with a ring where it aims
+@(private="file")
+drawCameraGuides :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, scene: ^SceneDef, index: int, shapes: []NodeShape) {
+	toWindow :: proc(canvas: skald.Rect, v: ^ViewportState, p: [2]f32) -> [2]f32 {
+		return viewToWindow(canvas, Viewport_WorldToView(v, p))
+	}
+	node := &scene.nodes[index]
+	c := node.camera
+	color := kindColor(.Camera)
+	faint := color
+	faint[3] = 0.55
+	origin := shapes[index].world.origin
+	// Limits: each side on is a line, as long as the other axis's limits (or the view) allow
+	if c.limits != {} {
+		lo := Viewport_ViewToWorld(v, {0, 0})
+		hi := Viewport_ViewToWorld(v, v.size)
+		top := .Top in c.limits ? c.limitMin.y : lo.y
+		bottom := .Bottom in c.limits ? c.limitMax.y : hi.y
+		left := .Left in c.limits ? c.limitMin.x : lo.x
+		right := .Right in c.limits ? c.limitMax.x : hi.x
+		lines: [4][2][2]f32
+		count := 0
+		if .Left in c.limits { lines[count] = {{c.limitMin.x, top}, {c.limitMin.x, bottom}}; count += 1 }
+		if .Right in c.limits { lines[count] = {{c.limitMax.x, top}, {c.limitMax.x, bottom}}; count += 1 }
+		if .Top in c.limits { lines[count] = {{left, c.limitMin.y}, {right, c.limitMin.y}}; count += 1 }
+		if .Bottom in c.limits { lines[count] = {{left, c.limitMax.y}, {right, c.limitMax.y}}; count += 1 }
+		for line in lines[:count] do skald.draw_polyline(r, {toWindow(canvas, v, line[0]), toWindow(canvas, v, line[1])}, 2, color, aa = true)
+	}
+	// The dead zone, around the view's middle (the camera's position)
+	if c.follow.deadzone != {} {
+		a := toWindow(canvas, v, origin - c.follow.deadzone * 0.5)
+		b := toWindow(canvas, v, origin + c.follow.deadzone * 0.5)
+		skald.draw_rect_outline(r, {a.x, a.y, b.x - a.x, b.y - a.y}, 1, faint)
+	}
+	// Its target: a line to it, and a ring where the camera aims (the target plus the offset)
+	if node.cameraTarget != "" {
+		if target := Scene_ResolvePath(scene, index, node.cameraTarget); target >= 0 && target < len(shapes) && target != index {
+			at := shapes[target].world.origin
+			skald.draw_polyline(r, {toWindow(canvas, v, origin), toWindow(canvas, v, at)}, 1, faint, aa = true)
+			skald.draw_ring(r, toWindow(canvas, v, at + c.follow.offset), MARKER_RADIUS + 3, 1.5, color, aa = true)
+		}
+	}
 }
 
 // A joint: a ring at its anchor, a line to body B, Distance's other anchor, a slider's axis

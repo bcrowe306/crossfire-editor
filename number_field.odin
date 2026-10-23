@@ -43,6 +43,8 @@ NumberTarget :: union {
 	SMAfterTarget,
 	// The selected camera tool's numbers
 	CameraToolNumber,
+	// The selected Camera's numbers (camera_edit.odin)
+	CameraNumber,
 	// Collision from sprite's settings (view state)
 	TraceNumber,
 	// The shown atlas's padding (atlas_edit.odin)
@@ -172,6 +174,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case TransitionTimeTarget: return Project_Settings_Transition_Changed{field = .Duration, value = value}
 	case SMAfterTarget: return SM_Changed{op = .Transition_After, number = f32(value)}
 	case CameraToolNumber: return Camera_Tool_Changed{field = CameraToolField(t), value = f32(value)}
+	case CameraNumber: return Camera_Changed{field = CameraField(t), value = f32(value)}
 	case TraceNumber: return Trace_Setting_Changed{field = TraceField(t), value = f32(value)}
 	case AtlasPaddingTarget: return Atlas_Padding_Changed(int(value))
 	case TimelineNumber:

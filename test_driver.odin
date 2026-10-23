@@ -237,6 +237,8 @@ Checks:
 	                             The selected NavRegion's or NavAgent's settings
 	camtool <factorX|repeatX|transition|zoom|camera> <value>
 	                             The selected ParallaxLayer's, CameraZone's or CameraView's settings ("none": no camera)
+	cam <target|mode|smoothTime|maxSpeed|deadzoneX|offsetY|lookAheadX|limits|limitLeft|limitRight|shakeStrength|zoom> <value>
+	                             The selected Camera's follow target and settings ("none": no target; limits as Left,Top or none)
 	states <states|transitions|params|start|selected|position> <value>
 	                             The States tab's machine: counts, its start, the selected state's name
 	                             ("none") and position ("x, y")
@@ -1807,6 +1809,29 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "zoom":       found = fmt.tprint(c.zoom)
 		case "camera":     found = selected.viewCamera == "" ? "none" : selected.viewCamera
 		case: return false, fmt.tprintf("unknown camtool field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
+	case "cam":
+		if selected == nil || selected.kind != .Camera do return false, "no Camera selected"
+		field, _, expected := strings.partition(value, " ")
+		c := selected.camera
+		switch field {
+		case "target":     found = selected.cameraTarget == "" ? "none" : selected.cameraTarget
+		case "mode":       found = fmt.tprint(c.follow.mode)
+		case "smoothTime": found = fmt.tprint(c.follow.smoothTime)
+		case "maxSpeed":   found = fmt.tprint(c.follow.maxSpeed)
+		case "deadzoneX":  found = fmt.tprint(c.follow.deadzone.x)
+		case "offsetY":    found = fmt.tprint(c.follow.offset.y)
+		case "lookAheadX": found = fmt.tprint(c.follow.lookAhead.x)
+		case "limits":
+			names := make([dynamic]string, context.temp_allocator)
+			for side in e.CameraSide do if side in c.limits do append(&names, fmt.tprint(side))
+			found = len(names) == 0 ? "none" : strings.join(names[:], ",", context.temp_allocator)
+		case "limitLeft":  found = fmt.tprint(c.limitMin.x)
+		case "limitRight": found = fmt.tprint(c.limitMax.x)
+		case "shakeStrength": found = fmt.tprint(c.shake.strength)
+		case "zoom":       found = fmt.tprint(selected.zoom)
+		case: return false, fmt.tprintf("unknown cam field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found
 	case "states":
