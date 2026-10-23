@@ -294,7 +294,10 @@ also builds once in the background when a project with scripts opens, after New 
 whenever you press Play with changed scripts.
 
 - The compiler's messages go to the bottom panel's **Output** tab (Ctrl+J shows the bottom
-  panel). An error names the file and line: fix it and build again.
+  panel). An error names the file, line and column: **click the error** (or right-click it and
+  choose **Go to Error**) to open the script at that spot, fix it and build again. A crash or a
+  failed `assert` while the game runs names its place the same way in the Console, and clicks
+  the same way. See [Going to an error](code_editor.md#going-to-an-error-from-the-output-tab-or-the-console).
 - After a good build the Output tab lists what it found: `3 scripts: Coin, Hero, Mover` (and data
   types and node types, if any). The inspector's dropdowns use that list.
 - The Script section's header shows "building..." during a build and "build failed: see Output"

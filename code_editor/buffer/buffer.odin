@@ -124,6 +124,12 @@ Buffer :: struct {
 	typing_group:     int,
 	typing_ends:      [dynamic]Position,
 	typing_last_char: u8,
+
+	// read_only refuses every edit: insertions and deletions change
+	// nothing and record no undo (buffer_set_text, which loading and
+	// reloading use, still replaces the text). Hosts set it for files
+	// that shouldn't be changed from here, e.g. a library's sources.
+	read_only: bool,
 }
 
 buffer_init :: proc(allocator := context.allocator) -> Buffer {

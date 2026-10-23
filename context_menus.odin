@@ -27,8 +27,8 @@ menu bar do the same thing), then `Context_Menu_Closed`.
 	Ctx_Browser       the browser's row (selected first): per scene, asset kind, script, folder
 	Ctx_Scene_Tab     a scene tab: play, set as start, show in the browser, close (others, right)
 	Ctx_Code_Tab      a code tab: save, close (others, saved), copy path, show in the browser
-	Ctx_Log           a Console or Output line: copy it, copy all shown, hide or show only its
-	                  category, show everything, clear
+	Ctx_Log           a Console or Output line: go to the error it names, copy it, copy all
+	                  shown, hide or show only its category, show everything, clear
 	Ctx_Log_Categories  the Console's (Output's) category button: every category seen, checked
 	                  when shown (picking one keeps the menu open: `ContextMenu.keepOpen`)
 
@@ -173,6 +173,8 @@ LogCommand :: enum {
 	Hide_Category,
 	// Show the line's category alone
 	Only_Category,
+	// Open the source location the line names (error_locations.odin)
+	Go_To_Error,
 }
 
 // The menu for a target, opened at a point (window px)
@@ -274,6 +276,7 @@ ContextMenu_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 		state.assetDrag.asset = int(v)
 		return skald.cmd_now(Msg(Asset_Dropped{world = state.viewport.center})), true
 	case Log_Command:
+		if v.op == .Go_To_Error do return ErrorLocation_Open(state, v.output, v.line), true
 		list := logListOf(state, v.output)
 		log := LogList_Lines(list)
 		// The line by its serial number: older lines may have been dropped since the menu opened
@@ -287,6 +290,7 @@ ContextMenu_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 			lines := make([dynamic]string, context.temp_allocator)
 			for i in LogList_Shown(list) do append(&lines, log[i].text)
 			text = strings.join(lines[:], "\n", context.temp_allocator)
+		case .Go_To_Error:
 		case .Hide_Category, .Only_Category:
 			if line >= 0 && line < len(log) {
 				category := log[line].category
@@ -730,6 +734,10 @@ logItems :: proc(s: ^State, items: ^MenuItems, t: Ctx_Log) {
 	index := t.line - list.serial
 	onLine := t.line >= 0 && index >= 0 && index < len(log)
 	category := onLine ? LogList_CategoryName(list, log[index]) : ""
+	// A line naming a source location opens it (as a click on the line does)
+	if _, located := ErrorLocation_OfLine(s, t.output, t.line); onLine && located {
+		append(items, msgItem("Go to Error", Msg(Log_Command{.Go_To_Error, t.output, t.line})), MENU_SEPARATOR)
+	}
 	append(items,
 		msgItem("Copy Line", Msg(Log_Command{.Copy_Line, t.output, t.line}), disabled = !onLine),
 		msgItem(LogList_Filtered(list) ? "Copy All Shown" : "Copy All", Msg(Log_Command{.Copy_All, t.output, -1}), disabled = len(log) == 0),

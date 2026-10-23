@@ -423,6 +423,25 @@ CodeEditor_GotoPosition :: proc(path: string, line, character: int) {
 	if c := CodeEditor_Find(path); c != nil do ce.editor_goto_lsp_position(&c.ed, line, character)
 }
 
+/*
+Makes a file's editor read-only, or editable again: a read-only one takes no edits (typing,
+pasting, the host's inserts), so it never has changes to save. Files outside the project opened
+from an error or a definition (an engine source, Odin's core library) are.
+
+Inputs:
+- path: The open file
+- readOnly: Refuse edits
+*/
+CodeEditor_SetReadOnly :: proc(path: string, readOnly: bool) {
+	if c := CodeEditor_Find(path); c != nil do c.ed.buf.read_only = readOnly
+}
+
+// Whether a file's editor refuses edits (`CodeEditor_SetReadOnly`)
+CodeEditor_IsReadOnly :: proc(path: string) -> bool {
+	c := CodeEditor_Find(path)
+	return c != nil && c.ed.buf.read_only
+}
+
 // The caret's line and column (1-based), for the status line and tests
 CodeEditor_Caret :: proc(path: string) -> (line, column: int) {
 	c := CodeEditor_Find(path)

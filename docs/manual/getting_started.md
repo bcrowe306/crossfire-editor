@@ -105,8 +105,11 @@ category (what it's about: **engine**, **SDL**, **editor**, **game**, or your sc
 | **All categories** | A menu of every category seen so far, checked when shown: pick as many as you like (it stays open), **Show All** shows them again |
 | **↓** (Follow) | Keeps the newest line in view (on at first). Scrolling up stops it, so you can read; scrolling back to the end starts it again |
 
+A line naming a place in a file (a compiler error, a crash's location) is a link: click it to
+open the file there ([Going to an error](code_editor.md#going-to-an-error-from-the-output-tab-or-the-console)).
+
 When some lines are hidden the row says how many show ("12 of 340 lines"). Right-click a line
-to copy it, copy every line shown, hide its category or show only it, or turn every filter off
+to go to its error, copy it, copy every line shown, hide its category or show only it, or turn every filter off
 (**Show Everything**). The trash button in the panel's corner clears the tab.
 
 The Console keeps the newest 5000 lines and drops the oldest: **Settings > Editor > Console

@@ -112,6 +112,30 @@ wait 30
 click_widget code-tab-close-0
 expect code_tabs 0
 
+# Clickable errors: a script with a compile error; a click on the Output tab's error line opens
+# the file at its line and column, and the line's menu has Go to Error
+write_project_file scripts/z_broken.odin package scripts\n\nbroken :: proc() {\n\tx := undefined_name\n}\n
+action Build_Scripts
+wait_until scripts Failed timeout=240
+expect tab Output
+expect output_contains z_broken.odin(4:7) Error
+click_log_location output
+wait_until code_tab z_broken.odin timeout=5
+expect code_caret 4 7
+expect code_read_only false
+click_widget code-tab-close-0
+expect code_tabs 0
+click_log_location output 1 right
+expect context_item Go to Error enabled
+click_context_item Go to Error
+expect code_tab z_broken.odin
+expect code_caret 4 7
+click_widget code-tab-close-0
+# Fixed, it builds again (the file sorts after mover.odin: the browser's rows below stay put)
+write_project_file scripts/z_broken.odin package scripts\n
+action Build_Scripts
+wait_until scripts Ready timeout=240
+
 # Selected, its preview tells what it is and where it's used: a click on a node using it opens
 # its scene and selects it
 click_row scene-tree 0

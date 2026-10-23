@@ -31,15 +31,21 @@ Opens a script where the settings say: a code tab, or the external program.
 Inputs:
 - path: The file (absolute, or relative to the project)
 - line: 1-based
+- column: 1-based (0: the line's start)
+- readOnly: A code tab newly opened for it refuses edits (files outside the project opened from
+  an error: `ErrorLocation_Open`); the external editor ignores it
 */
-Script_Open :: proc(state: ^State, path: string, line: int) -> skald.Command(Msg) {
-	if !state.settings.builtInCodeEditor do return Script_OpenInEditor(state, path, line)
-	CodeTabs_Open(state, path, line)
+Script_Open :: proc(state: ^State, path: string, line: int, column := 0, readOnly := false) -> skald.Command(Msg) {
+	if !state.settings.builtInCodeEditor do return Script_OpenInEditor(state, path, line, column)
+	CodeTabs_Open(state, path, line, column, readOnly)
 	return {}
 }
 
-// Opens a file in a code tab (or shows its tab) and puts the caret on `line` (1-based; 0 leaves it)
-CodeTabs_Open :: proc(state: ^State, path: string, line: int) {
+/*
+Opens a file in a code tab (or shows its tab) and puts the caret on `line` (1-based; 0 leaves it)
+at `column` (1-based; 0: the line's start). readOnly makes a newly opened tab refuse edits.
+*/
+CodeTabs_Open :: proc(state: ^State, path: string, line: int, column := 0, readOnly := false) {
 	absolute := path
 	if !filepath.is_abs(path) do absolute = joinPath(state.project.rootPath, path, allocator = context.temp_allocator)
 	absolute = codeAbsolutePath(absolute)
@@ -71,8 +77,13 @@ CodeTabs_Open :: proc(state: ^State, path: string, line: int) {
 	}
 	state.codeTab = index + 1
 	state.codeFocusPending = true
+	if readOnly && !known do CodeEditor_SetReadOnly(absolute, true)
 	// Line 1 (the browser's Open) only for a new tab: an open one keeps its caret
-	if line > 1 || (line == 1 && !known) do CodeEditor_GotoLine(absolute, line)
+	if column > 1 && line > 0 {
+		CodeEditor_GotoPosition(absolute, line - 1, column - 1)
+	} else if line > 1 || (line == 1 && !known) {
+		CodeEditor_GotoLine(absolute, line)
+	}
 }
 
 /*
@@ -161,8 +172,9 @@ CodeTabs_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		case .Cancel:
 		}
 	case Code_Open_Requested:
-		// Go to Definition in another file: its own tab, at the definition (0-based from the server)
-		CodeTabs_Open(state, v.path, 0)
+		// Go to Definition in another file: its own tab, at the definition (0-based from the server);
+		// read-only outside the project (the engine's sources, Odin's library)
+		CodeTabs_Open(state, v.path, 0, readOnly = !Path_InProject(state, codeAbsolutePath(v.path)))
 		if c := CodeEditor_Find(CodeTabs_Active(state)); c != nil do CodeEditor_GotoPosition(c.path, v.line, v.character)
 	case Code_Save_Requested:
 		path := CodeTabs_Active(state)
@@ -379,7 +391,7 @@ CodeTabs_StatusLine :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> sk
 	if server == "" do server = "off (no ols)"
 	// The code editor's own messages (its header is hidden: the tab names the file)
 	message := CodeEditor_StatusText(path)
-	if message == "" do message = fmt.tprintf("%s%s", filepath.base(path), CodeEditor_IsDirty(path) ? " (unsaved)" : "")
+	if message == "" do message = fmt.tprintf("%s%s", filepath.base(path), CodeEditor_IsReadOnly(path) ? " (read only: outside the project)" : CodeEditor_IsDirty(path) ? " (unsaved)" : "")
 	return skald.row(
 		skald.text(message, th.color.fg_muted, th.font.size_xs),
 		skald.flex(1, skald.spacer(0)),

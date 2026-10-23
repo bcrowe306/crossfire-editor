@@ -42,6 +42,10 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
 	scroll_by <scroll key> <dy>      Scroll a scroll container by dy pixels (0 or less: to the top)
+	click_log_location <console | output> [<n>] [right]
+	                                 Click the n-th shown line (1st by default) of the Console or
+	                                 Output tab naming a source location (its text: the link),
+	                                 scrolled into view first; right: open its menu
 	click_offset <key> <dx> <dy> [shift]
 	                                 Click dx, dy pixels from a widget's top left (e.g. a thumbnail
 	                                 of animation-frames), optionally holding Shift
@@ -340,6 +344,7 @@ Checks:
 	code_contains <true | false> <text>   The shown code tab's text contains the text (\t, \n)
 	code_dirty <true | false>    The shown code tab has unsaved changes
 	code_caret <line> <column>   The shown code tab's caret (1-based)
+	code_read_only <true | false> The shown code tab refuses edits (a file outside the project)
 	render_path <shared | readback | software>   How the viewport draws: straight into Skald's image
 	                                 on its GPU device, read back from a GPU renderer, or in software
 	code_render_path <shared | software>         How the shown code tab draws
@@ -620,6 +625,66 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return true
 		}
 		click({rect.x + rect.w * 0.5, rect.y + rect.h * 0.5})
+		report(true, line)
+		return false
+
+	case "click_log_location":
+		// The n-th shown line (1 by default) of the Console or Output tab naming a source location
+		// (error_locations.odin): scrolled into view, then clicked (right: its menu)
+		output := len(args) > 0 && args[0] == "output"
+		key := output ? "output-scroll" : "console-scroll"
+		n, right := 1, false
+		for a in args[1:] {
+			if a == "right" do right = true
+			else if v, isNumber := strconv.parse_int(a); isNumber do n = v
+		}
+		list := logListOf(s, output)
+		lines := LogList_Lines(list)
+		shown := LogList_Shown(list)
+		row, index, count := -1, -1, 0
+		for i, r in shown {
+			if _, located := ErrorLocation_Parse(lines[i].text); located {
+				count += 1
+				if count == n {
+					row, index = r, i
+					break
+				}
+			}
+		}
+		if index < 0 {
+			fail(fmt.tprintf("%s: %d shown lines name a source location", line, count))
+			return true
+		}
+		scroll, drawn := &ctx.widgets.states[skald.hash_id(key)]
+		if !drawn {
+			fail(fmt.tprintf("%s: the %s tab isn't showing", line, output ? "Output" : "Console"))
+			return true
+		}
+		area := scroll.last_rect
+		rect, visible := widgetRect(ctx, fmt.tprintf("%s-link-%d", key, index))
+		if !visible || rect.y < area.y || rect.y + rect.h > area.y + area.h {
+			driver.scrollAttempts += 1
+			if driver.scrollAttempts > 10 {
+				driver.scrollAttempts = 0
+				fail(fmt.tprintf("%s: line %d didn't come into view", line, index))
+				return true
+			}
+			// Its row at the top (rows have one height: the list's content over its rows)
+			if len(shown) > 0 && scroll.content_h > 0 do scroll.scroll_y = f32(row) * scroll.content_h / f32(len(shown))
+			driver.line -= 1
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+			return false
+		}
+		driver.scrollAttempts = 0
+		at := [2]f32{rect.x + min(rect.w * 0.5, 40), rect.y + rect.h * 0.5}
+		if right {
+			pushMouse(.MOUSE_MOTION, at)
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, at, sdl.BUTTON_RIGHT))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at, sdl.BUTTON_RIGHT))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+		} else {
+			click(at)
+		}
 		report(true, line)
 		return false
 
@@ -2313,6 +2378,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "code_caret":
 		line, column := CodeEditor_Caret(CodeTabs_Active(s))
 		found = fmt.tprintf("%d %d", line, column)
+	case "code_read_only":
+		found = fmt.tprint(CodeEditor_IsReadOnly(CodeTabs_Active(s)))
 	case "meter":
 		key, _, expected := strings.partition(value, " ")
 		found = levelMeter_Shown(key) > -50 ? "sounding" : "silent"

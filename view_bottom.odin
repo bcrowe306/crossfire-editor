@@ -123,7 +123,7 @@ logView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, output: bool, emptyText, scroll
 	case:
 		logFollow(ctx, list, output, listId, shown, rowHeight)
 		rows := new(LogRows, context.temp_allocator)
-		rows^ = {lines = lines, shown = shown, list = list, key = scrollKey, height = rowHeight}
+		rows^ = {lines = lines, shown = shown, list = list, key = scrollKey, height = rowHeight, output = output, clip = lastRect(ctx, listId)}
 		// Following: the last row revealed, for the first frame after the list was hidden (logFollow
 		// keeps it there afterwards)
 		content = skald.virtual_list(ctx, rows, len(shown), rowHeight, {0, 0}, logRow, logRowKey, id = listId,
@@ -148,6 +148,10 @@ LogRows :: struct {
 	list: ^LogList,
 	key: string,
 	height: f32,
+	// The Output tab's (for a location's Go to Error)
+	output: bool,
+	// The list's rect last frame: a line is under the pointer only inside it
+	clip: skald.Rect,
 }
 
 // A log row's height: one line of small text and a little room
@@ -178,10 +182,34 @@ logRow :: proc(ctx: ^skald.Ctx(Msg), rows: ^LogRows, i: int) -> skald.View {
 	case .Warning: color, tag = th.color.warning, "WARN "
 	case .Error:   color, tag = th.color.danger, "ERROR"
 	}
+	// A line naming a source location is a link (error_locations.odin): the accent color and a
+	// hand under the pointer, a click opens it
+	body := skald.text(line.text, color, th.font.size_sm)
+	if _, located := ErrorLocation_Parse(line.text); located {
+		linkId := skald.hash_id(fmt.tprintf("%s-link-%d", rows.key, index))
+		r := lastRect(ctx, linkId)
+		p := ctx.input.mouse_pos
+		c := rows.clip
+		over := r.w > 0 && p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h &&
+			p.x >= c.x && p.y >= c.y && p.x < c.x + c.w && p.y < c.y + c.h &&
+			!skald.mouse_over_overlay(ctx) && ctx.widgets.modal_rect_prev.w <= 0
+		if over {
+			skald.cursor_request(ctx, .Pointer)
+			if ctx.input.mouse_pressed[.Left] do skald.send(ctx, Msg(Log_Command{.Go_To_Error, rows.output, rows.list.serial + index}))
+		}
+		link := new(skald.View, context.temp_allocator)
+		link^ = skald.col(
+			skald.text(line.text, over ? th.color.primary : color, th.font.size_sm),
+			// The underline: the text's width, under it
+			skald.rect({0, 1}, over ? th.color.primary : skald.Color{}),
+			cross_align = .Stretch,
+		)
+		body = skald.View_Zone{id = linkId, child = link}
+	}
 	text := new(skald.View, context.temp_allocator)
 	text^ = skald.row(
 		skald.text(fmt.tprintf("%s  %s", tag, LogList_CategoryName(rows.list, line)), th.color.fg_muted, th.font.size_sm),
-		skald.text(line.text, color, th.font.size_sm),
+		body,
 		spacing = th.spacing.sm,
 		padding = th.spacing.xs,
 		height = rows.height,

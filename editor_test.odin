@@ -954,6 +954,9 @@ removing_assets :: proc(t: ^testing.T) {
 // make valid constants in scripts/assets.odin
 @(test)
 import_several_files_with_awkward_names :: proc(t: ^testing.T) {
+	// Selecting an imported sound loads it into the audio preview, package state these two tests
+	// shared when run side by side (a leak and a bad free now and then): they take turns
+	sync.guard(&previewTestLock)
 	state := State{project = tempProject("odin_sdl_editor_import_many"), browserSelection = {kind = .None}}
 	defer { removeAll(state.project.rootPath); State_Destroy(&state) }
 	source := joinPath(state.project.rootPath, "..", "odin_sdl_editor_import_many_source", allocator = context.temp_allocator)
@@ -1012,6 +1015,9 @@ browser_search_filters_rows :: proc(t: ^testing.T) {
 
 @(test)
 import_and_remove_through_messages :: proc(t: ^testing.T) {
+	// Selecting an imported sound loads it into the audio preview, package state these two tests
+	// shared when run side by side (a leak and a bad free now and then): they take turns
+	sync.guard(&previewTestLock)
 	state := State{project = tempProject("odin_sdl_editor_import_msgs"), browserSelection = {kind = .None}}
 	defer { removeAll(state.project.rootPath); State_Destroy(&state) }
 	before := len(state.project.assets)

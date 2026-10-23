@@ -791,7 +791,7 @@ checkOutputDir :: proc(projectDir, outputDir: string) -> string {
 }
 
 // Whether `path` is inside `folder` (both clean)
-@(private="file")
+@(private="package")
 isInside :: proc(path, folder: string) -> bool {
 	if !strings.has_prefix(path, folder) || len(path) <= len(folder) do return false
 	// Either separator: Windows paths use \ (a folder ending in one is a root, like C:\)

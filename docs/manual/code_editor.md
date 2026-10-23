@@ -21,6 +21,7 @@ If you'd rather use another program (Zed, VS Code...), you can: see
 - [Files changed on disk](#files-changed-on-disk)
 - [Completion and errors: the Odin language server](#completion-and-errors-the-odin-language-server)
 - [Going to definitions](#going-to-definitions)
+- [Going to an error from the Output tab or the Console](#going-to-an-error-from-the-output-tab-or-the-console)
 - [Find and replace](#find-and-replace)
 - [The command palette](#the-command-palette)
 - [Editing shortcuts](#editing-shortcuts)
@@ -157,7 +158,28 @@ your project's scripts are. It keeps it up to date by itself. If you write your 
 | **Shift+F12** | Find All References: a panel listing every use; click one, or step through them with **F4** and **Shift+F4** |
 | **Alt+Left** / **Alt+Right** | Back and forward through the places you jumped to |
 
-These need the language server too.
+These need the language server too. A definition outside your project (in the engine or Odin's
+own library) opens **read only**: the status line says "(read only: outside the project)", and
+typing changes nothing, since those files are shared by every project.
+
+## Going to an error from the Output tab or the Console
+
+A line that names a place in a file is a link: the compiler's errors in the **Output** tab
+(`/home/me/MyGame/scripts/hero.odin(12:5) Error: Undeclared name: speed`), and in the
+**Console** anything with a file and line, such as a crash (`panic`) or a failed `assert` in
+your game. Point at the line: it turns the accent color, is underlined, and the pointer becomes
+a hand. **Click it** to open the file in a code tab with the caret at that line and column. Or
+right-click the line and choose **Go to Error**.
+
+- Paths are read the way the tool wrote them: Odin's `file(line:column)`, and `file:line:column`
+  or `file:line` (shader compilers and most other tools). Windows paths such as
+  `C:\Games\MyGame\scripts\hero.odin(12:5)` work too.
+- A path that isn't absolute is looked for where the build ran, then in the project and its
+  `scripts/` folder.
+- A file outside the project (an engine source in a crash's location, for example) opens read
+  only, as Go to Definition's do.
+- With an external editor (below), the line opens there instead, at the line (and column, with
+  `{column}` in its arguments).
 
 ## Find and replace
 
@@ -301,7 +323,7 @@ To open scripts in another program, open **Edit > Settings > Editor** and, under
 |---|---|
 | **Code editor** | Untick **Use the built-in code editor**: scripts then open in the program below |
 | **External program** | The program: a name found in your PATH (`zed`, `code`) or its full path (**Browse...** picks it). The line under it says what it found, or "Not found" |
-| **Arguments** | What the program is given. `{file}` is the script, `{line}` its line, `{folder}` the project's `scripts/` folder. Without `{file}`, the file is added at the end |
+| **Arguments** | What the program is given. `{file}` is the script, `{line}` its line, `{column}` the column (an error's, else 1), `{folder}` the project's `scripts/` folder. Without `{file}`, the file is added at the end |
 
 The default is Zed with `{folder} {file}:{line}`. For VS Code, set the program to `code` and the
 arguments to `{folder} --goto {file}:{line}`.

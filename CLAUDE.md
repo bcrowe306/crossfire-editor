@@ -237,6 +237,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_bottom.odin` | Bottom panel: Console / Output / Animation / Mixer tabs, collapsible; the log tabs' view (`logView`: header of filters, a `virtual_list` of lines, `logFollow`) |
 | `console.odin` | **The Console's and Output tab's lines**: `LogList` (`State.console` / `output`: lines with a level and category, the categories seen, counts, the history limit, filters, following), `LogList_Append` / `Trim` / `Clear` / `Shown`, `LOG_*_CATEGORY`, `LogLevel` (the engine's), `Console_Update` (the `Log_*` messages) |
 | `console_test.odin` | Tests: categories and the limit, filters, the game's lines parsed, the messages and menus, the setting |
+| `error_locations.odin` | **Clickable errors**: `ErrorLocation_Parse` (a line's `path(line:col)` / `path:line:col`, Windows drive letters, paths with spaces), `ErrorLocation_Resolve` (where the file is), `ErrorLocation_Open` (Go to Error: `Script_Open` at the line and column, read-only outside the project), `Path_InProject`; tests in `error_locations_test.odin` |
 | `mixer.odin` | Mix buses: `BusDef`, `Buses_FromData` (Master first), names (`BusNameProblem`), `Bus_NodeCount`, `isSoundKind`, the Mixer's messages (`Mixer_Update`) |
 | `view_mixer.odin` | The Mixer tab (`MixerPanel`, built in `skald.sized`), like a DAW's: a channel strip per bus (node count, remove, pan, fader beside its level meter, dB, mute, name at the bottom), scrolling sideways; Master pinned on the right, + beside it |
 | `mixer_widgets.odin` | The mixer's widgets, generic like `valueSlider`: `hScroll` (sideways scrolling: Skald's scroll is vertical only), `fader` (dB scale, `Fader_GainToPosition` / `PositionToGain`), `panControl`, `levelMeter` (stereo peaks, fall, hold, clip light) |
@@ -805,6 +806,22 @@ console.odin's doc comment describes it; what the code relies on:
   button at its corner); `Log_Category_Toggled` sets `ContextMenu.keepOpen`, so the
   `Context_Menu_Closed` the popup sends after an item is ignored once and several can be picked.
 - Nothing here is undoable (not in `History_Classify`).
+- **Clickable errors** (error_locations.odin): a line `ErrorLocation_Parse` finds a location in
+  (Odin's `path(line:col)`, else `path:line[:col]`; the path needs an extension with a letter,
+  no `://`; a line starting with an absolute path keeps its spaces, `shortPath` is the fallback
+  after the last space) gets its text in a `View_Zone` keyed `<list>-link-<index>`: under the
+  pointer (its last rect, inside the list's, no popup or modal) the accent color, a 1 px
+  underline and `skald.cursor_request(.Pointer)`; a **single click** (like a link: rows have no
+  other click) sends `Log_Command{.Go_To_Error}`, the line menu's **Go to Error** too (only on such
+  lines). `ErrorLocation_Resolve`: absolute as is, else under the Output's build folder (the
+  editor's working folder) or the game's (the project), the project, `scripts/`, the working
+  folder, the engine. **Files outside the project open read-only** (code_editor's
+  `Buffer.read_only`: raw inserts and deletes do nothing and record no undo; `buffer_set_text`
+  still loads; `CodeEditor_SetReadOnly`, the status line says so): engine sources and Odin's
+  library are shared; Go to Definition (`Code_Open_Requested`) does the same. The external
+  editor gets `{column}` too. Driver: `click_log_location <console|output> [n] [right]`, check
+  `code_read_only`. Tests: `error_locations_are_found_in_lines`,
+  `go_to_error_opens_the_file_at_the_line`, scripts.script (a compile error clicked, its menu).
 - Driver: `console_fill <n> [Level [category]]` (`Log_Test_Lines`), `frame_times <frames>
   [lines]`; checks `console_lines`, `console_shown`, `console_following`, `console_first`,
   `console_category`, `console_line_category`, the `output_*` ones, `setting console_limit`.
@@ -2417,7 +2434,8 @@ Highlights:
   - toolbar buttons `toolbar-<name>` (`toolbar-physics-debug`: the game's collision shapes),
     panel buttons `panel-<name>`
   - the Console and Output tabs: `console-scroll` / `output-scroll` (the list; `-area` the list or
-    its placeholder), `-line-<i>`, `-search`, `-level-<Level>`, `-categories`, `-follow`
+    its placeholder), `-line-<i>`, `-link-<i>` (a located line's text), `-search`,
+    `-level-<Level>`, `-categories`, `-follow`
   - trees `browser-tree` / `scene-tree`, the search box `browser-search`
   - dialog buttons `dialog-<name>`, the viewport `viewport-canvas`
   - Add Node dialog: `add-node-search`, rows `add-node-<Kind>` (e.g. `add-node-Sprite`), `add-node-cancel`

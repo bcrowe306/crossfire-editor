@@ -422,11 +422,12 @@ Inputs:
 - state: The editor state (settings, project, and to log)
 - file: Absolute path
 - line: Line to open at (1 if unknown)
+- column: Column on it, for the arguments' `{column}` (1 if unknown)
 
 Returns:
 - The command that checks on the process afterwards
 */
-Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> skald.Command(Msg) {
+Script_OpenInEditor :: proc(state: ^State, file: string, line: int, column := 0) -> skald.Command(Msg) {
 	program, found := Script_FindEditorProgram(FixedText_String(&state.settings.codeEditorPath))
 	if !found {
 		logLine(state, .Error, fmt.aprintf("Couldn't find the code editor '%s'. Set its path in Settings > Editor", program))
@@ -445,7 +446,7 @@ Script_OpenInEditor :: proc(state: ^State, file: string, line: int) -> skald.Com
 	// The language server's config sits in the folder the editor opens
 	if message := Scripts_WriteOLSConfig(&state.project); message != "" do logLine(state, .Warning, fmt.aprintf("ols.json: %s", message))
 	workingDir := scriptsWorkingDir(&state.project)
-	command := Script_EditorCommand(program, FixedText_String(&state.settings.codeEditorArgs), file, line, workingDir)
+	command := Script_EditorCommand(program, FixedText_String(&state.settings.codeEditorArgs), file, line, workingDir, column)
 	env, envErr := os.environ(context.temp_allocator)
 	if envErr != nil do env = nil // nil also means "this process's environment"
 	process, err := os.process_start({
@@ -477,19 +478,21 @@ DEFAULT_CODE_EDITOR_ARGS :: "{folder} {file}:{line}"
 
 /*
 The command line that opens a file: the program, then the arguments template split on spaces with
-`{file}`, `{line}` and `{folder}` (the scripts folder: opened as the editor's workspace, so the
-language server finds ols.json) replaced. Arguments without `{file}` get the file added at the end.
+`{file}`, `{line}`, `{column}` and `{folder}` (the scripts folder: opened as the editor's
+workspace, so the language server finds ols.json) replaced. Arguments without `{file}` get the file
+added at the end.
 
 Inputs:
 - program: The executable (as found by `Script_FindEditorProgram`)
 - args: The arguments template ("" for the default)
 - file, line: What to open
 - folder: What `{folder}` becomes: the project's scripts folder
+- column: What `{column}` becomes (1 when 0)
 
 Returns:
 - The program and its arguments (temp allocated)
 */
-Script_EditorCommand :: proc(program, args, file: string, line: int, folder := "") -> []string {
+Script_EditorCommand :: proc(program, args, file: string, line: int, folder := "", column := 0) -> []string {
 	template := strings.trim_space(args)
 	if template == "" do template = DEFAULT_CODE_EDITOR_ARGS
 	command := make([dynamic]string, context.temp_allocator)
@@ -497,6 +500,7 @@ Script_EditorCommand :: proc(program, args, file: string, line: int, folder := "
 	for part in strings.fields(template, context.temp_allocator) {
 		part, _ := strings.replace_all(part, "{file}", file, context.temp_allocator)
 		part, _ = strings.replace_all(part, "{line}", fmt.tprint(max(line, 1)), context.temp_allocator)
+		part, _ = strings.replace_all(part, "{column}", fmt.tprint(max(column, 1)), context.temp_allocator)
 		part, _ = strings.replace_all(part, "{folder}", folder, context.temp_allocator)
 		// An empty {folder} mustn't become an empty argument
 		if part != "" do append(&command, part)

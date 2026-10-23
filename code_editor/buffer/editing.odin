@@ -9,7 +9,7 @@ import "core:strings"
 // needed, and returns the position immediately after the inserted text.
 // Does not record undo history.
 buffer_raw_insert :: proc(b: ^Buffer, pos: Position, text: string) -> Position {
-	if len(text) == 0 {
+	if len(text) == 0 || b.read_only {
 		return pos
 	}
 	b.version += 1
@@ -97,7 +97,7 @@ buffer_raw_insert :: proc(b: ^Buffer, pos: Position, text: string) -> Position {
 buffer_raw_delete :: proc(b: ^Buffer, start, end: Position) -> string {
 	s := buffer_clamp_position(b, start)
 	e := buffer_clamp_position(b, end)
-	if position_eq(s, e) {
+	if position_eq(s, e) || b.read_only {
 		return ""
 	}
 	b.version += 1
@@ -159,6 +159,9 @@ buffer_raw_delete :: proc(b: ^Buffer, start, end: Position) -> string {
 // buffer_insert_text is the public editing API: inserts text at `pos` and
 // records an undo entry. Returns the end position of the inserted text.
 buffer_insert_text :: proc(b: ^Buffer, pos: Position, text: string, group_id := -1) -> Position {
+	if b.read_only {
+		return pos
+	}
 	end := buffer_raw_insert(b, pos, text)
 	append(&b.undo_stack, Edit{
 		kind     = .Insert,
@@ -175,6 +178,9 @@ buffer_insert_text :: proc(b: ^Buffer, pos: Position, text: string, group_id := 
 // records an undo entry. Returns the removed text (caller does NOT own it;
 // it is retained inside the undo stack until the edit is dropped).
 buffer_delete_range :: proc(b: ^Buffer, start, end: Position, group_id := -1) -> string {
+	if b.read_only {
+		return ""
+	}
 	s := position_min(start, end)
 	e := position_max(start, end)
 	removed := buffer_raw_delete(b, s, e)

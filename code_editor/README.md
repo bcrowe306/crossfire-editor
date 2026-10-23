@@ -298,6 +298,15 @@ builds the sheets.
 
 Every caret gets it; each pair is one undo step. Tests: `buffer/autopairs_test.odin`.
 
+## Read-only buffers
+
+`Buffer.read_only` refuses every edit: `buffer_raw_insert` / `buffer_raw_delete` (which every
+edit goes through) change nothing and `buffer_insert_text` / `buffer_delete_range` record no
+undo, so typing, pasting and line commands leave the text, its version and `dirty` alone (carets
+still move). `buffer_set_text` still replaces the text: loading and reloading work. Hosts set it
+for files that shouldn't be changed from there (the Crossfire Editor: files outside the project,
+such as engine sources opened from an error). Test: `test_read_only_refuses_edits`.
+
 ## Overlays in a small editor
 
 A hosted editor can be a short or narrow pane, so every overlay fits the visible area

@@ -650,3 +650,31 @@ test_toggle_comment_delete_and_insert_lines :: proc(t: ^testing.T) {
 		testing.expect_value(t, b.cursors[0].pos, Position{1, 1})
 	})
 }
+
+@(test)
+test_read_only_refuses_edits :: proc(t: ^testing.T) {
+	run_leak_free(t, proc(t: ^testing.T) {
+		b := buffer_init()
+		defer buffer_destroy(&b)
+
+		buffer_set_text(&b, "hello\nworld")
+		b.read_only = true
+		version := b.version
+		b.cursors[0].pos = {0, 5}
+		buffer_type_text(&b, "!")
+		buffer_newline(&b)
+		buffer_backspace(&b)
+		buffer_delete_forward(&b)
+		buffer_delete_lines(&b)
+		_ = buffer_insert_text(&b, {1, 0}, "x")
+		testing.expect_value(t, buffer_to_string(&b, context.temp_allocator), "hello\nworld")
+		testing.expect_value(t, b.version, version)
+		testing.expect(t, !b.dirty, "a read-only buffer stays clean")
+		testing.expect_value(t, len(b.undo_stack), 0)
+		testing.expect(t, !buffer_undo(&b), "nothing to undo")
+
+		// Loading still replaces the text (a reload from disk)
+		buffer_set_text(&b, "new")
+		testing.expect_value(t, buffer_to_string(&b, context.temp_allocator), "new")
+	})
+}
