@@ -12,9 +12,6 @@ environment: no memorizing how to refer to things in code. Everything goes throu
 provider interface in code_editor (completion, hover, diagnostics, gutter, inlay, drop sources)
 that the editor fills in, so code_editor stays engine-agnostic. Not doing: a debugger (DAP), for now.
 
-2. **Project-aware strings:** completion and diagnostics inside engine calls' string arguments
-   (node paths from the script's nodes, the sprite's animations, actions, groups, buses...); the
-   engine declares which parameters take which kind of name.
 3. **Code ↔ scene links:** find usages in scenes, renaming a script field or type carries into
    scene/component files. (Round 1 already did a marker on `Script_Register` lines listing the
    nodes using it, a click selecting the first, and the inspector following the index as fields
@@ -26,7 +23,8 @@ that the editor fills in, so code_editor stays engine-agnostic. Not doing: a deb
    argument: the constant); a plain drop does the common thing, a menu offers the few useful
    alternatives with a preview. Inserted code uses the typed constants. Sources describe
    themselves and the engine describes which procedures act on which kind, so new node kinds
-   get drops with little work.
+   get drops with little work. (Round 2's name types already say which parameters take which
+   kind of name: the engine's names.odin, read by the editor's name_kinds.odin.)
 5. **Hovers and previews:** asset constants show the image / play the sound / show the
    animation's frames / the dialogue's first line; color literals get a swatch and the picker;
    engine procedures show their doc comment and example (the website's docgen output, bundled);

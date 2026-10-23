@@ -1,0 +1,53 @@
+# Project-aware strings (code_names.odin): inside an engine call's string argument the code
+# editor completes the names that fit (the project's scenes after a typed quote, the nodes around
+# the script's node in a path), and a misspelled name gets a warning whose quick fix (Ctrl+.)
+# puts the closest name in.
+# Run with: task test:ui SCRIPT=tests/ui/code_names.script
+#
+# PlayScene's rows: World, Camera, Spaceship (2), ... The new script's line 22 is its ready hook.
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Namer
+click_widget new-script-create
+expect script Namer
+expect code_tab namer.odin
+wait_until code_focused true timeout=5
+
+# In the ready hook: a quote typed in Game_ChangeScene's name opens the project's scenes
+key ctrl+HOME
+key DOWN 21
+key END
+key RETURN
+type e.Game_ChangeScene(self.game, "
+wait_until code_completion_provided PlayScene timeout=20
+expect code_completion_provided MenuScene
+type Pl
+key RETURN
+expect code_contains true e.Game_ChangeScene(self.game, "PlayScene")
+
+# A node path from the node running the script (Spaceship): "../" lists World's children
+key END
+key RETURN
+type _ = e.Node_FindPath(self.node, "../C
+wait_until code_completion_provided Camera timeout=20
+key RETURN
+expect code_contains true e.Node_FindPath(self.node, "../Camera")
+
+# A misspelled scene: a warning saying which was meant, and its quick fix
+key END
+key RETURN
+type e.Game_ChangeScene(self.game, "MenuScen
+key ESCAPE
+wait_until code_diagnostic_has did you mean "MenuScene"? timeout=20
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+key RETURN
+expect code_contains true e.Game_ChangeScene(self.game, "MenuScene")
+wait_until code_diagnostic_lacks did you mean "MenuScene"? timeout=20

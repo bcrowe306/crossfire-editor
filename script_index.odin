@@ -30,6 +30,9 @@ soon as a file is saved or typed in a code tab:
   scripts the project runs as globals
 - problems the build only finds at run time: a field that can't be exported, a tag option that
   isn't one, a min / max that isn't a number
+- every engine call's string literal arguments (`e.Game_ChangeScene(game, "Forest")`: the
+  procedure, the argument's position or name, its first argument as written) and every
+  procedure's lines and first parameter's type, for the name providers (code_names.odin)
 
 **When it runs:** `ScriptIndex_Tick` (every SCRIPT_INDEX_TICK seconds while a project is open)
 looks at the scripts folder's files and the code tabs' buffers; a file whose modification time
@@ -96,6 +99,37 @@ IndexFile :: struct {
 	structs: [dynamic]IndexStruct,
 	enums: [dynamic]IndexEnum,
 	registrations: [dynamic]IndexRegistration,
+	// The name the engine is imported as ("e"; "" when it isn't imported)
+	engineAlias: string,
+	// The engine calls' string literal arguments, and the procedures (their lines)
+	calls: [dynamic]IndexCall,
+	procs: [dynamic]IndexProc,
+}
+
+// A string literal passed to an engine procedure: `e.Scene_GetGroup(self.scene, "enemies")`
+IndexCall :: struct {
+	// The procedure, without the package (`Scene_GetGroup`)
+	procName: string,
+	// The argument's position among the positional ones, or its name (`bus = "SFX"`; else "")
+	argument: int,
+	argName: string,
+	// The literal's text without its quotes
+	value: string,
+	// 1-based line, 0-based byte columns of the literal, quotes included; its line's text
+	line, column, endColumn: int,
+	lineText: string,
+	// The call's first argument as written, spaces removed (`self.scene`, `&sprite.animation`)
+	receiver: string,
+	// The type of the first parameter of the procedure it's in, a pointer's (`Hero` for
+	// `self: ^Hero`; "" none)
+	selfType: string,
+}
+
+// A procedure (declared or a literal): its lines (1-based, inclusive) and its first parameter's
+// type when that's a pointer to a named type (`Hero` for `proc(self: ^Hero)`)
+IndexProc :: struct {
+	startLine, endLine: int,
+	selfType: string,
 }
 
 // A struct declared in a file
@@ -190,6 +224,8 @@ ScriptIndex_ParseSource :: proc(path, text: string, allocator := context.allocat
 	out.structs = make([dynamic]IndexStruct, allocator)
 	out.enums = make([dynamic]IndexEnum, allocator)
 	out.registrations = make([dynamic]IndexRegistration, allocator)
+	out.calls = make([dynamic]IndexCall, allocator)
+	out.procs = make([dynamic]IndexProc, allocator)
 
 	// The AST lives in an arena, freed after
 	arena: vmem.Arena
@@ -320,7 +356,114 @@ ScriptIndex_ParseSource :: proc(path, text: string, allocator := context.allocat
 		return v
 	}}
 	for decl in file.decls do ast.walk(&visitor, decl)
+	indexCalls(&out, file, text, result)
 	return out
+}
+
+// The engine calls' string literal arguments and the procedures of a parsed file (ParseSource's)
+@(private="file")
+indexCalls :: proc(out: ^IndexFile, file: ^ast.File, text: string, result: runtime.Allocator) {
+	alias := ""
+	for imp in file.imports {
+		path := strings.trim(imp.relpath.text, "\"`")
+		if path != "engine:." && path != "engine:" && path != "engine" do continue
+		alias = imp.name.text != "" ? imp.name.text : "crossfire"
+	}
+	out.engineAlias = strings.clone(alias, result)
+	lineText :: proc(src: string, offset: int) -> string {
+		start := offset
+		for start > 0 && src[start - 1] != '\n' do start -= 1
+		end := offset
+		for end < len(src) && src[end] != '\n' && src[end] != '\r' do end += 1
+		return src[start:end]
+	}
+	Walk :: struct {
+		out: ^IndexFile,
+		src, alias: string,
+		result: runtime.Allocator,
+		// The procedures' byte ranges, for each call's (innermost first: the smallest)
+		ranges: [dynamic][2]int,
+		offsets: [dynamic]int,
+	}
+	w := Walk{out = out, src = text, alias = alias, result = result}
+	w.ranges = make([dynamic][2]int, context.allocator)
+	w.offsets = make([dynamic]int, context.allocator)
+	visitor := ast.Visitor{data = &w, visit = proc(v: ^ast.Visitor, node: ^ast.Node) -> ^ast.Visitor {
+		if node == nil do return nil
+		w := (^Walk)(v.data)
+		#partial switch n in node.derived {
+		case ^ast.Proc_Lit:
+			self := ""
+			if type, ok := n.type.derived.(^ast.Proc_Type); ok && type.params != nil && len(type.params.list) > 0 {
+				if ptr, isPtr := type.params.list[0].type.derived.(^ast.Pointer_Type); isPtr && ptr.elem != nil {
+					#partial switch elem in ptr.elem.derived {
+					case ^ast.Ident: self = elem.name
+					case ^ast.Selector_Expr: if elem.field != nil do self = elem.field.name
+					}
+				}
+			}
+			append(&w.out.procs, IndexProc{n.pos.line, n.end.line, strings.clone(self, w.result)})
+			append(&w.ranges, [2]int{n.pos.offset, n.end.offset})
+		case ^ast.Call_Expr:
+			if w.alias == "" do return v
+			sel, isSel := n.expr.derived.(^ast.Selector_Expr)
+			if !isSel || sel.field == nil do return v
+			pkg, isIdent := sel.expr.derived.(^ast.Ident)
+			if !isIdent || pkg.name != w.alias do return v
+			receiver := ""
+			if len(n.args) > 0 {
+				if _, named := n.args[0].derived.(^ast.Field_Value); !named {
+					// The AST's arena (the worker's temp allocator isn't reset there)
+					b := strings.builder_make(context.allocator)
+					for c in w.src[clamp(n.args[0].pos.offset, 0, len(w.src)):clamp(n.args[0].end.offset, 0, len(w.src))] do if c != ' ' && c != '\t' && c != '\n' && c != '\r' do strings.write_rune(&b, c)
+					receiver = strings.to_string(b)
+				}
+			}
+			position := 0
+			for arg in n.args {
+				value := arg
+				argName := ""
+				if fv, named := arg.derived.(^ast.Field_Value); named {
+					if name, ok := fv.field.derived.(^ast.Ident); ok do argName = name.name
+					value = fv.value
+				}
+				defer if argName == "" do position += 1
+				lit, isLit := value.derived.(^ast.Basic_Lit)
+				if !isLit || lit.tok.kind != .String || len(lit.tok.text) < 2 do continue
+				raw := lit.tok.text
+				content := raw[1:len(raw) - 1]
+				// Escapes are kept as written: names never need them, so one is a name the code builds
+				if raw[0] != '"' && raw[0] != '`' || strings.index_byte(content, '\\') >= 0 do continue
+				at := lit.pos.offset
+				lineStart := at
+				for lineStart > 0 && w.src[lineStart - 1] != '\n' do lineStart -= 1
+				append(&w.out.calls, IndexCall{
+					procName = strings.clone(sel.field.name, w.result),
+					argument = argName == "" ? position : -1,
+					argName = strings.clone(argName, w.result),
+					value = strings.clone(content, w.result),
+					line = lit.pos.line,
+					column = at - lineStart,
+					endColumn = at - lineStart + len(raw),
+					lineText = strings.clone(lineText(w.src, at), w.result),
+					receiver = strings.clone(receiver, w.result),
+				})
+				append(&w.offsets, at)
+			}
+		}
+		return v
+	}}
+	for decl in file.decls do ast.walk(&visitor, decl)
+	// Each call's procedure: the smallest range holding it
+	for &call, i in out.calls {
+		at := w.offsets[i]
+		best := -1
+		for r, j in w.ranges {
+			if r[0] > at || at >= r[1] do continue
+			if best < 0 || r[1] - r[0] < w.ranges[best][1] - w.ranges[best][0] do best = j
+		}
+		if best >= 0 do call.selfType = strings.clone(out.procs[best].selfType, result)
+	}
 }
 
 // A comment group's text, markers and the space after them removed (allocator)
@@ -360,6 +503,13 @@ IndexFile_Destroy :: proc(f: ^IndexFile) {
 	delete(f.enums)
 	for r in f.registrations { delete(r.name); delete(r.base); delete(r.lineText) }
 	delete(f.registrations)
+	delete(f.engineAlias)
+	for c in f.calls {
+		delete(c.procName); delete(c.argName); delete(c.value); delete(c.lineText); delete(c.receiver); delete(c.selfType)
+	}
+	delete(f.calls)
+	for p in f.procs do delete(p.selfType)
+	delete(f.procs)
 	f^ = {}
 }
 
@@ -736,6 +886,8 @@ ScriptIndex_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 		if state.project.rootPath == "" do return {}, true
 		folder := absolutePath(joinPath(state.project.rootPath, SCRIPTS_FOLDER, allocator = context.temp_allocator))
 		tick := skald.cmd_delay(SCRIPT_INDEX_TICK, Msg(ScriptIndex_Tick{}))
+		// The engine's name parameters, once (name_kinds.odin)
+		if names := NameTable_Start(); names.kind != .None do tick = skald.cmd_batch(tick, names)
 		index.ticking = true
 		if index.running {
 			index.again = true

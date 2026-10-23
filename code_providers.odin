@@ -13,13 +13,16 @@ The code editor's providers (code_editor's providers.odin): what the editor adds
 code tabs, from the project and the script index (script_index.odin). Registered once, shared by
 every tab (`CodeProviders_Registry`):
 
-- **Completion:** the constants of the generated scripts/assets.odin (`Scripts_Constants`), each
-  saying what it names; the same items from OLS (which reads assets.odin) fold into them. Not
-  after a `.` (a member), in comments or in strings (strings are round 2's)
+- **Completion:** the names an engine call's argument takes (code_names.odin: inside its string,
+  the project's names of that kind; outside it, their constants first), then the constants of
+  the generated scripts/assets.odin (`Scripts_Constants`), each saying what it names; the same
+  items from OLS (which reads assets.odin) fold into them. Not after a `.` (a member), in
+  comments or in strings
 - **Hover:** a constant: what it names; a registered script, data or node type: what uses it,
   its fields and events, and whether that comes from a build or the source (the index)
 - **Diagnostics:** the index's problems in the file (a field that can't be exported, a tag option
-  that isn't one, a min / max / default that isn't a number)
+  that isn't one, a min / max / default that isn't a number), and names the project doesn't have
+  in engine calls' string literals, with quick fixes (code_names.odin)
 - **Gutter markers and inlay hints:** on each `Script_Register` / `NodeType_Register` line, the
   nodes using it; a click on the marker selects the first (`Code_Marker_Clicked`)
 - **Drops:** a scene tree node or a browser asset dropped on a call's argument inserts its constant
@@ -51,9 +54,12 @@ CodeProviders_Registry :: proc() -> ^ce.Provider_Registry {
 	p := &codeProviders
 	if !p.registered {
 		p.registered = true
+		// The names in engine calls first: their constants outrank the others (code_names.odin)
+		ce.provider_register(&p.registry, ce.Provider{kind = .Completion, name = "project names", completion = nameCompletions, trigger_chars = "\"/"})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Completion, name = "project constants", completion = projectCompletions})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Hover, name = "project", hover = projectHover})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Diagnostics, name = "script index", diagnostic = indexDiagnostics})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Diagnostics, name = "project names", diagnostic = nameDiagnostics})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Gutter, name = "script users", gutter = scriptMarkers, on_click = scriptMarkerClicked})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "script users", inlay = scriptInlays})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Drop, name = "scene nodes and assets", drop = projectDrop})
@@ -75,6 +81,12 @@ CodeProviders_Begin :: proc(state: ^State) {
 		p.seenKey = key
 		if p.registered do ce.provider_registry_invalidate(&p.registry)
 	}
+}
+
+// The state the providers read (nil outside the code editor's calls: they answer nothing)
+@(private)
+codeProvidersState :: proc() -> ^State {
+	return codeProviders.state
 }
 
 CodeProviders_End :: proc() {
@@ -115,6 +127,10 @@ Returns:
 */
 CodeProviders_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	#partial switch v in m {
+	case NameTable_Loaded:
+		// The engine's name parameters are known: the name providers have something to say
+		if codeProviders.registered do ce.provider_registry_invalidate(&codeProviders.registry)
+		return {}, true
 	case Code_Marker_Clicked:
 		users := scriptUsers(state, v.script)
 		if len(users) == 0 {
@@ -212,7 +228,7 @@ usersText :: proc(state: ^State, users: []ScriptUser, script: string, limit := 6
 }
 
 // Whether a document is one of the project's scripts
-@(private="file")
+@(private)
 isProjectScript :: proc(state: ^State, path: string) -> bool {
 	if state == nil || path == "" || !strings.has_suffix(path, ".odin") do return false
 	folder := absolutePath(joinPath(state.project.rootPath, SCRIPTS_FOLDER, allocator = context.temp_allocator))
@@ -304,7 +320,7 @@ projectHover :: proc(doc: ce.Provider_Document, pos: cebuf.Position, ctx: ce.Pro
 
 // A line of a document that has `text` (the line it had when indexed): `line` (0-based) if it
 // still does, else the nearest within 200 lines; -1 when it's gone (edited since)
-@(private="file")
+@(private)
 relocate :: proc(doc: ce.Provider_Document, line: int, text: string) -> int {
 	count := cebuf.buffer_line_count(doc.buffer)
 	for d in 0 ..< 200 {

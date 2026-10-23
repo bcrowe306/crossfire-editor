@@ -365,7 +365,7 @@ AseTagNames :: struct {
 }
 
 // An Aseprite file's animation names (temp allocated copies), and whether it could be read
-@(private="file")
+@(private)
 asepriteTagNames :: proc(root, path: string) -> ([]string, bool) {
 	full := joinPath(root, path, allocator = context.temp_allocator)
 	modified, err := os.modification_time_by_path(full)

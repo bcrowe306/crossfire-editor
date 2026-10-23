@@ -21,6 +21,7 @@ If you'd rather use another program (Zed, VS Code...), you can: see
 - [Files changed on disk](#files-changed-on-disk)
 - [Completion and errors: the Odin language server](#completion-and-errors-the-odin-language-server)
 - [What the editor adds: your project in the code](#what-the-editor-adds-your-project-in-the-code)
+- [Names in strings: scenes, nodes, animations...](#names-in-strings-scenes-nodes-animations)
 - [Going to definitions](#going-to-definitions)
 - [Going to an error from the Output tab or the Console](#going-to-an-error-from-the-output-tab-or-the-console)
 - [Find and replace](#find-and-replace)
@@ -159,7 +160,9 @@ code tab, with or without the language server:
   [Scripts](scripts.md#assets-in-code-scriptsassetsodin): every asset, scene, animation, state,
   parameter, group, bus, dialogue node and node path) are in the completion list, each saying what
   it names: type `SCENE_` for the scenes, `ANIM_HERO_` for the hero's animations. They don't show
-  after a `.` (that's a member), in comments or inside strings.
+  after a `.` (that's a member) or in comments. In an engine call that takes a name, the
+  constants of that kind come first, and inside its string the names themselves complete (see
+  [Names in strings](#names-in-strings-scenes-nodes-animations)).
 - **Hovers say what things are.** Rest the mouse on a constant to see what it names
   (`Scene ForestScene (8 nodes)`, `Animation "run" of assets/characters/hero.aseprite`). On a
   script's name: which nodes run it, its exported fields with their defaults, its events, and
@@ -178,11 +181,57 @@ code tab, with or without the language server:
   `SOUND_COIN`. Dropped anywhere else it adds a field to the script's struct, as described in
   [Dropping nodes and assets onto the code](#dropping-nodes-and-assets-onto-the-code).
 
+- **Names that don't exist are underlined.** `e.Game_ChangeScene(game, "Forrest")` gets a
+  warning, "did you mean "Forest"?", with a quick fix (Ctrl+.). See
+  [Names in strings](#names-in-strings-scenes-nodes-animations).
+
 **The inspector follows what you type.** The editor reads the scripts' source as you type (the
 **script index**; it never waits for a build): a field you add to a script's struct shows in the
 inspector a moment later, before you save or build, with "Fields from the source: not built
 yet." under it. After a build, the build's description is used again for every file that hasn't
 changed since.
+
+## Names in strings: scenes, nodes, animations...
+
+Many engine procedures take a name as a string: a scene for `e.Game_ChangeScene`, a node path for
+`e.Node_FindPath`, an animation for `e.AnimationPlayer_Play`, an input action for
+`e.Input_IsActionPressed`. The engine says which kind of name each parameter takes (its types
+`SceneName`, `NodePath`, `AnimationName`, `ActionName`...; they're all plain strings, so any string
+still goes in), and the code tab uses it:
+
+- **Inside the string, the names that fit complete.** Type the opening quote and the list opens:
+  `e.Game_ChangeScene(self.game, "` lists your scenes, `e.Audio_SetBusVolume("` your buses. Pick
+  one with Enter or Tab. Names with spaces work too.
+- **Outside the string, the constants come first.** `e.Game_ChangeScene(self.game, ` then a letter
+  or Ctrl+Space lists the `SCENE_` constants of `scripts/assets.odin` before anything else, so the
+  compiler checks the name.
+- **A name the project doesn't have is underlined** as a warning: "No scene "Forrest": did you
+  mean "Forest"?". With the caret on it, **Ctrl+.** offers the fixes: the closest name, or its
+  constant (`Use SCENE_FOREST`). The Problems panel (Ctrl+Shift+M) lists them with the others.
+
+What fits where:
+
+| The call takes | It completes | Checked against |
+|---|---|---|
+| A node path (`Node_FindPath`, `Node_FindChild`, `Camera2D_SetFollowTargetPath`) | The nodes around the node running the script: its children, `..` for its parent, then that one's children after `../`, the scene's top level after `/`. From a node field (`e.Node_FindPath(self.camera, "...")`), the nodes around that node | Every node the script is attached to |
+| A node of the scene (`Scene_FindNode`) | The scene's top-level nodes, and every node name (a bare name finds a node anywhere) | The scenes of every node the script is attached to |
+| An animation (`AnimationPlayer_Play`, `IsPlaying`...) | Through a node field (`&self.sprite.animation`): that sprite's animations. Otherwise every animation of the project, those of the sprites under the script's node first | That sprite's, or the project's |
+| A state or a parameter (`StateMachine_Is`, `Travel`, `SetFloat`...) | The state machine's, through a node field (`self.brain`); else the project's | The same |
+| A clip (`Animator_Play`) | The Animator's, through a node field; else the project's | The same |
+| A dialogue node (`DialogueBox_Start`, `Dialogue_Start`) | The DialogueBox's dialogue's nodes, through a node field; else every dialogue's | The same |
+| An input action, group, bus, scene, Steam achievement | The project's (Project Settings > Input, the nodes' groups, the Mixer, the scenes, Project Settings > Steam), and those your code adds (`Node_AddToGroup`, `Audio_AddBus`, `Input_AddAction`, `Game_CreateScene`) | The same |
+| A sound file (`Game_PlaySound` with a path) | The project's sounds and music | The files on disk |
+
+**A script on several nodes** is checked from each of them. When a path is right from some and
+wrong from others, the warning says which: `No node "../Camera" from LairScene/Hero (it's there
+from ForestScene/Hero)`. A script on a component's node is checked from every instance of the
+component, so `..` from its root goes to wherever the component was placed.
+
+**What isn't checked**, so there are no false alarms: names your code builds while it runs (a
+variable, `fmt.tprintf`, a string with an escape), paths into nodes that make their children
+while the game runs (an LDtkLevel's entities, a TileMap's layers), and paths from a node the
+editor can't tell (a local variable: `e.Node_FindPath(sprite, "...")`). A path from a node no scene
+has the script on yet isn't checked either.
 
 ## Going to definitions
 
@@ -395,6 +444,15 @@ The **Output** tab after Build Scripts (Ctrl+B) has the compiler's own word.
 **A constant doesn't complete, or completes but the build says it doesn't exist.** The editor
 writes `scripts/assets.odin` when you save the project (and before every build): a scene, node
 or animation you just added gets its constant then. Save (Ctrl+S) first.
+
+**A name is underlined but the game has it.** The game made it while running: a node added by
+code, a group added in another way than `Node_AddToGroup`, an animation made in code. Pass it
+through a variable, or name it with what your code uses; the warning doesn't stop the build.
+
+**A name in a string doesn't complete.** The call must be an engine procedure through its
+import (`e.Game_ChangeScene(...)`), and the list opens on the opening quote or a letter (Ctrl+Space
+otherwise). Node paths need the script attached to a node first; animations, states and clips
+need a node field (`self.sprite`) to know which node's, otherwise every one of the project shows.
 
 **The inspector says "Fields from the source: not built yet."** The fields come from the script's
 source, which changed since the last build (or there's been none). They're right for editing; the

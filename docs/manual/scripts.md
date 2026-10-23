@@ -327,6 +327,10 @@ Scripts open in **code tabs** beside the scene tabs, in the editor's built-in co
 - Your project in the code: its constants complete, hovers say what they name and which nodes run
   a script, `export` tags the inspector can't use are flagged, and `Script_Register` lines show
   who runs them.
+- Names in strings: inside `e.Game_ChangeScene(self.game, "...")`, `e.Node_FindPath(self.node,
+  "...")`, `e.AnimationPlayer_Play(&self.sprite.animation, "...")` and the other engine calls
+  that take a name, the project's names of that kind complete, and one it doesn't have is
+  underlined with a quick fix ([Names in strings](code_editor.md#names-in-strings-scenes-nodes-animations)).
 
 You can use another program instead: untick **Edit > Settings... > Editor > Code editor** and
 set its path and arguments there (Zed by default). The editor writes `scripts/ols.json` so that
@@ -527,7 +531,7 @@ just added gets its constant once you save. Constants nothing uses yet don't mak
 build the game again: only a change to one your scripts use does.
 
 Use these rather than typing paths: a typo is a compile error instead of a missing sound, the
-code editor completes them, and removing an asset turns every place that used it into a build
+code editor completes them (first, in an engine call that takes that kind of name), and removing an asset turns every place that used it into a build
 error you can find. **Don't edit this file**: the editor rewrites it. (If you remove its first comment line, the
 editor treats the file as yours and stops updating it.)
 

@@ -1202,6 +1202,7 @@ Msg :: union {
 	ScriptIndex_Tick,
 	ScriptIndex_Parsed,
 	Code_Marker_Clicked,
+	NameTable_Loaded,
 	Plugin_Command_Run,
 	Plugin_Row_Changed,
 	Plugin_New_Requested,

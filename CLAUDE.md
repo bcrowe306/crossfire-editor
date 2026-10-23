@@ -39,7 +39,8 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
 - **Game code:** Odin scripts on nodes (several per node), node types, globals, data resources,
   events and listeners; the built-in code editor (OLS completion, clickable errors, and the
   project's own completions, hovers, problems, gutter markers and drops through code_editor's
-  providers) or an external one; the script index (the scripts' declarations read from their
+  providers; the names engine calls take, completed and checked inside their strings, with
+  quick fixes) or an external one; the script index (the scripts' declarations read from their
   source as they're typed, before any build); typed constants for assets, animations, states,
   groups, buses, scenes, dialogue nodes and node paths (scripts/assets.odin); Play / Play
   Scene / Restart, hot reload, the live view of the running game; editor plugins (plugin_api/).
@@ -189,9 +190,11 @@ Skald is not immediate-mode and not a retained widget tree:
 | `node_listeners.odin`, `view_inspector_events.odin` | **Listening to node events**: the inspector's Events section (`eventsSection`), the Listen... dialog (`listenerDialogView`), attaching (`Listener_Attach`: the listener on the node, the handler appended to the script's file) |
 | `asset_fields.odin` | A browser asset dropped on a code tab (outside a call's brackets: code_providers.odin's drop provider decides): a field of its handle type (`AssetField_Type`, `AssetField_Line`, `AssetField_Insert`) |
 | `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`, through the drop provider) |
-| `script_index.odin` | **The script index**: `ScriptIndex` (`State.scriptIndex`), `ScriptIndex_ParseSource` (core:odin/parser: structs, fields with types, tags, comments, enums, `Script_Register` / `Data_Register` / `NodeType_Register` calls), `ScriptIndex_Take` (a broken file keeps its last good declarations), `ScriptIndex_Derive` (ScriptDescs like the catalog's, events, problems), `ScriptIndex_Plan` (changed files and still code tab buffers), `ScriptIndex_Tick` / `_Parsed` (the worker), `ScriptIndex_Apply` / `_TakeBuild` (merged into `State.scripts`, the build authoritative where newer) |
+| `script_index.odin` | **The script index**: `ScriptIndex` (`State.scriptIndex`), `ScriptIndex_ParseSource` (core:odin/parser: structs, fields with types, tags, comments, enums, `Script_Register` / `Data_Register` / `NodeType_Register` calls), `ScriptIndex_Take` (a broken file keeps its last good declarations), `ScriptIndex_Derive` (ScriptDescs like the catalog's, events, problems), `ScriptIndex_Plan` (changed files and still code tab buffers), engine calls' string literal arguments and procedures' lines (`IndexCall`, `IndexProc`: the name providers'), `ScriptIndex_Tick` / `_Parsed` (the worker), `ScriptIndex_Apply` / `_TakeBuild` (merged into `State.scripts`, the build authoritative where newer) |
 | `script_constants.odin` | **scripts/assets.odin's constants**: `Scripts_Constants` (every constant, sections, `GeneratedConstant`), `Scripts_AssetsSource` (the file), `ConstantWords` (the new kinds' names), `Constants_ChangeMatters` / `Scripts_NewestFor` (a change to unused constants doesn't rebuild the player), Aseprite tags cached on the heap |
-| `code_providers.odin` | **The code editor's providers**: `CodeProviders_Registry` (completion of the constants, hovers on constants and scripts, the index's problems, Script_Register markers and inlay hints, drops), `CodeProviders_Begin` / `_End` (the State they read), `Code_Marker_Clicked`, `scriptUsers`, `CodeProviders_Constants` (cached per project version) |
+| `code_providers.odin` | **The code editor's providers**: `CodeProviders_Registry` (completion of the constants, hovers on constants and scripts, the index's problems, Script_Register markers and inlay hints, drops; the name providers of code_names.odin), `CodeProviders_Begin` / `_End` (the State they read), `Code_Marker_Clicked`, `scriptUsers`, `CodeProviders_Constants` (cached per project version) |
+| `name_kinds.odin` | **Which engine parameters take which kind of name**, read from the engine's source (its name types, names.odin): `NameKind`, `NameTable_Read` (core:odin/parser; groups merged; `_Add` / `_Create` procedures declare), `NameTable_Start` / `_Load` / `_Get` (once, on a worker; heap, never freed), `NameTable_ParamKind` |
+| `code_names.odin` | **Project-aware strings**: the name providers (`nameCompletions`: names inside a call's string, its kind's constants outside; `nameDiagnostics`: unknown names, "did you mean", quick fixes), the scenes' trees through component instances (`NameTree`, `treeResolve` as the engine's three lookups), a script's attachments, receivers (`self.node`, node fields), `Names_Check`, `Names_Closest` |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
 | `viewport_preview.odin` | Engine-rendered preview of the open scene (the shared GPU renderer straight into a Skald image; fallbacks: a GPU readback, software); the collision LDtk levels and TileMaps build, drawn into it (`Preview_GeneratedShapes`) |
 | `gpu_share.odin` | **The shared GPU renderer**: SDL's Vulkan renderer on Skald's device (`SharedGPU_Renderer`, `SharedGPU_Shutdown`), `GPUTarget` (a Skald `image_create_target` image as an SDL render target: `_Ensure`, `_Begin` / `_End`, `_Draw`, `_ReadPixels` for tests), used by the viewport and the code tabs |
@@ -1015,9 +1018,9 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
   (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 
-### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`; code_editor's `providers.odin`)
+### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`; code_editor's `providers.odin`)
 
-Round 1 of TODO.md's "Code editor integration". What the code relies on:
+Rounds 1 and 2 of TODO.md's "Code editor integration". What the code relies on:
 
 - **The provider interface is code_editor's** (`code_editor/editor/providers.odin`, its README's
   "Providers"): completion, hover, diagnostics, gutter markers, inlay hints and drops, each a
@@ -1090,6 +1093,45 @@ Round 1 of TODO.md's "Code editor integration". What the code relies on:
   `code_hover`, `code_click_marker`, `code_completion_provided`, `code_hover_has`,
   `code_inlay`, `code_marker`, `code_diagnostic_has`, `script_field`, `script_from_index`,
   `key <combo> <times>`).
+- **Round 2: project-aware strings** (name_kinds.odin's and code_names.odin's doc blocks). **The
+  engine says which parameters take which kind of name with name types** (its names.odin:
+  `NodePath :: string`, `SceneName`, `AnimationName`... 14 of them), chosen over distinct types
+  and over a table: aliases break no caller (a `string` variable still passes; distinct types
+  would have needed casts in the engine, the demo, the website's examples and users' code), they
+  show in signatures, OLS's hovers and the API reference, and the engine checks itself
+  (names_test.odin: a public `action` / `bus` / `group` / `state`... parameter typed `string`
+  fails). The editor can't see an alias through reflection, so **it reads the engine's source**
+  (`NameTable_Read`: core:odin/parser on the files naming a type, groups merged by position and
+  name; `_Add` / `_Create` procedures declare names), once per run on a worker started by the
+  index's tick (`NameTable_Start`, then `NameTable_Loaded` invalidates the providers).
+- **The index records the calls** (`IndexFile.calls`: an engine call's string literal argument,
+  its position or name, its first argument as written, the type of the enclosing procedure's
+  first parameter; `IndexFile.procs` for positions being typed; escapes and non-literals are
+  skipped), so diagnostics don't scan buffers.
+- **Resolution** (code_names.odin): the script is the procedure's `^T` when T is registered, else
+  the file's only one; it runs where `scriptUsers` says, a component's node expanded into every
+  instance (`placesOf`: `PathLoc` with the instance it's reached through, so ".." leaves the
+  component; an uninstanced one's ".." is unknown). Receivers: `x.node`, a node field (`x.f`: the
+  node's prop or the field's default, resolved from it), a scene for `ScenePath`; anything else
+  is unknown: no path is checked, names are checked against the whole project. Children of
+  LDtkLevel and TileMap nodes are unknown (made at run time). Each attachment is checked apart;
+  mixed results say from which nodes. "Did you mean" is an edit distance of at most a third of
+  the name; the constant fix is the one with that value (paths: one leading to the same node).
+- **code_editor grew** (its README): `Provider_Diagnostic.fixes` (`Provider_Fix`, moved with
+  edits, listed before the server's actions by Ctrl+., shown at once and without a server),
+  `Provider_Completion.replace_start` (replacing a path segment or a name with spaces while the
+  list filters by the word), `Provider.trigger_chars` (`"` and `/` open the list, asking only the
+  providers: `Completion_State.providers_only`), and `in_string` at the end of an unclosed string.
+  The names provider is registered before the constants one, so its constants' priority (30)
+  wins the label.
+- **Measured** (2026-10-23, the demo; `names_demo_project_timing`): reading the table 55-63 ms optimized (146 ms debug; 23 of the engine's files parsed, once, on the worker), every literal of the slowest file checked in 0.06-0.07 ms (0.19 ms debug), a completion inside a string 0.4-0.6 ms and one of constants 0.5-0.7 ms (2.5 and 3.3 ms debug). The demo's
+  32 literals in 13 files give no problem (the test fails on any: no false positives).
+- **Tests:** the engine's names_test.odin; `code_names_test.odin` (the table read from the real
+  engine: every kind, groups, named arguments, declaring procedures; completion per kind inside
+  and outside strings; problems and fixes per kind, a script on a component placed in two trees;
+  the demo's timing and its clean bill); code_editor's `providers_names_test.odin`;
+  `tests/ui/code_names.script` (a quote opens the scenes, a path after "../", a misspelled scene's
+  squiggle fixed with Ctrl+.; driver: `code_diagnostic_lacks`).
 
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 
@@ -2771,6 +2813,12 @@ Highlights:
   the first command: a tiling window manager resizes a new window after it opens, sometimes more
   than 0.5 s later, and a click aimed at the old layout misses (the first script of a run failed).
   Not on the offscreen driver (headless runs), where the size never changes.
+- **Drops onto a code tab say where** (`drag_row_to <tree> <row> code-editor at_text <text>` /
+  `at_line <n> [<column>]`, `drag_asset_to ... code-editor at_text ...`; the line scrolled into
+  view first, `CodeEditor_RevealLine` / `CodeEditor_FindText`): the drop providers decide by
+  where it lands, and the view's middle is another line in another window size (macOS CI's
+  installed-app run, v0.1.0-dev.56, dropped outside the struct). Checked at 640x660, 900x500
+  and 1280x720.
 - `action <Action>` sends an action, for menu-bar entries without a shortcut.
 - **Layouts that depend on the window** (the toolbar's overflow): `if_drawn <key> <command>` runs
   a command only when the widget was drawn, so one script passes tiled and fullscreen;

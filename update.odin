@@ -166,7 +166,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by Plugins_Update above
 	case ScriptIndex_Tick, ScriptIndex_Parsed:
 		// Handled by ScriptIndex_Update above
-	case Code_Marker_Clicked:
+	case Code_Marker_Clicked, NameTable_Loaded:
 		// Handled by CodeProviders_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
