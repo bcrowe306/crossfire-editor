@@ -75,6 +75,14 @@ PlaySession :: struct {
 // Sent every PLAY_POLL_SECONDS while a build or game is running
 Play_Tick :: struct {}
 
+// The next Play_Tick, unless one is on its way already (`State.playTickPending`)
+@(private="file")
+playPoll :: proc(state: ^State) -> skald.Command(Msg) {
+	if state.playTickPending do return {}
+	state.playTickPending = true
+	return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Play_Tick{}))
+}
+
 // Play: start (save, build if needed, run), or resume when paused
 @(private="package")
 playStart :: proc(state: ^State, scene := "") -> skald.Command(Msg) {
@@ -160,7 +168,7 @@ buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 	state.playState = .Building
 	state.bottomTab = .Output
 	state.layout.bottomOpen = true
-	return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Play_Tick{}))
+	return playPoll(state)
 }
 
 // The command building a player target into `binary` (temp allocated)
@@ -186,7 +194,7 @@ afterBuild :: proc(state: ^State) -> skald.Command(Msg) {
 		}
 		state.play.stage = .Describing
 		state.playState = .Building
-		return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Play_Tick{}))
+		return playPoll(state)
 	}
 	if state.play.purpose == .Play do return startGame(state)
 	return {}
@@ -200,6 +208,35 @@ playPause :: proc(state: ^State) {
 		state.playState = .Paused
 		logLine(state, .Info, fmt.aprintf("Paused"))
 	}
+}
+
+/*
+Restart: stops the game (or its build) and plays it again the way it was started, Play or Play
+Scene with the same scene; scripts changed since are built first, as Play does. Nothing happens
+when nothing runs.
+
+Returns:
+- The command Play gives (the first Play_Tick)
+*/
+@(private="package")
+playRestart :: proc(state: ^State) -> skald.Command(Msg) {
+	if !Play_CanRestart(state) do return {}
+	scene := strings.clone(playScene, context.temp_allocator)
+	playStop(state)
+	logLine(state, .Info, fmt.aprintf("Restarting"))
+	return playStart(state, scene)
+}
+
+/*
+Whether Restart has something to restart: a game running or paused, or Play's build of it (not
+Build Scripts' build, which has no game to start again).
+
+Returns:
+- true when Restart is enabled
+*/
+Play_CanRestart :: proc(state: ^State) -> bool {
+	if state.playState == .Stopped || state.play.stage == .None do return false
+	return state.play.purpose == .Play || state.play.stage == .Running
 }
 
 // Stop: kills the build or game
@@ -228,7 +265,7 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 
 	status, err := os.process_wait(state.play.process, 0)
 	if err == os.General_Error.Timeout || (err == nil && !status.exited) {
-		return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Play_Tick{}))
+		return playPoll(state)
 	}
 
 	drainOutput(state, flush = true)
@@ -325,7 +362,7 @@ startGame :: proc(state: ^State, restore := "") -> skald.Command(Msg) {
 	state.play.stage = .Running
 	state.playState = .Playing
 	state.bottomTab = .Console
-	return skald.cmd_delay(PLAY_POLL_SECONDS, Msg(Play_Tick{}))
+	return playPoll(state)
 }
 
 // Starts a child process with stdout and stderr going into one pipe

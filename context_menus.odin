@@ -31,6 +31,8 @@ menu bar do the same thing), then `Context_Menu_Closed`.
 	                  shown, hide or show only its category, show everything, clear
 	Ctx_Log_Categories  the Console's (Output's) category button: every category seen, checked
 	                  when shown (picking one keeps the menu open: `ContextMenu.keepOpen`)
+	Ctx_Toolbar_More  the toolbar's overflow button (a narrow window): the tools, maybe the file
+	                  and undo buttons
 
 Widget key: `context-menu` (the driver's `click_context_item <label>[/<submenu label>]`).
 */
@@ -48,6 +50,13 @@ ContextTarget :: union {
 	Ctx_Graph,
 	Ctx_Align,
 	Ctx_Guide,
+	Ctx_Toolbar_More,
+}
+
+// The toolbar's overflow button, in a narrow window (view.odin's `Toolbar_Overflow`): the
+// viewport's tools, and with `files` the file and undo / redo buttons too
+Ctx_Toolbar_More :: struct {
+	files: bool,
 }
 
 // A guide of the open scene (its index)
@@ -353,6 +362,25 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 	case Ctx_Log_Categories: logCategoryItems(s, &items, t)
 	case Ctx_Graph:     ContextMenu_PanelItems(s, &items, t)
 	case Ctx_Align:     append(&items, ..ViewportTools_AlignItems(s))
+	case Ctx_Toolbar_More:
+		if t.files {
+			append(&items,
+				actionItem(s, "New Project...", .New_Project),
+				actionItem(s, "Open Project...", .Open_Project),
+				actionItem(s, "Save", .Save_Project),
+				MENU_SEPARATOR,
+				actionItem(s, "Undo", .Undo),
+				actionItem(s, "Redo", .Redo),
+				MENU_SEPARATOR)
+		}
+		append(&items,
+			actionItem(s, "Select Tool", .Tool_Select, checked = s.tool == .Select),
+			actionItem(s, "Move Tool", .Tool_Move, checked = s.tool == .Move),
+			actionItem(s, "Rotate Tool", .Tool_Rotate, checked = s.tool == .Rotate),
+			actionItem(s, "Scale Tool", .Tool_Scale, checked = s.tool == .Scale),
+			actionItem(s, "Transform Tool", .Tool_Transform, checked = s.tool == .Transform),
+			actionItem(s, "Zoom Tool", .Tool_Zoom, checked = s.tool == .Zoom),
+			actionItem(s, "Pan Tool", .Tool_Pan, checked = s.tool == .Pan))
 	case Ctx_Guide:
 		append(&items,
 			msgItem("Remove Guide", Msg(Guide_Removed(int(t)))),

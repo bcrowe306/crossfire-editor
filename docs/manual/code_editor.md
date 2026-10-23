@@ -244,7 +244,7 @@ these editor shortcuts still work then:
 | Shortcut | Action |
 |---|---|
 | Ctrl+S | Save (the project and every script) |
-| F5, Ctrl+F5, F6, Shift+F5 | Play, Play Scene, Pause, Stop |
+| F5, Ctrl+F5, F6, Shift+F5, Ctrl+Shift+F5 | Play, Play Scene, Pause, Stop, Restart |
 | Ctrl+B | Build Scripts |
 | Ctrl+W | Close the code tab |
 | Ctrl+Shift+E | Export |

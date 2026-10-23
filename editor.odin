@@ -333,6 +333,9 @@ State :: struct {
 	// Output tab: build and export output
 	output: LogList,
 	play: PlaySession,
+	// A Play_Tick is on its way (`playPoll`): one chain of ticks however often Play starts, so a
+	// Restart (a stop and a start in one message) doesn't leave two
+	playTickPending: bool,
 	exporting: ExportSession,
 }
 

@@ -42,6 +42,9 @@ command is the selected node's index (inspector keys: `click_widget inspector-na
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
 	scroll_by <scroll key> <dy>      Scroll a scroll container by dy pixels (0 or less: to the top)
+	if_drawn <key> <command>         Run the command only if the widget was drawn last frame (layouts
+	                                 that depend on the window: the toolbar's overflow, toolbar-more)
+	note_game                        Remember the running game's process (the `game pid` check)
 	click_log_location <console | output> [<n>] [right]
 	                                 Click the n-th shown line (1st by default) of the Console or
 	                                 Output tab naming a source location (its text: the link),
@@ -248,7 +251,9 @@ Checks:
 	states <states|transitions|params|start|selected|position> <value>
 	                             The States tab's machine: counts, its start, the selected state's name
 	                             ("none") and position ("x, y")
-	live <connected|paused|shapes|nodes|properties|selected> <value>
+	live <connected|paused|shapes|nodes|properties|selected|scene> <value>
+	game pid <new | same | none>  The running game's process against note_game's
+	game restartable <true | false>   Restart has a game (or Play's build) to restart
 	                             The Live tab's view of the running game (counts for nodes and
 	                             properties; selected: true when a node is chosen)
 	live prop <name> <value>     The chosen node's property as the running game sent it
@@ -355,6 +360,7 @@ Checks:
 	code_completion_has <label>      The server's last completion list has that item
 	widget_visible <key> <true | false>   Some of the widget was drawn last frame, not clipped away
 	recent_menu <i> <folder name | none>   The File menu's i-th recent project (its folder's name)
+	in_window <key>              The widget's whole rect is inside the window (not pushed off its edge)
 	widget_inside <key> <container key>  All of the widget's rect is inside the container's (content
 	                                 that overflows a dialog is drawn, but outside it)
 	clear_of_scrollbar <key> <scroll key>   The widget ends left of the scroll's scrollbar strip
@@ -427,6 +433,8 @@ Driver :: struct {
 	timingLines: int,
 	timingLast: time.Tick,
 	times: [dynamic]f64,
+	// note_game: the running game's process id then (the `game pid` check compares)
+	notedPid: int,
 }
 
 // A new window may still be resized (tiled) right after it opens; the script starts once its
@@ -611,6 +619,20 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		driver.waitDeadline = time.tick_add(time.tick_now(), driver.waitTimeout)
 		driver.waitAsked = time.tick_now()
 		return false
+
+	case "if_drawn":
+		// Runs the command only when the widget was drawn last frame (a layout that depends on
+		// the window's size: the toolbar's overflow); otherwise it's skipped
+		key, _, command := strings.partition(rest, " ")
+		st, drawn := ctx.widgets.states[skald.hash_id(key)]
+		if drawn && st.last_frame + 1 >= ctx.widgets.frame && st.last_rect.w > 0 do return runCommand(s, ctx, strings.trim_space(command))
+		report(true, fmt.tprintf("%s (skipped: not drawn)", line))
+		return true
+
+	case "note_game":
+		driver.notedPid = s.play.stage == .Running ? s.play.process.pid : 0
+		report(true, line)
+		return true
 
 	case "expect":
 		ok, message := runCheck(s, ctx, rest)
@@ -1942,6 +1964,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "nodes":      found = fmt.tprint(len(s.live.nodes))
 		case "properties": found = fmt.tprint(len(s.live.properties))
 		case "selected":   found = fmt.tprint(s.live.selected != "")
+		case "scene":      found = s.live.scene
 		case "prop":
 			// "live prop <name> <value>": the chosen node's property as the game sent it
 			name, _, want := strings.partition(expected, " ")
@@ -2414,6 +2437,26 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		shown := Recent_Shown(s)
 		found = i >= 0 && i < len(shown) ? filepath.base(s.recentProjects.folders[shown[i]]) : "none"
 		return found == strings.trim_space(name), found
+	case "in_window":
+		// The widget's whole rect (not clipped) is inside the window: nothing pushed off its edge
+		st, ok := ctx.widgets.states[skald.hash_id(value)]
+		if !ok || st.last_frame + 1 < ctx.widgets.frame do return false, "not drawn"
+		r := st.last_rect
+		size := ctx.renderer != nil ? [2]f32{f32(ctx.renderer.fb_size.x), f32(ctx.renderer.fb_size.y)} : [2]f32{}
+		return r.w > 0 && r.x >= -0.5 && r.y >= -0.5 && r.x + r.w <= size.x + 0.5 && r.y + r.h <= size.y + 0.5, fmt.tprintf("%v in a %v window", r, size)
+	case "game":
+		// `game pid <new | same>` (against note_game), `game restartable <true | false>`
+		field, _, expected := strings.partition(value, " ")
+		switch field {
+		case "pid":
+			running := s.play.stage == .Running
+			found = !running ? "none" : s.play.process.pid == driver.notedPid ? "same" : "new"
+			return found == strings.trim_space(expected), fmt.tprintf("%s (pid %d, noted %d)", found, running ? s.play.process.pid : 0, driver.notedPid)
+		case "restartable":
+			found = fmt.tprint(Play_CanRestart(s))
+		case: return false, fmt.tprintf("unknown game field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
 	case "widget_inside":
 		key, _, container := strings.partition(value, " ")
 		inner, innerOk := widgetRect(ctx, key)

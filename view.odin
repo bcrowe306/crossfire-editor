@@ -172,6 +172,8 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			{label = "New Scene", msg = Msg(Scene_Action{.New, -1})},
 			item("Pause", .Pause, keys),
 			item("Stop", .Stop, keys),
+			{label = "Restart", msg = Msg(Action.Restart), disabled = s.playState == .Stopped,
+			 shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Restart, keys.typing))},
 		}},
 		{"Help", []skald.Menu_Item(Msg){
 			item("User Manual", .User_Manual, keys),
@@ -181,6 +183,13 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 	})
 }
 
+/*
+The toolbar: file buttons, undo / redo and the tools on the left, the play controls in the middle,
+Export on the right. When the window is too narrow for all of it (a tiled window is about 650 px
+wide), the tools go into an overflow button's menu (`toolbar-more`, `Ctx_Toolbar_More`), and
+narrower still the file and undo buttons too (`Toolbar_Overflow`): the play controls and Export
+always show.
+*/
 @(private="file")
 toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
@@ -191,38 +200,89 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Paused:   playTip = actionTip(s, "Resume", .Play)
 	case .Playing, .Stopped:
 	}
-	return skald.row(
-		toolButton(ctx, "new", ICON_FILE, actionTip(s, "New project", .New_Project), Action.New_Project),
-		toolButton(ctx, "open", ICON_FOLDER_OPEN, actionTip(s, "Open project", .Open_Project), Action.Open_Project),
-		toolButton(ctx, "save", ICON_SAVE, actionTip(s, "Save", .Save_Project), Action.Save_Project),
-		toolbarSeparator(ctx),
-		toolButton(ctx, "undo", ICON_UNDO, actionTip(s, "Undo", .Undo), Action.Undo),
-		toolButton(ctx, "redo", ICON_REDO, actionTip(s, "Redo", .Redo), Action.Redo),
-		toolbarSeparator(ctx),
-		toolButton(ctx, "select", ICON_POINTER, actionTip(s, "Select", .Tool_Select), Action.Tool_Select, active = s.tool == .Select),
-		toolButton(ctx, "move", ICON_MOVE, actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
-		toolButton(ctx, "rotate", ICON_ROTATE, actionTip(s, "Rotate", .Tool_Rotate), Action.Tool_Rotate, active = s.tool == .Rotate),
-		toolButton(ctx, "scale", ICON_SCALE, actionTip(s, "Scale", .Tool_Scale), Action.Tool_Scale, active = s.tool == .Scale),
-		toolButton(ctx, "transform", ICON_VECTOR_SQUARE, actionTip(s, "Transform: move, rotate and scale handles at once", .Tool_Transform), Action.Tool_Transform, active = s.tool == .Transform),
-		toolButton(ctx, "zoom", ICON_ZOOM, actionTip(s, "Zoom: click to zoom in (Alt: out), drag a box to zoom to it", .Tool_Zoom), Action.Tool_Zoom, active = s.tool == .Zoom),
-		toolButton(ctx, "pan", ICON_HAND, actionTip(s, "Pan the view", .Tool_Pan), Action.Tool_Pan, active = s.tool == .Pan),
-
+	overflow := Toolbar_Overflow(s.layout.workspace.x, math.round(th.font.size_md * 2.4), th.spacing.xs, th.spacing.sm)
+	items := make([dynamic]skald.View, context.temp_allocator)
+	if overflow < .Files {
+		append(&items,
+			toolButton(ctx, "new", ICON_FILE, actionTip(s, "New project", .New_Project), Action.New_Project),
+			toolButton(ctx, "open", ICON_FOLDER_OPEN, actionTip(s, "Open project", .Open_Project), Action.Open_Project),
+			toolButton(ctx, "save", ICON_SAVE, actionTip(s, "Save", .Save_Project), Action.Save_Project),
+			toolbarSeparator(ctx),
+			toolButton(ctx, "undo", ICON_UNDO, actionTip(s, "Undo", .Undo), Action.Undo),
+			toolButton(ctx, "redo", ICON_REDO, actionTip(s, "Redo", .Redo), Action.Redo),
+			toolbarSeparator(ctx))
+	}
+	if overflow == .None {
+		append(&items,
+			toolButton(ctx, "select", ICON_POINTER, actionTip(s, "Select", .Tool_Select), Action.Tool_Select, active = s.tool == .Select),
+			toolButton(ctx, "move", ICON_MOVE, actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
+			toolButton(ctx, "rotate", ICON_ROTATE, actionTip(s, "Rotate", .Tool_Rotate), Action.Tool_Rotate, active = s.tool == .Rotate),
+			toolButton(ctx, "scale", ICON_SCALE, actionTip(s, "Scale", .Tool_Scale), Action.Tool_Scale, active = s.tool == .Scale),
+			toolButton(ctx, "transform", ICON_VECTOR_SQUARE, actionTip(s, "Transform: move, rotate and scale handles at once", .Tool_Transform), Action.Tool_Transform, active = s.tool == .Transform),
+			toolButton(ctx, "zoom", ICON_ZOOM, actionTip(s, "Zoom: click to zoom in (Alt: out), drag a box to zoom to it", .Tool_Zoom), Action.Tool_Zoom, active = s.tool == .Zoom),
+			toolButton(ctx, "pan", ICON_HAND, actionTip(s, "Pan the view", .Tool_Pan), Action.Tool_Pan, active = s.tool == .Pan))
+	} else {
+		// The menu opens under the button
+		r := lastRect(ctx, skald.hash_id("toolbar-more"))
+		append(&items, toolButton(ctx, "more", ICON_ELLIPSIS,
+			overflow == .Files ? "File, undo and the viewport's tools" : "The viewport's tools",
+			Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Toolbar_More{files = overflow == .Files}})))
+	}
+	append(&items,
 		// Play controls sit in the middle of the toolbar
 		skald.flex(1, skald.spacer(0)),
 		toolButton(ctx, "play", ICON_PLAY, playTip, Action.Play, active = running),
 		toolButton(ctx, "play-scene", ICON_PLAY_SCENE, actionTip(s, fmt.tprintf("Play %s (this scene)", s.project.scenes[s.currentScene].name), .Play_Scene), Action.Play_Scene, disabled = running),
 		toolButton(ctx, "pause", ICON_PAUSE, actionTip(s, "Pause", .Pause), Action.Pause, active = s.playState == .Paused, disabled = s.playState != .Playing),
 		toolButton(ctx, "stop", ICON_STOP, actionTip(s, "Stop", .Stop), Action.Stop, disabled = s.playState == .Stopped),
+		toolButton(ctx, "restart", ICON_RESTART, actionTip(s, "Restart: stop the game and play it again", .Restart), Action.Restart, disabled = !Play_CanRestart(s)),
 		// The game's collision shapes (project.physics.debugDraw; a running game's at once, over the live link)
 		toolButton(ctx, "physics-debug", ICON_POLYGON, actionTip(s, physicsDebugTip(s), .Toggle_Physics_Debug), Action.Toggle_Physics_Debug, active = PhysicsDebug_Shown(s)),
 		skald.flex(1, skald.spacer(0)),
-
-		toolButton(ctx, "export", ICON_EXPORT, actionTip(s, "Export", .Export), Action.Export),
+		toolButton(ctx, "export", ICON_EXPORT, actionTip(s, "Export", .Export), Action.Export))
+	return skald.row(..items[:],
 		spacing = th.spacing.xs,
 		padding = th.spacing.sm,
 		cross_align = .Center,
 		bg = th.color.surface,
 	)
+}
+
+// What the toolbar puts in its overflow menu (`Toolbar_Overflow`)
+ToolbarOverflow :: enum {
+	// Everything fits
+	None,
+	// The viewport's seven tools
+	Tools,
+	// The tools, and the file and undo / redo buttons
+	Files,
+}
+
+/*
+How much of the toolbar goes into its overflow menu at a window width: the toolbar's buttons all
+have one width, so its width is known without laying it out.
+
+Inputs:
+- width: The window's width (0: not measured yet, everything shows)
+- button: A tool button's width
+- spacing: Between items
+- padding: At each end
+
+Returns:
+- What overflows
+*/
+Toolbar_Overflow :: proc(width, button, spacing, padding: f32) -> ToolbarOverflow {
+	if width <= 0 do return .None
+	separator := 1 + spacing * 2
+	// items: buttons and separators, and the two spacers around the play controls
+	needed :: proc(buttons, separators: int, button, separator, spacing, padding: f32) -> f32 {
+		items := buttons + separators + 2
+		return padding * 2 + f32(buttons) * button + f32(separators) * separator + f32(items - 1) * spacing
+	}
+	// File 3, undo 2, tools 7, play controls 6, Export 1; the overflow button replaces what it holds
+	if needed(19, 2, button, separator, spacing, padding) <= width do return .None
+	if needed(13, 2, button, separator, spacing, padding) <= width do return .Tools
+	return .Files
 }
 
 // The toolbar's collision shapes button's tooltip: what a click does, now and when played

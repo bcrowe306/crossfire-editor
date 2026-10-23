@@ -53,7 +53,9 @@ otherwise they work on nodes.
 **Playing:** **Play** (F5) runs the game from its start scene. **Play This Scene** (Ctrl+F5, the
 Scene menu, or the toolbar's second play button) runs it from the open scene, handy to test a
 level without going through the menu. **Pause** (F6) and **Stop** (Shift+F5) control the running
-game.
+game. **Restart** (Ctrl+Shift+F5, the toolbar's button beside Stop, the Scene menu) stops it and
+plays it again as it was started (Play, or Play This Scene with the same scene), building the
+scripts first if they changed; it's off while nothing runs.
 
 **The start scene** is also in **File > Project Settings... > General > Start scene**.
 

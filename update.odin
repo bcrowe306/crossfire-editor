@@ -140,6 +140,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Action:
 		return handleAction(out, v)
 	case Play_Tick:
+		out.playTickPending = false
 		cmd := playTick(&out)
 		return out, cmd
 	case Export_Tick:
@@ -1196,6 +1197,8 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		playPause(&out)
 	case .Stop:
 		playStop(&out)
+	case .Restart:
+		return out, playRestart(&out)
 
 	case .Add_Node:
 		// Opens the dialog; the node is added when a kind is picked

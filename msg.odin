@@ -48,6 +48,8 @@ Action :: enum {
 	Play,
 	Pause,
 	Stop,
+	// Stop the game and play it again as it was started (Play or Play Scene), rebuilt if needed
+	Restart,
 	Toggle_Bottom_Panel,
 	Clear_Console,
 	About,

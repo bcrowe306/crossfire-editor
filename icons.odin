@@ -33,6 +33,10 @@ ICON_PEN         :: "\uf304"
 ICON_WIND        :: "\uf72e"
 ICON_CIRCLE_DOT  :: "\uf192"
 ICON_PLAY        :: "\uf04b"
+// Restart (arrows-rotate)
+ICON_RESTART     :: "\uf021"
+// The toolbar's overflow (ellipsis)
+ICON_ELLIPSIS    :: "\uf141"
 ICON_PAUSE       :: "\uf04c"
 ICON_STOP        :: "\uf04d"
 ICON_EXPORT      :: "\uf56e"

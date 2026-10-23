@@ -323,6 +323,14 @@ Skald is not immediate-mode and not a retained widget tree:
   beside a number field held at `NumberField_MinWidth`). Put extra buttons on their own row, and
   check a new button with a UI click in a narrow window: `send Right_Sidebar_Width <px>` narrows
   the inspector, `clear_of_scrollbar <key> inspector-scroll` checks the row's end.
+- **The toolbar fits the window** (view.odin's `toolbarView`, `Toolbar_Overflow`): its buttons all
+  have one width, so its width is worked out, not laid out (building buttons twice to measure
+  would make them take clicks twice). With everything it's about 680 px (19 buttons since
+  Restart); a tiled window is about 650, so there the seven tools go into an overflow button
+  (`toolbar-more`, ICON_ELLIPSIS, `Ctx_Toolbar_More`: the tools checked as they're active), and
+  under about 480 px the file and undo buttons too. The play controls and Export always show.
+  Tests: `toolbar_overflows_in_a_narrow_window`; live.script (`in_window toolbar-export`, the
+  overflow menu's Zoom Tool through `if_drawn toolbar-more ...`: fullscreen draws the tools).
 - **A tab strip wider than its panel must scroll (`hScroll`), not overflow:** the bottom panel's
   tabs ran past the panel into the inspector beside it in a tiled window, unclipped, and a
   dropdown's choice there also clicked the tab under it (mixer.script caught it once Tiles and
@@ -455,7 +463,7 @@ behave (`viewportOnly`, `textChord`).
   - arrows nudge (Shift ×10), Esc deselect, Delete
   - Ctrl+D duplicate, Ctrl+C/X/V copy/cut/paste nodes (not while typing)
   - Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (not while typing: the text field undoes typing)
-  - F5/F6/Shift+F5 play controls, F9 the game's collision shapes (as F9 in the game), Ctrl+I
+  - F5/F6/Shift+F5 play controls (Ctrl+F5 Play Scene, Ctrl+Shift+F5 Restart), F9 the game's collision shapes (as F9 in the game), Ctrl+I
     import, Ctrl+, settings
 - `KeymapDispatch` runs at the start of `view`, before the menu bar, so each shortcut fires once.
 - **Plain keys are ignored while a text or number field has focus** (`IsTyping`), and are hidden
@@ -772,6 +780,16 @@ runtime exports will ship.
    logger writes `[LEVEL] [category] text` and `parseLogLine` (`e.Log_ParseLine`) gives each line
    its level and category; other lines are "game" Info lines (compiler-looking errors: Error).
    See "The Console" below.
+
+**Restart** (`Action.Restart`, Ctrl+Shift+F5, `toolbar-restart` beside Stop, Scene > Restart;
+`playRestart`): `playStop`, then `playStart` with the scene the last Play used (`playScene`: ""
+for Play, Play Scene's name; a hot reload's restart doesn't change it), so it saves and rebuilds
+when scripts changed, as Play does. Off unless `Play_CanRestart` (a game running or paused, or
+Play's build: not Build Scripts'). **One chain of `Play_Tick`s** (`playPoll`,
+`State.playTickPending`, cleared when one arrives): a stop and a start in one message left the old
+chain's tick pending beside the new one's, and each kept itself going. Tests:
+`restart_needs_a_game_to_restart`; live.script (the toolbar's Restart and Ctrl+Shift+F5 after
+Play Scene: a new process, `game pid new` after `note_game`, on the same scene, `live scene`).
 
 **Build Scripts** (Ctrl+B, and once in the background when a project with scripts opens) does steps
 2-3 only. `PlaySession.purpose` says which; `.Describe` is its zero value on purpose, and it must be
@@ -2431,7 +2449,8 @@ Highlights:
   is clicked with `click_widget toolbar-play`; its rectangle is read from Skald's widget store
   (`ctx.widgets.states`) without touching its state. **Give every widget a test should reach a
   stable `hash_id` key.** Existing keys:
-  - toolbar buttons `toolbar-<name>` (`toolbar-physics-debug`: the game's collision shapes),
+  - toolbar buttons `toolbar-<name>` (`toolbar-physics-debug`: the game's collision shapes,
+    `toolbar-restart`, `toolbar-more`: the overflow in a narrow window, drawn instead of the tools),
     panel buttons `panel-<name>`
   - the Console and Output tabs: `console-scroll` / `output-scroll` (the list; `-area` the list or
     its placeholder), `-line-<i>`, `-link-<i>` (a located line's text), `-search`,
@@ -2472,6 +2491,9 @@ Highlights:
   the first command: a tiling window manager resizes a new window after it opens, sometimes more
   than 0.5 s later, and a click aimed at the old layout misses (the first script of a run failed).
 - `action <Action>` sends an action, for menu-bar entries without a shortcut.
+- **Layouts that depend on the window** (the toolbar's overflow): `if_drawn <key> <command>` runs
+  a command only when the widget was drawn, so one script passes tiled and fullscreen;
+  `in_window <key>` checks nothing was pushed off the window's edge.
 - **UI tests never start a real code editor:** `tests/ui/settings.ini` (copied to the scratch
   settings file) sets `code_editor_path = true`. Unit tests that create scripts set it too.
 - `scripts.script` really builds a project player (a few seconds unoptimized, longer when the engine

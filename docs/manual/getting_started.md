@@ -76,7 +76,7 @@ use **File > Open Project** (Ctrl+O). See [Projects](projects.md).
 | Part | What it's for |
 |---|---|
 | **Menu bar** | Every command. Each menu shows the shortcut beside the command |
-| **Toolbar** | New, Open, Save; Undo and Redo; the tools (Select, Move, Rotate, Scale, Pan); in the middle **Play**, **Play this scene**, **Pause**, **Stop** and the game's collision shapes (on while you develop: [Seeing the shapes](physics.md#seeing-the-shapes)); **Export** on the right |
+| **Toolbar** | New, Open, Save; Undo and Redo; the tools (Select, Move, Rotate, Scale, Transform, Zoom, Pan); in the middle **Play**, **Play this scene**, **Pause**, **Stop**, **Restart** and the game's collision shapes (on while you develop: [Seeing the shapes](physics.md#seeing-the-shapes)); **Export** on the right. In a narrow window the tools (narrower still, the file and undo buttons too) move into the **…** button's menu |
 | **Browser** (left) | Your project's files, sorted into folders: Scenes, Scripts, Images, Audio, Music, Fonts, Data, Components, Levels and more. The search box at the top filters them. **+** imports a file (Ctrl+I), the trash button removes one |
 | **Preview** (under the browser) | What the selected file is: an image's picture and size, a sound you can play, a scene's facts and its settings |
 | **Viewport** (middle) | The open scene, drawn the way the game draws it. Click a node to select it, drag it to move it. Each open scene has a tab above it |
@@ -166,7 +166,9 @@ inspector:
 
 Press **F5** (or the toolbar's play button). The editor saves the project and opens your game in
 its own window: your picture and your text. Close the window, or press **Shift+F5** (Stop), to
-come back.
+come back. **Restart** (the toolbar's button beside Stop, **Ctrl+Shift+F5**, or **Scene >
+Restart**) stops the game and starts it again the same way: handy after changing something, since
+it builds your scripts again first when they changed.
 
 That's a game. Not a very exciting one yet: nothing moves, and nothing listens to the keyboard.
 That's what scripts are for.

@@ -1,9 +1,23 @@
 # The Live tab: the game played from the editor, watched while it runs: its nodes, a node's
 # properties, pausing (the tab's button and F6) and stepping, a property changed in the game, the
-# game's collision shapes from the toolbar and F9.
+# game's collision shapes from the toolbar and F9, Restart (the toolbar's and Ctrl+Shift+F5) and
+# the toolbar fitting a tiled window.
 # Run with: task test:ui
 
 wait 5
+# The toolbar fits the window: in a tiled one the tools go into its overflow menu (toolbar-more),
+# so the play controls (Restart among them) and Export stay in it. Restart is off while nothing runs
+expect in_window toolbar-export
+expect in_window toolbar-restart
+expect in_window toolbar-physics-debug
+expect game restartable false
+if_drawn toolbar-more click_widget toolbar-more
+if_drawn toolbar-more expect context_item Zoom Tool enabled
+if_drawn toolbar-more click_context_item Zoom Tool
+if_drawn toolbar-zoom click_widget toolbar-zoom
+expect tool Zoom
+key q
+expect tool Select
 key ctrl+s
 key F5
 wait_until play Playing timeout=240
@@ -62,6 +76,33 @@ key F9
 wait_until live shapes false timeout=5
 expect physics_debug off
 expect physics_debug_shown off
+
+# Restart (the toolbar's, beside Stop): a new game process, started as before (F5: the start
+# scene); then Ctrl+Shift+F5 after Play Scene starts PlayScene again
+wait_until live scene MenuScene timeout=10
+expect game restartable true
+note_game
+click_widget toolbar-restart
+wait_until game pid new timeout=240
+wait_until play Playing timeout=240
+expect console_contains Restarting
+wait_until live connected true timeout=30
+wait_until live scene MenuScene timeout=10
+key shift+F5
+wait_until play Stopped
+expect game restartable false
+send Scene_Tab_Changed 1
+expect scene PlayScene
+key ctrl+F5
+wait_until play Playing timeout=240
+wait_until live connected true timeout=30
+wait_until live scene PlayScene timeout=10
+note_game
+key ctrl+shift+F5
+wait_until game pid new timeout=240
+wait_until live connected true timeout=30
+wait_until live scene PlayScene timeout=10
+expect console_contains from scene PlayScene
 
 # Stopped
 key shift+F5
