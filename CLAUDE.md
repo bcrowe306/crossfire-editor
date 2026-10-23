@@ -1257,6 +1257,8 @@ MyGame/
   breaks and tabs too (`&#10;`: an XML parser reads a raw line break in an attribute as a space,
   and the demo's credits roll lost its lines to a save and a load). Output is
   deterministic, so saving an unchanged project produces identical files; a test checks it.
+  Line endings are LF on every OS; `.gitattributes` checks the repository's projects (examples,
+  fixtures) out with LF, or Windows (CRLF by default) saw every file change on save.
 - **Round trips:** `editor_test.odin` saves the test project (`Project_CreateTestProject`) with tricky values (escapes, non-default
   fields), reloads it, and compares every field. Extend it whenever a property is added.
 - **Not handled yet:**
