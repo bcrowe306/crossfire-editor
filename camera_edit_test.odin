@@ -117,5 +117,21 @@ camera_follow_settings_in_the_editor :: proc(t: ^testing.T) {
 	defer e.SceneData_Destroy(&data)
 	testing.expect_value(t, err, e.ProjectError.None)
 	for n in data.nodes do if n.kind == .Camera do testing.expect(t, n.camera == before && n.cameraTarget == "../../Player", "the engine reads it")
+
+	// A side turned off keeps its value, in memory and in the file, and comes back with it
+	state.selectedNode = cam
+	sendTo(&state, Camera_Changed{field = .Limit_Left_On, flag = false})
+	testing.expect_value(t, Project_Save(&state.project), "")
+	text, _ = os.read_entire_file(joinPath(root, "scenes", "Main.scene.xml", allocator = context.temp_allocator), context.temp_allocator)
+	testing.expectf(t, strings.contains(string(text), `limitLeft="-32"`) && strings.contains(string(text), `limitsOff="Left"`), "kept in the file: %s", string(text))
+	reloaded, message2, _ := Project_Load(root)
+	defer Project_Destroy(&reloaded)
+	testing.expect_value(t, message2, "")
+	for n in reloaded.scenes[0].nodes do if n.kind == .Camera {
+		testing.expectf(t, n.camera.limits == {.Bottom} && n.camera.limitMin.x == -32, "read back off, with its value: %v", n.camera)
+	}
+	sendTo(&state, Camera_Changed{field = .Limit_Left_On, flag = true})
+	c = state.project.scenes[0].nodes[cam].camera
+	testing.expect(t, c.limits == {.Left, .Bottom} && c.limitMin.x == -32, "turned on again at its value")
 	free_all(context.temp_allocator)
 }

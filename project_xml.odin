@@ -907,11 +907,19 @@ writeCamera :: proc(w: ^XMLWriter, node: ^NodeDef) {
 	if c.follow.lookAhead.x != d.follow.lookAhead.x do attr(w, "lookAheadX", c.follow.lookAhead.x)
 	if c.follow.lookAhead.y != d.follow.lookAhead.y do attr(w, "lookAheadY", c.follow.lookAhead.y)
 	if c.follow.lookAheadSmoothing != d.follow.lookAheadSmoothing do attr(w, "lookAheadSmoothing", c.follow.lookAheadSmoothing)
-	// A side's attribute is there only when that side is limited
-	if .Left in c.limits do attr(w, "limitLeft", c.limitMin.x)
-	if .Top in c.limits do attr(w, "limitTop", c.limitMin.y)
-	if .Right in c.limits do attr(w, "limitRight", c.limitMax.x)
-	if .Bottom in c.limits do attr(w, "limitBottom", c.limitMax.y)
+	// A side's value is there when that side is limited, or when it's off with a value to keep
+	// for when it's turned on again (listed in `limitsOff`)
+	values := [e.CameraSide]f32{.Left = c.limitMin.x, .Top = c.limitMin.y, .Right = c.limitMax.x, .Bottom = c.limitMax.y}
+	keys := [e.CameraSide]string{.Left = "limitLeft", .Top = "limitTop", .Right = "limitRight", .Bottom = "limitBottom"}
+	off := strings.builder_make(context.temp_allocator)
+	for side in e.CameraSide {
+		if side not_in c.limits && values[side] == 0 do continue
+		attr(w, keys[side], values[side])
+		if side in c.limits do continue
+		if strings.builder_len(off) > 0 do strings.write_byte(&off, ',')
+		fmt.sbprint(&off, side)
+	}
+	if strings.builder_len(off) > 0 do attr(w, "limitsOff", strings.to_string(off))
 	if c.shake.strength != d.shake.strength do attr(w, "shakeStrength", c.shake.strength)
 	if c.shake.duration != d.shake.duration do attr(w, "shakeDuration", c.shake.duration)
 	if c.shake.frequency != d.shake.frequency do attr(w, "shakeFrequency", c.shake.frequency)

@@ -1197,8 +1197,8 @@ MyGame/
   `spacing`). Older files migrate in the engine's parser (the node's or file's sheet becomes every
   animation's; a node without animations gets "default"), so `Project_Load` just copies them;
   they're rewritten in the new format only when saved. Also in 14 (no version of its own): a
-  Camera's `target` and follow, limit and shake attributes (`NodeDef.camera`, `cameraTarget`;
-  see "Camera follow target").
+  Camera's `target` and follow, limit (`limitsOff` too) and shake attributes (`NodeDef.camera`,
+  `cameraTarget`; see "Camera follow target").
 - **Version 13** also: CollisionShape `oneWay` (the inspector's One way checkbox,
   `NodeFlag.One_Way`); **translation tables**: `.csv` assets of kind Translation (the browser's
   Translations folder, its preview parsed by the engine's `e.Locale_LoadCSV`; not in
@@ -1908,7 +1908,9 @@ One right-click menu for the whole editor (the user asked for complete menus eve
 - `NodeDef.camera` is the engine's `e.CameraSettings`, plain (`==`: NodeDef_Equal), defaulting
   to `e.DEFAULT_CAMERA_SETTINGS` (`NodeDef_Make` from DEFAULT_SCENE_NODE); `cameraTarget` is
   owned (Make, Clone, Destroy, FromData). The writer (`writeCamera`) puts what isn't the default;
-  a limit side's value only when it's on (so a side turned off loses its value when saved).
+  a limit side's value when it's on, or when it's off with a value (not 0) to keep, listed then in
+  `limitsOff="Left,Top"` (the engine's parser takes those sides back out of `limits`), so a side
+  turned off keeps its value in memory and in the file, and comes back with it when ticked.
   Format 14, added without a version (the engine's history says so).
 - **Inspector:** Zoom, then sub-headers (the particle groups' pattern: a spacer and an xs text)
   Follow (Target: a select of every other node's path from the camera, `CAMERA_TARGET_NONE`, and

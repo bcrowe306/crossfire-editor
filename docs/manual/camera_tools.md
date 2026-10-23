@@ -54,7 +54,8 @@ How it follows:
 
 **Limits** keep the view inside the level: tick **Limit left**, **top**, **right** or **bottom**
 and type where that edge is (in world pixels). The camera never shows past a ticked side,
-whatever its zoom; untick a side to leave it open (a side-scroller that only stops at the ground
+whatever its zoom; untick a side to leave it open (it keeps its value, saved too, for when you
+tick it again; a side-scroller that only stops at the ground
 and the start of the level ticks Bottom and Left). With both sides of an axis ticked closer
 together than the screen, the view is centered between them. A [camera zone](#rooms-camera-zones)
 replaces the limits while the camera is in it.
