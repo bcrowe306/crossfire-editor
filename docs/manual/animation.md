@@ -105,7 +105,8 @@ the ruler.
 | Double-click a track | Adds a key there, from its node's value now |
 | Click a track's name | Selects the track |
 
-A track whose node can't be found (renamed, deleted, moved elsewhere) shows its name in orange.
+Renaming or moving a node in the scene tree keeps its tracks' paths leading to it. A track whose
+node can't be found (deleted, or its path typed wrong) shows its name in orange.
 
 **The selected track:**
 
@@ -253,8 +254,9 @@ beside the Animator, `Box/Lid` a child of Box, `/World/Box` from the top of the 
 playhead. Any edit of a node goes back to showing the scene as it is; scrubbing or playing shows
 the clip again.
 
-**My track's name is orange.** Its node isn't where its path says: it was renamed, deleted or
-moved. Remove the track and add it again for the node.
+**My track's name is orange.** Its node isn't where its path says: it was deleted, or the path
+was typed wrong (renames and moves in the scene tree keep paths right). Remove the track and add
+it again for the node.
 
 **The node doesn't move in the game, but does in the Timeline.** Check the Animator plays: give it
 a **First clip**, or play a clip from a script. A script that sets the same property every frame

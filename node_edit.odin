@@ -321,15 +321,16 @@ Inputs:
 - node: The node to move
 - target: The node to drop it on, or -1 to make it the last top-level node
 - position: Before or after `target` as a sibling, or inside it as its last child
+- catalog: The script catalog, so script node fields keep their nodes too (`NodePaths_Resolve`)
 
 Returns:
 - The node's new index, and whether it moved (false if `Scene_CanMoveNode` says no)
 */
-Scene_MoveNode :: proc(scene: ^SceneDef, node, target: int, position: DropPosition) -> (int, bool) {
+Scene_MoveNode :: proc(scene: ^SceneDef, node, target: int, position: DropPosition, catalog: ^ScriptCatalog = nil) -> (int, bool) {
 	if !Scene_CanMoveNode(scene, node, target, position) do return node, false
 	world := Scene_WorldTransforms(scene)
-	// Cameras keep following the same nodes (their paths are fixed after the move)
-	cameraTargets := CameraTargets_Resolve(scene)
+	// Stored paths keep leading to the same nodes (fixed after the move)
+	paths := NodePaths_Resolve(scene, catalog)
 	count := len(scene.nodes)
 
 	// Each node's children in order; slot `count` holds the top-level nodes
@@ -383,7 +384,7 @@ Scene_MoveNode :: proc(scene: ^SceneDef, node, target: int, position: DropPositi
 	// A mirrored transform: keep the X axis and flip Y
 	if local.x.x * local.y.y - local.y.x * local.x.y < 0 do scale.y = -scale.y
 	moved.scale = {tidy(scale.x), tidy(scale.y)}
-	CameraTargets_Repath(scene, cameraTargets, newIndex)
+	NodePaths_Repath(scene, paths, newIndex)
 	return newIndex[node], true
 }
 

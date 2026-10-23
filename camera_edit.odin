@@ -15,7 +15,8 @@ A Camera node's follow target and settings in the editor (the engine's camera.od
 - **Messages:** `Camera_Changed{field, value, flag, text}`, a node step (numbers merge while
   typed or stepped).
 - **Paths kept:** renaming or moving nodes rewrites cameras' target paths so they still lead to
-  the same node (`CameraTargets_Resolve` before the change, `CameraTargets_Repath` after).
+  the same node, like every other stored node path (node_paths_edit.odin: `NodePaths_Resolve`
+  before the change, `NodePaths_Repath` after).
 - **Viewport:** a selected camera shows its limits, its dead zone around its view's middle and a
   line to its target (view_viewport.odin's `drawCameraGuides`).
 */
@@ -209,54 +210,3 @@ cameraInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 	return rows[:]
 }
 
-/*
-Where every camera's target path leads now, so a change to names or the tree can point them at
-the same nodes afterwards (`CameraTargets_Repath`).
-
-Inputs:
-- scene: The scene
-
-Returns:
-- Per node: its target's index, or -1 (no target, not a camera, or not found); temp allocated
-*/
-CameraTargets_Resolve :: proc(scene: ^SceneDef) -> []int {
-	targets := make([]int, len(scene.nodes), context.temp_allocator)
-	for &node, i in scene.nodes {
-		targets[i] = -1
-		if node.kind == .Camera && node.cameraTarget != "" do targets[i] = Scene_ResolvePath(scene, i, node.cameraTarget)
-	}
-	return targets
-}
-
-/*
-Points cameras' target paths at the nodes they led to before a rename or a move.
-
-Inputs:
-- scene: The scene, after the change
-- before: `CameraTargets_Resolve` from before it
-- newIndex: Each old index's new one, when the nodes moved (nil: they didn't)
-
-Returns:
-- How many paths changed
-*/
-CameraTargets_Repath :: proc(scene: ^SceneDef, before: []int, newIndex: []int = nil) -> int {
-	changed := 0
-	for target, old in before {
-		if target < 0 do continue
-		camera, to := old, target
-		if newIndex != nil do camera, to = newIndex[old], newIndex[target]
-		node := &scene.nodes[camera]
-		path := Scene_NodePath(scene, camera, to, context.temp_allocator)
-		if path == node.cameraTarget do continue
-		delete(node.cameraTarget)
-		node.cameraTarget = strings.clone(path)
-		changed += 1
-	}
-	return changed
-}
-
-// Whether any camera of the scene follows a node by its path (a rename may change those paths)
-Scene_HasCameraTargets :: proc(scene: ^SceneDef) -> bool {
-	for node in scene.nodes do if node.kind == .Camera && node.cameraTarget != "" do return true
-	return false
-}

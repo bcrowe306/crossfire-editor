@@ -192,7 +192,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `tilemap_edit.odin` | **TileMap nodes**: `NodeDef.tilemap` (the engine's `e.TileMapSettings`), `TileMap_Setting_Changed`, the inspector's rows (file, frame, layers, tile collision, what each layer becomes: `TileMapEdit_LayerInfo`), `Scene_AddTileMapAt` |
 | `material_edit.odin` | **Physics materials**: `MaterialDef` (`Project.materials`), load / save / create, `Material_Field_Changed` / `Material_Created`, the material inspector (`materialInspector`) and a body's Material rows (`materialBodyRows`) |
 | `collision_trace_edit.odin` | **Collision from sprite**: `TraceSettings` (`State.trace`), `Trace_Sprites`, `Trace_Pieces`, `Trace_MakeShapes` (`Collision_Traced`), the body inspector's rows (`traceInspectorRows`) |
-| `camera_edit.odin` | **A Camera's follow target and settings**: `NodeDef.camera` (`e.CameraSettings`) and `cameraTarget`, `Camera_Changed` (`CameraNumber`), the Camera's inspector rows (`cameraInspectorRows`: Zoom; Follow, Limits, Shake groups), keeping target paths through renames and moves (`CameraTargets_Resolve` / `_Repath`, `Scene_HasCameraTargets`) |
+| `camera_edit.odin` | **A Camera's follow target and settings**: `NodeDef.camera` (`e.CameraSettings`) and `cameraTarget`, `Camera_Changed` (`CameraNumber`), the Camera's inspector rows (`cameraInspectorRows`: Zoom; Follow, Limits, Shake groups) |
+| `node_paths_edit.odin` | **Node paths that follow renames and moves**: `NodePathRef` / `NodePathKind` (cameras' targets, CameraViews' cameras, IK tips and targets, StateMachines' targets, SkinnedMeshes' bones, Timeline tracks, listeners' targets, script node fields from the catalog), `NodePaths_Resolve` before a change, `NodePaths_Repath` after (with a move's `newIndex`), `Scene_HasNodePaths` (a rename is a `.Scene` step then); tests in `node_paths_edit_test.odin` |
 | `camera_tools_edit.odin` | **Camera tools**: `NodeDef.cameraTools` (`e.CameraToolSettings`) and `viewCamera`, `Camera_Tool_Changed` (`CameraToolNumber`), the ParallaxLayer / CameraZone / CameraView inspector rows (`cameraToolInspectorRows`) |
 | `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `Scene_ResolvePath`, the inspector's rows |
 | `view_states.odin` | The bottom panel's States tab (`StatesPanel`): the graph (`graphCanvas`: boxes, arrows with their conditions, Any state; click, drag, double-click), the selected state's and transition's fields, the parameters |
@@ -1918,12 +1919,8 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   starts at the game's size), Shake (size, time, rate). Labels avoid other kinds' ("Aim offset X":
   a joint's is "Offset X"; "Shake size": a motor's is "Strength").
 - **Undo:** `Camera_Changed` is a node step (numbers merge per field; typing is
-  Number_Text_Changed's `CameraNumber` case). Renames (`Rename_Committed`, `Node_Renamed`) are
-  `.Scene` steps when any camera has a target, since they may rewrite its path.
-- **Paths kept:** `Scene_MoveNode` and both renames resolve every camera's target first
-  (`CameraTargets_Resolve`) and rewrite the paths after (`CameraTargets_Repath`, with the move's
-  `newIndex`). Other node paths (script node fields, CameraView's `viewCamera`, IK targets)
-  still aren't rewritten.
+  Number_Text_Changed's `CameraNumber` case). Renames are `.Scene` steps when the scene stores
+  any node path (see "Node paths" below).
 - **The Limits rows fit controlWidth:** checkbox and number in one row only when the number
   gets `NumberField_MinWidth` (a numberField is never drawn narrower: a 40 px box and two step
   buttons); in a narrower control the number goes under its checkbox (`stacked`; since the
@@ -1937,6 +1934,25 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   and moves keeping the path, saved and parsed by the engine), `project_round_trips_through_xml`
   (every setting), `tests/ui/camera.script` (driver check `cam <field>`). User guide:
   `docs/manual/camera_tools.md#following-a-target`.
+
+## Node paths that follow renames and moves (implemented, `node_paths_edit.odin`)
+
+Its doc comment has the rules; what the code relies on:
+- **Every stored node path is a `NodePathKind`**: a Camera's `cameraTarget`, a CameraView's
+  `viewCamera`, an IKChain's `ikTip` / `ikTarget`, a StateMachine's `stateMachine.target` (""
+  is its parent: not a path), a SkinnedMesh's `mesh.bones`, an Animator's tracks (from its
+  parent, as the engine reads them; event tracks have none), listeners' `target` (not a
+  global's), and script node fields (`.Node` fields of the node's first script, node type and
+  more scripts, from `State.scripts`: unknown until built). **A new kind of stored path needs a
+  case in each of its procedures.** Joints name bodies, not paths (`Scene_RenameJointReferences`).
+- `Scene_MoveNode` (with the catalog) and both renames (`Rename_Committed`, `Node_Renamed`) call
+  `NodePaths_Resolve` before and `NodePaths_Repath` after. A path still leading to its node is
+  kept as written; else it's rewritten from its owner, or from the top level when it started
+  with `/`. A script field on its default gets a prop when the default no longer leads there.
+  Paths that led nowhere are left alone.
+- **Undo:** renames are `.Scene` steps when `Scene_HasNodePaths` (or a body named by joints);
+  moves already are. Test: `node_paths_follow_renames_and_moves` (every kind, undo, a move, no
+  catalog, a broken path); `camera_follow_settings_in_the_editor`.
 
 ## Camera tools (implemented, `camera_tools_edit.odin`; engine: camera_tools.odin)
 

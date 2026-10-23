@@ -74,6 +74,10 @@ folds its children away.
 
 - **Click** a node to select it. The inspector under the tree shows its settings.
 - **Double-click** it, or press **F2**, to rename it. Enter keeps the name, Escape cancels.
+  Paths other nodes keep to it, or through it, follow the new name, and moving a node in the tree
+  keeps them too: cameras' targets, camera views' cameras, IK tips and targets, state machines'
+  sprites, skinned meshes' bones, Timeline tracks, event listeners and script node fields.
+  One undo puts the name and the paths back.
 - **Right-click** it for its menu (the same as a right-click on it in the viewport: see
   [Right-click menus](#right-click-menus)): Add Child Node, Cut, Copy, Paste, Duplicate, Delete,
   Rename, its script, Save as Component, Hide / Show, Transform, Order, Select, Frame Selected,

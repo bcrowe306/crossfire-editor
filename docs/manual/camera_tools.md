@@ -128,6 +128,9 @@ A **CameraView** draws what a **Camera** sees into a rectangle.
 3. Put the CameraView on a **screen layer** (the scene's settings: Screen layers, and the node's
    Layer), so the main camera doesn't move it.
 
+The view keeps its camera by a path, which follows when you rename or move nodes in the scene
+tree.
+
 **Split screen** for two players: a camera inside each player, and two CameraViews, each half the
 screen, each showing one player's camera. (Leave the scene's main camera somewhere out of the way,
 or make the views cover the whole screen.)

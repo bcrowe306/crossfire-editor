@@ -849,7 +849,7 @@ nodeCommand :: proc(state: ^State, op: NodeCommand) {
 		target, position := before, DropPosition.Before
 		if op == .Move_Down do target, position = after, .After
 		if target < 0 do break
-		if moved, ok := Scene_MoveNode(scene, node, target, position); ok {
+		if moved, ok := Scene_MoveNode(scene, node, target, position, &state.scripts); ok {
 			clear(&state.selection)
 			state.selectedNode = moved
 			state.selectionSet = true

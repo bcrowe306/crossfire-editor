@@ -738,6 +738,8 @@ bundling libraries and the archive.
 - **Grid and snapping:** G shows the grid, Shift+G snaps moves to it (rotation to 15°, scale to
   0.1). The grid size is in Settings > Editor.
 - **Rename in place:** F2 or double-click a node in the scene tree; Enter keeps it, Escape cancels.
+  Paths other nodes store to it (camera targets and views, IK, state machines, mesh bones,
+  Timeline tracks, listeners, script node fields) follow renames and moves in the tree.
 - **Images into the scene:** drag an image from the project browser into the viewport to add a
   Sprite there.
 - **Inspector:** a sprite's image is picked from the project's images (or None); a label's color

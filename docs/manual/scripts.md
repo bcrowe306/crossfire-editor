@@ -267,6 +267,11 @@ the top of the scene. Just before `ready`, the engine sets the field to that nod
 isn't there, or isn't of the field's kind, the field stays `nil` and the Console shows a
 warning, so check for `nil` before using one you might not have set.
 
+**Renaming or moving nodes keeps node fields pointing at the same nodes** (once the scripts are
+built, so the editor knows which fields hold nodes): a path that no longer leads to its node is
+rewritten, and a field still on its default gets a value of its own. A path written from the top
+(`/World/Door`) stays one.
+
 A quick way to make one: **drag a node from the scene tree onto a code tab**. The editor adds a
 field of the node's kind to the script's struct, named after the node, with its path as the
 default.

@@ -22,6 +22,7 @@ bottom panel's **Timeline** tab (view_timeline.odin).
   clip shown, the playhead, the selection, the new track's choices).
 - **Tracks** name their node by a path from the Animator's parent (`Scene_NodePath`, read back by
   `Timeline_ResolvePath` as the engine does), so keep the Animator inside what it animates.
+  Renames and moves in the scene tree rewrite them (node_paths_edit.odin).
 - **Keys** record a node's value as it is in the scene (`Timeline_NodeValue`): move a node, then
   Key. The viewport shows the clip at the playhead while scrubbing or playing
   (`TimelineEditor.previewing`), until the next edit of a node.

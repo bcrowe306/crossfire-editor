@@ -93,6 +93,9 @@ looking at something.
    middle joint bends (an elbow and a knee bend opposite ways).
 4. Drag the target in the viewport: the chain follows at once.
 
+The tip, the target and a mesh's bones are paths, kept right when you rename or move the nodes
+in the scene tree.
+
 Chains of two bones are solved exactly; longer chains (a tail, a tentacle) by turning each bone in
 turn toward the target. A target out of reach makes the chain point straight at it. IK runs after
 the Animator each frame, so you can animate the target (a foot's path) and let IK place the leg.

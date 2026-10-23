@@ -223,15 +223,16 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		}
 		index := s.rename.node
 		if s.rename.active && index >= 0 && index < len(scene.nodes) {
-			// Renaming a body joints name changes them too: the whole scene is the step
-			if isBodyKind(scene.nodes[index].kind) && Scene_JointsReferTo(scene, scene.nodes[index].name) || Scene_HasCameraTargets(scene) {
+			// Renaming a body joints name changes them too, and stored node paths may change
+			// (node_paths_edit.odin): the whole scene is the step
+			if isBodyKind(scene.nodes[index].kind) && Scene_JointsReferTo(scene, scene.nodes[index].name) || Scene_HasNodePaths(scene, &s.scripts) {
 				return {scope = .Scene, label = fmt.tprintf("Rename %s", scene.nodes[index].name)}
 			}
 			return node(index, fmt.tprintf("Rename %s", scene.nodes[index].name))
 		}
 	case Node_Renamed:
-		// Joints naming a body, cameras' target paths follow: the whole scene is the step
-		if hasSelection && (isBodyKind(scene.nodes[selected].kind) && Scene_JointsReferTo(scene, name) || Scene_HasCameraTargets(scene)) {
+		// Joints naming a body, stored node paths follow: the whole scene is the step
+		if hasSelection && (isBodyKind(scene.nodes[selected].kind) && Scene_JointsReferTo(scene, name) || Scene_HasNodePaths(scene, &s.scripts)) {
 			return {scope = .Scene, label = fmt.tprintf("Rename %s", name), mergeKey = key("rename", s.currentScene, selected)}
 		}
 		if hasSelection do return node(selected, fmt.tprintf("Rename %s", name), key("rename", s.currentScene, selected))

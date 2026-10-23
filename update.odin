@@ -530,11 +530,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if out.rename.active && index >= 0 && index < len(scene.nodes) && text != "" && text != scene.nodes[index].name {
 			logLine(&out, .Info, fmt.aprintf("Renamed %s to %s", scene.nodes[index].name, text))
 			if isBodyKind(scene.nodes[index].kind) do Scene_RenameJointReferences(scene, scene.nodes[index].name, text)
-			// Cameras keep following the same nodes
-			targets := CameraTargets_Resolve(scene)
+			// Stored paths (cameras' targets, script node fields...) keep leading to the same nodes
+			paths := NodePaths_Resolve(scene, &out.scripts)
 			delete(scene.nodes[index].name)
 			scene.nodes[index].name = strings.clone(text)
-			CameraTargets_Repath(scene, targets)
+			NodePaths_Repath(scene, paths)
 		}
 		delete(out.rename.text)
 		out.rename = {}
@@ -940,7 +940,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.treeDrag = {}
 		if node < 0 || node >= len(scene.nodes) do break
 		name := scene.nodes[node].name
-		if index, moved := Scene_MoveNode(scene, node, v.target, v.position); moved {
+		if index, moved := Scene_MoveNode(scene, node, v.target, v.position, &out.scripts); moved {
 			out.selectedNode = index
 			out.viewport.drag = {}
 			parent := scene.nodes[index].parent
@@ -951,12 +951,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if node := selectedNode(&out); node != nil {
 			// Joints follow a renamed body
 			if isBodyKind(node.kind) do Scene_RenameJointReferences(&out.project.scenes[out.currentScene], node.name, string(v))
-			// Cameras keep following the same nodes
-			targets := CameraTargets_Resolve(&out.project.scenes[out.currentScene])
+			// Stored paths (cameras' targets, script node fields...) keep leading to the same nodes
+			paths := NodePaths_Resolve(&out.project.scenes[out.currentScene], &out.scripts)
 			// Msg strings only live for the frame (see Skald's gotchas), so keep a copy
 			delete(node.name)
 			node.name = strings.clone(string(v))
-			CameraTargets_Repath(&out.project.scenes[out.currentScene], targets)
+			NodePaths_Repath(&out.project.scenes[out.currentScene], paths)
 		}
 	case Node_Visibility_Changed:
 		if node := selectedNode(&out); node != nil do node.visible = bool(v)
