@@ -16,6 +16,9 @@ Coin :: struct {
 	sprite: ^e.Node,
 	time: f32,
 	taken: bool,
+	// e.Scene_AddComponent(self.scene, self.coinparticles, position = {0, 0})
+	coinparticles: e.ComponentAsset `export:"default=components/coinparticles.component.xml"`,
+	// texture := e.Asset_Texture(self.game, self.coin)
 }
 
 @(init)
@@ -35,6 +38,8 @@ register_Coin :: proc "contextless" () {
 			if self.taken || !e.Node_Is(hit.other, e.CharacterMover) do return
 			self.taken = true
 			if state := e.Global(GameState); state != nil do state.coins += self.value
+			instance := e.Scene_AddComponent(self.scene, self.coinparticles)
+			instance.position = self.node.position
 			e.Game_PlaySound(self.game, SOUND_COIN)
 			e.Scene_RemoveNode(self.scene, self.node.id)
 		},

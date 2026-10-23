@@ -25,6 +25,8 @@ register_CoinCollect :: proc "contextless" () {
 			self := cast(^CoinCollect)userData
 			e.Scene_RemoveNode(self.scene, self.node.id)
 		}, self)
+		pe := cast(^e.ParticleEmitter)self.node
+		e.ParticleEmitter_Start(pe)
 		},
 		// Every frame, after the node's own update
 		update = proc(self: ^CoinCollect, events: []sdl.Event, dt: f64) {

@@ -49,6 +49,8 @@ Hero :: struct {
 	struck: [2][dynamic]^Enemy,
 	// Seconds left before the run ends (she's down)
 	dying: f32,
+	hitSound: ^e.AudioPlayer `export:"default=HitSound"`,
+	swingSound: ^e.AudioPlayer `export:"default=SwingSound"`,
 }
 
 // The hero of the scene that's playing (enemies look for her), or nil
@@ -181,7 +183,8 @@ register_Hero :: proc "contextless" () {
 				self.attackTime = 0
 				attacking = true
 				for &list in self.struck do clear(&list)
-				e.Game_PlaySound(self.game, SOUND_SWING)
+				e.AudioPlayer_Play(self.swingSound)
+				// e.Game_PlaySound(self.game, SOUND_SWING)
 				if self.sprite != nil do e.AnimationPlayer_Play(&self.sprite.animation, "attack", true)
 			}
 			if attacking {

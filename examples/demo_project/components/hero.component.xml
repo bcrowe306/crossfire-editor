@@ -9,5 +9,7 @@
 			<animation name="attack" start="45" end="52" fps="16"/>
 		</node>
 		<node kind="CollisionShape" name="Body" x="0" y="-20" shape="Capsule" radius="7" height="40"/>
+		<node kind="AudioPlayer" name="HitSound" x="0" y="0" sound="assets/forest/sounds/hit.ogg"/>
+		<node kind="AudioPlayer" name="SwingSound" x="0" y="0" sound="assets/forest/sounds/swing.ogg"/>
 	</node>
 </component>
