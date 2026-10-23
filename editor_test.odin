@@ -4475,3 +4475,15 @@ component_tabs_show_and_ask_about_unsaved_changes :: proc(t: ^testing.T) {
 	testing.expect(t, !state.componentClose.open && !state.project.scenes[index].opened, "no question")
 	free_all(context.temp_allocator)
 }
+
+// Help > User Manual and the panels' Manual buttons open the website's pages, named like the files
+@(test)
+manual_links_open_the_websites_pages :: proc(t: ^testing.T) {
+	testing.expect_value(t, Manual_URL(""), "https://crossfireengine.io/manual/")
+	testing.expect_value(t, Manual_URL("audio_effects_and_music"), "https://crossfireengine.io/manual/audio-effects-and-music/")
+	// Every page a panel links to exists
+	for page in ([]string{"audio_effects_and_music", "plugins", "dialogue", "state_machines", "animation", "tilemaps"}) {
+		file := fmt.tprintf("docs/manual/%s.md", page)
+		testing.expectf(t, os.exists(file), "%s is missing", file)
+	}
+}

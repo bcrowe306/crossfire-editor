@@ -1,6 +1,7 @@
 package crossfire_editor
 
 import "core:fmt"
+import "core:strings"
 import "gui:skald"
 import sdl "vendor:sdl3"
 import stbi "vendor:stb/image"
@@ -80,13 +81,22 @@ aboutDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 /*
 The user manual (docs/manual in the editor's repository), where it's published: its contents, or
 one of its pages ("tilemaps" for docs/manual/tilemaps.md). Help > User Manual (F1) and the panels'
-Manual buttons open it in the system's browser.
+Manual buttons open it in the system's browser. It's published on the website, crossfireengine.io,
+where a page's address is its file name with dashes for underscores (`audio_effects_and_music.md`
+is `/manual/audio-effects-and-music/`: the website's scripts/sync-manual.mjs).
 */
-MANUAL_URL :: "https://github.com/bcrowe306/crossfire-editor/blob/main/docs/manual/"
+MANUAL_URL :: "https://crossfireengine.io/manual/"
 
 // Opens the manual's contents ("") or a page of it in the browser
 Manual_Open :: proc(page: string) {
-	About_OpenLink(page == "" ? MANUAL_URL + "README.md" : fmt.tprintf("%s%s.md", MANUAL_URL, page))
+	About_OpenLink(Manual_URL(page))
+}
+
+// The website's address of a manual page ("" for its contents; "scene_changes" for scene_changes.md)
+Manual_URL :: proc(page: string) -> string {
+	if page == "" do return MANUAL_URL
+	slug, _ := strings.replace_all(page, "_", "-", context.temp_allocator)
+	return fmt.tprintf("%s%s/", MANUAL_URL, slug)
 }
 
 // A panel's link to its manual page
