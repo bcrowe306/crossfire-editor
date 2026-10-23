@@ -89,8 +89,9 @@ add it as a task and to the README's command table.
 | `task test:code-editor` | The built-in code editor's own unit tests (`code_editor/`, its Taskfile) |
 | `task ols` | Build OLS into `code_editor/third_party/ols` (its `ols:build`; skipped when built) |
 | `task verify` | `check` + `test` |
-| `task test:ui` | UI test scripts (`tests/ui/*.script`) driving the real editor with injected input (`SCRIPT=<file>` for one) |
-| `task test:ui:fullscreen` | The same with a fullscreen editor (`SCRIPT=<file>` for one) |
+| `task test:ui` | UI test scripts (`tests/ui/*.script`) driving the real editor with injected input: headless, several at once (`tools/ui_tests.sh`), in a 640x660 window like a tiled one; `SCRIPT=<file>` for one, `JOBS=<n>` workers (default half the CPUs; `JOBS=1` serial) |
+| `task test:ui:fullscreen` | The same in a 1280x720 window, like a fullscreen one |
+| `task test:ui:visible` | The scripts one at a time in a real window on the desktop, to watch (`FULLSCREEN=true`: the `EDITOR_FULLSCREEN` build) |
 | `task build` / `task build:release` | Debug build into `build/`, optimized build into `build/release/` |
 | `task run` | Build optimized (`build/release/`) and run; program arguments after `--` |
 | `task run:debug` | Build with `-debug` and run (unoptimized: the viewport ran at ~14 fps vs 60) |
@@ -107,7 +108,9 @@ add it as a task and to the README's command table.
   there (`platforms:`) and checks for `stb_truetype.lib`. Checked with `task --dry --force` on a
   copy of the Taskfile with the OS filled in (Windows can't be run here).
 - `EDITOR_FULLSCREEN` exists for checking the full layout on a tiling window manager (Hyprland
-  here), which otherwise squeezes the window into a tile.
+  here), which otherwise squeezes the window into a tile (`task run:fullscreen`, `task
+  test:ui:visible FULLSCREEN=true`). The headless UI runs pass `--window-size <w>x<h>` instead
+  (a fixed window, never fullscreen; editor.odin's `Args.windowSize`).
 - **Engine location:** the Taskfile's `ENGINE_DIR` (default `../odin_sdl_engine`, override with
   `task run ENGINE_DIR=...`) is used twice:
   - as the `engine` collection (`import e "engine:."`)
@@ -272,6 +275,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
 | `editor_test.odin` | Unit tests for the model, XML round trips, transforms, assets, search, viewport math, keymap and update |
 | `tests/ui/*.script` | UI test scripts, run by `task test:ui` |
+| `tools/ui_tests.sh` | The UI test runner: headless editors (SDL's offscreen driver) on per-script copies of the fixture, `--jobs` at a time, longest first, per-script results, times and a summary; `--visible` for real windows |
 | `tests/fixtures/` | Files tests import (`beep.wav`: a generated 1.5 s tone) |
 | `test_project_test.odin` | `Project_CreateTestProject`: the unit tests' sample project (the old built-in demo: a menu, a play scene with a tree of sprites, options); the outline demo's test |
 | `examples/demo_project/` | The demo game, "Legacy of the Wardens", shipped with the editor (see "The demo project" below). Its README lists what each part demonstrates |
@@ -750,7 +754,7 @@ Git through the `git` program (`Script_FindEditorProgram`; Settings > Toolchain 
   folder (the project changed meanwhile) is dropped and read again.
 - **Paths are the project's**: commands run in the project folder with `-- .` pathspecs, and
   porcelain paths (relative to the repository) lose the project's prefix. A project inside a
-  repository that ignores it (`check-ignore`, like `build/ui_project` in this repo) counts as not
+  repository that ignores it (`check-ignore`, like the UI tests' copies under `build/` in this repo) counts as not
   under version control: Initialize makes it its own repository.
 - **Commands** (`GitOp`, `Git_Commands` lists the git calls, `Git_OpProblem` refuses bad input)
   run one at a time on a worker (`Git_RunCommands`), env `GIT_TERMINAL_PROMPT=0`,
@@ -1143,7 +1147,7 @@ after, and its scene. Undo switches to that scene and restores "before"; redo re
   `build/release/editor.ini` for `task run`, `build/editor.ini` for the debug build). Loading parses the defaults, then that file over them;
   unknown or bad lines are reported in the Console and skipped. Saving writes every setting.
 - `--settings <file>` picks another file. Test scripts (`--script`) use the defaults and never
-  save unless `--settings` is given; `task test:ui` passes a scratch `build/ui_settings.ini`.
+  save unless `--settings` is given; the UI test tasks give each script a scratch copy of `tests/ui/settings.ini`.
 - `Settings` is a plain value (no allocations). The dialog edits `settingsDialog.draft`; Apply/Save
   copy it to `state.settings`, write the file and return `skald.cmd_set_theme`.
 - Appearance: `Settings_Theme` builds the Skald theme: dark/light colors, text sizes scaled from
@@ -2635,8 +2639,9 @@ Highlights:
 - **UI tests run on `tests/fixtures/ui_project`**, not `examples/demo_project`: the demo is what
   `task run` opens, so it changes when you use the editor. Update the fixture on purpose when a
   test needs different content.
-- **Don't assert timing-dependent results** (undo merging) in UI scripts: when the editor window
-  isn't visible, the compositor may throttle its frames. Unit tests cover timing with fake clocks.
+- **Don't assert timing-dependent results** (undo merging) in UI scripts: several editors share
+  the CPU in a headless run, and a visible window the compositor hides is throttled. Unit tests
+  cover timing with fake clocks.
 - **Rows must be in view.** `click_row`, `right_click_row` and `drag_row` fail on a row scrolled
   out of the tree's visible area. The scene tree pane is short; collapse nodes to keep rows in view.
 - **Tree rows** are clicked by row index using `TREE_ROW_HEIGHT`; keep trees on that row height.
@@ -2644,14 +2649,41 @@ Highlights:
   screenshot the desktop: the user's other windows can be on screen. To check rendering, call
   `Preview_Render` from a scratch test and save its pixels. Skald's own off-screen renderer is
   private to Skald, so snapshots of the UI would need a public Skald API first.
-- `task test:ui` runs each script on a fresh scratch copy of `tests/fixtures/ui_project`
-  (`build/ui_project`), because scripts save, rename, play and import. The editor window opens while it runs. On a
-  workspace that isn't visible, the compositor may throttle it, and the run takes minutes instead
-  of seconds.
+- **How the runs work** (`tools/ui_tests.sh`, from the `test:ui` tasks): each script runs in its
+  own editor on a fresh copy of `tests/fixtures/ui_project` and of `tests/ui/settings.ini` in
+  `build/ui_tests/<run>/<script>/` (`<run>`: `tiled`, `fullscreen`, `visible`), because scripts
+  save, rename, play and import; `JOBS` of them at once (default half the CPUs), longest first
+  (the last run's `times.txt`). It prints each script's result and time as it ends, then the
+  slowest and a summary (wall time, the scripts' total), and exits 1 if one failed; a failing
+  script keeps its folder and `log.txt` (passing ones keep only the log). One run per `<run>`
+  folder at a time (`.lock`).
+  - **Headless** (`test:ui`, `test:ui:fullscreen`): `SDL_VIDEO_DRIVER=offscreen` (Vulkan through
+    `VK_EXT_headless_surface`, on the GPU: Skald, the shared GPU renderer and the code editor
+    all work) and `SDL_AUDIO_DRIVER=dummy`, with `--window-size` 640x660 or 1280x720. No window
+    appears, nothing resizes or throttles it, a game started by Play inherits both (no game
+    window either), and the clipboard is SDL's own (the user's isn't touched). The window
+    never moves, so the driver skips `WINDOW_SETTLE_TIME` there.
+  - **Visible** (`test:ui:visible`): real windows, one at a time (they share the desktop and the
+    clipboard). For watching a script; a tiling window manager squeezes the window, and other
+    windows (yours, or a game from Play) shrink it further and can make scripts fail.
+  - **Nothing is shared between workers:** each has its own project folder, settings and
+    recent-projects file; Play's players (`build/players/<project>-<hash>`), export work
+    (`build/exports/...`), plugin builds and shader and font scratch (`build/shaders/<...>`,
+    `build/fonts/<...>`: `projectBuildFolder`) are per project folder; OLS is a process per
+    editor; git repositories are inside each project. **Scripts never name `build/ui_project`:**
+    `{project}` is the project the script started on (`open_project {project}`,
+    `{project}_archive/...` for files beside it).
+  - Measured (2026-10-23, 8 CPUs, Intel UHD 620, 62 scripts): before, one visible window at a
+    time: 808 s tiled (11 scripts failed: other windows squeezed it to 621x329), 484 s
+    fullscreen. Headless with 4 workers: 144 s tiled, 150 s fullscreen, no failures; 6 workers
+    134 s, 8 workers 129 s (CPU-bound: the default stays at half the CPUs). Both suites at once:
+    about 262 s each, no failures. The slowest is `scripts.script` (about 70 s: a player built
+    on each save), then code_keys, globals_data, ldtk, hot_reload.
 - Add a script, or extend one, for each new interactive feature.
 - The driver waits until the window size has been stable for `WINDOW_SETTLE_TIME` (1.5 s) before
   the first command: a tiling window manager resizes a new window after it opens, sometimes more
   than 0.5 s later, and a click aimed at the old layout misses (the first script of a run failed).
+  Not on the offscreen driver (headless runs), where the size never changes.
 - `action <Action>` sends an action, for menu-bar entries without a shortcut.
 - **Layouts that depend on the window** (the toolbar's overflow): `if_drawn <key> <command>` runs
   a command only when the widget was drawn, so one script passes tiled and fullscreen;
@@ -2664,7 +2696,8 @@ Highlights:
   far outside a scroll aren't laid out, and keep stale rects. A `wait_until` that passes lets a few
   frames settle before the next command.
 - A game window (Play) makes a tiling window manager shrink the editor's window, which moves every
-  rect: stop the game before clicking things that may move.
+  rect (visible runs; headless games have no window): stop the game before clicking things that
+  may move.
 - **Modifier clicks:** Skald reads Ctrl/Shift from key events, not mouse events, so the driver
   holds the modifier key around the click (`click_row ... ctrl`, `click_node ... shift`).
 - **A script's `ctrl` is the platform's command key** (`PRIMARY_KEYMOD`: Cmd on macOS, as the
@@ -2682,8 +2715,10 @@ Highlights:
 - Logic (the serializer, model, undo, export command lines) gets `odin test` tests. Pay particular
   attention to XML round trips.
 - Interaction: add or extend a `tests/ui` script and run `task test:ui` **and**
-  `task test:ui:fullscreen`. On a tiling window manager the normal window can be tiny (here about
-  640x660, a bottom panel 200 px wide), so wide layouts only get exercised fullscreen (1280x720).
+  `task test:ui:fullscreen` (headless and parallel; `SCRIPT=` for one while working on it). The
+  tiled size (640x660, a bottom panel 200 px wide) is what a tiling window manager gives the
+  window here; wide layouts only get exercised at 1280x720. `task test:ui:visible` shows a
+  script running when a failure needs watching.
 - Layout: run the editor and look at it yourself (or ask the user). A type check proves nothing
   about layout, and automated checks must not capture the screen.
 - Exports: build the exported game and launch it. Report each target honestly as verified, untested,

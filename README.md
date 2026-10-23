@@ -89,8 +89,9 @@ Run `task` to list them all.
 | `task test:code-editor` | Unit tests of the built-in code editor's packages (`code_editor/`) |
 | `task ols` | Build the Odin language server for the built-in code editor (clones OLS; not needed if `ols` is in PATH) |
 | `task verify` | `check` + `test` |
-| `task test:ui:fullscreen` | The same in a fullscreen editor, so wide layouts are tested too (`SCRIPT=tests/ui/animation.script` runs one) |
-| `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input (opens the editor window). They use a copy of `tests/fixtures/ui_project` and default settings |
+| `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input. Headless (no window: SDL's offscreen driver, 640x660 like a tiled window) and several at once: `JOBS=<n>` sets how many (half the CPUs by default; `JOBS=1` one at a time), `SCRIPT=tests/ui/animation.script` runs one. Each script gets its own copy of `tests/fixtures/ui_project` and default settings in `build/ui_tests/tiled/<script>/`; it prints each script's result and time and a summary, and a failing script's folder and log stay |
+| `task test:ui:fullscreen` | The same in a 1280x720 window, like a fullscreen one, so wide layouts are tested too (`build/ui_tests/fullscreen/`) |
+| `task test:ui:visible` | The UI test scripts one at a time in a real editor window, to watch them (`FULLSCREEN=true` for a fullscreen editor; `SCRIPT=` for one) |
 | `task build` | Debug build into `build/crossfire-editor` |
 | `task build:release` | Optimized build into `build/release/crossfire-editor` |
 | `task run` | Build optimized and run. Program arguments go after `--` |

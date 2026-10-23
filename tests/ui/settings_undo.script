@@ -1,6 +1,6 @@
 # Undo/redo from the keyboard and toolbar, and the Settings dialog: rebinding a shortcut, saving
 # it, and the new shortcut working. Runs on a scratch copy of the demo project, with a scratch
-# settings file (task test:ui passes --settings build/ui_settings.ini).
+# settings file (task test:ui gives each script its own copy of tests/ui/settings.ini with --settings).
 # Run with: task test:ui
 
 wait 5

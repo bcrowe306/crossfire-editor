@@ -147,7 +147,7 @@ click_widget new-project-cancel
 expect new_project_dialog closed
 
 # Opening a project replaces the open one (the driver skips the folder dialog)
-open_project build/ui_project
+open_project {project}
 expect project Asteroids Demo
 expect modified false
 expect undo 0

@@ -3,7 +3,7 @@
 # File menu lists it, and choosing it opens it again.
 # Run with: task test:ui
 #
-# The copy goes inside the scratch project (build/ui_project/SavedCopy), made fresh for each run
+# The copy goes inside the scratch project ({project}/SavedCopy), made fresh for each run
 
 wait 5
 expect project Asteroids Demo
@@ -21,7 +21,7 @@ key ctrl+a
 type SavedCopy
 click_widget new-project-location
 key ctrl+a
-type build/ui_project
+type {project}
 click_widget new-project-create
 expect new_project_dialog closed
 expect project SavedCopy

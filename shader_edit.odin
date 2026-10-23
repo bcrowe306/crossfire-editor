@@ -122,7 +122,8 @@ Shaders_Compile :: proc(state: ^State, force := false) -> bool {
 	}
 	ok := true
 	compiledAny := false
-	scratch := absolutePath(joinPath("build", "shaders", allocator = context.temp_allocator))
+	// The project's own (another editor may compile a shader of the same name at once)
+	scratch := absolutePath(joinPath("build", "shaders", projectBuildFolder(absolutePath(state.project.rootPath)), allocator = context.temp_allocator))
 	for asset in state.project.assets do if asset.kind == .Shader {
 		path := AssetFilePath(&state.project, asset)
 		messages, good, compiled := e.Shader_CompileFile(tools, path, asset.path, scratch, force)

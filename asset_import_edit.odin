@@ -319,7 +319,8 @@ fontMakeMSDF :: proc(state: ^State, asset: AssetDef, force: bool) -> bool {
 		return false
 	}
 	path := absolutePath(AssetFilePath(&state.project, asset))
-	scratch := absolutePath(joinPath("build", "fonts", allocator = context.temp_allocator))
+	// The project's own (another editor may write the charset file at once)
+	scratch := absolutePath(joinPath("build", "fonts", projectBuildFolder(absolutePath(state.project.rootPath)), allocator = context.temp_allocator))
 	messages, ok, made := e.Font_MakeMSDF(tools, path, scratch, force = force)
 	if !ok {
 		logLine(state, .Error, fmt.aprintf("%s: %s", asset.path, messages))

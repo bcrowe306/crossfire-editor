@@ -24,7 +24,7 @@ scroll_into_view inspector-scroll inspector-shader-param-amount-2
 drag_widget inspector-shader-param-amount-2 0.5 0.5 1.5 0.5
 expect shader param amount 1
 wait 1
-save_viewport_render /tmp/vp_flash.png
+save_viewport_render {project}_vp_flash.png
 wait_until viewport_has_color #ffffff 0 true timeout=5
 key ctrl+z
 expect shader param amount default
@@ -65,7 +65,7 @@ scroll_into_view inspector-scroll inspector-shader-param-scanlines-11
 drag_widget inspector-shader-param-scanlines-11 0.5 0.5 1.5 0.5
 expect shader param scanlines 1
 wait 1
-save_viewport_render /tmp/vp_crt.png
+save_viewport_render {project}_vp_crt.png
 
 key ctrl+s
 expect project_file_contains project.xml shaders="true"

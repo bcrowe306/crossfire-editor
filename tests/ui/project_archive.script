@@ -14,13 +14,13 @@ expect field x 640
 key RIGHT
 expect field x 641
 expect modified true
-archive_project build/ui_archive/Asteroids.odinsdl
+archive_project {project}_archive/Asteroids.odinsdl
 wait_until console_contains Wrote the project archive
 expect archive idle
 expect modified false
 
 # Open it: unpacked next to it, into Asteroids (the project folder's name), then opened
-open_archive build/ui_archive/Asteroids.odinsdl | build/ui_archive
+open_archive {project}_archive/Asteroids.odinsdl | {project}_archive
 wait_until console_contains Unpacked Asteroids.odinsdl
 expect archive idle
 expect console_contains Opened 'Asteroids Demo'

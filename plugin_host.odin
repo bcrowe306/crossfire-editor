@@ -2,7 +2,6 @@ package crossfire_editor
 
 import "core:dynlib"
 import "core:fmt"
-import "core:hash"
 import "core:os"
 import "core:path/filepath"
 import "core:reflect"
@@ -476,7 +475,7 @@ pluginsStopBuild :: proc() {
 @(private="file")
 pluginLibraryPath :: proc(state: ^State, folder: string, n: int) -> string {
 	ext := ODIN_OS == .Windows ? "dll" : ODIN_OS == .Darwin ? "dylib" : "so"
-	project := fmt.tprintf("%s-%x", sanitize(filepath.base(plugins.root)), hash.fnv32a(transmute([]byte)plugins.root))
+	project := projectBuildFolder(plugins.root)
 	return absolutePath(joinPath("build", "plugins", project, fmt.tprintf("%s-%d.%s", folder, n, ext), allocator = context.temp_allocator))
 }
 

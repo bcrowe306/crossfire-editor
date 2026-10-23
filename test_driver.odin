@@ -23,12 +23,24 @@ UI test driver: runs a script that drives the editor through real input.
 
 The script pushes SDL mouse and keyboard events, which reach Skald exactly like a user's input,
 and checks the editor's state. Everything happens inside the editor process: the driver never
-reads the screen, so it's safe to run while using the machine (the editor window does open). Widgets are found by the key their id was made from
-(`skald.hash_id(key)` in the view code), so scripts don't depend on window size or layout.
-The editor exits when the script ends: code 0 if every check passed, 1 otherwise.
+reads the screen, so it's safe to run while using the machine. Widgets are found by the key
+their id was made from (`skald.hash_id(key)` in the view code), so scripts don't depend on
+window size or layout. The editor exits when the script ends: code 0 if every check passed, 1
+otherwise.
+
+`task test:ui` runs the scripts with `tools/ui_tests.sh`: headless (SDL_VIDEO_DRIVER=offscreen,
+SDL_AUDIO_DRIVER=dummy: no window, a fixed size from `--window-size`, the clipboard SDL's own),
+several at once, each on its own copy of the project. A real window (`task test:ui:visible`) may
+be resized by the window manager after it opens, so the first command waits until the window's
+size has been the same for WINDOW_SETTLE_TIME; offscreen it starts on the second frame.
+By hand:
+
+	SDL_VIDEO_DRIVER=offscreen crossfire-editor <copy of the project> --script tests/ui/smoke.script --settings <scratch.ini> --window-size 640x660
 
 Script format: one command per line; blank lines and `#` comments are ignored. `{selected}` in a
-command is the selected node's index (inspector keys: `click_widget inspector-name-{selected}`).
+command is the selected node's index (inspector keys: `click_widget inspector-name-{selected}`);
+`{project}` is the folder of the project the script started on (each run works on its own scratch
+copy: `open_project {project}`).
 
 	wait <frames>                    Let frames pass
 	wait_until <check> [timeout=<s>] Wait (default 10 s) until a check passes; fails on timeout
@@ -421,6 +433,8 @@ Driver :: struct {
 	started: time.Tick,
 	failures: int,
 	finished: bool,
+	// The project folder the script started on, for `{project}` in commands
+	project: string,
 	// Window size, and since when it hasn't changed (the first command waits for it to settle)
 	windowSize: [2]f32,
 	// scroll_into_view: pages scrolled so far looking for the widget
@@ -440,8 +454,17 @@ Driver :: struct {
 }
 
 // A new window may still be resized (tiled) right after it opens; the script starts once its
-// size has stayed the same this long, so clicks aren't aimed at a layout that then moves
+// size has stayed the same this long, so clicks aren't aimed at a layout that then moves. Not
+// under SDL's offscreen driver (the headless runs: nothing resizes the window there)
 WINDOW_SETTLE_TIME :: 1500 * time.Millisecond
+
+// Whether the window is offscreen (SDL_VIDEO_DRIVER=offscreen: tools/ui_tests.sh's headless
+// runs), so its size never changes after it opens
+@(private="file")
+windowIsOffscreen :: proc() -> bool {
+	driverName := sdl.GetCurrentVideoDriver()
+	return driverName != nil && string(driverName) == "offscreen"
+}
 
 @(private="file")
 driver: Driver
@@ -513,6 +536,7 @@ widget rectangles from the last frame and the current state.
 ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 	if !driver.active do return
 	saveClipboard()
+	if driver.project == "" do driver.project = strings.clone(absolutePath(s.project.rootPath))
 	// Keep frames coming while the script runs
 	skald.send(ctx, Msg(Script_Tick{}))
 
@@ -559,7 +583,7 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 			driver.windowSettled = time.tick_now()
 			return
 		}
-		if time.tick_since(driver.windowSettled) < WINDOW_SETTLE_TIME do return
+		if !windowIsOffscreen() && time.tick_since(driver.windowSettled) < WINDOW_SETTLE_TIME do return
 		driver.ready = true
 	}
 	if driver.waitCheck != "" {
@@ -599,6 +623,8 @@ ScriptDriver_Frame :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) {
 runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 	// {selected} stands for the selected node's index (widget keys like inspector-name-{selected})
 	line, _ := strings.replace_all(line, "{selected}", fmt.tprint(s.selectedNode), context.temp_allocator)
+	// {project}: the project folder the script started on (each run's scratch copy is elsewhere)
+	line, _ = strings.replace_all(line, "{project}", driver.project, context.temp_allocator)
 	command, _, rest := strings.partition(line, " ")
 	rest = strings.trim_space(rest)
 	args := strings.fields(rest, context.temp_allocator)

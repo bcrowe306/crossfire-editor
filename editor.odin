@@ -3,8 +3,10 @@ package crossfire_editor
 import "core:fmt"
 import "core:log"
 import "core:os"
+import "core:strconv"
 import "core:strings"
 import "gui:skald"
+import sdl "vendor:sdl3"
 
 // Space taken by a split pane divider (Skald's default thickness)
 DIVIDER :: 6
@@ -489,6 +491,7 @@ logLine :: proc(state: ^State, level: LogLevel, text: string, echo := true, cate
 }
 
 // Command line: crossfire-editor [project folder] [--export <target>] [--script <file>] [--settings <file.ini>]
+// [--window-size <width>x<height>]
 @(private="file")
 Args :: struct {
 	project: string,
@@ -499,6 +502,10 @@ Args :: struct {
 	// --export <target>: export the project to that target without a window, then exit
 	// (Export_Headless: CI, scripts)
 	export: string,
+	// --window-size <w>x<h>: open a window of this size (logical pixels), never fullscreen. The UI
+	// tests' headless runs use it (tools/ui_tests.sh: 640x660 like a tiled window, 1280x720 like
+	// a fullscreen one), where nothing resizes the window
+	windowSize: skald.Size,
 }
 
 @(private="file")
@@ -512,6 +519,12 @@ parseArgs :: proc() -> Args {
 		} else if os.args[i] == "--settings" && i + 1 < len(os.args) {
 			args.settings = Editor_ArgumentPath(os.args[i + 1])
 			settingsGiven = true
+			i += 1
+		} else if os.args[i] == "--window-size" && i + 1 < len(os.args) {
+			w, _, h := strings.partition(os.args[i + 1], "x")
+			width, _ := strconv.parse_int(w)
+			height, _ := strconv.parse_int(h)
+			args.windowSize = {i32(width), i32(height)}
 			i += 1
 		} else if os.args[i] == "--export" && i + 1 < len(os.args) {
 			args.export = os.args[i + 1]
@@ -551,6 +564,9 @@ main :: proc() {
 	args := parseArgs()
 	settings, _ := Settings_Load(args.settings)
 	delete(args.settings)
+	// A fixed size (--window-size) replaces fullscreen
+	windowFlags: sdl.WindowFlags = EDITOR_FULLSCREEN ? {.RESIZABLE, .FULLSCREEN} : {}
+	if args.windowSize.x > 0 && args.windowSize.y > 0 do windowFlags = {.RESIZABLE}
 
 	skald.run(skald.App(State, Msg){
 		title  = APP_NAME,
@@ -569,7 +585,8 @@ main :: proc() {
 			CodeEditor_Shutdown()
 			SharedGPU_Shutdown()
 		},
-		window_flags = EDITOR_FULLSCREEN ? {.RESIZABLE, .FULLSCREEN} : {},
+		initial_window_state = {size = args.windowSize},
+		window_flags = windowFlags,
 	})
 
 	if ScriptDriver_Active() || parseArgs().script != "" {

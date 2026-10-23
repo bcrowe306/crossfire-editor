@@ -494,8 +494,7 @@ playerTarget :: proc(state: ^State) -> PlayerTarget {
 	}
 	projectDir := absolutePath(state.project.rootPath)
 	// One player per project folder; the main is rewritten if it changed
-	folder := fmt.tprintf("%s-%x", sanitize(filepath.base(projectDir)), hash.fnv32a(transmute([]byte)projectDir))
-	dir, _ := filepath.join({PROJECT_PLAYERS_DIR, folder}, context.temp_allocator)
+	dir, _ := filepath.join({PROJECT_PLAYERS_DIR, projectBuildFolder(projectDir)}, context.temp_allocator)
 	_ = os.make_directory_all(dir)
 	dir = absolutePath(dir)
 	mainFile, _ := filepath.join({dir, "main.odin"}, context.temp_allocator)
@@ -574,6 +573,19 @@ playerPath :: proc() -> string {
 	_ = os.make_directory_all(dir)
 	path, _ := filepath.join({absolutePath(dir), filepath.base(PLAYER_BINARY)}, context.temp_allocator)
 	return path
+}
+
+/*
+A project's own folder name under `build/` (its player, export work, shader and font scratch):
+the folder's name and a hash of its absolute path, so two projects, or two editors open on
+different projects (parallel UI tests), never share one.
+
+Returns:
+- The name (temp allocated)
+*/
+@(private="package")
+projectBuildFolder :: proc(projectDir: string) -> string {
+	return fmt.tprintf("%s-%x", sanitize(filepath.base(projectDir)), hash.fnv32a(transmute([]byte)projectDir))
 }
 
 @(private="package")

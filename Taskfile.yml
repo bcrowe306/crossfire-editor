@@ -188,41 +188,46 @@ tasks:
       - task: test
 
   test:ui:
-    desc: Run the UI test scripts in tests/ui (opens the editor window; uses a copy of tests/fixtures/ui_project); SCRIPT=<file> runs one
+    desc: Run the UI test scripts in tests/ui headless, several at once (no window; each on its own copy of tests/fixtures/ui_project, in a 640x660 window like a tiled one); SCRIPT=<file> runs one, JOBS=<n> sets how many at once (JOBS=1 one at a time)
     deps: [build, prebuilt, ols, shadertools]  # ols: toolchain.script expects a language server; shaders.script compiles
-    env:
+    env: &ui_env
       # The Git tab's script commits: a name and email, whatever git is set up with
       GIT_AUTHOR_NAME: UI test
       GIT_AUTHOR_EMAIL: ui-test@example.com
       GIT_COMMITTER_NAME: UI test
       GIT_COMMITTER_EMAIL: ui-test@example.com
     cmds:
-      # Each script starts from a fresh copy of the project (scripts save and rename things) and
-      # tests/ui/settings.ini (the defaults, but opening scripts runs nothing), in a scratch file:
-      # never your editor.ini
-      - for: { var: UI_SCRIPTS }
-        cmd: 'rm -rf {{.BUILD_DIR}}/ui_project {{.BUILD_DIR}}/ui_archive && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project && cp tests/ui/settings.ini {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}} {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
-    vars:
+      # tools/ui_tests.sh: each script in build/ui_tests/tiled/<script>/ with a fresh copy of the
+      # project and of tests/ui/settings.ini (never your editor.ini), on SDL's offscreen driver;
+      # results and times per script, then a summary; a failing script keeps its folder and log
+      - tools/ui_tests.sh --jobs "{{.JOBS}}" --size 640x660 --name tiled {{.BUILD_DIR}}/{{.NAME}} {{.UI_SCRIPTS}}
+    vars: &ui_vars
       UI_SCRIPTS:
-        sh: echo "${SCRIPT:-$(ls tests/ui/*.script)}"
+        # One line: the command takes them as arguments
+        sh: echo ${SCRIPT:-$(ls tests/ui/*.script)}
+      JOBS: '{{.JOBS | default ""}}'
 
   test:ui:fullscreen:
-    desc: The UI test scripts in a fullscreen editor (the wide layouts a tiled window never gets); SCRIPT=<file> runs one
-    deps: [box2d, sdl, prebuilt, ols, shadertools]
-    env:
-      # The Git tab's script commits: a name and email, whatever git is set up with
-      GIT_AUTHOR_NAME: UI test
-      GIT_AUTHOR_EMAIL: ui-test@example.com
-      GIT_COMMITTER_NAME: UI test
-      GIT_COMMITTER_EMAIL: ui-test@example.com
+    desc: The UI test scripts headless in a 1280x720 window, like a fullscreen one (the wide layouts a tiled window never gets); SCRIPT= and JOBS= as for test:ui
+    deps: [build, prebuilt, ols, shadertools]
+    env: *ui_env
     cmds:
-      - mkdir -p {{.BUILD_DIR}}
-      - odin build . {{.COLLECTIONS}} {{.VET}} -debug -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/{{.NAME}}_fullscreen {{.ICON_RESOURCE}}
-      - for: { var: UI_SCRIPTS }
-        cmd: 'rm -rf {{.BUILD_DIR}}/ui_project {{.BUILD_DIR}}/ui_archive && cp -r {{.UI_PROJECT}} {{.BUILD_DIR}}/ui_project && cp tests/ui/settings.ini {{.BUILD_DIR}}/ui_settings.ini && {{.BUILD_DIR}}/{{.NAME}}_fullscreen {{.BUILD_DIR}}/ui_project --script {{.ITEM}} --settings {{.BUILD_DIR}}/ui_settings.ini'
+      - tools/ui_tests.sh --jobs "{{.JOBS}}" --size 1280x720 --name fullscreen {{.BUILD_DIR}}/{{.NAME}} {{.UI_SCRIPTS}}
+    vars: *ui_vars
+
+  test:ui:visible:
+    desc: The UI test scripts one at a time in a real editor window on your desktop, to watch them (FULLSCREEN=true for a fullscreen editor); SCRIPT=<file> runs one
+    deps: [build, prebuilt, ols, shadertools]
+    env: *ui_env
+    cmds:
+      - |
+        {{if eq .FULLSCREEN "true"}}odin build . {{.COLLECTIONS}} {{.VET}} -debug -define:EDITOR_FULLSCREEN=true -out:{{.BUILD_DIR}}/{{.NAME}}_fullscreen {{.ICON_RESOURCE}}
+        {{end}}tools/ui_tests.sh --visible --name visible {{.BUILD_DIR}}/{{.NAME}}{{if eq .FULLSCREEN "true"}}_fullscreen{{end}} {{.UI_SCRIPTS}}
     vars:
       UI_SCRIPTS:
-        sh: echo "${SCRIPT:-$(ls tests/ui/*.script)}"
+        # One line: the command takes them as arguments
+        sh: echo ${SCRIPT:-$(ls tests/ui/*.script)}
+      FULLSCREEN: '{{.FULLSCREEN | default "false"}}'
 
   build:
     desc: Debug build into build/

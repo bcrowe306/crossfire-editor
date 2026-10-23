@@ -2,7 +2,6 @@ package crossfire_editor
 
 import "base:runtime"
 import "core:fmt"
-import "core:hash"
 import vmem "core:mem/virtual"
 import "core:os"
 import "core:path/filepath"
@@ -190,8 +189,7 @@ ExportSession_Destroy :: proc(state: ^State) {
 @(private="file")
 exportInput :: proc(state: ^State, target: ExportTarget, allocator := context.allocator) -> ExportInput {
 	projectDir := absolutePath(state.project.rootPath)
-	folder := fmt.tprintf("%s-%x", sanitize(filepath.base(projectDir)), hash.fnv32a(transmute([]byte)projectDir))
-	workDir := absolutePath(joinPath(EXPORT_WORK_DIR, folder, allocator = context.temp_allocator))
+	workDir := absolutePath(joinPath(EXPORT_WORK_DIR, projectBuildFolder(projectDir), allocator = context.temp_allocator))
 	_ = os.make_directory_all(workDir)
 	// The folder exists now, so this is absolute
 	workDir = absolutePath(workDir)
