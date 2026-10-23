@@ -195,7 +195,7 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
 	}
 	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 
 	// Where it goes: by its parent's layout, or its anchor
 	parent := node.parent >= 0 ? &scene.nodes[node.parent] : nil

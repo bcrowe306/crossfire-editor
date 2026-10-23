@@ -256,7 +256,7 @@ skeletonInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	scene := &s.project.scenes[s.currentScene]
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	Payload :: struct { field: SkeletonField }
 	id :: proc(field: SkeletonField, key: int) -> string { return fmt.tprintf("inspector-skel-%v-%d", field, key) }
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View {

@@ -187,7 +187,7 @@ traceInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, scene: ^SceneDef, ke
 	append(&rows, skald.text("Collision from sprite", th.color.fg, th.font.size_sm))
 	sprites := Trace_Sprites(scene, key)
 	if len(sprites) == 0 {
-		append(&rows, skald.text("Put a Sprite with an image under this body to make shapes that fit it.", th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+		append(&rows, skald.text("Put a Sprite with an image under this body to make shapes that fit it.", th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 		return rows[:]
 	}
 	settings := s.trace
@@ -210,7 +210,7 @@ traceInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, scene: ^SceneDef, ke
 		inspectorRow(ctx, "", skald.button(ctx, "Make Shapes", Msg(Collision_Traced{}),
 			id = skald.hash_id(fmt.tprintf("inspector-trace-make-%d", key)), bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm)),
 		skald.text("Traces the sprite's opaque pixels into polygon shapes under the body (replacing earlier traced ones). Detail: how far the outline may stray from the pixels; larger makes fewer, simpler shapes.",
-			th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH),
+			th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)),
 	)
 	return rows[:]
 }

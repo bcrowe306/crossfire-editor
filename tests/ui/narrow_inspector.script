@@ -1,0 +1,61 @@
+# The inspector at the right sidebar's narrowest (MIN_SIDEBAR_WIDTH, 180 px): its rows stack their
+# labels over their controls (a label beside a number field and its link button needs about 224
+# px), so nothing runs under the scrollbar, and the controls still click: the node's numbers and
+# link buttons, a particle setting's pair and its link button. Wider, they're side by side again.
+# Run with: task test:ui (and task test:ui:fullscreen)
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+send Right_Sidebar_Width 180
+wait 3
+
+scroll_into_view inspector-scroll inspector-name-{selected}
+expect clear_of_scrollbar inspector-name-{selected} inspector-scroll
+scroll_into_view inspector-scroll inspector-Position_X-{selected}-inc
+expect clear_of_scrollbar inspector-Position_X-{selected}-inc inspector-scroll
+scroll_into_view inspector-scroll inspector-link-Position
+expect clear_of_scrollbar inspector-link-Position inspector-scroll
+scroll_into_view inspector-scroll inspector-Rotation-{selected}-inc
+expect clear_of_scrollbar inspector-Rotation-{selected}-inc inspector-scroll
+scroll_into_view inspector-scroll inspector-link-Scale
+expect clear_of_scrollbar inspector-link-Scale inspector-scroll
+scroll_into_view inspector-scroll inspector-Layer-{selected}-inc
+expect clear_of_scrollbar inspector-Layer-{selected}-inc inspector-scroll
+scroll_into_view inspector-scroll inspector-Position_X-{selected}-inc
+click_widget inspector-Position_X-{selected}-inc
+expect field x 641
+click_widget inspector-link-Position
+expect linked Position true
+click_widget inspector-Position_X-{selected}-dec
+expect field x 640
+click_widget inspector-link-Position
+expect linked Position false
+scroll_into_view inspector-scroll inspector-Z_Index-{selected}-inc
+expect clear_of_scrollbar inspector-Z_Index-{selected}-inc inspector-scroll
+click_widget inspector-Z_Index-{selected}-inc
+expect field z 1
+key ctrl+z
+expect field z 0
+
+# A particle emitter's pairs (a link button beside the label) and its sliders
+key escape
+key ctrl+shift+a
+type ParticleEmitter
+key RETURN
+expect selected ParticleEmitter
+scroll_into_view inspector-scroll inspector-particle-link-size
+expect clear_of_scrollbar inspector-particle-link-size inspector-scroll
+expect clear_of_scrollbar inspector-particle-size-x-{selected} inspector-scroll
+click_widget inspector-particle-link-size
+expect particle_linked size true
+
+# Wide enough again: side by side, still clear of the scrollbar
+send Right_Sidebar_Width 260
+wait 3
+select_node Spaceship
+scroll_into_view inspector-scroll inspector-link-Position
+expect clear_of_scrollbar inspector-link-Position inspector-scroll
+expect clear_of_scrollbar inspector-Position_X-{selected}-inc inspector-scroll

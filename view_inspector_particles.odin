@@ -66,9 +66,15 @@ particleInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 			// The link button goes with the label: beside the sliders it ran into the scrollbar
 			// strip in a narrow inspector (a click there paged the inspector instead)
 			th := ctx.theme
-			append(&rows, skald.row(
-				skald.col(tipLabel(ctx, field.label, skald.text(field.label, th.color.fg_muted, th.font.size_sm), tip), linkButton(ctx, s, field, index), spacing = 2, width = INSPECTOR_LABEL_WIDTH),
-				control, spacing = th.spacing.sm, cross_align = .Center))
+			label := tipLabel(ctx, field.label, skald.text(field.label, th.color.fg_muted, th.font.size_sm), tip)
+			// Stacked, the button goes beside the label
+			labelled: skald.View
+			if inspectorStacked {
+				labelled = skald.row(label, linkButton(ctx, s, field, index), spacing = th.spacing.sm, cross_align = .Center)
+			} else {
+				labelled = skald.col(label, linkButton(ctx, s, field, index), spacing = 2)
+			}
+			append(&rows, inspectorLabelled(ctx, labelled, control))
 		} else {
 			append(&rows, inspectorRow(ctx, field.label, control, tip))
 		}

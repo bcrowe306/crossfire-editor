@@ -318,6 +318,18 @@ Skald is not immediate-mode and not a retained widget tree:
   (`LinkedAxis`; from 0 it moves by the same amount). Number widths leave room for that button:
   anything spilling into the reserved scrollbar strip is covered by the scrollbar and can't be
   clicked.
+  **A narrow inspector stacks its rows** (`Inspector_Layout`, from the sidebar's width and the
+  theme): when a label column beside a number field and its link button doesn't fit
+  (`NumberField_MinWidth` + `LINK_BUTTON_WIDTH`: about 224 px of sidebar at the default look),
+  `inspectorRow` / `inspectorLabelled` put the label over the control, which gets the row's
+  whole width. It was a floor of 80 px under `controlWidth`, but a number field is never drawn
+  narrower than about 80 px with its buttons: at the 180 px minimum every number row ran under
+  the scrollbar, the linked rows below about 235. `inspectorStacked` is set while the right
+  sidebar is built (`rightSidebarView`), so rows elsewhere never stack. Widths: every inspector
+  takes `inspectorControlWidth(th, sidebarWidth)`, and a whole row (text across it, a row of
+  buttons) `inspectorRowWidth(controlWidth)`, never `controlWidth + INSPECTOR_LABEL_WIDTH`.
+  Tests: `narrow_inspectors_stack_their_rows`, `tests/ui/narrow_inspector.script` (180 px:
+  numbers, link buttons, a particle pair, clear of the scrollbar and clicked).
   **Every inspector row must fit `controlWidth`**: it happened three times (the link button, the
   script Open button beside a dropdown held at its minimum width, the Camera's limit checkbox
   beside a number field held at `NumberField_MinWidth`). Put extra buttons on their own row, and
@@ -1908,7 +1920,8 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   still aren't rewritten.
 - **The Limits rows fit controlWidth:** checkbox and number in one row only when the number
   gets `NumberField_MinWidth` (a numberField is never drawn narrower: a 40 px box and two step
-  buttons); in a narrower inspector the number goes under its checkbox (`stacked`). camera.script
+  buttons); in a narrower control the number goes under its checkbox (`stacked`; since the
+  inspector stacks its rows under about 224 px, that's only with bigger fonts). camera.script
   checks at a 215 px sidebar (`send Right_Sidebar_Width`, `clear_of_scrollbar`).
 - **Viewport:** the preview builds cameras without the settings (`toSceneData` leaves `camera`
   zero: no target, no limits), so the camera stays where it's placed and parallax shows the scene

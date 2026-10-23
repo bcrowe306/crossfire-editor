@@ -89,7 +89,7 @@ lineInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 	l := node.line
 	d := e.DEFAULT_LINE_SETTINGS
 	trail := node.kind == .Trail2D
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	Payload :: struct { field: LineField }
 	id :: proc(field: LineField, key: int) -> string { return fmt.tprintf("inspector-line-%v-%d", field, key) }
 	slider :: proc(ctx: ^skald.Ctx(Msg), field: LineField, key: int, value, lo, hi, step, def: f32, decimals: int, width: f32) -> skald.View {

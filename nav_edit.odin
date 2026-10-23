@@ -67,7 +67,7 @@ The inspector's rows for a NavRegion or a NavAgent.
 navInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	n := node.nav
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: NavField, value: f32, step: f32, decimals: int, width: f32, lo: f64 = 0, hi: f64 = 100000) -> skald.View {
 		return numberField(ctx, s, fmt.tprintf("inspector-nav-%v-%d", field, key), NavNumberTarget(field), f64(value), f64(step), decimals, width, lo, hi)
 	}

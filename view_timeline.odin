@@ -399,7 +399,7 @@ animatorInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 	tracks := 0
 	for c in a.clips do tracks += len(c.tracks)
 	summary := len(a.clips) == 0 ? "No clips yet" : fmt.tprintf("%d clip%s, %d track%s", len(a.clips), len(a.clips) == 1 ? "" : "s", tracks, tracks == 1 ? "" : "s")
-	append(&rows, skald.text(summary, th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+	append(&rows, skald.text(summary, th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  Edit in the Timeline", ICON_FILM), Msg(Bottom_Tab_Changed(int(BottomTab.Timeline))),
 		id = skald.hash_id(fmt.tprintf("inspector-animator-timeline-%d", key)), padding = {th.spacing.sm, 2}, font_size = th.font.size_sm))
 	return rows[:]

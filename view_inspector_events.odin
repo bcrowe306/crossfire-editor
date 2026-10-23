@@ -47,7 +47,7 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 		cross_align = .Center,
 	))
 	if !open do return rows[:]
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	shown := make([dynamic]int, context.temp_allocator)
 	// One event: its name (the description on hover), Listen..., its listeners
 	event :: proc(ctx: ^skald.Ctx(Msg), s: ^State, rows: ^[dynamic]skald.View, shown: ^[dynamic]int, node: ^NodeDef, ev: e.NodeEventInfo, global, label, key: string, listen: Msg, width: f32) {

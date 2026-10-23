@@ -61,8 +61,8 @@ key ctrl+a
 type -64
 key RETURN
 expect cam limitLeft -64
-# The row (a checkbox and a number) fits the inspector: nothing under its scrollbar, in the
-# narrowest inspector too (where the number goes under its checkbox), and still clickable there
+# The row (a checkbox and a number) fits the inspector: nothing under its scrollbar, in a narrow
+# inspector too (215 px: its rows stack their labels over their controls), and still clickable there
 expect clear_of_scrollbar inspector-camera-Limit_Left-{selected}-inc inspector-scroll
 send Right_Sidebar_Width 215
 wait 3

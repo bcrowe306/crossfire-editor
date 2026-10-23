@@ -81,7 +81,7 @@ use **File > Open Project** (Ctrl+O). See [Projects](projects.md).
 | **Preview** (under the browser) | What the selected file is: an image's picture and size, a sound you can play, a scene's facts and its settings |
 | **Viewport** (middle) | The open scene, drawn the way the game draws it. Click a node to select it, drag it to move it. Each open scene has a tab above it |
 | **Scene tree** (right, top) | Every node of the open scene, children indented under their parents |
-| **Inspector** (right, bottom) | The selected node's settings: its name, position, rotation, scale, and what its kind has (an image, a text, a sound...) |
+| **Inspector** (right, bottom) | The selected node's settings: its name, position, rotation, scale, and what its kind has (an image, a text, a sound...). Made narrow, it puts each setting's name above its control |
 | **Bottom panel** | Tabs: **Console** (messages from the editor and your game), **Output** (building), **Animation**, **Mixer**, **Git**, **Tiles**, **Timeline**, **Live**, **States**, **Dialogue**, **Plugins**. Ctrl+J shows or hides it |
 | **Status bar** (bottom) | The project's name, **Modified** or **Saved**, the open scene, its node count, what's selected, the tool, whether the game is playing, and the game's screen size |
 

@@ -187,7 +187,7 @@ themeInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	t := &s.project.themes[s.themeSelection]
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
-	controlWidth := min(max(sidebarWidth - th.spacing.md * 2 - INSPECTOR_LABEL_WIDTH - th.spacing.sm - INSPECTOR_SCROLLBAR_WIDTH, 80), INSPECTOR_MAX_TEXT_WIDTH)
+	controlWidth := min(inspectorControlWidth(th, sidebarWidth), INSPECTOR_MAX_TEXT_WIDTH)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows,
 		skald.text(fmt.tprintf("%s  %s", ICON_PALETTE, filepath.stem(filepath.stem(t.path))), th.color.fg, th.font.size_md),
@@ -197,7 +197,7 @@ themeInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, skald.checkbox(ctx, isProject, "The whole project's theme", proc(v: bool) -> Msg { return Theme_Project_Set(v) },
 		id = skald.hash_id("theme-project")))
 	append(&rows, skald.text(isProject ? "Every control uses it unless it or a parent names another." : "Controls use it when they (or a parent) name it in their Theme.",
-		th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+		th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	append(&rows, skald.divider(ctx))
 	fonts := make([dynamic]string, context.temp_allocator)
 	append(&fonts, THEME_FONT_DEFAULT)

@@ -185,7 +185,7 @@ tileMapInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 	small :: proc(ctx: ^skald.Ctx(Msg), text: string, color: skald.Color, width: f32) -> skald.View {
 		return skald.text(text, color, ctx.theme.font.size_xs, max_width = width)
 	}
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	// Aseprite files with tilemap layers, then the other ones
 	files := make([dynamic]string, context.temp_allocator)
 	append(&files, TEXTURE_NONE)

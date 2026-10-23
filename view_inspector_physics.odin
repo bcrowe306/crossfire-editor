@@ -272,7 +272,7 @@ dataInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	index := s.dataSelection
 	data := &s.project.data[index]
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
-	controlWidth := min(max(sidebarWidth - th.spacing.md * 2 - INSPECTOR_LABEL_WIDTH - th.spacing.sm - INSPECTOR_SCROLLBAR_WIDTH, 80), INSPECTOR_MAX_TEXT_WIDTH)
+	controlWidth := min(inspectorControlWidth(th, sidebarWidth), INSPECTOR_MAX_TEXT_WIDTH)
 	numberWidth := min(controlWidth, INSPECTOR_MAX_NUMBER_WIDTH)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows,

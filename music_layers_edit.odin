@@ -136,7 +136,7 @@ musicLayerRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlW
 			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {th.spacing.xs, 1})
 		append(&rows,
 			skald.row(skald.text(fmt.tprintf("Layer %d", i + 1), th.color.fg_muted, th.font.size_xs), skald.flex(1, skald.spacer(0)), remove,
-				cross_align = .Center, width = controlWidth + INSPECTOR_LABEL_WIDTH),
+				cross_align = .Center, width = inspectorRowWidth(controlWidth)),
 			inspectorRow(ctx, "Layer name", skald.text_input(ctx, l.name, i, onName, id = key(i, "name"), width = controlWidth,
 				placeholder = "drums", padding = InspectorFieldPadding(ctx))),
 			inspectorRow(ctx, "Layer music", skald.select(ctx, l.sound == "" ? TEXTURE_NONE : l.sound, choices[:], i, onSound,
@@ -155,6 +155,6 @@ musicLayerRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlW
 	append(&rows, inspectorRow(ctx, "", skald.tooltip(ctx, add, "A music file that plays in step with this one (a stem: drums, strings); fade it from a script",
 		id = skald.hash_id("inspector-layer-add-tip"))))
 	append(&rows, skald.text("Layers play in step with the music in the game, at their volume times the player's. Scripts fade them: e.MusicPlayer_SetLayerVolume(music, \"drums\", 1, seconds = 2).",
-		th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+		th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	return rows[:]
 }

@@ -96,7 +96,7 @@ touchInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	t := node.touch
 	d := e.TouchControl_Defaults(node.kind)
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	joystick := node.kind == .VirtualJoystick
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32, warning := false) -> skald.View {
 		return skald.text(text, warning ? ctx.theme.color.warning : ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)

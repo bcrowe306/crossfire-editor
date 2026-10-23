@@ -22,6 +22,10 @@ Right sidebar: the current scene's node tree above an inspector for the selected
 The divider between them can be dragged.
 */
 rightSidebarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	// A narrow inspector stacks its rows' labels over their controls, while it's built
+	_, right := FittedSidebarWidths(&s.layout)
+	_, inspectorStacked = Inspector_Layout(ctx.theme, right)
+	defer inspectorStacked = false
 	return skald.split(ctx,
 		first = sceneTreeView(s, ctx),
 		second = inspectorView(s, ctx),
@@ -360,7 +364,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	// Content inside a scroll view isn't width-limited, so size controls from the sidebar width
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
-	controlWidth := max(sidebarWidth - th.spacing.md * 2 - INSPECTOR_LABEL_WIDTH - th.spacing.sm - INSPECTOR_SCROLLBAR_WIDTH, 80)
+	controlWidth := inspectorControlWidth(th, sidebarWidth)
 	// Room for the link button next to X/Y fields, so it never ends up under the scrollbar
 	numberWidth := min(controlWidth - LINK_BUTTON_WIDTH - th.spacing.xs, INSPECTOR_MAX_NUMBER_WIDTH)
 	controlWidth = min(controlWidth, INSPECTOR_MAX_TEXT_WIDTH)
@@ -469,7 +473,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			} else if set := AsepriteEdit_AnimationSet(s.project.rootPath, node.animationSet); set != nil {
 				animations = set.animations[:]
 			} else {
-				append(&rows, skald.text(fmt.tprintf("%s can't be read.", node.animationSet), th.color.warning, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+				append(&rows, skald.text(fmt.tprintf("%s can't be read.", node.animationSet), th.color.warning, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 			}
 		}
 		choices := make([dynamic]string, context.temp_allocator)
@@ -598,14 +602,62 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // A label column and its control
 @(private="package")
 inspectorRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View, tip := "") -> skald.View {
-	th := ctx.theme
 	// Hovering the label explains the setting (tooltips.odin; `tip` adds to it)
+	return inspectorLabelled(ctx, tipLabel(ctx, label, skald.text(label, ctx.theme.color.fg_muted, ctx.theme.font.size_sm), tip), control)
+}
+
+/*
+A label (any view: a text, or a text with a button under it) and its control: side by side, the
+label in its column of INSPECTOR_LABEL_WIDTH, or in a narrow inspector (`inspectorStacked`) the
+label over the control, which then has the row's whole width.
+*/
+inspectorLabelled :: proc(ctx: ^skald.Ctx(Msg), label, control: skald.View) -> skald.View {
+	th := ctx.theme
+	if inspectorStacked do return skald.col(label, control, spacing = 2)
 	return skald.row(
-		skald.col(tipLabel(ctx, label, skald.text(label, th.color.fg_muted, th.font.size_sm), tip), width = INSPECTOR_LABEL_WIDTH),
+		skald.col(label, width = INSPECTOR_LABEL_WIDTH),
 		control,
 		spacing = th.spacing.sm,
 		cross_align = .Center,
 	)
+}
+
+// The inspector's rows stack their labels over their controls (set while the right sidebar is
+// built: `Inspector_Layout`)
+@(private="package")
+inspectorStacked: bool
+
+/*
+How the inspector lays out its rows at a sidebar width: a label column beside the controls, or,
+when that leaves a control less than a number field with a link button needs
+(`NumberField_MinWidth`: it's never drawn narrower, and anything past the width runs under the
+scrollbar), labels over the controls.
+
+Inputs:
+- th: The theme (the number field's buttons and the spacing follow it)
+- sidebarWidth: The right sidebar's width
+
+Returns:
+- controlWidth: The width a row's control has (before the rows' caps, INSPECTOR_MAX_TEXT_WIDTH)
+- stacked: Labels go over their controls
+*/
+Inspector_Layout :: proc(th: ^skald.Theme, sidebarWidth: f32) -> (controlWidth: f32, stacked: bool) {
+	inner := sidebarWidth - th.spacing.md * 2 - INSPECTOR_SCROLLBAR_WIDTH
+	beside := inner - INSPECTOR_LABEL_WIDTH - th.spacing.sm
+	needed := NumberField_MinWidth(th) + LINK_BUTTON_WIDTH + th.spacing.xs
+	if beside >= needed do return beside, false
+	return max(inner, needed), true
+}
+
+// The width a row's control has at a sidebar width (`Inspector_Layout`)
+inspectorControlWidth :: proc(th: ^skald.Theme, sidebarWidth: f32) -> f32 {
+	width, _ := Inspector_Layout(th, sidebarWidth)
+	return width
+}
+
+// A whole row's width (text spanning it, a row of buttons), from its control's width
+inspectorRowWidth :: proc(controlWidth: f32) -> f32 {
+	return inspectorStacked ? controlWidth : controlWidth + INSPECTOR_LABEL_WIDTH
 }
 
 /*
@@ -678,7 +730,8 @@ linkSpace :: proc(ctx: ^skald.Ctx(Msg), field: skald.View) -> skald.View {
 	return skald.row(field, skald.spacer(LINK_BUTTON_WIDTH), spacing = ctx.theme.spacing.xs)
 }
 
-@(private="file")
+// The X/Y link button's width (beside Position X and Scale X)
+@(private="package")
 LINK_BUTTON_WIDTH :: 20
 
 /*

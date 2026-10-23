@@ -80,7 +80,7 @@ cameraToolInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef,
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	c := node.cameraTools
 	d := e.DEFAULT_CAMERA_TOOL_SETTINGS
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	Payload :: struct { field: CameraToolField }
 	slide :: proc(p: Payload, v: f32) -> Msg { return Camera_Tool_Changed{field = p.field, value = v} }
 	check :: proc(ctx: ^skald.Ctx(Msg), key: int, field: CameraToolField, value: bool) -> skald.View {

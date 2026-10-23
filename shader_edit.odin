@@ -281,7 +281,7 @@ vectors), notes. A ScreenEffect's also say whether it covers the screen layers. 
 shaderInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth: f32) -> []skald.View {
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	screen := node.kind == .ScreenEffect
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32, warning := false) -> skald.View {
 		return skald.text(text, warning ? ctx.theme.color.warning : ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
@@ -365,8 +365,7 @@ shaderInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 @(private="file")
 shaderParamRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
 	th := ctx.theme
-	return skald.row(skald.col(skald.text(label, th.color.fg_muted, th.font.size_sm), width = INSPECTOR_LABEL_WIDTH), control,
-		spacing = th.spacing.sm, cross_align = .Center)
+	return inspectorLabelled(ctx, skald.text(label, th.color.fg_muted, th.font.size_sm), control)
 }
 
 // A Shader asset's browser preview: what it is, its parameters, Edit, who uses it

@@ -388,7 +388,7 @@ stateMachineInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDe
 	append(&rows, inspectorRow(ctx, "Animates", skald.select(ctx, sm.target == "" ? TARGET_PARENT : sm.target, targets[:], proc(v: string) -> Msg { return SM_Changed{op = .Target_Set, text = v} },
 		id = skald.hash_id(fmt.tprintf("inspector-sm-target-%d", key)), width = controlWidth)))
 	if States_Target(scene, key) < 0 {
-		append(&rows, skald.text("It animates no AnimatedSprite: states' animations do nothing (scripts still read its state).", th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+		append(&rows, skald.text("It animates no AnimatedSprite: states' animations do nothing (scripts still read its state).", th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	}
 	append(&rows, skald.text(fmt.tprintf("%d states, %d transitions, %d parameters", len(sm.states), len(sm.transitions), len(sm.params)), th.color.fg_muted, th.font.size_xs))
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  Edit in the States tab", ICON_SITEMAP), Msg(Bottom_Tab_Changed(int(BottomTab.States))),

@@ -364,7 +364,7 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 	} else {
 		// What it builds: the level (or the world), as the viewport shows it, and what it is
 		append(&rows, ldtkThumbnailView(ctx, s, .Inspector, settings.file, settings.level, settings.allLevels, 260, 120))
-		append(&rows, ..ldtkLevelRows(ctx, s, project, settings, controlWidth + INSPECTOR_LABEL_WIDTH))
+		append(&rows, ..ldtkLevelRows(ctx, s, project, settings, inspectorRowWidth(controlWidth)))
 	}
 
 	// Collision from an IntGrid layer
@@ -392,7 +392,7 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 		inspectorRow(ctx, "Background", flag(ctx, key, "background", .Background, settings.background)),
 		inspectorRow(ctx, "Smooth tiles", flag(ctx, key, "smooth", .Smooth_Tiles, settings.smoothTiles)),
 	)
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	// How the engine builds it: each layer and what it becomes
 	append(&rows, ..ldtkBuildRows(ctx, s, project, settings, width))
 

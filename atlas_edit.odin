@@ -233,14 +233,14 @@ atlasInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	def := &s.project.atlases[s.atlasSelection]
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
-	controlWidth := min(max(sidebarWidth - th.spacing.md * 2 - INSPECTOR_LABEL_WIDTH - th.spacing.sm - INSPECTOR_SCROLLBAR_WIDTH, 80), INSPECTOR_MAX_TEXT_WIDTH)
+	controlWidth := min(inspectorControlWidth(th, sidebarWidth), INSPECTOR_MAX_TEXT_WIDTH)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_IMAGE, filepath.base(def.path)), th.color.fg, th.font.size_sm))
 	picture := [2]int{}
 	for r in def.data.regions do picture = {max(picture.x, r.rect[0] + r.rect[2]), max(picture.y, r.rect[1] + r.rect[3])}
 	append(&rows, skald.text(len(def.data.regions) == 0 ? "No images yet: add the project's images below. Sprites then draw one of them from the packed picture." :
 		fmt.tprintf("%d image%s packed into %s (at least %d x %d).", len(def.data.regions), len(def.data.regions) == 1 ? "" : "s", def.data.image, picture.x, picture.y),
-		th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+		th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	// The project's images not in it yet (atlases' own pictures left out)
 	choices := make([dynamic]string, context.temp_allocator)
 	append(&choices, ATLAS_ADD_PROMPT)
@@ -255,7 +255,7 @@ atlasInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		remove := skald.button(ctx, ICON_XMARK, Msg(Atlas_Image_Removed(i)), id = skald.hash_id(fmt.tprintf("atlas-remove-%d", i)),
 			bg = th.color.surface, fg = th.color.fg_muted, padding = {th.spacing.sm, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
 		append(&rows, skald.row(
-			skald.text(fmt.tprintf("%s  %d x %d", r.name, r.rect[2], r.rect[3]), th.color.fg, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH - 40),
+			skald.text(fmt.tprintf("%s  %d x %d", r.name, r.rect[2], r.rect[3]), th.color.fg, th.font.size_xs, max_width = inspectorRowWidth(controlWidth) - 40),
 			skald.flex(1, skald.spacer(0)),
 			skald.tooltip(ctx, remove, fmt.tprintf("Take %s out of the atlas (the image stays in the project)", r.source), id = skald.hash_id(fmt.tprintf("atlas-remove-tip-%d", i))),
 			cross_align = .Center,
@@ -266,7 +266,7 @@ atlasInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, inspectorRow(ctx, "Filtering", textureFilterSelect(ctx, def.data.filter, "atlas-filter", false, on)))
 	append(&rows, skald.button(ctx, "Pack Again", Msg(Atlas_Pack_Requested{}), id = skald.hash_id("atlas-pack"),
 		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
-	append(&rows, skald.text("Packs the images again (after they changed). Adding or removing one packs at once.", th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+	append(&rows, skald.text("Packs the images again (after they changed). Adding or removing one packs at once.", th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	return skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.md, cross_align = .Stretch)
 }
 

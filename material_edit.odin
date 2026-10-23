@@ -195,7 +195,7 @@ materialInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	m := &s.project.materials[s.materialSelection]
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
-	controlWidth := min(max(sidebarWidth - th.spacing.md * 2 - INSPECTOR_LABEL_WIDTH - th.spacing.sm - INSPECTOR_SCROLLBAR_WIDTH, 80), INSPECTOR_MAX_TEXT_WIDTH)
+	controlWidth := min(inspectorControlWidth(th, sidebarWidth), INSPECTOR_MAX_TEXT_WIDTH)
 	d := e.DEFAULT_PHYSICS_MATERIAL
 	Payload :: struct { field: MaterialField }
 	slide :: proc(p: Payload, v: f32) -> Msg { return Material_Field_Changed{p.field, v} }
@@ -204,13 +204,13 @@ materialInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.text(fmt.tprintf("%s  %s", ICON_CUBE, filepath.stem(filepath.stem(m.path))), th.color.fg, th.font.size_md),
 		skald.text(fmt.tprintf("Physics material  ·  %s", m.path), th.color.fg_muted, th.font.size_xs, max_width = 260),
 		skald.text(users == 0 ? "No body uses it yet: choose it in a body's Material." : fmt.tprintf("Used by %d bod%s.", users, users == 1 ? "y" : "ies"),
-			th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH),
+			th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)),
 		skald.divider(ctx),
 		inspectorRow(ctx, "Friction", valueSlider(ctx, "material-friction", m.material.friction, Payload{.Friction}, slide, 0, 1, step = 0.01, decimals = 2, defaultValue = d.friction, width = controlWidth)),
 		inspectorRow(ctx, "Bounce", valueSlider(ctx, "material-restitution", m.material.restitution, Payload{.Restitution}, slide, 0, 1, step = 0.01, decimals = 2, defaultValue = d.restitution, width = controlWidth)),
 		inspectorRow(ctx, "Density", valueSlider(ctx, "material-density", m.material.density, Payload{.Density}, slide, 0, 10, step = 0.05, decimals = 2, defaultValue = d.density, width = controlWidth)),
 		skald.text("Friction: 0 ice, 1 rubber. Bounce: 0 none, 1 back as high. Density: kg per 100 x 100 px, for falling bodies' mass.",
-			th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH),
+			th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)),
 		spacing = th.spacing.xs,
 		padding = th.spacing.md,
 	)
@@ -238,11 +238,11 @@ materialBodyRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: i
 	index := Project_FindMaterial(&s.project, node.material)
 	if index < 0 {
 		append(&rows, skald.text(fmt.tprintf("%s isn't one of the project's materials: the body's own values are used.", node.material),
-			th.color.warning, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+			th.color.warning, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 		return rows[:], false
 	}
 	m := s.project.materials[index].material
 	append(&rows, skald.text(fmt.tprintf("Friction %.2f, bounce %.2f, density %.2f from the material (select it in the browser to change them).", m.friction, m.restitution, m.density),
-		th.color.fg_muted, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+		th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	return rows[:], true
 }

@@ -394,7 +394,7 @@ asepriteSpriteRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 	if path == "" do return rows[:]
 	ase := AsepriteEdit_File(s.project.rootPath, path)
 	if ase == nil do return rows[:]
-	width := controlWidth + INSPECTOR_LABEL_WIDTH
+	width := inspectorRowWidth(controlWidth)
 	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
 	append(&rows, skald.text(fmt.tprintf("%s  Aseprite: %s", ICON_IMAGE, filepath.base(path)), th.color.fg, th.font.size_sm, max_width = width))
 	// Layers: ticked are drawn (none named: every visible one)
@@ -463,6 +463,6 @@ sliceShapeRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int
 	append(&rows, inspectorRow(ctx, "Slice", skald.select(ctx, node.slice == "" ? SLICE_NONE : node.slice, choices[:], NodeTextField.Slice, onText,
 		id = skald.hash_id(fmt.tprintf("inspector-slice-%d", key)), width = controlWidth)))
 	note := sprite >= 0 ? fmt.tprintf("Follows %s's Aseprite slice frame by frame (a hitbox); off where it's hidden.", scene.nodes[sprite].name) : "No sprite showing an Aseprite file near it: the slice does nothing."
-	append(&rows, skald.text(note, sprite >= 0 ? th.color.fg_muted : th.color.warning, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+	append(&rows, skald.text(note, sprite >= 0 ? th.color.fg_muted : th.color.warning, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	return rows[:]
 }

@@ -153,7 +153,7 @@ cameraInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 	for _, i in scene.nodes do if i != key do append(&targets, Scene_NodePath(scene, key, i, context.temp_allocator))
 	append(&rows, inspectorRow(ctx, "Target", select(ctx, key, .Target, node.cameraTarget == "" ? CAMERA_TARGET_NONE : node.cameraTarget, targets[:], controlWidth)))
 	if node.cameraTarget != "" && Scene_ResolvePath(scene, key, node.cameraTarget) < 0 {
-		append(&rows, skald.text(fmt.tprintf("No node at %s yet: one the game makes is found once it's there.", node.cameraTarget), th.color.warning, th.font.size_xs, max_width = controlWidth + INSPECTOR_LABEL_WIDTH))
+		append(&rows, skald.text(fmt.tprintf("No node at %s yet: one the game makes is found once it's there.", node.cameraTarget), th.color.warning, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	}
 	modes := make([]string, len(e.CameraFollowMode), context.temp_allocator)
 	for m, i in e.CameraFollowMode do modes[i] = fmt.tprintf("%v", m)
