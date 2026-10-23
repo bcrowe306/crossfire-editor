@@ -47,6 +47,9 @@ code_providers_in_a_code_tab :: proc(t: ^testing.T) {
 	_ = os.make_directory_all(folder)
 	path := absolutePath(joinPath(folder, "probe.odin", allocator = context.temp_allocator))
 	_ = os.write_entire_file(path, transmute([]u8)string(PROBE_SOURCE))
+	// Resolved again now that it exists: macOS's temporary folder is /var, a link to /private/var,
+	// and code tabs keep the resolved path
+	path = absolutePath(path)
 
 	state := State{project = Project_CreateTestProject(dir), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default(), currentScene = 1}
 	defer State_Destroy(&state)
