@@ -17,6 +17,7 @@ expect assets 4
 expect project_file assets/world/world.ldtk
 expect project_file assets/world/tiles.png
 select_asset assets/world/world.ldtk
+scroll_into_view browser-ldtk-preview browser-ldtk-open
 expect widget_visible browser-ldtk-open true
 # A double-click opens it in LDtk (the program set to `true` here, so nothing starts)
 key ctrl+comma

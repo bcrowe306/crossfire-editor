@@ -189,8 +189,9 @@ AsepriteEdit_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, i
 	ase := AsepriteEdit_File(s.project.rootPath, asset.path)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
-	// First, so a short preview panel still shows it
-	append(&rows, skald.row(
+	// Outside the scroll, between the picture and the text: in a short window (900x500) the scroll
+	// is a line tall and the buttons were half cut off at its edge
+	actions := skald.row(
 		skald.button(ctx, fmt.tprintf("%s  Open in Aseprite", ICON_IMAGE), Msg(Aseprite_Asset_Open_Requested(index)),
 			id = skald.hash_id("browser-aseprite-open"), bg = th.color.surface, fg = th.color.fg,
 			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
@@ -198,7 +199,8 @@ AsepriteEdit_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, i
 			id = skald.hash_id("browser-aseprite-animations"), bg = th.color.surface, fg = th.color.fg,
 			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
 		spacing = th.spacing.xs,
-	))
+		padding = th.spacing.xs,
+	)
 	picture: skald.View
 	if ase == nil {
 		append(&rows, skald.text(fmt.tprintf("%s couldn't be read as an Aseprite file.", asset.path), th.color.danger, th.font.size_xs, max_width = previewTextWidth))
@@ -241,7 +243,9 @@ AsepriteEdit_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, i
 	}
 	return skald.col(
 		skald.flex(3, picture),
-		skald.flex(2, skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.sm), id = skald.hash_id("browser-aseprite-preview"))),
+		actions,
+		// The picture keeps most of a short panel: the text scrolls, the buttons are above it
+		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.sm), id = skald.hash_id("browser-aseprite-preview"))),
 		cross_align = .Stretch,
 	)
 }

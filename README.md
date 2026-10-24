@@ -91,6 +91,7 @@ Run `task` to list them all.
 | `task verify` | `check` + `test` |
 | `task test:ui` | Run the UI test scripts in `tests/ui`, which drive the editor with injected input. Headless (no window: SDL's offscreen driver, 640x660 like a tiled window) and several at once: `JOBS=<n>` sets how many (half the CPUs by default; `JOBS=1` one at a time), `SCRIPT=tests/ui/animation.script` runs one. Each script gets its own copy of `tests/fixtures/ui_project` and default settings in `build/ui_tests/tiled/<script>/`; it prints each script's result and time and a summary, and a failing script's folder and log stay |
 | `task test:ui:fullscreen` | The same in a 1280x720 window, like a fullscreen one, so wide layouts are tested too (`build/ui_tests/fullscreen/`) |
+| `task test:ui:short` | The same in a short 900x500 window, where the panels are squeezed (`build/ui_tests/short/`) |
 | `task test:ui:visible` | The UI test scripts one at a time in a real editor window, to watch them (`FULLSCREEN=true` for a fullscreen editor; `SCRIPT=` for one) |
 | `task build` | Debug build into `build/crossfire-editor` |
 | `task build:release` | Optimized build into `build/release/crossfire-editor` |

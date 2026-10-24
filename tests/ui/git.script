@@ -42,10 +42,14 @@ expect console_contains Git: commit
 
 # An edit, saved: a change
 click_row browser-tree 2
+# The viewport gets the bottom panel's room: in a short window (900x500) the node is outside the view
+action Toggle_Bottom_Panel
 key ctrl+1
 click_node Spaceship
 key RIGHT
 key ctrl+s
+# The viewport gets the bottom panel's room: in a short window (900x500) the node is outside the view
+action Toggle_Bottom_Panel
 wait_until git_changes 1
 wait_until git idle
 
@@ -72,10 +76,14 @@ expect project_file_contains scenes/PlayScene.scene.xml name="Spaceship" x="640"
 
 # A change's diff, then discarding it (asked first): the file goes back, the project is read again
 click_row browser-tree 2
+# The viewport gets the bottom panel's room: in a short window (900x500) the node is outside the view
+action Toggle_Bottom_Panel
 key ctrl+1
 click_node Spaceship
 key RIGHT
 key ctrl+s
+# The viewport gets the bottom panel's room: in a short window (900x500) the node is outside the view
+action Toggle_Bottom_Panel
 wait_until git_changes 1
 wait_until git idle
 click_widget git-diff-0

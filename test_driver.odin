@@ -1221,6 +1221,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			name := strings.join(args, " ", context.temp_allocator)
 			for node, i in scene.nodes do if node.name == name do index = i
 			at, ok = ViewportNodePosition(s, ctx, index)
+			ok = ok && inViewportView(ctx, at)
 		case "right_click_world":
 			x, _ := strconv.parse_f32(args[0] if len(args) > 0 else "")
 			y, _ := strconv.parse_f32(args[1] if len(args) > 1 else "")
@@ -1247,8 +1248,8 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		name := len(args) > 0 ? args[0] : ""
 		for node, i in scene.nodes do if node.name == name do index = i
 		position, ok := ViewportNodePosition(s, ctx, index)
-		if !ok {
-			fail(fmt.tprintf("%s: no visible node '%s' in the viewport", line, name))
+		if !ok || !inViewportView(ctx, position) {
+			fail(fmt.tprintf("%s: no visible node '%s' in the viewport (outside its view: a short window?)", line, name))
 			return true
 		}
 		mods, modsOk := clickModifiers(args, 1)
@@ -1687,8 +1688,8 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		index := -1
 		for node, i in scene.nodes do if node.name == args[0] do index = i
 		start, ok := ViewportNodePosition(s, ctx, index)
-		if !ok {
-			fail(fmt.tprintf("%s: no visible node '%s' in the viewport", line, args[0]))
+		if !ok || !inViewportView(ctx, start) {
+			fail(fmt.tprintf("%s: no visible node '%s' in the viewport (outside its view: a short window?)", line, args[0]))
 			return true
 		}
 		delta := [2]f32{f32(atoi(args, 1, 0)), f32(atoi(args, 2, 0))}
@@ -3270,6 +3271,14 @@ contextItemLabels :: proc(items: []skald.Menu_Item(Msg)) -> string {
 	labels := make([dynamic]string, context.temp_allocator)
 	for item in items do if !item.separator do append(&labels, len(item.submenu) > 0 ? fmt.tprintf("%s/...", item.label) : item.label)
 	return strings.join(labels[:], ", ", context.temp_allocator)
+}
+
+// Whether a window point is in the viewport's view (the canvas inside its rulers): a node's point
+// outside it would click whatever is there (the divider, the bottom panel)
+@(private="file")
+inViewportView :: proc(ctx: ^skald.Ctx(Msg), p: [2]f32) -> bool {
+	r := ctx.widgets.states[skald.hash_id("viewport-canvas")].last_rect
+	return p.x >= r.x + RULER_SIZE && p.y >= r.y + RULER_SIZE && p.x < r.x + r.w && p.y < r.y + r.h
 }
 
 // Whether a height in a tree is inside the part of the tree's scroll area that's on screen. Rows

@@ -215,6 +215,14 @@ tasks:
       - tools/ui_tests.sh --jobs "{{.JOBS}}" --size 1280x720 --name fullscreen {{.BUILD_DIR}}/{{.NAME}} {{.UI_SCRIPTS}}
     vars: *ui_vars
 
+  test:ui:short:
+    desc: The UI test scripts headless in a short 900x500 window (a laptop with a docked panel, a tiled window cut in half), the layouts the other sizes never squeeze; SCRIPT= and JOBS= as for test:ui
+    deps: [build, prebuilt, ols, shadertools]
+    env: *ui_env
+    cmds:
+      - tools/ui_tests.sh --jobs "{{.JOBS}}" --size 900x500 --name short {{.BUILD_DIR}}/{{.NAME}} {{.UI_SCRIPTS}}
+    vars: *ui_vars
+
   test:ui:visible:
     desc: The UI test scripts one at a time in a real editor window on your desktop, to watch them (FULLSCREEN=true for a fullscreen editor); SCRIPT=<file> runs one
     deps: [build, prebuilt, ols, shadertools]

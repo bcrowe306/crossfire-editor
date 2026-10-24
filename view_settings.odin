@@ -61,7 +61,9 @@ settingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.divider(ctx),
 			// flex: the Keyboard tab's list flexes inside the content, which would otherwise be
 			// content-sized and give it no height
-			skald.col(skald.flex(1, content), height = 380, cross_align = .Stretch),
+			// 380 px, less in a short window so the buttons below stay on screen (the title, tabs
+			// and footer take about 220 px: Save was off a 500 px window)
+			skald.col(skald.flex(1, content), height = ctx.renderer != nil ? clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 380) : 380, cross_align = .Stretch),
 			skald.divider(ctx),
 			skald.row(
 				dialog.tab == .Project ? skald.spacer(0) : skald.button(ctx, "Reset to Defaults", Msg(Settings_Tab_Reset{}), id = skald.hash_id("settings-reset-tab"),

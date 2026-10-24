@@ -34,10 +34,11 @@ expect scenes MenuScene,PlayScene,Level,Level2,OptionsScene
 key DELETE
 expect scenes MenuScene,PlayScene,Level,OptionsScene
 
-# Copy Level, paste it at the end (a folder row's menu: Paste Scene)
+# Copy Level, paste it at the end (a folder row's menu: Paste Scene; row 5 is Images, near the
+# top so it's in view in a short window too)
 click_row browser-tree 3
 key ctrl+c
-right_click_row browser-tree 9
+right_click_row browser-tree 5
 expect context_menu open
 click_context_item Paste Scene
 expect scenes MenuScene,PlayScene,Level,OptionsScene,Level2

@@ -38,6 +38,7 @@ expect project_file_lacks scenes/PlayScene.scene.xml gravityY=
 
 # Another scene's preview: Set as Start makes it the start scene
 click_row browser-tree 3
+scroll_into_view preview-scene-scroll preview-scene-start
 expect widget_visible preview-scene-start true
 click_widget preview-scene-start
 expect widget_visible preview-scene-start false

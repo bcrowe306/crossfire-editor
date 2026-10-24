@@ -49,7 +49,7 @@ browserView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		if !s.layout.previewOpen {
 			return skald.col(skald.flex(1, tree), previewHeader(s, ctx), cross_align = .Stretch)
 		}
-		previewHeight := clamp(s.layout.previewHeight, MIN_PREVIEW_HEIGHT, max(size.y - MIN_BROWSER_TREE_HEIGHT - DIVIDER, MIN_PREVIEW_HEIGHT))
+		previewHeight := FittedPreviewHeight(&s.layout, size.y)
 		return skald.split(ctx,
 			first = tree,
 			second = previewPanel(s, ctx),

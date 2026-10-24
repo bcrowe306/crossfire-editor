@@ -4,6 +4,8 @@
 
 wait 5
 click_row browser-tree 2
+# The viewport gets the bottom panel's room: in a short window (900x500) the node is outside the view
+action Toggle_Bottom_Panel
 expect scene PlayScene
 expect modified false
 key ctrl+1
@@ -72,6 +74,7 @@ key escape
 expect field x 672
 
 # Linked scale: with the chain on, changing X scales Y by the same ratio
+scroll_into_view inspector-scroll inspector-Scale_X-2-inc
 click_widget inspector-link-Scale
 expect linked Scale true
 click_widget inspector-Scale_X-2-inc

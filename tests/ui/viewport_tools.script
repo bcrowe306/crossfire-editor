@@ -48,8 +48,8 @@ key ctrl+1
 expect zoom 100
 drag_world 640 360 640 360
 expect zoom 200
-drag_world 600 400 700 450
-wait_until viewport_center 650 425
+drag_world 620 345 680 385
+wait_until viewport_center 650 365
 key ctrl+0
 key w
 
@@ -77,6 +77,7 @@ expect project_file_contains .editor/guides.ini y = 150
 
 # The Align button (two or more nodes selected): its menu
 click_row scene-tree 4
+scroll_by scene-tree-scroll 60
 click_row scene-tree 9 ctrl
 expect selection 2
 click_widget panel-viewport-align

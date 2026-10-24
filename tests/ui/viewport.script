@@ -4,6 +4,8 @@
 wait 5
 click_row browser-tree 2
 expect scene PlayScene
+# The viewport gets the bottom panel's room: in a short window (900x500) the node is outside the view
+action Toggle_Bottom_Panel
 # The engine draws straight into the viewport's Skald image, on Skald's GPU device (gpu_share.odin)
 expect render_path shared
 wait 3

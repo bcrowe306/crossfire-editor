@@ -17,6 +17,7 @@ expect output_contains 1 node type: Player
 key ctrl+shift+a
 expect add_dialog open
 type Player
+scroll_into_view add-node-scroll add-node-Player
 click_widget add-node-Player
 expect add_dialog closed
 expect selected Player

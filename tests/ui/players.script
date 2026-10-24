@@ -17,7 +17,12 @@ click_widget input-players-keyboard
 scroll_into_view input-list-scroll input-players-join
 click_widget input-players-join
 # The choices: the default buttons, then the actions (ui_left, ui_right, ui_up, ui_down, ui_accept)
-click_overlay_item 5
+key RETURN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
 expect players max 4
 click_widget project-settings-apply
 expect players max 2

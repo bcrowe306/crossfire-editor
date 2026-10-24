@@ -76,6 +76,7 @@ key ctrl+z
 expect nodes 11
 
 # Paste Here: Spaceship copied, pasted at the point (its child comes along)
+scroll_by scene-tree-scroll 0
 click_row scene-tree 2
 expect selected Spaceship
 key ctrl+c

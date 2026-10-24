@@ -154,6 +154,37 @@ FittedBottomHeight :: proc(layout: ^Layout) -> f32 {
 }
 
 /*
+Scene tree height that fits in the right sidebar, leaving the inspector its minimum height: in a
+short window (900x500) the stored 280 px left the inspector about 100.
+
+Inputs:
+- layout: The panel layout, with `workspace` measured
+
+Returns:
+- The scene tree's height to use this frame
+*/
+FittedSceneTreeHeight :: proc(layout: ^Layout) -> f32 {
+	if layout.workspace.y <= 0 do return layout.sceneTreeHeight
+	return clamp(layout.sceneTreeHeight, MIN_SCENE_TREE_HEIGHT, max(layout.workspace.y - DIVIDER - MIN_INSPECTOR_HEIGHT, MIN_SCENE_TREE_HEIGHT))
+}
+
+/*
+Browser preview height that fits under the browser's tree: at most half the space they share, so
+a short window (900x500) keeps more than four rows of the tree.
+
+Inputs:
+- layout: The panel layout
+- body: The height the tree and the preview share
+
+Returns:
+- The preview's height to use this frame
+*/
+FittedPreviewHeight :: proc(layout: ^Layout, body: f32) -> f32 {
+	fit := max(min(body - MIN_BROWSER_TREE_HEIGHT - DIVIDER, (body - DIVIDER) / 2), MIN_PREVIEW_HEIGHT)
+	return clamp(layout.previewHeight, MIN_PREVIEW_HEIGHT, fit)
+}
+
+/*
 The whole editor state. Only `update` changes it.
 */
 State :: struct {

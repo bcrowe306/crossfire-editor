@@ -7,6 +7,8 @@ wait 5
 expect project Asteroids Demo
 # An unsaved change: the archive saves first, so it holds it
 click_row browser-tree 2
+# The viewport gets the bottom panel's room: in a short window (900x500) the node is outside the view
+action Toggle_Bottom_Panel
 key ctrl+1
 click_node Spaceship
 expect selected Spaceship

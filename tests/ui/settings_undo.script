@@ -4,6 +4,8 @@
 # Run with: task test:ui
 
 wait 5
+# The viewport gets the bottom panel's room: in a short window (900x500) the node is outside the view
+action Toggle_Bottom_Panel
 click_row browser-tree 2
 expect scene PlayScene
 expect undo 0
