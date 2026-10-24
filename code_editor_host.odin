@@ -204,6 +204,13 @@ CodeEditor_Open :: proc(path, scriptsDir: string, olsPath: string, configDir := 
 // The open editor of a file, or nil
 CodeEditor_Find :: proc(path: string) -> ^CodeEditor {
 	for c in host.editors do if c.path == path do return c
+	// Tabs keep the resolved path (`codeAbsolutePath`): on macOS the temporary folder /var is a link
+	// to /private/var, so a path from elsewhere (an error line, a test) may name the same file
+	// differently
+	if path == "" do return nil
+	if resolved := codeAbsolutePath(path); resolved != path {
+		for c in host.editors do if c.path == resolved do return c
+	}
 	return nil
 }
 
