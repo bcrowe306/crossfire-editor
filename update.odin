@@ -166,7 +166,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by Plugins_Update above
 	case ScriptIndex_Tick, ScriptIndex_Parsed:
 		// Handled by ScriptIndex_Update above
-	case Code_Marker_Clicked, NameTable_Loaded:
+	case Code_Usage_Opened, Code_Rename_Requested, NameTable_Loaded:
 		// Handled by CodeProviders_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
@@ -202,7 +202,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Input_Action_Moved, Input_Action_Renamed, Input_Deadzone_Changed, Input_Binding_Added, Input_Binding_Removed,
 	     Input_Capture_Started, Input_Capture_Cancelled, Input_Device_Changed:
 		// Handled by ProjectSettings_Update above
-	case Code_Tab_Selected, Code_Tab_Close_Requested, Code_Close_Chosen, Code_Open_Requested, Code_Save_Requested,
+	case Code_Tab_Selected, Code_Tab_Close_Requested, Code_Close_Chosen, Code_Open_Requested, Code_File_Edits_Requested, Code_Save_Requested,
 	     Code_Tick_Requested, Code_Tick, Code_Focused, Code_Reloaded, Code_Disk_Chosen,
 	     Code_Dialog_Requested, Code_Dialog_Picked:
 		// Handled by CodeTabs_Update above

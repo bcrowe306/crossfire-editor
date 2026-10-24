@@ -1,0 +1,116 @@
+# Code and scene links (script_links.odin, script_rename.odin): gutter markers listing every node
+# using a script and every node overriding a field, a marker's menu opening one, Find Usages in
+# the references panel, Rename Symbol (F2) carrying into the scene (one undo step there, one in
+# the code tab), and the inspector keeping a value whose field went (shown, removable).
+# Run with: task test:ui SCRIPT=tests/ui/code_links.script
+#
+# PlayScene's rows: World, Camera (1), Spaceship (2), ...
+# The new script's lines: 13 Mover :: struct {, 15 its speed field, 20 e.Script_Register(Mover, {
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Mover
+click_widget new-script-create
+expect script Mover
+expect code_tab mover.odin
+# The index describes it before any build: the inspector edits its field
+wait_until script_field Mover speed true timeout=20
+
+# Two nodes run it, each with its own speed
+scroll_into_view inspector-scroll inspector-prop-speed-2-inc
+click_widget inspector-prop-speed-2-inc
+expect prop speed 101
+click_row scene-tree 1
+expect selected Camera
+send Node_Script_Added Mover
+expect script Mover
+scroll_into_view inspector-scroll inspector-prop-speed-1-inc
+click_widget inspector-prop-speed-1-inc
+click_widget inspector-prop-speed-1-inc
+expect prop speed 102
+
+# The code: Script_Register's line lists both nodes, the field's says both override it
+click_widget code-tab-0
+expect code_tab mover.odin
+wait_until code_inlay 20 2 nodes timeout=15
+wait_until code_inlay 15 2 nodes override it timeout=15
+expect code_marker 15 true
+# A click on the marker of a line with two: a menu of them; the second opens Spaceship
+key ctrl+HOME
+key DOWN 22
+code_click_marker 20
+wait_until code_state code_actions.visible true timeout=5
+expect code_state code_actions.titles 2
+key DOWN
+key RETURN
+wait_until selected Spaceship timeout=5
+wait_until console_contains Selected Spaceship in PlayScene timeout=5
+
+# Find Usages on the field (Alt+Shift+F12): both nodes in the references panel
+click_widget code-tab-0
+wait_until code_focused true timeout=5
+key ctrl+HOME
+key DOWN 14
+key HOME
+key alt+shift+F12
+wait_until code_state refs_open true timeout=5
+expect code_state refs 2
+
+# Rename it (F2): the code here, and the values stored on both nodes
+key ESCAPE
+key F2
+wait_until code_state rename.open true timeout=5
+expect code_state rename.text speed
+type walkSpeed
+key RETURN
+wait_until code_state rename.open false timeout=5
+expect code_contains true walkSpeed: f32
+expect code_contains false speed: f32
+wait_until prop walkSpeed 101 timeout=5
+wait_until console_contains Renamed Mover's field speed to walkSpeed timeout=5
+# One undo step in the project, one in the code tab
+action Undo
+expect prop speed 101
+click_widget code-tab-0
+wait_until code_focused true timeout=5
+key ctrl+z
+expect code_contains true speed: f32
+expect code_contains false walkSpeed
+
+# Rename the type: the node's script follows
+key ctrl+HOME
+key DOWN 12
+key HOME
+key F2
+wait_until code_state rename.open true timeout=5
+type Runner
+key RETURN
+wait_until code_state rename.open false timeout=5
+expect code_contains true e.Script_Register(Runner, {
+wait_until script Runner timeout=5
+action Undo
+expect script Mover
+click_widget code-tab-0
+wait_until code_focused true timeout=5
+key ctrl+z
+expect code_contains true e.Script_Register(Mover, {
+
+# The field renamed by hand (no rename): the stored value stays, shown as kept, and × removes it
+key ctrl+HOME
+key DOWN 14
+key HOME
+key shift+RIGHT 5
+type pace
+expect code_contains true pace: f32
+wait_until script_field Mover pace true timeout=20
+scroll_into_view inspector-scroll inspector-orphan-speed-2
+expect widget_visible inspector-orphan-speed-2 true
+expect prop speed 101
+click_widget inspector-orphan-remove-speed-2
+expect prop speed (default)

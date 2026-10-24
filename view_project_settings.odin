@@ -308,13 +308,14 @@ globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		if desc == nil {
 			append(&fields, skald.text(fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), g.script), th.color.fg_muted, th.font.size_xs))
 			for p in g.props do append(&fields, settingRow(ctx, p.name, skald.text(p.value, th.color.fg_muted, th.font.size_sm)))
-		} else if len(desc.fields) == 0 {
-			append(&fields, skald.text("No exported fields (tag a field with export:\"\" to set it here).", th.color.fg_muted, th.font.size_xs))
 		} else {
+			if len(desc.fields) == 0 do append(&fields, skald.text("No exported fields (tag a field with export:\"\" to set it here).", th.color.fg_muted, th.font.size_xs))
+			key := fmt.tprintf("global%d", d.selectedGlobal)
 			for &field in desc.fields {
-				append(&fields, settingRow(ctx, field.name, FieldControl(ctx, s, g.props[:], &field, fmt.tprintf("global%d", d.selectedGlobal),
-					DraftGlobalTarget(d.selectedGlobal), 260, 120)))
+				append(&fields, settingRow(ctx, field.name, FieldControl(ctx, s, g.props[:], &field, key, DraftGlobalTarget(d.selectedGlobal), 260, 120)))
+				append(&fields, ..FieldMismatchRows(ctx, g.props[:], &field, key, DraftGlobalTarget(d.selectedGlobal), 360))
 			}
+			append(&fields, ..OrphanedValueRows(ctx, g.props[:], desc, key, DraftGlobalTarget(d.selectedGlobal), 360))
 		}
 	}
 	return skald.row(

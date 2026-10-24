@@ -40,7 +40,9 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   events and listeners; the built-in code editor (OLS completion, clickable errors, and the
   project's own completions, hovers, problems, gutter markers and drops through code_editor's
   providers; the names engine calls take, completed and checked inside their strings, with
-  quick fixes) or an external one; the script index (the scripts' declarations read from their
+  quick fixes; gutter markers listing every node using a script or setting a field, Find Usages
+  in the scenes, and renames of scripts, fields and events carried into scenes, components,
+  globals, listeners and Timeline tracks) or an external one; the script index (the scripts' declarations read from their
   source as they're typed, before any build); typed constants for assets, animations, states,
   groups, buses, scenes, dialogue nodes and node paths (scripts/assets.odin); Play / Play
   Scene / Restart, hot reload, the live view of the running game; editor plugins (plugin_api/).
@@ -95,6 +97,7 @@ add it as a task and to the README's command table.
 | `task verify` | `check` + `test` |
 | `task test:ui` | UI test scripts (`tests/ui/*.script`) driving the real editor with injected input: headless, several at once (`tools/ui_tests.sh`), in a 640x660 window like a tiled one; `SCRIPT=<file>` for one, `JOBS=<n>` workers (default half the CPUs; `JOBS=1` serial) |
 | `task test:ui:fullscreen` | The same in a 1280x720 window, like a fullscreen one |
+| `task test:ui:short` | The same in a short 900x500 window (squeezed panels: run it after layout changes) |
 | `task test:ui:visible` | The scripts one at a time in a real window on the desktop, to watch (`FULLSCREEN=true`: the `EDITOR_FULLSCREEN` build) |
 | `task build` / `task build:release` | Debug build into `build/`, optimized build into `build/release/` |
 | `task run` | Build optimized (`build/release/`) and run; program arguments after `--` |
@@ -192,7 +195,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`, through the drop provider) |
 | `script_index.odin` | **The script index**: `ScriptIndex` (`State.scriptIndex`), `ScriptIndex_ParseSource` (core:odin/parser: structs, fields with types, tags, comments, enums, `Script_Register` / `Data_Register` / `NodeType_Register` calls), `ScriptIndex_Take` (a broken file keeps its last good declarations), `ScriptIndex_Derive` (ScriptDescs like the catalog's, events, problems), `ScriptIndex_Plan` (changed files and still code tab buffers), engine calls' string literal arguments and procedures' lines (`IndexCall`, `IndexProc`: the name providers'), `ScriptIndex_Tick` / `_Parsed` (the worker), `ScriptIndex_Apply` / `_TakeBuild` (merged into `State.scripts`, the build authoritative where newer) |
 | `script_constants.odin` | **scripts/assets.odin's constants**: `Scripts_Constants` (every constant, sections, `GeneratedConstant`), `Scripts_AssetsSource` (the file), `ConstantWords` (the new kinds' names), `Constants_ChangeMatters` / `Scripts_NewestFor` (a change to unused constants doesn't rebuild the player), Aseprite tags cached on the heap |
-| `code_providers.odin` | **The code editor's providers**: `CodeProviders_Registry` (completion of the constants, hovers on constants and scripts, the index's problems, Script_Register markers and inlay hints, drops; the name providers of code_names.odin), `CodeProviders_Begin` / `_End` (the State they read), `Code_Marker_Clicked`, `scriptUsers`, `CodeProviders_Constants` (cached per project version) |
+| `code_providers.odin` | **The code editor's providers**: `CodeProviders_Registry` (completion of the constants, hovers on constants and scripts, the index's problems, drops; the name providers of code_names.odin; the link providers of script_links.odin), `CodeProviders_Begin` / `_End` (the State they read), what the providers leave for the view (`CodeProviders_TakeOpen`, `_TakeRename`), `scriptUsers`, `CodeProviders_Constants` (cached per project version) |
+| `script_links.odin` | **Code and scene links**: usages of a registered type, field or event (`ScriptLinks_TypeUsages` / `_FieldUsages` / `_EventUsages`: nodes, component instances, globals, data, Timeline tracks, listeners), the gutter markers with their choices and inlay hints, Find Usages and Rename providers, `ScriptRename_Project` (the project side of a rename; `dryRun` counts), `ScriptRename_Apply` (`Code_Rename_Requested`: the project as one `.Project` step, other files' edits in hidden code tabs), `ScriptLinks_Open` (`Code_Usage_Opened`) |
+| `script_rename.odin` | **The code side of renames**: the scripts package parsed (`CodeModel`), each identifier classified (a package type, a field of a struct whose receiver type the code shows, `kind=` tags, engine calls' strings), `ScriptRename_SymbolAt`, `ScriptRename_Code` (edits, names taken, uses left alone) |
 | `name_kinds.odin` | **Which engine parameters take which kind of name**, read from the engine's source (its name types, names.odin): `NameKind`, `NameTable_Read` (core:odin/parser; groups merged; `_Add` / `_Create` procedures declare), `NameTable_Start` / `_Load` / `_Get` (once, on a worker; heap, never freed), `NameTable_ParamKind` |
 | `code_names.odin` | **Project-aware strings**: the name providers (`nameCompletions`: names inside a call's string, its kind's constants outside; `nameDiagnostics`: unknown names, "did you mean", quick fixes), the scenes' trees through component instances (`NameTree`, `treeResolve` as the engine's three lookups), a script's attachments, receivers (`self.node`, node fields), `Names_Check`, `Names_Closest` |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
@@ -1018,9 +1023,9 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
   (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 
-### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`; code_editor's `providers.odin`)
+### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`; code_editor's `providers.odin`, `rename.odin`)
 
-Rounds 1 and 2 of TODO.md's "Code editor integration". What the code relies on:
+Rounds 1 to 3 of TODO.md's "Code editor integration". What the code relies on:
 
 - **The provider interface is code_editor's** (`code_editor/editor/providers.odin`, its README's
   "Providers"): completion, hover, diagnostics, gutter markers, inlay hints and drops, each a
@@ -1132,6 +1137,48 @@ Rounds 1 and 2 of TODO.md's "Code editor integration". What the code relies on:
   the demo's timing and its clean bill); code_editor's `providers_names_test.odin`;
   `tests/ui/code_names.script` (a quote opens the scenes, a path after "../", a misspelled scene's
   squiggle fixed with Ctrl+.; driver: `code_diagnostic_lacks`).
+- **Round 3: code and scene links** (script_links.odin's and script_rename.odin's doc blocks).
+  - **Markers** on registration lines list every user (nodes as script, more script or node type;
+    component instances through their root; globals; data resources), on exported fields the
+    nodes, globals and data that set a value plus Timeline tracks, on events the listeners. Each
+    is a `ce.Gutter_Marker` with `choices` (code_editor opens its code actions menu for several,
+    `Gutter_Marker.choice` says which); a click can't change State inside the code editor, so the
+    provider leaves the target (`CodeProviders_SetOpen`) and the view sends `Code_Usage_Opened`
+    (`linksSend` in `CodeEditor_View`). The click is recomputed from the marker's line, not kept.
+  - **Find Usages** is code_editor's `.Usages` provider kind: the references panel's rows are the
+    provider's (`Ref_Item.provider`, `id`), opened through `on_open`.
+  - **Rename is the index's, not OLS's** (the reason is in script_rename.odin's doc): OLS's rename
+    reads other files from disk (unsaved tabs missed), may not be running, and answers later; the
+    project side must match the code side exactly. So the editor parses the package itself
+    (`CodeModel`, an arena per call: 40-45 ms for the demo's 13 files, debug or optimized,
+    measured by `script_rename_demo_project_timing`; only when asked: F2, Enter, Find Usages) and classifies every
+    identifier: a package type, or a field with the struct its receiver resolves to (parameters,
+    locals and globals with types or values, composite literals, casts, `&`, the package's
+    procedures' results, `e.Node_GetScript` / `Global` / `Data` / `CreateNode` / `new`, ranged
+    slices, `using`). A `.field` whose receiver isn't known is left and reported, never guessed.
+    code_editor's `.Rename` provider kind: `prepare_rename` (the box's title and a dry-run note)
+    and `rename` (this file's edits as one undo step); the provider leaves the rest
+    (`CodeProviders_SetRename`) for `Code_Rename_Requested`: the project in one `.Project` undo
+    step (History_Classify), other files opened in hidden tabs (`CodeTabs_Open(show = false)`,
+    `CodeEditor_ApplyEdits`: their own undo step, unsaved), written to disk only when no tab can
+    open. Without a project symbol, F2 falls to OLS's `textDocument/rename` (code_editor's
+    rename.odin): its edits to other files come through `editor_take_file_edits`, sent as
+    `Code_File_Edits_Requested` and applied in hidden tabs of project files the same way.
+  - **Undoing a project step keeps the selection** when the open scene's tree (names, parents)
+    is the same (`nodesSameTree`): a rename changes nodes, not which they are.
+  - **The inspector keeps what it can't place**: values of fields the code no longer has are
+    listed under the fields with a × (`OrphanedValueRows`), values that don't fit a field's
+    changed type get a warning and Reset (`FieldMismatchRows`, `ScriptProp_Fits` as the engine's
+    `Script_SetField` parses); in the node's Script section, more scripts, node types, globals
+    and data resources.
+  - **Tests:** `script_links_test.odin` (the code side's edits for a type, a field through every
+    receiver kind, an event's strings, a data type's tags, taken names, uses left; the project side
+    through the message with undo and redo across scenes, components, globals, listeners, tracks,
+    data; a real code tab: markers and their menu, Find Usages, F2, the other file in a hidden tab,
+    each undo), code_editor's `providers_links_test.odin` (the marker menu, usages, the rename
+    box with a provider and through a fake server), `tests/ui/code_links.script` (markers, the
+    menu, Alt+Shift+F12, F2 on a field and a type with both undos, an orphaned value removed;
+    driver: `code_state rename.*`).
 
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 
@@ -2820,6 +2867,15 @@ Highlights:
   installed-app run, v0.1.0-dev.56, dropped outside the struct). Checked at 640x660, 900x500
   and 1280x720.
 - `action <Action>` sends an action, for menu-bar entries without a shortcut.
+- **Short windows** (`task test:ui:short`, 900x500; checked 2026-10-23): the panels keep their
+  minimums (`FittedBottomHeight`, `FittedSceneTreeHeight`: the inspector keeps
+  `MIN_INSPECTOR_HEIGHT`; `FittedPreviewHeight`: the browser's preview takes at most half its
+  column), dialogs fit the window's height (Settings, Project Settings, Add Node), and the
+  Aseprite preview's buttons sit outside its scroll. The viewport is then about 330x130: scripts
+  that click nodes collapse the bottom panel first (`action Toggle_Bottom_Panel`), and
+  `click_node` / `drag_node` / `right_click_node` fail when the node is outside the view rather
+  than clicking whatever is there. Scroll trees and previews into view (`scroll_by`,
+  `scroll_into_view`) rather than counting on a row being shown.
 - **Layouts that depend on the window** (the toolbar's overflow): `if_drawn <key> <command>` runs
   a command only when the widget was drawn, so one script passes tiled and fullscreen;
   `in_window <key>` checks nothing was pushed off the window's edge.

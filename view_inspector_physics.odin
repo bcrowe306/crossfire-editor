@@ -288,7 +288,9 @@ dataInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	} else {
 		for &field in desc.fields {
 			append(&rows, inspectorRow(ctx, field.name, FieldControl(ctx, s, data.values[:], &field, fmt.tprintf("data%d", index), DataTarget(index), controlWidth, numberWidth)))
+			append(&rows, ..FieldMismatchRows(ctx, data.values[:], &field, fmt.tprintf("data%d", index), DataTarget(index), 260))
 		}
+		append(&rows, ..OrphanedValueRows(ctx, data.values[:], desc, fmt.tprintf("data%d", index), DataTarget(index), 260))
 		if len(desc.fields) == 0 do append(&rows, skald.text("No exported fields (tag a field with export:\"\").", th.color.fg_muted, th.font.size_xs))
 	}
 	append(&rows, skald.spacer(th.spacing.sm), skald.text(fmt.tprintf("In code: e.Data(%s, DATA_%s)", data.type, strings.to_upper(sanitize(DataName(data.path)), context.temp_allocator)),

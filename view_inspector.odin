@@ -29,7 +29,7 @@ rightSidebarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.split(ctx,
 		first = sceneTreeView(s, ctx),
 		second = inspectorView(s, ctx),
-		first_size = s.layout.sceneTreeHeight,
+		first_size = FittedSceneTreeHeight(&s.layout),
 		on_resize = proc(v: f32) -> Msg { return Scene_Tree_Resized(v) },
 		id = skald.hash_id("split-scene-inspector"),
 		direction = .Column,
@@ -798,7 +798,10 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 	}
 	for &field in desc.fields {
 		append(&rows, inspectorRow(ctx, field.name, FieldControl(ctx, s, node.props[:], &field, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth, numberWidth), scriptFieldTip(&field)))
+		append(&rows, ..FieldMismatchRows(ctx, node.props[:], &field, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth + 100))
 	}
+	// Values of fields the code no longer has: kept and shown, not dropped
+	append(&rows, ..OrphanedValueRows(ctx, node.props[:], desc, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth + 100))
 	return rows[:]
 }
 

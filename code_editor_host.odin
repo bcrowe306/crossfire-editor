@@ -370,6 +370,21 @@ CodeEditor_InsertAt :: proc(path: string, line, column: int, text: string) -> bo
 }
 
 /*
+Applies edits to an open file's buffer (positions in its text now; they mustn't overlap) as one
+undo step, the caret kept where it was (moved with the edits), and tells its language server.
+
+Returns:
+- false when the file isn't open
+*/
+CodeEditor_ApplyEdits :: proc(path: string, edits: []ce.Text_Edit) -> bool {
+	c := CodeEditor_Find(path)
+	if c == nil do return false
+	if len(edits) == 0 do return true
+	ce.editor_apply_edits(&c.ed, edits, ce.editor_position_after_edits(c.ed.buf.cursors[0].pos, edits))
+	return true
+}
+
+/*
 Tells the language server about the scripts folder's .odin files that were created, changed or
 deleted on disk since it was last told: OLS doesn't see a new file of the package (a New Script,
 the regenerated assets.odin, a git pull, another editor's save) or a changed one's new symbols
@@ -818,9 +833,25 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	}
 	ce.editor_update(&c.ed)
 	if c.ed.lsp_enabled && c.ed.lsp_doc_open do c.openedIn = serverProcess(c)
-	// A gutter marker clicked: select the node running its script
-	if script := CodeProviders_TakeClick(); script != "" {
-		skald.send(ctx, Msg(Code_Marker_Clicked{script}))
+	// What the providers left: a usage to open (a marker, Find Usages), a rename's project side
+	linksSend(ctx)
+	// The language server's rename changed other files: their tabs apply them
+	if others := ce.editor_take_file_edits(&c.ed); len(others) > 0 {
+		paths := make([dynamic]string, context.temp_allocator)
+		groups := make([dynamic][dynamic]CodeFileEdit, context.temp_allocator)
+		for e in others {
+			at := -1
+			for p, i in paths do if p == e.key do at = i
+			if at < 0 {
+				append(&paths, e.key)
+				append(&groups, make([dynamic]CodeFileEdit, context.temp_allocator))
+				at = len(paths) - 1
+			}
+			append(&groups[at], CodeFileEdit{e.range.start.line, e.range.start.character, e.range.end.line, e.range.end.character, e.new_text})
+		}
+		edits := make([][]CodeFileEdit, len(groups), context.temp_allocator)
+		for g, i in groups do edits[i] = g[:]
+		skald.send(ctx, Msg(Code_File_Edits_Requested{paths[:], edits}))
 	}
 	if other, line, character, ok := ce.editor_take_open_request(&c.ed); ok {
 		skald.send(ctx, Msg(Code_Open_Requested{strings.clone(other, context.temp_allocator), line, character}))

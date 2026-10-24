@@ -12,10 +12,6 @@ environment: no memorizing how to refer to things in code. Everything goes throu
 provider interface in code_editor (completion, hover, diagnostics, gutter, inlay, drop sources)
 that the editor fills in, so code_editor stays engine-agnostic. Not doing: a debugger (DAP), for now.
 
-3. **Code ↔ scene links:** find usages in scenes, renaming a script field or type carries into
-   scene/component files. (Round 1 already did a marker on `Script_Register` lines listing the
-   nodes using it, a click selecting the first, and the inspector following the index as fields
-   are typed: build on those.)
 4. **Context-aware drag and drop into code:** every editor thing is a drop source (scene-tree
    nodes, inspector property labels, animations, state machine parameters and states, input
    actions, events, scenes, components, sounds, music, dialogues, Timeline clips, buses, groups).

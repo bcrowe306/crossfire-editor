@@ -171,10 +171,10 @@ code tab, with or without the language server:
   can't edit (`[3]f32`, a map...), an option that isn't one (`export:"defualt=3"`), or a `min=`,
   `max=` or number `default=` that isn't a number is underlined as a warning as soon as you type
   it. The game itself only warns about those when it runs.
-- **Who runs a script.** The line with `Script_Register(Hero, ...)` (or `NodeType_Register`) has a
-  mark in the margin and a note after it: `3 nodes`, `a global`, or `no node uses it`. Rest the
-  mouse on the mark for the list of nodes; **click it to select the first one** (its scene opens
-  when it's in another).
+- **Who uses a script, and who sets its fields.** See
+  [Code and scenes, linked](#code-and-scenes-linked) below: marks in the margin list every node
+  using a script or overriding a field, Find Usages lists them in a panel, and renaming a
+  script, a field or an event (F2) renames it in your scenes too.
 - **Drops land where you drop them.** A scene tree node or a browser asset dropped **between a
   call's brackets** goes in as its constant: `e.Node_FindPath(self.node, |)` becomes
   `e.Node_FindPath(self.node, PATH_HERO_SPRITE)`, `e.Game_PlaySound(self.game, |)` gets
@@ -190,6 +190,68 @@ code tab, with or without the language server:
 inspector a moment later, before you save or build, with "Fields from the source: not built
 yet." under it. After a build, the build's description is used again for every file that hasn't
 changed since.
+
+## Code and scenes, linked
+
+Your scripts and your scenes name the same things: a node runs `Hero`, stores a value for its
+`speed`, listens to its `hit` event, a Timeline animates `script.speed`. The code tab shows those
+links and keeps them working when you rename.
+
+**Marks in the margin.**
+
+- The line with `Script_Register(Hero, ...)` (or `NodeType_Register`, `Data_Register`) has a mark
+  and a note after it: `3 nodes`, `2 nodes, a global`, `no node uses it`. It counts every node
+  running the script in your scenes and components (as its script, one of its more scripts, or
+  its node type), the instances of a component whose root runs it, the globals, and for a data
+  type its data resources.
+- An exported field gets a mark when nodes **set its value** (instead of using the default):
+  `speed: 3 nodes override it`, `a global sets it`, `1 Timeline track`. An event gets one when
+  something listens to it: `hit: 2 listeners`.
+- Rest the mouse on a mark for the list, with each node's value (`ForestScene: Hero (speed =
+  250)`). **Click it**: with one, its scene or component opens (in its tab) with the node
+  selected; with several, a menu lists them (Up and Down, Enter, or a click) and the one you pick
+  opens. A global opens Project Settings > Globals; a data resource is selected in the browser.
+
+**Find Usages** (**Alt+Shift+F12**, or right-click > **Find Usages in Project**). With the caret on
+a script's name, an exported field or an event, anywhere the code names it (its declaration,
+`self.speed`, `hero.speed`, `Hero{speed = 3}`), the references panel lists its uses in the
+project instead of in the code: the nodes running the script; for a field, every node running it
+with its value (those that set it first, then the Timeline tracks animating it, then those using
+the default); for an event, the listeners. Click one, or step through them with **F4**, to open
+it. **Shift+F12** (Find All References) still lists the uses in the code.
+
+**Rename** (**F2**, or right-click > **Rename Symbol**). A box opens under the name: type the new
+one and press **Enter** (Escape cancels). On a script's name, an exported field or an event, the
+box says what else changes ("Also: 3 nodes in 2 scenes, 4 stored values, 1 Timeline track") and
+renaming carries into the project:
+
+| You rename | In the code | In your scenes, components and project |
+|---|---|---|
+| A script (its struct) | Every place that names the type: the struct, `Script_Register`, `^Hero` parameters, `e.Node_GetScript(node, Hero)`, `e.Global(Hero)`... (not procedures named after it, such as `Hero_Hurt`) | The nodes running it (first and more scripts), the globals, listeners to its global's events, LDtk entity rules; LDtk entities that ran it because they're named like it get a rule so they keep running it |
+| A node type | The same | The nodes of that type |
+| A data type | The same, and `kind=` in field tags | The data resources of that type |
+| An exported field | The field, and its uses: `self.speed`, `hero.speed` and the like where the code shows the type of what's before the dot, `Hero{speed = 3}` | The values stored on nodes, globals and data resources, and Timeline tracks animating `script.speed` |
+| An event | The field, its uses, and `"script.hit"` strings passed to the engine | The listeners (on the nodes running the script, and to a global's events) |
+
+- **Undo:** the project's side is **one undo step** (Ctrl+Z in the scene). The code tab's change is
+  one undo step in that tab; other script files that changed open in their own tabs, unsaved, each
+  with its own undo step. Save to keep them (Ctrl+S, or Save Project saves every tab).
+- **A use the editor can't be sure of is left alone:** `thing.speed` where the code doesn't show
+  what `thing` is (a value from somewhere it can't follow). The status line says how many and
+  where (`left 1 .speed of unknown type (enemy.odin:24)`); the build tells you if one needed
+  renaming. Another struct's field of the same name is never renamed.
+- **A name that's taken** is refused in the box: another declaration of the scripts, a field the
+  struct already has, a script or type the project already has.
+- **What can't be renamed from here:** an LDtk entity's fields set script fields by their names;
+  when a renamed field may be one of those, the Console says so, so you can rename it in LDtk.
+- Anything else (a local variable, a procedure) is renamed by the language server, in the code
+  only.
+
+**Values whose field went.** Rename a field by hand (or remove it) and the values nodes stored for
+it aren't deleted: the inspector lists them under the fields as kept, ignored by the game, with a
+**×** to remove each (an undoable edit). When a field's type changes so that a stored value
+doesn't fit any more (`speed` was a number, it's now a `bool`), the inspector says the game uses
+the default instead, with a **Reset**.
 
 ## Names in strings: scenes, nodes, animations...
 
@@ -240,9 +302,12 @@ has the script on yet isn't checked either.
 | **F12**, or Ctrl+click a name | Go to Definition: jumps to where it's defined. In another file, that file opens in its own tab |
 | **Alt+F12** | Peek Definition: shows the definition in a small window over the code (Enter opens it, Escape closes) |
 | **Shift+F12** | Find All References: a panel listing every use; click one, or step through them with **F4** and **Shift+F4** |
+| **Alt+Shift+F12** | Find Usages in Project: the scenes' and components' nodes using a script, a field or an event (see [Code and scenes, linked](#code-and-scenes-linked)) |
+| **F2** | Rename Symbol: in the code, and for scripts, fields and events in the project too |
 | **Alt+Left** / **Alt+Right** | Back and forward through the places you jumped to |
 
-These need the language server too. A definition outside your project (in the engine or Odin's
+These need the language server too (except Find Usages, and F2 on a script, a field or an
+event: those the editor does itself). A definition outside your project (in the engine or Odin's
 own library) opens **read only**: the status line says "(read only: outside the project)", and
 typing changes nothing, since those files are shared by every project.
 

@@ -211,6 +211,10 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		return {}
 	case Project_Settings_Applied:
 		return {scope = .Project, label = "Change project settings"}
+	case Code_Rename_Requested:
+		// Every scene, component, global and data resource naming it: one step (the code's edits
+		// are the code tabs' own undo)
+		return {scope = .Project, label = fmt.tprintf("Rename %s to %s", symbolTitle(v.symbol), v.newName)}
 	case Export_Target_Run:
 		// Exporting applies the dialog first
 		return {scope = .Project, label = "Change project settings"}
@@ -819,15 +823,16 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	// The scene list itself: restore it whole, then show the scene that was open
 	if change, isProject := command.change.(ProjectChange); isProject {
 		snapshot := undo ? &change.before : &change.after
-		// The selection stays when the step didn't touch the open scene's nodes (an animation
-		// asset's edit: the Animation panel keeps showing it)
+		// The selection stays when the step didn't change the open scene's tree (an animation
+		// asset's edit: the Animation panel keeps showing it; a rename of a script: its nodes
+		// changed, not which they are)
 		openBefore := s.currentScene
 		nodesBefore := s.currentScene < len(s.project.scenes) ? cloneNodes(s.project.scenes[s.currentScene].nodes[:]) : nil
 		defer destroyNodes(&nodesBefore)
 		restoreProjectSnapshot(s, snapshot)
 		s.currentScene = clamp(snapshot.currentScene, 0, len(s.project.scenes) - 1)
 		kept := undo ? command.selectionBefore : command.selectionAfter
-		same := s.currentScene == openBefore && nodesEqual(nodesBefore[:], s.project.scenes[s.currentScene].nodes[:])
+		same := s.currentScene == openBefore && nodesSameTree(nodesBefore[:], s.project.scenes[s.currentScene].nodes[:])
 		s.selectedNode = same && kept >= 0 && kept < len(s.project.scenes[s.currentScene].nodes) ? kept : -1
 		clear(&s.selection)
 		s.viewport.drag = {}
@@ -1219,4 +1224,12 @@ timelineOpLabel :: proc(op: TimelineOp) -> string {
 	case .Key_Ease: return "Change a key's curve"
 	}
 	return "Change"
+}
+
+// Whether two node lists are the same tree: the same nodes (names) under the same parents
+@(private="file")
+nodesSameTree :: proc(a, b: []NodeDef) -> bool {
+	if len(a) != len(b) do return false
+	for n, i in a do if n.name != b[i].name || n.parent != b[i].parent do return false
+	return true
 }

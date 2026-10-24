@@ -23,8 +23,11 @@ every tab (`CodeProviders_Registry`):
 - **Diagnostics:** the index's problems in the file (a field that can't be exported, a tag option
   that isn't one, a min / max / default that isn't a number), and names the project doesn't have
   in engine calls' string literals, with quick fixes (code_names.odin)
-- **Gutter markers and inlay hints:** on each `Script_Register` / `NodeType_Register` line, the
-  nodes using it; a click on the marker selects the first (`Code_Marker_Clicked`)
+- **Gutter markers and inlay hints:** on each `Script_Register` / `NodeType_Register` /
+  `Data_Register` line, what uses it; on exported fields nodes override and events something
+  listens to, those; a click opens the one, or a menu of them (script_links.odin)
+- **Find Usages and Rename** of registered types, their exported fields and events
+  (script_links.odin, script_rename.odin)
 - **Drops:** a scene tree node or a browser asset dropped on a call's argument inserts its constant
   (`PATH_...`, `TEXTURE_...`; a node without one: its path in quotes); anywhere else it adds a
   field to the script struct, as before (`NodeField_Insert`, `AssetField_Insert`)
@@ -45,8 +48,17 @@ codeProviders: struct {
 	constantsKey: u64,
 	// What the providers last answered from: a change invalidates them
 	seenKey: u64,
-	// A gutter marker clicked: the script it's on (owned; "" none), for the view to send
-	clicked: string,
+	// A usage to open (a marker's click, its menu, Find Usages' panel) or a notice instead, for
+	// the view to send (owned)
+	open: Maybe(UsageTarget),
+	notice: string,
+	// The targets of the references panel's last usages (their ids index it)
+	usageTargets: [dynamic]UsageTarget,
+	// What the rename box offered (prepare_rename's; strings owned), and a rename done in the
+	// code for the view to send (its project side and other files' edits; owned)
+	renameSymbol: ScriptSymbol,
+	renameKnown: bool,
+	rename: Maybe(Code_Rename_Requested),
 }
 
 // The registry every code tab uses (registered on first use)
@@ -60,8 +72,10 @@ CodeProviders_Registry :: proc() -> ^ce.Provider_Registry {
 		ce.provider_register(&p.registry, ce.Provider{kind = .Hover, name = "project", hover = projectHover})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Diagnostics, name = "script index", diagnostic = indexDiagnostics})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Diagnostics, name = "project names", diagnostic = nameDiagnostics})
-		ce.provider_register(&p.registry, ce.Provider{kind = .Gutter, name = "script users", gutter = scriptMarkers, on_click = scriptMarkerClicked})
-		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "script users", inlay = scriptInlays})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Gutter, name = "script users", gutter = linkMarkers, on_click = linkMarkerClicked})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "script users", inlay = linkInlays})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Usages, name = "project usages", usages = linkUsages, on_open = linkUsageOpened})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Rename, name = "project renames", prepare_rename = linkPrepareRename, rename = linkRename})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Drop, name = "scene nodes and assets", drop = projectDrop})
 	}
 	return &p.registry
@@ -99,28 +113,129 @@ CodeProviders_Shutdown :: proc() {
 	ce.provider_registry_destroy(&p.registry)
 	constantsFree()
 	delete(p.constants)
-	delete(p.clicked)
+	delete(p.notice)
+	delete(p.usageTargets)
+	symbolFree(&p.renameSymbol)
+	renameFree()
 	p^ = {}
 }
 
-// A gutter marker click waiting to be sent (the script's name, temp allocated; "" none)
-CodeProviders_TakeClick :: proc() -> string {
-	p := &codeProviders
-	if p.clicked == "" do return ""
-	name := strings.clone(p.clicked, context.temp_allocator)
-	delete(p.clicked)
-	p.clicked = ""
-	return name
+@(private="file")
+symbolFree :: proc(s: ^ScriptSymbol) {
+	delete(s.owner)
+	delete(s.field)
+	s^ = {}
 }
 
-// A gutter marker was clicked: select the first node running the script
-Code_Marker_Clicked :: struct {
-	// The script (for the frame)
-	script: string,
+@(private="file")
+renameFree :: proc() {
+	r, ok := codeProviders.rename.?
+	if !ok do return
+	symbolFree(&r.symbol)
+	delete(r.newName)
+	for edit in r.edits { delete(edit.path); delete(edit.text) }
+	delete(r.edits)
+	codeProviders.rename = nil
+}
+
+// Leaves a usage to open (or a notice when there's none) for the view to send
+@(private)
+CodeProviders_SetOpen :: proc(target: UsageTarget, notice := "") {
+	p := &codeProviders
+	delete(p.notice)
+	p.notice = strings.clone(notice)
+	p.open = notice == "" ? target : nil
+}
+
+// The usage (or notice) waiting to be opened, once (the notice temp allocated)
+CodeProviders_TakeOpen :: proc() -> (target: UsageTarget, notice: string, ok: bool) {
+	p := &codeProviders
+	if t, has := p.open.?; has {
+		p.open = nil
+		return t, "", true
+	}
+	if p.notice != "" {
+		notice = strings.clone(p.notice, context.temp_allocator)
+		delete(p.notice)
+		p.notice = ""
+		return {}, notice, true
+	}
+	return {}, "", false
+}
+
+// Keeps the references panel's usages' targets (their ids index them)
+@(private)
+CodeProviders_SetUsageTargets :: proc(targets: []UsageTarget) {
+	clear(&codeProviders.usageTargets)
+	append(&codeProviders.usageTargets, ..targets)
+}
+
+// The target of a usage the references panel listed
+@(private)
+CodeProviders_UsageTarget :: proc(id: int) -> (UsageTarget, bool) {
+	t := codeProviders.usageTargets[:]
+	if id < 0 || id >= len(t) do return {}, false
+	return t[id], true
+}
+
+// Keeps what the rename box offered (cloned)
+@(private)
+CodeProviders_SetRenameSymbol :: proc(symbol: ScriptSymbol) {
+	p := &codeProviders
+	symbolFree(&p.renameSymbol)
+	p.renameSymbol = symbol
+	p.renameSymbol.owner = strings.clone(symbol.owner)
+	p.renameSymbol.field = strings.clone(symbol.field)
+	p.renameKnown = true
+}
+
+// What the rename box offered (temp allocated)
+@(private)
+CodeProviders_RenameSymbol :: proc() -> (ScriptSymbol, bool) {
+	p := &codeProviders
+	s := p.renameSymbol
+	s.owner = strings.clone(s.owner, context.temp_allocator)
+	s.field = strings.clone(s.field, context.temp_allocator)
+	return s, p.renameKnown
+}
+
+// Leaves a rename's project side and other files' edits for the view to send (cloned)
+@(private)
+CodeProviders_SetRename :: proc(symbol: ScriptSymbol, newName: string, edits: []CodeEdit) {
+	renameFree()
+	s := symbol
+	s.owner = strings.clone(symbol.owner)
+	s.field = strings.clone(symbol.field)
+	owned := make([]CodeEdit, len(edits))
+	for edit, i in edits {
+		owned[i] = edit
+		owned[i].path = strings.clone(edit.path)
+		owned[i].text = strings.clone(edit.text)
+	}
+	codeProviders.rename = Code_Rename_Requested{symbol = s, newName = strings.clone(newName), edits = owned}
+}
+
+// The rename waiting to be sent, once (temp allocated)
+CodeProviders_TakeRename :: proc() -> (Code_Rename_Requested, bool) {
+	r, ok := codeProviders.rename.?
+	if !ok do return {}, false
+	out := r
+	out.symbol.owner = strings.clone(r.symbol.owner, context.temp_allocator)
+	out.symbol.field = strings.clone(r.symbol.field, context.temp_allocator)
+	out.newName = strings.clone(r.newName, context.temp_allocator)
+	out.edits = make([]CodeEdit, len(r.edits), context.temp_allocator)
+	for edit, i in r.edits {
+		out.edits[i] = edit
+		out.edits[i].path = strings.clone(edit.path, context.temp_allocator)
+		out.edits[i].text = strings.clone(edit.text, context.temp_allocator)
+	}
+	renameFree()
+	return out, true
 }
 
 /*
-The providers' messages (a marker's click).
+The providers' messages: a usage to open (a marker's click or menu, Find Usages), a rename's
+project side and other files' edits.
 
 Returns:
 - A command, and whether `m` was one of them
@@ -131,23 +246,17 @@ CodeProviders_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool
 		// The engine's name parameters are known: the name providers have something to say
 		if codeProviders.registered do ce.provider_registry_invalidate(&codeProviders.registry)
 		return {}, true
-	case Code_Marker_Clicked:
-		users := scriptUsers(state, v.script)
-		if len(users) == 0 {
-			logLine(state, .Info, fmt.aprintf("No node runs %s yet", v.script))
+	case Code_Usage_Opened:
+		if v.notice != "" {
+			logLine(state, .Info, strings.clone(v.notice))
 			return {}, true
 		}
-		u := users[0]
-		// The current scene's first, else the first anywhere
-		for x in users do if x.scene == state.currentScene { u = x; break }
-		if u.node < 0 {
-			logLine(state, .Info, fmt.aprintf("%s runs as a global (Project Settings > Globals)", v.script))
-			return {}, true
-		}
-		// Another scene shows that scene (update shows the scene when currentScene changes)
-		state.currentScene = u.scene
-		Selection_Set(state, {u.node})
-		logLine(state, .Info, fmt.aprintf("Selected %s (it runs %s)", state.project.scenes[u.scene].nodes[u.node].name, v.script))
+		ScriptLinks_Open(state, v.target)
+		return {}, true
+	case Code_Rename_Requested:
+		logLine(state, .Info, strings.clone(ScriptRename_Apply(state, v)))
+		// The index reads the renamed code at its next tick (the tabs' text)
+		if codeProviders.registered do ce.provider_registry_invalidate(&codeProviders.registry)
 		return {}, true
 	}
 	return {}, false
@@ -223,7 +332,6 @@ usersText :: proc(state: ^State, users: []ScriptUser, script: string, limit := 6
 		fmt.sbprintf(&b, "\n- %s: %s", owner, scene.nodes[u.node].name)
 		shown += 1
 	}
-	if nodes > 0 do strings.write_string(&b, "\nClick the marker to select it.")
 	return short, strings.to_string(b)
 }
 
@@ -299,7 +407,7 @@ projectHover :: proc(doc: ce.Provider_Document, pos: cebuf.Position, ctx: ce.Pro
 		if k != 1 {
 			// "Hero: 3 nodes\n- ForestScene: Hero..." without the marker's hint
 			_, long := usersText(state, scriptUsers(state, d.name), d.name)
-			_, _, users := strings.partition(strings.trim_suffix(long, "\nClick the marker to select it."), ": ")
+			_, _, users := strings.partition(long, ": ")
 			fmt.sbprintf(&b, ": %s", users)
 		}
 		if len(d.fields) > 0 {
@@ -345,66 +453,6 @@ indexDiagnostics :: proc(doc: ce.Provider_Document, ctx: ce.Provider_Context, ou
 			message = p.message,
 			source = "crossfire",
 		})
-	}
-}
-
-// A script or node type registered on a line of a document
-@(private="file")
-RegistrationLine :: struct {
-	line: int,
-	name: string,
-}
-
-// The registrations of scripts and node types in a document, on their lines now
-@(private="file")
-registrationsIn :: proc(state: ^State, doc: ce.Provider_Document) -> []RegistrationLine {
-	out := make([dynamic]RegistrationLine, context.temp_allocator)
-	f := ScriptIndex_File(&state.scriptIndex, absolutePath(doc.path))
-	if f == nil do return nil
-	for r in f.registrations {
-		if r.kind == .Data do continue
-		at := relocate(doc, r.line - 1, r.lineText)
-		if at >= 0 do append(&out, RegistrationLine{at, r.name})
-	}
-	return out[:]
-}
-
-@(private="file")
-scriptMarkers :: proc(doc: ce.Provider_Document, ctx: ce.Provider_Context, out: ^[dynamic]ce.Gutter_Marker) {
-	state := codeProviders.state
-	if !isProjectScript(state, doc.path) do return
-	for r in registrationsIn(state, doc) {
-		users := scriptUsers(state, r.name)
-		_, long := usersText(state, users, r.name)
-		append(out, ce.Gutter_Marker{line = r.line, icon = len(users) > 0 ? .Diamond : .Ring, tooltip = long})
-	}
-}
-
-@(private="file")
-scriptInlays :: proc(doc: ce.Provider_Document, ctx: ce.Provider_Context, out: ^[dynamic]ce.Inlay_Hint) {
-	state := codeProviders.state
-	if !isProjectScript(state, doc.path) do return
-	for r in registrationsIn(state, doc) {
-		short, _ := usersText(state, scriptUsers(state, r.name), r.name)
-		append(out, ce.Inlay_Hint{pos = {r.line, len(cebuf.buffer_line_str(doc.buffer, r.line))}, label = short, kind = .Note})
-	}
-}
-
-// A marker's click: the script registered on its line, for the view to send
-@(private="file")
-scriptMarkerClicked :: proc(doc: ce.Provider_Document, marker: ce.Gutter_Marker, userData: rawptr) {
-	if marker.line < 0 || marker.line >= cebuf.buffer_line_count(doc.buffer) do return
-	line := cebuf.buffer_line_str(doc.buffer, marker.line)
-	for call in ([]string{"Script_Register(", "NodeType_Register("}) {
-		at := strings.index(line, call)
-		if at < 0 do continue
-		rest := line[at + len(call):]
-		end := 0
-		for end < len(rest) && (rest[end] == '_' || rest[end] >= 'a' && rest[end] <= 'z' || rest[end] >= 'A' && rest[end] <= 'Z' || rest[end] >= '0' && rest[end] <= '9') do end += 1
-		if end == 0 do return
-		delete(codeProviders.clicked)
-		codeProviders.clicked = strings.clone(rest[:end])
-		return
 	}
 }
 

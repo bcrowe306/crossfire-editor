@@ -259,7 +259,9 @@ fieldRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, name: string, props: []Script
 	}
 	for &field in desc.fields {
 		append(&rows, inspectorRow(ctx, field.name, FieldControl(ctx, s, props, &field, key, target, controlWidth, numberWidth), scriptFieldTip(&field)))
+		append(&rows, ..FieldMismatchRows(ctx, props, &field, key, target, controlWidth + 100))
 	}
+	append(&rows, ..OrphanedValueRows(ctx, props, desc, key, target, controlWidth + 100))
 	return rows[:]
 }
 

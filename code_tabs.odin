@@ -5,6 +5,8 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "gui:skald"
+import ce "code_editor/editor"
+import lspc "code_editor/lsp"
 
 /*
 Code tabs: scripts open in the built-in code editor (code_editor_host.odin), as tabs after the
@@ -43,9 +45,10 @@ Script_Open :: proc(state: ^State, path: string, line: int, column := 0, readOnl
 
 /*
 Opens a file in a code tab (or shows its tab) and puts the caret on `line` (1-based; 0 leaves it)
-at `column` (1-based; 0: the line's start). readOnly makes a newly opened tab refuse edits.
+at `column` (1-based; 0: the line's start). readOnly makes a newly opened tab refuse edits;
+`show = false` opens it without showing it (a rename's other files).
 */
-CodeTabs_Open :: proc(state: ^State, path: string, line: int, column := 0, readOnly := false) {
+CodeTabs_Open :: proc(state: ^State, path: string, line: int, column := 0, readOnly := false, show := true) {
 	absolute := path
 	if !filepath.is_abs(path) do absolute = joinPath(state.project.rootPath, path, allocator = context.temp_allocator)
 	absolute = codeAbsolutePath(absolute)
@@ -75,8 +78,10 @@ CodeTabs_Open :: proc(state: ^State, path: string, line: int, column := 0, readO
 		append(&state.codeTabs, strings.clone(absolute))
 		index = len(state.codeTabs) - 1
 	}
-	state.codeTab = index + 1
-	state.codeFocusPending = true
+	if show {
+		state.codeTab = index + 1
+		state.codeFocusPending = true
+	}
 	if readOnly && !known do CodeEditor_SetReadOnly(absolute, true)
 	// Line 1 (the browser's Open) only for a new tab: an open one keeps its caret
 	if column > 1 && line > 0 {
@@ -171,6 +176,20 @@ CodeTabs_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 			CodeTabs_Close(state, i)
 		case .Cancel:
 		}
+	case Code_File_Edits_Requested:
+		// Another file the language server's rename changed: in its tab, not shown (unsaved, one
+		// undo step there); files outside the project are left alone
+		files := 0
+		for path, i in v.paths {
+			if !Path_InProject(state, codeAbsolutePath(path)) do continue
+			CodeTabs_Open(state, path, 0, show = false)
+			if c := CodeEditor_Find(codeAbsolutePath(path)); c != nil {
+				edits := make([]lspc.Code_Action_Edit, len(v.edits[i]), context.temp_allocator)
+				for e, j in v.edits[i] do edits[j] = {key = c.ed.document_key, range = {{e.startLine, e.startCharacter}, {e.endLine, e.endCharacter}}, new_text = e.text}
+				if ce.editor_apply_lsp_edits(&c.ed, edits) > 0 do files += 1
+			}
+		}
+		if files > 0 do logLine(state, .Info, fmt.aprintf("The rename changed %d other file%s (unsaved: save them, or Ctrl+Z in each)", files, files == 1 ? "" : "s"))
 	case Code_Open_Requested:
 		// Go to Definition in another file: its own tab, at the definition (0-based from the server);
 		// read-only outside the project (the engine's sources, Odin's library)

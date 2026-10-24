@@ -419,6 +419,17 @@ Code_Open_Requested :: struct {
 	path: string,
 	line, character: int,
 }
+// The language server's rename changed other files (`ce.editor_take_file_edits`): apply them in
+// their code tabs (opened hidden), one undo step each. Edits are UTF-16 ranges by path (for the frame)
+Code_File_Edits_Requested :: struct {
+	paths: []string,
+	edits: [][]CodeFileEdit,
+}
+// One edit of Code_File_Edits_Requested: 0-based lines, UTF-16 columns
+CodeFileEdit :: struct {
+	startLine, startCharacter, endLine, endCharacter: int,
+	text: string,
+}
 // Save the script that shows
 Code_Save_Requested :: struct {}
 // Keep frames coming while a language server may answer (and to look at the file on disk)
@@ -987,6 +998,7 @@ Msg :: union {
 	Code_Tab_Close_Requested,
 	Code_Close_Chosen,
 	Code_Open_Requested,
+	Code_File_Edits_Requested,
 	Code_Save_Requested,
 	Code_Tick_Requested,
 	Code_Reloaded,
@@ -1201,7 +1213,8 @@ Msg :: union {
 	Plugins_Tick,
 	ScriptIndex_Tick,
 	ScriptIndex_Parsed,
-	Code_Marker_Clicked,
+	Code_Usage_Opened,
+	Code_Rename_Requested,
 	NameTable_Loaded,
 	Plugin_Command_Run,
 	Plugin_Row_Changed,

@@ -295,6 +295,12 @@ for every file that hasn't changed since. When the editor can't tell (a script i
 the inspector says "Build the scripts (Ctrl+B) to edit Mover's fields." and lists the stored
 values, read only. Nothing is lost meanwhile.
 
+Values are never dropped silently: a value stored for a field the script no longer has (renamed or
+removed in the code) is listed under the fields as kept, with a **×** to remove it, and a value that
+no longer fits its field's type (a number field that became a `bool`) is flagged with a **Reset**.
+To rename a field and keep its values, rename it with **F2** in the code tab: the values, listeners
+and Timeline tracks follow ([Code and scenes, linked](code_editor.md#code-and-scenes-linked)).
+
 ## Building: Ctrl+B and the Output tab
 
 **Scripts > Build Scripts** (Ctrl+B) compiles the scripts without starting the game. The editor
@@ -325,8 +331,11 @@ Scripts open in **code tabs** beside the scene tabs, in the editor's built-in co
 - Drops: a scene tree node or a browser asset dropped on a code tab adds a field for it (above);
   dropped between a call's brackets, it goes in as its constant.
 - Your project in the code: its constants complete, hovers say what they name and which nodes run
-  a script, `export` tags the inspector can't use are flagged, and `Script_Register` lines show
-  who runs them.
+  a script, `export` tags the inspector can't use are flagged, and `Script_Register` lines and
+  exported fields show who uses and sets them (click to open the node).
+- **Find Usages** (Alt+Shift+F12) lists the nodes using a script, a field or an event, and
+  **Rename** (F2) renames a script, a field or an event in the code and in every scene and
+  component ([Code and scenes, linked](code_editor.md#code-and-scenes-linked)).
 - Names in strings: inside `e.Game_ChangeScene(self.game, "...")`, `e.Node_FindPath(self.node,
   "...")`, `e.AnimationPlayer_Play(&self.sprite.animation, "...")` and the other engine calls
   that take a name, the project's names of that kind complete, and one it doesn't have is
