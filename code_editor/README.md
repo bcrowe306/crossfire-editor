@@ -132,7 +132,7 @@ character for completion, the `Syntax_Context` of the position, its user data, a
 | `.Inlay` | `Inlay_Provider_Proc` | as diagnostics | `Inlay_Hint`s (position, label, `Inlay_Kind`): drawn dimmed after the line's text (hints that move the text are for later) |
 | `.Usages` | `Usages_Provider_Proc` (+ `Usage_Open_Proc`) | Find Usages (Alt+Shift+F12, the context menu's Find Usages in Project) | `Usages_Result`: the symbol and `Provider_Usage`s (a location label, a preview, an id), listed in the references panel in the provider's order; picking one (click, Enter, F4) calls `on_open` with it. The first provider returning true answers; none: "No usages to find here" |
 | `.Rename` | `Rename_Prepare_Proc` + `Rename_Proc` | Rename Symbol (F2, the context menu) | `prepare_rename` says what's at the caret (`Rename_Target`: the name's range, a title, a note on what else changes) and the rename box opens; on Enter `rename` gets the new name (an identifier: the editor checks) and returns `Rename_Result`: this document's edits (one undo step, which undoes to one caret), a status message, or an `error` that keeps the box open. No provider takes it: the server's `textDocument/rename` |
-| `.Drop` | `Drop_Provider_Proc` | `editor_drop(ed, x, y, request)` / `editor_drop_at`, when the host drops something | the `Drop_Request` (the host's kind, value, data) and where it landed; the first provider returning true decides: `Drop_Result.edits` (applied as one undo step, the server told), the caret, a message |
+| `.Drop` | `Drop_Provider_Proc` | `editor_drop(ed, x, y, request)` / `editor_drop_at`, when the host drops something | the `Drop_Request` (the host's kind, value, data, and `menu`: the host's Shift) and where it landed; the first provider returning true decides: `Drop_Result.edits` (applied as one undo step, the server told), the caret, a message, and its `choices` (`Drop_Choice`: a title, edits, a caret, a preview of the code, a message; the plain drop's first). A plain drop applies `edits` (none: the first choice); with `menu` and two or more choices, the code actions menu lists them with the selected one's preview beside it (Up/Down, Enter or a click picks one as one undo step, Escape drops nothing; `editor_take_drop_message` gives the host the picked one's message once) |
 
 **Keep providers fast and non-blocking:** they run on the editor's thread. Look things up in data
 the host already has; do slow work on the host's own worker and invalidate when it's done.
@@ -141,7 +141,8 @@ the host already has; do slow work on the host's own worker and invalidate when 
 **The syntactic context** (`editor_syntax_context_at(ed, pos)`, `Syntax_Context`): from the
 buffer and the language's tokenizer, no parse, so it works on half-typed code. `kind` is
 `Top_Level`, `Struct_Body` / `Enum_Body` / `Union_Body` (with the type's `name` and its braces),
-`Proc_Body` (`proc_name`: a declaration's name or a literal's field, `ready = proc...`),
+`Proc_Body` (`proc_name`: a declaration's name or a literal's field, `ready = proc...`;
+`proc_params`: its parameter list as written, `self: ^Hero`),
 `Call_Argument` (`call_name` as written, `e.Node_FindPath`, the `argument` index and where it
 starts) or `Comment`; `in_string` says the position is inside a string literal (a call's string
 argument is `Call_Argument` with it set; right at the end of one not closed yet counts), `in_proc`
@@ -153,11 +154,13 @@ Backspace/Delete, Ctrl+A, Ctrl+V edit it, Enter renames, Escape or a click elsew
 Through the server, the edits to this document are applied as one undo step and those to other
 files are kept for the host (`editor_take_file_edits`: UTF-16 ranges by path), which applies them
 where those files are open (`editor_apply_lsp_edits`). The control snapshot has `rename`
-(`open`, `text`, `title`, `note`, `error`, `waiting`). Edits applied by `editor_apply_edits`
+(`open`, `text`, `title`, `note`, `error`, `waiting`), and `code_actions.preview` (a drop menu's
+selected choice's code). Edits applied by `editor_apply_edits`
 (drops, fixes, renames) undo and redo to one caret, not one per site
 (`buffer_group_single_caret`).
 
-Tests: `editor/providers_links_test.odin` (a marker's menu, Find Usages, the rename box with a
+Tests: `editor/providers_test.odin`'s `test_provider_drop_choices_and_their_menu` (the plain
+drop, the menu, its previews, a pick, one undo step); `editor/providers_links_test.odin` (a marker's menu, Find Usages, the rename box with a
 provider and through a server); `editor/providers_test.odin` (merging and ranking, without a server, hovers and gutter
 tooltips and clicks, diagnostics merged, shifted and debounced, syntax contexts, drops),
 `editor/providers_names_test.odin` (quick fixes in the Ctrl+. menu with and without a server,

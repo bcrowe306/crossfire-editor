@@ -71,6 +71,16 @@ probe_registry :: proc(probe: ^Probe) -> Provider_Registry {
 		p.call = strings.clone(ctx.syntax.call_name, context.temp_allocator)
 		p.argument = ctx.syntax.argument
 		if drop.kind != "node" do return false
+		if ctx.syntax.kind == .Proc_Body {
+			// Choices only: the first is the plain drop
+			for title, i in ([2]string{"Play it", "Stop it"}) {
+				code := i == 0 ? "\tplay()\n" : "\tstop()\n"
+				edits := make([]Text_Edit, 1, ctx.allocator)
+				edits[0] = {start = {pos.line, 0}, end = {pos.line, 0}, text = code}
+				append(&out.choices, Drop_Choice{title = title, preview = code, edits = edits, caret = buf.Position{pos.line, 2}, message = title})
+			}
+			return true
+		}
 		if ctx.syntax.kind == .Call_Argument {
 			append(&out.edits, Text_Edit{start = pos, end = pos, text = drop.value})
 		} else {
@@ -288,6 +298,9 @@ register_Hero :: proc "contextless" () {
 		testing.expect(t, c.kind == .Comment && c.in_proc, "a comment in the proc")
 		c = at(&ed, 10, 0)
 		testing.expect(t, c.kind == .Proc_Body && c.proc_name == "register_Hero", "a contextless proc's body")
+		testing.expect_value(t, c.proc_params, "")
+		testing.expect_value(t, at(&ed, 13, 3).proc_params, "self: ^Hero")
+		testing.expect_value(t, at(&ed, 13, 27).proc_params, "self: ^Hero")
 	})
 }
 
@@ -316,5 +329,58 @@ test_provider_drops_by_context :: proc(t: ^testing.T) {
 
 		_, ok = editor_drop_at(&ed, {1, 0}, Drop_Request{kind = "sound"})
 		testing.expect(t, !ok, "a kind no provider takes")
+	})
+}
+
+@(test)
+test_provider_drop_choices_and_their_menu :: proc(t: ^testing.T) {
+	run_leak_free(t, proc(t: ^testing.T) {
+		probe: Probe
+		reg := probe_registry(&probe)
+		defer provider_registry_destroy(&reg)
+		ed := editor_init(.Other)
+		defer editor_destroy(&ed)
+		editor_set_viewport(&ed, 800, 600)
+		editor_set_providers(&ed, &reg)
+		editor_set_text(&ed, "f :: proc() {\n\n}\n")
+
+		// A plain drop: the first choice
+		msg, ok := editor_drop_at(&ed, {1, 0}, Drop_Request{kind = "node"})
+		testing.expect(t, ok && msg == "Play it", "the first choice applied")
+		testing.expect_value(t, buf.buffer_line_str(&ed.buf, 1), "\tplay()")
+		testing.expect_value(t, ed.buf.cursors[0].pos, buf.Position{1, 2})
+		buf.buffer_undo(&ed.buf)
+		testing.expect_value(t, editor_to_string(&ed, context.temp_allocator), "f :: proc() {\n\n}\n")
+
+		// Asking for the menu: nothing yet, the choices listed with the selected one's preview
+		msg, ok = editor_drop_at(&ed, {1, 0}, Drop_Request{kind = "node", menu = true})
+		testing.expect(t, ok && msg == "", "the menu opened")
+		testing.expect(t, editor_code_actions_visible(&ed), "it shows")
+		testing.expect_value(t, editor_code_action_count(&ed), 2)
+		title, _ := editor_code_action_title(&ed, 1)
+		testing.expect_value(t, title, "Stop it")
+		lines, _, shown := editor_drop_preview_layout(&ed)
+		testing.expect(t, shown && len(lines) == 1 && lines[0] == "    play()", "the first's preview, tabs as spaces")
+		testing.expect_value(t, editor_to_string(&ed, context.temp_allocator), "f :: proc() {\n\n}\n")
+		editor_code_actions_move(&ed, 1)
+		lines, _, shown = editor_drop_preview_layout(&ed)
+		testing.expect(t, shown && lines[0] == "    stop()", "the second's preview")
+		testing.expect(t, editor_apply_code_action(&ed, ed.actions.selected), "picked")
+		testing.expect_value(t, buf.buffer_line_str(&ed.buf, 1), "\tstop()")
+		testing.expect_value(t, editor_take_drop_message(&ed), "Stop it")
+		testing.expect(t, !editor_code_actions_visible(&ed), "closed")
+		buf.buffer_undo(&ed.buf)
+		testing.expect_value(t, editor_to_string(&ed, context.temp_allocator), "f :: proc() {\n\n}\n")
+
+		// Closed without a pick: nothing
+		_, ok = editor_drop_at(&ed, {1, 0}, Drop_Request{kind = "node", menu = true})
+		editor_close_code_actions(&ed)
+		testing.expect_value(t, editor_to_string(&ed, context.temp_allocator), "f :: proc() {\n\n}\n")
+
+		// One choice: the menu isn't needed (the struct's field)
+		editor_set_text(&ed, "Hero :: struct {\n}\n")
+		_, ok = editor_drop_at(&ed, {1, 0}, Drop_Request{kind = "node", menu = true})
+		testing.expect(t, ok && !editor_code_actions_visible(&ed), "applied at once")
+		testing.expect_value(t, buf.buffer_line_str(&ed.buf, 1), "\tfield: int,")
 	})
 }

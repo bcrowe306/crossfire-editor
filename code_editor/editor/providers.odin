@@ -203,6 +203,9 @@ Drop_Request :: struct {
 	kind:  string,
 	value: string,
 	data:  rawptr,
+	// List the provider's alternatives in a menu (with a preview of each) instead of applying
+	// the plain drop (a host passes it when Shift is held at the release)
+	menu:  bool,
 }
 
 // An edit a drop provider asks for (buffer positions in the text as it is)
@@ -213,10 +216,28 @@ Text_Edit :: struct {
 
 // What a drop provider decides
 Drop_Result :: struct {
+	// The plain drop: its edits, applied as one undo step
 	edits:   [dynamic]Text_Edit,
 	// Where the caret goes after the edits (in the edited text); unset: after the last edit
 	caret:   Maybe(buf.Position),
 	// A sentence for the host's log ("Added sprite to Hero")
+	message: string,
+	// The useful alternatives, the plain drop's first (a few: they're a menu). A drop asking for
+	// the menu (`Drop_Request.menu`) lists them when there are two or more; else `edits` (or,
+	// without any, the first choice) is applied
+	choices: [dynamic]Drop_Choice,
+}
+
+// One way a drop can go: a menu entry with a preview of the code it writes
+Drop_Choice :: struct {
+	// The menu's text ("Play it")
+	title:   string,
+	// The code it writes, shown beside the menu (lines; tabs are fine)
+	preview: string,
+	edits:   []Text_Edit,
+	// Where the caret goes after the edits (in the edited text); unset: after the last edit
+	caret:   Maybe(buf.Position),
+	// For the host's log
 	message: string,
 }
 
@@ -912,9 +933,19 @@ editor_drop_at :: proc(ed: ^Editor, pos: buf.Position, drop: Drop_Request) -> (m
 		ctx := provider_context(&prov, .Invoked)
 		ctx.syntax = syntax
 		start := time.tick_now()
+		result.choices = make([dynamic]Drop_Choice, context.temp_allocator)
 		took := prov.drop(doc, pos, ctx, drop, &result)
 		provider_timed(&prov, start)
 		if !took do continue
+		if drop.menu && len(result.choices) > 1 {
+			editor_open_drop_menu(ed, pos, result.choices[:])
+			return "", true
+		}
+		if len(result.edits) == 0 && len(result.choices) > 0 {
+			c := result.choices[0]
+			editor_apply_edits(ed, c.edits, c.caret)
+			return c.message != "" ? c.message : result.message, true
+		}
 		editor_apply_edits(ed, result.edits[:], result.caret)
 		return result.message, true
 	}

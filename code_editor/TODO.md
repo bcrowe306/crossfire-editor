@@ -6,24 +6,23 @@ Tracks progress against `REQUIREMENTS.md`'s numbered requirements.
 
 1. **Taskfile** — `Taskfile.yml` with `check`, `test` (+ per-package
    variants), `build`, `run`, `fmt`, `ols:fetch`, `ols:build`, `clean`.
-2. **Unit tests for every feature** — 170 tests across 6 packages, all
-   passing with zero tracked memory leaks:
-   - `buffer`: 24 tests (editing, undo/redo incl. cursor restoration,
-     cursors, selection, multi-cursor, file IO, change-version tracking).
-   - `keymap`: 7 tests (bind/resolve/unbind, default bindings per platform,
-     F8 navigation).
-   - `syntax`: 8 tests (Odin tokenizer: keywords, strings, numbers, comments,
-     operators, multi-line block comments).
-   - `lsp`: 20 tests (JSON-RPC framing, request encoding, dispatch,
-     textEdit/activeParameter parsing, stale-response dropping, dead-server
-     detection, URI percent-encoding, symlink-resolved diagnostic keys,
-     UTF-16 column conversion).
-   - `editor`: 50 tests (input, actions, injection, viewport, clipboard,
-     file IO, completion/signature UI, LSP sync, popup layout, crash
-     supervisor, visual columns, mouse gestures, diagnostics conversion /
-     gutter severity / F8 / hover dwell / tooltip layout + wrapping).
-   - `control`: 6 tests (chord/command/mouse-target parsing, escapes,
-     errors, state JSON).
+2. **Unit tests for every feature** — 235 tests across 6 packages (counted
+   2026-10-23), all passing with zero tracked memory leaks (`task test`):
+   - `buffer`: 39 (editing, undo/redo with cursor restoration and grouped
+     single-caret steps, cursors, selection, multi-cursor, file IO,
+     change-version tracking, auto-closing pairs, read-only buffers).
+   - `keymap`: 14 (bind/resolve/unbind, default bindings per platform,
+     Zed / VS Code imports).
+   - `syntax`: 9 (the Odin tokenizer).
+   - `lsp`: 27 (JSON-RPC framing, requests, dispatch, stale responses, dead
+     servers, URIs, UTF-16 columns, rename edits).
+   - `editor`: 139 (input, actions, completion/signature UI, LSP sync and its
+     shadow replay, popups and overlays in small views, diagnostics, mouse,
+     find, palette, navigation, keymap and theme editors, providers: merging,
+     syntax contexts, drops and their menu, quick fixes, markers, usages,
+     renames).
+   - `control`: 7 (chord/command/mouse-target parsing, escapes, errors,
+     state JSON).
 3. **OLS integration** — `lsp` package implements the JSON-RPC/LSP subset
    needed (initialize, didOpen/didChange/didClose/didSave, completion,
    signatureHelp, publishDiagnostics, hover types). Verified against a real
@@ -57,9 +56,9 @@ Tracks progress against `REQUIREMENTS.md`'s numbered requirements.
    non-mac), save/open, multi-cursor add, completion/signature-help
    triggers, escape — parameterized for macOS (Cmd/Alt) vs Windows/Linux
    (Ctrl).
-7. **Local git / feature branches** — all work committed locally on
-   `feature/odin-editor-scaffold`, one commit per package/milestone. No
-   remote push performed.
+7. **Git** — the package lives in the Crossfire Editor's repository
+   (`code_editor/`), committed with the editor's work; the early
+   `feature/odin-editor-scaffold` branch is history.
 8. **File save/load API + event injection** — `editor_load_file`,
    `editor_save_file`, `editor_save_file_as`, `editor_save`,
    `editor_set_text`/`editor_to_string` (in-memory round trips), all
@@ -247,6 +246,34 @@ Tracks progress against `REQUIREMENTS.md`'s numbered requirements.
    + SDL_ttf-rendered editor, loads a sample `.odin` file, supports
    Ctrl/Cmd+S save, window resize, and launches via `task run`. Verified the
    window opens and stays responsive.
+
+32. **Providers** (2026-10-23, the Crossfire Editor's "Code editor
+    integration") — `editor/providers.odin`: a host registers completion,
+    hover, diagnostics (with quick fixes), gutter markers (with choices),
+    inlay hints, drops, usages and renames as plain procedures with a user
+    data pointer; the editor merges them with the server's answers and they
+    work without one. `editor_syntax_context_at` (a tokenizer scan: struct,
+    procedure body with its name and parameter list, call argument with the
+    call and index, string, comment) tells providers where a position is.
+    Trigger characters and replace ranges for completion. README
+    "Providers". Verified by `providers*_test.odin`.
+33. **Rename Symbol and Find Usages through providers** — F2's rename box
+    (a provider's, else the server's `textDocument/rename`, other files'
+    edits left to the host), the references panel listing a provider's
+    usages, a gutter marker's choices in the code actions menu.
+34. **Drops with choices** (round 4) — a drop provider returns its
+    choices (`Drop_Choice`: title, edits, caret, preview); a plain drop
+    applies the first, a drop asking for the menu (`Drop_Request.menu`:
+    the host's Shift) lists them in the code actions menu with the selected
+    one's code previewed beside it, picked by keys or clicks as one undo
+    step (`editor_take_drop_message` for the host's log).
+35. **Small views, pairs, read-only** — overlays (popups, menus, the
+    palette, panels) fit and scroll in a tab a few hundred pixels wide;
+    auto-closing brackets and quotes; read-only buffers. README sections of
+    the same names.
+36. **Rendering with SDL's renderer text engine** — text through
+    SDL_ttf's renderer text engine (one glyph atlas per renderer), so a GPU
+    renderer doesn't upload a texture per run of text.
 
 ## Backlog / known limitations
 

@@ -152,6 +152,8 @@ State_Code_Actions :: struct {
 	titles:   []string `json:"titles"`,
 	last_applied: int  `json:"last_applied"`,
 	last_skipped: int  `json:"last_skipped"`,
+	// A drop's menu: the selected choice's code preview ("" otherwise)
+	preview:      string `json:"preview"`,
 }
 
 // The rename box (Rename Symbol, F2)
@@ -351,6 +353,9 @@ snapshot_state :: proc(e: ^ed.Editor, frame: int) -> State {
 	s.code_actions = {
 		active = e.actions.active, visible = ed.editor_code_actions_visible(e), selected = e.actions.selected,
 		titles = titles, last_applied = e.actions.last_applied, last_skipped = e.actions.last_skipped,
+	}
+	if e.actions.drops != nil && e.actions.selected >= 0 && e.actions.selected < len(e.actions.drops) {
+		s.code_actions.preview = e.actions.drops[e.actions.selected].preview
 	}
 	s.rename = {
 		open = e.rename.open, text = ed.editor_rename_text(e), title = e.rename.target.title,

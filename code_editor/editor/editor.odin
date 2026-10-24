@@ -193,6 +193,8 @@ editor_destroy :: proc(ed: ^Editor) {
 	provided_destroy(&ed.provided)
 	provider_fixes_free(ed.actions.fixes)
 	marker_choices_free(ed.actions.choices)
+	drop_choices_free(ed.actions.drops)
+	delete(ed.actions.drop_message)
 	rename_destroy(ed)
 }
 

@@ -41,6 +41,9 @@ Syntax_Context :: struct {
 	// name, `ready = proc(...)`, else "")
 	proc_name:   string,
 	in_proc:     bool,
+	// The innermost procedure's parameter list as written, without its parentheses ("self:
+	// ^Hero, deltaTime: f64"; "" outside one)
+	proc_params: string,
 	// Call_Argument: the called expression as written ("e.Node_FindPath"), the argument's index
 	// (0-based) and where that argument starts
 	call_name:   string,
@@ -77,6 +80,8 @@ Frame :: struct {
 	open:      buf.Position,
 	args:      int,
 	arg_start: buf.Position,
+	// A procedure's parameter list (temp allocated)
+	params:    string,
 }
 
 // A recent token, for deciding what an opening bracket opens
@@ -118,6 +123,8 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 	// literal: `if ok {`), and its frame depth
 	control := false
 	control_depth := 0
+	// The parameter list of the last `proc(...)` closed: the procedure its `{` opens has it
+	last_params := ""
 
 	push_recent :: proc(recent: ^[dynamic]Recent, r: Recent) {
 		if len(recent) >= 16 do ordered_remove(recent, 0)
@@ -208,8 +215,10 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 					case '{':
 						kind := Frame_Kind.Block
 						name := ""
+						params := ""
 						if k, ok := pending.?; ok && pending_depth == len(frames) {
 							kind, name = k, pending_name
+							if k == .Proc do params = last_params
 							pending = nil
 						} else if control && control_depth == len(frames) {
 							kind = .Block
@@ -228,7 +237,7 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 								}
 							}
 						}
-						append(&frames, Frame{kind = kind, name = name, open = here})
+						append(&frames, Frame{kind = kind, name = name, open = here, params = params})
 					case '(':
 						kind := Frame_Kind.Paren
 						name := ""
@@ -248,6 +257,7 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 						want: bit_set[Frame_Kind] = ch == '}' ? {.Struct, .Enum, .Union, .Proc, .Block, .Literal} : ch == ')' ? {.Call, .Params, .Paren} : {.Index}
 						for len(frames) > 0 {
 							f := pop(&frames)
+							if f.kind == .Params && ch == ')' do last_params = buffer_text_between(b, f.arg_start, here)
 							if f.kind in want do break
 						}
 						if ch == '}' && len(frames) < pending_depth do pending = nil
@@ -287,6 +297,7 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 					pending, pending_name, pending_depth = .Union, declared_name(recent[:]), len(frames)
 					continue
 				case "proc":
+					last_params = ""
 					push_recent(&recent, {text, tok.kind})
 					pending, pending_name, pending_depth = .Proc, declared_name(recent[:]), len(frames)
 					continue
@@ -318,6 +329,7 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 				if !out.in_proc {
 					out.in_proc = true
 					out.proc_name = strings.clone(f.name, allocator)
+					out.proc_params = strings.clone(f.params, allocator)
 				}
 				if !decided {
 					out.kind = .Proc_Body
@@ -342,6 +354,7 @@ syntax_context_of :: proc(b: ^buf.Buffer, language: syn.Language, pos: buf.Posit
 			if frames[i].kind == .Proc {
 				out.in_proc = true
 				out.proc_name = strings.clone(frames[i].name, allocator)
+				out.proc_params = strings.clone(frames[i].params, allocator)
 				break
 			}
 		}
@@ -392,4 +405,18 @@ matching_close :: proc(b: ^buf.Buffer, language: syn.Language, open: buf.Positio
 		}
 	}
 	return buf.buffer_end_position(b)
+}
+
+// The text from one position to another (lines joined with spaces, trimmed; temp allocated)
+@(private="file")
+buffer_text_between :: proc(b: ^buf.Buffer, from, to: buf.Position) -> string {
+	sb := strings.builder_make(context.temp_allocator)
+	for ln in from.line ..= to.line {
+		line := buf.buffer_line_str(b, ln)
+		start := ln == from.line ? min(from.col, len(line)) : 0
+		end := ln == to.line ? min(to.col, len(line)) : len(line)
+		if ln > from.line do strings.write_byte(&sb, ' ')
+		if start < end do strings.write_string(&sb, line[start:end])
+	}
+	return strings.trim_space(strings.to_string(sb))
 }

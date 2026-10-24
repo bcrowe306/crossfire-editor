@@ -8,7 +8,9 @@
 // (`Provider_Diagnostic.fixes`) come first, and show at once (also without
 // a server). The same menu lists a gutter marker's choices when it has several
 // (`Gutter_Marker.choices`: the nodes using a script, say); picking one calls
-// the marker's provider with it.
+// the marker's provider with it. A drop asking for its menu
+// (`Drop_Request.menu`) lists the drop provider's choices here too, with a
+// preview of the selected one's code beside the menu.
 package code_editor
 
 import buf "../buffer"
@@ -40,17 +42,23 @@ Code_Action_Menu :: struct {
 	choices:         []string,
 	choice_provider: int,
 	choice_marker:   Gutter_Marker,
+	// A drop's choices (owned): listed instead of the rest, the selected one's preview shown
+	drops:           []Drop_Choice,
+	// The message of the last drop choice applied ("" none), for the host's log (owned)
+	drop_message:    string,
 }
 
 // How many entries the menu lists: the providers' fixes, then the server's actions
 editor_code_action_count :: proc(ed: ^Editor) -> int {
 	if ed.actions.choices != nil do return len(ed.actions.choices)
+	if ed.actions.drops != nil do return len(ed.actions.drops)
 	return len(ed.actions.fixes) + (len(ed.lsp.last_code_actions) if ed.lsp_enabled && !ed.actions.waiting else 0)
 }
 
 // An entry's title, and whether it's preferred
 editor_code_action_title :: proc(ed: ^Editor, index: int) -> (title: string, preferred: bool) {
 	if ed.actions.choices != nil do return ed.actions.choices[index], false
+	if ed.actions.drops != nil do return ed.actions.drops[index].title, index == 0
 	if index < len(ed.actions.fixes) do return ed.actions.fixes[index].title, ed.actions.fixes[index].preferred
 	a := ed.lsp.last_code_actions[index - len(ed.actions.fixes)]
 	return a.title, a.preferred
@@ -111,6 +119,55 @@ editor_close_code_actions :: proc(ed: ^Editor) {
 	ed.actions.fixes = nil
 	marker_choices_free(ed.actions.choices)
 	ed.actions.choices = nil
+	drop_choices_free(ed.actions.drops)
+	ed.actions.drops = nil
+}
+
+// Frees a drop menu's choices
+@(private)
+drop_choices_free :: proc(drops: []Drop_Choice) {
+	for d in drops {
+		delete(d.title)
+		delete(d.preview)
+		delete(d.message)
+		for e in d.edits do delete(e.text)
+		delete(d.edits)
+	}
+	delete(drops)
+}
+
+/*
+Opens the menu of a drop's choices (a drop that asked for it, `Drop_Request.menu`), the caret at
+the drop's position; the first is selected. Picking one applies its edits as one undo step;
+Escape or a click elsewhere drops nothing.
+*/
+editor_open_drop_menu :: proc(ed: ^Editor, pos: buf.Position, choices: []Drop_Choice) {
+	editor_close_completion(ed)
+	editor_close_code_actions(ed)
+	b := &ed.buf
+	resize(&b.cursors, 1)
+	b.cursors[0] = {pos = buf.buffer_clamp_position(b, pos)}
+	m := &ed.actions
+	m.active = true
+	m.waiting = false
+	m.selected = 0
+	m.scroll = 0
+	m.anchor = b.cursors[0].pos
+	m.drops = make([]Drop_Choice, len(choices))
+	for c, i in choices {
+		edits := make([]Text_Edit, len(c.edits))
+		for e, j in c.edits do edits[j] = {start = e.start, end = e.end, text = strings.clone(e.text)}
+		m.drops[i] = {title = strings.clone(c.title), preview = strings.clone(c.preview), edits = edits, caret = c.caret, message = strings.clone(c.message)}
+	}
+	editor_ensure_cursor_visible(ed)
+}
+
+// The message of the drop choice picked last, once ("" none; temp allocated)
+editor_take_drop_message :: proc(ed: ^Editor) -> string {
+	message := strings.clone(ed.actions.drop_message, context.temp_allocator)
+	delete(ed.actions.drop_message)
+	ed.actions.drop_message = ""
+	return message
 }
 
 /*
@@ -150,7 +207,7 @@ editor_update_code_actions :: proc(ed: ^Editor) {
 	if !m.active {
 		return
 	}
-	if editor_primary_cursor(ed).pos != m.anchor || !ed.lsp_enabled && len(m.fixes) == 0 && m.choices == nil {
+	if editor_primary_cursor(ed).pos != m.anchor || !ed.lsp_enabled && len(m.fixes) == 0 && m.choices == nil && m.drops == nil {
 		editor_close_code_actions(ed)
 		return
 	}
@@ -190,6 +247,19 @@ editor_apply_code_action :: proc(ed: ^Editor, index: int) -> bool {
 		editor_close_code_actions(ed)
 		if index < 0 || index >= count do return false
 		editor_choose_marker(ed, provider, marker, index)
+		return true
+	}
+	if ed.actions.drops != nil {
+		drops := ed.actions.drops
+		ed.actions.drops = nil
+		defer drop_choices_free(drops)
+		editor_close_code_actions(ed)
+		if index < 0 || index >= len(drops) do return false
+		editor_apply_edits(ed, drops[index].edits, drops[index].caret)
+		delete(ed.actions.drop_message)
+		ed.actions.drop_message = strings.clone(drops[index].message)
+		ed.actions.last_applied = len(drops[index].edits)
+		ed.actions.last_skipped = 0
 		return true
 	}
 	if index >= 0 && index < len(ed.actions.fixes) {
@@ -299,6 +369,45 @@ render_code_actions :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 		room := int((rect.w - 2 * POPUP_PAD) / ed.char_w) - 3
 		draw_text(renderer, font, truncate_cols(title, max(room, 1)), rect.x + POPUP_PAD + 2 * ed.char_w, y, theme.popup_text, ed.char_h)
 	}
+	// A drop's choices: the selected one's code
+	if lines, prect, shown := editor_drop_preview_layout(ed); shown {
+		draw_popup_box(renderer, prect, theme)
+		room := max(int((prect.w - 2 * POPUP_PAD) / ed.char_w), 1)
+		for line, i in lines {
+			draw_code_line(ed, renderer, font, theme, truncate_cols(line, room), prect.x + POPUP_PAD, prect.y + POPUP_PAD + f32(i) * ed.char_h)
+		}
+	}
+}
+
+// The most lines a drop choice's preview shows
+DROP_PREVIEW_MAX_LINES :: 8
+
+/*
+Where the selected drop choice's preview goes: under the menu, else above it, as wide as its
+longest line allows in the view. Tabs show as four spaces.
+
+Returns:
+- Its lines (temp allocated), its rect, and whether one shows
+*/
+editor_drop_preview_layout :: proc(ed: ^Editor) -> (lines: []string, rect: sdl.FRect, ok: bool) {
+	m := &ed.actions
+	if m.drops == nil || m.selected < 0 || m.selected >= len(m.drops) do return
+	menu, shown := editor_code_actions_layout(ed)
+	if !shown do return
+	text, _ := strings.replace_all(strings.trim_right(m.drops[m.selected].preview, "\n"), "\t", "    ", context.temp_allocator)
+	if text == "" do return
+	all := strings.split_lines(text, context.temp_allocator)
+	lines = all[:min(len(all), DROP_PREVIEW_MAX_LINES)]
+	widest := 0
+	for l in lines do widest = max(widest, text_cols(l))
+	left := ed.origin_x + editor_gutter_width(ed)
+	right := left + f32(ed.visible_cols) * ed.char_w
+	w := min(f32(widest) * ed.char_w + 2 * POPUP_PAD, right - left)
+	h := f32(len(lines)) * ed.char_h + 2 * POPUP_PAD
+	x := clamp(menu.x, left, max(left, right - w))
+	y := menu.y + menu.h + 2
+	if y + h > overlay_view_bottom(ed) && menu.y - h - 2 >= overlay_view_top(ed) do y = menu.y - h - 2
+	return lines, {x, y, w, h}, true
 }
 
 // editor_code_actions_rows is how many actions the menu shows (the rest scroll)
