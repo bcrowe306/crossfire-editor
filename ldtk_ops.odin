@@ -7,10 +7,11 @@ import "core:strconv"
 import "core:strings"
 
 /*
-The LDtk tab's edits, written back into the LDtk project (ldtk_doc.odin): one `LDtk_Edit` message
-per change, each an undo step restoring the files (history.odin's `.Files` scope).
+The Level mode's edits of the LDtk project (ldtk_doc.odin): one `LDtk_Edit` message per change,
+made in the document in memory (Save, Play and exports write it), each an undo step restoring the
+document's texts (history.odin's `.Files` scope).
 
-**What an edit writes.** Only the values it changes (`LDtkPatches`: spans of the text replaced),
+**What an edit changes.** Only the values it changes (`LDtkPatches`: spans of the text replaced),
 so everything else in the files stays byte for byte as LDtk wrote it. And what LDtk keeps in step
 with them, as LDtk itself would:
 - renames update the copies LDtk keeps beside instances (`__identifier` of layer, entity and field
@@ -115,14 +116,14 @@ LDtkRefresh :: struct {
 }
 
 /*
-Applies an edit to an LDtk project and writes the files it changed.
+Applies an edit to an LDtk project's document in memory (`LDtkDoc_Save` writes it).
 
 Inputs:
 - root: The project folder
 - edit: The edit
 
 Returns:
-- "" or why nothing was written; and a rename scenes may follow
+- "" or why nothing changed; and a rename scenes may follow
 */
 LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename: LDtkRename) {
 	doc := LDtkDoc_Get(root, edit.file)
@@ -185,27 +186,28 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 			}
 		}
 	case .Layer_Move:
+		// `number` places: -1 up, 1 down, more from a drag in the Layers sidebar
 		layers := LDtkDoc_Defs(doc, "layers")
 		def := LDtkDoc_DefByUid(doc, "layers", edit.def)
 		items := Json_Items(main, layers)
 		at, _ := slice.linear_search(items, def)
-		to := at + (edit.number < 0 ? -1 : 1)
-		if def < 0 || to < 0 || to >= len(items) do return "", {}
-		other := items[to]
-		otherUid := Json_Int(main, Json_Get(main, other, "uid"))
-		ldtkSwap(&patches, doc, 0, def, other)
+		steps := int(math.round(edit.number))
+		if steps == 0 do steps = edit.number < 0 ? -1 : edit.number > 0 ? 1 : 0
+		to := clamp(at + steps, 0, len(items) - 1)
+		if def < 0 || to == at do return "", {}
+		ldtkMove(&patches, doc, 0, items, at, to)
 		// Every level's layer instances are in the definitions' order
+		order := make([]int, len(items), context.temp_allocator)
+		for d, i in items do order[i] = Json_Int(main, Json_Get(main, d, "uid"), -1)
 		for _, level in doc.levels {
 			file, array := LDtkDoc_LayerInstances(doc, level)
 			if array < 0 do continue
 			json := LDtkDoc_Json(doc, file)
-			a, b := -1, -1
-			for li in Json_Items(json, array) {
-				uid := Json_Int(json, Json_Get(json, li, "layerDefUid"), -1)
-				if uid == edit.def do a = li
-				if uid == otherUid do b = li
-			}
-			if a >= 0 && b >= 0 do ldtkSwap(&patches, doc, file, a, b)
+			instances := Json_Items(json, array)
+			// The instances as the definitions are (LDtk keeps them so); a level that differs is left
+			same := len(instances) == len(order)
+			if same do for li, i in instances do if Json_Int(json, Json_Get(json, li, "layerDefUid"), -1) != order[i] do same = false
+			if same do ldtkMove(&patches, doc, file, instances, at, to)
 		}
 	case .Layer_Visible:
 		level := LDtkDoc_FindLevel(doc, edit.level)
@@ -941,6 +943,19 @@ ldtkSwap :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, a, b: int) {
 	LDtkPatches_Add(patches, file, Json_SetPatch(json, b, ta))
 }
 
+// Moves an array item from `from` to `to` (the items between shift by one): each item in the range
+// takes the text of the one that ends up there (array items of one array: layers reordered)
+@(private="file")
+ldtkMove :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file: int, items: []int, from, to: int) {
+	json := LDtkDoc_Json(doc, file)
+	texts := make([]string, len(items), context.temp_allocator)
+	for item, i in items do texts[i] = strings.clone(Json_Text(json, item), context.temp_allocator)
+	order := make([dynamic]int, context.temp_allocator)
+	for i in 0 ..< len(items) do if i != from do append(&order, i)
+	inject_at(&order, to, from)
+	for i in min(from, to) ..= max(from, to) do LDtkPatches_Add(patches, file, Json_SetPatch(json, items[i], texts[order[i]]))
+}
+
 // The grid size of the layer an entity is in
 @(private="file")
 ldtkInstanceGrid :: proc(doc: ^LDtkDoc, e: LDtkDocEntity) -> int {
@@ -970,8 +985,8 @@ ldtkSetGridPivot :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, entity, gri
 }
 
 /*
-Writes an edit: its patches, then (from what they make, before anything is written) what LDtk
-keeps in step: neighbours, entities' world positions, the table of contents.
+Makes an edit in the document (in memory: saving writes it): its patches, then (from what they
+make) what LDtk keeps in step: neighbours, entities' world positions, the table of contents.
 */
 @(private="file")
 ldtkCommit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches, refresh: LDtkRefresh) -> string {
@@ -991,7 +1006,7 @@ ldtkCommit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches, refresh: LDtkRefresh) -
 			for t, i in second do texts[i] = strings.clone(t, context.temp_allocator)
 		}
 	}
-	return LDtkDoc_WriteTexts(doc, texts)
+	return LDtkDoc_SetTexts(doc, texts)
 }
 
 // A level's neighbour as LDtk lists it

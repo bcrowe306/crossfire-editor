@@ -63,8 +63,9 @@ SessionState :: struct {
 
 // Whether the project has changes that aren't saved
 Project_IsModified :: proc(state: ^State) -> bool {
-	// The LDtk tab's file steps were written at once: not unsaved (History.fileVersion)
-	return state.history.version - state.history.fileVersion != state.session.savedVersion || state.session.assetsChanged || CodeTabs_AnyDirty(state)
+	// LDtk documents say themselves whether they're unsaved (ldtk_doc.odin; their steps are
+	// History.fileVersion's)
+	return state.history.version - state.history.fileVersion != state.session.savedVersion || state.session.assetsChanged || CodeTabs_AnyDirty(state) || LDtkDocs_AnyUnsaved(state)
 }
 
 // Records a successful save
@@ -81,6 +82,8 @@ Returns:
 */
 Session_Save :: proc(state: ^State) -> bool {
 	if !CodeTabs_SaveAll(state) do return false
+	// The Level mode's edits are in memory until now (ldtk_doc.odin)
+	if !LDtkDocs_SaveProject(state) do return false
 	if message := Project_Save(&state.project); message != "" {
 		logLine(state, .Error, fmt.aprintf("Save failed: %s", message))
 		return false
@@ -310,6 +313,12 @@ saveProjectAs :: proc(state: ^State, root, name: string) -> bool {
 		text := CodeEditor_Text(path)
 		_ = os.write_entire_file(joinPath(root, rel, allocator = context.temp_allocator), transmute([]byte)text)
 	}
+	// So do unsaved LDtk edits (ldtk_doc.odin)
+	for path, text in LDtkDocs_UnsavedTexts(state) {
+		rel, err := filepath.rel(from, absolutePath(path), context.temp_allocator)
+		if err != nil || strings.has_prefix(rel, "..") do continue
+		_ = os.write_entire_file(joinPath(root, rel, allocator = context.temp_allocator), transmute([]byte)text)
+	}
 	// The project as it's open, written into the copy
 	delete(state.project.rootPath)
 	state.project.rootPath = strings.clone(absolutePath(root))
@@ -335,8 +344,9 @@ saveProjectAs :: proc(state: ^State, root, name: string) -> bool {
 switchProject :: proc(state: ^State, project: Project) {
 	Recent_Add(&state.recentProjects, project.rootPath)
 	playStop(state)
-	// The save prompt came first: what's still unsaved is dropped
+	// The save prompt came first: what's still unsaved is dropped (LDtk documents' edits too)
 	CodeTabs_CloseAll(state)
+	LDtkDoc_DestroyAll()
 	AudioPreview_Unload()
 	Project_Destroy(&state.project)
 	state.project = project

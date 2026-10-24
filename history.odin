@@ -2,7 +2,6 @@ package crossfire_editor
 
 import "core:fmt"
 import "core:hash"
-import "core:os"
 import "core:path/filepath"
 import "core:slice"
 import "core:strings"
@@ -43,8 +42,9 @@ History :: struct {
 	// Bumped by every change to the project through the history (a step pushed, merged, undone
 	// or redone), so unsaved changes can be detected (project_session.odin)
 	version: int,
-	// The part of `version` that changed only files the editor wrote at once (the LDtk tab's
-	// `FileChange` steps): nothing for Save to write, so they don't make the project modified
+	// The part of `version` that changed only LDtk documents (`FileChange` steps): whether they're
+	// unsaved is the documents' own (ldtk_doc.odin's `LDtkDoc_Unsaved`: an undo back to the saved
+	// text leaves nothing to save), so they don't count here
 	fileVersion: int,
 }
 
@@ -74,10 +74,11 @@ UndoChange :: union {
 }
 
 /*
-Files the editor wrote: an LDtk project's (the LDtk tab's edits, ldtk_ops.odin), each file's text
-before and after. Undo writes "before" back, redo "after"; a file changed outside since (LDtk
-saved it) is merged when the two changes don't touch (`History_MergeText`), else the step waits
-for the user's answer (`LevelMode.conflict`). A rename the scenes followed also holds the
+An LDtk project's document (the Level mode's edits, ldtk_ops.odin): each file's text before and
+after, in memory (ldtk_doc.odin: saving writes them). Undo puts "before" back, redo "after"; a
+document changed since (LDtk saved the file and it was read again or merged) is merged when the
+two changes don't touch (`History_MergeText`), else the step waits for the user's answer
+(`LevelMode.conflict`). A rename the scenes followed also holds the
 project's snapshot (`project`, `hasProject`), and the components whose LDtkLevel nodes followed it
 (`components`: the project's snapshot holds scenes only).
 */
@@ -172,7 +173,7 @@ EditScope :: enum {
 	Scene,
 	// Changes the scene list or the project's settings
 	Project,
-	// Changes files (an LDtk project's: `EditInfo.ldtkFile`)
+	// Changes an LDtk project's document in memory (`EditInfo.ldtkFile`; ldtk_doc.odin)
 	Files,
 }
 
@@ -777,8 +778,9 @@ History_Snapshot :: proc(s: ^State, info: EditInfo) -> ^EditSnapshot {
 		snap.project = takeProjectSnapshot(s)
 	case .Files:
 		snap.info.ldtkFile = strings.clone(info.ldtkFile)
+		// The document's texts as the editor has them (unsaved edits included)
 		if doc := LDtkDoc_Get(s.project.rootPath, info.ldtkFile); doc != nil {
-			for text, i in LDtkDoc_DiskTexts(doc) do append(&snap.files, FileText{path = strings.clone(doc.files[i].path), before = strings.clone(text)})
+			for text, i in LDtkDoc_Texts(doc) do append(&snap.files, FileText{path = strings.clone(doc.files[i].path), before = strings.clone(text)})
 		}
 		if info.withProject {
 			snap.project = takeProjectSnapshot(s)
@@ -852,9 +854,10 @@ History_Commit :: proc(s: ^State, snap: ^EditSnapshot, now: time.Tick) {
 		command.change = FileChange{ldtkFile = snap.info.ldtkFile}
 		change := &command.change.(FileChange)
 		snap.info.ldtkFile = ""
+		doc := LDtkDoc_Get(s.project.rootPath, change.ldtkFile)
 		for &f in snap.files {
-			data, err := os.read_entire_file(f.path, context.temp_allocator)
-			now := err == nil ? string(data) : f.before
+			now := f.before
+			if doc != nil do if text, found := LDtkDoc_TextOf(doc, f.path); found do now = text
 			if now == f.before {
 				delete(f.path)
 				delete(f.before)
@@ -1510,21 +1513,23 @@ nodesSameTree :: proc(a, b: []NodeDef) -> bool {
 }
 
 /*
-Writes a file step's texts back: "before" for an undo, "after" for a redo. A file changed since
-the step (LDtk saved it) is merged when the outside change and the step's don't touch
-(`History_MergeText`); otherwise nothing is written unless `force` (the user chose to overwrite).
-The LDtk caches read the files again, and the project's snapshot is restored with them.
+Puts a file step's texts back in the LDtk document (in memory: saving writes them): "before" for
+an undo, "after" for a redo. A document changed since the step (LDtk saved the file, read again or
+merged) is merged when that change and the step's don't touch (`History_MergeText`); otherwise
+nothing changes unless `force` (the user chose to overwrite). The project's snapshot is restored
+with them.
 
 Returns:
-- Whether it was written (false: a conflict, nothing written)
+- Whether it was put back (false: a conflict, nothing changed)
 */
 History_RestoreFiles :: proc(s: ^State, change: ^FileChange, undo, force: bool) -> bool {
 	targets := make([]string, len(change.files), context.temp_allocator)
+	doc := LDtkDoc_Get(s.project.rootPath, change.ldtkFile)
 	for f, i in change.files {
 		want := undo ? f.before : f.after
 		expected := undo ? f.after : f.before
-		data, err := os.read_entire_file(f.path, context.temp_allocator)
-		current := err == nil ? string(data) : expected
+		current := expected
+		if doc != nil do if text, found := LDtkDoc_TextOf(doc, f.path); found do current = text
 		switch {
 		case current == expected || current == want || force:
 			targets[i] = want
@@ -1534,17 +1539,10 @@ History_RestoreFiles :: proc(s: ^State, change: ^FileChange, undo, force: bool) 
 			targets[i] = merged
 		}
 	}
-	doc := LDtkDoc_Get(s.project.rootPath, change.ldtkFile)
-	for f, i in change.files {
-		written := false
-		if doc != nil do for df, j in doc.files do if df.path == f.path {
-			texts := LDtkDoc_Texts(doc)
-			texts[j] = targets[i]
-			if problem := LDtkDoc_WriteTexts(doc, texts); problem != "" do logLine(s, .Error, strings.clone(problem))
-			written = true
-			break
-		}
-		if !written do if problem := LDtk_WriteFile(f.path, targets[i], ldtkModified(f.path)); problem != "" do logLine(s, .Error, strings.clone(problem))
+	if doc != nil {
+		texts := LDtkDoc_Texts(doc)
+		for f, i in change.files do for df, j in doc.files do if df.path == f.path do texts[j] = targets[i]
+		if problem := LDtkDoc_SetTexts(doc, texts); problem != "" do logLine(s, .Error, strings.clone(problem))
 	}
 	if change.hasProject do restoreProjectSnapshot(s, undo ? change.project.before : change.project.after)
 	for &c in change.components {

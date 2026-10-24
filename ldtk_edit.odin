@@ -109,16 +109,27 @@ Inputs:
 LDtkEdit_Project :: proc(root, path: string) -> ^e.LDtkProject {
 	if path == "" do return nil
 	full := joinPath(root, path, allocator = context.temp_allocator)
-	modified := ldtkModified(full)
+	// The file, or the Level mode's unsaved edits of it (ldtk_doc.odin)
+	stamp := LDtkDoc_Stamp(root, path)
+	load :: proc(root, path, full: string) -> ^e.LDtkProject {
+		if LDtkDoc_IsUnsaved(root, path) {
+			if doc := LDtkDoc_Get(root, path); doc != nil && doc.problem == "" {
+				project, _ := e.LDtk_Parse(LDtkDoc_GameText(doc), full)
+				return project
+			}
+		}
+		project, _ := e.LDtk_Load(full)
+		return project
+	}
 	if entry, found := &ldtkCache[full]; found {
-		if entry.modified == modified do return entry.project
+		if entry.stamp == stamp do return entry.project
 		e.LDtk_Destroy(entry.project)
-		entry.project, _ = e.LDtk_Load(full)
-		entry.modified = modified
+		entry.project = load(root, path, full)
+		entry.stamp = stamp
 		return entry.project
 	}
-	project, _ := e.LDtk_Load(full)
-	ldtkCache[strings.clone(full)] = {project, modified}
+	project := load(root, path, full)
+	ldtkCache[strings.clone(full)] = {project, stamp}
 	return project
 }
 
@@ -141,7 +152,8 @@ LDtkEdit_Destroy :: proc() {
 @(private="file")
 LDtkCacheEntry :: struct {
 	project: ^e.LDtkProject,
-	modified: time.Time,
+	// `LDtkDoc_Stamp`: the file's time, or the unsaved document's version
+	stamp: u64,
 }
 
 // Parsed projects by full path. Package state: the view reads them, and they're only a cache.
@@ -179,15 +191,15 @@ LDtkSettings_Equal :: proc(a, b: e.LDtkLevelSettings) -> bool {
 	return true
 }
 
-// The settings as text, for the viewport's rebuild signature (the file's modification time too:
-// saving in LDtk rebuilds the level)
+// The settings as text, for the viewport's rebuild signature (the file's stamp too: saving in LDtk
+// rebuilds the level, and so does an unsaved edit in the Level mode)
 LDtkSettings_Signature :: proc(b: ^strings.Builder, root: string, settings: ^e.LDtkLevelSettings) {
 	// Every setting the build reads: the kinds' lists (one-way to an area changes no other) and
 	// each entity rule whole
 	fmt.sbprintf(b, "%s|%s|%v|%s|%v|%v|%v|%v|%v|%v", settings.file, settings.level, settings.allLevels, settings.collisionLayer,
 		settings.collisionValues[:], settings.oneWayValues[:], settings.areaValues[:], settings.spawnEntities, settings.background, settings.smoothTiles)
 	for m in settings.entityComponents do fmt.sbprintf(b, "|%s=%s,%v,%s,%v", m.entity, m.component, m.make, m.script, m.noScript)
-	if settings.file != "" do fmt.sbprintf(b, "|%v", ldtkModified(joinPath(root, settings.file, allocator = context.temp_allocator)))
+	if settings.file != "" do fmt.sbprintf(b, "|%v", LDtkDoc_Stamp(root, settings.file))
 }
 
 /*
@@ -302,7 +314,8 @@ LDtkEdit_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 }
 
 /*
-Starts LDtk on a project file (Settings > Editor > LDtk program, else `ldtk` in PATH), at a level
+Starts LDtk on a project file (Settings > Editor > LDtk program, else `ldtk` in PATH; the Level
+mode's unsaved edits of it are saved first), at a level
 when one is given: LDtk's command line takes only the file, but when it opens a project it selects
 the level its settings remember (`lastProject.levelUid`), so that's set first
 (`LDtk_RememberLevel`). An entity can't be selected that way: LDtk opens at its level.
@@ -317,6 +330,14 @@ LDtkEdit_OpenInLDtk :: proc(state: ^State, path: string, level := "") -> skald.C
 	if !found {
 		logLine(state, .Error, fmt.aprintf("Couldn't find LDtk ('%s'). Get it from ldtk.io, then set its path in Settings > Editor", program))
 		return {}
+	}
+	// LDtk reads the file: the Level mode's unsaved edits are written first (ldtk_doc.odin)
+	if LDtkDoc_IsUnsaved(state.project.rootPath, path) {
+		if problem := LDtkDoc_Save(state.project.rootPath, path); problem != "" {
+			logLine(state, .Error, fmt.aprintf("Not opened in LDtk: couldn't save %s first: %s", filepath.base(path), problem))
+			return {}
+		}
+		logLine(state, .Info, fmt.aprintf("Saved %s for LDtk", filepath.base(path)))
 	}
 	file := absolutePath(joinPath(state.project.rootPath, path, allocator = context.temp_allocator))
 	if level != "" {
