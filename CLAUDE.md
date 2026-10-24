@@ -2391,9 +2391,10 @@ world/level editor and the groundwork for our own LDtk-format editor; edits writ
   `__grid` (`EntityInstance.getCx`: a pivot of 1 counts the pixel before); neighbours
   (`Level.getNeighboursJson`; an equal set is left as written); layouts
   (`World.onWorldLayoutChange`, `onWorldGridChange`; linear worlds store -1 and are laid out 48 px
-  apart); new enums take `nextUid`. Renames of layers and entity types also rename scenes'
-  LDtkLevel settings (collision layer, entity rules) in the same step (`LDtkRename`,
-  `EditInfo.withProject`). Files LDtk older than 1.0 wrote aren't edited (`LDtkOps_TooOld`).
+  apart); new enums take `nextUid`. Renames of layers and entity types also rename scenes' and
+  components' LDtkLevel settings (collision layer, entity rules) in the same step (`LDtkRename`,
+  `EditInfo.withProject`; components, which the project's snapshot doesn't hold, through
+  `FileChange.components`, their nodes before and after: `ldtk_renames_follow_into_components_and_undo`). Files LDtk older than 1.0 wrote aren't edited (`LDtkOps_TooOld`).
 - **Undo** (history.odin, `.Files`): the snapshot is every file of the document read from disk,
   the step keeps the files that changed (`FileChange`: before and after texts, and the project's
   snapshot for renames). Undo writes "before" when the file is as the step left it; when LDtk

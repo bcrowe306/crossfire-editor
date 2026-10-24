@@ -516,6 +516,61 @@ ldtk_edits_undo_and_redo :: proc(t: ^testing.T) {
 	expectValid(t, path)
 }
 
+// A rename of an entity type or a layer is followed by the scenes' and the components' LDtkLevel
+// nodes, and its undo and redo bring both back (components aren't in the project's snapshot)
+@(test)
+ldtk_renames_follow_into_components_and_undo :: proc(t: ^testing.T) {
+	dir := worldCopy("ldtk_rename_components")
+	defer removeAll(dir)
+	defer LDtkDoc_DestroyAll()
+	project := Project_CreateEmpty(dir, "Levels")
+	state := State{project = project, browserSelection = {kind = .None}, selectedNode = -1, layout = {bottomOpen = true}, settings = Settings_Default()}
+	state.settings.builtInCodeEditor = false
+	state.mode = .Level
+	defer State_Destroy(&state)
+	send :: proc(state: ^State, m: Msg) { state^, _ = update(state^, m) }
+	level :: proc(scene: ^SceneDef) -> ^NodeDef {
+		i := Scene_InsertNode(scene, "Level", .LDtkLevel, -1)
+		node := &scene.nodes[i]
+		delete(node.ldtk.file)
+		node.ldtk.file = strings.clone("world.ldtk")
+		delete(node.ldtk.collisionLayer)
+		node.ldtk.collisionLayer = strings.clone("Walls")
+		append(&node.ldtk.entityComponents, e.LDtkEntityComponent{entity = strings.clone("Player"), component = strings.clone(""), script = strings.clone("")})
+		return node
+	}
+	_ = level(&state.project.scenes[0])
+	ci, problem := Project_NewComponent(&state.project, "LevelPiece")
+	testing.expect_value(t, problem, "")
+	_ = level(&state.project.scenes[ci])
+	entityOf :: proc(state: ^State, scene: int) -> string {
+		for &n in state.project.scenes[scene].nodes do if n.kind == .LDtkLevel do return n.ldtk.entityComponents[0].entity
+		return ""
+	}
+	layerOf :: proc(state: ^State, scene: int) -> string {
+		for &n in state.project.scenes[scene].nodes do if n.kind == .LDtkLevel do return n.ldtk.collisionLayer
+		return ""
+	}
+
+	send(&state, LDtk_Edit{op = .Entity_Name, file = "world.ldtk", def = 10, text = "Hero"})
+	testing.expect_value(t, entityOf(&state, 0), "Hero")
+	testing.expect_value(t, entityOf(&state, ci), "Hero")
+	send(&state, Action.Undo)
+	testing.expect_value(t, valueAt(joinPath(dir, "world.ldtk", allocator = context.temp_allocator), "defs.entities.uid=10.identifier"), "Player")
+	testing.expect_value(t, entityOf(&state, 0), "Player")
+	testing.expect_value(t, entityOf(&state, ci), "Player")
+	send(&state, Action.Redo)
+	testing.expect_value(t, entityOf(&state, 0), "Hero")
+	testing.expect_value(t, entityOf(&state, ci), "Hero")
+	testing.expect(t, Project_IsModified(&state), "a rename the components followed makes the project modified")
+	// A layer: the same
+	send(&state, LDtk_Edit{op = .Layer_Name, file = "world.ldtk", def = 3, text = "Floor"})
+	testing.expect_value(t, layerOf(&state, ci), "Floor")
+	send(&state, Action.Undo)
+	testing.expect_value(t, layerOf(&state, ci), "Walls")
+	testing.expect_value(t, layerOf(&state, 0), "Walls")
+}
+
 // The write-back's replace: over an existing file, over one another handle has open (Windows
 // refuses the rename then: File_Replace tries again, then writes into it), and a refusal that
 // leaves the file as it was and says why

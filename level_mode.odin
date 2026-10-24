@@ -419,8 +419,9 @@ LEVEL_MAX_ZOOM :: 16
 
 /*
 Applies an LDtk tab edit: written into the file (ldtk_ops.odin), or why not kept for the tab to
-show. A rename of a layer or an entity type is followed by the scenes' LDtkLevel nodes naming it
-(their collision layer, their entity rules), in the same undo step.
+show. A rename of a layer or an entity type is followed by the scenes' and components' LDtkLevel
+nodes naming it (their collision layer, their entity rules), in the same undo step (components
+through `FileChange.components`: the project's snapshot holds scenes only).
 */
 @(private="file")
 levelApplyEdit :: proc(state: ^State, edit: LDtk_Edit) {
@@ -431,7 +432,6 @@ levelApplyEdit :: proc(state: ^State, edit: LDtk_Edit) {
 	if problem == "" && edit.op == .Enum_Added do setOwned(&state.level.newEnum, "")
 	if problem != "" || rename.kind == .None do return
 	for &scene in state.project.scenes {
-		if Scene_IsComponent(&scene) do continue
 		for &node in scene.nodes {
 			if node.kind != .LDtkLevel || node.ldtk.file != edit.file do continue
 			switch rename.kind {

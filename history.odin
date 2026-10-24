@@ -78,7 +78,8 @@ Files the editor wrote: an LDtk project's (the LDtk tab's edits, ldtk_ops.odin),
 before and after. Undo writes "before" back, redo "after"; a file changed outside since (LDtk
 saved it) is merged when the two changes don't touch (`History_MergeText`), else the step waits
 for the user's answer (`LevelMode.conflict`). A rename the scenes followed also holds the
-project's snapshot (`project`, `hasProject`).
+project's snapshot (`project`, `hasProject`), and the components whose LDtkLevel nodes followed it
+(`components`: the project's snapshot holds scenes only).
 */
 FileChange :: struct {
 	// The LDtk project (relative to the project folder; owned)
@@ -86,6 +87,14 @@ FileChange :: struct {
 	files: [dynamic]FileText,
 	hasProject: bool,
 	project: ProjectChange,
+	components: [dynamic]ComponentNodes,
+}
+
+// A component's nodes before and after a step (a rename its LDtkLevel nodes followed; owned)
+ComponentNodes :: struct {
+	// The component's file (its `SceneDef.component`)
+	file: string,
+	before, after: [dynamic]NodeDef,
 }
 
 // A file's text before and after a step (all owned)
@@ -190,6 +199,8 @@ EditSnapshot :: struct {
 	project: ProjectSnapshot,
 	// A `.Files` edit's files and their texts (owned)
 	files: [dynamic]FileText,
+	// A rename's components (with LDtkLevel nodes of that file): their nodes before (owned)
+	components: [dynamic]ComponentNodes,
 }
 
 /*
@@ -743,7 +754,13 @@ History_Snapshot :: proc(s: ^State, info: EditInfo) -> EditSnapshot {
 		if doc := LDtkDoc_Get(s.project.rootPath, info.ldtkFile); doc != nil {
 			for text, i in LDtkDoc_DiskTexts(doc) do append(&snap.files, FileText{path = strings.clone(doc.files[i].path), before = strings.clone(text)})
 		}
-		if info.withProject do snap.project = takeProjectSnapshot(s)
+		if info.withProject {
+			snap.project = takeProjectSnapshot(s)
+			for &scene in s.project.scenes {
+				if !Scene_IsComponent(&scene) || !Scene_ShowsLDtk(&scene, info.ldtkFile) do continue
+				append(&snap.components, ComponentNodes{file = strings.clone(scene.component), before = cloneNodes(scene.nodes[:])})
+			}
+		}
 	}
 	return snap
 }
@@ -832,7 +849,20 @@ History_Commit :: proc(s: ^State, snap: EditSnapshot, now: time.Tick) {
 				change.hasProject = true
 			}
 		}
-		if len(change.files) == 0 && !change.hasProject {
+		// Components that followed the rename
+		for &c in snap.components {
+			scene := Project_FindComponentScene(&s.project, c.file)
+			if scene == nil || nodesEqual(c.before[:], scene.nodes[:]) {
+				delete(c.file)
+				destroyNodes(&c.before)
+				continue
+			}
+			c.after = cloneNodes(scene.nodes[:])
+			append(&change.components, c)
+		}
+		delete(snap.components)
+		snap.components = nil
+		if len(change.files) == 0 && !FileChange_TouchesProject(change) {
 			delete(change.files)
 			delete(change.ldtkFile)
 			delete(snap.info.label)
@@ -851,7 +881,7 @@ History_Push :: proc(h: ^History, command: UndoCommand, settings: ^Settings, now
 	// most of a Windows test thread's 1 MB stack (ldtk_edits_undo_and_redo overflowed it)
 	command := command
 	h.version += 1
-	if change, isFiles := &command.change.(FileChange); isFiles && !change.hasProject do h.fileVersion += 1
+	if change, isFiles := &command.change.(FileChange); isFiles && !FileChange_TouchesProject(change) do h.fileVersion += 1
 	if top, ok := mergeTarget(h, &command, settings, now); ok {
 		// Keep the top's "before"; take the new "after"
 		switch &change in top.change {
@@ -886,6 +916,19 @@ History_Push :: proc(h: ^History, command: UndoCommand, settings: ^Settings, now
 			}
 			delete(new.files)
 			delete(new.ldtkFile)
+			// Each component keeps its first "before", takes the newest "after"
+			for &c in new.components {
+				merged := false
+				for &old in change.components do if old.file == c.file {
+					destroyNodes(&old.after)
+					old.after = c.after
+					destroyNodes(&c.before)
+					delete(c.file)
+					merged = true
+				}
+				if !merged do append(&change.components, c)
+			}
+			delete(new.components)
 			if new.hasProject {
 				if change.hasProject {
 					destroyProjectSnapshot(&change.project.after)
@@ -959,7 +1002,7 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	// Files written back: as they were (merged with outside changes when they don't touch), or the
 	// step waits for the user's answer
 	if change, isFiles := &command.change.(FileChange); isFiles {
-		if !change.hasProject do s.history.fileVersion += 1
+		if !FileChange_TouchesProject(change) do s.history.fileVersion += 1
 		if !History_RestoreFiles(s, change, undo, force = false) {
 			append(from, command)
 			s.level.conflict = {open = true, undo = undo}
@@ -1133,6 +1176,12 @@ destroyCommand :: proc(command: ^UndoCommand) {
 			destroyProjectSnapshot(&change.project.before)
 			destroyProjectSnapshot(&change.project.after)
 		}
+		for &c in change.components {
+			delete(c.file)
+			destroyNodes(&c.before)
+			destroyNodes(&c.after)
+		}
+		delete(change.components)
 	}
 }
 
@@ -1155,6 +1204,11 @@ discardSnapshot :: proc(snap: ^EditSnapshot) {
 		delete(f.after)
 	}
 	delete(snap.files)
+	for &c in snap.components {
+		delete(c.file)
+		destroyNodes(&c.before)
+	}
+	delete(snap.components)
 }
 
 @(private="file")
@@ -1442,7 +1496,33 @@ History_RestoreFiles :: proc(s: ^State, change: ^FileChange, undo, force: bool) 
 		if !written do if problem := LDtk_WriteFile(f.path, targets[i], ldtkModified(f.path)); problem != "" do logLine(s, .Error, strings.clone(problem))
 	}
 	if change.hasProject do restoreProjectSnapshot(s, undo ? &change.project.before : &change.project.after)
+	for &c in change.components {
+		scene := Project_FindComponentScene(&s.project, c.file)
+		if scene == nil do continue
+		destroyNodes(&scene.nodes)
+		scene.nodes = cloneNodes((undo ? c.before : c.after)[:])
+	}
 	return true
+}
+
+/*
+Whether a file step changed the project too (a rename the scenes or components followed): it then
+makes the project modified, as other steps do.
+*/
+FileChange_TouchesProject :: proc(change: ^FileChange) -> bool {
+	return change.hasProject || len(change.components) > 0
+}
+
+// A component's SceneDef by its file (nil: none)
+Project_FindComponentScene :: proc(p: ^Project, file: string) -> ^SceneDef {
+	for &scene in p.scenes do if Scene_IsComponent(&scene) && scene.component == file do return &scene
+	return nil
+}
+
+// Whether a scene (or component) has an LDtkLevel node showing an LDtk file
+Scene_ShowsLDtk :: proc(scene: ^SceneDef, file: string) -> bool {
+	for &node in scene.nodes do if node.kind == .LDtkLevel && node.ldtk.file == file do return true
+	return false
 }
 
 /*
@@ -1505,7 +1585,7 @@ History_ResolveConflict :: proc(s: ^State, overwrite: bool) -> string {
 		return ""
 	}
 	s.history.version += 1
-	if !change.hasProject do s.history.fileVersion += 1
+	if !FileChange_TouchesProject(change) do s.history.fileVersion += 1
 	if overwrite {
 		History_RestoreFiles(s, change, undo, force = true)
 		command.mergeKey = 0
