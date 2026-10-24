@@ -745,6 +745,36 @@ CodeEditor_ActionIndex :: proc(path, title: string) -> (index, selected, count: 
 	return
 }
 
+/*
+The open right-click menu's entry starting with `label`: how many Down presses reach it from the
+highlighted one (the menu skips separators and disabled entries), for the test driver's
+`code_menu_pick`.
+
+Returns:
+- The presses (-1 when the menu isn't open or has no such enabled entry) and the entries' labels
+  (temp allocated, for the failure message)
+*/
+CodeEditor_MenuSteps :: proc(path, label: string) -> (steps: int, labels: string) {
+	steps = -1
+	c := CodeEditor_Find(path)
+	if c == nil || !c.ed.menu.open do return
+	items := ce.editor_context_menu_items(&c.ed)
+	names := make([dynamic]string, context.temp_allocator)
+	for it in items do if it.label != "" do append(&names, it.label)
+	labels = strings.join(names[:], ", ", context.temp_allocator)
+	n := len(items)
+	i := c.ed.menu.selected
+	stops := 0
+	for _ in 0 ..< n {
+		i = i >= 0 ? (i + 1) % n : 0
+		// Only the entries the highlight stops at count
+		if !items[i].enabled do continue
+		stops += 1
+		if strings.has_prefix(items[i].label, label) do return stops, labels
+	}
+	return
+}
+
 // Where a text first is in an open file (0-based line and byte column; -1 when it isn't there)
 CodeEditor_FindText :: proc(path, text: string) -> (line, column: int) {
 	c := CodeEditor_Find(path)
@@ -935,7 +965,7 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 			if isPassthrough(e.key, help) {
 				if e.type == .KEY_DOWN && !e.key.repeat {
 					url := CodeProviders_HelpAt(s, ce.editor_provider_document(&c.ed), ce.editor_primary_cursor(&c.ed).pos)
-					skald.send(ctx, Msg(Code_Help_Requested(url != "" ? url : Manual_URL(""))))
+					skald.send(ctx, Msg(Code_Help_Requested(url != "" ? url : Docs_ManualAddress(DOCS_CODE_PAGE))))
 				}
 				continue
 			}
@@ -993,6 +1023,7 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	// A scrub's value for the game, a running node picked, a write-back; a log point's change
 	CodeLive_Take(ctx)
 	LogPoints_Take(ctx)
+	CodeProviders_TakeDocs(ctx)
 	// A swatch's Color dialog, a hover's play button
 	if request, ok := CodeColors_TakeRequest(); ok do skald.send(ctx, Msg(request))
 	// A code action's dialog or a field to show in the inspector

@@ -141,14 +141,14 @@ engine_api_areas_match_the_website :: proc(t: ^testing.T) {
 		log.info("the website isn't checked out beside the editor: skipped")
 		return
 	}
-	Groups :: struct { areas: []struct { slug: string, files: []string } }
+	Groups :: struct { areas: []struct { slug, title, description: string, files: []string } }
 	groups: Groups
 	if !testing.expect(t, json.unmarshal(data, &groups, allocator = context.temp_allocator) == nil, "the website's areas parse") do return
 	testing.expect_value(t, len(ENGINE_API_AREAS), len(groups.areas))
 	for area, i in groups.areas {
 		if i >= len(ENGINE_API_AREAS) do break
 		mine := ENGINE_API_AREAS[i]
-		testing.expectf(t, mine.slug == area.slug && slice.equal(mine.files, area.files), "area %s matches the website's (update ENGINE_API_AREAS in engine_docs.odin)", area.slug)
+		testing.expectf(t, mine.slug == area.slug && mine.title == area.title && mine.description == area.description && slice.equal(mine.files, area.files), "area %s matches the website's (update ENGINE_API_AREAS in engine_docs.odin)", area.slug)
 	}
 	free_all(context.temp_allocator)
 }

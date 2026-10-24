@@ -875,3 +875,106 @@ ScriptRename_Code :: proc(sources: []CodeSource, symbol: ScriptSymbol, newName: 
 	out.edits = unique
 	return out
 }
+
+/*
+The type the code shows for the name at a position (a struct's field, a parameter, a local, a
+`self.door` selector), as written: `^e.Door` for `door: ^e.Door`, `e.Sprite` for a local
+declared from a field of that type. The docs window's "Open Docs" in a code tab follows it to the
+type's page (docs.odin's `Docs_TypeAddress`).
+
+Inputs:
+- sources: The scripts package's files
+- path: The file asked about (absolute)
+- line, column: The position (0-based line, byte column inside the name or right after it)
+
+Returns:
+- The type's text ("" when the code doesn't show it; temp allocated) and the file's import name
+  of the engine
+*/
+ScriptCode_TypeAt :: proc(sources: []CodeSource, path: string, line, column: int) -> (typeText, alias: string) {
+	m := codeModelBuild(sources)
+	if m == nil do return
+	defer codeModelDestroy(m)
+	fi := -1
+	for f, i in m.files do if f.path == path do fi = i
+	if fi < 0 do return
+	alias = strings.clone(m.files[fi].alias, context.temp_allocator)
+	Finder :: struct {
+		m: ^CodeModel,
+		file: ^CodeFile,
+		scope: ^Scope,
+		line, column: int,
+		found: ^^ast.Expr,
+		done: ^bool,
+	}
+	found: ^ast.Expr
+	done := false
+	finder := new(Finder, m.allocator)
+	finder^ = Finder{m = m, file = &m.files[fi], line = line, column = column, found = &found, done = &done}
+	spans :: proc(f: ^Finder, ident: ^ast.Ident) -> bool {
+		if ident == nil do return false
+		start := ident.pos.column - 1
+		return ident.pos.line - 1 == f.line && f.column >= start && f.column <= start + len(ident.name)
+	}
+	visit :: proc(v: ^ast.Visitor, node: ^ast.Node) -> ^ast.Visitor {
+		f := (^Finder)(v.data)
+		if node == nil || f.done^ do return nil
+		env := Env{f.m, f.file, f.scope}
+		take :: proc(f: ^Finder, t: ^ast.Expr) {
+			f.found^ = t
+			f.done^ = true
+		}
+		#partial switch n in node.derived {
+		case ^ast.Proc_Lit:
+			inner := new(Finder, f.m.allocator)
+			inner^ = f^
+			inner.scope = scopeOf(f.m, n)
+			nv := new(ast.Visitor, f.m.allocator)
+			nv^ = ast.Visitor{data = inner, visit = v.visit}
+			return nv
+		case ^ast.Field_List:
+			// Struct fields and parameters: their declared type
+			for field in n.list do for name in field.names {
+				if id, ok := name.derived.(^ast.Ident); ok && spans(f, id) {
+					take(f, field.type)
+					return nil
+				}
+			}
+		case ^ast.Value_Decl:
+			for name, i in n.names {
+				id, ok := name.derived.(^ast.Ident)
+				if !ok || !spans(f, id) do continue
+				if n.type != nil do take(f, n.type)
+				else if i < len(n.values) do take(f, typeOf(env, n.values[i]))
+				else do f.done^ = true
+				return nil
+			}
+		case ^ast.Selector_Expr:
+			if n.field != nil && spans(f, n.field) {
+				take(f, typeOf(env, n))
+				return nil
+			}
+		case ^ast.Ident:
+			if spans(f, n) {
+				take(f, nameType(env, n.name, 0))
+				return nil
+			}
+		}
+		return v
+	}
+	v := new(ast.Visitor, m.allocator)
+	v^ = ast.Visitor{data = finder, visit = visit}
+	for decl in m.files[fi].file.decls {
+		ast.walk(v, decl)
+		if done do break
+	}
+	if found == nil || found == m.otherPackage do return "", alias
+	// The type's text, from the file it's written in (a field of a struct in another file)
+	for cf in m.files {
+		if cf.path != found.pos.file do continue
+		if found.pos.offset >= 0 && found.end.offset <= len(cf.text) && found.pos.offset < found.end.offset {
+			return strings.clone(cf.text[found.pos.offset:found.end.offset], context.temp_allocator), alias
+		}
+	}
+	return "", alias
+}

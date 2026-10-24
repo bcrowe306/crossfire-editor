@@ -240,6 +240,8 @@ State :: struct {
 	addNode: AddNodeDialog,
 	// Help > About (view_about.odin)
 	aboutOpen: bool,
+	// The docs window (docs_window.odin)
+	docs: DocsWindow,
 	// The Animation panel (view_animation.odin)
 	animEditor: AnimEditor,
 	// The Tiles panel: the brush, tool and layer painted (tile_paint.odin)
@@ -484,6 +486,7 @@ State_Destroy :: proc(state: ^State) {
 	CodeColorDialog_Destroy(&state.codeColor)
 	CodeRangeDialog_Destroy(&state.codeRange)
 	LogPoints_Destroy(&state.logPoints)
+	DocsWindow_Destroy(&state.docs)
 	delete(state.lastLink)
 	CodeTabs_CloseAll(state)
 	delete(state.codeTabs)

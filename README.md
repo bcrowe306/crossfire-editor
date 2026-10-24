@@ -17,6 +17,13 @@ runs the project in the engine. **Export** builds the game for Linux, Windows, m
 (Steam and consoles are listed, but not implemented yet). Downloads and the documentation are on
 the website, [crossfireengine.io](https://crossfireengine.io).
 
+**The docs are inside the editor too**, offline: Help > User Manual (F1), **Open Docs** in every
+right-click menu and code tab, and the panels' Manual buttons open a docs window with the user
+manual ([docs/manual](docs/manual/README.md)), a guide to every node kind
+([docs/manual/nodes.md](docs/manual/nodes.md)) and the engine's API reference (made from the
+engine's doc comments), with links, search, back and forward and "Open on crossfireengine.io".
+Releases ship the manual beside the editor. See [docs/manual/docs_window.md](docs/manual/docs_window.md).
+
 ## Requirements
 
 - Odin (`dev-2026-10` nightly or newer)
@@ -350,7 +357,8 @@ editor's settings. All tabs share one language server.
 
 **The editor knows the project in the code** (with or without the language server): the
 project's names complete and are checked inside engine calls' strings, hovers preview assets and
-show the engine's documentation (F1 opens its API page), gutter marks list who uses a script or
+show the engine's documentation (F1 opens its API entry in the docs window, and right-click >
+Open Docs any engine name or a field's type), gutter marks list who uses a script or
 sets a field (Find Usages, and renames carried into the scenes), things dragged from the editor
 become fields and statements, a running game's values show beside the fields (Alt+drag a
 default's number, log points), and Ctrl+. offers engine-aware code actions: a handler for a

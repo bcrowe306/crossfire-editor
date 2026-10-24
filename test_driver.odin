@@ -149,6 +149,12 @@ copy: `open_project {project}`).
 	                                 Drag a browser row into the viewport, to (dx, dy) window
 	                                 pixels from its center
 	action <Action>                  Send an action, as its menu item would (e.g. Open_Project_Settings)
+	code_right_click <line> [<column>] | text <text>   Right-click a position of the shown code tab
+	                                 (its menu opens there)
+	code_menu_pick <label>           Pick the code tab's open menu's entry starting with the label
+	                                 (by keys)
+	docs_click_link <text>           Click a link on the docs window's page whose target contains
+	                                 the text (the first one in view)
 	send <Message> <value>           Send what a dropdown choice would (dropdowns can't be clicked
 	                                 open): New_Script_Kind_Changed <Node | Global | Data>,
 	                                 Global_Added <script>, New_Data_Type_Changed <type>,
@@ -158,6 +164,7 @@ copy: `open_project {project}`).
 	                                 New_Data_Opened (no value), Scene_Tab_Changed <tab index>,
 	                                 Code_Open_Requested <file> (opens it in a code tab),
 	                                 Open_Grid_Settings (View > Grid Settings: Project Settings > Grid)
+	                                 Docs_Opened <address> (the docs window there: /manual/physics/)
 	                                 Right_Sidebar_Width <px> (the inspector's sidebar, as its
 	                                 divider dragged; at least MIN_SIDEBAR_WIDTH)
 	archive_project <path>           Export Project Archive to a file, as if picked in its dialog
@@ -407,6 +414,13 @@ Checks:
 	audio_loaded <project path>      The audio preview has that file loaded (it played or plays)
 	last_link <text>                 The last link the editor opened (Links_Open: nothing opens in
 	                                 a script run) contains the text
+	docs <open | closed>             The docs window (docs_window.odin)
+	docs_address <address>           The address it shows (`/manual/physics/#joints`)
+	docs_address_has <text>          ... contains the text
+	docs_title <text>                The title of the page it shows
+	docs_at <anchor>                 Its page is scrolled to the heading with that anchor (the
+	                                 last heading at or above the top of the view)
+	docs_hits <n>                    Its search finds at least n results
 	code_inlay <line> <text>         A line's inlay hints contain the text (1-based)
 	code_inlay_lacks <line> <text>   ... don't contain it
 	log_points <n>                   The project's log points (log_points.odin)
@@ -715,6 +729,17 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		ok, message := runCheck(s, ctx, rest)
 		if ok do report(true, line)
 		else do fail(fmt.tprintf("%s (%s)", line, message))
+		return true
+
+	case "docs_click_link":
+		// `docs_click_link <target text>`: a link on the docs window's page whose target contains
+		// the text, clicked where it's drawn (the first in view)
+		if rect, ok := Docs_LinkRect(ctx, rest); ok {
+			click({rect.x + rect.w * 0.5, rect.y + rect.h * 0.5})
+			report(true, line)
+			return false
+		}
+		fail(fmt.tprintf("%s: no link to '%s' is in view on the docs page", line, rest))
 		return true
 
 	case "click_widget":
@@ -1446,8 +1471,23 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
-	case "code_click":
+	case "code_menu_pick":
+		// `code_menu_pick <label>`: the open right-click menu's entry starting with the label, by
+		// keys (Down to it, Return), as the code editor's menu takes them
+		steps, labels := CodeEditor_MenuSteps(CodeTabs_Active(s), rest)
+		if steps < 0 {
+			fail(fmt.tprintf("%s: the code tab's menu isn't open or has no such entry (%s)", line, labels))
+			return true
+		}
+		for _ in 0 ..< steps do pressKey("DOWN")
+		pressKey("RETURN")
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "code_click", "code_right_click":
 		// A click on a position of the shown code tab (1-based line and column): the caret goes there
+		// (`code_right_click`: the right button, the code editor's menu opens there)
 		// `code_click text <text>`: at the start of the first place the text is
 		parts := strings.fields(rest, context.temp_allocator)
 		lineNumber, _ := strconv.parse_int(len(parts) > 0 ? parts[0] : "")
@@ -1467,7 +1507,14 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			fail(fmt.tprintf("%s: the code tab isn't shown", line))
 			return true
 		}
-		click(at)
+		if command == "code_right_click" {
+			pushMouse(.MOUSE_MOTION, at)
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, at, sdl.BUTTON_RIGHT))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at, sdl.BUTTON_RIGHT))
+			driver.waitFrames = INPUT_SETTLE_FRAMES
+		} else {
+			click(at)
+		}
 		report(true, line)
 		return false
 
@@ -1790,6 +1837,9 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 				msg = Center_Resized(layout.workspace.x - left - DIVIDER - width - DIVIDER)
 			}
 		case "Dialogue_Created":      msg = Dialogue_Created{}
+		// The docs window at an address (docs_window.odin), as a way in would open it
+		case "Docs_Opened":           msg = Docs_Opened(strings.clone(value, context.temp_allocator))
+		case "Docs_Search_Changed":   msg = Docs_Search_Changed(strings.clone(value, context.temp_allocator))
 		case "Dialogue_Select_Node":  if i, ok := strconv.parse_int(value); ok do msg = Dialogue_View{op = .Select_Node, index = i}
 		// A node's texture or region as its dropdown would set it (atlas_edit.odin)
 		case "Node_Texture":          msg = Node_Text_Changed{.Texture, strings.clone(value, context.temp_allocator)}
@@ -2738,6 +2788,22 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return AudioPreview_IsLoaded(joinPath(s.project.rootPath, value, allocator = context.temp_allocator)), "not loaded"
 	case "last_link":
 		return strings.contains(s.lastLink, value), s.lastLink
+	case "docs":
+		found = s.docs.open ? "open" : "closed"
+	case "docs_address":
+		found = Docs_Current(&s.docs)
+		return found == value, found
+	case "docs_address_has":
+		found = Docs_Current(&s.docs)
+		return strings.contains(found, value), found
+	case "docs_title":
+		found = Docs_Title(s)
+	case "docs_at":
+		found = Docs_VisibleAnchor(ctx)
+	case "docs_hits":
+		n, _ := strconv.parse_int(value)
+		count := len(Docs_Search(Docs_Library(), s.docs.search))
+		return count >= n, fmt.tprintf("%d results for '%s'", count, s.docs.search)
 	case "code_hover_has":
 		// Whitespace aside: a narrow tab wraps the hover anywhere
 		found = CodeEditor_HoverText(CodeTabs_Active(s))

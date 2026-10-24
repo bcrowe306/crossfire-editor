@@ -254,6 +254,7 @@ selected first; if it's part of a selection, the menu acts on all of it:
 | Select ▸ | Its children, its parent, all, none |
 | Frame Selected | Centers the view on it |
 | Copy Node Path | Its path from the scene's top (`World/Ship`), for scripts |
+| Open Docs | Its kind's guide in the [docs window](docs_window.md) ([node guides](nodes.md)) |
 
 **On empty space in the viewport:** Add Node Here..., Paste Here (the copy's origin lands where
 you clicked), Select All, Deselect, Frame Selected, Fit the View, the zoom, the **Tool** submenu,
@@ -266,7 +267,9 @@ kind, Import); the scene and code tabs (play, save, show in the browser, close, 
 close the ones to the right); the Console and Output lines (copy one, copy all, clear); and the
 bottom panel's lists: [states](state_machines.md), [dialogue](dialogue.md) nodes and steps,
 [Timeline](animation.md) tracks and keys, [Mixer](sound.md) strips, [Git](version_control.md)
-changes, [Live](live.md) nodes, the Animation panel's frames, [plugins](plugins.md).
+changes, [Live](live.md) nodes, the Animation panel's frames, [plugins](plugins.md). Each of
+these menus ends with **Open Docs**: the page of what you clicked (a scene, an asset's kind, a
+script, a tab, a panel) in the [docs window](docs_window.md).
 
 ## Align and distribute
 

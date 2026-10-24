@@ -258,7 +258,7 @@ these editor shortcuts still work then:
 | Ctrl+S | Save (the project and every script) |
 | F5, Ctrl+F5, F6, Shift+F5, Ctrl+Shift+F5 | Play, Play Scene, Pause, Stop, Restart |
 | Ctrl+B | Build Scripts |
-| F1 | Help: the API page of the engine procedure or type at the caret, otherwise this manual |
+| F1 | Help in the [docs window](docs_window.md): the API entry of the engine procedure or type at the caret (or the type of the field or variable there), otherwise this manual's code editor page |
 | Ctrl+W | Close the code tab |
 | Ctrl+Shift+E | Export |
 | Ctrl+J | Show or hide the bottom panel |
@@ -411,8 +411,14 @@ press Escape to close it.
 `e.Camera2D`) and the hover shows its documentation as the
 [API reference](https://crossfireengine.io/api/) has it: its declaration, what it does, its
 inputs, what it returns and an example. The editor reads it from the engine it builds with, so
-it's always that engine's. **F1** on one opens its page of the API reference in your browser;
-anywhere else, F1 opens this manual.
+it's always that engine's. **F1** on one opens its entry of the API reference in the editor's
+[docs window](docs_window.md); anywhere else, F1 opens this page there.
+
+**Open Docs.** Right-click a name in the code and choose **Open Docs** to read about it in the
+docs window. An engine name goes to its page: a node type (`e.Sprite`, `e.Camera2D`) to its guide
+in the [node guides](nodes.md), anything else (`e.Camera2D_Follow`, `e.TextureAsset`) to its API
+entry. A field, a variable or a parameter goes through its type: on `self.door`, with the field
+declared `door: ^e.Sprite`, it opens the Sprite's guide; on a local made from it, the same.
 
 **Colors.** A color in the code gets a swatch, a small square of the color after its line:
 `sdl.Color{255, 128, 0, 255}` (or `sdl.Color{r = 255, ...}`), a declared color given a value

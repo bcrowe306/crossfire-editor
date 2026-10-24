@@ -24,7 +24,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	coding := CodeEditor_Frame(ctx, CodeTabs_Active(&state) != "")
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
 		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.listenerDialog.open || state.newEvent.open || state.componentClose.open || state.newData.open || state.projectSettings.open || state.aboutOpen || state.git.discardAsk != "" ||
-		state.contextMenu.open || state.logPoints.dialog.open
+		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open
 	// The running game's values a code tab shows (code_live.odin)
 	CodeLive_Frame(&state, ctx)
 	// A project with scripts is built once in the background when it opens, so the inspector
@@ -39,6 +39,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	Session_UpdateTitle(&state)
 	Branding_SetWindowIcon()
 	Git_View_Tick(&state, ctx)
+	// Where F1 (Help > User Manual) is pressed: the docs window opens at that panel's page
+	Docs_TrackPointer(ctx)
 	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
 
 	// The right-click menu, built first so it takes its clicks before the widgets under it
@@ -71,6 +73,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		componentCloseDialogView(&state, ctx),
 		aboutDialogView(&state, ctx),
 		gitDiscardDialog(&state, ctx),
+		// The docs window (view_docs.odin)
+		docsWindowView(&state, ctx),
 		// A drag into code: its label, its drop (code_drag.odin)
 		CodeDrag_View(&state, ctx),
 		cross_align = .Stretch,

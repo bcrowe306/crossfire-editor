@@ -40,7 +40,7 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   events and listeners; the built-in code editor (OLS completion, clickable errors, and the
   project's own completions, hovers with previews (images, sounds with a play button, animation
   frames, dialogue lines, components, fonts) and the engine's documentation (F1 opens its API
-  page), color swatches with a picker, problems, gutter markers and drops through code_editor's
+  entry in the docs window), color swatches with a picker, problems, gutter markers and drops through code_editor's
   providers; the names engine calls take, completed and checked inside their strings, with
   quick fixes; gutter markers listing every node using a script or setting a field, Find Usages
   in the scenes, and renames of scripts, fields and events carried into scenes, components,
@@ -62,6 +62,10 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   and macOS arm64 built and tested (unit tests, a headless export run, UI scripts on macOS),
   published as a GitHub release (archives with every prebuilt player, an AppImage, a Windows
   installer, a macOS disk image), uploaded to R2, then the website deployed.
+- **Docs in the editor** (`docs.odin`, `docs_window.odin`, `view_docs.odin`, `markdown.odin`): a
+  docs window over the editor showing the bundled manual (with a guide to every node kind) and
+  the engine's API reference, offline, from F1, Open Docs in every right-click menu and code tab,
+  and the panels' Manual buttons (see "Docs in the editor" below).
 - **The website** [crossfireengine.io](https://crossfireengine.io) (`../crossfire_astro`,
   bcrowe306/crossfire-astro) publishes this repository's `docs/manual/` and the engine's doc
   comments (see "Documentation").
@@ -205,7 +209,11 @@ Skald is not immediate-mode and not a retained widget tree:
 | `code_drops.odin` | **Drops into code**: `DropSource` (what a panel drags: its kind, name, node, asset or scene, detail), `CODE_DROP_KINDS` (the one table: each kind's name type and shape in a struct), `codeUseKeys` (which of the engine's `e.CODE_USES` apply), `CodeDrops_Build` (the choices by syntactic context: a field, a statement, the constant or expression, the name in a string), `CodeDrops_PropertyField` (an inspector label's engine field) |
 | `code_previews.odin` | **Previews in code hovers**: `CodePreviews_Constant` / `_Asset` / `_Scene` / `_Literal` (an image's thumbnail, a sound's length and play button, an animation's strip, a dialogue node's lines, a component's picture, a scene's facts, a font's sample), the picture cache (`PREVIEW_CACHE_MAX`), `Preview_Fit` / `Preview_Strip` / `Preview_FontSample` / `Preview_LiteralAt`, the play button's `Code_Hover_Audio` |
 | `code_colors.odin` | **Color literals in code**: `ColorLiterals_InLine` / `ColorLiteral_Write` (composites, named, hex in a color field's tag or `e.ParseColor`), the swatch inlay provider (`colorInlays`, `colorSwatchClicked`), the Color dialog (`CodeColorDialog`, `State.codeColor`, `Code_Color_*`, `CodeColorDialogView`, `CodeColors_Rewrite`: one edit in the tab) |
-| `engine_docs.odin` | **The engine's documentation in code**: `EngineDocs` (its source's declarations and doc comments, read once on a worker: `EngineDocs_Start` / `_Load` / `_Read`), `EngineDoc_Markdown` (the hover), `ENGINE_API_AREAS` (the website's api-groups.json, checked by a test), `EngineDoc_URL` (F1's page), `EngineDocs_At` (the name at a column) |
+| `engine_docs.odin` | **The engine's documentation in code**: `EngineDocs` (its source's declarations and doc comments, files' overviews and the package's, read once on a worker: `EngineDocs_Start` / `_Load` / `_Read`), `EngineDoc_Markdown` (the hover), `ENGINE_API_AREAS` (the website's api-groups.json: slugs, titles, descriptions, files; checked by a test), `EngineDoc_URL` (an entry on the website), `EngineDocs_At` (the name at a column) |
+| `markdown.odin` | **A small Markdown parser** for the docs window: `Markdown_Parse` (frontmatter, headings with Starlight's anchors, paragraphs, lists, tables, fenced code, quotes, rules) into an `MdDoc` (its own arena), `Markdown_Inline` (bold, italic, code, links, images, escapes), `Markdown_Slug` (github-slugger's anchors), `MdDoc_PlainText` |
+| `docs.odin` | **The docs' pages**: `DocsLibrary` (`Docs_Library`: the manual from `Docs_ManualDir`, the API reference made from `EngineDocs` as the website's build-api.mjs lays it out), addresses as the website's paths (`Docs_ManualAddress`, `Docs_URL`, `Docs_FromURL`, `Docs_ResolveLink`), `Docs_Search`, the lookups (`DOCS_NODE_GUIDES`, `DOCS_ASSET_PAGES`, `DOCS_BOTTOM_TAB_PAGES`, `Docs_EngineAddress`, `Docs_TypeAddress`, `Docs_EngineNameAddress`) |
+| `docs_window.odin` | **The docs window's state and messages**: `DocsWindow` (`State.docs`: history, search), `Docs_Opened` and the other `Docs_*` messages (`Docs_Update`), `Docs_Navigate`, F1's panel (`Docs_TrackPointer`, `Docs_HelpAddress`), `Docs_BrowserAddress`, `Docs_MenuItem` |
+| `view_docs.odin` | **The docs window** (`docsWindowView`, `docsWindowContent`): header, sidebar (contents or search results), the page rendered from its blocks (rich text with links, tables, Odin highlighted with code_editor's tokenizer, images), long pages measured once and built only where in view (`docsLayout`), anchors scrolled to; driver probes `Docs_VisibleAnchor`, `Docs_LinkRect` |
 | `code_live.odin` | **The running game in the code**: the live values' inlay provider (`liveInlays`, `liveInlayClicked`: the struct line's node and its menu, each field's value), which running node (`CodeLive_Target`), the watches for the visible lines (`CodeLive_Watches`, `CodeLive_Frame` from `view`), scrubbing a default's number (`liveScrubTarget` / `liveScrubbed` / `liveScrubChosen`, `CodeScrub_Literal`), the write-back (`Code_Scrub_Write`, `CodeLive_Write`), `CodeLive_Messages` (what the providers left) |
 | `log_points.odin` | **Log points**: `LogPoints` (`State.logPoints`, `.editor/logpoints.ini`: `LogPoints_Follow` / `_Parse` / `_Format` / `_Save`, `_Relocate`), where one can go (`LogPoint_Check`), the injected statement (`LogPoint_Statement`, `LogPoint_Inject`), the build's copy (`LogPoints_WriteBuild`, `LogPoints_BuildDir`, `LogPoints_ProjectPaths`), the gutter, inlay and menu providers, the Log Point dialog (`LogPointDialogView`, `Log_Point_*`) |
 | `code_drag.odin` | **Dragging editor things into code**: `State.codeDrag`, `CodeDrag_From` / `_Zone` / `_Handle` (a widget, a label, a grip starts one), `CodeDrag_View` (the label by the pointer, the drop or cancel), `CodeDrag_HidesDialogs` (Project Settings steps aside for an input action), `Code_Drag_*` / `Code_Source_Dropped` / `Code_Drop_Chosen` |
@@ -252,7 +260,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_timeline.odin` | The bottom panel's Timeline tab (`TimelinePanel`: clip and transport toolbars, the tracks canvas with the ruler, keys and playhead, the key editor) and the Animator's inspector rows (`animatorInspectorRows`) |
 | `tile_paint.odin` | **Tile painting**: `TilePainter` (tool, brush, layer, terrain), its messages, `TilePaint_Update` (strokes, fills, terrains, growing grids, copying file layers), `TilePaint_CellAt` |
 | `view_tiles.odin` | The bottom panel's Tiles tab: layer and tileset choices, tools, flips, the tile palette (`TilesPanel`) |
-| `docs/manual/` | **The user manual**: a page per feature for users new to the editor (`README.md` lists them in reading order). Help > User Manual (F1, `Manual_Open`: the page on crossfireengine.io, `Manual_URL`) and panels' Manual buttons open it. **Every new feature gets a page here.** Pages are ready for a static site (Astro, later): YAML frontmatter `title` / `description` (quoted when they hold `: `) / `order` (the reading order, unique, README 0; a new page takes its place and the ones after it move up), plain relative links, no GitHub-only syntax (no `> [!NOTE]`, no `<details>`), a Questions section at the end, examples that compile |
+| `docs/manual/` | **The user manual**: a page per feature for users new to the editor (`README.md` lists them in reading order), and the node guides (`nodes.md` and `nodes_*.md`: a `## <Kind>` section per node kind). Help > User Manual (F1), Open Docs and panels' Manual buttons open it in the docs window (`docs_window.odin`; `Manual_URL` is a page's address on crossfireengine.io). **Every new feature gets a page here.** Pages are ready for a static site (Astro, later): YAML frontmatter `title` / `description` (quoted when they hold `: `) / `order` (the reading order, unique, README 0; a new page takes its place and the ones after it move up), plain relative links, no GitHub-only syntax (no `> [!NOTE]`, no `<details>`), a Questions section at the end, examples that compile |
 | `aseprite_edit.odin` | Aseprite files: the parsed-file cache (`AsepriteEdit_File`), the browser preview (`AsepriteEdit_Preview`, `AsepriteEdit_Summary`), Open in Aseprite (`AsepriteEdit_Open`, Settings > Editor > Aseprite program), `Image_LoadRGBA` (any image, Aseprite files through the engine), `Image_Size` (its size, cached per file time: the header only) |
 | `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
@@ -968,7 +976,8 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   takes it before `view`, so `CodeEditor_Frame` gives it back; `IsTyping` counts it, and
   `KeymapDispatch` runs only `CODE_EDITOR_PASSTHROUGH` then (their chords don't reach the code
   editor); the menu bar drops its shortcuts. Help's chord (F1, `User_Manual`) is the code view's
-  own: the API page of the engine declaration at the caret, else the manual ("Hovers and previews", below).
+  own: the docs window at the API entry of the engine declaration at the caret, else the type of
+  the name there, else the manual's code editor page ("Hovers and previews", below).
 - **Unsaved scripts** count in `Project_IsModified`; `Session_Save`, Play and Export call
   `CodeTabs_SaveAll` first; Save starts a background script build when a script was saved.
 - **Language server:** `Code_FindOLS` (the setting `ols_path`, PATH, `code_editor/third_party/ols`
@@ -1356,11 +1365,13 @@ See code_previews.odin's, code_colors.odin's and engine_docs.odin's doc blocks; 
   the comment, Inputs / Returns bold, Example as code, and stands in for OLS's (which repeats
   the declaration and the raw comment). **F1 in a code tab** is the host's
   (`CodeEditor_View`: the editor's `User_Manual` chords are taken before the code editor, whose
-  own F1 opened its palette; Ctrl+Shift+P still does): the declaration at the caret's API page
-  (`EngineDoc_URL`: the area from `ENGINE_API_AREAS`, the anchor the name lower-cased, as the
-  website's build-api.mjs makes them; checked on crossfireengine.io for five names), else the
-  manual. Links go through `Links_Open` (`State.lastLink`; nothing opens while a script runs:
-  the driver's `last_link`), as Help > User Manual and the panels' Manual buttons do now.
+  own F1 opened its palette; Ctrl+Shift+P still does): the docs window at the declaration at
+  the caret's API entry (`Docs_EngineAddress`: the area from `ENGINE_API_AREAS`, the anchor the
+  name lower-cased, as the website's build-api.mjs makes them; `EngineDoc_URL` is the same entry
+  on crossfireengine.io, checked there for five names), else the page of the type the code
+  shows for the name (`CodeProviders_DocsAt`), else the manual's code editor page. The code
+  tab's right-click **Open Docs** (a `.Menu` provider) goes the same way, a node type to its
+  guide ("Docs in the editor", below).
   **A new engine file needs an area in the website's api-groups.json and in
   `ENGINE_API_AREAS`** (`engine_api_areas_match_the_website` and the docs test catch both).
 - **Color literals** (`ColorLiterals_InLine`): typed composites (`sdl.Color{...}`, whatever the
@@ -2239,6 +2250,72 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
   `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
 
+## Docs in the editor (implemented, `docs.odin`, `docs_window.odin`, `view_docs.odin`, `markdown.odin`)
+
+TODO.md's Round 4 item 1 (asked 2026-10-24): the docs in a popup inside the editor, offline, with
+"Open on crossfireengine.io" for the same page. The manual's page is `docs/manual/docs_window.md`.
+- **Addresses are the website's paths** (`/manual/<slug>/#<anchor>`, `/api/<area>/#<name>`):
+  links between pages, the history and "Open on crossfireengine.io" (`Docs_URL`) all use them, and
+  `Docs_ResolveLink` takes what pages write (`#x`, `scene_changes.md#x`, `/api/...`,
+  `https://crossfireengine.io/...`; other files of the repository go to GitHub, other sites to
+  the browser through `Links_Open`). Anchors are Starlight's (`Markdown_Slug`: github-slugger),
+  checked against the built site for the ones the lookups use.
+- **Content:** the manual's Markdown files (`Docs_ManualDir`: this checkout's `docs/manual`, else
+  `docs/manual` beside the executable, `Resources/docs/manual` in a macOS bundle; releases ship
+  it: tools/ci/package_editor.sh, which the AppImage and the Windows installer take whole, and
+  tools/macos/bundle.sh) and the API reference **made in the editor** from engine_docs.odin's
+  parse (decided over shipping docgen's JSON: no build step, always the engine the editor builds
+  with, and the release's `engine/` folder is already there), laid out like build-api.mjs: the
+  same areas (`ENGINE_API_AREAS` now carries their titles and descriptions; the test compares all
+  of it with api-groups.json), sections, `### Name` headings, inline code linked. Read once on
+  first open (`Docs_Library`, the main thread; 69 pages, about 0.45 s in a debug build).
+- **The node guides** are manual pages (`nodes.md` and `nodes_scene/graphics/animation/ui/physics/audio.md`),
+  a `## <Kind>` section per node kind (anchor: the kind lower-cased) with its properties as the
+  inspector names them, steps, code, an example that compiles (the website's check) and API
+  links. `DOCS_NODE_GUIDES` maps every kind to its page; `docs_every_kind_has_a_page` fails when a
+  kind (or an asset kind, a bottom tab, a place F1 knows) has no page or the anchor is missing.
+  **A new node kind needs a section there and an entry in `DOCS_NODE_GUIDES`.**
+- **Rendering** (`view_docs.odin`'s doc block): Skald's `rich_text_links` per paragraph, list
+  item and table cell (spans from `MdSpan`: bold, italic, code in the code editor's Liberation
+  Mono on a chip, links), headings sized by level, tables with columns sized to their text and
+  shrunk to fit, code blocks tokenized by code_editor's `syntax` package and colored with its
+  Ayu dark or light preset (by the editor's background), images from the manual's folder. **Long
+  pages are virtualized:** every block is measured once per page, width, theme and font size
+  (built without links, `skald.view_size`) and only the blocks within 200 px of the view are
+  built, between spacers. The API's core page (879 blocks) measures in 117 ms optimized (634 ms
+  debug), then frames stay at the display's rate. **An anchor scrolls only once the scroll has
+  laid out the new page:** Skald clamps `scroll_y` to last frame's `content_h`, so the first
+  frame of a new page clamped it to the old page's height (`docsPageView` waits for `content_h`
+  to match `docsLayout.total`).
+- **Found doing it:** `strings.replace_all` returns its input when there's nothing to replace,
+  so the parser's blocks pointed into the file's freed buffer (code blocks lost their language);
+  the parser copies its source into its arena first (a test parses from a freed buffer).
+- **Ways in** (docs_window.odin's doc block): `.User_Manual` (Help > User Manual, F1 outside a
+  code tab) by the panel under the pointer (`Docs_TrackPointer` from `view`, `Docs_HelpAddress`:
+  the inspector and viewport the selected node's guide, a bottom tab its page, the browser its
+  selection's); F1 in a code tab (`Code_Help_Requested` now carries an address); the code tab's
+  **Open Docs** (`docsMenuItems` / `docsMenuPicked`, sent by `CodeProviders_TakeDocs`): an engine
+  name (a node type to its guide), else `ScriptCode_TypeAt` (script_rename.odin: the type the
+  code model shows for a field, parameter or local, `self.door` through the struct's field) to
+  `Docs_TypeAddress`; **Open Docs** in the right-click menus (context_menus.odin); `Manual_Opened`
+  (the panels' Manual buttons). Not followed yet: a project's own node type (`^Door` declared
+  `Door :: struct { using sprite: e.Sprite }`) to its base kind's guide.
+- **Looking at it:** Skald's offscreen renderer (`render_view_to_pixels`) is private, so the
+  window was checked by making it public in the submodule's working tree for a scratch driver
+  command (rendering `docsWindowContent` to a PNG), then putting it back: it reads back sRGB, so
+  such pictures look lighter than the screen. A public snapshot API in Skald would make this a
+  driver command.
+- **Tests:** `docs_test.odin` (the parser, links, the library and the API's anchors for every
+  declaration, every kind's page, symbols, search), `docs_window_navigates` and
+  `docs_context_menus_open_docs` (editor_test.odin), `tests/ui/docs.script` (Help > User Manual,
+  a link, back, forward, the website, an anchor, search and a result, Open Docs on a node and a
+  scene tab, a Manual button, F1 and Open Docs in a code tab). Driver: checks `docs`,
+  `docs_address`, `docs_address_has`, `docs_title`, `docs_at`, `docs_hits`; commands
+  `docs_click_link`, `code_right_click`, `code_menu_pick`, `send Docs_Opened <address>`,
+  `send Docs_Search_Changed <text>`. Widget keys: `docs-dialog`, `docs-back`, `docs-forward`,
+  `docs-contents`, `docs-web`, `docs-close`, `docs-search`, `docs-scroll`, `docs-side-scroll`,
+  `docs-entry-<i>`, `docs-hit-<i>`.
+
 ## Context menus (implemented, `context_menus.odin`, `context_menus_panels.odin`)
 
 One right-click menu for the whole editor (the user asked for complete menus everywhere,
@@ -2264,6 +2341,10 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   `right_click_world`, `right_click_widget`, `click_frame <n> right`; checks `context_menu`,
   `context_item <label> <enabled|disabled|checked|missing>`. Tests: `context_menu_commands`,
   `tests/ui/context_menus.script`. User guide: `docs/manual/scenes_and_nodes.md#right-click-menus`.
+- **Open Docs** ends every menu with a page (`contextDocsAddress`): a node's kind's guide, empty
+  viewport space, the scene tree, a browser row (a scene, an asset kind, a script), a scene,
+  component or code tab, a log line, a bottom panel's graph (its tab's page); not the guides,
+  the Align button, the toolbar's overflow or a log's categories.
 
 ## Viewport tools (implemented, `viewport_tools.odin`, `view_viewport.odin`, `viewport_math.odin`)
 
@@ -3074,7 +3155,9 @@ Example:
 
 The website, crossfireengine.io (Astro + Starlight; the workspace's `../crossfire_astro`,
 bcrowe306/crossfire-astro; its CLAUDE.md and README have the details), publishes:
-- **The manual:** this repo's `docs/manual/` at the newest editor release's tag
+- **The manual:** this repo's `docs/manual/` at the newest editor release's tag (the docs window
+  shows the same files, bundled: "Docs in the editor"; keep its anchors, the editor links to
+  them)
   (`scripts/sync-manual.mjs` copies it into `src/content/docs/manual/`, generated and gitignored
   there). Keep its pages as the site needs them: frontmatter `title` / `description` (quoted when
   they hold `: `) / `order`, plain relative links, no GitHub-only syntax, examples that compile.
@@ -3141,6 +3224,8 @@ Highlights:
   - toolbar buttons `toolbar-<name>` (`toolbar-physics-debug`: the game's collision shapes,
     `toolbar-restart`, `toolbar-more`: the overflow in a narrow window, drawn instead of the tools),
     panel buttons `panel-<name>`
+  - the docs window: `docs-dialog`, `docs-search`, `docs-hit-<i>`, `docs-back`, `docs-web`...
+    ("Docs in the editor")
   - the Console and Output tabs: `console-scroll` / `output-scroll` (the list; `-area` the list or
     its placeholder), `-line-<i>`, `-link-<i>` (a located line's text), `-search`,
     `-level-<Level>`, `-categories`, `-follow`

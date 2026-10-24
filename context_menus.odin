@@ -398,6 +398,8 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 			MENU_SEPARATOR,
 			actionItem(s, "Hide Guides", .Toggle_Guides))
 	}
+	// Open Docs: the page of what was clicked, in the docs window (docs_window.odin)
+	if address := contextDocsAddress(s); address != "" do append(&items, MENU_SEPARATOR, Docs_MenuItem(address))
 	// No separator first, last or twice in a row
 	out := make([dynamic]skald.Menu_Item(Msg), context.temp_allocator)
 	for item in items {
@@ -406,6 +408,52 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 	}
 	for len(out) > 0 && out[len(out) - 1].separator do pop(&out)
 	return out[:]
+}
+
+/*
+The docs page of a menu's target: a node's guide (its kind's: a Component instance the Component
+guide), empty viewport space the viewport's page, the scene tree's, a browser row's (a scene, an
+asset kind's page, a script), a scene or code tab's, a bottom panel's graph its tab's page.
+
+Returns:
+- The address ("" none: the menu has no Open Docs; temp allocated)
+*/
+contextDocsAddress :: proc(s: ^State) -> string {
+	switch t in s.contextMenu.target {
+	case Ctx_Node:
+		scene := &s.project.scenes[s.currentScene]
+		if t.node >= 0 && t.node < len(scene.nodes) do return Docs_NodeKindAddress(scene.nodes[t.node].kind)
+	case Ctx_Viewport:
+		return Docs_ManualAddress(DOCS_VIEWPORT_PAGE)
+	case Ctx_Tree:
+		return Docs_ManualAddress(DOCS_SCENE_TREE_PAGE)
+	case Ctx_Browser:
+		return Docs_BrowserAddress(s)
+	case Ctx_Scene_Tab:
+		if i := int(t); i >= 0 && i < len(s.project.scenes) && Scene_IsComponent(&s.project.scenes[i]) do return Docs_ManualAddress(DOCS_ASSET_PAGES[.Component])
+		return Docs_ManualAddress(DOCS_SCENE_PAGE)
+	case Ctx_Code_Tab:
+		return Docs_ManualAddress(DOCS_CODE_PAGE)
+	case Ctx_Graph:
+		tab: BottomTab
+		switch t.graph {
+		case .States:                         tab = .States
+		case .Dialogue, .Dialogue_Step:       tab = .Dialogue
+		case .Timeline_Track, .Timeline_Key:  tab = .Timeline
+		case .Mixer_Bus:                      tab = .Mixer
+		case .Git_Change:                     tab = .Git
+		case .Live_Node:                      tab = .Live
+		case .Animation:                      tab = .Animation
+		case .Plugin:                         tab = .Plugins
+		}
+		return Docs_ManualAddress(DOCS_BOTTOM_TAB_PAGES[tab])
+	case Ctx_Log:
+		return Docs_ManualAddress(DOCS_BOTTOM_TAB_PAGES[t.output ? .Output : .Console])
+	case Ctx_Log_Categories:
+		// A filter list: no docs item among its categories
+	case Ctx_Align, Ctx_Guide, Ctx_Toolbar_More, Ctx_Script_Field:
+	}
+	return ""
 }
 
 // ITEMS

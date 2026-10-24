@@ -10,8 +10,12 @@ This manual explains the Crossfire Editor and the Crossfire Engine for people ma
 them for the first time. Each page covers one feature: what it's for, how to use it in the editor
 step by step, the settings it has, and how to reach it from a script.
 
-Open it from the editor with **Help > User Manual** (F1). Panels that have a page here have a
-**Manual** button that opens it.
+Open it from the editor with **Help > User Manual** (F1): it opens in the editor's own docs window,
+with the engine's API reference beside it, search, back and forward, and a link to the same page
+on [crossfireengine.io](https://crossfireengine.io). Panels that have a page here have a
+**Manual** button that opens it there, every node, scene and asset has **Open Docs** in its
+right-click menu, and F1 in a code tab opens the entry of the engine name under the caret. See
+[The docs window](docs_window.md).
 
 ## Pages
 
@@ -54,9 +58,17 @@ Open it from the editor with **Help > User Manual** (F1). Panels that have a pag
 | [Exporting your game](exporting.md) | Turn your project into a game other people can run, on Linux, Windows, macOS or in a web browser, from Project Settings > Export, File > Export, or the command line |
 | [Settings and the toolchain](settings_and_toolchain.md) | Change how the editor looks (a live theme editor with presets and every color) and behaves, rebind its shortcuts, check and install the tools that build your games, and find your way around Project Settings |
 | [Editor plugins](plugins.md) | Your own Odin code in the editor: commands, importers for other formats, inspector rows; built and reloaded as you save |
+| [The docs window](docs_window.md) | This manual and the engine's API reference inside the editor, offline: opening it from anywhere (F1, Open Docs, Manual buttons), links, search, back and forward, the same page on crossfireengine.io |
+| [Node guides](nodes.md) | Every node kind in one table, with a link to its guide |
+| [Node guides: scene structure](nodes_scene.md) | Node2D, Camera, Component, LDtkLevel, CameraZone, NavRegion, NavAgent: what each does, its properties, the inspector, code, an example |
+| [Node guides: graphics](nodes_graphics.md) | Sprite, AnimatedSprite, TileMap, ParallaxLayer, CameraView, Light2D, LightOccluder, ScreenEffect, Line2D, Trail2D, ParticleEmitter |
+| [Node guides: animation](nodes_animation.md) | Animator, StateMachine, Skeleton2D, Bone2D, SkinnedMesh, IKChain |
+| [Node guides: user interface](nodes_ui.md) | Label, Menu, Panel, Button, ProgressBar, TextField, ScrollBox, RichText, Slider, CheckBox, DialogueBox, VirtualJoystick, TouchButton |
+| [Node guides: physics](nodes_physics.md) | StaticBody, DynamicBody, CharacterMover, Area, CollisionShape, RayCast, Joint |
+| [Node guides: sound](nodes_audio.md) | AudioPlayer, AudioPlayer2D, MusicPlayer |
 
 The pages are in reading order: the first five get you making a game, the rest can be read as
-you need them.
+you need them; the node guides at the end are a reference, a section per node kind.
 
 ## Words used in this manual
 

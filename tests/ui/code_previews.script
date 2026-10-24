@@ -1,8 +1,8 @@
 # Hovers and previews in the code (round 5: code_previews.odin, code_colors.odin, engine_docs.odin):
 # an image constant shows its picture, a sound's has a play button that plays it, an engine
 # procedure shows its documentation instead of OLS's, a color literal's swatch opens the Color
-# dialog whose OK rewrites it (one undo step), and F1 opens the engine symbol's API page or, off
-# one, the manual (nothing opens in a script run: `last_link`).
+# dialog whose OK rewrites it (one undo step), and F1 opens the docs window at the engine
+# symbol's API entry or, off one, the manual's code editor page.
 # Run with: task test:ui SCRIPT=tests/ui/code_previews.script (and the fullscreen and short runs)
 #
 # PlayScene's rows: World, Camera, Spaceship (2), ...
@@ -67,11 +67,16 @@ click_widget code-color-cancel
 expect code_color_dialog closed
 expect code_contains true default=#ff8000
 
-# F1 on an engine procedure: its API page; elsewhere the manual
+# F1 on an engine procedure: its API entry in the docs window; elsewhere the manual's code
+# editor page
 click_widget code-editor
 code_click 18 8
 key F1
-wait_until last_link https://crossfireengine.io/api/scripts-globals-data-saves/#script_register timeout=5
+wait_until docs_address /api/scripts-globals-data-saves/#script_register timeout=5
+key escape
+wait_until docs closed timeout=5
+click_widget code-editor
 code_click 2 1
 key F1
-wait_until last_link https://crossfireengine.io/manual/ timeout=5
+wait_until docs_address /manual/code-editor/ timeout=5
+key escape

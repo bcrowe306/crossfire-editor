@@ -4497,7 +4497,8 @@ component_tabs_show_and_ask_about_unsaved_changes :: proc(t: ^testing.T) {
 	free_all(context.temp_allocator)
 }
 
-// Help > User Manual and the panels' Manual buttons open the website's pages, named like the files
+// The manual's pages on the website, named like the files (the docs window's "Open on
+// crossfireengine.io"; docs_test.odin has the window), and every page a panel's Manual button opens
 @(test)
 manual_links_open_the_websites_pages :: proc(t: ^testing.T) {
 	testing.expect_value(t, Manual_URL(""), "https://crossfireengine.io/manual/")
@@ -4507,4 +4508,91 @@ manual_links_open_the_websites_pages :: proc(t: ^testing.T) {
 		file := fmt.tprintf("docs/manual/%s.md", page)
 		testing.expectf(t, os.exists(file), "%s is missing", file)
 	}
+}
+
+// The window's messages: the ways in, links, back and forward, search, the website
+@(test)
+docs_window_navigates :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	// A panel's Manual button, Help > User Manual (over no panel: the contents), F1 in code
+	send(&state, Manual_Opened("plugins"))
+	testing.expect(t, state.docs.open, "open")
+	testing.expect_value(t, Docs_Current(&state.docs), "/manual/plugins/")
+	send(&state, Docs_Closed{})
+	testing.expect(t, !state.docs.open, "closed")
+	docsPointerPanel = .None
+	send(&state, Action.User_Manual)
+	testing.expect_value(t, Docs_Current(&state.docs), "/manual/")
+	send(&state, Code_Help_Requested("/api/camera/#camera2d_follow"))
+	testing.expect_value(t, Docs_Current(&state.docs), "/api/camera/#camera2d_follow")
+	// Links: another page, an anchor of this one, the web (the browser)
+	send(&state, Docs_Link_Clicked("#camera2d"))
+	testing.expect_value(t, Docs_Current(&state.docs), "/api/camera/#camera2d")
+	send(&state, Docs_Link_Clicked("/api/core/#node"))
+	testing.expect_value(t, Docs_Current(&state.docs), "/api/core/#node")
+	send(&state, Docs_Link_Clicked("https://odin-lang.org"))
+	testing.expect_value(t, Docs_Current(&state.docs), "/api/core/#node")
+	testing.expect_value(t, state.lastLink, "https://odin-lang.org")
+	// Back, forward; a new page drops the pages ahead
+	send(&state, Docs_Back{})
+	testing.expect_value(t, Docs_Current(&state.docs), "/api/camera/#camera2d")
+	send(&state, Docs_Back{})
+	send(&state, Docs_Forward{})
+	testing.expect_value(t, Docs_Current(&state.docs), "/api/camera/#camera2d")
+	send(&state, Docs_Opened("/manual/physics/"))
+	before := len(state.docs.history)
+	send(&state, Docs_Forward{})
+	testing.expect_value(t, Docs_Current(&state.docs), "/manual/physics/")
+	testing.expect_value(t, len(state.docs.history), before)
+	// The page on the website; a search result that ends the search
+	send(&state, Docs_Open_On_Web{})
+	testing.expect_value(t, state.lastLink, "https://crossfireengine.io/manual/physics/")
+	send(&state, Docs_Search_Changed("joints"))
+	testing.expect_value(t, state.docs.search, "joints")
+	send(&state, Docs_Hit_Chosen{address = "/manual/physics/#joints", clear = true})
+	testing.expect_value(t, state.docs.search, "")
+	testing.expect_value(t, Docs_Current(&state.docs), "/manual/physics/#joints")
+	// F1 over a panel: the selected node's guide over the inspector, a bottom tab's page
+	scene := playScene(&state)
+	state.selectedNode = nodeNamed(scene, "Spaceship")
+	testing.expect_value(t, Docs_HelpAddress(&state, .Inspector), "/manual/nodes-graphics/#sprite")
+	state.bottomTab = .Mixer
+	testing.expect_value(t, Docs_HelpAddress(&state, .Bottom), "/manual/sound/#the-mixer-buses")
+	testing.expect_value(t, Docs_HelpAddress(&state, .Code), "/manual/code-editor/")
+	free_all(context.temp_allocator)
+}
+
+// "Open Docs" in the right-click menus: a node's guide, an asset kind's page, a scene's
+@(test)
+docs_context_menus_open_docs :: proc(t: ^testing.T) {
+	state := testState()
+	defer State_Destroy(&state)
+	scene := playScene(&state)
+	ship := nodeNamed(scene, "Spaceship")
+	pick :: proc(t: ^testing.T, state: ^State, label: string) -> (Msg, bool) {
+		for item in ContextMenu_Items(state) do if item.label == label do return item.msg, true
+		return nil, false
+	}
+	send(&state, Context_Menu_Opened{at = {10, 10}, target = Ctx_Node{node = ship, viewport = true}})
+	msg, ok := pick(t, &state, "Open Docs")
+	if testing.expect(t, ok, "a node's menu has Open Docs") {
+		send(&state, Context_Menu_Closed{})
+		send(&state, msg)
+		testing.expect_value(t, Docs_Current(&state.docs), "/manual/nodes-graphics/#sprite")
+	}
+	send(&state, Context_Menu_Opened{at = {10, 10}, target = Ctx_Scene_Tab(state.currentScene)})
+	msg, ok = pick(t, &state, "Open Docs")
+	if testing.expect(t, ok, "a scene tab's menu has Open Docs") {
+		send(&state, Context_Menu_Closed{})
+		send(&state, msg)
+		testing.expect_value(t, Docs_Current(&state.docs), "/manual/scenes-and-nodes/#scenes")
+	}
+	// Every asset kind in the browser
+	for kind in AssetKind {
+		append(&state.project.assets, AssetDef{path = strings.clone("assets/x.bin"), kind = kind})
+		state.browserSelection = {kind = .Asset, index = len(state.project.assets) - 1}
+		testing.expect_value(t, Docs_BrowserAddress(&state), Docs_AssetKindAddress(kind))
+	}
+	free_all(context.temp_allocator)
 }

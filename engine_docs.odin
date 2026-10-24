@@ -61,6 +61,11 @@ EngineDoc :: struct {
 // The engine's declarations by name (EngineDocs_Get)
 EngineDocs :: struct {
 	decls: map[string]EngineDoc,
+	// Each file's overview (docgen's: the first `/* */` block after the package line, before the
+	// first declaration and not its doc comment), by file name; doc.odin's block above `package`
+	// is the package's overview
+	overviews: map[string]string,
+	packageDoc: string,
 	// The folder it was read from, the files parsed and how long it took
 	engineDir: string,
 	files: int,
@@ -140,6 +145,7 @@ EngineDocs_Read :: proc(engineDir: string, allocator := context.allocator) -> ^E
 
 	table := new(EngineDocs, allocator)
 	table.decls = make(map[string]EngineDoc, allocator = allocator)
+	table.overviews = make(map[string]string, allocator = allocator)
 	table.engineDir = strings.clone(engineDir, allocator)
 	for entry in entries {
 		if !strings.has_suffix(entry.name, ".odin") || strings.has_suffix(entry.name, "_test.odin") do continue
@@ -165,12 +171,38 @@ EngineDocs_Read :: proc(engineDir: string, allocator := context.allocator) -> ^E
 		context.allocator = allocator
 		for _, d in table.decls do engineDocFree(d)
 		delete(table.decls)
+		for k, v in table.overviews { delete(k); delete(v) }
+		delete(table.overviews)
+		delete(table.packageDoc)
 		delete(table.engineDir)
 		free(table)
 		return nil
 	}
 	table.took = time.tick_since(start)
 	return table
+}
+
+// A file's overview (docgen's rule; temp allocated, "" none)
+@(private="file")
+docsOverview :: proc(file: ^ast.File) -> string {
+	if file.pkg_decl == nil do return ""
+	first: ^ast.Stmt
+	for stmt in file.decls {
+		#partial switch _ in stmt.derived {
+		case ^ast.Import_Decl, ^ast.Foreign_Import_Decl: continue
+		}
+		if first == nil || stmt.pos.line < first.pos.line do first = stmt
+	}
+	firstLine := first != nil ? first.pos.line : max(int)
+	firstDocs: ^ast.Comment_Group
+	if first != nil do if vd, ok := first.derived.(^ast.Value_Decl); ok do firstDocs = vd.docs
+	for group in file.comments {
+		if group == file.docs || len(group.list) == 0 || group.pos.offset < file.pkg_decl.end.offset do continue
+		if group.pos.line > firstLine || group == firstDocs || group.end.line == firstLine - 1 do break
+		if !strings.has_prefix(group.list[0].text, "/*") do continue
+		return docsCommentText(group)
+	}
+	return ""
 }
 
 @(private="file")
@@ -369,33 +401,40 @@ EngineDoc_Markdown :: proc(d: EngineDoc) -> string {
 	return strings.trim_right_space(strings.to_string(b))
 }
 
-// The engine's files by the website's API areas (crossfire_astro/scripts/api-groups.json; checked
-// by `engine_api_areas_match_the_website`)
-ENGINE_API_AREAS := [?]struct { slug: string, files: []string }{
-	{"core", {"app.odin", "game.odin", "scene.odin", "node.odin", "transform.odin", "event.odin", "node_events.odin", "timer.odin", "ticker.odin", "layers.odin", "custom_nodes.odin"}},
-	{"rendering", {"primitives.odin", "render_target.odin", "render_backend.odin", "atlas.odin", "tile_batch.odin"}},
-	{"text-and-fonts", {"text_primitives.odin", "fonts.odin", "font_compile.odin", "localization.odin"}},
-	{"camera", {"camera.odin", "camera_tools.odin"}},
-	{"input", {"input.odin", "input_rebind.odin"}},
-	{"physics", {"physics.odin", "physics_nodes.odin", "physics_events.odin", "physics_joints.odin", "physics_debug.odin", "physics_material.odin", "collision_trace.odin"}},
-	{"audio", {"audio.odin", "audio_nodes.odin", "audio_effects.odin", "audio_meter.odin", "music_layers.odin"}},
-	{"animation", {"animation.odin", "animation_player.odin", "animation_sets.odin", "animator.odin", "tween.odin", "easing.odin", "state_machine.odin", "skeleton.odin", "dragonbones.odin"}},
-	{"particles-and-lines", {"particles.odin", "gpu_particles.odin", "lines.odin"}},
-	{"lighting", {"lighting.odin"}},
-	{"shaders-and-screen-effects", {"shaders.odin", "shader_compile.odin", "screen_effects.odin"}},
-	{"ui", {"ui_label.odin", "ui_menu.odin", "ui_menu_draw.odin", "ui_menu_input.odin", "ui_style.odin", "ui_controls.odin", "ui_theme.odin"}},
-	{"tilemaps-and-aseprite", {"aseprite.odin", "aseprite_nodes.odin", "tilemap.odin", "inflate.odin"}},
-	{"ldtk", {"ldtk.odin", "ldtk_nodes.odin"}},
-	{"dialogue", {"dialogue.odin", "dialogue_box.odin", "yarn.odin"}},
-	{"navigation", {"navigation.odin"}},
-	{"scripts-globals-data-saves", {"script.odin", "names.odin", "code_uses.odin", "globals.odin", "data.odin", "save.odin", "hot_reload.odin"}},
-	{"scene-changes", {"scene_flow.odin"}},
-	{"project-format-and-loading", {"project_format.odin", "project_loader.odin"}},
-	{"assets-and-import", {"resource_manager.odin", "assets.odin", "asset_import.odin"}},
-	{"platform-player-web", {"player.odin", "platform_native.odin", "platform_web.odin", "player_web.odin", "pack.odin", "sdl_static.odin"}},
-	{"steam-touch-multiplayer", {"steam.odin", "touch.odin", "players.odin"}},
-	{"debug-and-live", {"debug.odin", "logging.odin", "logging_windows.odin", "logging_darwin.odin", "live.odin", "live_native.odin", "live_web.odin"}},
-	{"utilities", {"paths.odin", "process_exec.odin", "doc.odin"}},
+// One area of the website's API reference (crossfire_astro/scripts/api-groups.json): its page's slug,
+// title and description, and the engine files it documents
+EngineAPIArea :: struct {
+	slug, title, description: string,
+	files: []string,
+}
+
+// The engine's files by the website's API areas (crossfire_astro/scripts/api-groups.json, in its
+// order; checked by `engine_api_areas_match_the_website`)
+ENGINE_API_AREAS := [?]EngineAPIArea{
+	{"core", "Core: application, game, scenes and nodes", "The application and its frame loop, the game and its scenes, nodes and their transforms, events, timers and the package's memory model.", {"app.odin", "game.odin", "scene.odin", "node.odin", "transform.odin", "event.odin", "node_events.odin", "timer.odin", "ticker.odin", "layers.odin", "custom_nodes.odin"}},
+	{"rendering", "Rendering", "Drawing shapes and textures in a node's space, render targets, texture atlases, tile batches and the choice of renderer.", {"primitives.odin", "render_target.odin", "render_backend.odin", "atlas.odin", "tile_batch.odin"}},
+	{"text-and-fonts", "Text and fonts", "Drawing and measuring text, bitmap and MSDF fonts, and localization.", {"text_primitives.odin", "fonts.odin", "font_compile.odin", "localization.odin"}},
+	{"camera", "Camera", "The Camera2D node, follow modes and pans, parallax layers, camera zones, smooth zoom and camera views.", {"camera.odin", "camera_tools.odin"}},
+	{"input", "Input", "Keyboard, mouse and gamepad state, input actions, and rebinding.", {"input.odin", "input_rebind.odin"}},
+	{"physics", "Physics", "The Box2D world, physics nodes and joints, contact and area events, queries, materials, collision traced from images and debug drawing.", {"physics.odin", "physics_nodes.odin", "physics_events.odin", "physics_joints.odin", "physics_debug.odin", "physics_material.odin", "collision_trace.odin"}},
+	{"audio", "Audio", "SDL_mixer setup, sound and music nodes, mix buses, bus effects, level meters and adaptive music.", {"audio.odin", "audio_nodes.odin", "audio_effects.odin", "audio_meter.odin", "music_layers.odin"}},
+	{"animation", "Animation", "Sprite animations and their player, animation assets, Animator keyframe clips, tweens, easing curves, state machines and skeletal animation.", {"animation.odin", "animation_player.odin", "animation_sets.odin", "animator.odin", "tween.odin", "easing.odin", "state_machine.odin", "skeleton.odin", "dragonbones.odin"}},
+	{"particles-and-lines", "Particles and lines", "Particle emitters on the CPU and the GPU, Line2D and Trail2D.", {"particles.odin", "gpu_particles.odin", "lines.odin"}},
+	{"lighting", "Lighting", "2D lights, occluders, shadows and the scene's light map.", {"lighting.odin"}},
+	{"shaders-and-screen-effects", "Shaders and screen effects", "Shader bundles and materials on nodes, compiling GLSL, and ScreenEffect nodes.", {"shaders.odin", "shader_compile.odin", "screen_effects.odin"}},
+	{"ui", "UI", "Labels, menus, UI controls (panels, buttons, progress bars, text fields, scroll boxes, rich text), layouts and themes.", {"ui_label.odin", "ui_menu.odin", "ui_menu_draw.odin", "ui_menu_input.odin", "ui_style.odin", "ui_controls.odin", "ui_theme.odin"}},
+	{"tilemaps-and-aseprite", "Tilemaps and Aseprite", "Aseprite files, their use in a running game, and TileMap nodes.", {"aseprite.odin", "aseprite_nodes.odin", "tilemap.odin", "inflate.odin"}},
+	{"ldtk", "LDtk", "LDtk projects as plain data, and LDtkLevel nodes built from them.", {"ldtk.odin", "ldtk_nodes.odin"}},
+	{"dialogue", "Dialogue", "Dialogue files and their runner, Yarn Spinner import, and the DialogueBox node.", {"dialogue.odin", "dialogue_box.odin", "yarn.odin"}},
+	{"navigation", "Navigation", "Navigation regions and grids, A* paths, and NavAgent nodes.", {"navigation.odin"}},
+	{"scripts-globals-data-saves", "Scripts, globals, data and saves", "Scripts attached to nodes, global scripts, data resources, saved games, hot reload's snapshots, the name types engine procedures take (scenes, node paths, animations, actions...), and the code uses editors write for each kind of thing.", {"script.odin", "names.odin", "code_uses.odin", "globals.odin", "data.odin", "save.odin", "hot_reload.odin"}},
+	{"scene-changes", "Scene changes", "Transitions, scenes over scenes, loading screens and menu actions.", {"scene_flow.odin"}},
+	{"project-format-and-loading", "Project format and loading", "The project and scene XML format, its parser, and building scenes from parsed data.", {"project_format.odin", "project_loader.odin"}},
+	{"assets-and-import", "Assets and import", "The resource manager, typed asset handles and import settings.", {"resource_manager.odin", "assets.odin", "asset_import.odin"}},
+	{"platform-player-web", "Platform, player and web", "The player program, the platform layer (desktop and browser), the browser player, data packs and static SDL linking.", {"player.odin", "platform_native.odin", "platform_web.odin", "player_web.odin", "pack.odin", "sdl_static.odin"}},
+	{"steam-touch-multiplayer", "Steam, touch and local multiplayer", "Steam achievements, stats and cloud files; touch input and on-screen controls; local multiplayer players and split screen.", {"steam.odin", "touch.odin", "players.odin"}},
+	{"debug-and-live", "Debug, logging and live", "Debug drawing and the debug overlay, logging (levels, categories, SDL's messages), and the live link with the editor.", {"debug.odin", "logging.odin", "logging_windows.odin", "logging_darwin.odin", "live.odin", "live_native.odin", "live_web.odin"}},
+	{"utilities", "Utilities", "Paths, running other programs, and the package overview.", {"paths.odin", "process_exec.odin", "doc.odin"}},
 }
 
 // The API reference's area of an engine file ("" when it's in none)

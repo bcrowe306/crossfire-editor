@@ -109,6 +109,12 @@ ICON_CODE_BRANCH :: "\uf126"
 ICON_REFRESH     :: "\uf021"
 ICON_UPLOAD      :: "\uf0ee"
 ICON_MAP         :: "\uf279"
+ICON_ARROW_LEFT  :: "\uf060"
+ICON_ARROW_RIGHT :: "\uf061"
+ICON_HOUSE       :: "\uf015"
+ICON_BOOK        :: "\uf02d"
+ICON_SEARCH      :: "\uf002"
+ICON_EXTERNAL    :: "\uf08e"
 
 @(private="file")
 iconFontRegistered: bool

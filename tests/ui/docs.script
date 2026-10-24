@@ -1,0 +1,95 @@
+# The docs window (docs_window.odin, view_docs.odin): Help > User Manual opens the manual's
+# contents; a link, back and forward; search and a result; an anchor scrolled to; Open on
+# crossfireengine.io (nothing opens in a script run: `last_link`); Open Docs from a node's and a
+# scene tab's right-click menus; a panel's Manual button; F1 and Open Docs in a code tab (an
+# engine procedure's API entry, a node field through its type to the node's guide).
+# Run with: task test:ui SCRIPT=tests/ui/docs.script (and the fullscreen and short runs)
+
+wait 5
+action User_Manual
+expect docs open
+expect docs_address /manual/
+expect docs_title Crossfire Editor user manual
+# A link on the page: the manual's table of pages
+docs_click_link getting_started.md
+wait_until docs_address /manual/getting-started/ timeout=5
+expect docs_title Getting started
+click_widget docs-back
+wait_until docs_address /manual/ timeout=5
+click_widget docs-forward
+wait_until docs_address /manual/getting-started/ timeout=5
+# The page on the website
+click_widget docs-web
+wait_until last_link https://crossfireengine.io/manual/getting-started/ timeout=5
+# An anchor: the page scrolls to its heading
+send Docs_Opened /manual/physics/#joints
+wait_until docs_at joints timeout=5
+expect docs_address /manual/physics/#joints
+# Search: titles and text; a result opens its page at its heading
+click_widget docs-search
+type camera2d_follow
+wait_until docs_hits 1 timeout=5
+click_widget docs-hit-0
+wait_until docs_address /api/camera/#camera2d_follow timeout=5
+wait_until docs_at camera2d_follow timeout=5
+expect docs_title Camera
+# An API entry's link to another declaration
+key escape
+expect docs closed
+
+# Open Docs on a node (the viewport) and on a scene tab
+click_row browser-tree 2
+expect scene PlayScene
+action Toggle_Bottom_Panel
+right_click_world 640 470
+wait_until context_menu open
+expect selected Spaceship
+click_context_item Open Docs
+wait_until docs_address /manual/nodes-graphics/#sprite timeout=5
+wait_until docs_at sprite timeout=5
+expect docs_title Node guides: graphics
+key escape
+expect docs closed
+right_click_widget scene-tab-0
+click_context_item Open Docs
+wait_until docs_address_has /manual/scenes-and-nodes/ timeout=5
+key escape
+action Toggle_Bottom_Panel
+
+# A panel's Manual button
+send Bottom_Tab Plugins
+click_widget plugins-manual
+wait_until docs_address /manual/plugins/ timeout=5
+key escape
+expect docs closed
+
+# A code tab: F1 on an engine procedure, Open Docs on a node field (through its type)
+click_row scene-tree 2
+expect selected Spaceship
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type DocsProbe
+click_widget new-script-create
+expect code_tab docs_probe.odin
+wait_until code_focused true timeout=5
+# Lines: 7 the node field, 11 self.door used, 16 e.Script_Register
+write_project_file scripts/docs_probe.odin package scripts\n\nimport e "engine:."\n\nDocsProbe :: struct {\n\tusing script: e.Script,\n\tdoor: ^e.Sprite `export:"default=."`,\n}\n\nDocsProbe_ready :: proc(self: ^DocsProbe) {\n\tself.door.visible = true\n}\n\n@(init)\nregister_DocsProbe :: proc "contextless" () {\n\te.Script_Register(DocsProbe, {ready = auto_cast DocsProbe_ready})\n}\n
+wait_until code_contains true self.door.visible timeout=10
+wait 2
+code_click 16 6
+key F1
+wait_until docs_address /api/scripts-globals-data-saves/#script_register timeout=5
+key escape
+expect docs closed
+click_widget code-editor
+code_right_click 11 8
+code_menu_pick Open Docs
+wait_until docs_address /manual/nodes-graphics/#sprite timeout=5
+key escape
+# F1 off any engine name: the manual's code editor page
+click_widget code-editor
+code_click 1 1
+key F1
+wait_until docs_address /manual/code-editor/ timeout=5
+key escape
+quit

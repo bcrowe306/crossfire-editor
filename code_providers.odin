@@ -95,6 +95,8 @@ CodeProviders_Registry :: proc() -> ^ce.Provider_Registry {
 		ce.provider_register(&p.registry, ce.Provider{kind = .Gutter, name = "log points", gutter = logPointMarkers, on_click = logPointMarkerClicked, on_gutter_line = logPointGutterLine})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "log points", inlay = logPointInlays})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Menu, name = "log points", menu_items = logPointMenuItems, on_menu_item = logPointMenuPicked})
+		// "Open Docs" on a name: the docs window (docs_window.odin)
+		ce.provider_register(&p.registry, ce.Provider{kind = .Menu, name = "docs", menu_items = docsMenuItems, on_menu_item = docsMenuPicked})
 		// Engine-aware code actions in Ctrl+.'s menu (code_actions.odin)
 		ce.provider_register(&p.registry, ce.Provider{kind = .Action, name = "project actions", actions = projectActions, on_action = projectActionRun})
 	}
@@ -283,7 +285,7 @@ CodeProviders_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool
 		if message := CodePreviews_PlayAudio(state, v.path, v.play); message != "" do logLine(state, .Warning, fmt.aprintf("Preview: %s", message))
 		return {}, true
 	case Code_Help_Requested:
-		Links_Open(state, string(v))
+		Docs_Navigate(&state.docs, string(v))
 		return {}, true
 	case Code_Usage_Opened:
 		if v.notice != "" {
@@ -555,15 +557,57 @@ engineDocAt :: proc(state: ^State, doc: ce.Provider_Document, pos: cebuf.Positio
 }
 
 /*
-Where F1 goes in a code tab: the API page of the engine declaration at the caret, or "" (the
-manual, as everywhere else).
+Where F1 goes in a code tab: the API entry of the engine declaration at the caret, else the page
+of the type the code shows for the name there (`CodeProviders_DocsAt`), else "" (the manual's
+code editor page).
 
 Returns:
-- The address ("" none; temp allocated)
+- The docs window's address ("" none; temp allocated)
 */
 CodeProviders_HelpAt :: proc(state: ^State, doc: ce.Provider_Document, pos: cebuf.Position) -> string {
 	if state == nil do return ""
-	d, ok := engineDocAt(state, doc, pos)
-	if !ok do return ""
-	return EngineDoc_URL(d)
+	if d, ok := engineDocAt(state, doc, pos); ok do return Docs_EngineAddress(d)
+	return CodeProviders_DocsAt(state, doc, pos)
+}
+
+/*
+Where a code tab's "Open Docs" goes for the name at a position: an engine name (`e.Sprite`,
+`e.Camera2D_Follow`) is a node type's guide or its API entry; a field, variable or parameter
+goes through the type the code shows for it (`self.door` declared `door: ^e.Door`: the Door's
+guide; script_rename.odin's `ScriptCode_TypeAt`).
+
+Returns:
+- The docs window's address ("" when the name isn't one the docs have; temp allocated)
+*/
+CodeProviders_DocsAt :: proc(state: ^State, doc: ce.Provider_Document, pos: cebuf.Position) -> string {
+	if state == nil do return ""
+	table := EngineDocs_Get()
+	if d, ok := engineDocAt(state, doc, pos); ok do return Docs_EngineNameAddress(d.name, table)
+	typeText, alias := ScriptCode_TypeAt(scriptSources(state), absolutePath(doc.path), pos.line, pos.col)
+	return Docs_TypeAddress(typeText, alias, table)
+}
+
+// The address "Open Docs" in a code tab's menu left for the view to open (heap; "" none)
+@(private="file")
+docsLeft: string
+
+@(private)
+docsMenuItems :: proc(doc: ce.Provider_Document, pos: cebuf.Position, ctx: ce.Provider_Context, out: ^[dynamic]string) {
+	if CodeProviders_DocsAt(codeProvidersState(), doc, pos) != "" do append(out, "Open Docs")
+}
+
+@(private)
+docsMenuPicked :: proc(doc: ce.Provider_Document, pos: cebuf.Position, index: int, userData: rawptr) {
+	address := CodeProviders_DocsAt(codeProvidersState(), doc, pos)
+	if address == "" do return
+	delete(docsLeft)
+	docsLeft = strings.clone(address)
+}
+
+// Sends what a code tab's "Open Docs" left (the code view, after the code editor ran)
+CodeProviders_TakeDocs :: proc(ctx: ^skald.Ctx(Msg)) {
+	if docsLeft == "" do return
+	skald.send(ctx, Msg(Docs_Opened(strings.clone(docsLeft, context.temp_allocator))))
+	delete(docsLeft)
+	docsLeft = ""
 }

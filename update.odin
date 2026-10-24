@@ -120,6 +120,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := ScriptIndex_Update(&out, m); handled do return out, command
 	if command, handled := CodeProviders_Update(&out, m); handled do return out, command
 	if command, handled := CodeColors_Update(&out, m); handled do return out, command
+	if command, handled := Docs_Update(&out, m); handled do return out, command
 	if command, handled := CodeActions_Update(&out, m); handled do return out, command
 	if CodeLive_Update(&out, m) do return out, {}
 	if LogPoints_Update(&out, m) do return out, {}
@@ -173,6 +174,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by Plugins_Update above
 	case ScriptIndex_Tick, ScriptIndex_Parsed:
 		// Handled by ScriptIndex_Update above
+	case Docs_Opened, Docs_Link_Clicked, Docs_Hit_Chosen, Docs_Back, Docs_Forward, Docs_Closed, Docs_Search_Changed, Docs_Open_On_Web:
+		// Handled by Docs_Update above
 	case Code_Usage_Opened, Code_Rename_Requested, NameTable_Loaded, EngineDocs_Loaded, Code_Hover_Audio, Code_Help_Requested:
 		// Handled by CodeProviders_Update above
 	case Code_Color_Requested, Code_Color_Changed, Code_Color_Hex_Changed, Code_Color_Alpha_Changed, Code_Color_Applied, Code_Color_Cancelled:
@@ -582,7 +585,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case About_Link_Opened:
 		About_OpenLink(string(v))
 	case Manual_Opened:
-		Links_Open(&out, Manual_URL(string(v)))
+		Docs_Navigate(&out.docs, Docs_ManualAddress(string(v)))
 	case Frame_Requested:
 	case Quit_Without_Asking:
 		playStop(&out)
@@ -1438,7 +1441,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .About:
 		out.aboutOpen = true
 	case .User_Manual:
-		Links_Open(&out, Manual_URL(""))
+		Docs_Navigate(&out.docs, Docs_HelpAddress(&out, docsPointerPanel))
 	}
 	return out, {}
 }

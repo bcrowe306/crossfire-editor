@@ -89,8 +89,10 @@ use **File > Open Project** (Ctrl+O). See [Projects](projects.md).
 Drag the lines between the panels to resize them. Hover over almost anything (a button, a setting's
 name in the inspector) to see what it does.
 
-**Help > User Manual** (F1) opens this manual, and **Help > Keyboard Shortcuts** lists every
-shortcut (you can change them there too).
+**Help > User Manual** (F1) opens this manual in the editor's [docs window](docs_window.md), with
+the engine's API reference and a guide to every node kind; right-click a node, a scene or an
+asset and choose **Open Docs** to read about it. **Help > Keyboard Shortcuts** lists every shortcut (you can change
+them there too).
 
 ### The Console and Output tabs
 
