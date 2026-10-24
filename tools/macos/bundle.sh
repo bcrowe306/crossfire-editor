@@ -27,6 +27,7 @@
 #                                              (box2d/lib, sdl/lib): games compile against them
 #     Resources/tools/build_web_mixer.sh       builds SDL3_mixer for web exports
 #     Resources/plugin_api/                    the API editor plugins are built against
+#     Resources/docs/manual/                   the user manual, for the docs window (offline)
 #     Resources/demo_project/                  the demo project (its git-tracked files): copied to
 #                                              ~/Documents/Crossfire Editor on first run
 #
@@ -86,6 +87,10 @@ layout)
 	# The plugin API editor plugins are built against (Toolchain_PluginAPI: Resources/plugin_api)
 	mkdir -p "$contents/Resources/plugin_api"
 	cp "$here"/../../plugin_api/*.odin "$contents/Resources/plugin_api/"
+	# The user manual the docs window shows offline (Docs_ManualDir: Resources/docs/manual; the
+	# API reference is read from Resources/engine)
+	mkdir -p "$contents/Resources/docs/manual"
+	cp "$here"/../../docs/manual/*.md "$contents/Resources/docs/manual/"
 	# The demo project, opened (from a copy the user can edit) when no project is given
 	mkdir -p "$contents/Resources/demo_project"
 	(cd "$here/../../examples/demo_project" && git ls-files . | tar -cf - -T -) | tar -xf - -C "$contents/Resources/demo_project"

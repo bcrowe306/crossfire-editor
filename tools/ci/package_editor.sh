@@ -10,6 +10,8 @@
 #     with its built Box2D (box2d/lib) and static SDL (sdl/lib), for games with scripts
 #   - examples/demo_project: the demo project (its git-tracked files), opened when no project is
 #     given
+#   - docs/manual: the user manual, which the docs window shows offline (with the API reference
+#     it reads from engine/)
 #   Settings, icons and fonts are built in. The Windows executable has the Crossfire icon
 #   (crossfire.rc); the Linux archive has icons/ and install-desktop-entry.sh (the application
 #   menu entry, with the icon). macOS releases are the app bundle (Taskfile.macos.yml) instead.
@@ -119,6 +121,10 @@ mkdir -p "$stage/engine"
 # The plugin API projects' editor plugins are built against (Toolchain_PluginAPI: beside the editor)
 mkdir -p "$stage/plugin_api"
 cp "$editor"/plugin_api/*.odin "$stage/plugin_api/"
+# The user manual the docs window shows offline (Docs_ManualDir: docs/manual beside the editor;
+# the API reference is read from engine/)
+mkdir -p "$stage/docs/manual"
+cp "$editor"/docs/manual/*.md "$stage/docs/manual/"
 # The shader compilers (Toolchain_ShaderTools: shader_tools/<os>_<arch>/ beside the editor)
 for dir in "$engine"/shader_tools/*_*/; do
 	[[ "$(basename "$dir")" == build ]] && continue
