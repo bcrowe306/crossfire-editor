@@ -37,7 +37,7 @@ key ctrl+shift+a
 type ParticleEmitter
 key RETURN
 expect selected ParticleEmitter
-scroll_into_view inspector-scroll inspector-particle-continuous-11
-click_widget inspector-particle-continuous-11
-expect particle continuous false
-expect widget_visible inspector-particle-continuous-11 true
+scroll_into_view inspector-scroll inspector-particles-emitting-11
+click_widget inspector-particles-emitting-11
+expect particle emitting false
+expect widget_visible inspector-particles-emitting-11 true

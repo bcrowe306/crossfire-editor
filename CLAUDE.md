@@ -311,7 +311,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
 | `project_data.odin` | Global scripts (`GlobalDef`) and data resources (`DataDef`) in the project; prop editing for any owner (`PropTarget`); creating, loading and saving data files; writing the generated `scripts/assets.odin` (`Scripts_WriteAssetsFile`, `ASSETS_FILE_MARKER`; its content: script_constants.odin) |
 | `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
-| `view_inspector_particles.odin` | A ParticleEmitter's settings as rows, shared by the inspector and the Particles tab (`particleSettingRows`, `ParticleRows`: one group or all, the widths, the keys' prefix), built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`); the inspector's rows (`particleInspectorRows`: `Particles_Summary`, Edit in the Particles tab, Reset, every setting) |
+| `view_inspector_particles.odin` | The inspector's ParticleEmitter rows (`particleInspectorRows`: the summary `Particles_Facts`, Emitting and a preset inline, Edit in the Particles tab, a link per category) and the Particles tab's settings rows (`particleSettingRows`, `ParticleRows`: one group or all, the widths), built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`) |
 | `particles_edit.odin` | **The Particles tab's model**: `ParticlesEditor` (`State.particles`: the emitter shown, its category), `Particles_Follow`, `Particles_Emitter`, `Particles_Target` (what the particle messages edit), `Particles_Categories` / `Particles_FieldGroups` (the engine's `group` tags, then All), `PARTICLE_PRESETS` (`Particles_Preset`), `Particles_Update` (`Particles_Category_Picked`, `Particles_Restart`, `Particles_Preset_Applied`) |
 | `view_particles.odin` | The bottom panel's **Particles** tab (`ParticlesPanel`): the categories' column (names, icons, or a choice: `Particles_TabLayout`), the category's settings (`particleSettingRows`), the header (`particlesHeader`: name and live count, Restart, Emitting, One-shot, Preset, Reset, Manual) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
@@ -429,7 +429,7 @@ Skald is not immediate-mode and not a retained widget tree:
   takes `inspectorControlWidth(th, sidebarWidth)`, and a whole row (text across it, a row of
   buttons) `inspectorRowWidth(controlWidth)`, never `controlWidth + INSPECTOR_LABEL_WIDTH`.
   Tests: `narrow_inspectors_stack_their_rows`, `tests/ui/narrow_inspector.script` (180 px:
-  numbers, link buttons, a particle pair, clear of the scrollbar and clicked).
+  numbers, link buttons, a particle emitter's summary, clear of the scrollbar and clicked).
   **Every inspector row must fit `controlWidth`**: it happened three times (the link button, the
   script Open button beside a dropdown held at its minimum width, the Camera's limit checkbox
   beside a number field held at `NumberField_MinWidth`). Put extra buttons on their own row, and
@@ -2779,8 +2779,8 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   from `e.DEFAULT_LINE_SETTINGS`. `syncTransforms` copies a line's settings and points, a
   trail's settings, every frame (no rebuild). Trails draw nothing in the viewport (nothing
   moves there).
-- GPU particles are two particle settings (`gpu`, `gpuAmount`), so the particle inspector shows
-  them with no editor change; a scene with a GPU emitter counts as using shaders
+- GPU particles are two particle settings (`gpu`, `gpuAmount`), so the Particles tab shows
+  them with no editor change (its GPU category; the inspector's summary says CPU or GPU); a scene with a GPU emitter counts as using shaders
   (`Preview_SceneUsesShaders`, `Project_UsesShaders`): the viewport draws it with the GPU
   renderer, and Auto picks it in games.
 - **They're in `Preview_FrameKey`** (a line's settings and points, and whether the scene needs
@@ -3135,23 +3135,29 @@ Their files' doc comments describe them; what the code relies on:
 - **Model:** `NodeDef.particles` is the engine's `e.ParticleSettings`, a plain value (no
   allocations), so cloning, equality (`==`) and the undo snapshot need nothing per field; the
   Texture shape's image is `NodeDef.texture`. Written by `SceneToXML` as `<particles>`.
-- **The rows are shared** (`particleSettingRows`, view_inspector_particles.odin): one loop over
-  `e.ParticleSettings_Fields()` (names, types, the `min`/`max`/`label`/`group` tags), so **a
-  setting added in the engine shows up in the inspector and the Particles tab with no editor
-  change** (a new field type needs a case in `particleControl`; a new group is a new category).
-  `ParticleRows` says which group ("" all, under their headings), the widths (the tab's ramp is
-  wider) and the widget keys' prefix (`inspector` / `particles-tab`: both can show at once, so no
-  key is shared); `particleRow` is the inspector's `inspectorRow` (labels drag into code) or a
-  plain labelled row in the tab. Ranged numbers are `valueSlider`s (reset goes to
+- **The settings' rows** (`particleSettingRows`, view_inspector_particles.odin; the Particles
+  tab's): one loop over `e.ParticleSettings_Fields()` (names, types, the `min`/`max`/`label`/`group`
+  tags), so **a setting added in the engine shows up in the Particles tab with no editor change**
+  (a new field type needs a case in `particleControl`; a new group is a new category and an
+  inspector link). `ParticleRows` says which group ("" all, under their headings) and the widths
+  (the ramp's wider); keys start `particles-tab` (`PARTICLE_KEYS`); `particleRow` is a labelled
+  row (`inspectorLabelled`, its label's `tipLabel`). Ranged numbers are `valueSlider`s (reset goes to
   `e.DEFAULT_PARTICLE_SETTINGS`), rounded to about a thousandth of their range (`sliderStep`; a
   tenth of that with Shift) and written with `formatSliderValue`, so scene files get short
   numbers; `[2]f32` is two sliders, with the link button under the label (`State.particleLinks`,
   by field index; `ParticleSettings_SetAxis` applies `LinkedAxis`); colors are Skald's picker (no
   alpha) plus an alpha slider. The ramp hides the start/end colors when on, and vice versa.
-- **The inspector** (decided 2026-10-24): a summary line (`Particles_Summary`), **Edit in the
-  Particles tab** (`inspector-particles-edit-<node>`), Reset, then every setting, as before. They
-  stayed: in a tiled window the bottom panel is about 200 px wide and short, so the inspector is
-  often the better place, and the rows are the tab's own procedures, so the two can't drift.
+- **The inspector** (decided 2026-10-25: "Shrink to a summary with the particles bottom tab"; it
+  had every setting until then): `particleInspectorRows` is **Emits** (the `emitting` checkbox)
+  and **Look** (the preset select, value always ""), the summary's rows of xs text
+  (`Particles_Facts`: Cycle, Particles (a cycle's amount, the GPU's when on it, and a second's
+  when continuous), Lives, Drawn as (the shape, the texture's file, the ramp), Runs on, and Alive
+  from `Preview_EmitterAlive` when the viewport has it), **Edit in the Particles tab** (the row's
+  width, `inspectorRowWidth`) and a `wrap_row` of a link per category but All. Both send
+  `Particles_Tab_Opened` (the category, or -1 to keep the tab's: `Mode_ShowBottomTab`, so the
+  Scene mode and the bottom panel open). Labels have `fieldTip`s of their own (Emitting, Shape,
+  Preset were taken by trails, collision shapes and themes). Reset, the sliders and the ramp are
+  the tab's only.
 - **The Particles tab** (the Scene mode's bottom tab `.Particles`, after States; asked
   2026-10-24: "the particle categories in a left sidebar with vert tabs, the settings in the right
   content pane"): `ParticlesEditor.node` follows the selection when an emitter is selected
@@ -3183,24 +3189,28 @@ Their files' doc comments describe them; what the code relies on:
   a marker per stop). Its mouse handling runs before it's built, from last frame's rect (like the
   scene tree's): a press near a marker grabs it, elsewhere on the bar adds a stop in the ramp's
   color there; while `State.rampDrag` is this bar's id (`Ramp_Drag_Changed(bar)`, 0 on release:
-  the inspector's and the tab's bars can both show, and both used to follow one drag), moving
+  by bar, from when the inspector had a bar too and both followed one drag), moving
   re-sorts the ramp and follows the stop (`e.ColorRamp_Sort` tracks it). `State.rampStop` is the
   selected stop.
 - **Messages:** `Particle_Field_Changed` (a setting as text, `e.ParticleSettings_Set`),
   `Particle_Axis_Changed`, `Ramp_Edited` (the whole ramp as text plus the stop to select),
   `Particles_Reset` (also clears the texture), `Particles_Preset_Applied`. All `.Node` undo steps
   on `Particles_Target`, merged per setting; `Particle_Link_Toggled`, `Ramp_Stop_Selected`,
-  `Ramp_Drag_Changed`, `Particles_Category_Picked`, `Particles_Restart` are view state.
+  `Ramp_Drag_Changed`, `Particles_Category_Picked`, `Particles_Tab_Opened`, `Particles_Restart`
+  are view state.
 - **Viewport:** emitters make the preview animated; `syncTransforms` copies their settings every
   frame (so a slider drag shows at once without losing the particles), stops an emitter whose
   Emitting is off, and replays a one-shot one once its particles are gone.
-- Tests: `particle_emitter_round_trip`, `particle_inspector_edits`, `viewport_shows_particles`
-  (pixels from `Preview_Render`), particles_edit_test.odin (`particle_categories_come_from_the_engines_groups`,
+- Tests: `particle_emitter_round_trip`, `particle_inspector_edits` (the messages),
+  `viewport_shows_particles` (pixels from `Preview_Render`), particles_edit_test.odin
+  (`particles_inspector_summary_opens_the_tab`: the facts, their tooltips, `Particles_Tab_Opened`
+  from either mode; `particle_categories_come_from_the_engines_groups`,
   `particles_tab_follows_edits_and_undoes`: follow, edits on the tab's emitter with another node
   selected, the ramp, a preset, undo / redo, Reset; `particle_presets_are_in_range`,
-  `particles_tab_rows_fit_their_column` at 200 to 760 px), `tests/ui/particles.script` (real
-  slider drags, the link button, ramp clicks and drags, alpha, typing a value, Shift drags, reset,
-  the shape dropdown, undo) and `tests/ui/particles_tab.script` (Edit in the Particles tab, the
+  `particles_tab_rows_fit_their_column` at 200 to 760 px), `tests/ui/particles.script` (the
+  inspector's Emitting, preset, button and links clear of its scrollbar, the links opening the
+  tab at their category; in the tab real slider drags, the link button, ramp clicks and drags,
+  alpha, typing a value, Shift drags, Reset, the shape dropdown, undo) and `tests/ui/particles_tab.script` (Edit in the Particles tab, the
   tab keeping the emitter, a slider, One-shot, a category by tab or choice, the ramp's bar, a
   preset, undo / redo, Restart, Reset, the Manual). The driver's `click_at` / `drag_widget
   [shift]` press at fractions of a widget, `click_overlay_item` clicks a popup's choice (a
@@ -3634,13 +3644,14 @@ Highlights:
     `export-target-<Target>`, `export-field-<Field>`, `export-run`, `export-cancel`
   - Camera inspector: `inspector-camera-<CameraField>-<node>` (numbers, the Target and Follow mode
     selects, the limits' `Limit_<Side>_On` checkboxes), zoom `inspector-Zoom-<node>`
-  - ParticleEmitter inspector: `inspector-particle-<setting>-<node>` (`-x` / `-y` for pairs,
-    `-alpha` for colors), `inspector-particle-link-<setting>`, `inspector-particles-reset-<node>`,
-    `inspector-particles-edit-<node>`, `inspector-ramp-<node>` and its `-add-`, `-remove-`,
-    `-position-`, `-color-`, `-alpha-` controls; the Particles tab's the same with the prefix
-    `particles-tab` (`particles-tab-particle-amount-11`, `particles-tab-ramp-11`) and its own
-    `particles-tab-cat-<Category>`, `-select`, `-scroll`, `-restart`, `-emitting`, `-one-shot`,
-    `-preset`, `-reset`, `-manual`, `-add` (view_particles.odin's doc block)
+  - ParticleEmitter inspector: `inspector-particles-emitting-<node>`,
+    `inspector-particles-preset-<node>`, `inspector-particles-edit-<node>`,
+    `inspector-particles-cat-<Category>-<node>`. The Particles tab's settings:
+    `particles-tab-particle-<setting>-<node>` (`-x` / `-y` for pairs, `-alpha` for colors),
+    `particles-tab-particle-link-<setting>`, `particles-tab-ramp-<node>` and its `-add-`,
+    `-remove-`, `-position-`, `-color-`, `-alpha-` controls, `particles-tab-texture-<node>`; its
+    own `particles-tab-cat-<Category>`, `-select`, `-scroll`, `-restart`, `-emitting`,
+    `-one-shot`, `-preset`, `-reset`, `-manual`, `-add` (view_particles.odin's doc block)
 - **UI tests run on `tests/fixtures/ui_project`**, not `examples/demo_project`: the demo is what
   `task run` opens, so it changes when you use the editor. Update the fixture on purpose when a
   test needs different content.

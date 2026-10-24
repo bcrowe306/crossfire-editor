@@ -1379,6 +1379,7 @@ Msg :: union {
 	Ramp_Drag_Changed,
 	// The Particles tab (particles_edit.odin)
 	Particles_Category_Picked,
+	Particles_Tab_Opened,
 	Particles_Restart,
 	Particles_Preset_Applied,
 	// Context menus (context_menus.odin)

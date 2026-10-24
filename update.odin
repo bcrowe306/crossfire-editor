@@ -1078,7 +1078,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		node, _ := Particles_Target(out)
 		if node == nil do break
 		if e.ParticleSettings_Set(&node.particles, "colorRamp", v.text) do out.rampStop = v.selected
-	case Particles_Category_Picked, Particles_Restart, Particles_Preset_Applied:
+	case Particles_Category_Picked, Particles_Tab_Opened, Particles_Restart, Particles_Preset_Applied:
 		// Particles_Update (particles_edit.odin), above
 	case Ramp_Stop_Selected:
 		out.rampStop = int(v)

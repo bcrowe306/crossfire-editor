@@ -1,6 +1,6 @@
 ---
 title: Particles
-description: Make sparks, smoke, fire, rain, explosions and magic with ParticleEmitter nodes, set up in the inspector and played live in the viewport.
+description: Make sparks, smoke, fire, rain, explosions and magic with ParticleEmitter nodes, set up in the Particles tab and played live in the viewport.
 order: 12
 ---
 
@@ -12,10 +12,11 @@ smoke from a chimney, a ship's engine flame, rain, fireworks, a coin's sparkle w
 
 A **ParticleEmitter** node makes them: it **emits** particles from where it is, sends them off
 in a direction, pulls them with gravity and wind, and changes their size and color as they age.
-Every setting is in the inspector and in the bottom panel's **Particles** tab (a category at a
-time, with more room and presets), and the viewport plays the effect while you change it.
+The inspector sums the emitter up; its settings are edited in the bottom panel's **Particles**
+tab (a category at a time, with presets), and the viewport plays the effect while you change it.
 
 - [Making an emitter](#making-an-emitter)
+- [In the inspector](#in-the-inspector)
 - [The Particles tab](#the-particles-tab)
 - [How emission works](#how-emission-works)
 - [Spread and variance: a little randomness](#spread-and-variance-a-little-randomness)
@@ -37,29 +38,38 @@ time, with more room and presets), and the viewport plays the effect while you c
 2. Place it where the particles should come from.
 3. Make sure the viewport's animations are playing (the play button in the viewport's header,
    or **P**): the emitter starts at once, with the default settings, a fiery fountain of dots.
-4. Change the settings in the inspector, or in the **Particles** tab (**Edit in the Particles
-   tab**, under the emitter's summary in the inspector). The viewport shows each change as you
-   make it.
+4. Pick a **Preset** in the inspector for a look to start from, then click **Edit in the
+   Particles tab** (or one of the category links under it) and change the settings there. The
+   viewport shows each change as you make it.
 
-Every change is an undo step (Ctrl+Z); dragging a slider is one step. **Reset to defaults**, at
-the top of the emitter's settings, puts every setting back as a new emitter has them, and clears
-its picture (it can be undone too).
+Every change is an undo step (Ctrl+Z); dragging a slider is one step. **Reset**, in the
+Particles tab's header, puts every setting back as a new emitter has them, and clears its
+picture (it can be undone too).
 
-The controls (the same in the inspector and the Particles tab):
+## In the inspector
 
-- **Sliders**: drag, or click the value box beside the slider and type one. Hold Shift while
-  dragging for fine steps. The button beside it resets that one setting.
-- **Pairs** (Spread, Size, Scale, Gravity dir., Wind) have an X and a Y slider. The link button
-  under the name ties them: changing one changes the other in proportion.
-- **Colors** have a color picker and an **Alpha** slider beside it (0 transparent, 255 solid).
-- Hover a setting's name to see what it does, its range and its default.
+A selected emitter's inspector shows what it does at a glance, in short rows:
+
+- **Emits**: a checkbox for **Emitting** (off, the emitter starts stopped until a script starts
+  it).
+- **Look**: a **Preset** menu (the same presets as [the Particles tab](#the-particles-tab)'s).
+- **Cycle**: Continuous or One-shot.
+- **Particles**: how many a cycle, and how many a second when it's continuous.
+- **Lives**: how long a particle lives (also a cycle's length).
+- **Drawn as**: the shape (or the picture's file), and whether a color ramp colors it.
+- **Runs on**: the CPU or the GPU.
+- **Alive**: how many particles are alive in the viewport now (when they're drawn there).
+
+Under them, **Edit in the Particles tab** opens the bottom panel's Particles tab on the emitter,
+and a link per category (Emission, GPU, Shape, Rotation, Color, Motion, Forces, Collision) opens
+it at that category. Everything else is set in the tab.
 
 ## The Particles tab
 
-The bottom panel's **Particles** tab is the emitter's settings with room to work: a column of
-**categories** on the left, the chosen category's settings on the right, with wider sliders and a
-wider color ramp than the inspector has. Open it with **Edit in the Particles tab** in the
-emitter's inspector, or click **Particles** in the bottom panel's tabs.
+The bottom panel's **Particles** tab is where an emitter's settings are: a column of
+**categories** on the left, the chosen category's settings on the right. Open it with **Edit in
+the Particles tab** or a category's link in the emitter's inspector, or click **Particles** in
+the bottom panel's tabs.
 
 - **Which emitter:** the selected ParticleEmitter. Select another node (to move the ship the flame
   is on, say) and the tab keeps showing the last emitter you selected, and its edits still go to
@@ -81,7 +91,16 @@ emitter's inspector, or click **Particles** in the bottom panel's tabs.
   - How many particles are alive in the viewport (a GPU emitter says how many a cycle).
   - **Manual** opens this page (so does F1 over the tab).
 
-Every change in the tab is an undo step, as in the inspector: the two are the same controls.
+The settings' controls:
+
+- **Sliders**: drag, or click the value box beside the slider and type one. Hold Shift while
+  dragging for fine steps. The button beside it resets that one setting.
+- **Pairs** (Spread, Size, Scale, Gravity dir., Wind) have an X and a Y slider. The link button
+  under the name ties them: changing one changes the other in proportion.
+- **Colors** have a color picker and an **Alpha** slider beside it (0 transparent, 255 solid).
+- Hover a setting's name to see what it does, its range and its default.
+
+Every change in the tab is an undo step.
 
 ## How emission works
 
@@ -296,7 +315,7 @@ Ship_explode :: proc(self: ^Ship) {
 
 In code, the settings' names are the scene file's: **Amount** is `amount`, **Start color**
 `particleColor`, **Color ramp** `useColorRamp`, **Gravity** `gravityVelocity`, **Gravity dir.**
-`gravityDirection`, **Collide** `collisionEnabled`. Hover a setting in the inspector, or look at
+`gravityDirection`, **Collide** `collisionEnabled`. Hover a setting in the Particles tab, or look at
 `ParticleSettings` in the engine's `particles.odin`, for the rest.
 
 **When it's finished:** select the emitter, open the inspector's **Events** (Show), and

@@ -18,6 +18,7 @@ expect selected ParticleEmitter
 expect particles_tab node ParticleEmitter
 
 # The inspector's summary and button: the tab shows, on the emitter, at its first category
+# (the category it shows: Edit in the Particles tab keeps it)
 scroll_into_view inspector-scroll inspector-particles-edit-11
 click_widget inspector-particles-edit-11
 expect bottom_tab Particles

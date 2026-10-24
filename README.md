@@ -685,12 +685,14 @@ In code: `e.AnimationPlayer_Play(&sprite.animation, "jump")` (with
 
 A **ParticleEmitter** node (Ctrl+Shift+A) emits particles that move, spin, grow or shrink and
 change color over their life: sparks, smoke, fire, rain, exhaust. Its settings come in groups
-(Emission, GPU, Shape, Rotation, Color, Motion, Forces, Collision), in the inspector and in the
-bottom panel's **Particles** tab: a column of the groups (names, icons, or a choice in a narrow
-panel), the chosen group's settings with more room, and a header with Restart (the viewport's
-emitter plays again), Emitting, One-shot, presets (Fire, Smoke, Sparks, Dust, Rain), Reset and
-the live particle count. The tab keeps the last emitter selected while you select other nodes.
-The two share the same controls:
+(Emission, GPU, Shape, Rotation, Color, Motion, Forces, Collision), edited in the bottom panel's
+**Particles** tab: a column of the groups (names, icons, or a choice in a narrow panel), the
+chosen group's settings, and a header with Restart (the viewport's emitter plays again),
+Emitting, One-shot, presets (Fire, Smoke, Sparks, Dust, Rain), Reset and the live particle count.
+The tab keeps the last emitter selected while you select other nodes. The inspector sums the
+emitter up (one-shot or continuous, amount and rate, lifetime, shape, CPU or GPU, the live count)
+with Emitting and a preset menu, **Edit in the Particles tab** and a link per group. The tab's
+controls:
 
 - Numbers are sliders over their useful range. X/Y pairs (size, scale, spread, gravity, wind) have
   a link button: linked, dragging one axis takes the other along in proportion.
@@ -699,7 +701,7 @@ The two share the same controls:
   select one to change its color, alpha or position, **Remove** deletes it.
 - Shapes: circle, ellipse, rectangle, pixel, line, a texture (pick the image under the shape), or
   drawn by your script (Custom: `emitter.customDraw`).
-- **Reset to defaults** puts every setting back (undoable, like every change).
+- **Reset** puts every setting back (undoable, like every change).
 
 The viewport plays emitters live (P pauses viewport animations), and picks up changes as you drag a
 slider. In code: `e.ParticleEmitter_Start(emitter)` fires a one-shot emitter (emitting and

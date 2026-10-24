@@ -68,9 +68,8 @@ categoryIcon :: proc(name: string) -> string {
 	return ICON_SLIDERS
 }
 
-// What each category is for (its tab's tooltip)
-@(private="file")
-categoryAbout :: proc(name: string) -> string {
+// What each category is for (its tab's tooltip, and the inspector's link to it)
+Particles_CategoryAbout :: proc(name: string) -> string {
 	switch name {
 	case "Emission":  return "Emission: how many particles a cycle, how long they live, where they start"
 	case "GPU":       return "GPU: run the particles on the graphics card, tens of thousands at once"
@@ -158,7 +157,7 @@ ParticlesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	saved := inspectorStacked
 	inspectorStacked = stacked
 	group := category == PARTICLES_ALL ? "" : category
-	settings := particleSettingRows(ctx, s, node, index, {prefix = "particles-tab", group = group, controlWidth = controlWidth, rampWidth = rampWidth})
+	settings := particleSettingRows(ctx, s, node, index, {group = group, controlWidth = controlWidth, rampWidth = rampWidth})
 	inspectorStacked = saved
 	if len(settings) == 0 do append(&rows, skald.text("Nothing in this category.", th.color.fg_muted, th.font.size_sm))
 	append(&rows, ..settings)
@@ -173,7 +172,7 @@ ParticlesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		button := skald.button(ctx, label, Msg(Particles_Category_Picked(i)), id = skald.hash_id(key),
 			bg = active ? th.color.primary : th.color.surface, fg = active ? th.color.on_primary : th.color.fg,
 			padding = {th.spacing.sm, 3}, font_size = th.font.size_xs, radius = th.radius.sm, width = sidebar - th.spacing.xs * 2 - SIDEBAR_SCROLLBAR)
-		append(&tabs, skald.tooltip(ctx, button, categoryAbout(name), id = skald.hash_id(fmt.tprintf("%s-tip", key))))
+		append(&tabs, skald.tooltip(ctx, button, Particles_CategoryAbout(name), id = skald.hash_id(fmt.tprintf("%s-tip", key))))
 	}
 	side := skald.scroll(ctx, {0, 0}, skald.col(..tabs[:], spacing = 2, padding = th.spacing.xs), id = skald.hash_id("particles-tab-sidebar"))
 	return skald.col(

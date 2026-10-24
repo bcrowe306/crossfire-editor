@@ -199,6 +199,15 @@ fieldTip :: proc(label: string) -> string {
 	case "Speed":          return "Playback speed: 2 is twice as fast (and an octave up)."
 	case "Pan":            return "Left (-1) to right (1); 0 is the middle."
 	case "Loop":           return "Starts again when it ends."
+	// A ParticleEmitter's summary in the inspector (view_inspector_particles.odin)
+	case "Emits":          return "Whether it emits from the start; off, it starts stopped until a script starts it."
+	case "Look":           return "A preset: a whole look to start from (fire, smoke, sparks, dust, rain), one undoable step. Tune it in the Particles tab."
+	case "Cycle":          return "Continuous: a new cycle starts when one ends. One-shot: one cycle, then it stops (an explosion)."
+	case "Particles":      return "How many particles a cycle sends out (the GPU's own amount when it runs there), and how many a second."
+	case "Lives":          return "How long a particle lives, which is also a cycle's length."
+	case "Drawn as":       return "Each particle's shape (or picture), and whether its color comes from a ramp."
+	case "Runs on":        return "GPU: on the graphics card, tens of thousands at once. CPU: on the processor, with collisions."
+	case "Alive":          return "The particles alive in the viewport now (its animations play with P)."
 	// The sprite sheet slicer (view_slicer.odin)
 	case "Slice by":       return "How the sheet is cut into frames: a grid of cells, or its sprites found by their opaque pixels (sheets of uneven sprites)."
 	case "Grid by":        return "Cut by a number of columns and rows (the cells share the sheet), or by a cell's size in pixels (as many as fit)."

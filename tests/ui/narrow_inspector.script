@@ -1,7 +1,8 @@
 # The inspector at the right sidebar's narrowest (MIN_SIDEBAR_WIDTH, 180 px): its rows stack their
 # labels over their controls (a label beside a number field and its link button needs about 224
 # px), so nothing runs under the scrollbar, and the controls still click: the node's numbers and
-# link buttons, a particle setting's pair and its link button. Wider, they're side by side again.
+# link buttons, a particle emitter's summary (its controls, button and category links). Wider,
+# they're side by side again.
 # Run with: task test:ui (and task test:ui:fullscreen)
 
 wait 5
@@ -40,17 +41,23 @@ expect field z 1
 key ctrl+z
 expect field z 0
 
-# A particle emitter's pairs (a link button beside the label) and its sliders
+# A particle emitter's summary: Emitting, the preset, the button and the category links
 key escape
 key ctrl+shift+a
 type ParticleEmitter
 key RETURN
 expect selected ParticleEmitter
-scroll_into_view inspector-scroll inspector-particle-link-size
-expect clear_of_scrollbar inspector-particle-link-size inspector-scroll
-expect clear_of_scrollbar inspector-particle-size-x-{selected} inspector-scroll
-click_widget inspector-particle-link-size
-expect particle_linked size true
+scroll_into_view inspector-scroll inspector-particles-emitting-{selected}
+expect clear_of_scrollbar inspector-particles-emitting-{selected} inspector-scroll
+scroll_into_view inspector-scroll inspector-particles-preset-{selected}
+expect clear_of_scrollbar inspector-particles-preset-{selected} inspector-scroll
+scroll_into_view inspector-scroll inspector-particles-edit-{selected}
+expect clear_of_scrollbar inspector-particles-edit-{selected} inspector-scroll
+scroll_into_view inspector-scroll inspector-particles-cat-Collision-{selected}
+expect clear_of_scrollbar inspector-particles-cat-Collision-{selected} inspector-scroll
+scroll_into_view inspector-scroll inspector-particles-cat-Shape-{selected}
+click_widget inspector-particles-cat-Shape-{selected}
+expect particles_tab category Shape
 
 # Wide enough again: side by side, still clear of the scrollbar
 send Right_Sidebar_Width 260

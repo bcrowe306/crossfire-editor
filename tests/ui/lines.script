@@ -49,8 +49,11 @@ type ParticleEmitter
 key RETURN
 expect selected ParticleEmitter
 expect render_path shared
-scroll_into_view inspector-scroll inspector-particle-gpu-{selected}
-click_widget inspector-particle-gpu-{selected}
+scroll_into_view inspector-scroll inspector-particles-cat-GPU-{selected}
+click_widget inspector-particles-cat-GPU-{selected}
+expect particles_tab category GPU
+scroll_into_view particles-tab-scroll particles-tab-particle-gpu-{selected}
+click_widget particles-tab-particle-gpu-{selected}
 expect particle gpu true
 wait_until render_path effects timeout=5
 

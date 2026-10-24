@@ -77,8 +77,8 @@ shaders page).
 
 Any ParticleEmitter can simulate on the graphics card:
 
-1. Select the emitter and tick **On the GPU** (its GPU settings: the Particles tab's GPU
-   category).
+1. Select the emitter, click **GPU** under **Edit in the Particles tab** in its inspector (the
+   Particles tab's GPU category), and tick **On the GPU**.
 2. Set **GPU amount**: how many particles a cycle, up to 200 000. **Amount** is still used where
    the GPU path can't run (below).
 

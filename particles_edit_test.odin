@@ -1,5 +1,6 @@
 package crossfire_editor
 
+import "core:fmt"
 import "core:strings"
 import "core:testing"
 import e "engine:."
@@ -122,6 +123,69 @@ particles_tab_follows_edits_and_undoes :: proc(t: ^testing.T) {
 	sendTo(&state, Particles_Reset{})
 	testing.expect_value(t, scene.nodes[sparks].particles, e.DEFAULT_PARTICLE_SETTINGS)
 	testing.expect_value(t, scene.nodes[ship].kind, NodeKind.Sprite)
+	free_all(context.temp_allocator)
+}
+
+// The inspector's summary of an emitter (`Particles_Facts`), and its way to the tab: Edit in the
+// Particles tab keeps the category, a category's link shows the tab there (from the Level mode too)
+@(test)
+particles_inspector_summary_opens_the_tab :: proc(t: ^testing.T) {
+	root := joinPath(testTempBase(), "particles_summary", "Game", allocator = context.temp_allocator)
+	state := State{project = Project_CreateEmpty(root, "Game"), browserSelection = {kind = .None}, selectedNode = -1, settings = Settings_Default(),
+		timeline = {node = -1, track = -1, key = -1}, states = {node = -1, state = -1, transition = -1}, themeSelection = -1, dataSelection = -1}
+	state.settings.builtInCodeEditor = false
+	defer State_Destroy(&state)
+	scene := &state.project.scenes[0]
+	sparks := Scene_InsertNode(scene, "Sparks", .ParticleEmitter, -1)
+	state.selectedNode = sparks
+	node := &scene.nodes[sparks]
+
+	value :: proc(facts: []ParticleFact, label: string) -> string {
+		for f in facts do if f.label == label do return f.value
+		return ""
+	}
+	// The defaults: continuous, 50 every 2 s on the CPU, circles with a ramp (no viewport: no live count)
+	facts := Particles_Facts(&state, node, -1)
+	testing.expect_value(t, value(facts, "Cycle"), "Continuous")
+	testing.expect_value(t, value(facts, "Particles"), "50 a cycle, 25 a second")
+	testing.expect_value(t, value(facts, "Lives"), "2 s")
+	testing.expect_value(t, value(facts, "Drawn as"), "Circle, color ramp")
+	testing.expect_value(t, value(facts, "Runs on"), "CPU")
+	testing.expect_value(t, value(facts, "Alive"), "")
+	for f in facts do testing.expectf(t, fieldTip(f.label) != "", "the summary's %s row has a tooltip", f.label)
+	testing.expect(t, fieldTip("Emits") != "" && fieldTip("Look") != "", "the inline controls' rows have tooltips")
+
+	// A one-shot on the GPU, a texture without its image
+	sendTo(&state, Particle_Field_Changed{"continuous", "false"})
+	sendTo(&state, Particle_Field_Changed{"gpu", "true"})
+	sendTo(&state, Particle_Field_Changed{"shape", "Texture"})
+	sendTo(&state, Particle_Field_Changed{"useColorRamp", "false"})
+	node = &scene.nodes[sparks]
+	facts = Particles_Facts(&state, node, -1)
+	testing.expect_value(t, value(facts, "Cycle"), "One-shot")
+	testing.expect_value(t, value(facts, "Particles"), fmt.tprintf("%d a cycle", node.particles.gpuAmount))
+	testing.expect_value(t, value(facts, "Drawn as"), "Texture (none chosen)")
+	testing.expect_value(t, value(facts, "Runs on"), "GPU")
+
+	// Edit in the Particles tab: the tab, its category kept; a link: that category
+	sendTo(&state, Particles_Category_Picked(2))
+	sendTo(&state, Bottom_Tab_Changed(int(BottomTab.Console)))
+	sendTo(&state, Particles_Tab_Opened(-1))
+	testing.expect_value(t, state.bottomTab, BottomTab.Particles)
+	testing.expect_value(t, Particles_CategoryName(&state), "Shape")
+	color := -1
+	for name, i in Particles_Categories() do if name == "Color" do color = i
+	sendTo(&state, Particles_Tab_Opened(color))
+	testing.expect_value(t, Particles_CategoryName(&state), "Color")
+	// From the Level mode: back to the Scene mode, the bottom panel open
+	Mode_Set(&state, .Level, save = false)
+	Mode_Layout(&state).bottomOpen = false
+	sendTo(&state, Particles_Tab_Opened(0))
+	testing.expect_value(t, state.mode, EditorMode.Scene)
+	testing.expect(t, Mode_Layout(&state).bottomOpen, "the bottom panel opens")
+	testing.expect_value(t, Particles_CategoryName(&state), "Emission")
+	// Not edits
+	testing.expect_value(t, len(state.history.undo), 4)
 	free_all(context.temp_allocator)
 }
 

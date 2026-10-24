@@ -12,11 +12,12 @@ ParticleEmitter it shows, the category of settings it shows, the presets.
   selected, like the Timeline and States tabs. `Particles_Emitter` checks it's still an emitter of
   the open scene.
 - **Edits go to `Particles_Target`:** the selected node when it's an emitter, else the tab's.
-  The inspector shows an emitter's settings only while it's selected, and then the tab shows the
-  same one, so the inspector's and the tab's controls (the same procedures:
-  view_inspector_particles.odin's `particleSettingRows`) send the same messages
-  (`Particle_Field_Changed`, `Particle_Axis_Changed`, `Ramp_Edited`, `Particles_Reset`) to the
-  same node, and each is a `.Node` undo step on it.
+  The inspector shows an emitter (a summary, Emitting, a preset: view_inspector_particles.odin)
+  only while it's selected, and then the tab shows the same one, so the messages
+  (`Particle_Field_Changed`, `Particle_Axis_Changed`, `Ramp_Edited`, `Particles_Reset`,
+  `Particles_Preset_Applied`) go to the same node, and each is a `.Node` undo step on it.
+- **Opened from the inspector** (`Particles_Tab_Opened`): its Edit in the Particles tab button,
+  or a category's link, shows the tab (the bottom panel opened) at that category.
 - **Categories** are the engine's `group` tags (`e.ParticleSettings_Fields`: Emission, GPU, Shape,
   Rotation, Color, Motion, Forces, Collision), then All: a group added in the engine is a tab
   here with no editor change (`Particles_Categories`).
@@ -40,6 +41,9 @@ PARTICLES_ALL :: "All"
 
 // A Particles tab category picked (an index into `Particles_Categories`)
 Particles_Category_Picked :: distinct int
+// The inspector's way to the Particles tab: it shows, at this category (an index into
+// `Particles_Categories`; -1 keeps the one it shows)
+Particles_Tab_Opened :: distinct int
 // The Particles tab's Restart: the viewport's emitter starts again, its particles cleared
 Particles_Restart :: struct {}
 // A preset applied to the Particles tab's emitter (its name in `PARTICLE_PRESETS`)
@@ -129,7 +133,7 @@ Particles_Follow :: proc(s: ^State) {
 }
 
 /*
-The Particles tab's messages that aren't settings (categories, Restart, presets).
+The Particles tab's messages that aren't settings (categories, the tab opened, Restart, presets).
 
 Returns:
 - Whether `m` was one
@@ -138,6 +142,10 @@ Particles_Update :: proc(s: ^State, m: Msg) -> bool {
 	#partial switch v in m {
 	case Particles_Category_Picked:
 		s.particles.category = clamp(int(v), 0, len(Particles_Categories()) - 1)
+		return true
+	case Particles_Tab_Opened:
+		Mode_ShowBottomTab(s, .Particles)
+		if int(v) >= 0 do s.particles.category = clamp(int(v), 0, len(Particles_Categories()) - 1)
 		return true
 	case Particles_Restart:
 		if _, index := Particles_Target(s); index >= 0 do Preview_RestartEmitter(s, index)

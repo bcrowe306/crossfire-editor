@@ -719,9 +719,11 @@ cycle. It can run on the graphics card for many more particles. In code it's an
 **Properties**
 
 The settings come in groups (the Particles tab's categories); hover a name for its range and
-default. The inspector shows a summary line, **Edit in the Particles tab** and every setting; the
-bottom panel's **Particles** tab shows one group at a time with more room, presets (Fire, Smoke,
-Sparks, Dust, Rain) and Restart.
+default. The inspector shows a summary (one-shot or continuous, the amount and rate, the
+lifetime, the shape, CPU or GPU, the particles alive), **Emitting** and a **Preset** menu, then
+**Edit in the Particles tab** and a link per group. The settings are edited in the bottom panel's
+**Particles** tab, one group at a time, with presets (Fire, Smoke, Sparks, Dust, Rain), Restart
+and Reset.
 
 | Property | What it does |
 |---|---|
@@ -736,7 +738,7 @@ Sparks, Dust, Rain) and Restart.
 | **Gravity dir.**, **Gravity**, **Wind** | Forces on every particle |
 | **Collide**, **Elasticity** | Particles bounce off each other and the view's edges (not physics bodies) |
 | The **var.** and **spread** rows | How much randomness each value gets (a spread does nothing with its variance at 0) |
-| **Reset to defaults** | Every setting back to a new emitter's |
+| **Reset** (the Particles tab's) | Every setting back to a new emitter's |
 
 **In the editor**
 
@@ -744,7 +746,8 @@ Sparks, Dust, Rain) and Restart.
    (Ctrl+Shift+A) > **ParticleEmitter**: it becomes a child and follows it.
 2. Place it where the particles start. Press **P** (or the viewport's play button) to see it run in
    the viewport.
-3. Change the settings in the inspector or the **Particles** tab (a preset is a good start):
+3. Pick a preset in the inspector, then change the settings in the **Particles** tab (**Edit in
+   the Particles tab**, or a group's link):
    the viewport shows each change at once, and the tab's **Restart** plays it again. For a
    one-shot (an explosion), untick **Emitting** and **Continuous** and start it from a script.
 4. Press **Play** (F5) to check it in the game.
