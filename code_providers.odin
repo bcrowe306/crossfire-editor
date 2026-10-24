@@ -95,6 +95,8 @@ CodeProviders_Registry :: proc() -> ^ce.Provider_Registry {
 		ce.provider_register(&p.registry, ce.Provider{kind = .Gutter, name = "log points", gutter = logPointMarkers, on_click = logPointMarkerClicked, on_gutter_line = logPointGutterLine})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "log points", inlay = logPointInlays})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Menu, name = "log points", menu_items = logPointMenuItems, on_menu_item = logPointMenuPicked})
+		// Engine-aware code actions in Ctrl+.'s menu (code_actions.odin)
+		ce.provider_register(&p.registry, ce.Provider{kind = .Action, name = "project actions", actions = projectActions, on_action = projectActionRun})
 	}
 	return &p.registry
 }

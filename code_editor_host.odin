@@ -269,6 +269,7 @@ CodeEditor_Shutdown :: proc() {
 	CodeProviders_Shutdown()
 	CodePreviews_Shutdown()
 	CodeColors_Shutdown()
+	CodeActions_Shutdown()
 	CodeLive_Shutdown()
 	LogPoints_Shutdown()
 }
@@ -725,6 +726,25 @@ CodeEditor_RevealLine :: proc(path: string, line: int, column := 0) -> (scrolled
 	return true, true
 }
 
+/*
+The entry of a file's open code actions menu whose title starts with `title` (tests).
+
+Returns:
+- Its index (-1 none), the selected entry's, and how many there are
+*/
+CodeEditor_ActionIndex :: proc(path, title: string) -> (index, selected, count: int) {
+	index = -1
+	c := CodeEditor_Find(path)
+	if c == nil || !ce.editor_code_actions_visible(&c.ed) do return
+	count = ce.editor_code_action_count(&c.ed)
+	selected = c.ed.actions.selected
+	for i in 0 ..< count {
+		t, _ := ce.editor_code_action_title(&c.ed, i)
+		if strings.has_prefix(t, title) do return i, selected, count
+	}
+	return
+}
+
 // Where a text first is in an open file (0-based line and byte column; -1 when it isn't there)
 CodeEditor_FindText :: proc(path, text: string) -> (line, column: int) {
 	c := CodeEditor_Find(path)
@@ -975,6 +995,8 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	LogPoints_Take(ctx)
 	// A swatch's Color dialog, a hover's play button
 	if request, ok := CodeColors_TakeRequest(); ok do skald.send(ctx, Msg(request))
+	// A code action's dialog or a field to show in the inspector
+	CodeActions_Take(ctx)
 	if audio, ok := CodePreviews_TakeAudio(); ok do skald.send(ctx, Msg(audio))
 	// A drop's menu picked from: what it wrote, for the Console
 	if message := ce.editor_take_drop_message(&c.ed); message != "" do skald.send(ctx, Msg(Code_Drop_Chosen{message}))

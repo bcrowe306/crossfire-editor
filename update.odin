@@ -120,6 +120,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := ScriptIndex_Update(&out, m); handled do return out, command
 	if command, handled := CodeProviders_Update(&out, m); handled do return out, command
 	if command, handled := CodeColors_Update(&out, m); handled do return out, command
+	if command, handled := CodeActions_Update(&out, m); handled do return out, command
 	if CodeLive_Update(&out, m) do return out, {}
 	if LogPoints_Update(&out, m) do return out, {}
 	if command, handled := CodeDrag_Update(&out, m); handled do return out, command
@@ -176,6 +177,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by CodeProviders_Update above
 	case Code_Color_Requested, Code_Color_Changed, Code_Color_Hex_Changed, Code_Color_Alpha_Changed, Code_Color_Applied, Code_Color_Cancelled:
 		// Handled by CodeColors_Update above
+	case Code_Range_Requested, Code_Range_Field_Changed, Code_Range_Applied, Code_Range_Cancelled, Code_Field_Reveal_Requested, Script_Field_Declaration_Requested:
+		// Handled by CodeActions_Update above
 	case Code_Live_Watch, Code_Live_Picked, Code_Scrub_Changed, Code_Scrub_Write:
 		// Handled by CodeLive_Update above
 	case Log_Point_Dialog_Opened, Log_Point_Expression_Changed, Log_Point_Saved, Log_Point_Cancelled, Log_Point_Command, Log_Point_Refused:

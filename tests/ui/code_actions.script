@@ -1,0 +1,138 @@
+# Engine-aware code actions (code_actions.odin): Ctrl+. in a script offers, where they apply,
+# exporting a field (and its range through the Range dialog), showing it in the inspector, a
+# handler for a node field's event, a switch over a state machine's states, registering a struct
+# and adding a hook; and an inspector field's label goes to its declaration (Ctrl+click, its menu).
+# Run with: task test:ui SCRIPT=tests/ui/code_actions.script
+#
+# PlayScene's rows: World, Camera, Spaceship (2), ... New Script's lines: 15 speed, 16 the
+# struct's brace, 20 Script_Register, 22 ready.
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+# A state machine under Spaceship (its one state: idle)
+key ctrl+shift+a
+type StateMachine
+click_widget add-node-StateMachine
+expect kind StateMachine
+click_row scene-tree 2
+expect selected Spaceship
+
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Actor
+click_widget new-script-create
+expect script Actor
+expect code_tab actor.odin
+wait_until code_focused true timeout=5
+
+# Three fields after speed: lives (16), cam (17), brain (18)
+code_click 15 1
+key END
+key RETURN
+type lives: int,
+key ESCAPE
+key RETURN
+type cam: ^e.Camera2D,
+key ESCAPE
+key RETURN
+type brain: ^e.StateMachine,
+key ESCAPE
+expect code_contains true \tbrain: ^e.StateMachine,\n}
+
+# Export lives: a number, so its default is 0
+code_click 16 3
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+code_pick_action Export lives
+wait_until code_contains true lives: int `export:"default=0"`, timeout=5
+
+# Its range, through the dialog; then Ctrl+Z in the code takes it back in one step
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+code_pick_action Set lives's range
+wait_until code_range_dialog open timeout=5
+click_widget code-range-min
+type 1
+click_widget code-range-max
+type 9
+click_widget code-range-default
+key ctrl+a
+type 3
+click_widget code-range-ok
+expect code_range_dialog closed
+wait_until code_contains true lives: int `export:"default=3 min=1 max=9"`, timeout=5
+code_click 16 3
+key ctrl+z
+expect code_contains true lives: int `export:"default=0"`,
+key ctrl+y
+expect code_contains true lives: int `export:"default=3 min=1 max=9"`,
+
+# From the code to the inspector: Spaceship's row for lives scrolled into view
+wait_until script_field Actor lives true timeout=10
+code_click 16 3
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+code_pick_action Show lives in the inspector
+expect selected Spaceship
+wait_until widget_inside inspector-label-lives-{selected} inspector-scroll timeout=10
+
+# And back: Ctrl+click on the label, then its menu's Go to Declaration
+code_click 22 1
+click_widget inspector-label-lives-{selected} ctrl
+wait_until code_caret 16 2 timeout=5
+code_click 22 1
+right_click_widget inspector-label-lives-{selected}
+click_context_item Go to Declaration
+wait_until code_caret 16 2 timeout=5
+
+# A handler for the camera field's event: before the registration, subscribed in ready
+code_click 17 3
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+code_pick_action Handle cam's onExit
+wait_until code_contains true if self.cam != nil do e.Event_Subscribe(&self.cam.onExit, Actor_onCamExit, self) timeout=5
+expect code_contains true Actor_onCamExit :: proc(_: ^e.EventSubject, source: rawptr, data: e.EventData, user: rawptr) {
+
+# Export brain: a node field, its default the state machine's path
+code_click 18 3
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+code_pick_action Export brain
+wait_until code_contains true brain: ^e.StateMachine `export:"default=StateMachine"`, timeout=5
+
+# A switch over its states, on a new line of ready
+wait_until script_field Actor brain true timeout=10
+code_line_end self.cam != nil do
+key RETURN
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+code_pick_action Insert a switch over brain's states
+wait_until code_contains true switch e.StateMachine_Current(self.brain) {\n\t\t\t\tcase STATE_PLAY_SCENE_STATE_MACHINE_IDLE: timeout=5
+
+# The hooks the registration lacks
+code_line_end e.Script_Register(Actor
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+code_pick_action Add the destroy hook
+wait_until code_contains true destroy = proc(self: ^Actor) { timeout=5
+
+# A struct nothing registers, typed at the end
+key ctrl+END
+key RETURN
+type Loose :: struct {
+key RETURN
+type using script: e.Script,
+key ESCAPE
+key ctrl+period
+wait_until code_state code_actions.visible true timeout=10
+code_pick_action Register Loose as a script
+wait_until code_contains true register_Loose :: proc "contextless" () {\n\te.Script_Register(Loose, { timeout=5
+
+# Saved and built: the code the actions wrote compiles
+key ctrl+s
+wait 2
+wait_until scripts Ready timeout=240
+

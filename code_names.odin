@@ -1057,3 +1057,32 @@ pathConstantFor :: proc(state: ^State, tree: ^NameTree, use: NameUse, attachment
 	}
 	return ""
 }
+
+// A node of a scene or component (CodeNames_FieldNodes)
+NodeRef :: struct {
+	scene, node: int,
+}
+
+/*
+The nodes a script's node field points to (`self.brain`), from every node running the script:
+its value on that node, else the field's default, as a path from it (code actions: a state
+machine's states). Each node once.
+
+Returns:
+- The nodes (temp allocated); none when nothing runs the script or no path leads anywhere
+*/
+CodeNames_FieldNodes :: proc(state: ^State, script, field: string) -> []NodeRef {
+	tree := treeMake(&state.project)
+	out := make([dynamic]NodeRef, context.temp_allocator)
+	for att in attachmentsOf(state, &tree, script) {
+		at, ok := receiverAt(state, &tree, script, fmt.tprintf("self.%s", field), .Node_Path, att)
+		if !ok || at < 0 do continue
+		loc := tree.locs[at]
+		if loc.node < 0 do continue
+		ref := NodeRef{loc.scene, loc.node}
+		seen := false
+		for r in out do seen ||= r == ref
+		if !seen do append(&out, ref)
+	}
+	return out[:]
+}

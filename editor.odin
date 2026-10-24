@@ -290,6 +290,8 @@ State :: struct {
 	inspectorEventsOpen: bool,
 	// The Color dialog a code tab's swatch opened (code_colors.odin)
 	codeColor: CodeColorDialog,
+	// The Range dialog a code action opened (code_actions.odin)
+	codeRange: CodeRangeDialog,
 	// The project's log points and their dialog (log_points.odin)
 	logPoints: LogPoints,
 	// The last link opened in the browser (Links_Open; owned): the UI tests read it
@@ -480,6 +482,7 @@ Inputs:
 State_Destroy :: proc(state: ^State) {
 	CodeDrag_Clear(state)
 	CodeColorDialog_Destroy(&state.codeColor)
+	CodeRangeDialog_Destroy(&state.codeRange)
 	LogPoints_Destroy(&state.logPoints)
 	delete(state.lastLink)
 	CodeTabs_CloseAll(state)

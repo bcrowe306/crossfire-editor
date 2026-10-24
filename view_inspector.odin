@@ -293,6 +293,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	scene := &s.project.scenes[s.currentScene]
 	header := panelHeader(ctx, ICON_CIRCLE_INFO, "Inspector")
 	Scroll_RevealClicked(ctx, "inspector-scroll")
+	inspectorRevealStep(ctx)
 
 	if s.themeSelection >= 0 && s.themeSelection < len(s.project.themes) {
 		return skald.col(
@@ -622,12 +623,32 @@ inspectorRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View, t
 	view := tipLabel(ctx, label, skald.text(label, ctx.theme.color.fg_muted, ctx.theme.font.size_sm), tip)
 	// A node's property or script field drags into code (code_drag.odin): key
 	// inspector-label-<label>-<node>, spaces as underscores (inspector-label-Position_X-2)
-	if d := inspectorDrag; d.state != nil && d.state.codeTab > 0 && label != "" {
+	// A script field's label also goes to its declaration: Ctrl+click, or its right-click menu
+	// (code_actions.odin), and the code's "Show in the inspector" scrolls to it (always a zone)
+	if d := inspectorDrag; d.state != nil && d.script != "" && label != "" {
+		key := Inspector_ScriptFieldKey(label, d.node)
+		id := skald.hash_id(key)
+		if desc := ScriptCatalog_Find(&d.state.scripts, d.script); desc != nil {
+			for f, i in desc.fields do if f.name == label {
+				rect := lastRect(ctx, id)
+				rightPressOpens(ctx, rect, Ctx_Script_Field{node = d.node, field = i})
+				free := !skald.mouse_over_overlay(ctx) && ctx.widgets.modal_rect_prev.w == 0
+				if ctx.input.mouse_pressed[.Left] && skald.PRIMARY_MODIFIER in ctx.input.modifiers && free && pointIn(rect, ctx.input.mouse_pos) {
+					skald.send(ctx, Msg(Script_Field_Declaration_Requested{d.script, label}))
+					ctx.input.mouse_pressed[.Left] = false
+				}
+				break
+			}
+		}
+		if d.state.codeTab > 0 {
+			view = CodeDrag_Zone(ctx, d.state, view, key, DropSource{kind = .Script_Field, name = label, node = d.node, index = -1, script = d.script})
+		} else {
+			view = skald.zone(ctx, view, id)
+		}
+	} else if d := inspectorDrag; d.state != nil && d.state.codeTab > 0 && label != "" {
 		spaced, _ := strings.replace_all(label, " ", "_", context.temp_allocator)
 		key := fmt.tprintf("inspector-label-%s-%d", spaced, d.node)
-		if d.script != "" {
-			view = CodeDrag_Zone(ctx, d.state, view, key, DropSource{kind = .Script_Field, name = label, node = d.node, index = -1, script = d.script})
-		} else if _, _, ok := CodeDrops_PropertyField(d.kind, label); ok {
+		if _, _, ok := CodeDrops_PropertyField(d.kind, label); ok {
 			view = CodeDrag_Zone(ctx, d.state, view, key, DropSource{kind = .Property, name = label, node = d.node, index = -1})
 		}
 	}
@@ -864,4 +885,57 @@ enumSelect :: proc(ctx: ^skald.Ctx(Msg), value: $E, field: NodeTextField, key: i
 	return skald.select(ctx, fmt.tprintf("%v", value), names, field,
 		proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
 		id = skald.hash_id(fmt.tprintf("inspector-%v-%d", field, key)), width = width)
+}
+
+/*
+Scrolls the inspector to a widget over the next frames (a script field's row the code's "Show in
+the inspector" asked for): rows far outside the scroll aren't laid out, so it pages down until the
+widget is drawn, then brings it into view. Set from update (`Inspector_RevealWidget`).
+*/
+Inspector_RevealWidget :: proc(key: string) {
+	inspectorReveal.id = skald.hash_id(key)
+	inspectorReveal.frames = 0
+	inspectorReveal.active = true
+}
+
+// The widget the inspector scrolls to, and for how many frames it has looked (per thread: tests)
+@(thread_local, private="file")
+inspectorReveal: struct {
+	id: skald.Widget_ID,
+	frames: int,
+	active: bool,
+}
+
+// The most frames the inspector pages looking for a widget
+@(private="file")
+INSPECTOR_REVEAL_FRAMES :: 60
+
+@(private="file")
+inspectorRevealStep :: proc(ctx: ^skald.Ctx(Msg)) {
+	r := &inspectorReveal
+	if !r.active do return
+	r.frames += 1
+	scroll, drawn := &ctx.widgets.states[skald.hash_id("inspector-scroll")]
+	if r.frames > INSPECTOR_REVEAL_FRAMES {
+		r.active = false
+		return
+	}
+	// Keep frames coming while it looks
+	skald.send(ctx, Msg(Frame_Requested{}))
+	// The first frames: the selection's rows aren't built yet
+	if !drawn || scroll.last_rect.h <= 0 || r.frames < 3 do return
+	area := scroll.last_rect
+	target, seen := ctx.widgets.states[r.id]
+	if !seen || target.last_frame + 1 < ctx.widgets.frame {
+		// Not laid out: page down (from the top first)
+		scroll.scroll_y = r.frames == 3 ? 0 : scroll.scroll_y + area.h * 0.8
+		return
+	}
+	t := target.last_rect
+	MARGIN :: f32(24)
+	switch {
+	case t.y < area.y:              scroll.scroll_y = max(scroll.scroll_y - (area.y - t.y) - MARGIN, 0)
+	case t.y + t.h > area.y + area.h: scroll.scroll_y += t.y + t.h - (area.y + area.h) + MARGIN
+	case: r.active = false
+	}
 }

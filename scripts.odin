@@ -421,9 +421,27 @@ self.node is the node it's attached to; self.scene and self.game are there too.
 	speed: f32 ` + "`export:\"default=100 min=0\"`" + `,
 }
 
-@(init)
-register_`, name, ` :: proc "contextless" () {
-	e.Script_Register(`, name, `, {
+`, ScriptTemplate_Registration(name)}, context.temp_allocator)
+}
+
+/*
+A script's registration as New Script writes it (and the code action registering a struct, in
+code_actions.odin): an `@(init)` procedure calling `e.Script_Register` with a ready and an
+update hook, or for a node type `e.NodeType_Register` with its base kind.
+
+Inputs:
+- name: The struct
+- base: A node type's base kind (`Sprite`); "" for a script
+- procName: The `@(init)` procedure's name ("": `register_<name>`)
+
+Returns:
+- The code, ending with a line break (temp allocated; `e.` and `sdl.` as the template imports them)
+*/
+ScriptTemplate_Registration :: proc(name: string, base := "", procName := "") -> string {
+	call := base == "" ? fmt.tprintf("e.Script_Register(%s, {{", name) : fmt.tprintf("e.NodeType_Register(%s, .%s, {{", name, base)
+	return strings.concatenate({`@(init)
+`, procName != "" ? procName : fmt.tprintf("register_%s", name), ` :: proc "contextless" () {
+	`, call, `
 		// Once, when the scene starts: every node exists (e.Scene_FindNode(self.scene, "World/Ship"))
 		ready = proc(self: ^`, name, `) {
 		},

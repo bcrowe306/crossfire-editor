@@ -60,6 +60,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		newProjectDialogView(&state, ctx),
 		newScriptDialogView(&state, ctx),
 		CodeColorDialogView(&state, ctx),
+		CodeRangeDialogView(&state, ctx),
 		LogPointDialogView(&state, ctx),
 		listenerDialogView(&state, ctx),
 		newEventDialogView(&state, ctx),

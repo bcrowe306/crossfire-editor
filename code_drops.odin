@@ -396,7 +396,7 @@ CodeDrops_Build :: proc(state: ^State, doc: ce.Provider_Document, pos: cebuf.Pos
 }
 
 // The document's text (temp allocated)
-@(private="file")
+@(private)
 docText :: proc(doc: ce.Provider_Document) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	for i in 0 ..< cebuf.buffer_line_count(doc.buffer) {
@@ -423,12 +423,18 @@ receiverOf :: proc(params, structName: string) -> string {
 // Writes `e.` as the file's import name of the engine
 @(private="file")
 withAlias :: proc(c: ^DropCtx, code: string) -> string {
-	if c.alias == "e" do return code
+	return engineAliased(c.alias, code)
+}
+
+// Code written with `e.` for the engine, with the file's import name of it instead (temp allocated)
+@(private)
+engineAliased :: proc(alias, code: string) -> string {
+	if alias == "e" do return code
 	b := strings.builder_make(context.temp_allocator)
 	for i := 0; i < len(code); i += 1 {
 		wordStart := i == 0 || !(code[i - 1] == '_' || code[i - 1] == '.' || code[i - 1] >= 'a' && code[i - 1] <= 'z' || code[i - 1] >= 'A' && code[i - 1] <= 'Z' || code[i - 1] >= '0' && code[i - 1] <= '9')
 		if wordStart && strings.has_prefix(code[i:], "e.") {
-			strings.write_string(&b, c.alias)
+			strings.write_string(&b, alias)
 			strings.write_byte(&b, '.')
 			i += 1
 			continue
@@ -725,7 +731,7 @@ usesOf :: proc(c: ^DropCtx) -> []e.CodeUse {
 // --- shapes: in a procedure ------------------------------------------------------------------
 
 // The leading tabs and spaces of a line
-@(private="file")
+@(private)
 indentOf :: proc(line: string) -> string {
 	n := 0
 	for n < len(line) && (line[n] == '\t' || line[n] == ' ') do n += 1
@@ -742,6 +748,20 @@ Returns:
 */
 @(private="file")
 statementEdit :: proc(c: ^DropCtx, code: string) -> (ce.Text_Edit, cebuf.Position) {
+	return CodeStatement_Edit(c.doc, c.pos, code)
+}
+
+/*
+Where a statement goes in a procedure for a position (a drop's, a code action's caret): on its
+line when it's blank, else on a new line after it (before it when it closes a block), indented
+like the code there, every line of a several-line statement too. `{caret}` marks the caret
+(else the statement's end).
+
+Returns:
+- The edit and the caret, in the text after the edit
+*/
+CodeStatement_Edit :: proc(doc: ce.Provider_Document, pos: cebuf.Position, code: string) -> (ce.Text_Edit, cebuf.Position) {
+	c := struct { doc: ce.Provider_Document, pos: cebuf.Position }{doc, pos}
 	line := cebuf.buffer_line_str(c.doc.buffer, c.pos.line)
 	trimmed := strings.trim_space(line)
 	indent := indentOf(line)

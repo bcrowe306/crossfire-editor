@@ -50,7 +50,12 @@ copy: `open_project {project}`).
 	                                 reports the median, p95 and max. With SKALD_BENCH_UNCAP=1
 	                                 SKALD_BENCH_FRAMES=1000000000 every frame draws, uncapped
 	expect <check>                   Fail unless the check passes now
-	click_widget <key>               Click the center of a widget's visible part, e.g. toolbar-play
+	click_widget <key> [ctrl|shift]  Click the center of a widget's visible part, e.g. toolbar-play
+	                                 (a modifier held around it: an inspector label's Ctrl+click)
+	code_line_end <text>             Put the shown code tab's caret at the end of the first line
+	                                 holding the text, with keys (Ctrl+Home, Down, End)
+	code_pick_action <title start>   Pick the open code actions menu's entry (Ctrl+.) whose title
+	                                 starts so: Down to it, then Return
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
 	scroll_by <scroll key> <dy>      Scroll a scroll container by dy pixels (0 or less: to the top)
@@ -103,6 +108,7 @@ copy: `open_project {project}`).
 	code_click_marker <line>         Click the gutter marker column beside a line (1-based)
 	code_click_hover_widget          Click the code tab's hover's first widget (a play button)
 	code_click <line> [<column>]     Click a position of the shown code tab (1-based): the caret goes there
+	code_click text <text>           Click the start of the first place the text is in the shown code tab
 	code_click_swatch <line> [<n>]   Click a line's n-th color swatch (1-based; n from 1)
 	code_click_inlay <line> [<n>]    Click a line's n-th clickable inlay hint (a live hint's node menu)
 	code_scrub <line> <text> <steps> Alt+drag the number at the text's middle on a line (1-based) of
@@ -396,6 +402,7 @@ Checks:
 	code_hover_widget <true | false> ... a widget (a sound's play button)
 	code_swatch <line> <true | false>   A line has a color swatch (1-based; code_colors.odin)
 	code_color_dialog <open | closed>   The Color dialog a swatch opens
+	code_range_dialog <open | closed>   The Range dialog a code action opens (code_actions.odin)
 	audio_playing <true | false>     The editor's audio preview plays (a hover's button, the browser)
 	audio_loaded <project path>      The audio preview has that file loaded (it played or plays)
 	last_link <text>                 The last link the editor opened (Links_Open: nothing opens in
@@ -711,12 +718,45 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		return true
 
 	case "click_widget":
-		rect, ok := widgetRect(ctx, rest)
-		if !ok {
-			fail(fmt.tprintf("%s: no widget with key '%s' was drawn last frame", line, rest))
+		// `click_widget <key> [ctrl | shift]`: a modifier held around the click
+		mods, modsOk := clickModifiers(args, 1)
+		if !modsOk {
+			fail(fmt.tprintf("%s: expected ctrl or shift", line))
 			return true
 		}
-		click({rect.x + rect.w * 0.5, rect.y + rect.h * 0.5})
+		key := len(args) > 0 ? args[0] : rest
+		rect, ok := widgetRect(ctx, key)
+		if !ok {
+			fail(fmt.tprintf("%s: no widget with key '%s' was drawn last frame", line, key))
+			return true
+		}
+		click({rect.x + rect.w * 0.5, rect.y + rect.h * 0.5}, mods)
+		report(true, line)
+		return false
+
+	case "code_line_end":
+		// `code_line_end <text>`: the caret to the end of the first line holding the text, by keys
+		// (Ctrl+Home, Down, End: no click, so no scroll to wait for)
+		at, _ := CodeEditor_FindText(CodeTabs_Active(s), rest)
+		if at < 0 {
+			fail(fmt.tprintf("%s: the text isn't in the code", line))
+			return true
+		}
+		pressKey("ctrl+HOME")
+		for _ in 0 ..< at do pressKey("DOWN")
+		pressKey("END")
+		report(true, line)
+		return false
+
+	case "code_pick_action":
+		// The open code actions menu's entry whose title starts with the text: Down to it, Return
+		index, selected, count := CodeEditor_ActionIndex(CodeTabs_Active(s), rest)
+		if index < 0 {
+			fail(fmt.tprintf("%s: no such entry in the menu (%d entries)", line, count))
+			return true
+		}
+		for _ in 0 ..< (index - selected + count) % count do pressKey("DOWN")
+		pressKey("RETURN")
 		report(true, line)
 		return false
 
@@ -1408,10 +1448,19 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 
 	case "code_click":
 		// A click on a position of the shown code tab (1-based line and column): the caret goes there
+		// `code_click text <text>`: at the start of the first place the text is
 		parts := strings.fields(rest, context.temp_allocator)
 		lineNumber, _ := strconv.parse_int(len(parts) > 0 ? parts[0] : "")
 		column := 1
 		if len(parts) > 1 do column, _ = strconv.parse_int(parts[1])
+		if len(parts) > 1 && parts[0] == "text" {
+			at, col := CodeEditor_FindText(CodeTabs_Active(s), strings.trim_space(rest[len("text"):]))
+			if at < 0 {
+				fail(fmt.tprintf("%s: the text isn't in the code", line))
+				return true
+			}
+			lineNumber, column = at + 1, col + 1
+		}
 		if codeRevealFirst(s, lineNumber - 1, column - 1) do return false
 		at, ok := CodeEditor_WindowPoint(CodeTabs_Active(s), lineNumber - 1, column - 1)
 		if !ok {
@@ -2681,6 +2730,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprintf("%d %v", lineNumber, CodeEditor_HasSwatch(CodeTabs_Active(s), lineNumber - 1))
 	case "code_color_dialog":
 		found = s.codeColor.open ? "open" : "closed"
+	case "code_range_dialog":
+		found = s.codeRange.open ? "open" : "closed"
 	case "audio_playing":
 		found = fmt.tprint(AudioPreview_IsPlaying())
 	case "audio_loaded":

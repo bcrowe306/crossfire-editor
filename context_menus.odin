@@ -31,6 +31,7 @@ menu bar do the same thing), then `Context_Menu_Closed`.
 	                  shown, hide or show only its category, show everything, clear
 	Ctx_Log_Categories  the Console's (Output's) category button: every category seen, checked
 	                  when shown (picking one keeps the menu open: `ContextMenu.keepOpen`)
+	Ctx_Script_Field  a script field's label in the inspector: go to its declaration in the code
 	Ctx_Toolbar_More  the toolbar's overflow button (a narrow window): the tools, maybe the file
 	                  and undo buttons
 
@@ -51,6 +52,14 @@ ContextTarget :: union {
 	Ctx_Align,
 	Ctx_Guide,
 	Ctx_Toolbar_More,
+	Ctx_Script_Field,
+}
+
+// A script field's label in the inspector: the selected node's script's field (its index in the
+// catalog's description; code_actions.odin's Go to Declaration)
+Ctx_Script_Field :: struct {
+	node: int,
+	field: int,
 }
 
 // The toolbar's overflow button, in a narrow window (view.odin's `Toolbar_Overflow`): the
@@ -362,6 +371,7 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 	case Ctx_Log_Categories: logCategoryItems(s, &items, t)
 	case Ctx_Graph:     ContextMenu_PanelItems(s, &items, t)
 	case Ctx_Align:     append(&items, ..ViewportTools_AlignItems(s))
+	case Ctx_Script_Field: scriptFieldItems(s, &items, t)
 	case Ctx_Toolbar_More:
 		if t.files {
 			append(&items,
@@ -1021,4 +1031,16 @@ Browser_RevealFile :: proc(state: ^State, path: string) {
 			return
 		}
 	}
+}
+
+// A script field's label: its declaration in the code (code_actions.odin)
+@(private="file")
+scriptFieldItems :: proc(s: ^State, items: ^[dynamic]skald.Menu_Item(Msg), t: Ctx_Script_Field) {
+	scene := &s.project.scenes[s.currentScene]
+	if t.node < 0 || t.node >= len(scene.nodes) do return
+	script := scene.nodes[t.node].script
+	desc := ScriptCatalog_Find(&s.scripts, script)
+	if desc == nil || t.field < 0 || t.field >= len(desc.fields) do return
+	field := desc.fields[t.field].name
+	append(items, msgItem(fmt.tprintf("Go to Declaration (%s.%s)", script, field), Msg(Script_Field_Declaration_Requested{script, field})))
 }
