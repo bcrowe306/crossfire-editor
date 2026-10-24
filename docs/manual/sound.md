@@ -183,7 +183,8 @@ code tab to add one), like `engine` and `music` above.
 | `e.AudioPlayer_Stop(player)` | Stops it (music fades out over its **Fade out**) |
 | `e.AudioPlayer_Pause(player)`, `e.AudioPlayer_Resume(player)` | Pauses and carries on |
 | `e.AudioPlayer_IsPlaying(player)` | Whether it's playing |
-| `player.settings.volume`, `.pitch`, `.pan`, `.loop` | Its settings: change them any time, they apply the next frame |
+| `player.settings.volume`, `.pitch`, `.pan` | Its settings: change them any time, they apply the next frame |
+| `player.settings.loop` | Whether it loops: read when it starts playing, so set it before `e.AudioPlayer_Play` (a sound already playing keeps looping or not) |
 | `e.AudioPlayer_SetSound(player, "assets/slam.wav")`, `e.AudioPlayer_SetBus(player, "SFX")` | Another sound, another bus |
 | `e.MusicPlayer_FadeOut(music, 3)` | Fades the music out over 3 seconds, then stops it |
 | `e.MusicPlayer_Seek(music, 30)`, `e.MusicPlayer_GetPosition(music)`, `e.MusicPlayer_GetDuration(music)` | Jumps in the song; where it is; how long it is (seconds) |

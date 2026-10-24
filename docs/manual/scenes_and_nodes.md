@@ -113,7 +113,7 @@ list of every kind of node, each with a line saying what it's for, under these h
 |---|---|
 | **Scene** | Node2D (groups others), Camera, Component, LDtkLevel, CameraZone, StateMachine, NavRegion, NavAgent |
 | **Graphics** | Sprite, AnimatedSprite, ParticleEmitter, TileMap, Light2D, LightOccluder, ParallaxLayer, CameraView, Animator, ScreenEffect, Line2D, Trail2D, the skeleton nodes |
-| **User interface** | Label, Menu, Panel, Button, ProgressBar, TextField, ScrollBox, RichText, DialogueBox, VirtualJoystick, TouchButton |
+| **User interface** | Label, Menu, Panel, Button, ProgressBar, TextField, ScrollBox, RichText, Slider, CheckBox, DialogueBox, VirtualJoystick, TouchButton |
 | **Physics** | StaticBody, DynamicBody, CharacterMover, Area, CollisionShape, RayCast, Joint |
 | **Sound** | AudioPlayer, AudioPlayer2D, MusicPlayer |
 | **Your node types** | Node types your scripts define (see [Several scripts, node types and hot reload](scripts_node_types_hot_reload.md)) |

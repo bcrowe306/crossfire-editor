@@ -1,7 +1,7 @@
 ---
 title: Camera tools
 description: A camera that follows a node by itself (limits, dead zone, look-ahead, shake), parallax backgrounds, rooms the camera stays in, smooth zoom, and camera views for split screen and minimaps.
-order: 18
+order: 19
 ---
 
 # Camera tools: following, parallax, rooms, zoom, split screen
@@ -99,8 +99,10 @@ it; press **Play** to see them move.
 
 While the scene's camera (its position: the player, when the camera follows the player) is in a
 zone, the camera can't show anything outside it. Walking into the next zone slides the view
-across, like the rooms of a Zelda or Metroid game. Outside every zone the camera keeps the limits
-it had.
+across, like the rooms of a Zelda or Metroid game. Outside every zone the camera keeps the **last
+zone's** limits (not its own **Limits** from the inspector): a camera that leaves the rooms stays
+held to the last room it was in. Cover every place the camera can go with zones, or, for a part of
+the level without rooms, a zone around all of it.
 
 Make each zone at least the size of the screen (the game's width and height); a smaller room
 keeps the camera centered on it.

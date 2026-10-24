@@ -1,7 +1,7 @@
 ---
 title: Pathfinding and navigation
 description: "Navigation regions and agents: characters finding their way around walls with A* paths."
-order: 26
+order: 27
 ---
 
 # Pathfinding and navigation
@@ -41,7 +41,7 @@ toward the next point.
    (static bodies) block cells; nothing else does.
 3. **A character.** Your character node (a CharacterMover with a CollisionShape, for example).
    With it selected, **Add Node** > **NavAgent**: the agent goes inside it.
-4. **Send it somewhere** from the character's script:
+4. **Send it somewhere** from the character's script (registered as every script is: [Scripts](scripts.md)):
 
 ```odin
 Guard :: struct {
@@ -51,6 +51,12 @@ Guard :: struct {
 
 Guard_ready :: proc(self: ^Guard) {
 	e.NavAgent_SetTarget(self.nav, {600, 300})
+}
+
+// Registers the script, with its ready hook (see Scripts)
+@(init)
+register_Guard :: proc "contextless" () {
+	e.Script_Register(Guard, {ready = Guard_ready})
 }
 ```
 
@@ -127,6 +133,11 @@ Guard_update :: proc(self: ^Guard, events: []sdl.Event, dt: f64) {
 		e.NavAgent_SetTarget(self.nav, e.Node_GetWorldPosition(self.player))
 		self.repath = 0.25
 	}
+}
+
+@(init)
+register_Guard :: proc "contextless" () {
+	e.Script_Register(Guard, {update = Guard_update})
 }
 ```
 

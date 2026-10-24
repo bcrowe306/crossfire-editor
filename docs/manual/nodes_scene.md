@@ -1,7 +1,7 @@
 ---
 title: "Node guides: scene structure"
 description: "Guides for the nodes that shape a scene: Node2D, Camera, Component, LDtkLevel, CameraZone, NavRegion and NavAgent."
-order: 40
+order: 41
 ---
 
 # Node guides: scene structure
@@ -337,7 +337,9 @@ More: [LDtk levels](levels.md#the-ldtklevel-nodes-settings)
 
 A CameraZone is a room the camera stays inside. While the scene's camera is in a zone, it can't
 show anything outside it; when the camera moves into another zone, the view slides over to it,
-like the rooms of a Zelda or Metroid game. In code it's an `e.CameraZone`.
+like the rooms of a Zelda or Metroid game. Once it has been in a zone, a camera outside every
+zone stays held to the last zone's room, not its own **Limits**: cover all the places the camera
+goes. In code it's an `e.CameraZone`.
 
 **Properties**
 
