@@ -110,6 +110,11 @@ client_handle_message_body :: proc(c: ^Client, body: []u8) {
 			return
 		}
 		client_store_hover(c, result)
+	case .Rename:
+		if id != c.latest_rename_id {
+			return
+		}
+		client_store_rename(c, value, result)
 	case .Initialize, .Other:
 		// No persistent storage needed for these yet.
 	}
@@ -467,6 +472,57 @@ client_clear_code_actions :: proc(c: ^Client) {
 	clear(&c.last_code_actions)
 }
 
+// client_clear_rename frees and empties the last rename's edits and error.
+client_clear_rename :: proc(c: ^Client) {
+	for e in c.last_rename {
+		delete(e.key, c.allocator)
+		delete(e.new_text, c.allocator)
+	}
+	clear(&c.last_rename)
+	delete(c.rename_error, c.allocator)
+	c.rename_error = ""
+}
+
+// client_store_rename keeps a rename's WorkspaceEdit (both shapes, as code actions'), or the
+// error the server answered with.
+@(private)
+client_store_rename :: proc(c: ^Client, response, result: json.Value) {
+	client_clear_rename(c)
+	c.rename_seq += 1
+	if err, has_err := json_object_get(response, "error"); has_err {
+		c.rename_error = json_clone_string_field(c, err, "message")
+		if c.rename_error == "" {
+			delete(c.rename_error, c.allocator)
+			c.rename_error = strings.clone("The language server can't rename this", c.allocator)
+		}
+		return
+	}
+	append_workspace_edit(c, &c.last_rename, result)
+}
+
+// The edits of a WorkspaceEdit: `changes` (uri -> TextEdit[]) and `documentChanges` (TextDocumentEdit[])
+@(private)
+append_workspace_edit :: proc(c: ^Client, edits: ^[dynamic]Code_Action_Edit, edit_val: json.Value) {
+	if changes, ok := json_object_get(edit_val, "changes"); ok {
+		if obj, is_obj := changes.(json.Object); is_obj {
+			for uri, list in obj {
+				append_text_edits(c, edits, uri, list)
+			}
+		}
+	}
+	if doc_changes, ok := json_object_get(edit_val, "documentChanges"); ok {
+		if arr, is_arr := doc_changes.(json.Array); is_arr {
+			for dc in arr {
+				td, _ := json_object_get(dc, "textDocument")
+				uri_val, _ := json_object_get(td, "uri")
+				uri, _ := json_as_string(uri_val)
+				list, _ := json_object_get(dc, "edits")
+				append_text_edits(c, edits, uri, list)
+			}
+		}
+	}
+}
+
 // client_store_code_actions keeps the CodeAction literals that carry an
 // edit (bare Commands would need workspace/executeCommand, which this
 // client doesn't implement). Both WorkspaceEdit shapes are accepted:
@@ -482,24 +538,7 @@ client_store_code_actions :: proc(c: ^Client, result: json.Value) {
 			continue
 		}
 		edits := make([dynamic]Code_Action_Edit, c.allocator)
-		if changes, ok := json_object_get(edit_val, "changes"); ok {
-			if obj, is_obj := changes.(json.Object); is_obj {
-				for uri, list in obj {
-					append_text_edits(c, &edits, uri, list)
-				}
-			}
-		}
-		if doc_changes, ok := json_object_get(edit_val, "documentChanges"); ok {
-			if arr, is_arr := doc_changes.(json.Array); is_arr {
-				for dc in arr {
-					td, _ := json_object_get(dc, "textDocument")
-					uri_val, _ := json_object_get(td, "uri")
-					uri, _ := json_as_string(uri_val)
-					list, _ := json_object_get(dc, "edits")
-					append_text_edits(c, &edits, uri, list)
-				}
-			}
-		}
+		append_workspace_edit(c, &edits, edit_val)
 		if len(edits) == 0 {
 			delete(edits)
 			continue

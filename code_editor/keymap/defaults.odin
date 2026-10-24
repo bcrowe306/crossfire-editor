@@ -100,6 +100,8 @@ keymap_default :: proc(platform: Platform, allocator := context.allocator) -> Ke
 	keymap_bind(&km, Chord{.F12, {}}, .GotoDefinition)
 	keymap_bind(&km, Chord{.F12, {.Alt}}, .PeekDefinition)
 	keymap_bind(&km, Chord{.F12, {.Shift}}, .FindReferences)
+	keymap_bind(&km, Chord{.F12, {.Shift, .Alt}}, .FindUsages)
+	keymap_bind(&km, Chord{.F2, {}}, .Rename)
 	keymap_bind(&km, Chord{.F4, {}}, .NextReference)
 	keymap_bind(&km, Chord{.F4, {.Shift}}, .PrevReference)
 	// Back/forward: VSCode uses Ctrl+- on macOS, Alt+Left elsewhere.

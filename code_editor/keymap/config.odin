@@ -67,6 +67,7 @@ key_from_name :: proc(name: string) -> (Key, bool) {
 	case "f4": return .F4, true
 	case "f8": return .F8, true
 	case "f12": return .F12, true
+	case "f2": return .F2, true
 	}
 	return .Unknown, false
 }

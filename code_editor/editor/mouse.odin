@@ -248,9 +248,15 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 	ed.mouse.zone = hit.zone
 	if hit.zone == .Outside {
 		editor_close_context_menu(ed)
+		editor_close_rename(ed)
 		return false
 	}
 	editor_hide_hover(ed)
+	// The rename box keeps clicks on it; one elsewhere cancels it
+	if rect, ok := editor_rename_layout(ed); ok {
+		if in_rect(rect, ev.x, ev.y) do return true
+		editor_close_rename(ed)
+	}
 	// Tooltips only take the wheel: a click goes to the text under them
 	if hit.zone == .Hover || hit.zone == .Diag_Tooltip {
 		hit.zone = .Gutter if ev.x < ed.origin_x + editor_gutter_width(ed) else .Text

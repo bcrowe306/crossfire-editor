@@ -132,6 +132,8 @@ action_label :: proc(a: km.Action) -> string {
 	case .FindReferences: return "Find All References"
 	case .NextReference: return "Go to Next Reference"
 	case .PrevReference: return "Go to Previous Reference"
+	case .Rename: return "Rename Symbol"
+	case .FindUsages: return "Find Usages in Project"
 	case .NavigateBack: return "Go Back"
 	case .NavigateForward: return "Go Forward"
 	case .Find: return "Find"

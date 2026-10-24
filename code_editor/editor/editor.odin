@@ -50,6 +50,10 @@ Editor :: struct {
 	diag_overlay: Diag_Overlay,
 	problems:     Problems_Panel,
 	actions:      Code_Action_Menu,
+	// Rename Symbol's box (rename.odin), and a server's rename's edits to other files, for the
+	// host (editor_take_file_edits; owned)
+	rename:       Rename_Box,
+	file_edits:   [dynamic]lspc.Code_Action_Edit,
 	find:         Find_State,
 	snippet:      Snippet_Session,
 	menu:         Context_Menu,
@@ -188,6 +192,8 @@ editor_destroy :: proc(ed: ^Editor) {
 	delete(ed.completion.provided)
 	provided_destroy(&ed.provided)
 	provider_fixes_free(ed.actions.fixes)
+	marker_choices_free(ed.actions.choices)
+	rename_destroy(ed)
 }
 
 DEFAULT_LINE_SPACING :: 1.4

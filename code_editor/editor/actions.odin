@@ -158,6 +158,12 @@ editor_apply_action :: proc(ed: ^Editor, action: km.Action) -> bool {
 	case .PrevReference:
 		editor_step_reference(ed, -1)
 		return true
+	case .Rename:
+		editor_start_rename(ed)
+		return true
+	case .FindUsages:
+		editor_find_usages(ed)
+		return true
 	case .NavigateBack:
 		editor_navigate_back(ed)
 		return true

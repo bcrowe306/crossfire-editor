@@ -4,7 +4,10 @@
 // every use, F4 / Shift+F4 step through them), and Back / Forward through
 // the places you jumped from (Ctrl+- / Ctrl+Shift+- on macOS, Alt+Left /
 // Alt+Right elsewhere — VSCode's keys). Targets in other files go through
-// the host's open-file request (editor_take_open_request).
+// the host's open-file request (editor_take_open_request). Find Usages
+// (Alt+Shift+F12) lists a host's own uses of the symbol (its usage
+// providers': nodes running a script, say) in the same panel; picking one
+// calls the provider.
 package code_editor
 
 import buf "../buffer"
@@ -52,6 +55,11 @@ Ref_Item :: struct {
 	line:      int,
 	character: int,    // UTF-16
 	preview:   string, // owned, trimmed line text
+	// A usage provider's (Find Usages): its index in the registry (-1: a file location, as
+	// above), its id and its location column (owned)
+	provider:  int,
+	id:        int,
+	label:     string,
 }
 
 Refs_Panel :: struct {
@@ -60,6 +68,8 @@ Refs_Panel :: struct {
 	selected: int,
 	scroll:   int,
 	symbol:   string, // owned
+	// It lists a host's usages (Find Usages), not the server's references
+	usages:   bool,
 }
 
 Navigation :: struct {
@@ -104,12 +114,14 @@ refs_clear :: proc(r: ^Refs_Panel) {
 	for it in r.items {
 		delete(it.key)
 		delete(it.preview)
+		delete(it.label)
 	}
 	clear(&r.items)
 	delete(r.symbol)
 	r.symbol = ""
 	r.selected = 0
 	r.scroll = 0
+	r.usages = false
 }
 
 // editor_set_status shows a short message in the header for a moment.
@@ -385,7 +397,7 @@ editor_open_references :: proc(ed: ^Editor, locs: []lspc.Location) {
 		if l.range.start.line < len(lines) {
 			preview = strings.trim_space(lines[l.range.start.line])
 		}
-		append(&r.items, Ref_Item{strings.clone(l.key), l.range.start.line, l.range.start.character, strings.clone(preview)})
+		append(&r.items, Ref_Item{key = strings.clone(l.key), line = l.range.start.line, character = l.range.start.character, preview = strings.clone(preview), provider = -1})
 	}
 	// Current document first, then by path and line.
 	Ctx :: struct {
@@ -412,6 +424,47 @@ editor_close_references :: proc(ed: ^Editor) {
 	ed.nav.refs.open = false
 }
 
+/*
+Find Usages: the first usage provider that knows the symbol at the caret lists its uses in the
+references panel (in its order); without one, or with none, the status line says so.
+*/
+editor_find_usages :: proc(ed: ^Editor) {
+	if ed.providers == nil {
+		editor_set_status(ed, "No usages to find here")
+		return
+	}
+	editor_consume_buffer_changes(ed)
+	pos := editor_primary_cursor(ed).pos
+	doc := editor_provider_document(ed)
+	syntax := editor_syntax_context_at(ed, pos, context.temp_allocator)
+	for &prov, i in ed.providers.providers {
+		if prov.kind != .Usages || prov.usages == nil do continue
+		result := Usages_Result{items = make([dynamic]Provider_Usage, context.temp_allocator)}
+		ctx := provider_context(&prov, .Invoked)
+		ctx.syntax = syntax
+		start := time.tick_now()
+		ok := prov.usages(doc, pos, ctx, &result)
+		provider_timed(&prov, start)
+		if !ok do continue
+		if len(result.items) == 0 {
+			editor_set_status(ed, result.empty_message != "" ? result.empty_message : fmt.tprintf("No usages of %s", result.symbol))
+			return
+		}
+		r := &ed.nav.refs
+		refs_clear(r)
+		r.symbol = strings.clone(result.symbol)
+		r.usages = true
+		for it in result.items {
+			append(&r.items, Ref_Item{preview = strings.clone(it.preview), label = strings.clone(it.label), provider = i, id = it.id, line = -1})
+		}
+		r.open = true
+		ed.problems.open = false
+		editor_ensure_cursor_visible(ed)
+		return
+	}
+	editor_set_status(ed, "No usages to find here")
+}
+
 // editor_open_reference jumps to reference `index` (history recorded).
 editor_open_reference :: proc(ed: ^Editor, index: int) {
 	r := &ed.nav.refs
@@ -420,6 +473,16 @@ editor_open_reference :: proc(ed: ^Editor, index: int) {
 	}
 	r.selected = index
 	it := r.items[index]
+	if it.provider >= 0 {
+		// A host's usage: its provider opens it
+		if ed.providers == nil || it.provider >= len(ed.providers.providers) do return
+		prov := &ed.providers.providers[it.provider]
+		if prov.on_open == nil do return
+		start := time.tick_now()
+		prov.on_open(editor_provider_document(ed), Provider_Usage{label = it.label, preview = it.preview, id = it.id}, prov.user_data)
+		provider_timed(prov, start)
+		return
+	}
 	editor_jump_to(ed, it.key, it.line, it.character, record = true)
 }
 
@@ -452,7 +515,7 @@ render_references_panel :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 	fill_rect(renderer, {origin_x, top, width, 1}, theme.popup_border)
 	entries := editor_panel_entries(ed)
 	render_overlay_scrollbar(renderer, {origin_x, top + ed.char_h, width, f32(entries) * ed.char_h}, len(r.items), entries, r.scroll, theme)
-	header := fmt.tprintf("REFERENCES  %d result%s for '%s'   (F4 / Shift+F4 to step, Esc to close)", len(r.items), "" if len(r.items) == 1 else "s", r.symbol)
+	header := fmt.tprintf("%s  %d result%s for '%s'   (F4 / Shift+F4 to step, Esc to close)", r.usages ? "USAGES" : "REFERENCES", len(r.items), "" if len(r.items) == 1 else "s", r.symbol)
 	draw_text(renderer, font, header, origin_x + POPUP_PAD, top, theme.popup_text_dim, ed.char_h)
 	last := min(len(r.items), r.scroll + entries)
 	for i in r.scroll ..< last {
@@ -462,7 +525,7 @@ render_references_panel :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf
 		if i == r.selected || hovered {
 			fill_rect(renderer, {origin_x, y, width, ed.char_h}, theme.popup_selected)
 		}
-		loc := fmt.tprintf("%s:%d:%d", filepath.base(it.key), it.line + 1, it.character + 1)
+		loc := it.provider >= 0 ? it.label : fmt.tprintf("%s:%d:%d", filepath.base(it.key), it.line + 1, it.character + 1)
 		x := origin_x + 2 * POPUP_PAD
 		draw_text(renderer, font, loc, x, y, theme.text_type, ed.char_h)
 		x += f32(max(text_cols(loc) + 2, 22)) * ed.char_w

@@ -22,6 +22,10 @@ editor_handle_event :: proc(ed: ^Editor, ev: sdl.Event) -> bool {
 			editor_palette_text_input(ed, text)
 			return true
 		}
+		if len(text) > 0 && ed.rename.open {
+			editor_rename_text_input(ed, text)
+			return true
+		}
 		if ed.window != .Text {
 			editor_window_text_input(ed, text)
 			return true
@@ -70,6 +74,10 @@ editor_handle_key_down :: proc(ed: ^Editor, key: sdl.KeyboardEvent) -> bool {
 	if ed.window != .Text {
 		// A tool window owns the keyboard (modifier presses are ignored).
 		return chord.key == .Unknown || editor_window_handle_key(ed, chord)
+	}
+	if ed.rename.open && chord.key != .Unknown {
+		// The rename box owns the keyboard while open
+		return editor_rename_handle_key(ed, chord)
 	}
 	if ed.menu.open && chord.key != .Unknown {
 		// An open context menu owns the keyboard, even over the find bar.

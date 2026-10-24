@@ -213,6 +213,32 @@ buffer_next_group :: proc(b: ^Buffer) -> int {
 	return b.group_seq
 }
 
+// buffer_group_single_caret makes a group undo and redo to one caret (the site nearest the caret
+// then), not one per edit site: for edits made at several places that aren't a multi-cursor edit
+// (a rename, a drop)
+buffer_group_single_caret :: proc(b: ^Buffer, group_id: int) {
+	if len(b.single_caret_groups) >= 64 do ordered_remove(&b.single_caret_groups, 0)
+	append(&b.single_caret_groups, group_id)
+}
+
+// One caret for a group marked by buffer_group_single_caret: the site nearest the primary caret
+@(private)
+single_caret :: proc(b: ^Buffer, group_id: int, carets: ^[dynamic]Edit_Caret) {
+	if len(carets) < 2 do return
+	marked := false
+	for g in b.single_caret_groups do if g == group_id do marked = true
+	if !marked do return
+	at := len(b.cursors) > 0 ? b.cursors[0].pos : Position{}
+	best := 0
+	for c, i in carets {
+		d := abs(c.pos.line - at.line)
+		if d < abs(carets[best].pos.line - at.line) do best = i
+	}
+	keep := carets[best]
+	clear(carets)
+	append(carets, keep)
+}
+
 // buffer_undo reverts the most recent edit (or group of edits sharing a
 // group_id). Returns true if an edit was undone.
 buffer_undo :: proc(b: ^Buffer) -> bool {
@@ -243,6 +269,7 @@ buffer_undo :: proc(b: ^Buffer) -> bool {
 			break
 		}
 	}
+	single_caret(b, group_id, &carets)
 	place_carets(b, carets[:], descending = false)
 	return true
 }
@@ -318,6 +345,7 @@ buffer_redo :: proc(b: ^Buffer) -> bool {
 			break
 		}
 	}
+	single_caret(b, group_id, &carets)
 	place_carets(b, carets[:], descending = true)
 	return true
 }

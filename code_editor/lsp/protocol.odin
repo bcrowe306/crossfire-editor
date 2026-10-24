@@ -224,6 +224,12 @@ ReferenceParams :: struct {
 	} `json:"context"`,
 }
 
+RenameParams :: struct {
+	textDocument: TextDocumentIdentifier `json:"textDocument"`,
+	position:     Position               `json:"position"`,
+	newName:      string                 `json:"newName"`,
+}
+
 // --- codeAction ---
 
 CodeActionContext :: struct {

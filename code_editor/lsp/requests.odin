@@ -148,6 +148,18 @@ client_request_references :: proc(c: ^Client, uri: string, line, character: int)
 	return id
 }
 
+// client_request_rename asks for the edits renaming the symbol at a position to `new_name`
+// (a WorkspaceEdit: `last_rename`, every file's, when `rename_seq` changes).
+client_request_rename :: proc(c: ^Client, uri: string, line, character: int, new_name: string) -> int {
+	id := client_next_id(c)
+	params := RenameParams{textDocument = {uri = uri}, position = {line, character}, newName = new_name}
+	msg := encode_request(id, "textDocument/rename", params, context.temp_allocator)
+	c.pending_kind[id] = .Rename
+	c.latest_rename_id = id
+	client_send_raw(c, msg)
+	return id
+}
+
 // client_request_hover asks for hover info (type, docs) at a position.
 client_request_hover :: proc(c: ^Client, uri: string, line, character: int) -> int {
 	id := client_next_id(c)

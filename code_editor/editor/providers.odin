@@ -12,6 +12,11 @@
 //   drops         a host's drop on the code: the editor works out where it landed (the
 //                 syntactic context, `editor_syntax_context_at`) and the provider says what
 //                 to insert
+//   usages        the host's own uses of the symbol at the caret (Find Usages: nodes running a
+//                 script, say), listed in the references panel; picking one calls the host
+//   renames       renaming the symbol at the caret (F2): the provider says what it would rename
+//                 and does it (its edits to this document, and whatever else it owns); without
+//                 one, the language server renames
 //
 // The editor stays independent of any host: providers are plain procedures with a user data
 // pointer. They run on the editor's thread, inside `editor_update` / event handling, so they
@@ -169,6 +174,12 @@ Gutter_Marker :: struct {
 	tooltip: string,
 	// The host's own number, given back to the click callback
 	id:      int,
+	// Several things it stands for (a node each): a click opens a menu of them (the code
+	// actions menu), and the click callback is told which was chosen (`choice`). One or none:
+	// a click calls it at once
+	choices: []string,
+	// Set by the editor when it calls the click callback: the choice picked (0 without choices)
+	choice:  int,
 }
 
 // What kind of note an inlay hint is (its color)
@@ -209,6 +220,47 @@ Drop_Result :: struct {
 	message: string,
 }
 
+// One of a host's uses of a symbol (a node running a script, say): a row of the references panel
+Provider_Usage :: struct {
+	// Where it is ("Forest: Hero"): the row's location column
+	label:   string,
+	// What it says there ("speed = 250")
+	preview: string,
+	// The host's own number, given back to `on_open`
+	id:      int,
+}
+
+// What a usages provider answers
+Usages_Result :: struct {
+	// The symbol, for the panel's header ("Hero")
+	symbol:        string,
+	items:         [dynamic]Provider_Usage,
+	// Said in the status line when there are none ("No node runs Hero")
+	empty_message: string,
+}
+
+// What a rename provider would rename at a position
+Rename_Target :: struct {
+	// The name's range in the document (the rename box opens under it)
+	start, end: buf.Position,
+	// The current name
+	name:       string,
+	// The box's title ("Rename script Hero")
+	title:      string,
+	// What else it changes ("Also 3 nodes in 2 scenes"), shown under the name
+	note:       string,
+}
+
+// What a rename did, or why it can't
+Rename_Result :: struct {
+	// Edits to this document (positions in its text now), applied as one undo step
+	edits:   [dynamic]Text_Edit,
+	// For the status line ("Renamed Hero to Player: 3 files, 4 nodes")
+	message: string,
+	// Why the new name won't do ("Player is taken"): the box stays open and shows it
+	error:   string,
+}
+
 Completion_Provider_Proc :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, out: ^[dynamic]Provider_Completion)
 Hover_Provider_Proc      :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, out: ^Hover_Content)
 Diagnostic_Provider_Proc :: proc(doc: Provider_Document, ctx: Provider_Context, out: ^[dynamic]Provider_Diagnostic)
@@ -217,6 +269,14 @@ Gutter_Click_Proc        :: proc(doc: Provider_Document, marker: Gutter_Marker, 
 Inlay_Provider_Proc      :: proc(doc: Provider_Document, ctx: Provider_Context, out: ^[dynamic]Inlay_Hint)
 // Returns whether it handled the drop (else the next drop provider is asked)
 Drop_Provider_Proc       :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, drop: Drop_Request, out: ^Drop_Result) -> bool
+// Returns whether the position is on a symbol the provider knows (else the next one is asked)
+Usages_Provider_Proc     :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, out: ^Usages_Result) -> bool
+// A usage picked in the references panel (click, Enter, F4)
+Usage_Open_Proc          :: proc(doc: Provider_Document, usage: Provider_Usage, user_data: rawptr)
+// Returns whether the provider renames the symbol at the position (else the next one, then the server)
+Rename_Prepare_Proc      :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, out: ^Rename_Target) -> bool
+// Renames what prepare_rename offered to `new_name`; returns false (or sets `out.error`) when it can't
+Rename_Proc              :: proc(doc: Provider_Document, target: Rename_Target, new_name: string, ctx: Provider_Context, out: ^Rename_Result) -> bool
 
 Provider_Kind :: enum {
 	Completion,
@@ -225,6 +285,8 @@ Provider_Kind :: enum {
 	Gutter,
 	Inlay,
 	Drop,
+	Usages,
+	Rename,
 }
 
 // One registered provider
@@ -242,6 +304,10 @@ Provider :: struct {
 	on_click:   Gutter_Click_Proc,
 	inlay:      Inlay_Provider_Proc,
 	drop:       Drop_Provider_Proc,
+	usages:     Usages_Provider_Proc,
+	on_open:    Usage_Open_Proc,
+	prepare_rename: Rename_Prepare_Proc,
+	rename:     Rename_Proc,
 	// Timing: calls, the last and the slowest call
 	calls:      int,
 	last, worst: time.Duration,
@@ -381,8 +447,17 @@ provider_fixes_free :: proc(fixes: []Provider_Fix) {
 
 @(private)
 provided_clear_markers :: proc(p: ^Provided) {
-	for m in p.markers do delete(m.tooltip)
+	for m in p.markers {
+		delete(m.tooltip)
+		marker_choices_free(m.choices)
+	}
 	clear(&p.markers)
+}
+
+@(private)
+marker_choices_free :: proc(choices: []string) {
+	for c in choices do delete(c)
+	delete(choices)
 }
 
 @(private)
@@ -488,7 +563,7 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 		case .Diagnostics: if prov.diagnostic != nil { prov.diagnostic(doc, ctx, &diags); provider_timed(&prov, start) }
 		case .Gutter:      if prov.gutter != nil { prov.gutter(doc, ctx, &markers); provider_timed(&prov, start) }
 		case .Inlay:       if prov.inlay != nil { prov.inlay(doc, ctx, &inlays); provider_timed(&prov, start) }
-		case .Completion, .Hover, .Drop:
+		case .Completion, .Hover, .Drop, .Usages, .Rename:
 		}
 	}
 	count := buf.buffer_line_count(&ed.buf)
@@ -517,6 +592,12 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 		if m.line < 0 || m.line >= count do continue
 		mm := m
 		mm.tooltip = strings.clone(m.tooltip)
+		mm.choices = nil
+		if len(m.choices) > 0 {
+			mm.choices = make([]string, len(m.choices))
+			for c, i in m.choices do mm.choices[i] = strings.clone(c)
+		}
+		mm.choice = 0
 		append(&p.markers, mm)
 	}
 	slice.stable_sort_by(p.markers[:], proc(a, b: Gutter_Marker) -> bool { return a.line < b.line })
@@ -575,20 +656,43 @@ editor_inlays_on :: proc(ed: ^Editor, line: int) -> []Inlay_Hint {
 	return first < 0 ? nil : list[first:]
 }
 
-// Calls the click callback of the first marker on `line` that has one (a gutter click)
+/*
+A gutter click on a line: the first marker there with a click callback. A marker with several
+choices opens a menu of them (the code actions menu, at the line's start); else the callback is
+called at once.
+*/
 @(private)
 editor_click_gutter_marker :: proc(ed: ^Editor, line: int) -> bool {
 	if ed.providers == nil do return false
 	for m in editor_gutter_markers_on(ed, line) {
-		for &prov in ed.providers.providers {
+		for &prov, i in ed.providers.providers {
 			if prov.kind != .Gutter || prov.on_click == nil do continue
+			if len(m.choices) > 1 {
+				editor_open_marker_menu(ed, i, m)
+				return true
+			}
 			start := time.tick_now()
-			prov.on_click(editor_provider_document(ed), m, prov.user_data)
+			mm := m
+			mm.choice = 0
+			prov.on_click(editor_provider_document(ed), mm, prov.user_data)
 			provider_timed(&prov, start)
 			return true
 		}
 	}
 	return false
+}
+
+// Calls a gutter provider's click callback for a marker's choice (the marker menu's)
+@(private)
+editor_choose_marker :: proc(ed: ^Editor, provider: int, marker: Gutter_Marker, choice: int) {
+	if ed.providers == nil || provider < 0 || provider >= len(ed.providers.providers) do return
+	prov := &ed.providers.providers[provider]
+	if prov.on_click == nil do return
+	m := marker
+	m.choice = choice
+	start := time.tick_now()
+	prov.on_click(editor_provider_document(ed), m, prov.user_data)
+	provider_timed(prov, start)
 }
 
 // --- completion ----------------------------------------------------------------
@@ -830,6 +934,8 @@ editor_apply_edits :: proc(ed: ^Editor, edits: []Text_Edit, caret: Maybe(buf.Pos
 	slice.sort_by(sorted, proc(a, b: Text_Edit) -> bool { return buf.position_less(b.start, a.start) })
 	b := &ed.buf
 	group := buf.buffer_next_group(b)
+	// Undone and redone to one caret, not one per edit site
+	buf.buffer_group_single_caret(b, group)
 	end_of_last: buf.Position
 	for e, i in sorted {
 		start := buf.buffer_clamp_position(b, e.start)

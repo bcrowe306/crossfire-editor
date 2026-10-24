@@ -6,7 +6,9 @@
 // other files are skipped (and counted) since the editor only owns this
 // buffer. Quick fixes of the providers' diagnostics at the caret
 // (`Provider_Diagnostic.fixes`) come first, and show at once (also without
-// a server).
+// a server). The same menu lists a gutter marker's choices when it has several
+// (`Gutter_Marker.choices`: the nodes using a script, say); picking one calls
+// the marker's provider with it.
 package code_editor
 
 import buf "../buffer"
@@ -32,15 +34,23 @@ Code_Action_Menu :: struct {
 	// The providers' quick fixes at the caret when it opened (owned), listed
 	// before the server's actions
 	fixes: []Provider_Fix,
+	// A gutter marker's choices (owned): listed instead of fixes and actions,
+	// and the gutter provider (its index) and marker they're for (its line,
+	// icon and id; not its strings)
+	choices:         []string,
+	choice_provider: int,
+	choice_marker:   Gutter_Marker,
 }
 
 // How many entries the menu lists: the providers' fixes, then the server's actions
 editor_code_action_count :: proc(ed: ^Editor) -> int {
+	if ed.actions.choices != nil do return len(ed.actions.choices)
 	return len(ed.actions.fixes) + (len(ed.lsp.last_code_actions) if ed.lsp_enabled && !ed.actions.waiting else 0)
 }
 
 // An entry's title, and whether it's preferred
 editor_code_action_title :: proc(ed: ^Editor, index: int) -> (title: string, preferred: bool) {
+	if ed.actions.choices != nil do return ed.actions.choices[index], false
 	if index < len(ed.actions.fixes) do return ed.actions.fixes[index].title, ed.actions.fixes[index].preferred
 	a := ed.lsp.last_code_actions[index - len(ed.actions.fixes)]
 	return a.title, a.preferred
@@ -99,6 +109,31 @@ editor_close_code_actions :: proc(ed: ^Editor) {
 	ed.actions.waiting = false
 	provider_fixes_free(ed.actions.fixes)
 	ed.actions.fixes = nil
+	marker_choices_free(ed.actions.choices)
+	ed.actions.choices = nil
+}
+
+/*
+Opens the menu of a gutter marker's choices (a click on a marker with several), the caret at the
+start of its line. Picking one calls the marker's provider with it (`Gutter_Marker.choice`).
+*/
+editor_open_marker_menu :: proc(ed: ^Editor, provider: int, marker: Gutter_Marker) {
+	editor_close_completion(ed)
+	editor_close_code_actions(ed)
+	b := &ed.buf
+	resize(&b.cursors, 1)
+	b.cursors[0] = {pos = {marker.line, 0}}
+	m := &ed.actions
+	m.active = true
+	m.waiting = false
+	m.selected = 0
+	m.scroll = 0
+	m.anchor = b.cursors[0].pos
+	m.choices = make([]string, len(marker.choices))
+	for c, i in marker.choices do m.choices[i] = strings.clone(c)
+	m.choice_provider = provider
+	m.choice_marker = Gutter_Marker{line = marker.line, icon = marker.icon, color = marker.color, id = marker.id}
+	editor_ensure_cursor_visible(ed)
 }
 
 // editor_code_actions_visible: the menu is showing (possibly with a "no
@@ -115,7 +150,7 @@ editor_update_code_actions :: proc(ed: ^Editor) {
 	if !m.active {
 		return
 	}
-	if editor_primary_cursor(ed).pos != m.anchor || !ed.lsp_enabled && len(m.fixes) == 0 {
+	if editor_primary_cursor(ed).pos != m.anchor || !ed.lsp_enabled && len(m.fixes) == 0 && m.choices == nil {
 		editor_close_code_actions(ed)
 		return
 	}
@@ -150,6 +185,13 @@ editor_code_actions_move :: proc(ed: ^Editor, delta: int) {
 // editor_apply_code_action applies entry `index` of the menu: a provider's
 // fix, or an action of the server's last response.
 editor_apply_code_action :: proc(ed: ^Editor, index: int) -> bool {
+	if ed.actions.choices != nil {
+		provider, marker, count := ed.actions.choice_provider, ed.actions.choice_marker, len(ed.actions.choices)
+		editor_close_code_actions(ed)
+		if index < 0 || index >= count do return false
+		editor_choose_marker(ed, provider, marker, index)
+		return true
+	}
 	if index >= 0 && index < len(ed.actions.fixes) {
 		edits := slice.clone(ed.actions.fixes[index].edits, context.temp_allocator)
 		for &e in edits do e.text = strings.clone(e.text, context.temp_allocator)

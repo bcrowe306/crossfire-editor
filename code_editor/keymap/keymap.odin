@@ -26,7 +26,7 @@ Key :: enum {
 	Backspace, Delete, Enter, Tab, Escape, Space,
 	Slash, Backslash, Minus, Equals, LeftBracket, RightBracket,
 	Semicolon, Quote, Comma, Period, Grave,
-	F8, F3, F1, F12, F4,
+	F8, F3, F1, F12, F4, F2,
 }
 
 Chord :: struct {
@@ -78,6 +78,9 @@ Action :: enum {
 	QuickFix, ToggleProblems,
 	GotoDefinition, PeekDefinition, FindReferences,
 	NextReference, PrevReference,
+	// Rename the symbol at the caret (a host's rename provider, else the server's); the host's
+	// uses of it (its usage providers: scenes, nodes...) in the references panel
+	Rename, FindUsages,
 	NavigateBack, NavigateForward,
 
 	// Search.

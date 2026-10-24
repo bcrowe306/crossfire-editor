@@ -525,9 +525,9 @@ editor_find_handle_key :: proc(ed: ^Editor, chord: km.Chord) -> bool {
 		return true
 	}
 	// Function keys aren't typing: F3 / Shift+F3 step through the matches from the bar too (and
-	// F1, F8, F12 work as anywhere else)
+	// F1, F2, F8, F12 work as anywhere else)
 	#partial switch chord.key {
-	case .F1, .F3, .F4, .F8, .F12:
+	case .F1, .F2, .F3, .F4, .F8, .F12:
 		return false
 	}
 	return mods == {} || mods == {.Shift}

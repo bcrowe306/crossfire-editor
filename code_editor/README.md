@@ -128,8 +128,10 @@ character for completion, the `Syntax_Context` of the position, its user data, a
 | `.Completion` | `Completion_Provider_Proc` | each completion request (typing, Ctrl+Space), and a typed character of the provider's `trigger_chars` (`"\"/"`: then only the providers are asked, the server's last items aren't listed) | `Provider_Completion`s, merged with the server's list: the server's in its order, then the providers' that aren't already there. A provider item with a server item's label folds into it (the server's insert text stays, the provider's documentation is added, the higher `priority` taken); the first provider to offer a label wins. Within prefix and fuzzy matches, higher `priority` first. Without a server, the providers' items show at once. `replace_start` replaces from another column than the typed word's start (a path, a name with spaces; the list still filters by the word, so `filter_text` is the label from there) |
 | `.Hover` | `Hover_Provider_Proc` | the pointer resting on a cell (the server is asked at the same time) | `Hover_Content`: blocks of `Hover_Text` (plain or markdown), `Hover_Image` (RGBA8 pixels, drawn at most `HOVER_IMAGE_MAX` px on a side) or `Hover_Widget` (a size and a `draw(renderer, rect, data)` the host paints), shown above the server's answer |
 | `.Diagnostics` | `Diagnostic_Provider_Proc` | once per text version, after it's been still for `PROVIDER_DEBOUNCE`, and when invalidated | `Provider_Diagnostic`s (buffer positions), merged with the server's: squiggles, gutter, Problems panel, F8. One the server reports on the same line with the same message isn't repeated. They move with edits until the provider runs again, their `fixes` (`Provider_Fix`: a title, edits, `preferred`) too: Ctrl+. lists the fixes of the diagnostics at the caret (else on its line) before the server's code actions, at once and without a server |
-| `.Gutter` | `Gutter_Provider_Proc` (+ `Gutter_Click_Proc`) | as diagnostics | `Gutter_Marker`s (line, `Gutter_Icon`, color, tooltip, an id): drawn in the marker column (a diagnostic's mark wins), the tooltip on hover, `on_click` called with the marker |
+| `.Gutter` | `Gutter_Provider_Proc` (+ `Gutter_Click_Proc`) | as diagnostics | `Gutter_Marker`s (line, `Gutter_Icon`, color, tooltip, an id, `choices`): drawn in the marker column (a diagnostic's mark wins), the tooltip on hover, `on_click` called with the marker; a marker with several `choices` opens a menu of them first (the code actions menu, keys and clicks as there) and `on_click` gets the one picked in `marker.choice` |
 | `.Inlay` | `Inlay_Provider_Proc` | as diagnostics | `Inlay_Hint`s (position, label, `Inlay_Kind`): drawn dimmed after the line's text (hints that move the text are for later) |
+| `.Usages` | `Usages_Provider_Proc` (+ `Usage_Open_Proc`) | Find Usages (Alt+Shift+F12, the context menu's Find Usages in Project) | `Usages_Result`: the symbol and `Provider_Usage`s (a location label, a preview, an id), listed in the references panel in the provider's order; picking one (click, Enter, F4) calls `on_open` with it. The first provider returning true answers; none: "No usages to find here" |
+| `.Rename` | `Rename_Prepare_Proc` + `Rename_Proc` | Rename Symbol (F2, the context menu) | `prepare_rename` says what's at the caret (`Rename_Target`: the name's range, a title, a note on what else changes) and the rename box opens; on Enter `rename` gets the new name (an identifier: the editor checks) and returns `Rename_Result`: this document's edits (one undo step, which undoes to one caret), a status message, or an `error` that keeps the box open. No provider takes it: the server's `textDocument/rename` |
 | `.Drop` | `Drop_Provider_Proc` | `editor_drop(ed, x, y, request)` / `editor_drop_at`, when the host drops something | the `Drop_Request` (the host's kind, value, data) and where it landed; the first provider returning true decides: `Drop_Result.edits` (applied as one undo step, the server told), the caret, a message |
 
 **Keep providers fast and non-blocking:** they run on the editor's thread. Look things up in data
@@ -145,7 +147,18 @@ starts) or `Comment`; `in_string` says the position is inside a string literal (
 argument is `Call_Argument` with it set; right at the end of one not closed yet counts), `in_proc`
 whether any procedure encloses it.
 
-Tests: `editor/providers_test.odin` (merging and ranking, without a server, hovers and gutter
+**Rename Symbol** (`editor/rename.odin`): F2 opens a box under the name (the provider's title and
+note, or "Rename <name>" for the server), typing replaces the selected name, Left/Right/Home/End,
+Backspace/Delete, Ctrl+A, Ctrl+V edit it, Enter renames, Escape or a click elsewhere cancels.
+Through the server, the edits to this document are applied as one undo step and those to other
+files are kept for the host (`editor_take_file_edits`: UTF-16 ranges by path), which applies them
+where those files are open (`editor_apply_lsp_edits`). The control snapshot has `rename`
+(`open`, `text`, `title`, `note`, `error`, `waiting`). Edits applied by `editor_apply_edits`
+(drops, fixes, renames) undo and redo to one caret, not one per site
+(`buffer_group_single_caret`).
+
+Tests: `editor/providers_links_test.odin` (a marker's menu, Find Usages, the rename box with a
+provider and through a server); `editor/providers_test.odin` (merging and ranking, without a server, hovers and gutter
 tooltips and clicks, diagnostics merged, shifted and debounced, syntax contexts, drops),
 `editor/providers_names_test.odin` (quick fixes in the Ctrl+. menu with and without a server,
 moved by edits; trigger characters; `replace_start`; a string being typed).
@@ -306,6 +319,9 @@ builds the sheets.
   (Enter opens it, Escape closes).
 - **Shift+F12**: Find All References — a panel with every use and its line;
   click a row, or **F4 / Shift+F4** to step through them.
+- **Alt+Shift+F12**: Find Usages — a host's uses of the symbol (its usage providers': the
+  Crossfire Editor's nodes using a script) in the same panel.
+- **F2**: Rename Symbol — a host's rename provider, else the server's rename.
 - **Back / Forward**: Ctrl+- / Ctrl+Shift+- on macOS, Alt+Left / Alt+Right
   elsewhere.
 

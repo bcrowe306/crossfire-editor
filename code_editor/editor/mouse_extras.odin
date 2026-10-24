@@ -38,6 +38,8 @@ editor_context_menu_items :: proc(ed: ^Editor) -> []Menu_Item {
 	append(&items, Menu_Item{"Go to Definition", .GotoDefinition, ready})
 	append(&items, Menu_Item{"Peek Definition", .PeekDefinition, ready})
 	append(&items, Menu_Item{"Find All References", .FindReferences, ready})
+	if editor_has_provider(ed, .Usages) do append(&items, Menu_Item{"Find Usages in Project", .FindUsages, true})
+	append(&items, Menu_Item{"Rename Symbol", .Rename, ready || editor_has_provider(ed, .Rename)})
 	append(&items, Menu_Item{"", .None, false})
 	append(&items, Menu_Item{"Cut", .Cut, has_sel})
 	append(&items, Menu_Item{"Copy", .Copy, has_sel})

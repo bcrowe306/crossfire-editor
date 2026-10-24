@@ -255,6 +255,7 @@ editor_render :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, x, 
 	render_popups(ed, renderer, font, theme, origin_x, origin_y)
 	render_diag_tooltip(ed, renderer, font, theme)
 	render_code_actions(ed, renderer, font, theme)
+	render_rename_box(ed, renderer, font, theme)
 	render_hover(ed, renderer, font, theme)
 	render_context_menu(ed, renderer, font, theme)
 	render_palette(ed, renderer, font, theme)

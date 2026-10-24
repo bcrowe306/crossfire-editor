@@ -154,6 +154,16 @@ State_Code_Actions :: struct {
 	last_skipped: int  `json:"last_skipped"`,
 }
 
+// The rename box (Rename Symbol, F2)
+State_Rename :: struct {
+	open:    bool   `json:"open"`,
+	text:    string `json:"text"`,
+	title:   string `json:"title"`,
+	note:    string `json:"note"`,
+	error:   string `json:"error"`,
+	waiting: bool   `json:"waiting"`,
+}
+
 State_Find :: struct {
 	open:           bool   `json:"open"`,
 	focused:        bool   `json:"focused"`,
@@ -195,6 +205,7 @@ State :: struct {
 	tooltip:           State_Tooltip      `json:"tooltip"`,
 	problems:          State_Problems     `json:"problems"`,
 	code_actions:      State_Code_Actions `json:"code_actions"`,
+	rename:            State_Rename       `json:"rename"`,
 	find:              State_Find         `json:"find"`,
 	snippet:           State_Snippet      `json:"snippet"`,
 	hover:             State_Hover        `json:"hover"`,
@@ -340,6 +351,10 @@ snapshot_state :: proc(e: ^ed.Editor, frame: int) -> State {
 	s.code_actions = {
 		active = e.actions.active, visible = ed.editor_code_actions_visible(e), selected = e.actions.selected,
 		titles = titles, last_applied = e.actions.last_applied, last_skipped = e.actions.last_skipped,
+	}
+	s.rename = {
+		open = e.rename.open, text = ed.editor_rename_text(e), title = e.rename.target.title,
+		note = e.rename.target.note, error = e.rename.error, waiting = e.rename.waiting,
 	}
 
 	{

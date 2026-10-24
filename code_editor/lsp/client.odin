@@ -20,6 +20,7 @@ RequestKind :: enum {
 	CodeAction,
 	Definition,
 	References,
+	Rename,
 	Other,
 }
 
@@ -73,6 +74,13 @@ Client :: struct {
 	code_action_seq:       int,
 	latest_code_action_id: int,
 
+	// Last textDocument/rename answer: its WorkspaceEdit's edits (every file's), or the server's
+	// error message ("" none); rename_seq is bumped by every answer
+	last_rename:      [dynamic]Code_Action_Edit,
+	rename_error:     string,
+	rename_seq:       int,
+	latest_rename_id: int,
+
 	// Set once the server process has gone away (crashed, killed, or
 	// closed its pipes). The client never takes the host down with it:
 	// writes to a dead server fail quietly and the host can inspect
@@ -104,6 +112,7 @@ client_init :: proc(allocator := context.allocator) -> Client {
 		last_signatures  = make([dynamic]SignatureInformation, allocator),
 		last_code_actions = make([dynamic]Code_Action, allocator),
 		last_locations   = make([dynamic]Location, allocator),
+		last_rename      = make([dynamic]Code_Action_Edit, allocator),
 		sync_kind        = 1,
 	}
 }
@@ -129,6 +138,8 @@ client_destroy :: proc(c: ^Client) {
 	delete(c.last_hover, c.allocator)
 	client_clear_locations(c)
 	delete(c.last_locations)
+	client_clear_rename(c)
+	delete(c.last_rename)
 }
 
 // client_start launches `command` (e.g. `{"ols"}`) as a child process and

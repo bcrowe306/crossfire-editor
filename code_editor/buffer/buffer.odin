@@ -106,6 +106,9 @@ Buffer :: struct {
 	file_path:  string,
 	allocator:  mem.Allocator,
 	group_seq:  int,
+	// Groups that undo and redo to one caret (edits a host applied at several places: a rename),
+	// not one per site as a multi-cursor edit does (the newest few)
+	single_caret_groups: [dynamic]int,
 	// version increments on every content mutation (insert, delete,
 	// set_text). Hosts compare it against a saved value to detect changes
 	// without diffing, e.g. to know when to push LSP didChange.
@@ -159,6 +162,7 @@ buffer_destroy :: proc(b: ^Buffer) {
 	buffer_free_changes(b)
 	delete(b.changes)
 	delete(b.typing_ends)
+	delete(b.single_caret_groups)
 	if len(b.file_path) > 0 {
 		delete(b.file_path, b.allocator)
 	}

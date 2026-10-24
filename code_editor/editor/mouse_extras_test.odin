@@ -29,7 +29,7 @@ test_context_menu_opens_moves_caret_and_runs_actions :: proc(t: ^testing.T) {
 		testing.expect_value(t, ed.buf.cursors[0].pos, buf.Position{1, 2}) // caret moved there
 
 		items := editor_context_menu_items(&ed)
-		cut := 4 // after Go to Definition / Peek / Find References / separator
+		cut := 5 // after Go to Definition / Peek / Find References / Rename Symbol / separator
 		testing.expect(t, !items[cut].enabled && !items[cut + 1].enabled, "Cut/Copy disabled without a selection")
 		testing.expect_value(t, chord_label(&ed, .SelectAll), "Ctrl+A")
 
@@ -48,7 +48,7 @@ test_context_menu_opens_moves_caret_and_runs_actions :: proc(t: ^testing.T) {
 		testing.expect(t, editor_context_menu_items(&ed)[cut + 1].enabled, "Copy enabled with a selection")
 		rect, _ := editor_context_menu_layout(&ed)
 		find_row := cut + 8 // "Find"
-		// The 10-row view is too short for all 14 items: the menu fits inside it and scrolls
+		// The 10-row view is too short for all 15 items: the menu fits inside it and scrolls
 		testing.expect(t, rect.y >= ed.origin_y && rect.y + rect.h <= ed.origin_y + f32(ed.visible_rows) * ed.char_h, "the menu fits the view")
 		rows := popup_rows_of(&ed, rect)
 		testing.expect(t, rows < len(editor_context_menu_items(&ed)), "fewer rows than items")

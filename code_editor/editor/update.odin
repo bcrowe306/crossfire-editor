@@ -21,8 +21,10 @@ editor_update :: proc(ed: ^Editor) {
 	}
 	// The completion list works with providers alone too
 	editor_update_lsp_ui(ed)
+	// The code actions menu also lists providers' fixes and a gutter marker's choices: no server needed
+	editor_update_code_actions(ed)
+	editor_update_rename(ed)
 	if ed.lsp_enabled {
-		editor_update_code_actions(ed)
 		editor_update_navigation(ed)
 	}
 }
