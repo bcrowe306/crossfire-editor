@@ -101,6 +101,9 @@ copy: `open_project {project}`).
 	code_hover <line> <column>       Rest the pointer on a position of the shown code tab (1-based;
 	                                 `caret <columns>`: on the caret's line, columns from it)
 	code_click_marker <line>         Click the gutter marker column beside a line (1-based)
+	code_click_hover_widget          Click the code tab's hover's first widget (a play button)
+	code_click <line> [<column>]     Click a position of the shown code tab (1-based): the caret goes there
+	code_click_swatch <line> [<n>]   Click a line's n-th color swatch (1-based; n from 1)
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
 	scroll_into_view <scroll key> <widget key>
@@ -385,6 +388,14 @@ Checks:
 	code_completion_provided <label> The shown completion list lists it, from the project's
 	                             providers (code_providers.odin; folded into OLS's same item or not)
 	code_hover_has <text>            The code tab's hover shows the text (whitespace aside: it wraps)
+	code_hover_image <true | false>  The code tab's hover shows a picture (code_previews.odin)
+	code_hover_widget <true | false> ... a widget (a sound's play button)
+	code_swatch <line> <true | false>   A line has a color swatch (1-based; code_colors.odin)
+	code_color_dialog <open | closed>   The Color dialog a swatch opens
+	audio_playing <true | false>     The editor's audio preview plays (a hover's button, the browser)
+	audio_loaded <project path>      The audio preview has that file loaded (it played or plays)
+	last_link <text>                 The last link the editor opened (Links_Open: nothing opens in
+	                                 a script run) contains the text
 	code_inlay <line> <text>         A line's inlay hints contain the text (1-based)
 	code_marker <line> <true | false>   A line has a gutter marker
 	code_diagnostic_has <text>       The code tab shows a problem whose message contains it
@@ -1386,6 +1397,22 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "code_click":
+		// A click on a position of the shown code tab (1-based line and column): the caret goes there
+		parts := strings.fields(rest, context.temp_allocator)
+		lineNumber, _ := strconv.parse_int(len(parts) > 0 ? parts[0] : "")
+		column := 1
+		if len(parts) > 1 do column, _ = strconv.parse_int(parts[1])
+		if codeRevealFirst(s, lineNumber - 1, column - 1) do return false
+		at, ok := CodeEditor_WindowPoint(CodeTabs_Active(s), lineNumber - 1, column - 1)
+		if !ok {
+			fail(fmt.tprintf("%s: the code tab isn't shown", line))
+			return true
+		}
+		click(at)
+		report(true, line)
+		return false
+
 	case "code_hover", "code_click_marker":
 		// A position of the shown code tab, as the pointer reaches it (real motion: the hover
 		// comes after the editor's dwell), or a click on a line's gutter marker
@@ -1402,14 +1429,51 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			}
 		}
 		marker := command == "code_click_marker"
+		if codeRevealFirst(s, lineNumber - 1, column - 1) do return false
 		at, ok := CodeEditor_WindowPoint(CodeTabs_Active(s), lineNumber - 1, column - 1, marker)
 		if !ok {
 			fail(fmt.tprintf("%s: the code tab isn't shown", line))
 			return true
 		}
 		if marker do click(at)
-		else do pushMouse(.MOUSE_MOTION, at)
+		else {
+			// Twice, a frame apart, as a real mouse moves: a tooltip still showing over the
+			// window on the first frame keeps that motion from the code view
+			pushMouse(.MOUSE_MOTION, at)
+			queueBatch(mouseEvent(.MOUSE_MOTION, at))
+		}
 		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "code_click_hover_widget":
+		// The middle of the hover's first widget (a sound's play button)
+		at, ok := CodeEditor_HoverWidgetPoint(CodeTabs_Active(s))
+		if !ok {
+			fail(fmt.tprintf("%s: the code tab's hover has no widget in view", line))
+			return true
+		}
+		click(at)
+		report(true, line)
+		return false
+
+	case "code_click_swatch":
+		// A line's n-th color swatch (1-based line, n from 1)
+		parts := strings.fields(rest, context.temp_allocator)
+		lineNumber, _ := strconv.parse_int(len(parts) > 0 ? parts[0] : "")
+		n := 1
+		if len(parts) > 1 do n, _ = strconv.parse_int(parts[1])
+		// The swatches are after the line's text: scrolled sideways into view in a narrow tab
+		text, _, _ := CodeEditor_Buffer(CodeTabs_Active(s), true)
+		lines := strings.split_lines(text, context.temp_allocator)
+		width := lineNumber - 1 < len(lines) && lineNumber >= 1 ? len(lines[lineNumber - 1]) : 0
+		if codeRevealFirst(s, lineNumber - 1, width + 2 + 3 * n) do return false
+		at, ok := CodeEditor_SwatchPoint(CodeTabs_Active(s), lineNumber - 1, n - 1)
+		if !ok {
+			fail(fmt.tprintf("%s: no swatch %d in view on line %d", line, n, lineNumber))
+			return true
+		}
+		click(at)
 		report(true, line)
 		return false
 
@@ -2539,6 +2603,21 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(CodeEditor_CompletionProvided(CodeTabs_Active(s), strings.trim_space(value)))
 		visible, items := CodeEditor_CompletionVisible(CodeTabs_Active(s))
 		return found == "true", fmt.tprintf("%s; shown %v; %d items from the server; in the list: %v", found, visible, items, CodeEditor_CompletionHas(CodeTabs_Active(s), strings.trim_space(value)))
+	case "code_hover_image", "code_hover_widget":
+		images, widgets := CodeEditor_HoverBlocks(CodeTabs_Active(s))
+		found = fmt.tprint(name == "code_hover_image" ? images > 0 : widgets > 0)
+	case "code_swatch":
+		parts := strings.fields(value, context.temp_allocator)
+		lineNumber, _ := strconv.parse_int(len(parts) > 0 ? parts[0] : "")
+		found = fmt.tprintf("%d %v", lineNumber, CodeEditor_HasSwatch(CodeTabs_Active(s), lineNumber - 1))
+	case "code_color_dialog":
+		found = s.codeColor.open ? "open" : "closed"
+	case "audio_playing":
+		found = fmt.tprint(AudioPreview_IsPlaying())
+	case "audio_loaded":
+		return AudioPreview_IsLoaded(joinPath(s.project.rootPath, value, allocator = context.temp_allocator)), "not loaded"
+	case "last_link":
+		return strings.contains(s.lastLink, value), s.lastLink
 	case "code_hover_has":
 		// Whitespace aside: a narrow tab wraps the hover anywhere
 		found = CodeEditor_HoverText(CodeTabs_Active(s))
@@ -3123,6 +3202,26 @@ click :: proc(position: [2]f32, mods: sdl.Keymod = {}) {
 		queueBatch(release)
 	}
 	driver.waitFrames = INPUT_SETTLE_FRAMES
+}
+
+/*
+Scrolls the shown code tab so a position is in view before a command aims at it (a short or
+narrow tab shows few lines): when it scrolled, the command runs again after the frames settle.
+
+Returns:
+- Whether the command waits (runs again later)
+*/
+@(private="file")
+codeRevealFirst :: proc(s: ^State, line, column: int) -> bool {
+	scrolled, _ := CodeEditor_RevealLine(CodeTabs_Active(s), line, max(column, 0))
+	if scrolled && driver.scrollAttempts < 5 {
+		driver.scrollAttempts += 1
+		driver.line -= 1
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		return true
+	}
+	driver.scrollAttempts = 0
+	return false
 }
 
 // A Shift key event to queue (down: carrying `mods`)

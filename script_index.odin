@@ -888,6 +888,8 @@ ScriptIndex_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 		tick := skald.cmd_delay(SCRIPT_INDEX_TICK, Msg(ScriptIndex_Tick{}))
 		// The engine's name parameters, once (name_kinds.odin)
 		if names := NameTable_Start(); names.kind != .None do tick = skald.cmd_batch(tick, names)
+		// And its documentation, for hovers and F1 (engine_docs.odin)
+		if docs := EngineDocs_Start(); docs.kind != .None do tick = skald.cmd_batch(tick, docs)
 		index.ticking = true
 		if index.running {
 			index.again = true

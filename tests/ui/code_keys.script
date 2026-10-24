@@ -262,7 +262,12 @@ expect code_state palette.open false
 key ctrl+shift+p
 expect code_state palette.open true
 key ESCAPE
+# F1 is the editor's Help in a code tab (the API page of an engine name at the caret, else the
+# manual: code_previews.script), not the palette
 key F1
+wait_until last_link https://crossfireengine.io/ timeout=5
+expect code_state palette.open false
+key ctrl+shift+p
 expect code_state palette.open true
 type keymap editor
 key RETURN

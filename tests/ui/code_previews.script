@@ -1,0 +1,77 @@
+# Hovers and previews in the code (round 5: code_previews.odin, code_colors.odin, engine_docs.odin):
+# an image constant shows its picture, a sound's has a play button that plays it, an engine
+# procedure shows its documentation instead of OLS's, a color literal's swatch opens the Color
+# dialog whose OK rewrites it (one undo step), and F1 opens the engine symbol's API page or, off
+# one, the manual (nothing opens in a script run: `last_link`).
+# Run with: task test:ui SCRIPT=tests/ui/code_previews.script (and the fullscreen and short runs)
+#
+# PlayScene's rows: World, Camera, Spaceship (2), ...
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+import tests/fixtures/beep.wav
+click_row scene-tree 2
+expect selected Spaceship
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Probe
+click_widget new-script-create
+expect code_tab probe.odin
+wait_until code_focused true timeout=5
+# Lines: 8 the tint field, 12 TEXTURE_SHIP, 13 SOUND_BEEP, 14 a color literal, 18 e.Script_Register
+write_project_file scripts/probe.odin package scripts\n\nimport e "engine:."\nimport sdl "vendor:sdl3"\n\nProbe :: struct {\n\tusing script: e.Script,\n\ttint: sdl.Color `export:"default=#ff8000"`,\n}\n\n// previews\nship := TEXTURE_SHIP\nbeep := SOUND_BEEP\nred := sdl.Color{255, 0, 0, 255}\n\n@(init)\nregister_Probe :: proc "contextless" () {\n\te.Script_Register(Probe, {})\n}\n
+wait_until code_contains true // previews timeout=10
+
+# An image constant: its picture and size
+wait 30
+code_hover 12 10
+wait_until code_hover_image true timeout=10
+expect code_hover_has ship.png:
+expect code_hover_has px
+# A sound's: its length and a play button that plays it
+code_hover 13 10
+wait_until code_hover_widget true timeout=10
+expect code_hover_has beep.wav: a sound, 0:01.5
+code_click_hover_widget
+wait_until audio_loaded assets/beep.wav timeout=5
+expect code_hover_widget true
+# An engine procedure: its doc comment rendered (OLS's answer isn't shown under it); Escape
+# closes the sound's hover first (the pointer may land on it)
+key escape
+code_hover 18 6
+wait_until code_hover_has Registers a script type under its type name timeout=10
+expect code_hover_has Inputs:
+expect code_hover_has Script_Register :: proc "contextless"
+
+# The color literal's swatch: the Color dialog, a new hex, OK; then one undo step back
+wait_until code_swatch 14 true timeout=10
+expect code_swatch 8 true
+code_click_swatch 14
+wait_until code_color_dialog open timeout=5
+click_widget code-color-hex
+key ctrl+a
+type #00ff00
+click_widget code-color-ok
+wait_until code_contains true red := sdl.Color{0, 255, 0, 255} timeout=5
+expect code_color_dialog closed
+expect console_contains Color set to #00ff00
+click_widget code-editor
+wait_until code_focused true timeout=5
+key ctrl+z
+wait_until code_contains true red := sdl.Color{255, 0, 0, 255} timeout=5
+# The tag's hex, cancelled: nothing changes
+code_click_swatch 8
+wait_until code_color_dialog open timeout=5
+click_widget code-color-cancel
+expect code_color_dialog closed
+expect code_contains true default=#ff8000
+
+# F1 on an engine procedure: its API page; elsewhere the manual
+click_widget code-editor
+code_click 18 8
+key F1
+wait_until last_link https://crossfireengine.io/api/scripts-globals-data-saves/#script_register timeout=5
+code_click 2 1
+key F1
+wait_until last_link https://crossfireengine.io/manual/ timeout=5

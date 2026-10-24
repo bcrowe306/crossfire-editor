@@ -18,8 +18,16 @@ every tab (`CodeProviders_Registry`):
   the generated scripts/assets.odin (`Scripts_Constants`), each saying what it names; the same
   items from OLS (which reads assets.odin) fold into them. Not after a `.` (a member), in
   comments or in strings
-- **Hover:** a constant: what it names; a registered script, data or node type: what uses it,
-  its fields and events, and whether that comes from a build or the source (the index)
+- **Hover:** a constant: what it names, and a preview of it (an image's thumbnail, a sound's
+  length and a play button, an animation's frames, a dialogue node's lines, a component's or
+  scene's picture, a font's sample: code_previews.odin); a string literal or a tag's default
+  naming an asset or a scene: the same preview; an engine procedure, type or constant: its doc
+  comment rendered, instead of OLS's answer (engine_docs.odin); a registered script, data or node
+  type: what uses it, its fields and events, and whether that comes from a build or the source
+  (the index)
+- **Inlay swatches:** color literals (`sdl.Color{...}`, hex in a color field's tag or
+  `e.ParseColor`) get a swatch after their line; a click opens the Color dialog, which rewrites
+  the literal (code_colors.odin)
 - **Diagnostics:** the index's problems in the file (a field that can't be exported, a tag option
   that isn't one, a min / max / default that isn't a number), and names the project doesn't have
   in engine calls' string literals, with quick fixes (code_names.odin)
@@ -77,6 +85,7 @@ CodeProviders_Registry :: proc() -> ^ce.Provider_Registry {
 		ce.provider_register(&p.registry, ce.Provider{kind = .Diagnostics, name = "project names", diagnostic = nameDiagnostics})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Gutter, name = "script users", gutter = linkMarkers, on_click = linkMarkerClicked})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "script users", inlay = linkInlays})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "color swatches", inlay = colorInlays, on_inlay_click = colorSwatchClicked})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Usages, name = "project usages", usages = linkUsages, on_open = linkUsageOpened})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Rename, name = "project renames", prepare_rename = linkPrepareRename, rename = linkRename})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Drop, name = "editor things", drop = projectDrop})
@@ -250,6 +259,15 @@ CodeProviders_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool
 		// The engine's name parameters are known: the name providers have something to say
 		if codeProviders.registered do ce.provider_registry_invalidate(&codeProviders.registry)
 		return {}, true
+	case EngineDocs_Loaded:
+		// Hovers ask the table when they're asked: nothing to redo
+		return {}, true
+	case Code_Hover_Audio:
+		if message := CodePreviews_PlayAudio(state, v.path, v.play); message != "" do logLine(state, .Warning, fmt.aprintf("Preview: %s", message))
+		return {}, true
+	case Code_Help_Requested:
+		Links_Open(state, string(v))
+		return {}, true
 	case Code_Usage_Opened:
 		if v.notice != "" {
 			logLine(state, .Info, strings.clone(v.notice))
@@ -394,10 +412,20 @@ constantType :: proc(c: GeneratedConstant) -> string {
 projectHover :: proc(doc: ce.Provider_Document, pos: cebuf.Position, ctx: ce.Provider_Context, out: ^ce.Hover_Content) {
 	state := codeProviders.state
 	if !isProjectScript(state, doc.path) || ctx.syntax.kind == .Comment do return
+	// A string (or a tag's default) naming an asset or a scene: its preview
+	if CodePreviews_Literal(state, doc, pos, out) do return
 	word := wordAt(doc, pos)
 	if word == "" do return
 	if c := Scripts_FindConstant(CodeProviders_Constants(state), word); c != nil {
+		// The preview first (a play button stays in view in a short tab), then what the constant is
+		CodePreviews_Constant(state, c, out)
 		append(&out.blocks, ce.Hover_Block(ce.Hover_Text{text = fmt.tprintf("**%s** :: %s\n\n%s", c.name, c.value, c.about), markdown = true}))
+		return
+	}
+	// An engine declaration: its documentation, instead of the language server's
+	if d, ok := engineDocAt(state, doc, pos); ok {
+		append(&out.blocks, ce.Hover_Block(ce.Hover_Text{text = EngineDoc_Markdown(d), markdown = true}))
+		out.replace_server = true
 		return
 	}
 	// A script, data type or node type
@@ -493,4 +521,31 @@ constantPathOf :: proc(scene: ^SceneDef, node: int) -> string {
 		return len(parts) == 0 ? "." : strings.join(parts[:], "/", context.temp_allocator)
 	}
 	return Scene_NodePath(scene, -1, node, context.temp_allocator)
+}
+
+// F1 in a code tab: a page to open (the engine declaration's API page, or the manual)
+Code_Help_Requested :: distinct string
+
+// The engine declaration named at a position (`e.Camera2D_Follow`), through the file's import name
+@(private)
+engineDocAt :: proc(state: ^State, doc: ce.Provider_Document, pos: cebuf.Position) -> (EngineDoc, bool) {
+	table := EngineDocs_Get()
+	if table == nil || pos.line < 0 || pos.line >= cebuf.buffer_line_count(doc.buffer) do return {}, false
+	alias := "e"
+	if file := ScriptIndex_File(&state.scriptIndex, absolutePath(doc.path)); file != nil && file.engineAlias != "" do alias = file.engineAlias
+	return EngineDocs_At(table, cebuf.buffer_line_str(doc.buffer, pos.line), pos.col, alias)
+}
+
+/*
+Where F1 goes in a code tab: the API page of the engine declaration at the caret, or "" (the
+manual, as everywhere else).
+
+Returns:
+- The address ("" none; temp allocated)
+*/
+CodeProviders_HelpAt :: proc(state: ^State, doc: ce.Provider_Document, pos: cebuf.Position) -> string {
+	if state == nil do return ""
+	d, ok := engineDocAt(state, doc, pos)
+	if !ok do return ""
+	return EngineDoc_URL(d)
 }

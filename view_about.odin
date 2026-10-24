@@ -106,3 +106,15 @@ Manual_Opened :: distinct string
 About_OpenLink :: proc(url: string) {
 	_ = sdl.OpenURL(fmt.ctprintf("%s", url))
 }
+
+/*
+Opens a link in the system's browser and remembers it (`State.lastLink`, owned). While a test
+script runs nothing opens: the UI tests check the address instead (driver check `last_link`).
+*/
+Links_Open :: proc(state: ^State, url: string) {
+	delete(state.lastLink)
+	state.lastLink = strings.clone(url)
+	logLine(state, .Info, fmt.aprintf("Opening %s", url))
+	if ScriptDriver_Active() do return
+	About_OpenLink(url)
+}

@@ -117,6 +117,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := Plugins_Update(&out, m); handled do return out, command
 	if command, handled := ScriptIndex_Update(&out, m); handled do return out, command
 	if command, handled := CodeProviders_Update(&out, m); handled do return out, command
+	if command, handled := CodeColors_Update(&out, m); handled do return out, command
 	if command, handled := CodeDrag_Update(&out, m); handled do return out, command
 	if DialogueBoxEdit_Update(&out, m) do return out, {}
 	if LineEdit_Update(&out, m) do return out, {}
@@ -167,8 +168,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by Plugins_Update above
 	case ScriptIndex_Tick, ScriptIndex_Parsed:
 		// Handled by ScriptIndex_Update above
-	case Code_Usage_Opened, Code_Rename_Requested, NameTable_Loaded:
+	case Code_Usage_Opened, Code_Rename_Requested, NameTable_Loaded, EngineDocs_Loaded, Code_Hover_Audio, Code_Help_Requested:
 		// Handled by CodeProviders_Update above
+	case Code_Color_Requested, Code_Color_Changed, Code_Color_Hex_Changed, Code_Color_Alpha_Changed, Code_Color_Applied, Code_Color_Cancelled:
+		// Handled by CodeColors_Update above
 	case Code_Drag_Pressed, Code_Drag_Started, Code_Drag_Cancelled, Code_Source_Dropped, Code_Drop_Chosen:
 		// Handled by CodeDrag_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
@@ -568,7 +571,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case About_Link_Opened:
 		About_OpenLink(string(v))
 	case Manual_Opened:
-		Manual_Open(string(v))
+		Links_Open(&out, Manual_URL(string(v)))
 	case Frame_Requested:
 	case Quit_Without_Asking:
 		playStop(&out)
@@ -1424,7 +1427,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 	case .About:
 		out.aboutOpen = true
 	case .User_Manual:
-		Manual_Open("")
+		Links_Open(&out, Manual_URL(""))
 	}
 	return out, {}
 }

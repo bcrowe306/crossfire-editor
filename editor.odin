@@ -288,6 +288,10 @@ State :: struct {
 	// The inspector's Listen... dialog (node_listeners.odin) and whether its Events section is open
 	listenerDialog: ListenerDialog,
 	inspectorEventsOpen: bool,
+	// The Color dialog a code tab's swatch opened (code_colors.odin)
+	codeColor: CodeColorDialog,
+	// The last link opened in the browser (Links_Open; owned): the UI tests read it
+	lastLink: string,
 	// The LDtkLevel inspector's list of the level's entities is shown
 	ldtkInstancesOpen: bool,
 	// The New Event dialog (new_event.odin)
@@ -473,6 +477,8 @@ Inputs:
 */
 State_Destroy :: proc(state: ^State) {
 	CodeDrag_Clear(state)
+	CodeColorDialog_Destroy(&state.codeColor)
+	delete(state.lastLink)
 	CodeTabs_CloseAll(state)
 	delete(state.codeTabs)
 	Project_Destroy(&state.project)

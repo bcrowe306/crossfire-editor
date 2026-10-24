@@ -260,6 +260,8 @@ CodeEditor_Shutdown :: proc() {
 	host.onGPU = false
 	host.serversStarted = 0
 	CodeProviders_Shutdown()
+	CodePreviews_Shutdown()
+	CodeColors_Shutdown()
 }
 
 // Whether a file's editor has unsaved changes
@@ -561,6 +563,60 @@ CodeEditor_HoverText :: proc(path: string) -> string {
 	return strings.to_string(b)
 }
 
+// How many pictures and widgets (a play button) the code tab's hover shows (tests)
+CodeEditor_HoverBlocks :: proc(path: string) -> (images, widgets: int) {
+	c := CodeEditor_Find(path)
+	if c == nil do return
+	if _, _, ok := ce.editor_hover_layout(&c.ed); !ok do return
+	for b in ce.editor_hover_blocks(&c.ed) {
+		#partial switch _ in b {
+		case ce.Hover_Image:  images += 1
+		case ce.Hover_Widget: widgets += 1
+		}
+	}
+	return
+}
+
+/*
+Where the hover's first widget is in the window (its middle, for the test driver's click), when
+the code tab shows a hover with one that's in view.
+*/
+CodeEditor_HoverWidgetPoint :: proc(path: string) -> ([2]f32, bool) {
+	c := CodeEditor_Find(path)
+	if c == nil || host.lastShown != c || host.shownScale <= 0 do return {}, false
+	rect, lines, ok := ce.editor_hover_layout(&c.ed)
+	if !ok do return {}, false
+	blocks := ce.editor_hover_blocks(&c.ed)
+	// The hover's lines from its top (a widget fits a hover's height: it isn't scrolled into)
+	for l, i in lines {
+		if l.block <= 0 || l.block > len(blocks) || l.block_row != 0 do continue
+		widget, is := blocks[l.block - 1].(ce.Hover_Widget)
+		if !is do continue
+		x := rect.x + ce.POPUP_PAD + widget.width * 0.5
+		y := rect.y + ce.POPUP_PAD + f32(i) * c.ed.char_h + widget.height * 0.5
+		if y > rect.y + rect.h do return {}, false
+		return {host.shownRect.x + x / host.shownScale, host.shownRect.y + y / host.shownScale}, true
+	}
+	return {}, false
+}
+
+// Where a line's n-th color swatch is in the window (0-based line and n; the shown file only)
+CodeEditor_SwatchPoint :: proc(path: string, line, n: int) -> ([2]f32, bool) {
+	c := CodeEditor_Find(path)
+	if c == nil || host.lastShown != c || host.shownScale <= 0 do return {}, false
+	x, y, ok := ce.editor_inlay_swatch_point(&c.ed, line, n)
+	if !ok do return {}, false
+	return {host.shownRect.x + x / host.shownScale, host.shownRect.y + y / host.shownScale}, true
+}
+
+// Whether a line has a color swatch (0-based)
+CodeEditor_HasSwatch :: proc(path: string, line: int) -> bool {
+	c := CodeEditor_Find(path)
+	if c == nil do return false
+	for h in ce.editor_inlays_on(&c.ed, line) do if _, has := h.swatch.?; has do return true
+	return false
+}
+
 // A line's inlay hints, joined (0-based line; temp allocated), and whether it has a gutter marker
 CodeEditor_LineNotes :: proc(path: string, line: int) -> (inlays: string, marker: bool) {
 	c := CodeEditor_Find(path)
@@ -610,7 +666,8 @@ CodeEditor_RevealLine :: proc(path: string, line: int, column := 0) -> (scrolled
 	vcol := ce.editor_visual_col(&c.ed, {line, column})
 	// The column with a few cells after it, from the line's start when that fits
 	wantCol := vcol + 4 < cols ? 0 : vcol - cols / 2
-	if line >= c.ed.scroll_line && line < c.ed.scroll_line + rows && c.ed.scroll_col == wantCol do return false, true
+	// Not the last row: it may be under the horizontal scrollbar
+	if line >= c.ed.scroll_line && line < c.ed.scroll_line + max(rows - 1, 1) && c.ed.scroll_col == wantCol do return false, true
 	c.ed.scroll_line = max(0, line - rows / 2)
 	c.ed.scroll_col = wantCol
 	ce.editor_clamp_scroll(&c.ed)
@@ -793,6 +850,9 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 
 	// This frame's input
 	passthrough := passthroughChords(&s.settings.keymap)
+	// Help (F1): an engine declaration's API page, else the manual (the code editor's own F1, its
+	// palette, keeps Ctrl+Shift+P)
+	help := actionChords(&s.settings.keymap, .User_Manual)
 	dragging := c.ed.mouse.drag != .None
 	// Input reaching the editor this frame: it's drawn again
 	handled := 0
@@ -801,6 +861,13 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		#partial switch e.type {
 		case .KEY_DOWN, .KEY_UP:
 			if !focused || isPassthrough(e.key, passthrough) do continue
+			if isPassthrough(e.key, help) {
+				if e.type == .KEY_DOWN && !e.key.repeat {
+					url := CodeProviders_HelpAt(s, ce.editor_provider_document(&c.ed), ce.editor_primary_cursor(&c.ed).pos)
+					skald.send(ctx, Msg(Code_Help_Requested(url != "" ? url : Manual_URL(""))))
+				}
+				continue
+			}
 			handled += 1
 			if ce.editor_handle_event(&c.ed, e) || e.type != .KEY_DOWN do continue
 			// What the code editor leaves to its host: Open and Save As need file dialogs
@@ -852,6 +919,9 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	if c.ed.lsp_enabled && c.ed.lsp_doc_open do c.openedIn = serverProcess(c)
 	// What the providers left: a usage to open (a marker, Find Usages), a rename's project side
 	linksSend(ctx)
+	// A swatch's Color dialog, a hover's play button
+	if request, ok := CodeColors_TakeRequest(); ok do skald.send(ctx, Msg(request))
+	if audio, ok := CodePreviews_TakeAudio(); ok do skald.send(ctx, Msg(audio))
 	// A drop's menu picked from: what it wrote, for the Console
 	if message := ce.editor_take_drop_message(&c.ed); message != "" do skald.send(ctx, Msg(Code_Drop_Chosen{message}))
 	// The language server's rename changed other files: their tabs apply them
@@ -967,10 +1037,13 @@ codeRenderKey :: proc(c: ^CodeEditor, size: [2]int, scale: f32) -> u64 {
 		// What the providers said (markers, hints, problems), the hover and the merged list
 		provided, hover, items: int,
 		hoverShown: bool,
+		// A hover's play button shows whether its sound plays
+		playing: bool,
 	}
 	key := Key{size, scale, c.ed.buf.version, len(c.ed.buf.cursors), c.ed.scroll_line, c.ed.scroll_col,
 		c.ed.lsp.diagnostics_seq, c.ed.lsp.completion_seq, c.ed.lsp.signature_seq,
-		c.ed.provided.seq, c.ed.hover.shown_seq, c.ed.completion.items_seq, c.ed.hover.visible}
+		c.ed.provided.seq, c.ed.hover.shown_seq, c.ed.completion.items_seq, c.ed.hover.visible,
+		c.ed.hover.visible && CodePreviews_AudioPlaying()}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	if len(c.ed.buf.cursors) > 0 do h = hash.fnv64a(slice.to_bytes(c.ed.buf.cursors[:]), h)
 	return h
@@ -1167,6 +1240,14 @@ passthroughChords :: proc(keymap: ^Keymap) -> []skald.Shortcut {
 		if action not_in CODE_EDITOR_PASSTHROUGH do continue
 		for chord in chords do if chord != {} do append(&list, Chord_OnPlatform(chord))
 	}
+	return list[:]
+}
+
+// An action's chords, on this platform (temp allocated)
+@(private="file")
+actionChords :: proc(keymap: ^Keymap, action: Action) -> []skald.Shortcut {
+	list := make([dynamic]skald.Shortcut, context.temp_allocator)
+	for chord in keymap[action] do if chord != {} do append(&list, Chord_OnPlatform(chord))
 	return list[:]
 }
 

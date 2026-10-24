@@ -183,6 +183,38 @@ AudioPreview_Progress :: proc() -> (positionMS, durationMS: i64) {
 	return positionMS, preview.durationMS
 }
 
+// A mixer without a device, for reading sounds' lengths (AudioPreview_Length; nil: none yet)
+@(private="file")
+lengthMixer: ^mix.Mixer
+@(private="file")
+lengthFailed: bool
+
+/*
+A sound file's length without playing it or opening the audio device (the code editor's hovers):
+SDL3_mixer opens it without decoding it (`predecode` off) on a mixer of its own.
+
+Returns:
+- Milliseconds, or -1 when it can't be read or its format doesn't say
+*/
+AudioPreview_Length :: proc(path: string) -> i64 {
+	if lengthMixer == nil && !lengthFailed {
+		if !mix.Init() {
+			lengthFailed = true
+		} else {
+			spec := sdl.AudioSpec{format = .F32, channels = 2, freq = 48000}
+			lengthMixer = mix.CreateMixer(&spec)
+			lengthFailed = lengthMixer == nil
+		}
+	}
+	if lengthMixer == nil do return -1
+	audio := mix.LoadAudio(lengthMixer, strings.clone_to_cstring(path, context.temp_allocator), false)
+	if audio == nil do return -1
+	defer mix.DestroyAudio(audio)
+	frames := mix.GetAudioDuration(audio)
+	if frames < 0 do return -1
+	return i64(mix.AudioFramesToMS(audio, frames))
+}
+
 // "1:03.4"
 FormatDuration :: proc(ms: i64) -> string {
 	seconds := f64(ms) / 1000
