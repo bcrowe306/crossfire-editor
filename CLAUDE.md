@@ -49,7 +49,9 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   statement or a constant by where they land, Shift for a menu of choices) or an external one; the script index (the scripts' declarations read from their
   source as they're typed, before any build); typed constants for assets, animations, states,
   groups, buses, scenes, dialogue nodes and node paths (scripts/assets.odin); Play / Play
-  Scene / Restart, hot reload, the live view of the running game; editor plugins (plugin_api/).
+  Scene / Restart, hot reload, the live view of the running game, and the running game in the
+  code (live field values beside the declarations, Alt+drag on a default's number changing the
+  game with a write-back menu, log points built in through hot reload); editor plugins (plugin_api/).
 - **Export:** Linux, Windows and macOS (built on their own OS, or for projects without scripts
   from the prebuilt players every release carries) and the web (Emscripten, installed on
   demand); headless (`--export <target>`).
@@ -201,6 +203,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `code_previews.odin` | **Previews in code hovers**: `CodePreviews_Constant` / `_Asset` / `_Scene` / `_Literal` (an image's thumbnail, a sound's length and play button, an animation's strip, a dialogue node's lines, a component's picture, a scene's facts, a font's sample), the picture cache (`PREVIEW_CACHE_MAX`), `Preview_Fit` / `Preview_Strip` / `Preview_FontSample` / `Preview_LiteralAt`, the play button's `Code_Hover_Audio` |
 | `code_colors.odin` | **Color literals in code**: `ColorLiterals_InLine` / `ColorLiteral_Write` (composites, named, hex in a color field's tag or `e.ParseColor`), the swatch inlay provider (`colorInlays`, `colorSwatchClicked`), the Color dialog (`CodeColorDialog`, `State.codeColor`, `Code_Color_*`, `CodeColorDialogView`, `CodeColors_Rewrite`: one edit in the tab) |
 | `engine_docs.odin` | **The engine's documentation in code**: `EngineDocs` (its source's declarations and doc comments, read once on a worker: `EngineDocs_Start` / `_Load` / `_Read`), `EngineDoc_Markdown` (the hover), `ENGINE_API_AREAS` (the website's api-groups.json, checked by a test), `EngineDoc_URL` (F1's page), `EngineDocs_At` (the name at a column) |
+| `code_live.odin` | **The running game in the code**: the live values' inlay provider (`liveInlays`, `liveInlayClicked`: the struct line's node and its menu, each field's value), which running node (`CodeLive_Target`), the watches for the visible lines (`CodeLive_Watches`, `CodeLive_Frame` from `view`), scrubbing a default's number (`liveScrubTarget` / `liveScrubbed` / `liveScrubChosen`, `CodeScrub_Literal`), the write-back (`Code_Scrub_Write`, `CodeLive_Write`), `CodeLive_Messages` (what the providers left) |
+| `log_points.odin` | **Log points**: `LogPoints` (`State.logPoints`, `.editor/logpoints.ini`: `LogPoints_Follow` / `_Parse` / `_Format` / `_Save`, `_Relocate`), where one can go (`LogPoint_Check`), the injected statement (`LogPoint_Statement`, `LogPoint_Inject`), the build's copy (`LogPoints_WriteBuild`, `LogPoints_BuildDir`, `LogPoints_ProjectPaths`), the gutter, inlay and menu providers, the Log Point dialog (`LogPointDialogView`, `Log_Point_*`) |
 | `code_drag.odin` | **Dragging editor things into code**: `State.codeDrag`, `CodeDrag_From` / `_Zone` / `_Handle` (a widget, a label, a grip starts one), `CodeDrag_View` (the label by the pointer, the drop or cancel), `CodeDrag_HidesDialogs` (Project Settings steps aside for an input action), `Code_Drag_*` / `Code_Source_Dropped` / `Code_Drop_Chosen` |
 | `script_index.odin` | **The script index**: `ScriptIndex` (`State.scriptIndex`), `ScriptIndex_ParseSource` (core:odin/parser: structs, fields with types, tags, comments, enums, `Script_Register` / `Data_Register` / `NodeType_Register` calls), `ScriptIndex_Take` (a broken file keeps its last good declarations), `ScriptIndex_Derive` (ScriptDescs like the catalog's, events, problems), `ScriptIndex_Plan` (changed files and still code tab buffers), engine calls' string literal arguments and procedures' lines (`IndexCall`, `IndexProc`: the name providers'), `ScriptIndex_Tick` / `_Parsed` (the worker), `ScriptIndex_Apply` / `_TakeBuild` (merged into `State.scripts`, the build authoritative where newer) |
 | `script_constants.odin` | **scripts/assets.odin's constants**: `Scripts_Constants` (every constant, sections, `GeneratedConstant`), `Scripts_AssetsSource` (the file), `ConstantWords` (the new kinds' names), `Constants_ChangeMatters` / `Scripts_NewestFor` (a change to unused constants doesn't rebuild the player), Aseprite tags cached on the heap |
@@ -1054,9 +1058,9 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
   (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 
-### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`, `code_drops.odin`, `code_drag.odin`, `code_previews.odin`, `code_colors.odin`, `engine_docs.odin`; code_editor's `providers.odin`, `rename.odin`; the engine's `code_uses.odin`)
+### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`, `code_drops.odin`, `code_drag.odin`, `code_previews.odin`, `code_colors.odin`, `engine_docs.odin`, `code_live.odin`, `log_points.odin`; code_editor's `providers.odin`, `providers_scrub.odin`, `rename.odin`; the engine's `code_uses.odin`, `live.odin`)
 
-Rounds 1 to 5 of TODO.md's "Code editor integration". What the code relies on:
+Rounds 1 to 6 of TODO.md's "Code editor integration". What the code relies on:
 
 - **The provider interface is code_editor's** (`code_editor/editor/providers.odin`, its README's
   "Providers"): completion, hover, diagnostics, gutter markers, inlay hints and drops, each a
@@ -1335,6 +1339,59 @@ Rounds 1 to 5 of TODO.md's "Code editor integration". What the code relies on:
     `code_hover` moves twice, a frame apart (a tooltip still up on the first frame kept the code
     view from the motion).
 
+- **Round 6: the running game in the code** (code_live.odin's and log_points.odin's doc blocks;
+  the manual's "The running game in the code").
+  - **code_editor grew** (its README, `providers_scrub.odin`): clickable inlay hints with
+    `choices` (a menu, then `on_inlay_click` with `hint.choice`); the `.Scrub` provider kind
+    (Alt+press on a number the provider accepts, a sideways drag, `.Change` values and `.End`
+    choices in the code actions menu, `on_scrub_choice`; the buffer untouched, the value drawn
+    over the literal; an Alt+click that doesn't move still toggles a cursor); the `.Menu` kind
+    (host entries after the right-click menu's own); gutter providers' `on_gutter_line` (the
+    marker column of a line without a marker). **Found doing it:** a marker's click went to the
+    first gutter provider with an `on_click`, whatever provider made it (one gutter provider
+    hid it); markers now keep their provider (`Provided.marker_providers`).
+  - **The engine sends what's asked** (its live.odin): `fields <Script> <id> <field>...` (any
+    field, read by reflection: `e.LiveLink_FieldText`), sent with the stats; the tree's nodes say
+    which scripts they run (`LiveNode.scripts`). **Ask for what's shown:** `CodeLive_Frame`
+    (every `view`) works out the shown tab's visible lines' fields (`CODE_LIVE_MARGIN` more) and
+    `Live_Watch` sends only the watches that changed; no code tab or no game, they stop.
+    `CodeProviders_Begin`'s key has the live tree's and values' generations, the link, the Live
+    tab's choice, the selection and the log points, so hints follow them and go with the game.
+  - **Which node** (`CodeLive_Target`): a pick from the struct hint's menu
+    (`LiveView.codePicks`, kept while the Live tab's choice and the selection stay as they were
+    then), else the Live tab's node, else the scene's selected node by its path in the running
+    scene of that name (`CodeLive_NodePath`, `CodeLive_ProjectNode`), else the first.
+  - **Scrubbing (decided):** only numbers in an exported field's `default=` (vectors' numbers
+    too: the property keeps the other one), from the game's value, in the tag's range; each value
+    is `set` over the link (`Code_Scrub_Changed`, sent by the view: providers can't change
+    State). The release's menu (`CodeScrubWriteKind`): the code's default (`CodeEditor_ApplyEdits`,
+    one undo step in the tab, only when the literal is still as it was), the node's own value (a
+    `.Project` undo step: History_Classify; offered first when the node has its own value, and the
+    default's title then says the node keeps it), or the game only. **Plain literals in procedure
+    bodies aren't scrubbed:** they need a rebuild, and hot reload restarts the game, so it can't
+    follow a drag. The field hint shows the node's own value beside the game's.
+  - **Log points (decided: the build's copy, never the user's file):** while any is on, the
+    player's main imports `logpoints:scripts` (`playerMainSource(logPoints)`, `PlayerTarget.logPoints`,
+    `-collection:logpoints=`), a copy of `scripts/` under `build/players/<project>/logpoints/`
+    written before each build (only changed files; a fourth input of `playerIsCurrent`), each
+    point's line starting with `e.Log_Debug("file:line: expr = %v", expr, category = "logpoint"); `
+    so no line moves (compiler errors land on the user's lines: `LogPoints_ProjectPaths` turns
+    the copy's paths back in the Output tab). Hot reload builds again when
+    `LogPoints_Signature` differs from `PlayReload.builtLogPoints` ("Hot reload: log points
+    changed"). A file not importing the engine gets an import at its end. Points follow their
+    line's text (`LogPoints_Relocate`, at each build and in the providers); refused or lost ones
+    are skipped with an Output warning. Exports never use them.
+  - **Tests:** the engine's live_test.odin (`liveFieldsCheck`); code_editor's
+    `providers_scrub_test.odin`; `code_live_test.odin` (hints in a real code tab, the target
+    rules, the watches, a pick, gone when the game stops; literals; a scrub sent and written
+    back each way with undo, a vector, an int); `log_points_test.odin` (the statement, where one
+    can go, injection, relocation, the file, the dialog and marker commands, the copy compiling
+    with `odin check`, the paths); `tests/ui/code_live.script` (a fixture played: hints, two
+    scrubs seen in the game and written back both ways, a log point from the gutter rebuilt into
+    the game, its Console line clicked, turned off, the hints gone after Stop; driver:
+    `code_scrub`, `code_click_inlay`, checks `code_inlay_lacks`, `log_points`, `log_point`,
+    `logpoint_dialog`, `live_field`).
+
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 
 - `NodeDef.script` and `props` (name/value text, only values that differ from the field's default)
@@ -1447,7 +1504,8 @@ stops the game, renames the new binary over the old and `startGame(state, restor
 started, so saves during a build reload again. `endSession` aborts a reload's process. Test:
 `tests/ui/hot_reload.script` (a live edit of a script field survives the reload; a broken save
 leaves the game running; driver `live_select <name>`, check `live prop <name> <value>`, `send
-Live_Property_Edited`).
+Live_Property_Edited`). Log points added, changed or removed reload too (log_points.odin:
+`builtLogPoints`; code_live.script).
 
 Both are child processes (`core:os` `process_start` with a pipe). A `Play_Tick` message every 0.1 s
 (`skald.cmd_delay`) drains the pipe and checks for exit with `process_wait(…, 0)`, so there are no
@@ -1540,7 +1598,8 @@ MyGame/
   assets/                  images, audio, fonts, referenced by relative path
   export.ini               export targets and their settings (only once changed)
   export/<target>/         export output (the default folder; gitignored in this repo's examples)
-  .editor/                 per-user editor state (gitignored): guides.ini (the viewport's guides)
+  .editor/                 per-user editor state (gitignored): guides.ini (the viewport's guides),
+                           logpoints.ini (the code tabs' log points)
 ```
 
 - **Version 14:** an AnimatedSprite's animations each have their own sheet (`AnimationDef.sheet`,
@@ -2385,6 +2444,8 @@ Its doc comment has the rules; what the code relies on:
 - **Edits** are sent as typed (`set`; the game refuses what doesn't parse, logged); typed text is
   kept in `live.edits` until another node is chosen, since the node's values come back every
   half second. Nothing is undoable or saved: it's the running game.
+- **Code tabs** ask for a script's fields (`fields`, `Live_Watch`, `LiveView.fields` /
+  `watches`) and read which scripts each node runs (`LiveNode.scripts`): see code_live.odin.
 - Tests: `the_live_view_reads_the_game`, `tests/ui/live.script` (plays the fixture: connects,
   nodes, properties, pause / step / resume by the tab and F6/F5, an edit; driver check
   `live <field>` with `> n` counts). User guide: `docs/manual/live.md`.

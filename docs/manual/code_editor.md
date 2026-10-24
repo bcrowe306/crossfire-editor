@@ -22,6 +22,7 @@ If you'd rather use another program (Zed, VS Code...), you can: see
 - [Completion and errors: the Odin language server](#completion-and-errors-the-odin-language-server)
 - [What the editor adds: your project in the code](#what-the-editor-adds-your-project-in-the-code)
 - [Hovers and previews](#hovers-and-previews)
+- [The running game in the code](#the-running-game-in-the-code)
 - [Code and scenes, linked](#code-and-scenes-linked)
 - [Names in strings: scenes, nodes, animations...](#names-in-strings-scenes-nodes-animations)
 - [Going to definitions](#going-to-definitions)
@@ -235,6 +236,62 @@ swatch** to open the **Color** dialog: pick a color, type its hex, set its alpha
 writes it into the code in the same form (numbers stay numbers, hex stays hex). It's one step you
 can undo with Ctrl+Z in the code. A color written with a variable or an expression gets no
 swatch: the editor only changes what it can read back.
+
+## The running game in the code
+
+While your game runs from **Play** (F5), its scripts' code tabs show what the game is doing.
+
+**Live values.** Each script's struct line says which running node its values come from
+(`live: Hero`), and every field line shows that node's value in the game (`= 312`), updated four
+times a second: exported fields and your script's own state alike (`hp`, `timer`, `state`). When
+the node has its own value in the inspector, the hint says so too (`= 312  (Hero's own: 300)`).
+The values come from:
+
+1. the node you picked in the hint's menu: when several running nodes use the script, the hint
+   reads `live: Hero (1 of 3) ▾`; click it to choose another;
+2. else the node chosen in the [Live tab](live.md), when it runs the script;
+3. else the node selected in the scene, when it runs the script;
+4. else the first running node that runs it.
+
+Choosing another node in the Live tab or the scene goes back to that rule. Only the fields on
+the lines you can see are asked for, so a long script costs the game nothing more. The values go
+when the game stops.
+
+**Scrubbing numbers.** Hold **Alt** and drag a number in an exported field's default
+(`` speed: f32 `export:"default=250 min=0 max=400"` ``) left or right: the running game's value
+changes as you drag (one step every few pixels; **Shift** for finer steps), starting from the
+game's value, kept within the field's `min` and `max`. The code itself doesn't change while you
+drag. When you let go, a menu asks where the value goes:
+
+| Choice | What it changes |
+|---|---|
+| **Write ... as the default in the code** | The `default=` in the code tab (Ctrl+Z undoes it; save to keep it: hot reload restarts the game with it). Every node without its own value uses it |
+| **Write ... to Hero's own value (the inspector)** | That node's value in the scene, as if typed in the inspector (Ctrl+Z in the scene undoes it). Offered first when the node already has its own value, since a new default wouldn't change that node |
+| **Keep ... in the running game only** | Nothing: the game keeps it until it stops (Escape does the same) |
+
+A number in a procedure's code (`x := 250`) can't be scrubbed: changing it means building the
+game again, and hot reload restarts the game, so it couldn't follow your drag. A plain Alt+click
+still adds a cursor.
+
+**Log points.** To see a value at a line without adding a log line to your script, set a **log
+point**: click in the gutter's marker column (just left of the code) beside a line inside a
+procedure, or right-click the line and choose **Add Log Point...**. Type what to log, an
+expression or several with commas (`self.hp, damage`), and press **OK**. The line gets a diamond
+in the gutter and its expression after it.
+
+Each time the game reaches that line (before running it), the Console shows a **logpoint** line:
+`hero.odin:42: self.hp = 3, damage = 1`. Click its location to go to the line. Your script isn't
+changed: while log points are on, the editor builds the game from a copy of the scripts with the
+log lines added on the same lines, so line numbers and errors still match your file. If the game
+is running, adding, changing or turning off a log point builds it again and restarts it where it
+was ([hot reload](scripts_node_types_hot_reload.md)); otherwise it applies from the next Play.
+Exported games never have them.
+
+Click a log point's diamond to **edit** it, **turn it off** (it stays, dimmed, logging nothing)
+or **remove** it. Log points are kept per project, for you (`.editor/logpoints.ini`, which git
+ignores), and follow their line when you add lines above it. A log point can't go on a `case` or
+`else` line, a line that continues the statement above, or a line inside a literal: put it on
+the statement's first line, or the line below.
 
 ## Code and scenes, linked
 
@@ -608,6 +665,15 @@ need a node field (`self.sprite`) to know which node's, otherwise every one of t
 **The inspector says "From the source: not built yet."** The fields come from the script's
 source, which changed since the last build (or there's been none). They're right for editing; the
 game runs the new code once it's built (Ctrl+B, or Play).
+
+**There are no live values beside my script.** The game must be running from Play (not an
+exported game), and a node in the playing scene must run the script: the struct line says which.
+Fields on lines out of view are asked for when you scroll to them.
+
+**My log point logs nothing.** Is it on (a bright diamond)? Is hot reload on (Settings > Editor)?
+Without it, log points apply from the next Play. If the expression doesn't compile, the Output
+tab shows the error on your line: edit the log point. A log point whose line was changed or
+deleted is skipped (the Output tab says so) until you set it again.
 
 **I pressed Ctrl+D in the code and it didn't duplicate my node.** While you type code, Ctrl+D
 selects the next match. Click the scene tree or the viewport first.

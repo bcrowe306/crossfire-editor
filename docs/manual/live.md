@@ -19,6 +19,7 @@ you think? Is the door's collision shape where it should be? Which part of the f
 - [Frame times: is the game fast enough?](#frame-times-is-the-game-fast-enough)
 - [The running scene's nodes](#the-running-scenes-nodes)
 - [Changing values while it runs](#changing-values-while-it-runs)
+- [In the code](#in-the-code)
 - [How it works](#how-it-works)
 - [Questions](#questions)
 
@@ -92,10 +93,18 @@ game stops. When you've found the right value, set it in the inspector.
 
 A value the game can't use ("abc" for a speed) is refused: the Console says so.
 
+## In the code
+
+The running game shows in your scripts' code tabs too: each field's value beside its declaration
+(from the node chosen here, when it runs the script), numbers in a field's default you can drag
+with Alt to change the game as you drag, and log points that print a value each time a line runs,
+without editing the script. See [The running game in the code](code_editor.md#the-running-game-in-the-code).
+
 ## How it works
 
 Play starts the game with `--live`. The editor writes commands to the game's input (watch, select
-a node, set a value, pause, resume, step, show or hide the collision shapes) and the game answers
+a node, set a value, pause, resume, step, show or hide the collision shapes, the script fields a
+code tab shows) and the game answers
 in its output, in lines starting with `@@live` that the editor takes out of the Console. See the
 engine's `live.odin` for the details, if you build your own tools.
 
