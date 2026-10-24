@@ -919,6 +919,7 @@ and returns the canvas showing it. Sends `Code_Open_Requested` when the file ask
 (Go to Definition), and keeps `Code_Tick` coming while a language server is attached.
 */
 CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.View {
+	skald.prof_scope("CodeEditor_View")
 	id := skald.hash_id(CODE_EDITOR_KEY)
 	c := CodeEditor_Find(path)
 	if c == nil {

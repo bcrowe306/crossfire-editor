@@ -104,6 +104,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // otherwise fire them itself (Escape would deselect instead of closing the dialog)
 @(private="file")
 menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
+	skald.prof_scope("menuBarView")
 	Keys :: struct { keymap: ^Keymap, typing, taken: bool, mode: EditorMode, browserFocused: bool }
 	keys := Keys{&s.settings.keymap, IsTyping(ctx), keysTaken, s.mode, s.browserFocused}
 	// An item for another mode is disabled: the menu bar registers no shortcut for it then
@@ -227,6 +228,7 @@ always show.
 */
 @(private="file")
 toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("toolbarView")
 	th := ctx.theme
 	running := s.playState == .Playing || s.playState == .Building
 	playTip := actionTip(s, "Play", .Play)
@@ -388,6 +390,7 @@ sceneModeView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.Vi
 // Viewport above, bottom panel below (or just its header when collapsed)
 @(private="file")
 centerView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), layout: ^Layout) -> skald.View {
+	skald.prof_scope("centerView")
 	viewport := viewportView(s, ctx)
 	if !s.layout.bottomOpen {
 		return skald.col(
@@ -411,6 +414,7 @@ centerView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), layout: ^Layout) -> skald.Vi
 
 @(private="file")
 statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("statusBarView")
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
 	selection := "nothing selected"

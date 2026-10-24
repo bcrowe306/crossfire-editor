@@ -132,6 +132,8 @@ add it as a task and to the README's command table.
 | `task player` | Build the engine's player into `build/player/player` |
 | `task play:demo` | Run the demo project (its scripts linked into its own player: `tools/demo/player`), without the editor |
 | `task demo:playtest` | Play the demo headless (`tools/demo/playtest`: a bot pressing keys), check its mechanics and levels, save frames to `build/playtest/` (`PART=title|forest|hollow|lair|gameover`) |
+| `task profile` | **Profiling** (Spall; "Profiling" below): the scenarios `tests/profile/*.script` in a `-define:SPALL=true` optimized build, headless, `--runs` each (default 3), the median run's report, JSON and trace in `build/profile/results/`; arguments after `--` go to `tools/profile.sh` (scenario names, `--auto`, `--no-build`, `--runs`, `--cpus`) |
+| `task profile:baseline` / `task profile:compare` | Keep the results as the baseline (`build/profile/baseline/`) / profile and compare with it: exit 1 when a scenario's median or mean frame grew more than `--threshold` (5%) |
 | `task clean` | Delete build output |
 
 - **Windows:** Task's own shell can't start a `.sh` file there, so the tasks that run the engine's
@@ -336,7 +338,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_slicer.odin` | **The sprite sheet slicer's tab** (`slicerCenterView`: the header, the canvas beside the controls from `SLICER_SIDE_WIDTH`, else over them), `SlicerTabs_View` (the strip's tabs), the canvas (`slicerCanvas`: input from its last rect, the sheet on a checkerboard, the cells in view, the picks numbered, the shown animation's frames), the controls (`slicerControls`, `slicerAnimationRows`: rows as the inspector's, the preview, the frame strip), the driver's `Slicer_CellCenter` / `Slicer_FrameStripCenter` |
 | `animation_sets_edit.odin` | **Animation assets**: `AnimationSetDef` (`.anim.xml`, `Project.animationSets`: load, save when changed, make: `Project_CreateAnimationSet`), `AnimationDef` / set clone, equal and engine conversions, an Aseprite file's tags as a set (`AsepriteEdit_AnimationSet`), the panel's `AnimSource` (`AnimEdit_Source`), the browser preview, `Scene_AddAnimatedSpriteAt` |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
-| `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
+| `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment); `repeat <n> <commands>` (written out on load: `ScriptDriver_ExpandRepeats`), `profile_mark <name>` (a trace's mark) |
+| `profiling.odin` | **Profiling with Spall**: `Profiling_Start` (Skald's trace, shared with the engine: `e.Trace_Share`) / `Profiling_Stop` (before any exit), `Profiling_Message` (`update`'s span, named by the message's type) |
+| `tools/profile.sh`, `tests/profile/` | **The profiling harness** and its scenarios (driver scripts between `profile_mark start` and `end`): idle, inspector, browser, viewport, code, level, console |
 | `editor_test.odin` | Unit tests for the model, XML round trips, transforms, assets, search, viewport math, keymap and update |
 | `tests/ui/*.script` | UI test scripts, run by `task test:ui` |
 | `tools/ui_tests.sh` | The UI test runner: headless editors (SDL's offscreen driver) on per-script copies of the fixture, `--jobs` at a time, longest first, per-script results, times and a summary; `--visible` for real windows |
@@ -3738,6 +3742,41 @@ Highlights:
   itself.
 - A context menu fades out after closing and blocks clicks under it meanwhile; the driver waits
   for that (`FADING_MENUS`) before the next command.
+
+## Profiling (Spall: `profiling.odin`, `tools/profile.sh`, `tests/profile/`)
+
+TODO.md's "Performance" work (asked 2026-10-24): every speed-up is measured before and after.
+- **The trace:** built with `-define:SPALL=true`, Skald, the engine and the editor record spans
+  into one `.spall` file (https://gravitymoth.com/spall/), each thread in its own buffer. Skald
+  owns it (its `prof.odin`; its frame loop's spans `frame`, `view`, `render_view`,
+  `render_overlays`, `frame_begin`, `frame_end`, `update`, `events`, `idle`, `pace`; text's
+  `measure_text`, `draw_text`, `wrap_text`), `Profiling_Start` hands it to the engine
+  (`e.Trace_Share`: its `Preview_Render` → `scene_draw` → `draw_order`, `nodes_draw`, `lighting`
+  nest under the editor's spans), and the editor adds each message `update` handles
+  (`Profiling_Message`: its type, an Action's name) and the panels' views (`browserView`,
+  `inspectorView`, `viewportView`, `bottomPanelView`, `CodeEditor_View`, `levelModeView`...).
+  Without the define all of it compiles to nothing. `-define:SPALL_AUTO=true` records every
+  procedure (Skald defines the instrumentation hooks): for finding what no span names, far
+  slower. `SPALL_TRACE` names the file. **`Profiling_Stop` runs after `skald.run`, before
+  `os.exit`** (the script driver's exit code): `os.exit` runs no defers, and the buffers would be
+  lost.
+- **The harness** (`task profile`, `tools/profile.sh`): each scenario is a driver script in
+  `tests/profile/` that sets up (a scene, a selection, a code tab), then `profile_mark start`,
+  the work (`repeat 80 scroll_by inspector-scroll 30 ; wait 1`), `profile_mark end`, `quit`. Each
+  run: a fresh copy of the project **as committed** (`git archive HEAD examples/demo_project`, or
+  the UI fixture with `# project: fixture`), the UI tests' settings file, its own XDG_DATA_HOME,
+  SDL's offscreen video driver and dummy audio (no window, no focus taken, no input from the
+  desktop, never resized), every frame drawn uncapped (`SKALD_BENCH_FRAMES`,
+  `SKALD_BENCH_UNCAP`), pinned CPUs (`--cpus`, default 2-5), a window of `--size` (1680x1000; a
+  script's `# window:` line wins). The report (the engine's `tools/spall_report -from=start
+  -to=end`) is per run; the run with the median frame is kept. It warns when the load average is
+  over a quarter of the CPUs: other work on the machine moves the numbers.
+- **Reading results:** `build/profile/results/<scenario>.txt` (frames: median, mean, p95, p99,
+  max of a frame's work, and start to start; spans by self time per frame), `.json` (what
+  `compare` reads), `.spall` (open in Spall's viewer). `task profile:baseline` keeps them,
+  `task profile:compare` fails past the threshold.
+- **The engine's games:** its `tools/profile_game.sh <project> [scene...]` (its CLAUDE.md,
+  "Profiling with Spall") plays scenes headless in a Spall build of the player.
 
 ## Verifying work
 

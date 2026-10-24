@@ -644,6 +644,8 @@ main :: proc() {
 	windowFlags: sdl.WindowFlags = EDITOR_FULLSCREEN ? {.RESIZABLE, .FULLSCREEN} : {}
 	if args.windowSize.x > 0 && args.windowSize.y > 0 do windowFlags = {.RESIZABLE}
 
+	// A Spall trace with SPALL (profiling.odin); stopped below, before any exit
+	Profiling_Start()
 	skald.run(skald.App(State, Msg){
 		title  = APP_NAME,
 		size   = {1440, 900},
@@ -664,6 +666,7 @@ main :: proc() {
 		initial_window_state = {size = args.windowSize},
 		window_flags = windowFlags,
 	})
+	Profiling_Stop()
 
 	if ScriptDriver_Active() || parseArgs().script != "" {
 		os.exit(ScriptDriver_ExitCode())

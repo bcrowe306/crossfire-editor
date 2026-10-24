@@ -20,6 +20,7 @@ Left sidebar: the project browser.
 	preview    collapsible: the selected image, or a player for the selected sound
 */
 browserView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("browserView")
 	th := ctx.theme
 	selectedAsset := s.browserSelection.kind == .Asset
 

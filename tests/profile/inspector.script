@@ -1,0 +1,16 @@
+# Profiling scenario (tools/profile.sh): the inspector of the forest's LDtkLevel node (its
+# level, layers, entity rules and every entity: the longest inspector of the demo), scrolled
+# down a step a frame and back to the top, over and over.
+send Scene_Tab_Changed 4
+wait_until scene ForestScene
+select_node Level
+wait 60
+profile_mark start
+repeat 4 scroll_by inspector-scroll 0 ; wait 1
+repeat 80 scroll_by inspector-scroll 30 ; wait 1
+scroll_by inspector-scroll 0
+repeat 80 scroll_by inspector-scroll 30 ; wait 1
+scroll_by inspector-scroll 0
+repeat 80 scroll_by inspector-scroll 30 ; wait 1
+profile_mark end
+quit

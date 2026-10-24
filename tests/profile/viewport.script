@@ -1,0 +1,11 @@
+# Profiling scenario (tools/profile.sh): the forest level in the viewport (LDtk tiles, parallax
+# layers, the camera's guides): zoomed in and out with the wheel, a notch a few frames, then
+# panned with the middle button.
+send Scene_Tab_Changed 4
+wait_until scene ForestScene
+wait 60
+profile_mark start
+repeat 3 scroll 1 ; wait 3 ; scroll 1 ; wait 3 ; scroll 1 ; wait 3 ; scroll -1 ; wait 3 ; scroll -1 ; wait 3 ; scroll -1 ; wait 3
+repeat 6 drag_widget viewport-canvas 0.3 0.5 0.7 0.5 middle ; wait 2 ; drag_widget viewport-canvas 0.7 0.5 0.3 0.5 middle ; wait 2
+profile_mark end
+quit

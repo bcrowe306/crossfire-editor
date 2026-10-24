@@ -17,6 +17,7 @@ Edits to the project are recorded for undo here: `History_Classify` says what a 
 which is copied before the message is applied and compared after (see history.odin).
 */
 update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
+	Profiling_Message(m)
 	// One copy of the State, changed in place (applyMsg takes a pointer): every State value in
 	// this frame is 35 KB of stack in debug builds, and a Windows test thread has 1 MB
 	out := s

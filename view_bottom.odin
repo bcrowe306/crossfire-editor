@@ -18,6 +18,7 @@ BottomTab), another mode's `<mode>-bottom-tabs` (`level-bottom-tabs`), scrolled 
 `bottom-tabs-scroll` / `<mode>-bottom-tabs-scroll`.
 */
 bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("bottomPanelView")
 	th := ctx.theme
 	layout := Mode_Layout(s)
 	open := layout.bottomOpen

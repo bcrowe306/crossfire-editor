@@ -108,6 +108,7 @@ Returns:
 - The pixels, and false if the preview couldn't render
 */
 Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool) {
+	e.Trace_Scope("Preview_Render")
 	if preview.failed || size.x <= 0 || size.y <= 0 do return nil, false
 	// Shaders show only with SDL's GPU renderer: a scene using any draws with one of its own
 	if wants := Preview_SceneUsesShaders(&s.project.scenes[s.currentScene]) && !preview.effectsFailed; wants != preview.effects {

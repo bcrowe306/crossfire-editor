@@ -63,6 +63,7 @@ DOCS_WIDE_WIDTH :: f32(720)
 DOCS_SIDEBAR_WIDTH :: f32(230)
 
 docsWindowView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("docsWindowView")
 	if !s.docs.open do return closedDialog(ctx, "docs-dialog")
 	if !docsMonoLoaded && ctx.renderer != nil {
 		docsMono = skald.font_load(ctx.renderer, "docs-mono", CODE_FONT)

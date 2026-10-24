@@ -20,53 +20,19 @@ isn't installed) put about 45% of the frame in **measuring text** (`view_size` â
 lighting), 13% waiting on the GPU (`drmSyncobjWait` under `SDL_SetRenderTarget`), 11% allocation
 (the temp arena growing through the heap, `mmap`/`munmap`), 3% the editor's `view`.
 
-### 1. Spall profiling (first: everything after it is measured with it)
+**Built (2026-10-24):** Spall profiling in Skald, the engine and the editor, the editor's harness
+(`task profile`, `tools/profile.sh`, `tests/profile/`) and the engine's (`tools/profile_game.sh`),
+and the report tool (the engine's `tools/spall_report`). The editor's CLAUDE.md "Profiling" and the
+engine's "Profiling with Spall" describe them. **Measure every item below with them**: a
+`task profile:baseline` before, `task profile:compare` after (and `profile_game.sh --compare` for
+the engine), on a quiet machine (the harness warns when it isn't).
 
-- **Instrumentation in all three code bases** (Skald, the editor, the engine), compiled out
-  unless asked for: a `when` constant from `-define:SPALL=true`, so normal builds pay nothing.
-  - Named scopes (a deferred begin/end pair, e.g. `prof_scope("render_view")`) at the places
-    that matter: Skald's frame phases (pump, view, layout, measure, draw, `frame_end`), the
-    editor's panels and `update`, the engine's `Scene_Update`, physics, drawing, lighting,
-    particles, audio.
-  - Whole-program captures with Odin's automatic instrumentation
-    (`@(instrumentation_enter)` / `@(instrumentation_exit)`) for finding hot spots the scopes
-    don't name. Check how much it slows things down; use it to find, scopes to measure.
-  - `core:prof/spall` with a buffer per thread (the editor's workers: script index, OLS
-    reading, imports), written to a `.spall` file at exit.
-- One small shared package, or the same few procs in each repo: Skald and the engine must not
-  depend on each other. Decide which when building it.
-- Documented in each repo (CLAUDE.md, the manual, the engine's docs on the website): how to
-  build with profiling, capture, and open a trace in Spall.
-
-### 2. A profiling harness (runs without a person, and without being disturbed)
-
-So Claude can measure, change and measure again on its own, and the numbers can be compared:
-- **A fixed scenario:** a copy of a fixed project in a temporary folder (the demo's files
-  never change), a separate settings file and recent-projects list (`--settings`; the user's
-  own are never touched), a fixed window size and DPI scale, and a UI test script
-  (`--script`, `test_driver.odin`) that drives the same steps every run: open panels, select
-  nodes, scroll the inspector and browser, type in the code editor, switch modes, paint
-  tiles, play.
-- **No interference from the desktop:** no window, no focus taken, no input from the user's
-  mouse and keyboard, no resizing by Hyprland. Run it the way `tools/ui_tests.sh` runs the
-  headless UI tests: `SDL_VIDEO_DRIVER=offscreen` (Vulkan through
-  `VK_EXT_headless_surface`, on the real GPU), `SDL_AUDIO_DRIVER=dummy`, `--window-size`.
-  Check that the numbers match a visible window's (the swapchain path may differ). The
-  driver's `frame_times <frames>` command already exists; build on it.
-- **Stable numbers:** warm-up frames dropped, several runs with the median reported, the CPU
-  pinned (`taskset`), every frame drawn (`SKALD_BENCH_UNCAP`), optimized builds.
-- **Readable results without the Spall UI:** a small Odin tool that reads a `.spall` file and
-  prints the totals per scope (count, total, self time, the slowest ones) and the frame-time
-  statistics, as text and as JSON.
-- **Comparison:** the results of a run saved as a baseline (per machine, gitignored); a run
-  compared against it prints what got faster or slower, and fails past a threshold, so a
-  change can't quietly make things worse.
-- **Tasks:** `task profile` (the editor's scenario), `task profile:compare`, and the same for
-  Skald's examples and for the engine. Each scenario documented with what it covers.
-- **The engine too:** game scenarios that run without the editor for a fixed number of fixed
-  steps with a fixed random seed (the asteroids sample, many nodes, physics, particles,
-  lighting, an LDtk level, labels), profiled with Spall; alongside the existing
-  `bench/main.odin` microbenchmarks, which stay.
+First traces (2026-10-24, the machine busy: load 11-15 on 8 CPUs, so the absolute numbers are
+high): the editor at rest on the title scene spent its frame in `measure_text` (31% of the main
+thread's self time, 1382 calls a frame), `render_view` (17%), the viewport's `lighting` (15%:
+the title scene is lit, 9 ms each render), `draw_text` (13%); the forest level played by the
+player spent 61% of its frame in `nodes_update` (8.4 ms a frame), 19% in `present`, 15% in
+`nodes_draw`.
 
 ### 3. Making Skald faster (each item measured with the harness)
 
@@ -90,6 +56,11 @@ So Claude can measure, change and measure again on its own, and the numbers can 
 
 ### 4. The editor and the engine (found by the same profile)
 
+- **The viewport's lighting** (`Lighting_Apply` in `Preview_Render`, 15% of the editor's
+  frame on the lit title scene): render the light map less often, or cache it while nothing
+  moves.
+- **The engine's node updates** (`nodes_update`, 61% of the forest level's frame): find which
+  nodes (a SPALL_AUTO run of `profile_game.sh`), then fix.
 - **The viewport:** don't render the scene again in `Preview_Render` when nothing changed
   (`sceneSignature` in `viewport_preview.odin` already exists), and find the GPU wait under
   `SDL_SetRenderTarget` (13% of a frame).

@@ -1,0 +1,14 @@
+# Profiling scenario (tools/profile.sh): the hero's script in a code tab, typed into a letter a
+# frame and the caret moved through the file (the code editor renders on the shared GPU
+# renderer; providers and the script index follow the edits).
+send Code_Open_Requested {project}/scripts/hero.odin
+wait_until code_tabs 1
+code_click 40
+wait 60
+profile_mark start
+repeat 40 type x ; wait 1
+repeat 40 key BACKSPACE ; wait 1
+repeat 60 key DOWN ; wait 1
+repeat 60 key UP ; wait 1
+profile_mark end
+quit

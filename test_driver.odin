@@ -49,6 +49,12 @@ copy: `open_project {project}`).
 	frame_times <frames> [<lines>]   Time that many frames, adding lines to the Console on each;
 	                                 reports the median, p95 and max. With SKALD_BENCH_UNCAP=1
 	                                 SKALD_BENCH_FRAMES=1000000000 every frame draws, uncapped
+	repeat <n> <command> [; <command>...]
+	                                 The commands n times, one after another (written out when the
+	                                 script loads): repeat 60 scroll_by inspector-scroll 20 ; wait 1
+	profile_mark <name>              A zero-length span "mark:<name>" in a Spall trace (profiling.odin):
+	                                 the profiling harness counts the frames between two marks
+	                                 (spall_report -from / -to); nothing without SPALL
 	expect <check>                   Fail unless the check passes now
 	click_widget <key> [ctrl|shift]  Click the center of a widget's visible part, e.g. toolbar-play
 	                                 (a modifier held around it: an inspector label's Ctrl+click)
@@ -581,10 +587,39 @@ ScriptDriver_Load :: proc(path: string) -> bool {
 	driver = {
 		active = true,
 		path = path,
-		lines = strings.split_lines(string(data)),
+		lines = ScriptDriver_ExpandRepeats(strings.split_lines(string(data))),
 		started = time.tick_now(),
 	}
 	return true
+}
+
+/*
+A script's lines with each `repeat <n> <command> [; <command>...]` written out as n copies of the
+commands (the profiling scenarios scroll, type and wheel for hundreds of frames). Lines are kept as
+they are otherwise (the slice and the strings point into the script's text).
+
+Inputs:
+- lines: The script's lines
+
+Returns:
+- The lines to run (allocated)
+*/
+ScriptDriver_ExpandRepeats :: proc(lines: []string) -> []string {
+	out := make([dynamic]string, 0, len(lines))
+	for line in lines {
+		trimmed := strings.trim_space(line)
+		if strings.has_prefix(trimmed, "repeat ") {
+			_, _, rest := strings.partition(trimmed, " ")
+			count, _, command := strings.partition(strings.trim_space(rest), " ")
+			if n, ok := strconv.parse_int(count); ok && n >= 0 && strings.trim_space(command) != "" {
+				commands := strings.split(command, " ; ")
+				for _ in 0 ..< n do for c in commands do append(&out, strings.trim_space(c))
+				continue
+			}
+		}
+		append(&out, line)
+	}
+	return out[:]
 }
 
 // The user's clipboard, kept while a script runs (the code editor's Copy and Cut use it) and put back
@@ -2024,6 +2059,14 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		category := len(args) > 2 ? args[2] : e.LOG_DEFAULT_CATEGORY
 		skald.send(ctx, Msg(Log_Test_Lines{count = count, level = level, category = strings.clone(category, context.temp_allocator)}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "profile_mark":
+		// A zero-length span: begin and end in this frame, so it nests in the trace's frame
+		mark := fmt.tprintf("mark:%s", rest)
+		skald.prof_begin(mark)
+		skald.prof_end()
 		report(true, line)
 		return false
 

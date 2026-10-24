@@ -1,0 +1,10 @@
+# Profiling scenario (tools/profile.sh): the Level mode's world canvas on the demo's LDtk
+# project: zoomed with the wheel and panned with the middle button.
+action Mode_Level
+wait_until mode Level
+wait 60
+profile_mark start
+repeat 4 wheel_widget ldtk-map-Level 1 ; wait 3 ; wheel_widget ldtk-map-Level 1 ; wait 3 ; wheel_widget ldtk-map-Level -1 ; wait 3 ; wheel_widget ldtk-map-Level -1 ; wait 3
+repeat 6 drag_widget ldtk-map-Level 0.3 0.5 0.7 0.5 middle ; wait 2 ; drag_widget ldtk-map-Level 0.7 0.5 0.3 0.5 middle ; wait 2
+profile_mark end
+quit
