@@ -617,7 +617,8 @@ Node_Field_Changed :: struct {
 	value: f64,
 }
 
-// ParticleEmitter settings of the selected node (view_inspector_particles.odin). Strings are only
+// ParticleEmitter settings (view_inspector_particles.odin, the Particles tab): of the selected
+// node when it's an emitter, else the Particles tab's (`Particles_Target`). Strings are only
 // valid while handling the message
 // A setting, as text (`e.ParticleSettings_Set`'s format)
 Particle_Field_Changed :: struct {
@@ -640,8 +641,8 @@ Ramp_Edited :: struct {
 	selected: int,
 }
 Ramp_Stop_Selected :: distinct int
-// A ramp stop's marker was pressed (true) or released (false)
-Ramp_Drag_Changed :: distinct bool
+// A ramp stop's marker was pressed (`bar`: the ramp bar's widget) or released (0)
+Ramp_Drag_Changed :: distinct skald.Widget_ID
 
 // Scripts (scripts.odin)
 // The view noticed a project with scripts that hasn't been built: build it once in the background
@@ -1357,6 +1358,10 @@ Msg :: union {
 	Ramp_Edited,
 	Ramp_Stop_Selected,
 	Ramp_Drag_Changed,
+	// The Particles tab (particles_edit.odin)
+	Particles_Category_Picked,
+	Particles_Restart,
+	Particles_Preset_Applied,
 	// Context menus (context_menus.odin)
 	Context_Menu_Opened,
 	Context_Menu_Closed,

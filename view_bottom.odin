@@ -9,8 +9,8 @@ import "gui:skald"
 /*
 Bottom panel: the shown mode's tabs (editor_modes.odin's `bottomTabs`): the Scene mode's Console,
 Output, Animation (view_animation.odin), Mixer (view_mixer.odin), Git (view_git.odin), Tiles
-(view_tiles.odin), Timeline (view_timeline.odin), Live (view_live.odin), States, Dialogue and
-Plugins; the Level mode's LDtk (level_mode.odin), Console and Output. The Console and Output are
+(view_tiles.odin), Timeline (view_timeline.odin), Live (view_live.odin), States, Particles
+(view_particles.odin), Dialogue and Plugins; the Level mode's LDtk (level_mode.odin), Console and Output. The Console and Output are
 the same lists in every mode. Keyboard shortcuts are listed in Settings > Keyboard (Help >
 Keyboard Shortcuts opens it). The chevron collapses it to just its header; clicking a tab while
 collapsed opens it again. Keys: the Scene mode's strip `bottom-tabs` (a tab's index is its
@@ -77,6 +77,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Timeline:  content = TimelinePanel(s, ctx)
 	case .Live:      content = LivePanel(s, ctx)
 	case .States:    content = StatesPanel(s, ctx)
+	case .Particles: content = ParticlesPanel(s, ctx)
 	case .Dialogue:  content = DialoguePanel(s, ctx)
 	case .Plugins:   content = PluginsPanel(s, ctx)
 	case .LDtk:      content = LevelMode_LDtkTab(s, ctx)

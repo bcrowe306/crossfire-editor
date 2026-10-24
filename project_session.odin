@@ -347,6 +347,8 @@ switchProject :: proc(state: ^State, project: Project) {
 	for scene, i in project.scenes do if scene.name == project.startScene do state.currentScene = i
 	state.selectedNode = -1
 	state.browserSelection = {kind = .None}
+	// The Particles tab's emitter was the old project's
+	state.particles.shown = false
 	state.viewport.drag = {}
 	// Fit the new game area on the next measure
 	state.viewport.zoom = 0

@@ -170,7 +170,9 @@ copy: `open_project {project}`).
 	                                 Open_Grid_Settings (View > Grid Settings: Project Settings > Grid)
 	                                 Docs_Opened <address> (the docs window there: /manual/physics/)
 	                                 Right_Sidebar_Width <px> (the inspector's sidebar, as its
-	                                 divider dragged; at least MIN_SIDEBAR_WIDTH)
+	                                 divider dragged; at least MIN_SIDEBAR_WIDTH),
+	                                 Particles_Category_Picked <i> (the Particles tab's category),
+	                                 Particles_Preset_Applied <name> (a preset, by name)
 	archive_project <path>           Export Project Archive to a file, as if picked in its dialog
 	open_archive <archive> | <folder>
 	                                 Open Project Archive: unpack the archive into the folder (as
@@ -208,6 +210,7 @@ Checks:
 	play <Stopped | Building | Playing | Paused>
 	tab <Console | Output | Animation>
 	bottom <open | closed>       Bottom panel
+	bottom_tab <Tab>             The shown mode's bottom tab (Console, Particles...)
 	field <x | y | rotation | scale_x | scale_y | visible | name | z> <value>
 	                             Property of the selected node (numbers are rounded to whole units)
 	tool <Select | Move | Rotate | Scale>
@@ -378,6 +381,10 @@ Checks:
 	particle_linked <setting> <true | false>   A particle [2]f32 setting's axes are linked
 	ramp_stops <count>           Stops in the selected emitter's color ramp
 	ramp_stop <index>            The color ramp editor's selected stop
+	particles_tab <node | category | ramp_stops> <value>   The Particles tab's emitter (its name,
+	                             "none"), its category, its ramp's stops
+	particles_tab setting <setting> <value>   A setting of the Particles tab's emitter (selected
+	                             or not), as scene files store it
 	input_actions <count>        The project's input actions; draft_input_actions: Project Settings' draft
 	input_bindings <action> <a, b, ...>   An action's bindings, described (e.Input_BindingDescribe)
 	draft_input_bindings <a, b, ...>      The bindings of the action Project Settings > Input shows
@@ -1894,6 +1901,9 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		case "Atlas_Created":         msg = Atlas_Created{}
 		case "Settings_Theme_Preset_Chosen": msg = Settings_Theme_Preset_Chosen(strings.clone(value, context.temp_allocator))
 		// A bottom tab by its name (the strip scrolls in a narrow window)
+		case "Particles_Category_Picked":
+			if i, ok := strconv.parse_int(value); ok do msg = Particles_Category_Picked(i)
+		case "Particles_Preset_Applied": msg = Particles_Preset_Applied(strings.clone(value, context.temp_allocator))
 		case "Bottom_Tab":
 			if tab, ok := reflect.enum_from_name(BottomTab, value); ok do msg = Bottom_Tab_Changed(int(tab))
 		case "Right_Sidebar_Width":
@@ -2750,6 +2760,27 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		want, _ := strconv.parse_f32(parts[1])
 		tolerance, _ := strconv.parse_f32(parts[2])
 		return abs(got - want) <= tolerance, text
+	case "bottom_tab":
+		found = fmt.tprint(Mode_BottomTab(s))
+	case "particles_tab":
+		emitter, _ := Particles_Emitter(s)
+		field, _, expected := strings.partition(value, " ")
+		switch field {
+		case "node":     found = emitter != nil ? emitter.name : "none"
+		case "category": found = Particles_CategoryName(s)
+		case "ramp_stops":
+			if emitter == nil do return false, "the Particles tab shows no emitter"
+			found = fmt.tprint(emitter.particles.colorRamp.count)
+		case "setting":
+			if emitter == nil do return false, "the Particles tab shows no emitter"
+			setting, _, want := strings.partition(expected, " ")
+			known: bool
+			found, known = e.ParticleSettings_Get(emitter.particles, setting)
+			if !known do return false, fmt.tprintf("no particle setting '%s'", setting)
+			return found == strings.trim_space(want), found
+		case: return false, fmt.tprintf("unknown particles_tab field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
 	case "ramp_stops":
 		if selected == nil || selected.kind != .ParticleEmitter do return false, "no ParticleEmitter selected"
 		found = fmt.tprint(selected.particles.colorRamp.count)

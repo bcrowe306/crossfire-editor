@@ -8,8 +8,9 @@ import e "engine:."
 import sdl "vendor:sdl3"
 
 /*
-The inspector's ParticleEmitter properties: every field of the engine's `e.ParticleSettings`, by
-its type and tags (`e.ParticleSettings_Fields`), so a field added there shows up here:
+A ParticleEmitter's settings as rows, shared by the inspector and the Particles tab
+(view_particles.odin): every field of the engine's `e.ParticleSettings`, by its type and tags
+(`e.ParticleSettings_Fields`), so a field added there shows up in both:
 - numbers with a `min` / `max` range: `valueSlider`s (type a value, Shift for fine steps, reset
   to the default)
 - `[2]f32`: a slider per axis, with a link toggle (linked, one axis drags the other in proportion)
@@ -18,11 +19,17 @@ its type and tags (`e.ParticleSettings_Fields`), so a field added there shows up
 - the color ramp: a gradient bar with a marker per stop (`colorRampEditor`)
 The Texture shape adds the node's texture; Reset puts every setting back to the defaults.
 
-Edits are `Particle_Field_Changed` (a setting as text) and `Particle_Axis_Changed`; both are
-undoable, merged per field. Widget keys: `inspector-particle-<field>-<node>` (`-x` / `-y`,
-`-alpha`), `inspector-particle-link-<field>`, `inspector-particles-reset-<node>`,
-`inspector-ramp-<node>` (the bar), `inspector-ramp-add-<node>`, `inspector-ramp-remove-<node>`,
-`inspector-ramp-position-<node>`, `inspector-ramp-color-<node>`, `inspector-ramp-alpha-<node>`.
+`particleSettingRows` builds them for one group (the tab's category) or all, with the widths and
+the widget keys' prefix it's given (`ParticleRows`); the inspector's rows (`particleInspectorRows`)
+are a summary, Edit in the Particles tab, Reset and every setting.
+
+Edits are `Particle_Field_Changed` (a setting as text), `Particle_Axis_Changed`, `Ramp_Edited` and
+`Particles_Reset`, to `Particles_Target` (particles_edit.odin); all undoable, merged per field.
+Widget keys, `<p>` the prefix (`inspector`, the tab's `particles-tab`): `<p>-particle-<field>-<node>`
+(`-x` / `-y`, `-alpha`), `<p>-particle-link-<field>`, `<p>-texture-<node>`, `<p>-ramp-<node>` (the
+bar), `<p>-ramp-add-<node>`, `<p>-ramp-remove-<node>`, `<p>-ramp-position-<node>`,
+`<p>-ramp-color-<node>`, `<p>-ramp-alpha-<node>`; the inspector's `inspector-particles-reset-<node>`
+and `inspector-particles-edit-<node>` (Edit in the Particles tab).
 */
 
 @(private="file")
@@ -33,62 +40,120 @@ RAMP_MARKER_HEIGHT :: 14
 @(private="file")
 RAMP_GRAB_DISTANCE :: 6
 
+// How `particleSettingRows` builds its rows
+ParticleRows :: struct {
+	// Widget keys start with it: "inspector", or the Particles tab's "particles-tab"
+	prefix: string,
+	// Only the settings of this group (`Particles_FieldGroups`); "": every setting, under their
+	// groups' headings
+	group: string,
+	// The rows are the inspector's: their labels drag into code (`inspectorRow`)
+	inspector: bool,
+	// A control's width, and the ramp bar's (0: the control's)
+	controlWidth, rampWidth: f32,
+}
+
+/*
+The inspector's ParticleEmitter rows: what it does in a line, Edit in the Particles tab, Reset,
+then every setting (the same rows as the Particles tab's, `particleSettingRows`).
+*/
 @(private="package")
 particleInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth: f32) -> []skald.View {
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	settings := node.particles
+	append(&rows, skald.text(Particles_Summary(node), th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+	edit := skald.button(ctx, fmt.tprintf("%s  Edit in the Particles tab", ICON_FIRE), Msg(Bottom_Tab_Changed(int(BottomTab.Particles))),
+		id = skald.hash_id(fmt.tprintf("inspector-particles-edit-%d", key)), padding = {th.spacing.sm, 2}, font_size = th.font.size_sm)
+	append(&rows, skald.tooltip(ctx, edit, "The settings by category in the bottom panel, with more room, presets and Restart",
+		id = skald.hash_id(fmt.tprintf("inspector-particles-edit-tip-%d", key))))
 	resetButton := skald.button(ctx, fmt.tprintf("%s  Reset to defaults", ICON_UNDO), Msg(Particles_Reset{}),
 		id = skald.hash_id(fmt.tprintf("inspector-particles-reset-%d", key)),
 		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, inspectorRow(ctx, "", skald.tooltip(ctx, resetButton, "Put every particle setting back to its default (undoable)",
 		id = skald.hash_id(fmt.tprintf("inspector-particles-reset-tip-%d", key)))))
+	append(&rows, ..particleSettingRows(ctx, s, node, key, {prefix = "inspector", inspector = true, controlWidth = controlWidth}))
+	return rows[:]
+}
 
+/*
+What an emitter does, in a line: its shape, how many particles a cycle and how long, one-shot or
+continuous, where its colors come from, the GPU (temp allocated).
+*/
+Particles_Summary :: proc(node: ^NodeDef) -> string {
+	p := node.particles
+	amount := p.gpu ? fmt.tprintf("%d on the GPU", p.gpuAmount) : fmt.tprintf("%d", p.amount)
+	return fmt.tprintf("%v, %s every %v s, %s%s%s", p.shape, amount, p.lifetime, p.continuous ? "continuous" : "one-shot",
+		p.useColorRamp ? ", color ramp" : "", p.emitting ? "" : ", starts stopped")
+}
+
+/*
+A ParticleEmitter's settings as rows: one group's or all of them (`ParticleRows`), each by its
+type (`particleControl`); the color ramp replaces the start and end colors when it's on, and the
+Texture shape adds the node's picture under the shape.
+*/
+@(private="package")
+particleSettingRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, r: ParticleRows) -> []skald.View {
+	th := ctx.theme
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	settings := node.particles
+	groups := Particles_FieldGroups()
+	controlWidth := r.controlWidth
 	for field, index in e.ParticleSettings_Fields() {
-		if field.group != "" {
+		if r.group != "" && groups[index] != r.group do continue
+		if r.group == "" && field.group != "" {
 			append(&rows, skald.spacer(th.spacing.xs), skald.text(field.group, th.color.fg, th.font.size_xs))
 		}
 		// The ramp replaces the start and end colors when it's on
 		switch field.name {
 		case "colorRamp":
 			if !settings.useColorRamp do continue
-			append(&rows, ..colorRampEditor(ctx, s, settings.colorRamp, key, controlWidth))
+			append(&rows, ..colorRampEditor(ctx, s, settings.colorRamp, key, r))
 			continue
 		case "particleColor", "colorEnd":
 			if settings.useColorRamp do continue
 		}
 		value, _ := e.ParticleSettings_Get(settings, field.name)
-		control := particleControl(ctx, s, field, index, value, key, controlWidth)
+		control := particleControl(ctx, s, field, index, value, key, controlWidth, r.prefix)
 		// Its range and default, after any general explanation (tooltips.odin)
 		defaultText, _ := e.ParticleSettings_Get(e.DEFAULT_PARTICLE_SETTINGS, field.name)
 		tip := field.ranged ? fmt.tprintf("From %v to %v; default %s.", field.min, field.max, defaultText) : fmt.tprintf("Default %s.", defaultText)
 		if field.type == [2]f32 {
 			// The link button goes with the label: beside the sliders it ran into the scrollbar
 			// strip in a narrow inspector (a click there paged the inspector instead)
-			th := ctx.theme
 			label := tipLabel(ctx, field.label, skald.text(field.label, th.color.fg_muted, th.font.size_sm), tip)
 			// Stacked, the button goes beside the label
 			labelled: skald.View
 			if inspectorStacked {
-				labelled = skald.row(label, linkButton(ctx, s, field, index), spacing = th.spacing.sm, cross_align = .Center)
+				labelled = skald.row(label, linkButton(ctx, s, field, index, r.prefix), spacing = th.spacing.sm, cross_align = .Center)
 			} else {
-				labelled = skald.col(label, linkButton(ctx, s, field, index), spacing = 2)
+				labelled = skald.col(label, linkButton(ctx, s, field, index, r.prefix), spacing = 2)
 			}
 			append(&rows, inspectorLabelled(ctx, labelled, control))
 		} else {
-			append(&rows, inspectorRow(ctx, field.label, control, tip))
+			append(&rows, particleRow(ctx, r, field.label, control, tip))
 		}
 		// The Texture shape's image, under the shape
 		if field.name == "shape" && settings.shape == .Texture {
 			images := make([dynamic]string, context.temp_allocator)
 			append(&images, TEXTURE_NONE)
 			for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)
-			append(&rows, inspectorRow(ctx, "Texture", skald.select(ctx, node.texture == "" ? TEXTURE_NONE : node.texture, images[:], NodeTextField.Texture,
+			append(&rows, particleRow(ctx, r, "Texture", skald.select(ctx, node.texture == "" ? TEXTURE_NONE : node.texture, images[:], NodeTextField.Texture,
 				proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
-				id = skald.hash_id(fmt.tprintf("inspector-texture-%d", key)), width = controlWidth, placeholder = "Choose an image")))
+				id = skald.hash_id(fmt.tprintf("%s-texture-%d", r.prefix, key)), width = controlWidth, placeholder = "Choose an image")))
 		}
 	}
 	return rows[:]
+}
+
+/*
+A row: the inspector's (`inspectorRow`: its label also drags into code) or the Particles tab's (a
+label with its tooltip beside or over the control: `inspectorLabelled`).
+*/
+@(private="file")
+particleRow :: proc(ctx: ^skald.Ctx(Msg), r: ParticleRows, label: string, control: skald.View, tip := "") -> skald.View {
+	if r.inspector do return inspectorRow(ctx, label, control, tip)
+	th := ctx.theme
+	return inspectorLabelled(ctx, tipLabel(ctx, label, skald.text(label, th.color.fg_muted, th.font.size_sm), tip), control)
 }
 
 // What a setting's control sends: which setting, and what the slider needs to turn a value into text
@@ -102,13 +167,15 @@ ParticlePayload :: struct {
 
 // The control for one setting, by its type
 @(private="file")
-particleControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int, value: string, node: int, width: f32) -> skald.View {
+particleControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int, value: string, node: int, width: f32, prefix: string) -> skald.View {
 	th := ctx.theme
-	key :: proc(field: e.ParticleFieldInfo, node: int, part := "") -> string {
-		return fmt.tprintf("inspector-particle-%s%s-%d", field.name, part, node)
+	Key :: struct { prefix: string, node: int }
+	k := Key{prefix, node}
+	key :: proc(field: e.ParticleFieldInfo, k: Key, part := "") -> string {
+		return fmt.tprintf("%s-particle-%s%s-%d", k.prefix, field.name, part, k.node)
 	}
-	id :: proc(field: e.ParticleFieldInfo, node: int, part := "") -> skald.Widget_ID {
-		return skald.hash_id(key(field, node, part))
+	id :: proc(field: e.ParticleFieldInfo, k: Key, part := "") -> skald.Widget_ID {
+		return skald.hash_id(key(field, k, part))
 	}
 	payload := ParticlePayload{name = field.name, axis = -1, integer = field.type == int, step = sliderStep(field)}
 	// The default, to reset to
@@ -119,15 +186,15 @@ particleControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldI
 	case bool:
 		return skald.checkbox(ctx, value == "true", "", payload,
 			proc(p: ParticlePayload, v: bool) -> Msg { return Particle_Field_Changed{p.name, v ? "true" : "false"} },
-			id = id(field, node))
+			id = id(field, k))
 	case e.ParticleShape:
 		names := make([]string, len(e.ParticleShape), context.temp_allocator)
 		for shape in e.ParticleShape do names[shape] = fmt.tprintf("%v", shape)
-		return skald.select(ctx, value, names, payload, onText, id = id(field, node), width = width)
+		return skald.select(ctx, value, names, payload, onText, id = id(field, k), width = width)
 	case int, f32:
 		number, _ := strconv.parse_f32(value)
 		defaultNumber, _ := strconv.parse_f32(defaultText)
-		return slider(ctx, field, payload, number, defaultNumber, key(field, node), width)
+		return slider(ctx, field, payload, number, defaultNumber, key(field, k), width)
 	case [2]f32:
 		axes: [2]f32
 		ok: bool
@@ -142,14 +209,14 @@ particleControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldI
 		px, py := payload, payload
 		px.axis, py.axis = 0, 1
 		return skald.col(
-			axisRow(ctx, "X", slider(ctx, field, px, axes.x, defaults.x, key(field, node, "-x"), sliderWidth)),
-			axisRow(ctx, "Y", slider(ctx, field, py, axes.y, defaults.y, key(field, node, "-y"), sliderWidth)),
+			axisRow(ctx, "X", slider(ctx, field, px, axes.x, defaults.x, key(field, k, "-x"), sliderWidth)),
+			axisRow(ctx, "Y", slider(ctx, field, py, axes.y, defaults.y, key(field, k, "-y"), sliderWidth)),
 			spacing = 2,
 		)
 	case sdl.Color:
 		color, _ := e.ParseColor(value)
 		defaultColor, _ := e.ParseColor(defaultText)
-		return colorWithAlpha(ctx, color, defaultColor.a, field.name, id(field, node), key(field, node, "-alpha"), width)
+		return colorWithAlpha(ctx, color, defaultColor.a, field.name, id(field, k), key(field, k, "-alpha"), width)
 	}
 	return skald.text(value, th.color.fg_muted, th.font.size_sm)
 }
@@ -161,15 +228,15 @@ AXIS_LABEL_WIDTH :: 10
 
 // An [2]f32 setting's link toggle (linked, one axis drags the other in proportion)
 @(private="file")
-linkButton :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int) -> skald.View {
+linkButton :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int, prefix: string) -> skald.View {
 	th := ctx.theme
 	linked := index in s.particleLinks
 	button := skald.button(ctx, linked ? ICON_LINK : ICON_LINK_SLASH, Msg(Particle_Link_Toggled(index)),
-		id = skald.hash_id(fmt.tprintf("inspector-particle-link-%s", field.name)),
+		id = skald.hash_id(fmt.tprintf("%s-particle-link-%s", prefix, field.name)),
 		bg = linked ? th.color.primary : th.color.surface, fg = linked ? th.color.on_primary : th.color.fg_muted,
 		width = LINK_WIDTH, padding = {0, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
 	tip := linked ? "Unlink: change X and Y separately" : "Link X and Y: changing one changes the other in proportion"
-	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("inspector-particle-link-tip-%s", field.name)))
+	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-particle-link-tip-%s", prefix, field.name)))
 }
 
 // A slider over the field's range (valueSlider: type a value, Shift for fine steps, reset)
@@ -243,11 +310,15 @@ and alpha. Click the bar to add a stop there (in the color the ramp has there), 
 to select it and drag to move it; Remove deletes the selected stop (a ramp keeps two).
 */
 @(private="file")
-colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key: int, width: f32) -> []skald.View {
+colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key: int, r: ParticleRows) -> []skald.View {
 	th := ctx.theme
+	// The bar takes the ramp's width (wider in the Particles tab), the stop's controls a control's
+	width := r.controlWidth
+	barWidth := r.rampWidth > 0 ? r.rampWidth : width
+	prefix := r.prefix
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	selected := clamp(s.rampStop, 0, max(ramp.count - 1, 0))
-	barId := skald.hash_id(fmt.tprintf("inspector-ramp-%d", key))
+	barId := skald.hash_id(fmt.tprintf("%s-ramp-%d", prefix, key))
 	send :: proc(ctx: ^skald.Ctx(Msg), ramp: e.ColorRamp, selected: int) {
 		skald.send(ctx, Msg(Ramp_Edited{FormatRampText(ramp), selected}))
 	}
@@ -271,11 +342,11 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 			}
 			if grabbed >= 0 {
 				skald.send(ctx, Msg(Ramp_Stop_Selected(grabbed)))
-				skald.send(ctx, Msg(Ramp_Drag_Changed(true)))
+				skald.send(ctx, Msg(Ramp_Drag_Changed(barId)))
 			}
-		} else if s.rampDragging {
+		} else if s.rampDrag == barId {
 			if !ctx.input.mouse_buttons[.Left] {
-				skald.send(ctx, Msg(Ramp_Drag_Changed(false)))
+				skald.send(ctx, Msg(Ramp_Drag_Changed(0)))
 			} else if selected < ramp.count && ramp.stops[selected].position != t {
 				changed := ramp
 				index := selected
@@ -288,7 +359,7 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 
 	Bar :: struct { ramp: e.ColorRamp, selected: int, highlight, border: skald.Color }
 	bar := new_clone(Bar{ramp, selected, th.color.primary, th.color.border}, context.temp_allocator)
-	append(&rows, inspectorRow(ctx, "Ramp", skald.canvas(ctx, bar, proc(b: ^Bar, p: skald.Canvas_Painter) {
+	append(&rows, particleRow(ctx, r, "Ramp", skald.canvas(ctx, bar, proc(b: ^Bar, p: skald.Canvas_Painter) {
 		r, area := p.r, p.bounds
 		strip := skald.Rect{area.x, area.y, area.w, RAMP_BAR_HEIGHT}
 		// Checkerboard, then the gradient in 2 px slices
@@ -313,7 +384,7 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 			skald.draw_rect(r, swatch, skaldColor(stop.color))
 			outline(r, swatch, mark, i == b.selected ? 2 : 1)
 		}
-	}, id = barId, width = width, height = RAMP_BAR_HEIGHT + RAMP_MARKER_HEIGHT + 2, cursor = .Pointer)))
+	}, id = barId, width = barWidth, height = RAMP_BAR_HEIGHT + RAMP_MARKER_HEIGHT + 2, cursor = .Pointer)))
 
 	if ramp.count == 0 do return rows[:]
 	stop := ramp.stops[selected]
@@ -330,10 +401,10 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 	addedIndex := e.ColorRamp_AddStop(&added, middle, e.ColorRamp_Evaluate(ramp, middle))
 	removed := ramp
 	removedOk := e.ColorRamp_RemoveStop(&removed, selected)
-	append(&rows, inspectorRow(ctx, fmt.tprintf("Stop %d / %d", selected + 1, ramp.count), skald.row(
-		small(ctx, fmt.tprintf("inspector-ramp-add-%d", key), fmt.tprintf("%s  Add", ICON_PLUS), "Add a stop next to this one (or click the bar)",
+	append(&rows, particleRow(ctx, r, fmt.tprintf("Stop %d / %d", selected + 1, ramp.count), skald.row(
+		small(ctx, fmt.tprintf("%s-ramp-add-%d", prefix, key), fmt.tprintf("%s  Add", ICON_PLUS), "Add a stop next to this one (or click the bar)",
 			Msg(Ramp_Edited{FormatRampText(added), addedIndex}), disabled = addedIndex < 0),
-		small(ctx, fmt.tprintf("inspector-ramp-remove-%d", key), fmt.tprintf("%s  Remove", ICON_TRASH), "Remove this stop (a ramp keeps two)",
+		small(ctx, fmt.tprintf("%s-ramp-remove-%d", prefix, key), fmt.tprintf("%s  Remove", ICON_TRASH), "Remove this stop (a ramp keeps two)",
 			Msg(Ramp_Edited{FormatRampText(removed), min(selected, removed.count - 1)}), disabled = !removedOk),
 		spacing = th.spacing.xs, cross_align = .Center,
 	)))
@@ -341,7 +412,7 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 	// The selected stop's position, color and alpha
 	Stop :: struct { ramp: e.ColorRamp, index: int }
 	stopPayload := Stop{ramp, selected}
-	append(&rows, inspectorRow(ctx, "Position", valueSlider(ctx, fmt.tprintf("inspector-ramp-position-%d", key), stop.position, stopPayload, proc(p: Stop, v: f32) -> Msg {
+	append(&rows, particleRow(ctx, r, "Position", valueSlider(ctx, fmt.tprintf("%s-ramp-position-%d", prefix, key), stop.position, stopPayload, proc(p: Stop, v: f32) -> Msg {
 		changed := p.ramp
 		index := p.index
 		changed.stops[index].position = v
@@ -350,14 +421,14 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 	}, 0, 1, step = 0.001, decimals = 3, width = width)))
 	linear := skald.rgb(u32(stop.color.r) << 16 | u32(stop.color.g) << 8 | u32(stop.color.b))
 	append(&rows,
-		inspectorRow(ctx, "Color", skald.color_picker(ctx, linear, stopPayload, proc(p: Stop, c: skald.Color) -> Msg {
+		particleRow(ctx, r, "Color", skald.color_picker(ctx, linear, stopPayload, proc(p: Stop, c: skald.Color) -> Msg {
 			changed := p.ramp
 			picked, _ := e.ParseColor(fmt.tprintf("#%s", skald.color_to_hex(c)))
 			picked.a = changed.stops[p.index].color.a
 			changed.stops[p.index].color = picked
 			return Ramp_Edited{FormatRampText(changed), p.index}
-		}, id = skald.hash_id(fmt.tprintf("inspector-ramp-color-%d", key)), width = width)),
-		inspectorRow(ctx, "Alpha", valueSlider(ctx, fmt.tprintf("inspector-ramp-alpha-%d", key), f32(stop.color.a), stopPayload, proc(p: Stop, v: f32) -> Msg {
+		}, id = skald.hash_id(fmt.tprintf("%s-ramp-color-%d", prefix, key)), width = width)),
+		particleRow(ctx, r, "Alpha", valueSlider(ctx, fmt.tprintf("%s-ramp-alpha-%d", prefix, key), f32(stop.color.a), stopPayload, proc(p: Stop, v: f32) -> Msg {
 			changed := p.ramp
 			changed.stops[p.index].color.a = u8(math.clamp(math.round(v), 0, 255))
 			return Ramp_Edited{FormatRampText(changed), p.index}

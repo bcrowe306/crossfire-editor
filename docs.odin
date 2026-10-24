@@ -403,6 +403,7 @@ DOCS_BOTTOM_TAB_PAGES := [BottomTab]string{
 	.Timeline  = "animation#the-timeline-tab",
 	.Live      = "live",
 	.States    = "state_machines",
+	.Particles = "particles#the-particles-tab",
 	.Dialogue  = "dialogue",
 	.Plugins   = "plugins",
 	.LDtk      = "level_mode#the-ldtk-tab",

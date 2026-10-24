@@ -40,6 +40,7 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if info.scope != .None && !Timeline_IsEdit(m) do out.timeline.previewing = false
 	Timeline_Follow(&out)
 	States_Follow(&out)
+	Particles_Follow(&out)
 	// The inspector shows a data resource chosen in the browser, until a node is selected
 	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
 	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Data {
@@ -144,6 +145,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	// Switching modes, and the Level mode's messages (before the LDtk ones: a level picked on the
 	// browser's world map selects it there while the Level mode shows)
 	if command, handled := Modes_Update(out, m); handled do return command
+	if Particles_Update(out, m) do return {}
 	if command, handled := LevelMode_Update(out, m); handled do return command
 	if Console_Update(out, m) do return {}
 	if ViewportTools_Update(out, m) do return {}
@@ -1049,28 +1051,31 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		if node := selectedNode(out); node != nil do node.visible = bool(v)
 	case Inspector_Link_Toggled:
 		out.inspectorLinks[LinkedPair(v)] = !out.inspectorLinks[LinkedPair(v)]
+	// The selected emitter's, else the Particles tab's (particles_edit.odin)
 	case Particle_Field_Changed:
-		if node := selectedNode(out); node != nil && node.kind == .ParticleEmitter do e.ParticleSettings_Set(&node.particles, v.name, v.value)
+		if node, _ := Particles_Target(out); node != nil do e.ParticleSettings_Set(&node.particles, v.name, v.value)
 	case Particle_Axis_Changed:
-		node := selectedNode(out)
-		if node == nil || node.kind != .ParticleEmitter || v.axis < 0 || v.axis > 1 do break
+		node, _ := Particles_Target(out)
+		if node == nil || v.axis < 0 || v.axis > 1 do break
 		ParticleSettings_SetAxis(&node.particles, v.name, v.axis, v.value, ParticleField_Index(v.name) in out.particleLinks)
 	case Particle_Link_Toggled:
 		if int(v) >= 0 && int(v) < 64 do out.particleLinks ~= {int(v)}
 	case Particles_Reset:
-		node := selectedNode(out)
-		if node == nil || node.kind != .ParticleEmitter do break
+		node, _ := Particles_Target(out)
+		if node == nil do break
 		node.particles = e.DEFAULT_PARTICLE_SETTINGS
 		delete(node.texture)
 		node.texture = strings.clone("")
 	case Ramp_Edited:
-		node := selectedNode(out)
-		if node == nil || node.kind != .ParticleEmitter do break
+		node, _ := Particles_Target(out)
+		if node == nil do break
 		if e.ParticleSettings_Set(&node.particles, "colorRamp", v.text) do out.rampStop = v.selected
+	case Particles_Category_Picked, Particles_Restart, Particles_Preset_Applied:
+		// Particles_Update (particles_edit.odin), above
 	case Ramp_Stop_Selected:
 		out.rampStop = int(v)
 	case Ramp_Drag_Changed:
-		out.rampDragging = bool(v)
+		out.rampDrag = skald.Widget_ID(v)
 	case Node_Field_Changed:
 		node := selectedNode(out)
 		if node == nil do break

@@ -485,14 +485,17 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		return {scope = .Project, label = fmt.tprintf("Change a material's %v", v.field), mergeKey = key("material", v.field, s.materialSelection)}
 	case Material_Created:
 		if v.forSelected && hasSelection do return node(selected, fmt.tprintf("Give %s a new material", name))
+	// On the selected emitter, else the Particles tab's (`Particles_Target`)
 	case Particle_Field_Changed:
-		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", particleLabel(v.name), name), key("particle", v.name, s.currentScene, selected))
+		if emitter, at := Particles_Target(s); emitter != nil do return node(at, fmt.tprintf("Change %s of %s", particleLabel(v.name), emitter.name), key("particle", v.name, s.currentScene, at))
 	case Particle_Axis_Changed:
-		if hasSelection do return node(selected, fmt.tprintf("Change %s of %s", particleLabel(v.name), name), key("particle", v.name, s.currentScene, selected))
+		if emitter, at := Particles_Target(s); emitter != nil do return node(at, fmt.tprintf("Change %s of %s", particleLabel(v.name), emitter.name), key("particle", v.name, s.currentScene, at))
 	case Ramp_Edited:
-		if hasSelection do return node(selected, fmt.tprintf("Change the color ramp of %s", name), key("particle", "colorRamp", s.currentScene, selected))
+		if emitter, at := Particles_Target(s); emitter != nil do return node(at, fmt.tprintf("Change the color ramp of %s", emitter.name), key("particle", "colorRamp", s.currentScene, at))
 	case Particles_Reset:
-		if hasSelection do return node(selected, fmt.tprintf("Reset the particles of %s", name))
+		if emitter, at := Particles_Target(s); emitter != nil do return node(at, fmt.tprintf("Reset the particles of %s", emitter.name))
+	case Particles_Preset_Applied:
+		if emitter, at := Particles_Target(s); emitter != nil do return node(at, fmt.tprintf("Apply the %s preset to %s", v, emitter.name))
 	case Node_Layer_Toggled:
 		if hasSelection do return node(selected, fmt.tprintf("Change collision %s of %s", v.mask ? "mask" : "layers", name))
 	case Node_Points_Changed:

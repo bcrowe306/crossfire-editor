@@ -301,6 +301,40 @@ Preview_Node :: proc(index: int) -> ^e.Node {
 	return preview.nodes[index]
 }
 
+/*
+Starts a previewed ParticleEmitter again: its particles cleared, a new cycle begun (the Particles
+tab's Restart). Nothing when the preview hasn't built the open scene as it is.
+
+Inputs:
+- s: The state (the open scene)
+- index: The emitter's index in the open scene
+*/
+Preview_RestartEmitter :: proc(s: ^State, index: int) {
+	if !Preview_IsCurrent(s) do return
+	node := Preview_Node(index)
+	if node == nil || !e.Node_Is(node, e.ParticleEmitter) do return
+	emitter := cast(^e.ParticleEmitter)node
+	e.ParticleEmitter_Clear(emitter)
+	e.ParticleEmitter_Start(emitter)
+}
+
+/*
+How many particles a previewed ParticleEmitter has alive (the Particles tab's header).
+
+Returns:
+- count: Its live CPU particles
+- onGPU: It draws on the GPU (no count: the GPU keeps no particles)
+- ok: The preview has built the emitter
+*/
+Preview_EmitterAlive :: proc(s: ^State, index: int) -> (count: int, onGPU: bool, ok: bool) {
+	if !Preview_IsCurrent(s) do return
+	node := Preview_Node(index)
+	if node == nil || !e.Node_Is(node, e.ParticleEmitter) do return
+	emitter := cast(^e.ParticleEmitter)node
+	if e.ParticleEmitter_OnGPU(emitter) do return 0, true, true
+	return e.ParticleEmitter_AliveCount(emitter), false, true
+}
+
 // Whether the preview has built the open scene as it is now (its nodes are the scene's)
 Preview_IsCurrent :: proc(s: ^State) -> bool {
 	return preview.scene != nil && preview.signature == sceneSignature(s, &s.project.scenes[s.currentScene])

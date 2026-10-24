@@ -1,0 +1,102 @@
+# The Particles bottom tab: the inspector's Edit in the Particles tab opens it on the emitter, it
+# keeps the emitter while nothing is selected, its slider, one-shot toggle, categories (names,
+# icons or the narrow window's choice), the color ramp's bar, a preset, undo and redo, Restart,
+# Reset and its Manual button. Run with: task test:ui (and :fullscreen, :short)
+#
+# PlayScene has 11 nodes; a top-level node added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+expect selected none
+
+key ctrl+shift+a
+type ParticleEmitter
+key RETURN
+expect selected ParticleEmitter
+expect particles_tab node ParticleEmitter
+
+# The inspector's summary and button: the tab shows, on the emitter, at its first category
+scroll_into_view inspector-scroll inspector-particles-edit-11
+click_widget inspector-particles-edit-11
+expect bottom_tab Particles
+expect bottom open
+expect particles_tab category Emission
+expect in_window particles-tab-reset
+
+# Nothing selected: the tab keeps the emitter, and its edits go to it
+key escape
+expect selected none
+expect particles_tab node ParticleEmitter
+scroll_into_view particles-tab-scroll particles-tab-particle-amount-11
+drag_widget particles-tab-particle-amount-11 0.5 0.5 -0.5 0.5
+expect particles_tab setting amount 1
+scroll_into_view particles-tab-scroll particles-tab-one-shot
+click_widget particles-tab-one-shot
+expect particles_tab setting continuous false
+click_widget particles-tab-one-shot
+expect particles_tab setting continuous true
+
+# Another category: a tab (names or icons), or the choice in a narrow panel
+if_drawn particles-tab-cat-Color click_widget particles-tab-cat-Color
+if_drawn particles-tab-select scroll_into_view particles-tab-scroll particles-tab-select
+if_drawn particles-tab-select click_widget particles-tab-select
+wait 3
+if_drawn particles-tab-select click_overlay_item 4
+wait 30
+expect particles_tab category Color
+
+# The ramp's bar: a click adds a stop there and selects it, a drag moves it past the middle one
+scroll_into_view particles-tab-scroll particles-tab-ramp-11
+click_at particles-tab-ramp-11 0.25 0.3
+expect particles_tab ramp_stops 4
+expect ramp_stop 1
+drag_widget particles-tab-ramp-11 0.25 0.3 0.75 0.3
+expect particles_tab ramp_stops 4
+expect ramp_stop 2
+
+# A preset: Sparks (a one-shot burst of rectangles), one undo step
+scroll_into_view particles-tab-scroll particles-tab-preset
+click_widget particles-tab-preset
+wait 3
+click_overlay_item 2
+wait 30
+expect particles_tab setting shape Rectangle
+expect particles_tab setting burst 1
+expect particles_tab setting continuous false
+key ctrl+z
+expect particles_tab setting shape Circle
+expect particles_tab ramp_stops 4
+expect particles_tab setting amount 1
+key ctrl+shift+z
+expect particles_tab setting shape Rectangle
+
+# Restart (the viewport's emitter starts again: not an edit), Reset (one step)
+scroll_into_view particles-tab-scroll particles-tab-restart
+click_widget particles-tab-restart
+expect particles_tab setting shape Rectangle
+scroll_into_view particles-tab-scroll particles-tab-reset
+click_widget particles-tab-reset
+expect particles_tab setting amount 50
+expect particles_tab setting shape Circle
+key ctrl+z
+expect particles_tab setting shape Rectangle
+
+# The emitter selected again: the inspector and the tab show the same settings
+select_node ParticleEmitter
+expect selected ParticleEmitter
+expect particle shape Rectangle
+expect particles_tab node ParticleEmitter
+
+# Its Manual button opens the particles page in the docs window
+scroll_into_view particles-tab-scroll particles-tab-manual
+click_widget particles-tab-manual
+wait_until docs_address_has /manual/particles/ timeout=5
+key escape
+expect docs closed
+
+key ctrl+s
+wait_until modified false
+expect project_file_contains scenes/PlayScene.scene.xml shape="Rectangle"
+quit

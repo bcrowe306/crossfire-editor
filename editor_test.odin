@@ -3996,7 +3996,7 @@ every_row_label_has_a_tooltip :: proc(t: ^testing.T) {
 		data, readErr := os.read_entire_file(file.fullpath, context.temp_allocator)
 		if readErr != nil do continue
 		text := string(data)
-		for marker in ([]string{"inspectorRow(ctx, \"", "settingRow(ctx, \""}) {
+		for marker in ([]string{"inspectorRow(ctx, \"", "settingRow(ctx, \"", "particleRow(ctx, r, \""}) {
 			rest := text
 			for {
 				at := strings.index(rest, marker)

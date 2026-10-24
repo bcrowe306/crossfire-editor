@@ -59,6 +59,8 @@ BottomTab :: enum {
 	Live,
 	// A StateMachine's graph (view_states.odin)
 	States,
+	// The shown ParticleEmitter's settings by category (view_particles.odin)
+	Particles,
 	// A dialogue's nodes and steps (view_dialogue.odin)
 	Dialogue,
 	// The project's editor plugins (view_plugins.odin)
@@ -254,6 +256,8 @@ State :: struct {
 	live: LiveView,
 	// The States tab: the StateMachine it shows, its selection (state_machine_edit.odin)
 	states: StatesEditor,
+	// The Particles tab: the ParticleEmitter it shows, its category (particles_edit.odin)
+	particles: ParticlesEditor,
 	// The Mixer tab: a bus name being typed (its index, the text; owned), kept until it's valid
 	busEdit: struct {
 		index: int,
@@ -263,9 +267,10 @@ State :: struct {
 	inspectorLinks: [LinkedPair]bool,
 	// The same for ParticleEmitter [2]f32 settings, by index in e.ParticleSettings_Fields
 	particleLinks: bit_set[0 ..< 64],
-	// The color ramp editor's selected stop, and whether its marker is being dragged
+	// The color ramp editor's selected stop, and the bar whose marker is being dragged (0: none;
+	// the inspector's and the Particles tab's bars can both show)
 	rampStop: int,
-	rampDragging: bool,
+	rampDrag: skald.Widget_ID,
 	// Text typed into the focused number field
 	numberEdit: NumberEdit,
 	// Every selected node of the open scene, sorted; `selectedNode` is the primary one (selection.odin)

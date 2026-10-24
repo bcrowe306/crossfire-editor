@@ -70,7 +70,7 @@ EDITOR_MODES := [EditorMode]EditorModeInfo{
 		name = "Scene", icon = ICON_CUBE, action = .Mode_Scene,
 		about = "Scene mode: scenes and their nodes, the viewport, the inspector and code",
 		view = sceneModeView,
-		bottomTabs = []BottomTab{.Console, .Output, .Animation, .Mixer, .Git, .Tiles, .Timeline, .Live, .States, .Dialogue, .Plugins},
+		bottomTabs = []BottomTab{.Console, .Output, .Animation, .Mixer, .Git, .Tiles, .Timeline, .Live, .States, .Particles, .Dialogue, .Plugins},
 		manual = "getting_started#editor-modes",
 	},
 	.Level = {
