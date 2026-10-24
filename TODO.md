@@ -4,16 +4,6 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
-## Round 4 features (asked 2026-10-24; done 2026-10-24)
-
-Built in the order asked: docs in the editor (CLAUDE.md's "Docs in the editor"), editor modes
-("Editor modes"), Level mode and the LDtk tab ("Editor modes", "Editing LDtk projects"), state
-machines' transition logic and guards ("State machines"), the Particles tab ("Particles"), and
-the sprite sheet slicer ("The sprite sheet slicer"). The user's decisions: Level mode is a
-world/level editor (our own LDtk-format editor later); LDtk edits write back into the .ldtk file;
-docs open in an in-app popup rendering the bundled markdown (offline, linking the same page on
-crossfireengine.io); "Handle event" code actions keep subscribing in ready code.
-
 ## Code editor integration (asked 2026-10-23; done 2026-10-24)
 
 Built in seven steps: providers, the script index and typed constants; names in strings; code and
