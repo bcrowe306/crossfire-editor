@@ -1,7 +1,7 @@
 ---
 title: Particles
 description: Make sparks, smoke, fire, rain, explosions and magic with ParticleEmitter nodes, set up in the inspector and played live in the viewport.
-order: 11
+order: 12
 ---
 
 # Particles

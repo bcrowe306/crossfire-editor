@@ -62,7 +62,14 @@ a game started with Play too.
    - **Cells**: how many frames across and down. A strip of 8 frames in one row is 8 × 1; or
    - **Size**: one frame's width and height in pixels (32 × 32): the panel works out how many fit.
 5. If your sheet has a border or gaps between frames: **Margin** (pixels around the edge before
-   the first frame) and **Gap** (pixels between frames).
+   the first frame) and **Gap** (pixels between frames); if the frames don't start at its
+   top-left corner, **Offset** (where the grid starts).
+
+Or let the [sprite sheet slicer](sprite_slicer.md) do it: select the sheet in the browser and
+press **Slice Sprite Sheet…** (or **Slice a sheet…** in the Animation panel). It shows the sheet
+with its frames outlined, finds the frames of sheets without a grid (uneven sprites), and names
+several animations at once (a row each), which it gives to the sprite or makes an animation asset
+of.
 
 The sprite starts with one animation, **default**: every frame, looping, at 8 frames a second.
 Press **P** (or the play button above the viewport) to see it play in the viewport.
@@ -102,6 +109,8 @@ sets each one's sheet, frames and speed.
 | **Sheet** | Its sprite sheet's picture. Dragging a picture from the browser onto the panel sets it too |
 | **Grid** | How its sheet is cut into frames: **Cells** (so many across × down) or **Size** (a frame's width × height in pixels). Beside it, the other one, worked out from the picture: the frames' size, or how many fit. With **Size**, pixels the frames don't fill at the right or bottom are left out of every frame, and the panel says how many ("Left over: 12 px on the right"); with **Cells**, it warns when frames aren't whole pixels |
 | **Margin**, **Gap** | Pixels around the sheet's edge before the first frame, and between frames |
+| **Offset** | Where the grid starts: pixels from the sheet's left edge and top (a sheet with something else above or beside its frames) |
+| **Slice a sheet…** | Opens the animation's sheet in the [sprite sheet slicer](sprite_slicer.md) |
 | **Frames** ... **to** ... | Its first and last frame |
 | **Count** | How many frames it plays from its first (sets the last). Change either the last frame or the count: the other follows |
 | **FPS** | Frames per second: how fast it plays |
@@ -111,6 +120,10 @@ sets each one's sheet, frames and speed.
 | The mode | **Forward**, **Reverse** (last frame to first), **PingPong** (there and back), **PingPongReverse** (back and there) |
 
 The toolbar's controls wrap onto more lines when the panel is narrow.
+
+An animation the slicer cut from a sheet of uneven sprites has a rectangle per frame instead of
+a grid: the toolbar says "N frames sliced from the sheet" where the grid was, with **Slice a
+sheet…** and **Use a grid instead** (back to cutting it by a grid).
 
 **Under the toolbar**, the preview plays the animation (its play button pauses it) and shows which
 frame it's on. Beside it, every frame of the animation's sheet as a thumbnail, numbered, the
@@ -135,7 +148,9 @@ its animations, each with its own sheet and grid.
   Animation Asset**. The file is made from them (named after the sprite), and the sprite now plays
   it. Or
 - once the browser has an **Animations** folder, right-click it > **New Animations**: an empty one
-  opens in the Animation panel; pick its animation's sheet there.
+  opens in the Animation panel; pick its animation's sheet there. Or
+- in the [sprite sheet slicer](sprite_slicer.md), name the animations on a sheet and press
+  **Create Animation Asset**.
 
 **Using one:**
 
@@ -305,7 +320,9 @@ attached.
 ```
 
 Each `<animation>` names its own `sheet` and grid: `columns` × `rows`, or `grid="Size"` with
-`cellWidth` × `cellHeight`, plus `margin` and `spacing`. Files saved by older versions had one
+`cellWidth` × `cellHeight`, plus `margin`, `spacing` and where it starts (`offsetX`, `offsetY`);
+or, cut by the [sprite sheet slicer](sprite_slicer.md) from uneven sprites, `rects` (each frame's
+rectangle, `x,y,w,h`) instead of a grid. Files saved by older versions had one
 sheet on the node (`texture`, `columns`, `rows`): they open as before, every animation on that
 sheet.
 
@@ -314,8 +331,12 @@ sheet.
 **My sprite sheet shows all its frames at once, tiny.** Set the animation's **Grid**: its
 columns and rows, or with **Size** a frame's width and height.
 
-**The animation shows bits of the next frame.** The grid is off: check the Grid, Margin and Gap
-against the sheet.
+**The animation shows bits of the next frame.** The grid is off: check the Grid, Margin, Gap and
+Offset against the sheet, or open it in the [sprite sheet slicer](sprite_slicer.md), which
+outlines every frame on the picture.
+
+**My sheet's sprites are all different sizes.** Use the [sprite sheet slicer](sprite_slicer.md)'s
+auto-detect: it finds each sprite and can line them up at their feet.
 
 **My animations need different sheets.** Give each its own: pick the animation in the Animation
 panel's dropdown and set its **Sheet**.

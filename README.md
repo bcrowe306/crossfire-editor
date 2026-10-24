@@ -583,6 +583,17 @@ direction (forward, reverse, ping-pong) and its repeats. Pick it in the Animated
 many times it plays, and says when a sheet's grid leaves pixels over. Renaming an animation
 renames it in the state machines and Timeline keys that play it.
 
+**The sprite sheet slicer:** a tab beside the scene and code tabs (an image's **Slice Sprite
+Sheet…**, the Animation panel's **Slice a sheet…**, or an image dropped on the tabs) shows a sheet
+on a canvas to pan and zoom with its frames outlined. Cut it by a grid (columns and rows or a
+cell's size, margin, gap, where it starts) or let it find the sprites of a sheet of uneven ones
+(islands of opaque pixels merged within a distance, specks dropped; a 4096 px sheet on a worker),
+pick frames by clicking (Ctrl adds, Shift a run), name several animations at once (a row each),
+with their speed, looping and frame times, played in a preview, then make an animation asset of
+them, give them to the selected AnimatedSprite or add a new one: each an undo step. It remembers
+each sheet's settings in `.editor/slicer.ini`. See
+[docs/manual/sprite_slicer.md](docs/manual/sprite_slicer.md).
+
 ## LDtk levels
 
 Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:

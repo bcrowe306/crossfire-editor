@@ -1,7 +1,7 @@
 ---
 title: State machines
 description: "StateMachine nodes and the States tab: what a character is doing, the conditions that change it, and the animation each state plays."
-order: 24
+order: 25
 ---
 
 # State machines

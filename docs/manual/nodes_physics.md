@@ -1,7 +1,7 @@
 ---
 title: "Node guides: physics"
 description: How to use the physics nodes, StaticBody, DynamicBody, CharacterMover, Area, CollisionShape, RayCast and Joint, in the editor and from scripts.
-order: 45
+order: 46
 ---
 
 # Node guides: physics

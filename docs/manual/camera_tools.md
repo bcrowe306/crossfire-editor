@@ -1,7 +1,7 @@
 ---
 title: Camera tools
 description: A camera that follows a node by itself (limits, dead zone, look-ahead, shake), parallax backgrounds, rooms the camera stays in, smooth zoom, and camera views for split screen and minimaps.
-order: 19
+order: 20
 ---
 
 # Camera tools: following, parallax, rooms, zoom, split screen

@@ -1,7 +1,7 @@
 ---
 title: Node guides
 description: "Every node kind in one place: what it does and where its guide is (properties, the inspector, code, an example, the API)."
-order: 40
+order: 41
 ---
 
 # Node guides

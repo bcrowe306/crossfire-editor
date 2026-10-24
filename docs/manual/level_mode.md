@@ -1,7 +1,7 @@
 ---
 title: Level mode
 description: "The editor's world editor: your LDtk project's levels on a canvas you pan, zoom and rearrange, entities you pick and move, and the LDtk tab, which edits layers, entities, fields, enums and the world and saves them into the .ldtk file."
-order: 17
+order: 18
 ---
 
 # Level mode

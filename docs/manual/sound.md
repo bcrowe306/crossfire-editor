@@ -1,7 +1,7 @@
 ---
 title: Sound and music
 description: Play sound effects and music with AudioPlayer, AudioPlayer2D and MusicPlayer nodes, mix them on buses in the Mixer tab, and play sounds from scripts.
-order: 13
+order: 14
 ---
 
 # Sound and music

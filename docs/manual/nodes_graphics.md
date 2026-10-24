@@ -1,7 +1,7 @@
 ---
 title: "Node guides: graphics"
 description: "Guides to the nodes that draw: sprites, tilemaps, parallax, camera views, lights, screen effects, lines, trails and particles."
-order: 42
+order: 43
 ---
 
 # Node guides: graphics
@@ -113,7 +113,10 @@ or an Aseprite file's tags). In code it's an `e.AnimatedSprite`.
 
 1. **Add Node** (Ctrl+Shift+A) > **AnimatedSprite**. Put it inside the character node it draws.
 2. Press **Edit Animations**: in the **Animation** tab, set each animation's **Sheet** and
-   **Grid** (cells across and down, or a frame's size), its frames, speed and looping.
+   **Grid** (cells across and down, or a frame's size), its frames, speed and looping. Or cut
+   the sheet in the [sprite sheet slicer](sprite_slicer.md) (**Slice a sheet…**): pick frames on
+   the picture, name the animations, and **Apply to** the sprite (its animation player plays
+   them).
 3. Pick **Starts with**.
 4. Press **P** (or the play button above the viewport) to see it play in the viewport, then
    **Play** (F5) to check it in the game.

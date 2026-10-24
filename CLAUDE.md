@@ -64,6 +64,10 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   and macOS arm64 built and tested (unit tests, a headless export run, UI scripts on macOS),
   published as a GitHub release (archives with every prebuilt player, an AppImage, a Windows
   installer, a macOS disk image), uploaded to R2, then the website deployed.
+- **The sprite sheet slicer** (`slicer_edit.odin`, `view_slicer.odin`): a center tab per image
+  (beside the scene and code tabs) cutting a sheet by a grid or by its sprites (auto-detect),
+  frames picked on the picture, animations named from them (a row each), previewed, then an
+  animation asset, the selected AnimatedSprite's or a new one's (see "The sprite sheet slicer").
 - **Docs in the editor** (`docs.odin`, `docs_window.odin`, `view_docs.odin`, `markdown.odin`): a
   docs window over the editor showing the bundled manual (with a guide to every node kind) and
   the engine's API reference, offline, from F1, Open Docs in every right-click menu and code tab,
@@ -326,8 +330,10 @@ Skald is not immediate-mode and not a retained widget tree:
 | `bus_effects_edit.odin` | **Bus effects**: `BusDef.effects` / `effectCount` (a plain array), `Bus_Effects_Opened` (the Mixer's FX: `State.busSelection`) and `Bus_Effect_Added` / `_Removed` / `_Moved` / `_Changed` (`.Project` steps), `busEffectsInspector`; the preview hears them (`AudioPreview_SetEffects` from `Mixer_RoutePreview`) |
 | `music_layers_edit.odin` | **Music layers**: `NodeDef.musicLayers` (`MusicLayerDef`: clone, destroy, equal), `Music_Layer_Added` / `_Removed` / `_Changed` (node steps), the MusicPlayer's Layers rows (`musicLayerRows`) |
 | `view_inspector_audio.odin` | The inspector's sound node settings (`audioInspectorRows`): sound or music, bus, Open Mixer, volume / pitch / pan sliders, loop, autostart, a 2D player's range and falloff, music's fades, Preview |
-| `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with; the selected animation's sheet, grid mode and values, margin, gap; frames, count, FPS, loop, mode, Plays (repeat), Frame times and each frame's ms; the sheet's leftover note; small groups in a `wrap_row`) over the preview and the thumbnails of its sheet's frames (`frameStrip`, cells drawn from the sheet uploaded once: `Image_LoadRGBA`); one scroll for all, which takes images dropped from the browser (`AnimationPanel_TakesDrop`) |
+| `view_animation.odin` | The Animation panel (the animation editor): a toolbar (animation dropdown and buttons, name, starts-with; the selected animation's sheet, grid mode and values, margin, gap, offset, Slice a sheet… (the slicer); a sliced animation's note and Use a grid instead; frames, count, FPS, loop, mode, Plays (repeat), Frame times and each frame's ms; the sheet's leftover note; small groups in a `wrap_row`) over the preview and the thumbnails of its sheet's frames (`frameStrip`, cells drawn from the sheet uploaded once: `Image_LoadRGBA`); one scroll for all, which takes images dropped from the browser (`AnimationPanel_TakesDrop`) |
 | `animation_edit.odin` | The Animation panel's logic: `AnimEditor` state, `AnimEdit_Update` (its messages), `AnimEdit_Cells` / `AnimEdit_SheetSize` (an animation's sheet's cells, from `Image_Size`), `AnimationDef_FrameAt` / `StepAt` (the frame at a time, as the engine plays it, durations and repeats too), `AnimationDef_Range`, unique names, `AnimEdit_IsEdit`, `AnimEdit_SheetNote` (leftover pixels), `AnimEdit_FpsDuration`, `AnimEdit_RenameReferences` (state machines and Timeline keys follow a rename) |
+| `slicer_edit.odin` | **The sprite sheet slicer's model**: `SlicerState` (`State.slicer`: the tabs, the one shown, the preview's clock, a name being typed, the asset's name, Use the asset), `SlicerTab` (an image, its `SlicerSettings`, the picks, the shown animation and frame, the canvas's view), `SlicerSettings` (`SliceMode` Grid / Auto, the grid, auto-detect's settings and sprites found, `SliceAnimation`s, the asset made), the cells (`Slicer_CellCount` / `_CellRect` / `_CellAt` / `_RowOf` / `_Rows`), `Slicer_FindSprites` / `Slicer_Detect` (here or on a worker), `Slicer_AnimationDefs` (runs as a grid range, else rectangles; `Slicer_EvenOut`), the outputs (`Slicer_CreateAsset`, `Slicer_Apply`, `Slicer_AddToScene`), `Slicer_Update` (`Slicer_Changed{op: SlicerOp}`, `SlicerNumber`, `SlicerDurationTarget`), `.editor/slicer.ini` (`Slicer_Format` / `_Parse` / `_Load` / `_Save` / `_ReplaceSection`) |
+| `view_slicer.odin` | **The sprite sheet slicer's tab** (`slicerCenterView`: the header, the canvas beside the controls from `SLICER_SIDE_WIDTH`, else over them), `SlicerTabs_View` (the strip's tabs), the canvas (`slicerCanvas`: input from its last rect, the sheet on a checkerboard, the cells in view, the picks numbered, the shown animation's frames), the controls (`slicerControls`, `slicerAnimationRows`: rows as the inspector's, the preview, the frame strip), the driver's `Slicer_CellCenter` / `Slicer_FrameStripCenter` |
 | `animation_sets_edit.odin` | **Animation assets**: `AnimationSetDef` (`.anim.xml`, `Project.animationSets`: load, save when changed, make: `Project_CreateAnimationSet`), `AnimationDef` / set clone, equal and engine conversions, an Aseprite file's tags as a set (`AsepriteEdit_AnimationSet`), the panel's `AnimSource` (`AnimEdit_Source`), the browser preview, `Scene_AddAnimatedSpriteAt` |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
@@ -1767,7 +1773,8 @@ MyGame/
   export/<target>/         export output (the default folder; gitignored in this repo's examples)
   .editor/                 per-user editor state (gitignored): guides.ini (the viewport's guides),
                            logpoints.ini (the code tabs' log points), modes.ini (the editor mode
-                           and the Level mode's world: editor_modes.odin)
+                           and the Level mode's world: editor_modes.odin), slicer.ini (the sprite
+                           sheet slicer's settings per image: slicer_edit.odin)
 ```
 
 - **Version 14:** an AnimatedSprite's animations each have their own sheet (`AnimationDef.sheet`,
@@ -1776,7 +1783,9 @@ MyGame/
   and `.anim.xml` files; NodeDef and AnimationSetDef have no sheet (no `columns`, `rows`, `margin`,
   `spacing`). Older files migrate in the engine's parser (the node's or file's sheet becomes every
   animation's; a node without animations gets "default"), so `Project_Load` just copies them;
-  they're rewritten in the new format only when saved. Also in 14 (no version of its own): a
+  they're rewritten in the new format only when saved. Also in 14 (no version of its own): an
+  `<animation>`'s `offsetX` / `offsetY` (`SheetGrid.offset`) and `rects` (`AnimationDef.rects`,
+  written instead of the grid: the sprite sheet slicer's); a
   Camera's `target` and follow, limit (`limitsOff` too) and shake attributes (`NodeDef.camera`,
   `cameraTarget`; see "Camera follow target"), and the Slider and CheckBox UI controls (`step`,
   `checked`; themes' `checkColor`: see "UI controls and themes").
@@ -2191,7 +2200,10 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
 
 - **Model:** an AnimatedSprite has `animations` (`AnimationDef`: name, **its own sheet** (`sheet`,
   a path) and `grid` (`e.SheetGrid`: mode Cells with `columns` x `rows`, or Size with `cellSize`,
-  plus `margin`, `spacing`; only the mode's own values are kept, as files keep them), start, end
+  plus `margin`, `spacing` and `offset` (where the grid starts); only the mode's own values are
+  kept, as files keep them), or `rects` (the sheet's cells as rectangles, from the sprite sheet
+  slicer: the grid is then unused; the panel shows a note, Slice a sheet… and Use a grid instead,
+  `Anim_Rects_Cleared`; `AnimEdit_Cells` counts them), start, end
   (-1 = last cell), fps, loop, play mode; at least one) and `autoplay` (the one it starts with, "" =
   the first); the node has no sheet (format 14: `NodeDef.texture` stays "" for it). Scene files:
   `<animation>` children. Older files' node sheet (and before format 7 the node's fps/loop/
@@ -2243,6 +2255,85 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   margin, gap, cells, count, repeat, durations too), `animation_note`, `autoplay`, `sheet_loaded`; frame times, Plays, a leftover note), `tests/ui/animation_assets.script`
   (a set's second animation on another sheet, cut by size). `scroll_into_view` centers a laid-out widget, and passes when the
   scroll isn't drawn but the widget is visible (layouts that change with the window).
+
+## The sprite sheet slicer (implemented, `slicer_edit.odin`, `view_slicer.odin`; engine: animation.odin's `Sheet_FindSprites`, `CreateRectSheetAnimation`)
+
+TODO.md's Round 4 item 5 (asked 2026-10-24: "Implement a spritesheet slicer. This will allow
+slicing of sprite sheets and loading them into an animationplayer. Maybe this could load in it's
+own viewport tab."). The manual's page is `docs/manual/sprite_slicer.md`.
+- **A center tab per image** (`SlicerState.tabs`, `shown` 1-based), after the code tabs
+  (`SlicerTabs_View`, keys `slicer-tab-<i>`, menu `Ctx_Slicer_Tab`). Showing one sets `codeTab`
+  0 and the Scene mode (`Slicer_Show`); a code tab picked, a scene tab picked, or another scene
+  opened hides it (`update`); Close_Code_Tab (Ctrl+W) closes it. `viewportView` builds
+  `slicerCenterView` instead of the viewport, and everything that hit-tests the viewport's last
+  rect checks it first (`ViewportWorldAt`: an image dropped on the slicer added a Sprite to the
+  scene; the keymap's viewport-only keys; F1's `Docs_TrackPointer`, which says `.Slicer`).
+  Opened from the browser's image preview (`browser-slice`) and menu, the Animation panel
+  (`animation-slice`), an image dropped on the center tabs or the slicer's canvas
+  (`slicerTakesDrop`).
+- **Arbitrary rectangles (decided 2026-10-24): frame rects in the animation**, not atlas regions:
+  an atlas packs images into one picture and names regions for Sprites, so an animation over
+  regions would need a packed copy of the sheet and a frame list of names; the engine's
+  per-animation sheet only lacked a way to cut it other than a grid. So `AnimationData.rects` /
+  `AnimationDef.rects` (file: `rects="x,y,w,h ..."`, `e.ParseSheetRects` / `e.FormatSheetRects`)
+  replace the grid when present: the cells are the rectangles in order, `start` / `end` count
+  them, each frame drawn at its size (`e.CreateRectSheetAnimation`, `e.Sheet_CellCount` /
+  `Sheet_CellRect` for editors). Added to format 14 without a version (an older reader plays the
+  grid's cells instead: wrong frames, nothing breaks), as the camera's settings were.
+  **What's made** (`Slicer_AnimationDefs`): a run of a grid's cells in order is the grid and a
+  range (the Animation panel edits it as before); frames out of order and found sprites are
+  rectangles, evened out per animation when **Same size frames** (`Slicer_EvenOut`: the largest
+  size, bottom middle anchored, kept inside the sheet). The grid's `offset` (where it starts:
+  `offsetX` / `offsetY`) was missing from the engine too, and is in `SheetGrid` now (the panel's
+  Offset).
+- **Auto-detect** is the engine's `Sheet_FindSprites` (runs of opaque pixels joined across rows
+  with a union-find, 8-connected; boxes merged within `mergeDistance` until none are close;
+  specks under `minSize` both ways dropped; reading order by rows of vertically overlapping
+  boxes; an opaque top-left pixel is the background key: `Sheet_BackgroundKey`), not the
+  collision tracer (`Image_TraceOutlines` keeps a map of edges per pixel: far too slow at 4096²).
+  Sheets over `SLICER_DETECT_SYNC_PIXELS` (1 MP) run on a `cmd_thread` worker (`Slicer_Detected`,
+  the canvas says "Finding sprites…"); smaller ones in `update` (so unit tests see the result).
+  Measured: 4096 x 4096 with 1024 sprites in 207 ms best of 5 (debug build,
+  `slicer_big_sheets_are_fast`); the engine's test, 4096 sprites, 264 ms debug.
+- **Undo:** the outputs are steps (`History_Classify`): **Create Animation Asset**
+  (`Slicer_Asset_Created`) a `.Project` step: the set goes into the project unwritten
+  (`Project_CreateAnimationSet(write = false)`: Save writes it like an edited set) with
+  `AnimationSetDef.stepMade`, and `restoreProjectSnapshot` takes such sets (and their asset
+  entries) out when the snapshot lacks them and puts them back when it has them (other sets are
+  still files, not undone); pressed again it updates that asset (a `.Project` step by file).
+  **Apply to <sprite>** (`Slicer_Applied`) a `.Node` step on the selected AnimatedSprite (the
+  asset when **Use the asset**, else the animations as its own); **Add to Scene**
+  (`Slicer_Added_To_Scene`) a `.Scene` step (named after the image: `Slicer_NodeName`, at the
+  viewport's center, selected). The tab's settings, picks and animations aren't steps (like the
+  Animation panel's selection): they're remembered.
+- **Persistence:** `.editor/slicer.ini`, a section per image (`Slicer_Format`: mode, grid,
+  detect, found, asset, `anim = fps loop mode | frames | ms | name`), written whenever the
+  section's text changes (`Slicer_Save`: the other sections kept, `Slicer_ReplaceSection`, into
+  a `.tmp` file renamed over it), read when a tab opens (`Slicer_Load`; else
+  `SlicerSettings_Default`: a strip of square cells when the image is one).
+- **The canvas** (`slicerCanvas`, built in the body's `sized`): its view is the tab's `center` /
+  `zoom`, fitted while not moved by hand (`viewMoved`: `.Measured` refits); input from its last
+  rect (the wheel through `wheelAction`, a middle / right / Space drag pans: file state
+  `slicerPanning`; a click `Cell_Clicked` with Shift / Ctrl); only the cells in view are built
+  (a grid's by its column and row range, nothing under 3 screen pixels), picks numbered when big
+  enough. The controls (`slicerControls`) are `inspectorRow`s (labels in `fieldTip`; stacked by
+  `Inspector_Layout` at the column's width), 300 px beside the canvas from `SLICER_SIDE_WIDTH`
+  (620) of center, else under it (the canvas gets 42%).
+- **ANIM_ constants** come as for any set or sprite (script_constants.odin): the asset's
+  `ANIM_<ASSET>_<NAME>` and `ANIMATION_<ASSET>` once it's in the project.
+- Tests: `slicer_edit_test.odin` (`slicer_grid_math`, `slicer_finds_sprites_on_sheets`: the
+  demo's snail walk and a generated uneven sheet on magenta; `slicer_big_sheets_are_fast`;
+  `slicer_makes_animations_applies_and_undoes`: picks, two animations, frame times moved, the
+  asset made / undone / redone / updated, constants, apply both ways, add, the saved file read
+  back; `slicer_settings_persist`), the engine's `sheet_grids_with_offsets_and_rectangles`,
+  `sheets_find_their_sprites`, `animation_set_files_and_sprites_using_them` (a sliced animation
+  built from a scene file); `tests/ui/slicer.script` (opened from the preview, closed, opened
+  from the menu, a grid typed, a run and an out-of-order pick, two animations named, frame times
+  and a frame moved, the preview, the asset with undo / redo, applied to PlayScene's Balloon and
+  undone, as its own animations, added and undone, auto-detect, the Animation panel's link, a
+  narrow center, saved, closed with Ctrl+W, an image dropped on the tabs). Looked at in PNGs at
+  640x660, 900x500 and 1280x720 (Skald's offscreen renderer made public in the submodule's
+  working tree for a scratch driver command, then put back).
 
 ## Collision from sprites and physics materials (implemented, `collision_trace_edit.odin`, `material_edit.odin`; engine: collision_trace.odin, physics_material.odin)
 
@@ -3518,6 +3609,11 @@ Highlights:
     `ldtk-layer-name`...), the conflict dialog's `ldtk-conflict-overwrite` / `-keep` / `-cancel`
     (driver checks `mode`, `level <file | level | tab | levels | shown_in | entity | ldtk_tab |
     problem | conflict | outside>`, `ldtk`; tests/ui/modes.script, ldtk_tab.script)
+  - the sprite sheet slicer's tab (slicer_edit.odin's doc block: `slicer-tab-<i>`, `slicer-canvas`,
+    `slicer-scroll`, `slicer-<SlicerNumber>`, `slicer-add`, `slicer-create`, `slicer-apply`...),
+    the browser preview's `browser-slice`, the Animation panel's `animation-slice` (driver:
+    `click_cell <n> [shift|ctrl]`, `click_slicer_frame <n>`, check `slicer <field>`;
+    tests/ui/slicer.script)
   - toolbar buttons `toolbar-<name>` (`toolbar-physics-debug`: the game's collision shapes,
     `toolbar-restart`, `toolbar-more`: the overflow in a narrow window, drawn instead of the tools),
     panel buttons `panel-<name>`

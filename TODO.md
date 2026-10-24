@@ -4,24 +4,15 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
-## Round 4 features (asked 2026-10-24; build in this order)
+## Round 4 features (asked 2026-10-24; done 2026-10-24)
 
-The user's decisions (2026-10-24): Level mode is a world/level editor (we'll eventually build our
-own editor for the LDtk format); LDtk editing writes back into the .ldtk file; docs open in an
-in-app popup rendering the bundled markdown (offline, with a link to the same page on
-crossfireengine.io); "Handle event" code actions keep subscribing in ready code. Docs in the
-editor (asked as items 2 and 4) is done (2026-10-24): CLAUDE.md's "Docs in the editor". Editor modes
-(item 7: the mode bar, the Scene mode, a Level mode shell) is done (2026-10-24): CLAUDE.md's "Editor modes".
-Level mode and the LDtk tab (item 3: the world canvas, the LDtk tab's sections, write-back into the
-.ldtk file, undo, Open in LDtk at a level) is done (2026-10-24): CLAUDE.md's "Editor modes" and
-"Editing LDtk projects". State machines (item 1: transition logic, guards in code and in the GUI,
-the States tab's sidebar) is done (2026-10-24): CLAUDE.md's "State machines". The Particles tab
-(item 6: the categories in a left column, the category's settings beside it, presets, Restart) is
-done (2026-10-24): CLAUDE.md's "Particles".
-
-1. **A sprite sheet slicer** (item 5): its own viewport tab; slice a sheet by grid (cells or
-   cell size, margin, gap) or by auto-detecting sprites, pick frames, name animations, and load
-   them into an animation asset and/or an AnimatedSprite (the animation player).
+Built in the order asked: docs in the editor (CLAUDE.md's "Docs in the editor"), editor modes
+("Editor modes"), Level mode and the LDtk tab ("Editor modes", "Editing LDtk projects"), state
+machines' transition logic and guards ("State machines"), the Particles tab ("Particles"), and
+the sprite sheet slicer ("The sprite sheet slicer"). The user's decisions: Level mode is a
+world/level editor (our own LDtk-format editor later); LDtk edits write back into the .ldtk file;
+docs open in an in-app popup rendering the bundled markdown (offline, linking the same page on
+crossfireengine.io); "Handle event" code actions keep subscribing in ready code.
 
 ## Code editor integration (asked 2026-10-23; done 2026-10-24)
 

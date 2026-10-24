@@ -1,7 +1,7 @@
 ---
 title: Collision from sprites and physics materials
 description: Give a body collision shapes that fit its sprite, and share friction, bounce and density between bodies with physics materials.
-order: 10
+order: 11
 ---
 
 # Collision from sprites and physics materials

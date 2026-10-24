@@ -1,7 +1,7 @@
 ---
 title: Globals, data resources and saves
 description: Keep game-wide state in global scripts, put game data such as enemy stats in data resources edited in the inspector, and save and load the player's progress.
-order: 7
+order: 8
 ---
 
 # Globals, data resources and saves

@@ -1,7 +1,7 @@
 ---
 title: Several scripts, node types and hot reload
 description: Give one node several scripts, make node types of your own from game code (a Player that is a Sprite with its own code), and change scripts while the game plays without starting over.
-order: 6
+order: 7
 ---
 
 # Several scripts, node types and hot reload

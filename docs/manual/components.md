@@ -1,7 +1,7 @@
 ---
 title: Components
 description: Save a group of nodes (an enemy, a coin, a door) as a component, edit it in its own tab, place instances of it in any scene, and add or remove them from scripts.
-order: 15
+order: 16
 ---
 
 # Components

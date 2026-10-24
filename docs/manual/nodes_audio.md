@@ -1,7 +1,7 @@
 ---
 title: "Node guides: sound"
 description: How to use the sound nodes (AudioPlayer, AudioPlayer2D and MusicPlayer) in the editor and from scripts.
-order: 46
+order: 47
 ---
 
 # Node guides: sound

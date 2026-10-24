@@ -1,7 +1,7 @@
 ---
 title: 2D lighting
 description: Dark scenes lit by point and spot lights, with shadows cast by occluders and walls.
-order: 20
+order: 21
 ---
 
 # 2D lighting

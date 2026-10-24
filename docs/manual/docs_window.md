@@ -1,7 +1,7 @@
 ---
 title: The docs window
 description: "This manual and the engine's API reference inside the editor, offline: F1, Open Docs and the Manual buttons, links, search, back and forward, the same page on crossfireengine.io."
-order: 39
+order: 40
 ---
 
 # The docs window
@@ -24,7 +24,7 @@ It opens at the page about what you're doing:
 
 | From | It shows |
 |---|---|
-| **Help > User Manual**, or **F1** | The page of the panel under the pointer: over the inspector or the viewport, the selected node's guide; over a bottom tab (Mixer, Timeline, States...), that tab's page; over the browser, the selected scene's or asset's page; anywhere else, this manual's contents |
+| **Help > User Manual**, or **F1** | The page of the panel under the pointer: over the inspector or the viewport, the selected node's guide; over a bottom tab (Mixer, Timeline, States...), that tab's page; over the [sprite sheet slicer](sprite_slicer.md)'s tab, its page; over the browser, the selected scene's or asset's page; anywhere else, this manual's contents |
 | **F1** in a code tab | The API entry of the engine procedure, type or constant at the caret (`e.Camera2D_Follow`), or the page of the type of the field or variable there; otherwise the code editor's page |
 | **Open Docs** in a code tab's right-click menu | The page of the name you clicked: a node type's guide (`e.Sprite`), an API entry, or a field's or variable's type (`self.door` declared `door: ^e.Sprite`: the Sprite's guide). See [The code editor](code_editor.md#hovers-and-previews) |
 | **Open Docs** in a right-click menu | A node's guide (in the scene tree or the viewport), a scene's, an asset kind's (images, sounds, fonts, animations, themes, materials, shaders, atlases, dialogues, LDtk projects, translations, data, components), a script's, a tab's, a bottom panel's |

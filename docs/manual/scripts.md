@@ -1,7 +1,7 @@
 ---
 title: Scripts
 description: Write your game's code in Odin, attach it to nodes, set its fields in the inspector, and use events, assets and the engine from it.
-order: 5
+order: 6
 ---
 
 # Scripts

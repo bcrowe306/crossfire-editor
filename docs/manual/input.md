@@ -1,7 +1,7 @@
 ---
 title: Input
 description: Name your game's controls as input actions bound to keys, mouse buttons and gamepads, read them in scripts, and let players rebind them.
-order: 8
+order: 9
 ---
 
 # Input
