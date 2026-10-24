@@ -22,12 +22,19 @@ Context_Menu :: struct {
 	selected: int,
 	// The first item shown, when the view is too short for them all
 	scroll:   int,
+	// The menu providers' entries (providers_scrub.odin), asked when it opened, and the
+	// position they were asked for
+	provided: [dynamic]Menu_Provided,
+	pos:      buf.Position,
 }
 
 Menu_Item :: struct {
 	label:   string,
 	action:  km.Action,
 	enabled: bool, // separators have label == ""
+	// A menu provider's entry: its provider and index (provider -1: the editor's own)
+	provider: int,
+	index:    int,
 }
 
 // editor_context_menu_items lists the menu entries for the current state.
@@ -35,22 +42,27 @@ editor_context_menu_items :: proc(ed: ^Editor) -> []Menu_Item {
 	_, _, has_sel := buf.selection_range(editor_primary_cursor(ed)^)
 	items := make([dynamic]Menu_Item, context.temp_allocator)
 	ready := editor_lsp_ready(ed)
-	append(&items, Menu_Item{"Go to Definition", .GotoDefinition, ready})
-	append(&items, Menu_Item{"Peek Definition", .PeekDefinition, ready})
-	append(&items, Menu_Item{"Find All References", .FindReferences, ready})
-	if editor_has_provider(ed, .Usages) do append(&items, Menu_Item{"Find Usages in Project", .FindUsages, true})
-	append(&items, Menu_Item{"Rename Symbol", .Rename, ready || editor_has_provider(ed, .Rename)})
-	append(&items, Menu_Item{"", .None, false})
-	append(&items, Menu_Item{"Cut", .Cut, has_sel})
-	append(&items, Menu_Item{"Copy", .Copy, has_sel})
-	append(&items, Menu_Item{"Paste", .Paste, true})
-	append(&items, Menu_Item{"", .None, false})
-	append(&items, Menu_Item{"Select All", .SelectAll, true})
-	append(&items, Menu_Item{"Select All Occurrences", .SelectAllOccurrences, true})
-	append(&items, Menu_Item{"", .None, false})
-	append(&items, Menu_Item{"Quick Fix...", .QuickFix, editor_lsp_ready(ed)})
-	append(&items, Menu_Item{"Find", .Find, true})
-	append(&items, Menu_Item{"Go to Next Problem", .NextDiagnostic, len(editor_diagnostics(ed)) > 0})
+	append(&items, Menu_Item{"Go to Definition", .GotoDefinition, ready, -1, 0})
+	append(&items, Menu_Item{"Peek Definition", .PeekDefinition, ready, -1, 0})
+	append(&items, Menu_Item{"Find All References", .FindReferences, ready, -1, 0})
+	if editor_has_provider(ed, .Usages) do append(&items, Menu_Item{"Find Usages in Project", .FindUsages, true, -1, 0})
+	append(&items, Menu_Item{"Rename Symbol", .Rename, ready || editor_has_provider(ed, .Rename), -1, 0})
+	append(&items, Menu_Item{"", .None, false, -1, 0})
+	append(&items, Menu_Item{"Cut", .Cut, has_sel, -1, 0})
+	append(&items, Menu_Item{"Copy", .Copy, has_sel, -1, 0})
+	append(&items, Menu_Item{"Paste", .Paste, true, -1, 0})
+	append(&items, Menu_Item{"", .None, false, -1, 0})
+	append(&items, Menu_Item{"Select All", .SelectAll, true, -1, 0})
+	append(&items, Menu_Item{"Select All Occurrences", .SelectAllOccurrences, true, -1, 0})
+	append(&items, Menu_Item{"", .None, false, -1, 0})
+	append(&items, Menu_Item{"Quick Fix...", .QuickFix, editor_lsp_ready(ed), -1, 0})
+	append(&items, Menu_Item{"Find", .Find, true, -1, 0})
+	append(&items, Menu_Item{"Go to Next Problem", .NextDiagnostic, len(editor_diagnostics(ed)) > 0, -1, 0})
+	// The host's entries (a menu provider's), after a separator
+	if len(ed.menu.provided) > 0 {
+		append(&items, Menu_Item{"", .None, false, -1, 0})
+		for m in ed.menu.provided do append(&items, Menu_Item{m.label, .None, true, m.provider, m.index})
+	}
 	return items[:]
 }
 
@@ -97,7 +109,9 @@ chord_text :: proc(best: km.Chord) -> string {
 
 editor_open_context_menu :: proc(ed: ^Editor, x, y: f32) {
 	editor_close_completion(ed)
-	ed.menu = {open = true, x = x, y = y, selected = -1}
+	provided := ed.menu.provided
+	ed.menu = {open = true, x = x, y = y, selected = -1, provided = provided}
+	editor_collect_menu_items(ed)
 }
 
 editor_close_context_menu :: proc(ed: ^Editor) {
@@ -138,6 +152,10 @@ editor_context_menu_activate :: proc(ed: ^Editor, index: int) {
 	items := editor_context_menu_items(ed)
 	editor_close_context_menu(ed)
 	if index < 0 || index >= len(items) || !items[index].enabled {
+		return
+	}
+	if items[index].provider >= 0 {
+		editor_run_menu_item(ed, items[index])
 		return
 	}
 	editor_run_action(ed, items[index].action)

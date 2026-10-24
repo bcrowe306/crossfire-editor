@@ -314,6 +314,7 @@ main :: proc() {
 	cursor_shapes := [ed.Mouse_Cursor]^sdl.Cursor{
 		.Default = sdl.CreateSystemCursor(.DEFAULT),
 		.Text    = sdl.CreateSystemCursor(.TEXT),
+		.Scrub   = sdl.CreateSystemCursor(.EW_RESIZE),
 	}
 	defer for c in cursor_shapes {
 		if c != nil {

@@ -8,7 +8,8 @@
 // (`Provider_Diagnostic.fixes`) come first, and show at once (also without
 // a server). The same menu lists a gutter marker's choices when it has several
 // (`Gutter_Marker.choices`: the nodes using a script, say); picking one calls
-// the marker's provider with it. A drop asking for its menu
+// the marker's provider with it; a clickable inlay hint's choices and a scrub's (where to write
+// the scrubbed value) are listed the same way. A drop asking for its menu
 // (`Drop_Request.menu`) lists the drop provider's choices here too, with a
 // preview of the selected one's code beside the menu.
 package code_editor
@@ -21,6 +22,13 @@ import sdl "vendor:sdl3"
 import ttf "vendor:sdl3/ttf"
 
 CODE_ACTION_MAX_VISIBLE :: 8
+
+// What a menu of choices (`Code_Action_Menu.choices`) is for
+Choice_Origin :: enum {
+	Marker,
+	Inlay,
+	Scrub,
+}
 
 Code_Action_Menu :: struct {
 	active:   bool,
@@ -42,6 +50,13 @@ Code_Action_Menu :: struct {
 	choices:         []string,
 	choice_provider: int,
 	choice_marker:   Gutter_Marker,
+	// What the choices are for: a marker's, an inlay hint's (its position and id; not its
+	// strings) or a scrub's (its target, the value and its text, owned)
+	choice_origin:   Choice_Origin,
+	choice_inlay:    Inlay_Hint,
+	choice_scrub:    Scrub_Target,
+	choice_value:    f64,
+	choice_text:     string,
 	// A drop's choices (owned): listed instead of the rest, the selected one's preview shown
 	drops:           []Drop_Choice,
 	// The message of the last drop choice applied ("" none), for the host's log (owned)
@@ -119,6 +134,8 @@ editor_close_code_actions :: proc(ed: ^Editor) {
 	ed.actions.fixes = nil
 	marker_choices_free(ed.actions.choices)
 	ed.actions.choices = nil
+	delete(ed.actions.choice_text)
+	ed.actions.choice_text = ""
 	drop_choices_free(ed.actions.drops)
 	ed.actions.drops = nil
 }
@@ -189,7 +206,53 @@ editor_open_marker_menu :: proc(ed: ^Editor, provider: int, marker: Gutter_Marke
 	m.choices = make([]string, len(marker.choices))
 	for c, i in marker.choices do m.choices[i] = strings.clone(c)
 	m.choice_provider = provider
+	m.choice_origin = .Marker
 	m.choice_marker = Gutter_Marker{line = marker.line, icon = marker.icon, color = marker.color, id = marker.id}
+	editor_ensure_cursor_visible(ed)
+}
+
+/*
+Opens the menu of a clickable inlay hint's choices (a click on its label), the caret at the
+hint's position. Picking one calls the hint's provider with it (`Inlay_Hint.choice`).
+*/
+editor_open_inlay_menu :: proc(ed: ^Editor, provider: int, hint: Inlay_Hint) {
+	editor_open_choices(ed, hint.pos, hint.choices)
+	m := &ed.actions
+	m.choice_provider = provider
+	m.choice_origin = .Inlay
+	m.choice_inlay = Inlay_Hint{pos = hint.pos, kind = hint.kind, id = hint.id, clickable = true}
+}
+
+/*
+Opens the menu of a scrub's choices (its provider offered them at the release), the caret at the
+literal. Picking one calls the provider's `on_scrub_choice`; Escape picks nothing.
+*/
+editor_open_scrub_menu :: proc(ed: ^Editor, provider: int, target: Scrub_Target, value: f64, text: string, choices: []string) {
+	editor_open_choices(ed, target.start, choices)
+	m := &ed.actions
+	m.choice_provider = provider
+	m.choice_origin = .Scrub
+	m.choice_scrub = target
+	m.choice_value = value
+	m.choice_text = strings.clone(text)
+}
+
+// The menu of choices at a position (their strings copied)
+@(private)
+editor_open_choices :: proc(ed: ^Editor, pos: buf.Position, choices: []string) {
+	editor_close_completion(ed)
+	editor_close_code_actions(ed)
+	b := &ed.buf
+	resize(&b.cursors, 1)
+	b.cursors[0] = {pos = buf.buffer_clamp_position(b, pos)}
+	m := &ed.actions
+	m.active = true
+	m.waiting = false
+	m.selected = 0
+	m.scroll = 0
+	m.anchor = b.cursors[0].pos
+	m.choices = make([]string, len(choices))
+	for c, i in choices do m.choices[i] = strings.clone(c)
 	editor_ensure_cursor_visible(ed)
 }
 
@@ -243,10 +306,16 @@ editor_code_actions_move :: proc(ed: ^Editor, delta: int) {
 // fix, or an action of the server's last response.
 editor_apply_code_action :: proc(ed: ^Editor, index: int) -> bool {
 	if ed.actions.choices != nil {
-		provider, marker, count := ed.actions.choice_provider, ed.actions.choice_marker, len(ed.actions.choices)
+		m := ed.actions
+		count := len(m.choices)
+		text := strings.clone(m.choice_text, context.temp_allocator)
 		editor_close_code_actions(ed)
 		if index < 0 || index >= count do return false
-		editor_choose_marker(ed, provider, marker, index)
+		switch m.choice_origin {
+		case .Marker: editor_choose_marker(ed, m.choice_provider, m.choice_marker, index)
+		case .Inlay:  editor_choose_inlay(ed, m.choice_provider, m.choice_inlay, index)
+		case .Scrub:  editor_choose_scrub(ed, m.choice_provider, m.choice_scrub, m.choice_value, text, index)
+		}
 		return true
 	}
 	if ed.actions.drops != nil {

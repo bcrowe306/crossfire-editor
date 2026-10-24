@@ -316,6 +316,14 @@ render_inlays :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, lin
 		w := pl.label_w
 		bg := theme.current_line
 		fill_rect(renderer, {px - 2, y + 2, w + 4, ed.char_h - 4}, bg)
+		if h.clickable {
+			// A frame says it takes a click
+			frame := theme.popup_text_dim
+			fill_rect(renderer, {px - 2, y + 2, w + 4, 1}, frame)
+			fill_rect(renderer, {px - 2, y + ed.char_h - 3, w + 4, 1}, frame)
+			fill_rect(renderer, {px - 2, y + 2, 1, ed.char_h - 4}, frame)
+			fill_rect(renderer, {px + w + 1, y + 2, 1, ed.char_h - 4}, frame)
+		}
 		draw_text(renderer, font, h.label, px, y, color, ed.char_h)
 	}
 }

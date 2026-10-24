@@ -72,6 +72,8 @@ Editor :: struct {
 	// The host's providers (providers.odin; nil: none) and what the cached ones last said
 	providers: ^Provider_Registry,
 	provided:  Provided,
+	// A scrub being dragged (providers_scrub.odin)
+	scrub:     Scrub_State,
 
 	// Viewport / scrolling (in cells, not pixels). scroll_col is a visual
 	// column (tabs expanded), not a byte offset.
@@ -197,6 +199,10 @@ editor_destroy :: proc(ed: ^Editor) {
 	marker_choices_free(ed.actions.choices)
 	drop_choices_free(ed.actions.drops)
 	delete(ed.actions.drop_message)
+	delete(ed.actions.choice_text)
+	delete(ed.scrub.text)
+	menu_provided_clear(ed)
+	delete(ed.menu.provided)
 	rename_destroy(ed)
 }
 

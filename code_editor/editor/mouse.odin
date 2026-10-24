@@ -50,6 +50,8 @@ Drag_Mode :: enum {
 Mouse_Cursor :: enum {
 	Default,
 	Text,
+	// Scrubbing a number (a left-right arrow)
+	Scrub,
 }
 
 Mouse_State :: struct {
@@ -188,6 +190,7 @@ editor_hit_test :: proc(ed: ^Editor, x, y: f32) -> Hit {
 // editor_mouse_cursor is the pointer shape for the current hover/drag
 // state: an I-beam over text (and throughout a drag), an arrow elsewhere.
 editor_mouse_cursor :: proc(ed: ^Editor) -> Mouse_Cursor {
+	if ed.scrub.active do return .Scrub
 	if ed.mouse.drag != .None || ed.mouse.zone == .Text {
 		return .Text
 	}
@@ -344,8 +347,10 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 	case .Gutter:
 		editor_close_completion(ed)
 		// A provider's marker in the marker column: its click callback
-		if ev.x >= ed.origin_x + editor_gutter_width(ed) - GUTTER_MARKER_SPACE - 2 && editor_click_gutter_marker(ed, hit.pos.line) {
-			return true
+		if ev.x >= ed.origin_x + editor_gutter_width(ed) - GUTTER_MARKER_SPACE - 2 {
+			if editor_click_gutter_marker(ed, hit.pos.line) do return true
+			// A line without a marker: a gutter provider may set something there (a log point)
+			if len(editor_gutter_markers_on(ed, hit.pos.line)) == 0 && editor_click_gutter_line(ed, hit.pos.line) do return true
 		}
 		resize(&b.cursors, 1)
 		start, end := line_range_at(ed, hit.pos.line)
@@ -360,6 +365,9 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 			return true
 		}
 		if .Alt in mods && .Shift not_in mods {
+			// A number a provider can scrub: dragging sideways changes it (a press that doesn't
+			// move is still an Alt+click: providers_scrub.odin)
+			if editor_scrub_press(ed, hit.pos, ev.x) do return true
 			editor_toggle_cursor_at(ed, hit.pos)
 			return true
 		}
@@ -443,6 +451,7 @@ editor_handle_mouse_up :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool {
 		m.scroll_drag = .None
 		return true
 	}
+	if ev.button == 1 && editor_scrub_release(ed) do return true
 	if ev.button == 1 && m.drag == .Move {
 		m.drop_pos = editor_screen_to_position(ed, ev.x, ev.y)
 		mods := editor_current_mods(ed)
@@ -481,6 +490,10 @@ editor_handle_mouse_motion :: proc(ed: ^Editor, ev: sdl.MouseMotionEvent) -> boo
 	m := &ed.mouse
 	if m.scroll_drag != .None {
 		editor_scroll_to_track_pos(ed, m.scroll_drag, ev.x, ev.y, m.scroll_grab)
+		return true
+	}
+	if ed.scrub.pending || ed.scrub.active {
+		editor_scrub_motion(ed, ev.x)
 		return true
 	}
 	if m.move_pending && abs(ev.x - m.press_x) + abs(ev.y - m.press_y) > DRAG_MOVE_THRESHOLD {

@@ -254,7 +254,7 @@ snapshot_state :: proc(e: ^ed.Editor, frame: int) -> State {
 		x      = e.mouse.x,
 		y      = e.mouse.y,
 		zone   = fmt.tprint(e.mouse.zone),
-		cursor = "text" if ed.editor_mouse_cursor(e) == .Text else "default",
+		cursor = strings.to_lower(fmt.tprint(ed.editor_mouse_cursor(e)), context.temp_allocator),
 		drag   = fmt.tprint(e.mouse.drag),
 	}
 

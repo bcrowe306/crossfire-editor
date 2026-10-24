@@ -9,7 +9,15 @@
 //   diagnostics   problems merged with the server's (squiggles, gutter, Problems panel), with
 //                 quick fixes (Ctrl+.'s menu, before the server's code actions)
 //   gutter        markers in the gutter (an icon, a tooltip, a click callback)
-//   inlay hints   notes drawn after a line's text, or color swatches (a click calls the host)
+//   inlay hints   notes drawn after a line's text, or color swatches (a click calls the host);
+//                 a clickable hint takes a click on its label, and one with choices opens a
+//                 menu of them first (a running game's nodes, say)
+//   scrubbing     Alt+drag on a number the provider says can be scrubbed: the host is told the
+//                 new value as it's dragged (the literal isn't edited), and at the release it
+//                 may offer choices (where to write it) in a menu
+//   menu items    the host's entries in the right-click menu, for the line clicked
+//   gutter clicks a click in the marker column of a line without a marker (setting something
+//                 on that line: a log point)
 //   drops         a host's drop on the code: the editor works out where it landed (the
 //                 syntactic context, `editor_syntax_context_at`) and the provider says what
 //                 to insert
@@ -206,7 +214,9 @@ Inlay_Kind :: enum {
 /*
 A note drawn after a line's text (inline placement that moves the text is for later). With a
 `swatch`, a square of that color is drawn before the label (a color literal's): a left click on
-it calls the inlay provider's `on_inlay_click` with the hint.
+it calls the inlay provider's `on_inlay_click` with the hint. A `clickable` hint takes a click on
+its label too (drawn with a frame); with `choices`, a click opens a menu of them first (the code
+actions menu) and the callback gets the one picked in `choice`.
 */
 Inlay_Hint :: struct {
 	pos:    buf.Position,
@@ -215,6 +225,12 @@ Inlay_Hint :: struct {
 	swatch: Maybe(sdl.Color),
 	// The host's own number, given back to the click callback
 	id:     int,
+	// The label takes a left click (on_inlay_click)
+	clickable: bool,
+	// Things to pick from: a click opens a menu of them, and the callback gets `choice`
+	choices: []string,
+	// Set by the editor when it calls the click callback: the choice picked (0 without choices)
+	choice:  int,
 }
 
 // What a host drops on the code (its own meaning: `kind` and `value` say what it is, `data`
@@ -308,8 +324,10 @@ Diagnostic_Provider_Proc :: proc(doc: Provider_Document, ctx: Provider_Context, 
 Gutter_Provider_Proc     :: proc(doc: Provider_Document, ctx: Provider_Context, out: ^[dynamic]Gutter_Marker)
 Gutter_Click_Proc        :: proc(doc: Provider_Document, marker: Gutter_Marker, user_data: rawptr)
 Inlay_Provider_Proc      :: proc(doc: Provider_Document, ctx: Provider_Context, out: ^[dynamic]Inlay_Hint)
-// A click on an inlay hint's swatch
+// A click on an inlay hint's swatch, or on a clickable hint (its choice picked, with choices)
 Inlay_Click_Proc         :: proc(doc: Provider_Document, hint: Inlay_Hint, user_data: rawptr)
+// A click in the marker column of a line without a marker; returns whether it was taken
+Gutter_Line_Proc         :: proc(doc: Provider_Document, line: int, user_data: rawptr) -> bool
 // Returns whether it handled the drop (else the next drop provider is asked)
 Drop_Provider_Proc       :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, drop: Drop_Request, out: ^Drop_Result) -> bool
 // Returns whether the position is on a symbol the provider knows (else the next one is asked)
@@ -330,6 +348,10 @@ Provider_Kind :: enum {
 	Drop,
 	Usages,
 	Rename,
+	// Alt+drag on a number (providers_scrub.odin)
+	Scrub,
+	// Entries in the right-click menu (providers_scrub.odin)
+	Menu,
 }
 
 // One registered provider
@@ -352,6 +374,16 @@ Provider :: struct {
 	on_open:    Usage_Open_Proc,
 	prepare_rename: Rename_Prepare_Proc,
 	rename:     Rename_Proc,
+	// Gutter providers: a click in the marker column of a line without a marker
+	on_gutter_line: Gutter_Line_Proc,
+	// Scrubbing (providers_scrub.odin): what can be scrubbed at a position, the drag's values and
+	// its end (choices to offer), the choice picked
+	scrub_target:    Scrub_Target_Proc,
+	on_scrub:        Scrub_Proc,
+	on_scrub_choice: Scrub_Choice_Proc,
+	// The right-click menu's entries for a position, and one picked
+	menu_items:   Menu_Items_Proc,
+	on_menu_item: Menu_Item_Proc,
 	// Timing: calls, the last and the slowest call
 	calls:      int,
 	last, worst: time.Duration,
@@ -458,6 +490,8 @@ Provided :: struct {
 	hover_replaces_server: bool,
 	// Each inlay hint's provider (an index of the registry's providers, parallel to `inlays`)
 	inlay_providers: [dynamic]int,
+	// Each marker's provider (parallel to `markers`): its click goes there
+	marker_providers: [dynamic]int,
 }
 
 @(private)
@@ -500,6 +534,7 @@ provided_clear_markers :: proc(p: ^Provided) {
 		marker_choices_free(m.choices)
 	}
 	clear(&p.markers)
+	clear(&p.marker_providers)
 }
 
 @(private)
@@ -510,7 +545,10 @@ marker_choices_free :: proc(choices: []string) {
 
 @(private)
 provided_clear_inlays :: proc(p: ^Provided) {
-	for h in p.inlays do delete(h.label)
+	for h in p.inlays {
+		delete(h.label)
+		marker_choices_free(h.choices)
+	}
 	clear(&p.inlays)
 	clear(&p.inlay_providers)
 }
@@ -542,6 +580,7 @@ provided_destroy :: proc(p: ^Provided) {
 	delete(p.markers)
 	delete(p.inlays)
 	delete(p.inlay_providers)
+	delete(p.marker_providers)
 	delete(p.hover)
 }
 
@@ -606,21 +645,27 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 	diags := make([dynamic]Provider_Diagnostic, context.temp_allocator)
 	markers := make([dynamic]Gutter_Marker, context.temp_allocator)
 	inlays := make([dynamic]Inlay_Hint, context.temp_allocator)
-	// Which provider gave each inlay hint (its click callback)
+	// Which provider gave each inlay hint and marker (their click callbacks)
 	inlay_from := make([dynamic]int, context.temp_allocator)
+	marker_from := make([dynamic]int, context.temp_allocator)
 	for &prov, pi in ed.providers.providers {
 		start := time.tick_now()
 		ctx := provider_context(&prov, .Refresh)
 		switch prov.kind {
 		case .Diagnostics: if prov.diagnostic != nil { prov.diagnostic(doc, ctx, &diags); provider_timed(&prov, start) }
-		case .Gutter:      if prov.gutter != nil { prov.gutter(doc, ctx, &markers); provider_timed(&prov, start) }
+		case .Gutter:
+			if prov.gutter != nil {
+				prov.gutter(doc, ctx, &markers)
+				provider_timed(&prov, start)
+				for len(marker_from) < len(markers) do append(&marker_from, pi)
+			}
 		case .Inlay:
 			if prov.inlay != nil {
 				prov.inlay(doc, ctx, &inlays)
 				provider_timed(&prov, start)
 				for len(inlay_from) < len(inlays) do append(&inlay_from, pi)
 			}
-		case .Completion, .Hover, .Drop, .Usages, .Rename:
+		case .Completion, .Hover, .Drop, .Usages, .Rename, .Scrub, .Menu:
 		}
 	}
 	count := buf.buffer_line_count(&ed.buf)
@@ -645,7 +690,12 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 		p.diag_seq += 1
 	}
 	provided_clear_markers(p)
-	for m in markers {
+	Sorted_Marker :: struct { marker: Gutter_Marker, provider: int }
+	sorted_markers := make([dynamic]Sorted_Marker, context.temp_allocator)
+	for m, i in markers do append(&sorted_markers, Sorted_Marker{m, marker_from[i]})
+	slice.stable_sort_by(sorted_markers[:], proc(a, b: Sorted_Marker) -> bool { return a.marker.line < b.marker.line })
+	for sm in sorted_markers {
+		m := sm.marker
 		if m.line < 0 || m.line >= count do continue
 		mm := m
 		mm.tooltip = strings.clone(m.tooltip)
@@ -656,8 +706,8 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 		}
 		mm.choice = 0
 		append(&p.markers, mm)
+		append(&p.marker_providers, sm.provider)
 	}
-	slice.stable_sort_by(p.markers[:], proc(a, b: Gutter_Marker) -> bool { return a.line < b.line })
 	provided_clear_inlays(p)
 	Sorted_Inlay :: struct { hint: Inlay_Hint, provider: int }
 	sorted := make([dynamic]Sorted_Inlay, context.temp_allocator)
@@ -670,6 +720,12 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 	for s in sorted {
 		hh := s.hint
 		hh.label = strings.clone(s.hint.label)
+		hh.choice = 0
+		hh.choices = nil
+		if len(s.hint.choices) > 0 {
+			hh.choices = make([]string, len(s.hint.choices))
+			for c, i in s.hint.choices do hh.choices[i] = strings.clone(c)
+		}
 		append(&p.inlays, hh)
 		append(&p.inlay_providers, s.provider)
 	}
@@ -728,20 +784,22 @@ called at once.
 @(private)
 editor_click_gutter_marker :: proc(ed: ^Editor, line: int) -> bool {
 	if ed.providers == nil do return false
-	for m in editor_gutter_markers_on(ed, line) {
-		for &prov, i in ed.providers.providers {
-			if prov.kind != .Gutter || prov.on_click == nil do continue
-			if len(m.choices) > 1 {
-				editor_open_marker_menu(ed, i, m)
-				return true
-			}
-			start := time.tick_now()
-			mm := m
-			mm.choice = 0
-			prov.on_click(editor_provider_document(ed), mm, prov.user_data)
-			provider_timed(&prov, start)
+	for m, i in ed.provided.markers {
+		if m.line != line do continue
+		pi := i < len(ed.provided.marker_providers) ? ed.provided.marker_providers[i] : -1
+		if pi < 0 || pi >= len(ed.providers.providers) do continue
+		prov := &ed.providers.providers[pi]
+		if prov.kind != .Gutter || prov.on_click == nil do continue
+		if len(m.choices) > 1 {
+			editor_open_marker_menu(ed, pi, m)
 			return true
 		}
+		start := time.tick_now()
+		mm := m
+		mm.choice = 0
+		prov.on_click(editor_provider_document(ed), mm, prov.user_data)
+		provider_timed(prov, start)
+		return true
 	}
 	return false
 }
@@ -1011,8 +1069,9 @@ editor_inlay_places :: proc(ed: ^Editor, line: int, x: f32) -> []Inlay_Place {
 }
 
 /*
-A left click at a point of the text area: the swatch of an inlay hint under it calls its
-provider's `on_inlay_click`. Returns whether one did.
+A left click at a point of the text area: the swatch of an inlay hint under it, or a clickable
+hint's label, calls its provider's `on_inlay_click` (a hint with choices opens their menu first).
+Returns whether one did.
 */
 @(private)
 editor_click_inlay_swatch :: proc(ed: ^Editor, x, y: f32) -> bool {
@@ -1025,21 +1084,64 @@ editor_click_inlay_swatch :: proc(ed: ^Editor, x, y: f32) -> bool {
 	for h, i in ed.provided.inlays do if h.pos.line == line { first = i; break }
 	places := editor_inlay_places(ed, line, ed.origin_x + editor_gutter_width(ed))
 	for h, i in hints {
-		if _, swatch := h.swatch.?; !swatch do continue
 		pl := places[i]
-		if x < pl.x - 2 || x >= pl.x + pl.swatch_w + 2 do continue
+		_, swatch := h.swatch.?
+		on_swatch := swatch && x >= pl.x - 2 && x < pl.x + pl.swatch_w + 2
+		label_x := pl.x + (pl.swatch_w > 0 ? pl.swatch_w + ed.char_w : 0)
+		on_label := h.clickable && x >= label_x - 2 && x < label_x + pl.label_w + 2
+		if !on_swatch && !on_label do continue
 		at := first + i
 		if at >= len(ed.provided.inlay_providers) do return false
 		pi := ed.provided.inlay_providers[at]
 		if pi < 0 || pi >= len(ed.providers.providers) do return false
 		prov := &ed.providers.providers[pi]
 		if prov.on_inlay_click == nil do return false
+		if on_label && len(h.choices) > 1 {
+			editor_open_inlay_menu(ed, pi, h)
+			return true
+		}
 		start := time.tick_now()
-		prov.on_inlay_click(editor_provider_document(ed), h, prov.user_data)
+		hh := h
+		hh.choice = 0
+		prov.on_inlay_click(editor_provider_document(ed), hh, prov.user_data)
 		provider_timed(prov, start)
 		return true
 	}
 	return false
+}
+
+// Calls an inlay provider's click callback for a hint's choice (the inlay menu's)
+@(private)
+editor_choose_inlay :: proc(ed: ^Editor, provider: int, hint: Inlay_Hint, choice: int) {
+	if ed.providers == nil || provider < 0 || provider >= len(ed.providers.providers) do return
+	prov := &ed.providers.providers[provider]
+	if prov.on_inlay_click == nil do return
+	h := hint
+	h.choice = choice
+	start := time.tick_now()
+	prov.on_inlay_click(editor_provider_document(ed), h, prov.user_data)
+	provider_timed(prov, start)
+}
+
+/*
+The window point (the editor's pixels) of the middle of a line's n-th clickable hint's label
+(0-based, among its clickable hints), for hosts' tests that click it. Returns false when there's
+no such hint or the line isn't in view.
+*/
+editor_inlay_label_point :: proc(ed: ^Editor, line, n: int) -> (x, y: f32, ok: bool) {
+	if line < ed.scroll_line || line >= ed.scroll_line + editor_text_rows(ed) do return
+	places := editor_inlay_places(ed, line, ed.origin_x + editor_gutter_width(ed))
+	seen := 0
+	for h, i in editor_inlays_on(ed, line) {
+		if !h.clickable do continue
+		if seen == n {
+			pl := places[i]
+			label_x := pl.x + (pl.swatch_w > 0 ? pl.swatch_w + ed.char_w : 0)
+			return label_x + min(pl.label_w * 0.5, ed.char_w * 2), ed.origin_y + (f32(line - ed.scroll_line) + 0.5) * ed.char_h, true
+		}
+		seen += 1
+	}
+	return
 }
 
 /*

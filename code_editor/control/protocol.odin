@@ -84,7 +84,7 @@ Expect_Field :: enum {
 	Selection,           // primary selection "l1 c1 l2 c2" (normalized) or "none"
 	Selected_Text,       // primary selection's text equals
 	Cursors,             // number of cursors
-	Mouse_Cursor,        // pointer shape: "text" or "default"
+	Mouse_Cursor,        // pointer shape: "text", "default" or "scrub"
 	Scroll,              // "line col"
 	Lsp_Status,          // off|starting|running|restarting|failed
 	Errors,              // number of error diagnostics
