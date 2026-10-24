@@ -216,7 +216,7 @@ Toolchain_InstallOdin :: proc() -> skald.Command(Msg) {
 			return Toolchain_Install_Finished{problem = fmt.aprintf("Couldn't create %s", job.folder)}
 		}
 		run :: proc(command: []string) -> string {
-			state, _, stderr, err := os.process_exec({command = command}, context.temp_allocator)
+			state, _, stderr, err := Process_Exec({command = command}, context.temp_allocator)
 			if err != nil do return fmt.aprintf("Couldn't run %s: %v", command[0], err)
 			// The exit code, not state.success: Odin's Windows process_wait always sets that
 			if state.exit_code != 0 do return fmt.aprintf("%s failed: %s", command[0], strings.trim_space(string(stderr)))
@@ -329,7 +329,7 @@ Toolchain_InstallEmscriptenNow :: proc() -> string {
 @(private="file")
 installEmscripten :: proc(data: string) -> string {
 	run :: proc(command: []string, folder := "") -> string {
-		state, stdout, stderr, err := os.process_exec({command = command, working_dir = folder}, context.temp_allocator)
+		state, stdout, stderr, err := Process_Exec({command = command, working_dir = folder}, context.temp_allocator)
 		if err != nil do return fmt.tprintf("couldn't run %s: %v", command[0], err)
 		if state.exit_code != 0 {
 			text := strings.trim_space(string(stderr))

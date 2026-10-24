@@ -164,6 +164,9 @@ GitState :: struct {
 	discardAsk: string,
 	// The running Commit ends a merge (the project is read again after it)
 	mergeCommit: bool,
+	// A command asked for while a snapshot was being read: it starts when the read is in (git
+	// status refreshes the index, taking its lock, so a commit beside it could fail; arg owned)
+	queued: Maybe(Git_Op_Requested),
 }
 
 // Read a new snapshot (Git_Refresh)
@@ -214,6 +217,7 @@ GitState_Destroy :: proc(git: ^GitState) {
 	delete(git.diffPath)
 	delete(git.diffText)
 	delete(git.discardAsk)
+	if q, ok := git.queued.?; ok do delete(q.arg)
 	git^ = {}
 }
 
@@ -462,14 +466,19 @@ scripts' background build: saves and project switches can't return commands).
 */
 Git_View_Tick :: proc(state: ^State, ctx: ^skald.Ctx(Msg)) {
 	git := &state.git
-	if (git.snapshot.availability == .Unknown || git.stale) && !git.refreshing {
+	if (git.snapshot.availability == .Unknown || git.stale) && !git.refreshing && !git.busy {
 		skald.send(ctx, Msg(Git_Refresh_Requested{}))
 	}
 }
 
-// Reads a new snapshot on a worker thread (once at a time: asked again meanwhile, it reads again after)
+/*
+Reads a new snapshot on a worker thread: once at a time (asked again meanwhile, it reads again
+after), and never while a command runs (its end reads one): git status beside a commit or a
+checkout could read the repository half changed, or take the index's lock the command needs.
+*/
 Git_Refresh :: proc(state: ^State) -> skald.Command(Msg) {
 	git := &state.git
+	if git.busy do return {}
 	if git.refreshing {
 		git.refreshAgain = true
 		return {}
@@ -503,6 +512,13 @@ Git_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		}
 		GitSnapshot_Destroy(&git.snapshot)
 		git.snapshot = snapshot
+		// A command waiting for the read: it runs now, on the new snapshot (its end reads again)
+		if q, ok := git.queued.?; ok {
+			git.queued = nil
+			git.refreshAgain = false
+			defer delete(q.arg)
+			return Git_Update(state, Msg(q))
+		}
 		if git.refreshAgain {
 			git.refreshAgain = false
 			return Git_Refresh(state), true
@@ -547,6 +563,12 @@ Git_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	case Git_Op_Requested:
 		if git.busy {
 			logLine(state, .Warning, strings.clone("Git: a command is still running"))
+			return {}, true
+		}
+		// A snapshot is being read: the command waits for it (Git_Snapshot_Read starts it)
+		if git.refreshing {
+			if q, ok := git.queued.?; ok do delete(q.arg)
+			git.queued = Git_Op_Requested{op = v.op, arg = strings.clone(v.arg)}
 			return {}, true
 		}
 		arg := strings.trim_space(v.arg)
@@ -715,7 +737,7 @@ gitRun :: proc(folder: string, command: []string, allocator := context.allocator
 	}
 	append(&full, "GIT_TERMINAL_PROMPT=0", "GIT_MERGE_AUTOEDIT=no")
 	if !sshSet do append(&full, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
-	state, stdout, stderr, err := os.process_exec({working_dir = folder, command = command, env = full[:]}, context.temp_allocator)
+	state, stdout, stderr, err := Process_Exec({working_dir = folder, command = command, env = full[:]}, context.temp_allocator)
 	if err != nil do return fmt.aprintf("couldn't run git: %v", err, allocator = allocator), false
 	// The exit code, not state.success: Odin's Windows process_wait always sets that
 	if state.exit_code != 0 {

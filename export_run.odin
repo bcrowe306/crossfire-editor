@@ -565,7 +565,7 @@ Export_Headless :: proc(projectDir, targetName, settingsPath: string) -> int {
 			continue
 		}
 		fmt.println(strings.join(step.command, " ", context.temp_allocator))
-		result, stdout, stderr, err := os.process_exec({command = step.command, working_dir = step.workingDir}, context.temp_allocator)
+		result, stdout, stderr, err := Process_Exec({command = step.command, working_dir = step.workingDir}, context.temp_allocator)
 		if len(stdout) > 0 do fmt.print(string(stdout))
 		if len(stderr) > 0 do fmt.eprint(string(stderr))
 		if step.capture {

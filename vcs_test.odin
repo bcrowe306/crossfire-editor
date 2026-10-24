@@ -4,6 +4,7 @@ import "core:log"
 import "core:os"
 import "core:strings"
 import "core:testing"
+import "gui:skald"
 
 // Runs an operation as the Git tab would (synchronously), then reads the snapshot again
 @(private="file")
@@ -12,6 +13,7 @@ gitDo :: proc(t: ^testing.T, folder: string, snapshot: ^GitSnapshot, op: GitOp, 
 	testing.expectf(t, ok, "%v failed: %s", op, output)
 	GitSnapshot_Destroy(snapshot)
 	snapshot^ = Git_ReadSnapshot(folder)
+	testing.expectf(t, snapshot.problem == "", "reading the repository after %v: %s", op, snapshot.problem)
 	return ok
 }
 
@@ -19,6 +21,30 @@ gitDo :: proc(t: ^testing.T, folder: string, snapshot: ^GitSnapshot, op: GitOp, 
 findChange :: proc(snapshot: ^GitSnapshot, path: string) -> (GitChange, bool) {
 	for change in snapshot.changes do if change.path == path do return change, true
 	return {}, false
+}
+
+/*
+Process_Exec gives a program's output and errors (os.process_exec lost a program's output under
+load: process_exec.odin). Many quick runs, as the Git tab's reads are: every one has its output.
+*/
+@(test)
+process_exec_keeps_output :: proc(t: ^testing.T) {
+	if _, ok := Script_FindEditorProgram("git"); !ok {
+		log.info("git isn't installed: skipped")
+		return
+	}
+	for _ in 0 ..< 200 {
+		state, stdout, _, err := Process_Exec({command = {"git", "--version"}}, context.temp_allocator)
+		testing.expect_value(t, err, nil)
+		testing.expect_value(t, state.exit_code, 0)
+		if !testing.expectf(t, strings.has_prefix(string(stdout), "git version"), "the output: %q", string(stdout)) do break
+		free_all(context.temp_allocator)
+	}
+	state, _, stderr, err := Process_Exec({command = {"git", "not-a-command"}}, context.temp_allocator)
+	testing.expect_value(t, err, nil)
+	testing.expect(t, state.exit_code != 0, "git failed")
+	testing.expectf(t, strings.contains(string(stderr), "not-a-command"), "its errors: %q", string(stderr))
+	free_all(context.temp_allocator)
 }
 
 @(test)
@@ -180,4 +206,25 @@ git_init_stage_commit_branch_push :: proc(t: ^testing.T) {
 	// LFS: refused without git-lfs (or set up with it)
 	if !snapshot.lfsAvailable do testing.expect(t, Git_OpProblem(.LFS_Setup, "", &snapshot) != "", "no git-lfs: refused")
 	free_all(context.temp_allocator)
+}
+
+// The Git tab never runs git beside itself: a read waits while a command runs (its end reads
+// one), and a command asked for during a read waits for it (git status takes the index's lock)
+@(test)
+git_reads_and_commands_take_turns :: proc(t: ^testing.T) {
+	state := State{settings = Settings_Default()}
+	defer State_Destroy(&state)
+	state.git.busy = true
+	cmd := Git_Refresh(&state)
+	testing.expect_value(t, cmd.kind, skald.Command_Kind.None)
+	testing.expect(t, !state.git.refreshing, "no read while a command runs")
+	state.git.stale = true
+	state.git.busy = false
+	state.git.refreshing = true
+	cmd, _ = Git_Update(&state, Msg(Git_Op_Requested{op = .Add_Remote, arg = "https://example.com/game.git"}))
+	testing.expect_value(t, cmd.kind, skald.Command_Kind.None)
+	testing.expect(t, !state.git.busy, "the command waits for the read")
+	q, queued := state.git.queued.?
+	testing.expect(t, queued, "queued")
+	testing.expect_value(t, q.arg, "https://example.com/game.git")
 }

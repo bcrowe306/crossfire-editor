@@ -355,6 +355,6 @@ code_drops_engine_uses_compile :: proc(t: ^testing.T) {
 	_ = os.make_directory_all(dir)
 	file := joinPath(dir, "uses.odin", allocator = context.temp_allocator)
 	_ = os.write_entire_file(file, transmute([]u8)strings.to_string(b))
-	state, stdout, stderr, err := os.process_exec({command = {odin, "check", dir, "-no-entry-point", fmt.tprintf("-collection:engine=%s", engine)}}, context.temp_allocator)
+	state, stdout, stderr, err := Process_Exec({command = {odin, "check", dir, "-no-entry-point", fmt.tprintf("-collection:engine=%s", engine)}}, context.temp_allocator)
 	testing.expectf(t, err == nil && state.exit_code == 0, "every use compiles:\n%s%s\n%s", string(stdout), string(stderr), strings.to_string(b))
 }

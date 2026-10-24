@@ -154,7 +154,7 @@ Returns:
 - "" or what went wrong (owned)
 */
 Audio_ConvertFile :: proc(ffmpeg, source, output: string) -> string {
-	state, stdout, stderr, err := os.process_exec({command = {ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source, "-vn", "-c:a", "libvorbis", "-q:a", "5", output}}, context.allocator)
+	state, stdout, stderr, err := Process_Exec({command = {ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source, "-vn", "-c:a", "libvorbis", "-q:a", "5", output}}, context.allocator)
 	defer { delete(stdout); delete(stderr) }
 	if err != nil do return fmt.aprintf("couldn't run ffmpeg: %v", err)
 	if !state.exited || state.exit_code != 0 || !os.exists(output) {
