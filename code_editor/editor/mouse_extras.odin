@@ -337,7 +337,8 @@ editor_update_hover :: proc(ed: ^Editor) {
 	editor_query_hover_providers(ed, h.pos, false)
 	h.visible = len(ed.provided.hover) > 0
 	h.shown_seq += 1
-	if editor_lsp_ready(ed) {
+	// The providers said it all (an engine procedure's documentation): the server isn't asked
+	if editor_lsp_ready(ed) && !ed.provided.hover_replaces_server {
 		editor_sync_lsp(ed)
 		h.requested = true
 		lspc.client_request_hover(&ed.lsp, ed.document_uri, h.pos.line, editor_lsp_col(ed, h.pos))
@@ -353,12 +354,13 @@ editor_hide_hover :: proc(ed: ^Editor) {
 // The hover tooltip is at most this many columns wide (less in a narrow editor)
 HOVER_MAX_COLS :: 100
 
-// The size a hover image or widget is drawn at (images scaled down to HOVER_IMAGE_MAX)
+// The size a hover image or widget is drawn at (images scaled down to HOVER_IMAGE_MAX tall, twice
+// that wide)
 @(private)
 hover_block_size :: proc(b: Hover_Block) -> (w, h: f32) {
 	switch v in b {
 	case Hover_Image:
-		scale := min(1, f32(HOVER_IMAGE_MAX) / f32(max(v.width, v.height)))
+		scale := min(1, f32(HOVER_IMAGE_MAX) / f32(max(v.height, 1)), f32(2 * HOVER_IMAGE_MAX) / f32(max(v.width, 1)))
 		return f32(v.width) * scale, f32(v.height) * scale
 	case Hover_Widget:
 		return v.width, v.height
@@ -387,7 +389,7 @@ editor_hover_lines :: proc(ed: ^Editor, cols: int) -> []Doc_Line {
 			for r in 0 ..< rows do append(&out, Doc_Line{block = i + 1, block_row = r})
 		}
 	}
-	if !ed.hover.line_only && ed.lsp_enabled && len(strings.trim_space(ed.lsp.last_hover)) > 0 && ed.hover.seen_seq == ed.lsp.hover_seq && !ed.hover.requested {
+	if !ed.hover.line_only && !ed.provided.hover_replaces_server && ed.lsp_enabled && len(strings.trim_space(ed.lsp.last_hover)) > 0 && ed.hover.seen_seq == ed.lsp.hover_seq && !ed.hover.requested {
 		lines := completion_doc_lines(lspc.CompletionItem{documentation = ed.lsp.last_hover, doc_markdown = ed.lsp.last_hover_markdown}, cols, POPUP_MAX_LINES)
 		if len(lines) > 0 {
 			gap(&out)

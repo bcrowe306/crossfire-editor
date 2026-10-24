@@ -272,15 +272,38 @@ render_provider_markers :: proc(ed: ^Editor, renderer: ^sdl.Renderer, diags: []D
 	}
 }
 
-// render_inlays draws a line's inlay hints after its text (dimmed, a cell apart)
+// render_inlays draws a line's inlay hints after its text (dimmed, a cell apart), a color swatch
+// before a hint's label when it has one (editor_inlay_places: where each goes)
 @(private)
-render_inlays :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, text: string, line: int, x, y: f32, theme: Theme) {
+render_inlays :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, line: int, x, y: f32, theme: Theme) {
 	hints := editor_inlays_on(ed, line)
 	if len(hints) == 0 || font == nil {
 		return
 	}
-	vcol := visual_col_of(text, len(text), ed.tab_width) + 2
-	for h in hints {
+	places := editor_inlay_places(ed, line, x)
+	for h, i in hints {
+		pl := places[i]
+		if swatch, has := h.swatch.?; has {
+			// A square of the color, over a checkerboard where it's see-through, with a border
+			box := sdl.FRect{pl.x, y + 3, pl.swatch_w, ed.char_h - 6}
+			if swatch.a < 255 {
+				half := box.h * 0.5
+				fill_rect(renderer, box, {255, 255, 255, 255})
+				for cx := f32(0); cx < box.w; cx += half {
+					for cy := f32(0); cy < box.h; cy += half {
+						if (int(cx / half) + int(cy / half)) % 2 == 0 do continue
+						fill_rect(renderer, {box.x + cx, box.y + cy, min(half, box.w - cx), min(half, box.h - cy)}, {200, 200, 200, 255})
+					}
+				}
+			}
+			fill_rect(renderer, box, swatch)
+			outline := theme.popup_text_dim
+			fill_rect(renderer, {box.x, box.y, box.w, 1}, outline)
+			fill_rect(renderer, {box.x, box.y + box.h - 1, box.w, 1}, outline)
+			fill_rect(renderer, {box.x, box.y, 1, box.h}, outline)
+			fill_rect(renderer, {box.x + box.w - 1, box.y, 1, box.h}, outline)
+		}
+		if len(h.label) == 0 do continue
 		color := theme.text_comment
 		switch h.kind {
 		case .Note:      color = theme.popup_text_dim
@@ -289,11 +312,11 @@ render_inlays :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, tex
 		case .Value:     color = theme.text_constant
 		}
 		color.a = 200
-		px := x + f32(vcol - ed.scroll_col) * ed.char_w
-		w := f32(text_cols(h.label)) * ed.char_w
+		px := pl.x + (pl.swatch_w > 0 ? pl.swatch_w + ed.char_w : 0)
+		w := pl.label_w
 		bg := theme.current_line
 		fill_rect(renderer, {px - 2, y + 2, w + 4, ed.char_h - 4}, bg)
 		draw_text(renderer, font, h.label, px, y, color, ed.char_h)
-		vcol += text_cols(h.label) + 2
 	}
 }
+

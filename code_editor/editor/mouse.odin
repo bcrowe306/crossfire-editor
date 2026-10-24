@@ -251,6 +251,10 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 		editor_close_rename(ed)
 		return false
 	}
+	// A host widget in the hover (a play button) takes its press; the hover stays
+	if hit.zone == .Hover && ev.button == 1 && editor_click_hover_widget(ed, ev.x, ev.y) {
+		return true
+	}
 	editor_hide_hover(ed)
 	// The rename box keeps clicks on it; one elsewhere cancels it
 	if rect, ok := editor_rename_layout(ed); ok {
@@ -351,6 +355,10 @@ editor_handle_mouse_down :: proc(ed: ^Editor, ev: sdl.MouseButtonEvent) -> bool 
 		ed.mouse.unit_start, ed.mouse.unit_end = start, end
 	case .Text:
 		editor_close_completion(ed)
+		// A color swatch (an inlay hint's): its provider's click callback
+		if mods == {} && editor_click_inlay_swatch(ed, ev.x, ev.y) {
+			return true
+		}
 		if .Alt in mods && .Shift not_in mods {
 			editor_toggle_cursor_at(ed, hit.pos)
 			return true

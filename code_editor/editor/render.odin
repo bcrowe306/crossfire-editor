@@ -237,7 +237,7 @@ editor_render :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Font, x, 
 		render_find_highlights(ed, renderer, ln, origin_x + editor_gutter_width(ed), y, theme)
 		render_selection(ed, renderer, ln, origin_x + editor_gutter_width(ed), y, theme)
 		render_line_tokens(ed, renderer, font, line, tokens, origin_x + editor_gutter_width(ed), y, theme)
-		render_inlays(ed, renderer, font, line, ln, origin_x + editor_gutter_width(ed), y, theme)
+		render_inlays(ed, renderer, font, ln, origin_x + editor_gutter_width(ed), y, theme)
 		render_squiggles(ed, renderer, diags, ln, origin_x + editor_gutter_width(ed), y, theme)
 		render_cursors_on_line(ed, renderer, ln, origin_x + editor_gutter_width(ed), y, theme)
 		sdl.SetRenderClipRect(renderer, &prev_clip if had_clip else nil)

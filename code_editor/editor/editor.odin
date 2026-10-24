@@ -43,6 +43,8 @@ Editor :: struct {
 	width_cache:         int,
 	width_cache_version: int,
 	width_cache_tab:     int,
+	// The providers' answers it was measured with (inlay hints widen their lines)
+	width_cache_seq:     int,
 
 	completion: Completion_State,
 	signature:  Signature_State,

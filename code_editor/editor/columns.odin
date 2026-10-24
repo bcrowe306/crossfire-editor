@@ -76,16 +76,30 @@ editor_visual_col :: proc(ed: ^Editor, pos: buf.Position) -> int {
 // editor_max_visual_width returns the widest line's width in cells
 // (used to clamp horizontal scrolling).
 editor_max_visual_width :: proc(ed: ^Editor) -> int {
-	if ed.width_cache_version == ed.buf.version && ed.width_cache_tab == ed.tab_width {
+	if ed.width_cache_version == ed.buf.version && ed.width_cache_tab == ed.tab_width && ed.width_cache_seq == ed.provided.seq {
 		return ed.width_cache
 	}
 	widest := 0
 	for ln in 0 ..< buf.buffer_line_count(&ed.buf) {
 		widest = max(widest, line_visual_width(buf.buffer_line_str(&ed.buf, ln), ed.tab_width))
 	}
+	// A line's inlay hints after its text count (a swatch scrolls into view in a narrow editor)
+	at := 0
+	for at < len(ed.provided.inlays) {
+		line := ed.provided.inlays[at].pos.line
+		width := line < buf.buffer_line_count(&ed.buf) ? line_visual_width(buf.buffer_line_str(&ed.buf, line), ed.tab_width) + 2 : 0
+		for at < len(ed.provided.inlays) && ed.provided.inlays[at].pos.line == line {
+			h := ed.provided.inlays[at]
+			_, swatch := h.swatch.?
+			width += (swatch ? INLAY_SWATCH_COLS + (len(h.label) > 0 ? 1 : 0) : 0) + text_cols(h.label) + 2
+			at += 1
+		}
+		widest = max(widest, width)
+	}
 	ed.width_cache = widest
 	ed.width_cache_version = ed.buf.version
 	ed.width_cache_tab = ed.tab_width
+	ed.width_cache_seq = ed.provided.seq
 	return widest
 }
 

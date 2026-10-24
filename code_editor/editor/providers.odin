@@ -4,11 +4,12 @@
 // return with OLS's answers:
 //
 //   completion    items merged into the completion list (ranked, duplicates folded)
-//   hover         content blocks shown with the server's hover (text, an image, a host widget)
+//   hover         content blocks shown with the server's hover (text, an image, a host widget
+//                 that can take clicks), or instead of it
 //   diagnostics   problems merged with the server's (squiggles, gutter, Problems panel), with
 //                 quick fixes (Ctrl+.'s menu, before the server's code actions)
 //   gutter        markers in the gutter (an icon, a tooltip, a click callback)
-//   inlay hints   notes drawn after a line's text
+//   inlay hints   notes drawn after a line's text, or color swatches (a click calls the host)
 //   drops         a host's drop on the code: the editor works out where it landed (the
 //                 syntactic context, `editor_syntax_context_at`) and the provider says what
 //                 to insert
@@ -103,6 +104,9 @@ Provider_Completion :: struct {
 // Hover content: blocks drawn in order
 Hover_Content :: struct {
 	blocks: [dynamic]Hover_Block,
+	// The blocks say what the server would (an engine procedure's documentation): its answer
+	// isn't shown under them, and isn't asked for
+	replace_server: bool,
 }
 
 // One part of a hover
@@ -118,21 +122,30 @@ Hover_Text :: struct {
 	markdown: bool,
 }
 
-// A picture: RGBA8 pixels, `width` x `height`, drawn at most HOVER_IMAGE_MAX pixels on a side
+// A picture: RGBA8 pixels, `width` x `height`, drawn at most HOVER_IMAGE_MAX pixels tall and twice
+// that wide (a strip of animation frames)
 Hover_Image :: struct {
 	pixels:        []u8,
 	width, height: int,
 }
 
-// Space the host draws into: `draw` is called with the editor's renderer and the block's rect
-// whenever the hover is drawn. `data` must stay valid while the hover shows
+/*
+Space the host draws into: `draw` is called with the editor's renderer and the block's rect
+whenever the hover is drawn. `data` must stay valid while the hover shows.
+
+A left press on it calls `click` (when set) with the point in the block (0, 0 its top left) and
+the hover stays open: a play button. The editor draws again on its next render; a host whose
+drawing changes for another reason (a sound ended) calls `editor_redraw_hover`.
+*/
 Hover_Widget :: struct {
 	width, height: f32,
 	draw:          proc(renderer: ^sdl.Renderer, rect: sdl.FRect, data: rawptr),
 	data:          rawptr,
+	// Returns whether it used the press (else it goes to the text under the hover, as usual)
+	click:         proc(x, y: f32, data: rawptr) -> bool,
 }
 
-// The largest side a hover image is drawn at (pixels; larger ones are scaled down)
+// The tallest a hover image is drawn (pixels; larger ones are scaled down); it may be twice as wide
 HOVER_IMAGE_MAX :: 160
 
 // A problem a provider finds (buffer positions; `end` exclusive)
@@ -190,11 +203,18 @@ Inlay_Kind :: enum {
 	Value,
 }
 
-// A note drawn after a line's text (inline placement that moves the text is for later)
+/*
+A note drawn after a line's text (inline placement that moves the text is for later). With a
+`swatch`, a square of that color is drawn before the label (a color literal's): a left click on
+it calls the inlay provider's `on_inlay_click` with the hint.
+*/
 Inlay_Hint :: struct {
-	pos:   buf.Position,
-	label: string,
-	kind:  Inlay_Kind,
+	pos:    buf.Position,
+	label:  string,
+	kind:   Inlay_Kind,
+	swatch: Maybe(sdl.Color),
+	// The host's own number, given back to the click callback
+	id:     int,
 }
 
 // What a host drops on the code (its own meaning: `kind` and `value` say what it is, `data`
@@ -288,6 +308,8 @@ Diagnostic_Provider_Proc :: proc(doc: Provider_Document, ctx: Provider_Context, 
 Gutter_Provider_Proc     :: proc(doc: Provider_Document, ctx: Provider_Context, out: ^[dynamic]Gutter_Marker)
 Gutter_Click_Proc        :: proc(doc: Provider_Document, marker: Gutter_Marker, user_data: rawptr)
 Inlay_Provider_Proc      :: proc(doc: Provider_Document, ctx: Provider_Context, out: ^[dynamic]Inlay_Hint)
+// A click on an inlay hint's swatch
+Inlay_Click_Proc         :: proc(doc: Provider_Document, hint: Inlay_Hint, user_data: rawptr)
 // Returns whether it handled the drop (else the next drop provider is asked)
 Drop_Provider_Proc       :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, drop: Drop_Request, out: ^Drop_Result) -> bool
 // Returns whether the position is on a symbol the provider knows (else the next one is asked)
@@ -324,6 +346,7 @@ Provider :: struct {
 	gutter:     Gutter_Provider_Proc,
 	on_click:   Gutter_Click_Proc,
 	inlay:      Inlay_Provider_Proc,
+	on_inlay_click: Inlay_Click_Proc,
 	drop:       Drop_Provider_Proc,
 	usages:     Usages_Provider_Proc,
 	on_open:    Usage_Open_Proc,
@@ -429,8 +452,12 @@ Provided :: struct {
 	// Bumped whenever the diagnostics change (the overlay rebuilds) or anything changes (renders)
 	diag_seq:    int,
 	seq:         int,
-	// The hover's provided blocks (owned), for the hover in Hover_Info
+	// The hover's provided blocks (owned), for the hover in Hover_Info, and whether they replace
+	// the server's answer
 	hover:       [dynamic]Hover_Block,
+	hover_replaces_server: bool,
+	// Each inlay hint's provider (an index of the registry's providers, parallel to `inlays`)
+	inlay_providers: [dynamic]int,
 }
 
 @(private)
@@ -485,6 +512,7 @@ marker_choices_free :: proc(choices: []string) {
 provided_clear_inlays :: proc(p: ^Provided) {
 	for h in p.inlays do delete(h.label)
 	clear(&p.inlays)
+	clear(&p.inlay_providers)
 }
 
 @(private)
@@ -513,6 +541,7 @@ provided_destroy :: proc(p: ^Provided) {
 	delete(p.diagnostics)
 	delete(p.markers)
 	delete(p.inlays)
+	delete(p.inlay_providers)
 	delete(p.hover)
 }
 
@@ -577,13 +606,20 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 	diags := make([dynamic]Provider_Diagnostic, context.temp_allocator)
 	markers := make([dynamic]Gutter_Marker, context.temp_allocator)
 	inlays := make([dynamic]Inlay_Hint, context.temp_allocator)
-	for &prov in ed.providers.providers {
+	// Which provider gave each inlay hint (its click callback)
+	inlay_from := make([dynamic]int, context.temp_allocator)
+	for &prov, pi in ed.providers.providers {
 		start := time.tick_now()
 		ctx := provider_context(&prov, .Refresh)
 		switch prov.kind {
 		case .Diagnostics: if prov.diagnostic != nil { prov.diagnostic(doc, ctx, &diags); provider_timed(&prov, start) }
 		case .Gutter:      if prov.gutter != nil { prov.gutter(doc, ctx, &markers); provider_timed(&prov, start) }
-		case .Inlay:       if prov.inlay != nil { prov.inlay(doc, ctx, &inlays); provider_timed(&prov, start) }
+		case .Inlay:
+			if prov.inlay != nil {
+				prov.inlay(doc, ctx, &inlays)
+				provider_timed(&prov, start)
+				for len(inlay_from) < len(inlays) do append(&inlay_from, pi)
+			}
 		case .Completion, .Hover, .Drop, .Usages, .Rename:
 		}
 	}
@@ -623,13 +659,20 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 	}
 	slice.stable_sort_by(p.markers[:], proc(a, b: Gutter_Marker) -> bool { return a.line < b.line })
 	provided_clear_inlays(p)
-	for h in inlays {
-		if h.pos.line < 0 || h.pos.line >= count || len(h.label) == 0 do continue
-		hh := h
-		hh.label = strings.clone(h.label)
-		append(&p.inlays, hh)
+	Sorted_Inlay :: struct { hint: Inlay_Hint, provider: int }
+	sorted := make([dynamic]Sorted_Inlay, context.temp_allocator)
+	for h, i in inlays {
+		_, has_swatch := h.swatch.?
+		if h.pos.line < 0 || h.pos.line >= count || (len(h.label) == 0 && !has_swatch) do continue
+		append(&sorted, Sorted_Inlay{h, inlay_from[i]})
 	}
-	slice.stable_sort_by(p.inlays[:], proc(a, b: Inlay_Hint) -> bool { return buf.position_less(a.pos, b.pos) })
+	slice.stable_sort_by(sorted[:], proc(a, b: Sorted_Inlay) -> bool { return buf.position_less(a.hint.pos, b.hint.pos) })
+	for s in sorted {
+		hh := s.hint
+		hh.label = strings.clone(s.hint.label)
+		append(&p.inlays, hh)
+		append(&p.inlay_providers, s.provider)
+	}
 	p.seq += 1
 }
 
@@ -868,6 +911,7 @@ editor_completion_available :: proc(ed: ^Editor) -> bool {
 editor_query_hover_providers :: proc(ed: ^Editor, pos: buf.Position, line_only: bool) {
 	p := &ed.provided
 	provided_clear_hover(p)
+	p.hover_replaces_server = false
 	if ed.providers == nil do return
 	// A gutter marker's tooltip is the hover for its line
 	if line_only {
@@ -886,6 +930,7 @@ editor_query_hover_providers :: proc(ed: ^Editor, pos: buf.Position, line_only: 
 		start := time.tick_now()
 		prov.hover(doc, pos, ctx, &content)
 		provider_timed(&prov, start)
+		if content.replace_server && len(content.blocks) > 0 do p.hover_replaces_server = true
 		for b in content.blocks {
 			switch v in b {
 			case Hover_Text:
@@ -904,6 +949,116 @@ editor_query_hover_providers :: proc(ed: ^Editor, pos: buf.Position, line_only: 
 // The providers' hover blocks being shown (the editor's)
 editor_hover_blocks :: proc(ed: ^Editor) -> []Hover_Block {
 	return ed.provided.hover[:]
+}
+
+// Draws the hover again on the next render (a host widget's look changed: a sound stopped)
+editor_redraw_hover :: proc(ed: ^Editor) {
+	if ed.hover.visible do ed.hover.shown_seq += 1
+}
+
+/*
+A left press on the hover: a host widget's `click` under it is called (the point in the widget's
+block). Returns whether a widget used it: the hover then stays open.
+*/
+@(private)
+editor_click_hover_widget :: proc(ed: ^Editor, x, y: f32) -> bool {
+	rect, lines, ok := editor_hover_layout(ed)
+	if !ok || !in_rect(rect, x, y) do return false
+	rows := popup_rows_of(ed, rect)
+	scroll := overlay_scroll_clamp(popup_scroll_get(&ed.hover.scroll, editor_hover_scroll_key(ed)), len(lines), rows)
+	for l, i in lines[scroll:min(scroll + rows, len(lines))] {
+		if l.block <= 0 || l.block > len(ed.provided.hover) do continue
+		widget, is_widget := ed.provided.hover[l.block - 1].(Hover_Widget)
+		if !is_widget || widget.click == nil do continue
+		box_x := rect.x + POPUP_PAD
+		box_y := rect.y + POPUP_PAD + f32(i) * ed.char_h - f32(l.block_row) * ed.char_h
+		if x < box_x || y < box_y || x >= box_x + widget.width || y >= box_y + widget.height do continue
+		if widget.click(x - box_x, y - box_y, widget.data) {
+			ed.hover.shown_seq += 1
+			return true
+		}
+		return false
+	}
+	return false
+}
+
+// --- inlay swatches ---------------------------------------------------------------
+
+// A swatch's width in cells (it's a cell tall, less its padding)
+INLAY_SWATCH_COLS :: 2
+
+// Where a line's inlay hints are drawn: each hint's left edge, the swatch's and the label's
+// width (pixels, in the editor's coordinates; temp allocated)
+@(private)
+Inlay_Place :: struct {
+	x, swatch_w, label_w: f32,
+}
+
+@(private)
+editor_inlay_places :: proc(ed: ^Editor, line: int, x: f32) -> []Inlay_Place {
+	hints := editor_inlays_on(ed, line)
+	out := make([]Inlay_Place, len(hints), context.temp_allocator)
+	text := buf.buffer_line_str(&ed.buf, line)
+	vcol := visual_col_of(text, len(text), ed.tab_width) + 2
+	for h, i in hints {
+		_, swatch := h.swatch.?
+		cols := text_cols(h.label)
+		swatch_cols := swatch ? INLAY_SWATCH_COLS + (cols > 0 ? 1 : 0) : 0
+		out[i] = {x + f32(vcol - ed.scroll_col) * ed.char_w, f32(swatch ? INLAY_SWATCH_COLS : 0) * ed.char_w, f32(cols) * ed.char_w}
+		vcol += swatch_cols + cols + 2
+	}
+	return out
+}
+
+/*
+A left click at a point of the text area: the swatch of an inlay hint under it calls its
+provider's `on_inlay_click`. Returns whether one did.
+*/
+@(private)
+editor_click_inlay_swatch :: proc(ed: ^Editor, x, y: f32) -> bool {
+	if ed.providers == nil || y < ed.origin_y do return false
+	line := ed.scroll_line + int((y - ed.origin_y) / max(ed.char_h, 1))
+	if line < 0 || line >= buf.buffer_line_count(&ed.buf) do return false
+	hints := editor_inlays_on(ed, line)
+	if len(hints) == 0 do return false
+	first := 0
+	for h, i in ed.provided.inlays do if h.pos.line == line { first = i; break }
+	places := editor_inlay_places(ed, line, ed.origin_x + editor_gutter_width(ed))
+	for h, i in hints {
+		if _, swatch := h.swatch.?; !swatch do continue
+		pl := places[i]
+		if x < pl.x - 2 || x >= pl.x + pl.swatch_w + 2 do continue
+		at := first + i
+		if at >= len(ed.provided.inlay_providers) do return false
+		pi := ed.provided.inlay_providers[at]
+		if pi < 0 || pi >= len(ed.providers.providers) do return false
+		prov := &ed.providers.providers[pi]
+		if prov.on_inlay_click == nil do return false
+		start := time.tick_now()
+		prov.on_inlay_click(editor_provider_document(ed), h, prov.user_data)
+		provider_timed(prov, start)
+		return true
+	}
+	return false
+}
+
+/*
+The window point (the editor's pixels) of the middle of a line's n-th swatch (0-based, among its
+inlay hints with one), for hosts' tests that click it. Returns false when there's no such swatch
+or the line isn't in view.
+*/
+editor_inlay_swatch_point :: proc(ed: ^Editor, line, n: int) -> (x, y: f32, ok: bool) {
+	if line < ed.scroll_line || line >= ed.scroll_line + editor_text_rows(ed) do return
+	places := editor_inlay_places(ed, line, ed.origin_x + editor_gutter_width(ed))
+	seen := 0
+	for h, i in editor_inlays_on(ed, line) {
+		if _, swatch := h.swatch.?; !swatch do continue
+		if seen == n {
+			return places[i].x + places[i].swatch_w * 0.5, ed.origin_y + (f32(line - ed.scroll_line) + 0.5) * ed.char_h, true
+		}
+		seen += 1
+	}
+	return
 }
 
 // --- drops --------------------------------------------------------------------
