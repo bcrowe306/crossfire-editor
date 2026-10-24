@@ -83,7 +83,7 @@ you need them; the node guides at the end are a reference, a section per node ki
 - **Browser**: the panel on the left listing the project's scenes and assets.
 - **Viewport**: the picture of the scene in the middle, where nodes are placed.
 - **Bottom panel**: the tabs under the viewport (Console, Output, Animation, Mixer, Git, Tiles,
-  Timeline, Live, States, Dialogue, Plugins).
+  Timeline, Live, States, Particles, Dialogue, Plugins).
   Ctrl+J shows or hides it.
 - **Play** (F5): runs the game in its own window, the way players will see it.
 - **Undo** (Ctrl+Z) and **Redo** (Ctrl+Shift+Z): every edit in a scene can be taken back.

@@ -673,8 +673,13 @@ In code: `e.AnimationPlayer_Play(&sprite.animation, "jump")` (with
 ## Particles
 
 A **ParticleEmitter** node (Ctrl+Shift+A) emits particles that move, spin, grow or shrink and
-change color over their life: sparks, smoke, fire, rain, exhaust. Its inspector has every
-setting, in groups (Emission, Shape, Rotation, Color, Motion, Forces, Collision):
+change color over their life: sparks, smoke, fire, rain, exhaust. Its settings come in groups
+(Emission, GPU, Shape, Rotation, Color, Motion, Forces, Collision), in the inspector and in the
+bottom panel's **Particles** tab: a column of the groups (names, icons, or a choice in a narrow
+panel), the chosen group's settings with more room, and a header with Restart (the viewport's
+emitter plays again), Emitting, One-shot, presets (Fire, Smoke, Sparks, Dust, Rain), Reset and
+the live particle count. The tab keeps the last emitter selected while you select other nodes.
+The two share the same controls:
 
 - Numbers are sliders over their useful range. X/Y pairs (size, scale, spread, gravity, wind) have
   a link button: linked, dragging one axis takes the other along in proportion.

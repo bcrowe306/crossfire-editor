@@ -715,14 +715,17 @@ cycle. It can run on the graphics card for many more particles. In code it's an
 
 **Properties**
 
-The settings come in groups; hover a name in the inspector for its range and default.
+The settings come in groups (the Particles tab's categories); hover a name for its range and
+default. The inspector shows a summary line, **Edit in the Particles tab** and every setting; the
+bottom panel's **Particles** tab shows one group at a time with more room, presets (Fire, Smoke,
+Sparks, Dust, Rain) and Restart.
 
 | Property | What it does |
 |---|---|
 | **Emitting**, **Continuous** | Emits from the start; starts a new cycle when one ends (off: a one-shot) |
 | **Amount**, **Lifetime**, **Burst** | Particles a cycle; seconds a cycle and a particle last; 0 steady, 1 all at once |
 | **Spread**, **Local space** | The area particles start in; particles move with the emitter instead of staying in the world |
-| **On the GPU**, **GPU amount** | Simulates on the graphics card, with that many particles a cycle |
+| **On the GPU**, **GPU amount** (GPU) | Simulates on the graphics card, with that many particles a cycle |
 | **Shape**, **Texture**, **Size**, **Scale start**, **Scale end** | What a particle is drawn as (Circle, Rectangle, Texture...), its size, and its scale over its life |
 | **Rotation**, **Torque**, **Torque accel.** | Starting turn and spin |
 | **Color ramp** (**Ramp**), or **Start color** and **End color** | Its colors over its life |
@@ -738,8 +741,9 @@ The settings come in groups; hover a name in the inspector for its range and def
    (Ctrl+Shift+A) > **ParticleEmitter**: it becomes a child and follows it.
 2. Place it where the particles start. Press **P** (or the viewport's play button) to see it run in
    the viewport.
-3. Change the settings: the viewport shows each change at once. For a one-shot (an explosion),
-   untick **Emitting** and **Continuous** and start it from a script.
+3. Change the settings in the inspector or the **Particles** tab (a preset is a good start):
+   the viewport shows each change at once, and the tab's **Restart** plays it again. For a
+   one-shot (an explosion), untick **Emitting** and **Continuous** and start it from a script.
 4. Press **Play** (F5) to check it in the game.
 
 **From code**

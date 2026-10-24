@@ -15,12 +15,11 @@ editor (asked as items 2 and 4) is done (2026-10-24): CLAUDE.md's "Docs in the e
 Level mode and the LDtk tab (item 3: the world canvas, the LDtk tab's sections, write-back into the
 .ldtk file, undo, Open in LDtk at a level) is done (2026-10-24): CLAUDE.md's "Editor modes" and
 "Editing LDtk projects". State machines (item 1: transition logic, guards in code and in the GUI,
-the States tab's sidebar) is done (2026-10-24): CLAUDE.md's "State machines".
+the States tab's sidebar) is done (2026-10-24): CLAUDE.md's "State machines". The Particles tab
+(item 6: the categories in a left column, the category's settings beside it, presets, Restart) is
+done (2026-10-24): CLAUDE.md's "Particles".
 
-1. **A Particles bottom tab** (item 6): a left sidebar of vertical tabs for the particle settings'
-   categories (the engine's `group` tags), the selected category's settings in the right content
-   pane, for the selected ParticleEmitter.
-2. **A sprite sheet slicer** (item 5): its own viewport tab; slice a sheet by grid (cells or
+1. **A sprite sheet slicer** (item 5): its own viewport tab; slice a sheet by grid (cells or
    cell size, margin, gap) or by auto-detecting sprites, pick frames, name animations, and load
    them into an animation asset and/or an AnimatedSprite (the animation player).
 

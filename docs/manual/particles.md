@@ -12,9 +12,11 @@ smoke from a chimney, a ship's engine flame, rain, fireworks, a coin's sparkle w
 
 A **ParticleEmitter** node makes them: it **emits** particles from where it is, sends them off
 in a direction, pulls them with gravity and wind, and changes their size and color as they age.
-Every setting is in the inspector, and the viewport plays the effect while you change it.
+Every setting is in the inspector and in the bottom panel's **Particles** tab (a category at a
+time, with more room and presets), and the viewport plays the effect while you change it.
 
 - [Making an emitter](#making-an-emitter)
+- [The Particles tab](#the-particles-tab)
 - [How emission works](#how-emission-works)
 - [Spread and variance: a little randomness](#spread-and-variance-a-little-randomness)
 - [The settings](#the-settings)
@@ -35,13 +37,15 @@ Every setting is in the inspector, and the viewport plays the effect while you c
 2. Place it where the particles should come from.
 3. Make sure the viewport's animations are playing (the play button in the viewport's header,
    or **P**): the emitter starts at once, with the default settings, a fiery fountain of dots.
-4. Change the settings in the inspector. The viewport shows each change as you make it.
+4. Change the settings in the inspector, or in the **Particles** tab (**Edit in the Particles
+   tab**, under the emitter's summary in the inspector). The viewport shows each change as you
+   make it.
 
 Every change is an undo step (Ctrl+Z); dragging a slider is one step. **Reset to defaults**, at
 the top of the emitter's settings, puts every setting back as a new emitter has them, and clears
 its picture (it can be undone too).
 
-The inspector's controls:
+The controls (the same in the inspector and the Particles tab):
 
 - **Sliders**: drag, or click the value box beside the slider and type one. Hold Shift while
   dragging for fine steps. The button beside it resets that one setting.
@@ -49,6 +53,35 @@ The inspector's controls:
   under the name ties them: changing one changes the other in proportion.
 - **Colors** have a color picker and an **Alpha** slider beside it (0 transparent, 255 solid).
 - Hover a setting's name to see what it does, its range and its default.
+
+## The Particles tab
+
+The bottom panel's **Particles** tab is the emitter's settings with room to work: a column of
+**categories** on the left, the chosen category's settings on the right, with wider sliders and a
+wider color ramp than the inspector has. Open it with **Edit in the Particles tab** in the
+emitter's inspector, or click **Particles** in the bottom panel's tabs.
+
+- **Which emitter:** the selected ParticleEmitter. Select another node (to move the ship the flame
+  is on, say) and the tab keeps showing the last emitter you selected, and its edits still go to
+  it. With no emitter yet, the tab offers **Add ParticleEmitter**.
+- **Categories:** Emission, GPU, Shape, Rotation, Color, Motion, Forces, Collision (the groups
+  of [the settings](#the-settings)), and **All** for every setting at once. In a narrower bottom
+  panel the categories are icons (hover one for its name); in a very narrow one (a tiled window)
+  they're a choice above the settings.
+- **The header:**
+  - **Restart** clears the emitter's particles in the viewport and starts it again: a one-shot
+    plays once more. It needs **Emitting** on and the viewport's animations playing (**P**).
+  - **Emitting** and **One-shot** toggle the two settings (**Emitting**, and **Continuous** off).
+  - **Preset** gives the emitter a whole look to start from (every setting but **On the GPU** and
+    **GPU amount**): **Fire** (a flame rising, yellow to red), **Smoke** (gray puffs that grow,
+    drift and fade), **Sparks** (a one-shot burst of spinning sparks falling: a hit), **Dust**
+    (slow motes floating around the emitter) and **Rain** (streaks falling from a 640 px line:
+    put the emitter above the view). Tune it from there; a preset is one undo step.
+  - **Reset** puts every setting back to a new emitter's.
+  - How many particles are alive in the viewport (a GPU emitter says how many a cycle).
+  - **Manual** opens this page (so does F1 over the tab).
+
+Every change in the tab is an undo step, as in the inspector: the two are the same controls.
 
 ## How emission works
 
@@ -74,7 +107,7 @@ So a new emitter's **Angle spread** does nothing until you raise **Angle var.** 
 
 ## The settings
 
-They're in groups, in this order.
+They're in groups, in this order (the Particles tab's categories).
 
 **Emission**
 
@@ -87,6 +120,11 @@ They're in groups, in this order.
 | **Burst** | 0: particles spread evenly over the cycle; 1: all at once |
 | **Spread** | Half the width and height of the area particles start in, around the emitter (0: all from one point; 300, 0: along a 600 px line, for rain) |
 | **Local space** | Particles move with the emitter instead of staying in the world ([below](#world-space-and-local-space)) |
+
+**GPU**
+
+| Setting | What it does |
+|---|---|
 | **On the GPU**, **GPU amount** | Runs the particles on the graphics card, tens of thousands at once: see [Lines, trails and GPU particles](lines_and_trails.md) |
 
 **Shape**
@@ -294,6 +332,12 @@ A ramp is `position:#color` pairs, the color as `#rrggbb` or `#rrggbbaa`.
 
 **Nothing moves in the viewport.** The viewport's animations are paused: press **P** (or the
 play button in the viewport's header). Check **Emitting** too.
+
+**Where do I start?** Pick a **Preset** in the Particles tab (Fire, Smoke, Sparks, Dust, Rain)
+and change it from there.
+
+**The Particles tab shows another emitter.** It shows the last emitter you selected: select the
+one you want (in the scene tree or the viewport).
 
 **My one-shot plays when the scene starts.** Untick **Emitting**, and start it from a script.
 
