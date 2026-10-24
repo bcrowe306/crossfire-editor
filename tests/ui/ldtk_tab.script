@@ -1,0 +1,121 @@
+# The Level mode's world canvas and LDtk tab (level_mode.odin, level_canvas.odin, view_ldtk_tab.odin,
+# ldtk_ops.odin): the tab's vertical tabs, a layer's name and opacity edited, an entity picked on
+# the canvas and its field edited, a level's field, a level and an entity dragged on the canvas,
+# undo and redo of each (the file's values on disk), a refused edit, a file changed outside the
+# editor, and everything still there after the project opens again.
+# Run with: task test:ui
+#
+# The fixture tests/fixtures/ldtk_world/world.ldtk: Start (0, 0) and Cave (256, 0) side by side,
+# Tower (0, 128) under Start; layers Entities (uid 1), Tiles (2), Walls (3); Player (player1, in
+# Start), Coins (coin1..3), Doors; level fields music (50), difficulty (51), weather (52).
+
+wait 5
+key ctrl+alt+2
+expect mode Level
+import tests/fixtures/ldtk_world/world.ldtk
+expect level file assets/world/world.ldtk
+wait_until level levels 3
+wait_until widget_visible ldtk-map-Level true
+expect level tab LDtk
+
+# The vertical tabs (a narrow panel: a choice over the section instead)
+if_drawn ldtk-tab-Entities click_widget ldtk-tab-Entities
+if_drawn ldtk-tab-select send LDtk_Tab_Picked Entities
+expect level ldtk_tab Entities
+if_drawn ldtk-tab-Enums click_widget ldtk-tab-Enums
+if_drawn ldtk-tab-select send LDtk_Tab_Picked Enums
+expect level ldtk_tab Enums
+if_drawn ldtk-tab-World click_widget ldtk-tab-World
+if_drawn ldtk-tab-select send LDtk_Tab_Picked World
+expect level ldtk_tab World
+if_drawn ldtk-tab-Layers click_widget ldtk-tab-Layers
+if_drawn ldtk-tab-select send LDtk_Tab_Picked Layers
+expect level ldtk_tab Layers
+
+# A layer (the first: Entities): its opacity stepped down, its name typed
+scroll_into_view ldtk-tab-scroll ldtk-layer-opacity-dec
+click_widget ldtk-layer-opacity-dec
+wait_until ldtk defs.layers.uid=1.displayOpacity 0.95
+expect ldtk levels.identifier=Cave.layerInstances.layerDefUid=1.__opacity 0.95
+scroll_into_view ldtk-tab-scroll ldtk-layer-name
+click_widget ldtk-layer-name
+key ctrl+a
+type things
+wait_until ldtk defs.layers.uid=1.identifier Things
+expect ldtk levels.identifier=Tower.layerInstances.layerDefUid=1.__identifier Things
+# A taken name is refused (the file keeps the last good one) and the tab says why
+key ctrl+a
+type Tiles
+expect level problem another layer is named Tiles
+expect ldtk defs.layers.uid=1.identifier Things
+key ctrl+a
+type Things
+key escape
+# Undo: the name, then the opacity, as they were in the file
+action Undo
+wait_until ldtk defs.layers.uid=1.identifier Entities
+action Undo
+wait_until ldtk defs.layers.uid=1.displayOpacity 1
+action Redo
+wait_until ldtk defs.layers.uid=1.displayOpacity 0.95
+
+# An entity picked on the canvas: selected, its level too, the tab shows it; its field edited
+click_entity player1
+expect level entity player1
+expect level level Start
+expect level ldtk_tab Entities
+scroll_into_view ldtk-tab-scroll ldtk-instance-field-41
+click_widget ldtk-instance-field-41
+key ctrl+a
+type 9
+wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=player1.fieldInstances.defUid=41.__value 9
+key escape
+
+# The selected level's field
+if_drawn ldtk-tab-Level_Fields click_widget ldtk-tab-Level_Fields
+if_drawn ldtk-tab-select send LDtk_Tab_Picked Level_Fields
+expect level ldtk_tab Level_Fields
+scroll_into_view ldtk-tab-scroll ldtk-level-field-50
+click_widget ldtk-level-field-50
+key ctrl+a
+type boss
+wait_until ldtk levels.identifier=Start.fieldInstances.defUid=50.__value boss
+key escape
+
+# A level dragged in the world (Free: whole pixels); its neighbours follow; undo, redo
+drag_level Tower 512 0
+wait_until ldtk levels.identifier=Tower.worldX 512
+expect ldtk levels.identifier=Start.__neighbours [{"levelIid":"lvl-cave","dir":"e"}]
+action Undo
+wait_until ldtk levels.identifier=Tower.worldX 0
+expect ldtk levels.identifier=Start.__neighbours.1.dir s
+action Redo
+wait_until ldtk levels.identifier=Tower.worldX 512
+
+# An entity dragged (Shift: by the pixel)
+drag_entity coin1 32 0 shift
+wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=coin1.px [136,72]
+expect ldtk toc.0.instancesData.0.worldX 136
+action Undo
+wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=coin1.px [104,72]
+
+# LDtk (another program) saved the file: the status says so; an undo of a change elsewhere in it
+# is merged with it
+expect level outside no
+touch_project_file assets/world/world.ldtk
+wait_until level outside yes
+action Undo
+wait_until ldtk levels.identifier=Tower.worldX 0
+expect level conflict closed
+
+# The LDtk edits are written already: they don't make the project modified (the import does)
+action Save_Project
+expect modified false
+# The project opened again: the file is as it was left
+open_project {project}
+wait_until mode Level
+wait_until level levels 3
+expect ldtk defs.layers.uid=1.displayOpacity 0.95
+expect ldtk levels.identifier=Start.fieldInstances.defUid=50.__value boss
+expect ldtk levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=player1.fieldInstances.defUid=41.__value 9
+expect ldtk levels.identifier=Tower.worldX 0

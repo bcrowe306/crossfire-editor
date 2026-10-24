@@ -267,7 +267,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Guide_Added, Guide_Moved, Guide_Removed, Guides_Cleared,
 	     Text_Copied:
 		// Handled by ContextMenu_Update and ViewportTools_Update above
-	case Mode_Changed, Bottom_Tab_Picked, Level_File_Chosen, Level_Map_Clicked, Level_Scene_Opened, Level_Scene_Created:
+	case Mode_Changed, Bottom_Tab_Picked, Level_File_Chosen, Level_Map_Clicked, Level_Scene_Opened, Level_Scene_Created,
+	     Level_Canvas_Measured, Level_Canvas_Pressed, Level_Canvas_Moved, Level_Canvas_Released, Level_Canvas_Zoomed, Level_Canvas_Panned,
+	     Level_Canvas_Fit, Level_Entity_Picked, Level_Collision_Kind_Changed, LDtk_Tab_Picked, LDtk_Item_Picked, LDtk_Text_Typed,
+	     LDtk_New_Name_Typed, LDtk_Edit, LDtk_Conflict_Chosen:
 		// Handled by Modes_Update and LevelMode_Update above
 	case Log_Follow_Toggled, Log_Follow_Set, Log_Level_Toggled, Log_Category_Toggled,
 	     Log_Categories_Shown, Log_Search_Changed, Log_Filters_Cleared, Log_Test_Lines:

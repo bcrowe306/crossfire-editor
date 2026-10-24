@@ -25,7 +25,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	coding := CodeEditor_Frame(ctx, state.mode == .Scene && CodeTabs_Active(&state) != "")
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
 		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.listenerDialog.open || state.newEvent.open || state.componentClose.open || state.newData.open || state.projectSettings.open || state.aboutOpen || state.git.discardAsk != "" ||
-		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open
+		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open || state.level.conflict.open
 	// The running game's values a code tab shows (code_live.odin)
 	CodeLive_Frame(&state, ctx)
 	// A project with scripts is built once in the background when it opens, so the inspector
@@ -84,6 +84,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		componentCloseDialogView(&state, ctx),
 		aboutDialogView(&state, ctx),
 		gitDiscardDialog(&state, ctx),
+		// An undo over an LDtk file changed outside (level_mode.odin)
+		ldtkConflictDialogView(&state, ctx),
 		// The docs window (view_docs.odin)
 		docsWindowView(&state, ctx),
 		// A drag into code: its label, its drop (code_drag.odin)
@@ -430,8 +432,9 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		middle = {statusText(ctx, fmt.tprintf("Scene: %s", scene.name)), statusText(ctx, fmt.tprintf("%d nodes", len(scene.nodes))), statusText(ctx, fmt.tprintf("Selection: %s", selection))}
 		tool = statusText(ctx, fmt.tprintf("Tool: %v", s.tool))
 	case .Level:
-		world, level := LevelMode_Status(s)
+		world, level, outside := LevelMode_Status(s)
 		middle = {statusText(ctx, "Level mode"), statusText(ctx, world), statusText(ctx, level)}
+		if outside != "" do tool = skald.text(outside, th.color.warning, th.font.size_sm)
 	}
 	return skald.row(
 		statusText(ctx, fmt.tprintf("%s  %s", ICON_SITEMAP, s.project.name)),

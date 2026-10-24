@@ -504,6 +504,8 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.archive.openPath)
 	GitState_Destroy(&state.git)
 	LDtkEdit_Destroy()
+	LDtkDoc_DestroyAll()
+	LevelCanvas_Destroy()
 	AsepriteEdit_Destroy()
 	TilePainter_Destroy(&state.tilePainter)
 	TimelineEditor_Destroy(&state.timeline)

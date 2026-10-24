@@ -51,6 +51,13 @@ NumberTarget :: union {
 	TraceNumber,
 	// The shown atlas's padding (atlas_edit.odin)
 	AtlasPaddingTarget,
+	// A number of an LDtk project (the Level mode's LDtk tab: ldtk_ops.odin)
+	LDtkNumberTarget,
+}
+
+// An LDtk tab's number: the edit it makes, its `number` the field's value (strings: the frame's)
+LDtkNumberTarget :: struct {
+	edit: LDtk_Edit,
 }
 
 GameSizeTarget :: distinct int
@@ -208,6 +215,10 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case CameraNumber: return Camera_Changed{field = CameraField(t), value = f32(value)}
 	case TraceNumber: return Trace_Setting_Changed{field = TraceField(t), value = f32(value)}
 	case AtlasPaddingTarget: return Atlas_Padding_Changed(int(value))
+	case LDtkNumberTarget:
+		edit := t.edit
+		edit.number = value
+		return edit
 	case TimelineNumber:
 		ops := [TimelineNumber]TimelineOp{.Length = .Clip_Length, .Speed = .Speed, .Key_Time = .Key_Time}
 		return Timeline_Changed{op = ops[t], number = f32(value)}

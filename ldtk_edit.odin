@@ -287,11 +287,14 @@ LDtkEdit_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		}
 	case LDtk_Asset_Open_Requested:
 		if int(v) < 0 || int(v) >= len(state.project.assets) do return {}, true
-		return LDtkEdit_OpenInLDtk(state, state.project.assets[v].path), true
+		path := state.project.assets[v].path
+		// The Level mode's selected level (an entity's: its level)
+		level := state.mode == .Level && path == LevelMode_File(state) ? state.level.level : ""
+		return LDtkEdit_OpenInLDtk(state, path, level), true
 	case LDtk_Open_Requested:
 		node := selectedNode(state)
 		if node == nil || node.kind != .LDtkLevel || node.ldtk.file == "" do return {}, true
-		return LDtkEdit_OpenInLDtk(state, node.ldtk.file), true
+		return LDtkEdit_OpenInLDtk(state, node.ldtk.file, node.ldtk.allLevels ? "" : node.ldtk.level), true
 	case:
 		return {}, false
 	}
@@ -299,9 +302,16 @@ LDtkEdit_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 }
 
 /*
-Starts LDtk on a project file (Settings > Editor > LDtk program, else `ldtk` in PATH).
+Starts LDtk on a project file (Settings > Editor > LDtk program, else `ldtk` in PATH), at a level
+when one is given: LDtk's command line takes only the file, but when it opens a project it selects
+the level its settings remember (`lastProject.levelUid`), so that's set first
+(`LDtk_RememberLevel`). An entity can't be selected that way: LDtk opens at its level.
+
+Inputs:
+- path: The .ldtk file, relative to the project
+- level: A level's identifier or iid ("" LDtk's own choice)
 */
-LDtkEdit_OpenInLDtk :: proc(state: ^State, path: string) -> skald.Command(Msg) {
+LDtkEdit_OpenInLDtk :: proc(state: ^State, path: string, level := "") -> skald.Command(Msg) {
 	setting := FixedText_String(&state.settings.ldtkPath)
 	program, found := Script_FindEditorProgram(setting == "" ? "ldtk" : setting)
 	if !found {
@@ -309,13 +319,80 @@ LDtkEdit_OpenInLDtk :: proc(state: ^State, path: string) -> skald.Command(Msg) {
 		return {}
 	}
 	file := absolutePath(joinPath(state.project.rootPath, path, allocator = context.temp_allocator))
+	if level != "" {
+		if doc := LDtkDoc_Get(state.project.rootPath, path); doc != nil && doc.problem == "" {
+			if index := LDtkDoc_FindLevel(doc, level); index >= 0 {
+				main := LDtkDoc_Main(doc)
+				uid := Json_Int(main, Json_Get(main, doc.levels[index].entry, "uid"), -1)
+				if problem := LDtk_RememberLevel(LDtk_SettingsPath(), file, uid); problem != "" do logLine(state, .Warning, fmt.aprintf("LDtk will open at its own choice of level: %s", problem))
+			}
+		}
+	}
 	process, err := os.process_start({command = {program, file}, working_dir = filepath.dir(file)})
 	if err != nil {
 		logLine(state, .Error, fmt.aprintf("Couldn't start LDtk (%s): %v", program, err))
 		return {}
 	}
-	logLine(state, .Info, fmt.aprintf("Opened %s in LDtk", filepath.base(path)))
+	logLine(state, .Info, level != "" ? fmt.aprintf("Opened %s in LDtk at %s", filepath.base(path), level) : fmt.aprintf("Opened %s in LDtk", filepath.base(path)))
 	return Editor_WatchProcess(process, program)
+}
+
+/*
+LDtk's settings file: Electron's user data folder for LDtk (Linux `$XDG_CONFIG_HOME` or
+`~/.config`, macOS `~/Library/Application Support`, Windows `%APPDATA%`) + `/LDtk/settings/settings.cfg`.
+`CROSSFIRE_LDTK_SETTINGS` names another file (the tests').
+
+Returns:
+- The path (temp allocated; "" when there's no home folder to look in)
+*/
+LDtk_SettingsPath :: proc() -> string {
+	if override := os.get_env("CROSSFIRE_LDTK_SETTINGS", context.temp_allocator); override != "" do return override
+	base := ""
+	when ODIN_OS == .Windows {
+		base = os.get_env("APPDATA", context.temp_allocator)
+	} else when ODIN_OS == .Darwin {
+		if home := os.get_env("HOME", context.temp_allocator); home != "" do base = joinPath(home, "Library/Application Support", allocator = context.temp_allocator)
+	} else {
+		base = os.get_env("XDG_CONFIG_HOME", context.temp_allocator)
+		if base == "" do if home := os.get_env("HOME", context.temp_allocator); home != "" do base = joinPath(home, ".config", allocator = context.temp_allocator)
+	}
+	if base == "" do return ""
+	return joinPath(base, "LDtk/settings/settings.cfg", allocator = context.temp_allocator)
+}
+
+/*
+Sets the level LDtk opens a project at: its settings' `lastProject` (`{filePath, levelUid}`, which
+LDtk's editor reads when it opens any project: page/Editor.hx), written atomically, nothing else
+touched. LDtk must not be running with the file open (it keeps its own copy of the settings and
+writes it back).
+
+Inputs:
+- settings: LDtk's settings file (`LDtk_SettingsPath`)
+- file: The project's full path
+- levelUid: The level's uid
+
+Returns:
+- "" or what went wrong (no settings file: LDtk was never started; nothing is written)
+*/
+LDtk_RememberLevel :: proc(settings, file: string, levelUid: int) -> string {
+	if settings == "" || levelUid < 0 do return "no LDtk settings folder"
+	text, err := os.read_entire_file(settings, context.temp_allocator)
+	if err != nil do return "LDtk's settings file isn't there yet (start LDtk once)"
+	doc, problem := Json_Parse(string(text), context.temp_allocator)
+	if problem != "" do return fmt.tprintf("LDtk's settings aren't JSON: %s", problem)
+	slashed, _ := strings.replace_all(file, "\\", "/", context.temp_allocator)
+	value := Json_Object(Json_Minified(&doc), {"filePath", Json_Quote(slashed)}, {"levelUid", fmt.tprint(levelUid)})
+	root := Json_Root(&doc)
+	if Json_Kind(&doc, root) != .Object do return "LDtk's settings aren't an object"
+	patch: JsonPatch
+	if last := Json_Get(&doc, root, "lastProject"); last >= 0 {
+		patch = Json_SetPatch(&doc, last, value)
+	} else {
+		patch = Json_AddMemberPatch(&doc, root, "lastProject", value)
+	}
+	updated, ok := Json_Apply(doc.text, {patch}, context.temp_allocator)
+	if !ok do return "couldn't change LDtk's settings"
+	return LDtk_WriteFile(settings, updated, ldtkModified(settings))
 }
 
 // The inspector's LDtkLevel rows
@@ -588,7 +665,7 @@ Scene_AddLDtkAt :: proc(scene: ^SceneDef, path: string, parent: int, world: [2]f
 
 // The Skald images LDtk pictures are uploaded to, and what each holds
 @(private="file")
-LDTK_IMAGES := [LDtkThumbnailSlot]string{.Browser = "ldtk-thumbnail-browser", .Inspector = "ldtk-thumbnail-inspector", .Level = "ldtk-thumbnail-level"}
+LDTK_IMAGES := [LDtkThumbnailSlot]string{.Browser = "ldtk-thumbnail-browser", .Inspector = "ldtk-thumbnail-inspector"}
 @(private="file")
 ldtkImageKeys: [LDtkThumbnailSlot]u64
 @(private="file")
@@ -597,9 +674,8 @@ ldtkImageSizes: [LDtkThumbnailSlot][2]int
 /*
 A picture of an LDtk level (or the whole world) filling the space it gets (Preview_RenderLDtk;
 re-uploaded only when the picture changes). On the browser's world map (`.Browser`) hovering a
-level outlines it and a click picks it (`LDtk_Level_Picked`); on the Level mode's (`.Level`,
-level_mode.odin) a press selects it or, double, opens it (`Level_Map_Clicked`), and the selected
-level stays outlined.
+level outlines it and a click picks it (`LDtk_Level_Picked`: the selected LDtkLevel node's, or the
+Level mode's while it shows). The Level mode's own canvas is level_canvas.odin.
 
 Inputs:
 - height: 0 to flex (fill what the parent gives)
@@ -621,36 +697,29 @@ ldtkThumbnailView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, slot: LDtkThumbnailSl
 			else do skald.image_load_pixels(ctx.renderer, LDTK_IMAGES[d.slot], u32(pixelSize.x), u32(pixelSize.y), pixels)
 			ldtkImageKeys[d.slot], ldtkImageSizes[d.slot] = key, pixelSize
 		}
-		// The world maps: hovering a level outlines it, a click picks it (the browser's: for the
-		// selected LDtkLevel node, LDtk_Level_Picked; the Level mode's: Level_Map_Clicked)
+		// The browser's world map: hovering a level outlines it, a click picks it (LDtk_Level_Picked)
 		id := skald.hash_id(fmt.tprintf("ldtk-map-%v", d.slot))
 		hovered: [4]f32
 		hovering := false
-		if d.slot == .Browser || d.slot == .Level {
+		if d.slot == .Browser {
 			if state, drawn := ctx.widgets.states[id]; drawn && skald.widget_hovered(ctx, id) && len(ctx.widgets.overlay_rects_prev) == 0 {
 				local := ctx.input.mouse_pos - {state.last_rect.x, state.last_rect.y}
 				identifier, rect, onLevel := Preview_LDtkLevelAt(d.slot, local)
 				if onLevel do hovered, hovering = rect, true
-				if ctx.input.mouse_pressed[.Left] {
-					file := strings.clone(d.file, context.temp_allocator)
-					picked := strings.clone(identifier, context.temp_allocator)
-					if d.slot == .Level {
-						skald.send(ctx, Msg(Level_Map_Clicked{file = file, level = picked, double = ctx.input.mouse_click_count[.Left] >= 2}))
-					} else if onLevel {
-						skald.send(ctx, Msg(LDtk_Level_Picked{file = file, level = picked}))
-					}
+				if ctx.input.mouse_pressed[.Left] && onLevel {
+					skald.send(ctx, Msg(LDtk_Level_Picked{file = strings.clone(d.file, context.temp_allocator), level = strings.clone(identifier, context.temp_allocator)}))
 				}
 			}
 		}
 		chosen, hasChosen := Preview_LDtkLevelRect(d.slot, d.selected)
-		Paint :: struct { slot: LDtkThumbnailSlot, hovered, chosen: [4]f32, hovering, hasChosen: bool, color, hoverColor: skald.Color }
-		paint := new_clone(Paint{d.slot, hovered, chosen, hovering, hasChosen && d.selected != "", ctx.theme.color.primary, ctx.theme.color.fg}, context.temp_allocator)
+		Paint :: struct { slot: LDtkThumbnailSlot, hovered, chosen: [4]f32, hovering, hasChosen: bool, color: skald.Color }
+		paint := new_clone(Paint{d.slot, hovered, chosen, hovering, hasChosen && d.selected != "", ctx.theme.color.primary}, context.temp_allocator)
 		return skald.canvas(ctx, paint, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 			skald.draw_image(painter.r, LDTK_IMAGES[p.slot], painter.bounds, .Fill)
 			b := painter.bounds
 			if p.hasChosen do skald.draw_rect_outline(painter.r, {b.x + p.chosen[0] - 1, b.y + p.chosen[1] - 1, p.chosen[2] + 2, p.chosen[3] + 2}, 3, p.color)
-			if p.hovering do skald.draw_rect_outline(painter.r, {b.x + p.hovered[0], b.y + p.hovered[1], p.hovered[2], p.hovered[3]}, 2, p.hasChosen && p.hovered == p.chosen ? p.color : (p.slot == .Level ? p.hoverColor : p.color))
-		}, id = id, width = max(size.x, 1), height = max(size.y, 1), cursor = (d.slot == .Browser || d.slot == .Level) && hovering ? .Pointer : .Default)
+			if p.hovering do skald.draw_rect_outline(painter.r, {b.x + p.hovered[0], b.y + p.hovered[1], p.hovered[2], p.hovered[3]}, 2, p.color)
+		}, id = id, width = max(size.x, 1), height = max(size.y, 1), cursor = d.slot == .Browser && hovering ? .Pointer : .Default)
 	})
 	if height <= 0 do return skald.flex(1, picture)
 	return skald.col(picture, width = width, height = height)

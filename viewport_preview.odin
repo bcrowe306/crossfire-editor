@@ -3,6 +3,7 @@ package crossfire_editor
 import "core:fmt"
 import "core:hash"
 import "core:log"
+import "core:math"
 import "core:os"
 import "core:strings"
 import "core:time"
@@ -1038,20 +1039,93 @@ Preview_LDtkLevelRect :: proc(slot: LDtkThumbnailSlot, identifier: string) -> (r
 	return {}, false
 }
 
-// The levels an LDtk picture shows, as last drawn (temp allocated; the UI tests' driver)
-Preview_LDtkLevels :: proc(slot: LDtkThumbnailSlot) -> []LDtkLevelRect {
-	out := make([]LDtkLevelRect, len(ldtkLevelRects[slot]), context.temp_allocator)
-	copy(out, ldtkLevelRects[slot][:])
-	return out
-}
-
 // Where an LDtk picture is shown (each has its own cache)
 LDtkThumbnailSlot :: enum {
 	Browser,
 	Inspector,
-	// The Level mode's world map (level_mode.odin)
-	Level,
 }
+
+/*
+One level of an LDtk project drawn by the engine as the game draws it (an LDtkLevel node showing
+it: every layer, its background, entities as the editor shows them), at `scale` of its size, for
+the Level mode's canvas (level_canvas.odin). One software renderer for every level: its surface
+only grows, so its game (the textures, the parsed file) stays; the file is read again when its
+modification time changes.
+
+Inputs:
+- size: The level's size in pixels
+- scale: Of the level's pixels (at most 1)
+
+Returns:
+- RGBA8 pixels (`out.x * out.y * 4`, valid until the next call), their size, and false if it
+  couldn't render
+*/
+Preview_RenderLDtkLevel :: proc(s: ^State, file, level: string, size: [2]f32, scale: f32) -> (pixels: []u8, out: [2]int, ok: bool) {
+	out = {max(int(math.ceil(size.x * scale)), 1), max(int(math.ceil(size.y * scale)), 1)}
+	lt := &levelThumbnail
+	// The surface grows in steps (a new one means a new game: textures and file read again)
+	want := [2]int{max(lt.size.x, (out.x + 255) / 256 * 256), max(lt.size.y, (out.y + 255) / 256 * 256)}
+	if want != lt.size || lt.t.renderer == nil {
+		if !thumbnailTarget(&lt.t, want) do return nil, out, false
+		lt.size = want
+		for path in lt.files do delete(path)
+		clear(&lt.files)
+	}
+	t := &lt.t
+	modified := ldtkModified(joinPath(s.project.rootPath, file, allocator = context.temp_allocator))
+	if known, found := lt.files[file]; !found || known != modified {
+		e.Game_ForgetLDtk(t.game, file)
+		if !found do lt.files[strings.clone(file)] = modified
+		else do lt.files[file] = modified
+	}
+	t.game.size = s.project.gameSize
+	scene := new(e.Scene)
+	e.Scene_Init(scene)
+	scene.physicsPaused = true
+	scene.game = t.game
+	defer { e.Scene_Destroy(scene); free(scene) }
+	node := e.DEFAULT_SCENE_NODE
+	node.kind = .LDtkLevel
+	node.name = "Level"
+	node.ldtk = e.DEFAULT_LDTK_LEVEL_SETTINGS
+	node.ldtk.file = file
+	node.ldtk.level = level
+	data := e.SceneData{name = "LDtk", nodes = make([dynamic]e.SceneNodeData, context.temp_allocator)}
+	append(&data.nodes, node)
+	created := e.Scene_Build(scene, &data, s.project.rootPath, attachScripts = false)
+	e.Scene_ProcessQueues(scene)
+	// The level's top-left corner at the picture's
+	origin := [2]f32{}
+	if created[0] != nil && created[0].type == typeid_of(e.LDtkLevelNode) {
+		levelNode := cast(^e.LDtkLevelNode)created[0]
+		for levelView in levelNode.views do if levelView.level != nil {
+			origin = e.Node_GetWorldTransform(levelView).origin
+			break
+		}
+	}
+	view := e.Transform2D{x = {scale, 0}, y = {0, scale}, origin = -origin * scale}
+	r := t.renderer
+	sdl.SetRenderDrawColor(r, 0, 0, 0, 0)
+	sdl.RenderClear(r)
+	e.Scene_DrawWithView(scene, r, view, screenLayersUseView = true, positionOnlyScale = scale)
+	sdl.FlushRenderer(r)
+	resize(&t.pixels, out.x * out.y * 4)
+	src := ([^]u8)(t.surface.pixels)
+	row := out.x * 4
+	for y in 0 ..< out.y do copy(t.pixels[y * row:][:row], src[y * int(t.surface.pitch):][:row])
+	return t.pixels[:], out, true
+}
+
+// The Level mode's level pictures' renderer: its surface's size and the files its game read
+@(private="file")
+LevelThumbnail :: struct {
+	t: Thumbnail,
+	size: [2]int,
+	files: map[string]time.Time,
+}
+
+@(private="file", thread_local)
+levelThumbnail: LevelThumbnail
 
 @(private="file", thread_local)
 ldtkThumbnails: [LDtkThumbnailSlot]Thumbnail
@@ -1107,6 +1181,10 @@ Preview_Destroy :: proc() {
 	preview = {}
 	thumbnailDestroy(&thumbnail)
 	for &t in ldtkThumbnails do thumbnailDestroy(&t)
+	thumbnailDestroy(&levelThumbnail.t)
+	for path in levelThumbnail.files do delete(path)
+	delete(levelThumbnail.files)
+	levelThumbnail = {}
 }
 
 @(private="file")

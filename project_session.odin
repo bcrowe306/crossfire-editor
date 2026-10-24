@@ -63,12 +63,13 @@ SessionState :: struct {
 
 // Whether the project has changes that aren't saved
 Project_IsModified :: proc(state: ^State) -> bool {
-	return state.history.version != state.session.savedVersion || state.session.assetsChanged || CodeTabs_AnyDirty(state)
+	// The LDtk tab's file steps were written at once: not unsaved (History.fileVersion)
+	return state.history.version - state.history.fileVersion != state.session.savedVersion || state.session.assetsChanged || CodeTabs_AnyDirty(state)
 }
 
 // Records a successful save
 Session_MarkSaved :: proc(state: ^State) {
-	state.session.savedVersion = state.history.version
+	state.session.savedVersion = state.history.version - state.history.fileVersion
 	state.session.assetsChanged = false
 }
 

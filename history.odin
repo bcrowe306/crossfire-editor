@@ -2,6 +2,7 @@ package crossfire_editor
 
 import "core:fmt"
 import "core:hash"
+import "core:os"
 import "core:path/filepath"
 import "core:slice"
 import "core:strings"
@@ -42,6 +43,9 @@ History :: struct {
 	// Bumped by every change to the project through the history (a step pushed, merged, undone
 	// or redone), so unsaved changes can be detected (project_session.odin)
 	version: int,
+	// The part of `version` that changed only files the editor wrote at once (the LDtk tab's
+	// `FileChange` steps): nothing for Save to write, so they don't make the project modified
+	fileVersion: int,
 }
 
 UndoCommand :: struct {
@@ -66,6 +70,27 @@ UndoChange :: union {
 	NodeChange,
 	SceneChange,
 	ProjectChange,
+	FileChange,
+}
+
+/*
+Files the editor wrote: an LDtk project's (the LDtk tab's edits, ldtk_ops.odin), each file's text
+before and after. Undo writes "before" back, redo "after"; a file changed outside since (LDtk
+saved it) is merged when the two changes don't touch (`History_MergeText`), else the step waits
+for the user's answer (`LevelMode.conflict`). A rename the scenes followed also holds the
+project's snapshot (`project`, `hasProject`).
+*/
+FileChange :: struct {
+	// The LDtk project (relative to the project folder; owned)
+	ldtkFile: string,
+	files: [dynamic]FileText,
+	hasProject: bool,
+	project: ProjectChange,
+}
+
+// A file's text before and after a step (all owned)
+FileText :: struct {
+	path, before, after: string,
 }
 
 // The project's scene list and settings: adding, removing, renaming scenes, Project Settings
@@ -135,6 +160,8 @@ EditScope :: enum {
 	Scene,
 	// Changes the scene list or the project's settings
 	Project,
+	// Changes files (an LDtk project's: `EditInfo.ldtkFile`)
+	Files,
 }
 
 // What a message edits, from `History_Classify`
@@ -145,6 +172,10 @@ EditInfo :: struct {
 	label: string,
 	mergeKey: u64,
 	sticky: bool,
+	// A `.Files` edit's LDtk project (relative to the project folder), and whether the project's
+	// scenes may change too (renames they follow)
+	ldtkFile: string,
+	withProject: bool,
 }
 
 // The state an edit started from, taken before the message is applied
@@ -157,6 +188,8 @@ EditSnapshot :: struct {
 	node: NodeDef,
 	nodes: [dynamic]NodeDef,
 	project: ProjectSnapshot,
+	// A `.Files` edit's files and their texts (owned)
+	files: [dynamic]FileText,
 }
 
 /*
@@ -303,6 +336,7 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isUI := v.target.(UINumberTarget); isUI && hasSelection {
 			return node(selected, fmt.tprintf("Change %v of %s", UIField(field), name), key("ui", UIField(field), s.currentScene, selected))
 		}
+		if t, isLDtk := v.target.(LDtkNumberTarget); isLDtk do return LDtkEdit_Info(t.edit)
 		if prop, isProp := v.target.(ScriptPropTarget); isProp && hasSelection {
 			return node(selected, fmt.tprintf("Change %s of %s", prop.name, name), key("prop", prop.name, fmt.tprint(prop.target), s.currentScene, selected))
 		}
@@ -473,6 +507,18 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		// While the Level mode shows, a level picked on the browser's map selects it there
 		if s.mode == .Level do break
 		return {scope = .Scene, label = fmt.tprintf("Show level %s", v.level)}
+	// The Level mode's LDtk tab and canvas: the LDtk project's files (ldtk_ops.odin)
+	case LDtk_Edit:
+		return LDtkEdit_Info(v)
+	case LDtk_Text_Typed:
+		return LDtkEdit_Info(v.edit)
+	case Level_Canvas_Released:
+		drag := s.level.drag
+		if drag.moved && (drag.mode == .Level || drag.mode == .Entity) {
+			return {scope = .Files, ldtkFile = LevelMode_File(s), label = drag.mode == .Level ? "Move a level in the world" : "Move an entity"}
+		}
+	case Level_Collision_Kind_Changed:
+		if v.scene >= 0 && v.scene < len(s.project.scenes) do return {scope = .Project, label = fmt.tprintf("Change what IntGrid value %d becomes in %s", v.value, s.project.scenes[v.scene].name)}
 	case LDtk_Setting_Changed:
 		if !hasSelection do break
 		// Typing collision values merges into one step
@@ -692,6 +738,12 @@ History_Snapshot :: proc(s: ^State, info: EditInfo) -> EditSnapshot {
 		snap.nodes = cloneNodes(scene.nodes[:])
 	case .Project:
 		snap.project = takeProjectSnapshot(s)
+	case .Files:
+		snap.info.ldtkFile = strings.clone(info.ldtkFile)
+		if doc := LDtkDoc_Get(s.project.rootPath, info.ldtkFile); doc != nil {
+			for text, i in LDtkDoc_DiskTexts(doc) do append(&snap.files, FileText{path = strings.clone(doc.files[i].path), before = strings.clone(text)})
+		}
+		if info.withProject do snap.project = takeProjectSnapshot(s)
 	}
 	return snap
 }
@@ -751,6 +803,38 @@ History_Commit :: proc(s: ^State, snap: EditSnapshot, now: time.Tick) {
 			return
 		}
 		command.change = ProjectChange{snap.project, after}
+	case .Files:
+		change := FileChange{ldtkFile = snap.info.ldtkFile}
+		snap.info.ldtkFile = ""
+		for &f in snap.files {
+			data, err := os.read_entire_file(f.path, context.temp_allocator)
+			now := err == nil ? string(data) : f.before
+			if now == f.before {
+				delete(f.path)
+				delete(f.before)
+				continue
+			}
+			append(&change.files, FileText{f.path, f.before, strings.clone(now)})
+		}
+		delete(snap.files)
+		snap.files = nil
+		if snap.info.withProject {
+			after := takeProjectSnapshot(s)
+			if projectSnapshotsEqual(&snap.project, &after) {
+				destroyProjectSnapshot(&after)
+				destroyProjectSnapshot(&snap.project)
+			} else {
+				change.hasProject = true
+				change.project = {snap.project, after}
+			}
+		}
+		if len(change.files) == 0 && !change.hasProject {
+			delete(change.files)
+			delete(change.ldtkFile)
+			delete(snap.info.label)
+			return
+		}
+		command.change = change
 	}
 	History_Push(&s.history, command, &s.settings, now)
 }
@@ -762,6 +846,7 @@ top of this file). Clears the redo stack. Takes ownership of `command`.
 History_Push :: proc(h: ^History, command: UndoCommand, settings: ^Settings, now: time.Tick) {
 	command := command
 	h.version += 1
+	if change, isFiles := command.change.(FileChange); isFiles && !change.hasProject do h.fileVersion += 1
 	if top, ok := mergeTarget(h, &command, settings, now); ok {
 		// Keep the top's "before"; take the new "after"
 		switch &change in top.change {
@@ -780,6 +865,32 @@ History_Push :: proc(h: ^History, command: UndoCommand, settings: ^Settings, now
 			new := command.change.(ProjectChange)
 			change.after = new.after
 			destroyProjectSnapshot(&new.before)
+		case FileChange:
+			// Each file keeps the first "before", takes the newest "after"
+			new := command.change.(FileChange)
+			for &f in new.files {
+				merged := false
+				for &old in change.files do if old.path == f.path {
+					delete(old.after)
+					old.after = f.after
+					delete(f.path)
+					delete(f.before)
+					merged = true
+				}
+				if !merged do append(&change.files, f)
+			}
+			delete(new.files)
+			delete(new.ldtkFile)
+			if new.hasProject {
+				if change.hasProject {
+					destroyProjectSnapshot(&change.project.after)
+					change.project.after = new.project.after
+					destroyProjectSnapshot(&new.project.before)
+				} else {
+					change.hasProject = true
+					change.project = new.project
+				}
+			}
 		}
 		top.last = now
 		top.selectionAfter = command.selectionAfter
@@ -840,6 +951,19 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	s.history.version += 1
 	// The mode the step was made in (undo) or left (redo), as the step's scene shows
 	Mode_Set(s, undo ? command.modeBefore : command.modeAfter)
+	// Files written back: as they were (merged with outside changes when they don't touch), or the
+	// step waits for the user's answer
+	if change, isFiles := &command.change.(FileChange); isFiles {
+		if !change.hasProject do s.history.fileVersion += 1
+		if !History_RestoreFiles(s, change, undo, force = false) {
+			append(from, command)
+			s.level.conflict = {open = true, undo = undo}
+			return fmt.tprintf("%s (waiting: %s changed outside the editor)", command.label, filepath.base(change.ldtkFile)), true
+		}
+		command.mergeKey = 0
+		append(to, command)
+		return command.label, true
+	}
 	// The scene list itself: restore it whole, then show the scene that was open
 	if change, isProject := command.change.(ProjectChange); isProject {
 		snapshot := undo ? &change.before : &change.after
@@ -881,7 +1005,7 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	case SceneChange:
 		destroyNodes(&scene.nodes)
 		scene.nodes = cloneNodes((undo ? change.before : change.after)[:])
-	case ProjectChange:
+	case ProjectChange, FileChange:
 		// Handled above
 	}
 	s.selectedNode = undo ? command.selectionBefore : command.selectionAfter
@@ -992,6 +1116,18 @@ destroyCommand :: proc(command: ^UndoCommand) {
 	case ProjectChange:
 		destroyProjectSnapshot(&change.before)
 		destroyProjectSnapshot(&change.after)
+	case FileChange:
+		for f in change.files {
+			delete(f.path)
+			delete(f.before)
+			delete(f.after)
+		}
+		delete(change.files)
+		delete(change.ldtkFile)
+		if change.hasProject {
+			destroyProjectSnapshot(&change.project.before)
+			destroyProjectSnapshot(&change.project.after)
+		}
 	}
 }
 
@@ -1006,7 +1142,14 @@ discardSnapshot :: proc(snap: ^EditSnapshot) {
 	delete(snap.info.label)
 	if snap.info.scope == .Node do NodeDef_Destroy(&snap.node)
 	if snap.info.scope == .Scene do destroyNodes(&snap.nodes)
-	if snap.info.scope == .Project do destroyProjectSnapshot(&snap.project)
+	if snap.info.scope == .Project || (snap.info.scope == .Files && snap.info.withProject) do destroyProjectSnapshot(&snap.project)
+	delete(snap.info.ldtkFile)
+	for f in snap.files {
+		delete(f.path)
+		delete(f.before)
+		delete(f.after)
+	}
+	delete(snap.files)
 }
 
 @(private="file")
@@ -1254,4 +1397,152 @@ nodesSameTree :: proc(a, b: []NodeDef) -> bool {
 	if len(a) != len(b) do return false
 	for n, i in a do if n.name != b[i].name || n.parent != b[i].parent do return false
 	return true
+}
+
+/*
+Writes a file step's texts back: "before" for an undo, "after" for a redo. A file changed since
+the step (LDtk saved it) is merged when the outside change and the step's don't touch
+(`History_MergeText`); otherwise nothing is written unless `force` (the user chose to overwrite).
+The LDtk caches read the files again, and the project's snapshot is restored with them.
+
+Returns:
+- Whether it was written (false: a conflict, nothing written)
+*/
+History_RestoreFiles :: proc(s: ^State, change: ^FileChange, undo, force: bool) -> bool {
+	targets := make([]string, len(change.files), context.temp_allocator)
+	for f, i in change.files {
+		want := undo ? f.before : f.after
+		expected := undo ? f.after : f.before
+		data, err := os.read_entire_file(f.path, context.temp_allocator)
+		current := err == nil ? string(data) : expected
+		switch {
+		case current == expected || current == want || force:
+			targets[i] = want
+		case:
+			merged, ok := History_MergeText(expected, want, current)
+			if !ok do return false
+			targets[i] = merged
+		}
+	}
+	doc := LDtkDoc_Get(s.project.rootPath, change.ldtkFile)
+	for f, i in change.files {
+		written := false
+		if doc != nil do for df, j in doc.files do if df.path == f.path {
+			texts := LDtkDoc_Texts(doc)
+			texts[j] = targets[i]
+			if problem := LDtkDoc_WriteTexts(doc, texts); problem != "" do logLine(s, .Error, strings.clone(problem))
+			written = true
+			break
+		}
+		if !written do if problem := LDtk_WriteFile(f.path, targets[i], ldtkModified(f.path)); problem != "" do logLine(s, .Error, strings.clone(problem))
+	}
+	if change.hasProject do restoreProjectSnapshot(s, undo ? &change.project.before : &change.project.after)
+	return true
+}
+
+/*
+A text changed two ways from `base`: `ours` (the step being undone or redone) and `theirs` (the
+file as it is now, changed outside). When the two changes are in separate places, `theirs` with
+ours applied too; when they touch, nothing (the user decides).
+
+Returns:
+- The merged text (temp allocated), and whether it merged
+*/
+History_MergeText :: proc(base, ours, theirs: string) -> (string, bool) {
+	prefix :: proc(a, b: string) -> int {
+		n := min(len(a), len(b))
+		for i in 0 ..< n do if a[i] != b[i] do return i
+		return n
+	}
+	suffix :: proc(a, b: string, from: int) -> int {
+		n := min(len(a), len(b)) - from
+		for i in 0 ..< n do if a[len(a) - 1 - i] != b[len(b) - 1 - i] do return i
+		return max(n, 0)
+	}
+	p1 := prefix(base, ours)
+	s1 := suffix(base, ours, p1)
+	p2 := prefix(base, theirs)
+	s2 := suffix(base, theirs, p2)
+	ourStart, ourEnd := p1, len(base) - s1
+	theirStart, theirEnd := p2, len(base) - s2
+	replacement := ours[p1:len(ours) - s1]
+	merged: string
+	switch {
+	case ourEnd <= theirStart:
+		merged = strings.concatenate({theirs[:ourStart], replacement, theirs[ourEnd:]}, context.temp_allocator)
+	case theirEnd <= ourStart:
+		d := len(theirs) - len(base)
+		merged = strings.concatenate({theirs[:ourStart + d], replacement, theirs[ourEnd + d:]}, context.temp_allocator)
+	case:
+		return "", false
+	}
+	// Still JSON (LDtk's files): a merge that isn't is a conflict
+	if check, problem := Json_Parse(merged, context.temp_allocator); problem != "" {
+		return "", false
+	} else do Json_Destroy(&check)
+	return merged, true
+}
+
+/*
+Answers a file step that waited (its files changed outside the editor): overwrite them with the
+step's texts, or keep the files as they are (the step is dropped, and the history before it: it
+can't be undone over the outside change).
+*/
+History_ResolveConflict :: proc(s: ^State, overwrite: bool) -> string {
+	undo := s.level.conflict.undo
+	s.level.conflict = {}
+	from, to := undo ? &s.history.undo : &s.history.redo, undo ? &s.history.redo : &s.history.undo
+	if len(from) == 0 do return ""
+	command := pop(from)
+	change, isFiles := &command.change.(FileChange)
+	if !isFiles {
+		append(from, command)
+		return ""
+	}
+	s.history.version += 1
+	if !change.hasProject do s.history.fileVersion += 1
+	if overwrite {
+		History_RestoreFiles(s, change, undo, force = true)
+		command.mergeKey = 0
+		append(to, command)
+		return fmt.tprintf("%s: %s", undo ? "Undo" : "Redo", command.label)
+	}
+	label := fmt.tprintf("Kept %s as it is: \"%s\" and the steps before it can't be undone over its change", filepath.base(change.ldtkFile), command.label)
+	destroyCommand(&command)
+	// The older steps of that file would undo over it too
+	if undo do clearCommands(from)
+	return label
+}
+
+// What each LDtk edit is called in the history
+LDTK_EDIT_LABELS := [LDtkEditOp]string{
+	.Layer_Name = "Rename a layer", .Layer_Opacity = "Change a layer's opacity", .Layer_Parallax_X = "Change a layer's parallax",
+	.Layer_Parallax_Y = "Change a layer's parallax", .Layer_Parallax_Scaling = "Change a layer's parallax scaling",
+	.Layer_Grid_Size = "Change a layer's grid size", .Layer_Move = "Move a layer", .Layer_Visible = "Show or hide a layer",
+	.Entity_Name = "Rename an entity type", .Entity_Width = "Change an entity type's size", .Entity_Height = "Change an entity type's size",
+	.Entity_Color = "Change an entity type's color", .Entity_Pivot_X = "Change an entity type's pivot", .Entity_Pivot_Y = "Change an entity type's pivot",
+	.Field_Name = "Rename a field", .Field_Default = "Change a field's default",
+	.Entity_X = "Move an entity", .Entity_Y = "Move an entity", .Entity_Moved = "Move an entity", .Entity_Field = "Change an entity's field",
+	.Entity_Ref = "Change an entity reference", .Level_Field = "Change a level's field",
+	.Level_X = "Move a level in the world", .Level_Y = "Move a level in the world", .Level_Moved = "Move a level in the world",
+	.IntGrid_Name = "Rename an IntGrid value", .IntGrid_Color = "Change an IntGrid value's color",
+	.Enum_Name = "Rename an enum", .Enum_Value_Name = "Rename an enum value", .Enum_Value_Color = "Change an enum value's color",
+	.Enum_Value_Added = "Add an enum value", .Enum_Added = "Add an enum",
+	.World_Layout = "Change the world's layout", .World_Grid_Width = "Change the world's grid", .World_Grid_Height = "Change the world's grid",
+}
+
+/*
+An LDtk edit's undo step: its files (`.Files`), a label, and a merge key for edits typed or
+stepped (one step per field while typing); renames of layers and entity types also hold the
+project (the scenes' LDtkLevel nodes follow them).
+*/
+LDtkEdit_Info :: proc(edit: LDtk_Edit) -> EditInfo {
+	info := EditInfo{scope = .Files, ldtkFile = edit.file, label = fmt.tprintf("%s in %s", LDTK_EDIT_LABELS[edit.op], filepath.base(edit.file))}
+	#partial switch edit.op {
+	case .Layer_Move, .Layer_Visible, .Layer_Parallax_Scaling, .Entity_Moved, .Level_Moved, .Entity_Ref, .Enum_Value_Added, .Enum_Added, .World_Layout:
+	case:
+		info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.world, edit.def, edit.field, edit.index, edit.level, edit.entity))
+	}
+	info.withProject = edit.op == .Layer_Name || edit.op == .Entity_Name
+	return info
 }

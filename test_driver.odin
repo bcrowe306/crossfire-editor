@@ -71,6 +71,10 @@ copy: `open_project {project}`).
 	                                 of animation-frames), optionally holding Shift
 	click_tile <n>                   Click tile n (1 is the first) of the Tiles panel's palette
 	drag_world x1 y1 x2 y2 [right]   Press at a world point in the viewport, move to another, release
+	drag_level <identifier> <dx> <dy> [shift]   Drag a level on the Level mode's canvas from its
+	                                 center by world pixels (shift: held)
+	drag_entity <iid> <dx> <dy> [shift]   The same for an entity (shift: off its grid)
+	click_entity <iid>               Click an entity on the Level mode's canvas
 	paint_cells c1 r1 c2 r2 [right]  A stroke between two cells of the selected TileMap (the Tiles panel's layer)
 	click_state <i>                  Click state i's box in the States tab's graph
 	drag_state <i> <dx> <dy>         Drag state i's box by (dx, dy) pixels
@@ -253,10 +257,16 @@ Checks:
 	project <name>               The open project's name
 	ldtk_level <identifier|first>    The selected LDtkLevel node's level
 	mode <Scene | Level>         The editor mode that shows (editor_modes.odin)
-	level <file | level | tab | levels | shown_in> <value>
+	level <file | level | tab | levels | shown_in | entity | ldtk_tab | problem | conflict | outside> <value>
 	                             The Level mode (level_mode.odin): its world's file, the selected
-	                             level (none), its bottom tab, how many levels its map drew, how
-	                             many scenes show the selected level
+	                             level (none), its bottom tab, how many levels its world has, how
+	                             many scenes show the selected level, the selected entity's iid
+	                             (none), the LDtk tab's section, why the last LDtk edit wasn't
+	                             written (none), the conflict dialog (open | closed), whether
+	                             the file changed outside the editor (yes | no)
+	ldtk [<file>:]<json path> <value>  A value of the Level mode's LDtk project on disk (Json_Path:
+	                             `levels.identifier=Start.worldX`; <file>: one beside it, a .ldtkl),
+	                             as JSON without spaces (strings bare; `missing`)
 	about_dialog <open | closed>, confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
 	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit | console_limit> <value>
@@ -943,6 +953,55 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		STEPS :: 4
 		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
 		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b, button))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "drag_level", "drag_entity", "click_entity":
+		// drag_level <identifier> <dx> <dy> [shift] / drag_entity <iid> <dx> <dy> [shift]: press on a
+		// level's (or entity's) center on the Level mode's canvas, move by world pixels, release;
+		// click_entity <iid>: click an entity there
+		doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+		if doc == nil || len(args) < 1 {
+			fail(fmt.tprintf("%s: no LDtk world, or nothing named", line))
+			return true
+		}
+		levels, entities, _ := LevelCanvas_Content(s, doc)
+		center: [2]f32
+		found := false
+		if command == "drag_level" {
+			for l in levels do if l.identifier == args[0] do center, found = l.world.xy + l.world.zw * 0.5, true
+		} else {
+			for en in entities do if en.iid == args[0] do center, found = en.center, true
+		}
+		if !found {
+			fail(fmt.tprintf("%s: no %s %s on the canvas", line, command == "drag_level" ? "level" : "entity", args[0]))
+			return true
+		}
+		a, ok := LevelCanvas_WorldToWindow(s, ctx, center)
+		if !ok {
+			fail(fmt.tprintf("%s: the canvas hasn't been drawn", line))
+			return true
+		}
+		if command == "click_entity" {
+			click(a)
+			report(true, line)
+			return false
+		}
+		b, _ := LevelCanvas_WorldToWindow(s, ctx, center + {f32(atoi(args, 1, 0)), f32(atoi(args, 2, 0))})
+		shift := len(args) > 3 && args[3] == "shift"
+		pushMouse(.MOUSE_MOTION, a)
+		if shift do pushKey(.KEY_DOWN, {.LSHIFT})
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, a))
+		STEPS :: 5
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b))
+		if shift {
+			release: sdl.Event
+			release.type = .KEY_UP
+			release.key.scancode = .LSHIFT
+			queueBatch(release)
+		}
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
@@ -1841,6 +1900,9 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 				left, _ := FittedSidebarWidths(&layout)
 				msg = Center_Resized(layout.workspace.x - left - DIVIDER - width - DIVIDER)
 			}
+		// The LDtk tab's section (level_mode.odin), as its sidebar or (narrow) its choice would pick it
+		case "LDtk_Tab_Picked":
+			if tab, ok := reflect.enum_from_name(LDtkTab, value); ok do msg = LDtk_Tab_Picked(tab)
 		case "Dialogue_Created":      msg = Dialogue_Created{}
 		// The docs window at an address (docs_window.odin), as a way in would open it
 		case "Docs_Opened":           msg = Docs_Opened(strings.clone(value, context.temp_allocator))
@@ -3208,10 +3270,37 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case "file":     found = LevelMode_File(s)
 		case "level":    found = s.level.level == "" ? "none" : s.level.level
 		case "tab":      found = fmt.tprint(s.level.bottomTab)
-		case "levels":   found = fmt.tprint(len(Preview_LDtkLevels(.Level)))
+		case "levels":
+			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+			found = doc == nil ? "0" : fmt.tprint(len(doc.levels))
+		case "entity":   found = s.level.entity == "" ? "none" : s.level.entity
+		case "ldtk_tab": found = fmt.tprint(s.level.tab)
+		case "problem":  found = s.level.problem == "" ? "none" : s.level.problem
+		case "conflict": found = s.level.conflict.open ? "open" : "closed"
+		case "outside":
+			_, outside := LDtkDoc_Outside(s.project.rootPath, LevelMode_File(s))
+			found = outside ? "yes" : "no"
 		case "shown_in": found = fmt.tprint(len(LevelMode_ScenesShowing(s, LevelMode_File(s), s.level.level)))
 		case:            return false, fmt.tprintf("unknown level field %q", field)
 		}
+		return found == strings.trim_space(wanted), found
+	case "ldtk":
+		// ldtk <json path> <value> / ldtk <file>:<json path> <value>: a value in the Level mode's
+		// LDtk project on disk (a file beside it: a .ldtkl), as JSON without spaces (strings bare)
+		path, _, wanted := strings.partition(strings.trim_space(value), " ")
+		file := LevelMode_File(s)
+		full := joinPath(s.project.rootPath, file, allocator = context.temp_allocator)
+		if other, _, rest := strings.partition(path, ":"); rest != "" {
+			full = joinPath(filepath.dir(full), other, allocator = context.temp_allocator)
+			path = rest
+		}
+		data, err := os.read_entire_file(full, context.temp_allocator)
+		if err != nil do return false, fmt.tprintf("can't read %s", full)
+		doc, problem := Json_Parse(string(data), context.temp_allocator)
+		if problem != "" do return false, problem
+		node := Json_Path(&doc, path)
+		if node < 0 do return strings.trim_space(wanted) == "missing", "missing"
+		found = Json_Kind(&doc, node) == .String ? Json_String(&doc, node) : jsonCompact(Json_Text(&doc, node))
 		return found == strings.trim_space(wanted), found
 	case "ldtk_level":
 		// The selected node's LDtk level ("" shows as "first")
@@ -3649,4 +3738,28 @@ rowVisible :: proc(ctx: ^skald.Ctx(Msg), treeKey: string, y: f32) -> bool {
 	state := ctx.widgets.states[skald.hash_id(treeKey)]
 	area := state.clip_rect.w > 0 ? state.clip_rect : state.last_rect
 	return y >= area.y && y < area.y + area.h
+}
+
+// JSON without the spaces between its tokens (strings kept as they are)
+@(private="file")
+jsonCompact :: proc(text: string) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	inString := false
+	for i := 0; i < len(text); i += 1 {
+		c := text[i]
+		if inString {
+			strings.write_byte(&b, c)
+			if c == '\\' && i + 1 < len(text) {
+				i += 1
+				strings.write_byte(&b, text[i])
+			} else if c == '"' do inString = false
+			continue
+		}
+		switch c {
+		case ' ', '\t', '\n', '\r': continue
+		case '"': inString = true
+		}
+		strings.write_byte(&b, c)
+	}
+	return strings.to_string(b)
 }
