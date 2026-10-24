@@ -395,7 +395,7 @@ ENGINE_API_AREAS := [?]struct { slug: string, files: []string }{
 	{"platform-player-web", {"player.odin", "platform_native.odin", "platform_web.odin", "player_web.odin", "pack.odin", "sdl_static.odin"}},
 	{"steam-touch-multiplayer", {"steam.odin", "touch.odin", "players.odin"}},
 	{"debug-and-live", {"debug.odin", "logging.odin", "logging_windows.odin", "logging_darwin.odin", "live.odin", "live_native.odin", "live_web.odin"}},
-	{"utilities", {"paths.odin", "doc.odin"}},
+	{"utilities", {"paths.odin", "process_exec.odin", "doc.odin"}},
 }
 
 // The API reference's area of an engine file ("" when it's in none)

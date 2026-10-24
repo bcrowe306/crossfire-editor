@@ -220,7 +220,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `zip.odin` | Zip files: `Zip_Write` (stored), `Zip_List` / `Zip_Read` (stored and deflated, CRC checked), `Zip_SafeName` |
 | `project_archive.odin` | Project archives (`.odinsdl`): `ProjectArchive_Create` (outside assets brought in), `ProjectArchive_Extract`, the File menu's flow |
 | `vcs.odin` | Version control through `git`: `GitSnapshot` / `Git_ReadSnapshot`, `GitOp` / `Git_Commands` / `Git_RunCommands`, `Git_Update` |
-| `process_exec.odin` | `Process_Exec`: `os.process_exec` without its lost output (a program that wrote and exited between Linux pipe poll's two looks seemed to print nothing); every program the editor runs and reads goes through it |
+| `process_exec.odin` | `Process_Exec`: the engine's `e.Process_Exec` under the editor's name (`os.process_exec` without its lost output: a program that wrote and exited between Linux pipe poll's two looks seemed to print nothing); every program the editor runs and reads goes through it |
 | `view_git.odin` | The bottom panel's Git tab |
 | `view_about.odin` | Help > About: the logo (the built-in 256 px icon, uploaded once), `EDITOR_VERSION` (`-define:EDITOR_VERSION`: the Taskfile's `git describe`, CI's tag), Odin's version, links (opened with `sdl.OpenURL`); `tests/ui/about.script` |
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
@@ -794,7 +794,7 @@ Git through the `git` program (`Script_FindEditorProgram`; Settings > Toolchain 
   refreshes the index under its lock, so a commit or checkout beside it could fail, or the read
   show the repository half changed (a commit's own save marked the snapshot stale and the view
   started a read the next frame, while the commit ran). Test: `git_reads_and_commands_take_turns`.
-- **Output is never lost:** git runs through `Process_Exec` (process_exec.odin). With
+- **Output is never lost:** git runs through `Process_Exec` (process_exec.odin: the engine's since 2026-10-23). With
   `os.process_exec`, a read under heavy CPU load sometimes got an empty `git status` (no branch:
   `git_init_stage_commit_branch_push` failed with `ahead` 0 vs 1, then the push's "invalid
   refspec"; 4 of 384 runs, 16 at once beside 8 CPU hogs, and none of 224 after; 3 of 12000 runs
