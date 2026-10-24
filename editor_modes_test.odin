@@ -66,7 +66,7 @@ modes_switch_by_key_menu_and_bar :: proc(t: ^testing.T) {
 	// Each mode has its own bottom tabs and panel sizes
 	testing.expect_value(t, Mode_BottomTab(&state), BottomTab.Console)
 	modeSend(&state, Bottom_Tab_Picked(0))
-	testing.expect_value(t, Mode_BottomTab(&state), BottomTab.LDtk)
+	testing.expect_value(t, Mode_BottomTab(&state), BottomTab.World)
 	testing.expect_value(t, state.bottomTab, BottomTab.Console)
 	modeSend(&state, Workspace_Measured({1280, 700}))
 	modeSend(&state, Left_Resized(300))
@@ -236,4 +236,141 @@ level_mode_opens_and_makes_scenes_for_levels :: proc(t: ^testing.T) {
 	modeSend(&state, Level_Map_Clicked{file = file, level = "Level_0", double = true})
 	testing.expect_value(t, state.mode, EditorMode.Scene)
 	testing.expect_value(t, state.project.scenes[state.currentScene].name, "Level_0")
+}
+
+/*
+The Level mode's layout (phase 1 of the LDtk level editor): its sidebars at each window width, the
+tool row's tools per layer type (Select only works yet), the Levels sidebar's rows (a click
+selects, a double-click focuses), the canvas's focus and the world view, several worlds, the
+Layers sidebar's selection and a layer dragged several places (one undo step).
+*/
+@(test)
+level_mode_layout_tools_worlds_and_layers :: proc(t: ^testing.T) {
+	// The sidebars: the design's 300 px wide, narrower under LEVEL_COMPACT_WIDTH, one under
+	// LEVEL_ONE_SIDEBAR_WIDTH; the canvas keeps LEVEL_MIN_CANVAS
+	for c in ([]struct { width: f32, one: bool }{{1920, false}, {1280, false}, {900, false}, {640, true}}) {
+		layout := LEVEL_LAYOUT_DEFAULT
+		layout.workspace = {c.width, 600}
+		left, right, one := LevelMode_Sidebars(&layout)
+		testing.expectf(t, one == c.one, "%v: one sidebar %v", c.width, one)
+		canvas := c.width - left - right - DIVIDER * (one ? 1 : 2)
+		testing.expectf(t, canvas >= LEVEL_MIN_CANVAS, "%v: the canvas is %v wide", c.width, canvas)
+		if c.width >= LEVEL_COMPACT_WIDTH do testing.expectf(t, left == 300 && right == 300, "%v: the design's sidebars", c.width)
+		else do testing.expectf(t, left <= LEVEL_COMPACT_SIDEBAR && right <= LEVEL_COMPACT_SIDEBAR, "%v: narrower sidebars", c.width)
+	}
+	// LDtk's tools per layer type; only Select works in phase 1
+	testing.expect_value(t, len(LevelTools_For("IntGrid")), 6)
+	testing.expect_value(t, len(LevelTools_For("Tiles")), 7)
+	testing.expect_value(t, len(LevelTools_For("Entities")), 4)
+	testing.expect_value(t, len(LevelTools_For("AutoLayer")), 1)
+	for info, tool in LEVEL_TOOLS do testing.expectf(t, info.works == (tool == .Select), "%v works: %v", tool, info.works)
+	testing.expect(t, strings.contains(LevelTool_Tip(.Fill, "IntGrid"), "phase 2"), "an honest tooltip")
+	icon, name, _ := LevelTool_Look(.Pencil, "Tiles")
+	testing.expect(t, icon == ICON_STAMP && name == "Stamp", "tiles paint with a stamp")
+
+	dir := joinPath(testTempBase(), "crossfire_level_layout", allocator = context.temp_allocator)
+	defer removeAll(dir)
+	defer LDtkDoc_DestroyAll()
+	state, ok := modeLevelState(t, dir)
+	defer State_Destroy(&state)
+	if !ok do return
+	index, problem := Project_ImportAsset(&state.project, "tests/fixtures/ldtk_world/worlds.ldtk")
+	if !testing.expect_value(t, problem, "") || index < 0 do return
+	modeSend(&state, Mode_Changed(.Level))
+	modeSend(&state, Level_File_Chosen(state.project.assets[index].path))
+	file := LevelMode_File(&state)
+	doc := LDtkDoc_Get(state.project.rootPath, file)
+	if !testing.expect(t, doc != nil && doc.problem == "", "read") do return
+	testing.expect_value(t, len(doc.worlds), 2)
+	modeSend(&state, Workspace_Measured({1280, 600}))
+	modeSend(&state, Level_Canvas_Measured({600, 300}))
+
+	// The first world's levels; another world picked shows its own
+	names :: proc(state: ^State, doc: ^LDtkDoc) -> string {
+		out := make([dynamic]string, context.temp_allocator)
+		for i in LevelMode_WorldLevels(state, doc) {
+			name, _ := LDtkDoc_LevelNames(doc, i)
+			append(&out, name)
+		}
+		return strings.join(out[:], ",", context.temp_allocator)
+	}
+	testing.expect_value(t, names(&state, doc), "Meadow,Hill")
+	levels, entities, _ := LevelCanvas_Content(&state, doc)
+	testing.expect_value(t, len(levels), 2)
+	testing.expect_value(t, len(entities), 3)
+	modeSend(&state, Level_World_Chosen("world-under"))
+	testing.expect_value(t, names(&state, doc), "Crypt")
+	levels, entities, _ = LevelCanvas_Content(&state, doc)
+	testing.expect_value(t, len(levels), 1)
+	testing.expect_value(t, len(entities), 1)
+	// A level of the other world, selected (the browser's map, a test): its world shows
+	modeSend(&state, Level_Row_Clicked{level = "Hill"})
+	testing.expect_value(t, state.level.world, "world-over")
+	testing.expect_value(t, state.level.level, "Hill")
+
+	// A double-click focuses the level: the view fits it, others dimmed; another picked is focused
+	modeSend(&state, Level_Row_Clicked{level = "Meadow", double = true})
+	testing.expect_value(t, state.level.focus, "Meadow")
+	focusedZoom := state.level.view.zoom
+	testing.expect(t, abs(state.level.view.center.x - 128) < 0.5, "centered on Meadow")
+	levels, _, _ = LevelCanvas_Content(&state, doc)
+	for l in levels do testing.expectf(t, l.dim == (l.identifier != "Meadow"), "%s dimmed: %v", l.identifier, l.dim)
+	modeSend(&state, Level_Row_Clicked{level = "Hill"})
+	testing.expect_value(t, state.level.focus, "Hill")
+	// On the canvas: another level focuses it; the focused one doesn't move (the press pans)
+	modeSend(&state, Level_Canvas_Pressed{world = {100, 64}, level = "Meadow"})
+	testing.expect_value(t, state.level.focus, "Meadow")
+	modeSend(&state, Level_Canvas_Pressed{world = {100, 64}, level = "Meadow"})
+	testing.expect_value(t, state.level.drag.mode, LevelDragMode.Pan)
+	modeSend(&state, Level_Canvas_Released{})
+	// A double-click outside goes back to the world (the view fits it)
+	modeSend(&state, Level_Canvas_Pressed{world = {-500, -500}, double = true})
+	testing.expect_value(t, state.level.focus, "")
+	testing.expect(t, state.level.view.zoom < focusedZoom, "the world is bigger than a level")
+	modeSend(&state, Level_Focus_Changed("Hill"))
+	testing.expect_value(t, state.level.focus, "Hill")
+	modeSend(&state, Level_Focus_Changed(""))
+	testing.expect_value(t, state.level.focus, "")
+	testing.expect_value(t, state.level.level, "Hill")
+
+	// The Layers sidebar: the first layer until one's picked; the tools follow its type
+	testing.expect_value(t, LevelMode_LayerType(&state), "Entities")
+	modeSend(&state, Level_Layer_Picked(3))
+	testing.expect_value(t, LevelMode_LayerType(&state), "IntGrid")
+	testing.expect(t, LevelTool_Available(&state, .Fill), "IntGrid fills")
+	modeSend(&state, Level_Tool_Picked(.Fill))
+	testing.expect_value(t, state.level.tool, LevelTool.Select)
+
+	// A layer dragged two places down (Entities 1, Tiles 2, Walls 3): every level follows; one step
+	main := LDtkDoc_Main(doc)
+	order :: proc(doc: ^LDtkDoc) -> string {
+		main := LDtkDoc_Main(doc)
+		out := make([dynamic]string, context.temp_allocator)
+		for d in Json_Items(main, LDtkDoc_Defs(doc, "layers")) do append(&out, Json_String(main, Json_Get(main, d, "identifier")))
+		return strings.join(out[:], ",", context.temp_allocator)
+	}
+	_ = main
+	undo := len(state.history.undo)
+	modeSend(&state, LDtk_Edit{op = .Layer_Move, file = file, def = 1, number = 2})
+	doc = LDtkDoc_Get(state.project.rootPath, file)
+	testing.expect_value(t, order(doc), "Tiles,Walls,Entities")
+	testing.expect_value(t, len(state.history.undo), undo + 1)
+	level := LDtkDoc_FindLevel(doc, "Crypt")
+	lf, layers := LDtkDoc_LayerInstances(doc, level)
+	json := LDtkDoc_Json(doc, lf)
+	testing.expect_value(t, Json_String(json, Json_Get(json, Json_At(json, layers, 2), "__identifier")), "Entities")
+	modeSend(&state, LDtk_Edit{op = .Layer_Move, file = file, def = 1, number = -1})
+	doc = LDtkDoc_Get(state.project.rootPath, file)
+	testing.expect_value(t, order(doc), "Tiles,Entities,Walls")
+	modeSend(&state, Action.Undo)
+	modeSend(&state, Action.Undo)
+	doc = LDtkDoc_Get(state.project.rootPath, file)
+	testing.expect_value(t, order(doc), "Entities,Tiles,Walls")
+	testing.expect(t, !LDtkDoc_IsUnsaved(state.project.rootPath, file), "undone: as saved")
+
+	// The world is remembered with the file
+	modeSend(&state, Level_World_Chosen("world-under"))
+	world := strings.clone(state.level.world, context.temp_allocator)
+	Mode_Load(&state)
+	testing.expect_value(t, state.level.world, world)
 }

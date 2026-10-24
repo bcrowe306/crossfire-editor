@@ -65,8 +65,28 @@ BottomTab :: enum {
 	Dialogue,
 	// The project's editor plugins (view_plugins.odin)
 	Plugins,
-	// The Level mode's LDtk tab (level_mode.odin; not the Scene mode's)
-	LDtk,
+	// The Level mode's tabs, LDtk's panels (view_ldtk_tab.odin; not the Scene mode's): the world
+	// (its layout, its levels' places), the selected level (its settings, fields, scenes,
+	// neighbours), the layers (the selected one's settings, IntGrid values, collision kinds),
+	// entity types (fields, instances, references), enums, tilesets, auto-layer rules (a summary
+	// until they're edited here) and the project file's settings
+	World,
+	Level,
+	Layers,
+	Entities,
+	Enums,
+	Tilesets,
+	Auto_Layer_Rules,
+	LDtk_Project,
+}
+
+// A bottom tab's name in the strip ("Auto-layer Rules"; LDtk's panels' names)
+BottomTab_Label :: proc(tab: BottomTab) -> string {
+	#partial switch tab {
+	case .Auto_Layer_Rules: return "Auto-layer Rules"
+	case .LDtk_Project:     return "Project"
+	}
+	return fmt.tprintf("%v", tab)
 }
 
 // Folders shown in the project browser
@@ -431,7 +451,7 @@ init :: proc() -> State {
 			previewOpen = true,
 			previewHeight = 220,
 		},
-		level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .LDtk},
+		level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .World, layerDef = -1, entityDef = -1, enumDef = -1},
 	}
 	args := parseArgs()
 	settings, problems := Settings_Load(args.settings)

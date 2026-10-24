@@ -406,7 +406,14 @@ DOCS_BOTTOM_TAB_PAGES := [BottomTab]string{
 	.Particles = "particles#the-particles-tab",
 	.Dialogue  = "dialogue",
 	.Plugins   = "plugins",
-	.LDtk      = "level_mode#the-ldtk-tab",
+	.World            = "level_mode#the-world-tab",
+	.Level            = "level_mode#the-level-tab",
+	.Layers           = "level_mode#the-layers-tab",
+	.Entities         = "level_mode#the-entities-tab",
+	.Enums            = "level_mode#the-enums-tab",
+	.Tilesets         = "level_mode#the-tilesets-tab",
+	.Auto_Layer_Rules = "level_mode#the-auto-layer-rules-tab",
+	.LDtk_Project     = "level_mode#the-project-tab",
 }
 
 // The other places' pages (scenes, scripts, the editor's panels)
@@ -418,6 +425,8 @@ DOCS_SCENE_TREE_PAGE :: "scenes_and_nodes#the-scene-tree"
 DOCS_INSPECTOR_PAGE  :: "scenes_and_nodes#every-nodes-settings"
 DOCS_BROWSER_PAGE    :: "projects"
 DOCS_SLICER_PAGE     :: "sprite_slicer"
+// The Level mode's Levels sidebar (a level's right-click menu: view_level_sidebars.odin)
+DOCS_LEVELS_SIDEBAR_PAGE :: "level_mode#the-levels-sidebar"
 
 // An asset kind's page (temp allocated)
 Docs_AssetKindAddress :: proc(kind: AssetKind) -> string {

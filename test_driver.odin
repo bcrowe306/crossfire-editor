@@ -174,7 +174,10 @@ copy: `open_project {project}`).
 	                                 Right_Sidebar_Width <px> (the inspector's sidebar, as its
 	                                 divider dragged; at least MIN_SIDEBAR_WIDTH),
 	                                 Particles_Category_Picked <i> (the Particles tab's category),
-	                                 Particles_Preset_Applied <name> (a preset, by name)
+	                                 Particles_Preset_Applied <name> (a preset, by name),
+	                                 Level_World_Chosen <iid> (the Level mode's world),
+	                                 Bottom_Tab <Tab> (the shown mode's bottom tab: one scrolled
+	                                 out of the strip's view)
 	archive_project <path>           Export Project Archive to a file, as if picked in its dialog
 	open_archive <archive> | <folder>
 	                                 Open Project Archive: unpack the archive into the folder (as
@@ -266,16 +269,22 @@ Checks:
 	project <name>               The open project's name
 	ldtk_level <identifier|first>    The selected LDtkLevel node's level
 	mode <Scene | Level>         The editor mode that shows (editor_modes.odin)
-	level <file | level | tab | levels | shown_in | entity | ldtk_tab | problem | conflict | outside> <value>
+	level <file | level | tab | levels | shown_in | entity | problem | conflict | outside> <value>
 	                             The Level mode (level_mode.odin): its world's file, the selected
-	                             level (none), its bottom tab, how many levels its world has, how
+	                             level (none), its bottom tab, how many levels the document has, how
 	                             many scenes show the selected level, the selected entity's iid
-	                             (none), the LDtk tab's section, why the last LDtk edit wasn't
-	                             written (none), the conflict dialog (open | closed), whether
-	                             the file changed outside the editor (yes | no)
-	ldtk [<file>:]<json path> <value>  A value of the Level mode's LDtk project on disk (Json_Path:
-	                             `levels.identifier=Start.worldX`; <file>: one beside it, a .ldtkl),
-	                             as JSON without spaces (strings bare; `missing`)
+	                             (none), why the last LDtk edit wasn't made (none), the conflict
+	                             dialog (open | closed), whether the file changed outside the
+	                             editor (yes | no)
+	level <world | focus | tool | layer | layer_type | unsaved | disk_conflict | sidebars> <value>
+	                             The shown world's name, the focused level (none), the tool, the
+	                             selected layer and its type, whether the document has unsaved edits
+	                             or a clash with LDtk's change on disk (yes | no), one or two sidebars
+	ldtk [<file>:]<json path> <value>  A value of the Level mode's LDtk project as the editor has it
+	                             (unsaved edits included; Json_Path: `levels.identifier=Start.worldX`;
+	                             <file>: one beside it, a .ldtkl), as JSON without spaces (strings
+	                             bare; `missing`)
+	ldtk_disk [<file>:]<json path> <value>  The same, of the file on disk
 	about_dialog <open | closed>, confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
 	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit | console_limit> <value>
@@ -1949,8 +1958,8 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 				msg = Center_Resized(layout.workspace.x - left - DIVIDER - width - DIVIDER)
 			}
 		// The LDtk tab's section (level_mode.odin), as its sidebar or (narrow) its choice would pick it
-		case "LDtk_Tab_Picked":
-			if tab, ok := reflect.enum_from_name(LDtkTab, value); ok do msg = LDtk_Tab_Picked(tab)
+		case "Level_World_Chosen":
+			msg = Level_World_Chosen(value)
 		case "Dialogue_Created":      msg = Dialogue_Created{}
 		// The docs window at an address (docs_window.odin), as a way in would open it
 		case "Docs_Opened":           msg = Docs_Opened(strings.clone(value, context.temp_allocator))
@@ -3412,7 +3421,26 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
 			found = doc == nil ? "0" : fmt.tprint(len(doc.levels))
 		case "entity":   found = s.level.entity == "" ? "none" : s.level.entity
-		case "ldtk_tab": found = fmt.tprint(s.level.tab)
+		case "world":
+			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+			found = "none"
+			if doc != nil && doc.problem == "" do found, _ = LDtkDoc_WorldNames(doc, LevelMode_World(s, doc))
+		case "focus":    found = s.level.focus == "" ? "none" : s.level.focus
+		case "tool":     found = fmt.tprint(s.level.tool)
+		case "layer":
+			// The selected layer's identifier
+			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+			def := LevelMode_LayerDef(s, doc)
+			found = "none"
+			if def >= 0 do found = Json_String(LDtkDoc_Main(doc), Json_Get(LDtkDoc_Main(doc), def, "identifier"))
+		case "layer_type": found = LevelMode_LayerType(s) == "" ? "none" : LevelMode_LayerType(s)
+		case "unsaved":  found = LDtkDoc_IsUnsaved(s.project.rootPath, LevelMode_File(s)) ? "yes" : "no"
+		case "disk_conflict":
+			_, clash := LDtkDoc_DiskConflict(s.project.rootPath, LevelMode_File(s))
+			found = clash ? "yes" : "no"
+		case "sidebars":
+			_, _, one := LevelMode_Sidebars(Mode_LayoutOf(s, .Level))
+			found = one ? "one" : "two"
 		case "problem":  found = s.level.problem == "" ? "none" : s.level.problem
 		case "conflict": found = s.level.conflict.open ? "open" : "closed"
 		case "outside":
@@ -3422,9 +3450,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		case:            return false, fmt.tprintf("unknown level field %q", field)
 		}
 		return found == strings.trim_space(wanted), found
-	case "ldtk":
+	case "ldtk", "ldtk_disk":
 		// ldtk <json path> <value> / ldtk <file>:<json path> <value>: a value in the Level mode's
-		// LDtk project on disk (a file beside it: a .ldtkl), as JSON without spaces (strings bare)
+		// LDtk project as the editor has it (unsaved edits included; ldtk_disk: the file on disk),
+		// a file beside it: a .ldtkl; as JSON without spaces (strings bare)
 		path, _, wanted := strings.partition(strings.trim_space(value), " ")
 		file := LevelMode_File(s)
 		full := joinPath(s.project.rootPath, file, allocator = context.temp_allocator)
@@ -3432,9 +3461,15 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			full = joinPath(filepath.dir(full), other, allocator = context.temp_allocator)
 			path = rest
 		}
-		data, err := os.read_entire_file(full, context.temp_allocator)
-		if err != nil do return false, fmt.tprintf("can't read %s", full)
-		doc, problem := Json_Parse(string(data), context.temp_allocator)
+		text := ""
+		if cached, found := LDtkDoc_CachedText(full); found && name == "ldtk" {
+			text = cached
+		} else {
+			data, err := os.read_entire_file(full, context.temp_allocator)
+			if err != nil do return false, fmt.tprintf("can't read %s", full)
+			text = string(data)
+		}
+		doc, problem := Json_Parse(text, context.temp_allocator)
 		if problem != "" do return false, problem
 		node := Json_Path(&doc, path)
 		if node < 0 do return strings.trim_space(wanted) == "missing", "missing"

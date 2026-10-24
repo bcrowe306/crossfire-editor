@@ -63,35 +63,49 @@ LevelCanvas_Destroy :: proc() {
 	levelKeys = {}
 }
 
-// The whole world fitted to the canvas (once its size is known)
+// The shown world (or the focused level) fitted to the canvas (once its size is known)
 LevelCanvas_Fit :: proc(state: ^State) {
 	view := &state.level.view
 	file := LevelMode_File(state)
 	doc := LDtkDoc_Get(state.project.rootPath, file)
 	if doc == nil || doc.problem != "" || view.size.x <= 0 || view.size.y <= 0 do return
-	center, zoom := levelFit(doc, view.size)
+	center, zoom := levelFit(state, doc, view.size)
 	view.center, view.zoom = center, zoom
 	delete(view.fitted)
-	view.fitted = strings.clone(file)
+	view.fitted = strings.clone(levelFitKey(state))
 }
 
-// Fits the world when the canvas shows a file it hasn't fitted yet
+// Fits the view when the canvas shows a file, world or focused level it hasn't fitted yet
 LevelCanvas_FitOnce :: proc(state: ^State) {
-	if state.level.view.fitted != LevelMode_File(state) || state.level.view.zoom <= 0 do LevelCanvas_Fit(state)
+	if state.level.view.fitted != levelFitKey(state) || state.level.view.zoom <= 0 do LevelCanvas_Fit(state)
 }
 
-// The view showing every level of a document in a canvas of `size`
+// What the view was fitted to: the file, the world, the focused level (temp)
 @(private="file")
-levelFit :: proc(doc: ^LDtkDoc, size: [2]f32) -> (center: [2]f32, zoom: f32) {
+levelFitKey :: proc(state: ^State) -> string {
+	return fmt.tprintf("%s|%s|%s", LevelMode_File(state), state.level.world, state.level.focus)
+}
+
+/*
+The view showing the shown world's levels in a canvas of `size`; while a level is focused, that
+level (with a margin: the neighbours' edges show around it).
+*/
+@(private="file")
+levelFit :: proc(state: ^State, doc: ^LDtkDoc, size: [2]f32) -> (center: [2]f32, zoom: f32) {
 	lo, hi := [2]f32{max(f32), max(f32)}, [2]f32{min(f32), min(f32)}
-	for _, i in doc.levels {
+	levels := LevelMode_WorldLevels(state, doc)
+	focus := state.level.focus != "" ? LDtkDoc_FindLevel(doc, state.level.focus) : -1
+	any := false
+	for i in levels {
+		if focus >= 0 && i != focus do continue
 		r := LDtkDoc_LevelRect(doc, i)
 		lo = {min(lo.x, f32(r[0])), min(lo.y, f32(r[1]))}
 		hi = {max(hi.x, f32(r[0] + r[2])), max(hi.y, f32(r[1] + r[3]))}
+		any = true
 	}
-	if len(doc.levels) == 0 do return {0, 0}, 1
+	if !any do return {0, 0}, 1
 	extent := [2]f32{max(hi.x - lo.x, 1), max(hi.y - lo.y, 1)}
-	zoom = clamp(min(size.x / extent.x, size.y / extent.y) * 0.9, LEVEL_MIN_ZOOM, LEVEL_MAX_ZOOM)
+	zoom = clamp(min(size.x / extent.x, size.y / extent.y) * (focus >= 0 ? 0.85 : 0.9), LEVEL_MIN_ZOOM, LEVEL_MAX_ZOOM)
 	return (lo + hi) * 0.5, zoom
 }
 
@@ -103,11 +117,15 @@ LevelCanvasLevel :: struct {
 	image: string,
 	imageSize: [2]f32,
 	background: skald.Color,
+	// Not the focused level (while one is): drawn dimmed
+	dim: bool,
 }
 
 // An entity as the canvas draws it
 LevelCanvasEntity :: struct {
 	iid, identifier: string,
+	// Its level's identifier
+	level: string,
 	// Its world rectangle and center
 	world: [4]f32,
 	center: [2]f32,
@@ -123,22 +141,25 @@ LevelCanvasLink :: struct {
 }
 
 /*
-What the canvas shows of a document (temp allocated): its levels (moved ones where the drag puts
-them), entities and links. The UI test driver reads it (`level levels`, `level entity_at`).
+What the canvas shows of a document (temp allocated): the shown world's levels (moved ones where
+the drag puts them; while a level is focused, the others dimmed), their entities and the links.
+The UI test driver reads it (`drag_level`, `click_entity`).
 */
 LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCanvasLevel, entities: []LevelCanvasEntity, links: []LevelCanvasLink) {
 	main := LDtkDoc_Main(doc)
+	world := LevelMode_World(state, doc)
 	ls := make([dynamic]LevelCanvasLevel, context.temp_allocator)
 	drag := state.level.drag
 	moved := drag.moved ? LevelDrag_Target(state, doc) : {}
 	for _, i in doc.levels {
 		identifier, iid := LDtkDoc_LevelNames(doc, i)
 		r := LDtkDoc_LevelRect(doc, i)
-		world := [4]f32{f32(r[0]), f32(r[1]), f32(r[2]), f32(r[3])}
-		if drag.moved && drag.mode == .Level && drag.target == iid do world.xy = {f32(moved.x), f32(moved.y)}
+		at := [4]f32{f32(r[0]), f32(r[1]), f32(r[2]), f32(r[3])}
+		if drag.moved && drag.mode == .Level && drag.target == iid do at.xy = {f32(moved.x), f32(moved.y)}
 		bg := skald.rgb(0x202838)
 		if c, ok := LDtk_ParseColor(Json_String(main, Json_Get(main, doc.levels[i].entry, "__bgColor"))); ok do bg = skald.rgb(u32(c))
-		append(&ls, LevelCanvasLevel{identifier = identifier, iid = iid, world = world, image = levelImageName(LevelMode_File(state), iid), background = bg})
+		append(&ls, LevelCanvasLevel{identifier = identifier, iid = iid, world = at, image = levelImageName(LevelMode_File(state), iid), background = bg,
+			dim = state.level.focus != "" && identifier != state.level.focus})
 	}
 	es := make([dynamic]LevelCanvasEntity, context.temp_allocator)
 	centers := make(map[string][2]f32, context.temp_allocator)
@@ -156,7 +177,7 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 		x0 := origin + p - pivot * [2]f32{w, h}
 		color := skald.rgb(0xFFCC00)
 		if c, ok := LDtk_ParseColor(Json_String(json, Json_Get(json, e.node, "__smartColor"))); ok do color = skald.rgb(u32(c))
-		entity := LevelCanvasEntity{iid = iid, identifier = Json_String(json, Json_Get(json, e.node, "__identifier")), world = {x0.x, x0.y, w, h}, center = x0 + {w, h} * 0.5, color = color}
+		entity := LevelCanvasEntity{iid = iid, identifier = Json_String(json, Json_Get(json, e.node, "__identifier")), level = ls[e.level].identifier, world = {x0.x, x0.y, w, h}, center = x0 + {w, h} * 0.5, color = color}
 		append(&es, entity)
 		centers[iid] = entity.center
 	}
@@ -177,6 +198,7 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 	}
 	// Neighbours: from each level's center to its neighbours'
 	for _, i in doc.levels {
+		if doc.levels[i].world != world do continue
 		for n in LDtkDoc_Neighbours(doc, i) {
 			for other in ls do if other.iid == n.iid {
 				a, b := ls[i].world, other.world
@@ -184,7 +206,26 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 			}
 		}
 	}
-	return ls[:], es[:], lk[:]
+	// Only the shown world (the lists above are by the document's levels: filtered last)
+	shownLevels := make([dynamic]LevelCanvasLevel, context.temp_allocator)
+	for l, i in ls do if doc.levels[i].world == world do append(&shownLevels, l)
+	shownEntities := make([dynamic]LevelCanvasEntity, context.temp_allocator)
+	for en, i in LDtkDoc_Entities(doc) do if doc.levels[en.level].world == world do append(&shownEntities, es[i])
+	if len(doc.worlds) <= 1 do return ls[:], es[:], lk[:]
+	shownLinks := make([dynamic]LevelCanvasLink, context.temp_allocator)
+	for link in lk {
+		if !link.entity {
+			append(&shownLinks, link)
+			continue
+		}
+		// References within the world (one to another world has no place here)
+		inWorld :: proc(p: [2]f32, entities: []LevelCanvasEntity) -> bool {
+			for en in entities do if en.center == p do return true
+			return false
+		}
+		if inWorld(link.from, shownEntities[:]) && inWorld(link.to, shownEntities[:]) do append(&shownLinks, link)
+	}
+	return shownLevels[:], shownEntities[:], shownLinks[:]
 }
 
 // A level picture's image name (by file and level iid; temp)
@@ -276,7 +317,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 		th := ctx.theme
 		size := [2]f32{max(size.x, 1), max(size.y, 1)}
 		// Its size, and a world it hasn't fitted yet (another file chosen): fitted then
-		if size != s.level.view.size || s.level.view.fitted != file do skald.send(ctx, Msg(Level_Canvas_Measured(size)))
+		if size != s.level.view.size || s.level.view.fitted != levelFitKey(s) do skald.send(ctx, Msg(Level_Canvas_Measured(size)))
 		doc := LDtkDoc_Get(s.project.rootPath, d.file)
 		id := skald.hash_id(LEVEL_CANVAS_KEY)
 		if doc == nil || doc.problem != "" do return skald.spacer(0)
@@ -284,7 +325,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 		levelUploadImages(ctx, s, doc, d.file, levels)
 		// Before the first fit, a fitted view of its own
 		center, zoom := s.level.view.center, s.level.view.zoom
-		if zoom <= 0 || s.level.view.fitted != d.file do center, zoom = levelFit(doc, size)
+		if zoom <= 0 || s.level.view.fitted != levelFitKey(s) do center, zoom = levelFit(s, doc, size)
 		toScreen :: proc(p, center: [2]f32, zoom: f32, size: [2]f32) -> [2]f32 { return size * 0.5 + (p - center) * zoom }
 
 		// Input, from the canvas's last rect
@@ -297,6 +338,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			inside := local.x >= 0 && local.y >= 0 && local.x < size.x && local.y < size.y
 			hovered := inside && skald.widget_hovered(ctx, id) && !skald.mouse_over_overlay(ctx) && len(ctx.widgets.overlay_rects_prev) == 0
 			#reverse for e, i in entities {
+				// While a level is focused, only its entities
+				if s.level.focus != "" && e.level != s.level.focus do continue
 				r := e.world
 				// Tiny entities count a few screen pixels around them
 				pad := max(0, 3 / zoom - min(r[2], r[3]) * 0.5)
@@ -346,12 +389,13 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			src: [2]f32,
 			background: skald.Color,
 			label: string,
-			selected, hovered: bool,
+			selected, hovered, dim: bool,
 		}
 		PaintEntity :: struct {
 			rect: [4]f32,
 			color: skald.Color,
-			selected, hovered: bool,
+			// dim: in a level that isn't the focused one (not outlined)
+			selected, hovered, dim: bool,
 		}
 		Paint :: struct {
 			levels: []PaintLevel,
@@ -370,12 +414,13 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			p := toScreen(l.world.xy, center, zoom, size)
 			image := levelImages[l.image]
 			pl[i] = {rect = {p.x, p.y, l.world[2] * zoom, l.world[3] * zoom}, image = l.image, src = {f32(image.size.x), f32(image.size.y)},
-				background = l.background, label = l.identifier, selected = l.identifier == s.level.level, hovered = i == hoveredLevel}
+				background = l.background, label = l.identifier, selected = l.identifier == s.level.level, hovered = i == hoveredLevel, dim = l.dim}
 		}
 		pe := make([]PaintEntity, len(entities), context.temp_allocator)
 		for en, i in entities {
 			p := toScreen(en.world.xy, center, zoom, size)
-			pe[i] = {rect = {p.x, p.y, en.world[2] * zoom, en.world[3] * zoom}, color = en.color, selected = en.iid == s.level.entity, hovered = i == hoveredEntity}
+			pe[i] = {rect = {p.x, p.y, en.world[2] * zoom, en.world[3] * zoom}, color = en.color, selected = en.iid == s.level.entity, hovered = i == hoveredEntity,
+				dim = s.level.focus != "" && en.level != s.level.focus}
 		}
 		// The selected level's neighbours (all of them would cross every level)
 		pk := make([dynamic]LevelCanvasLink, context.temp_allocator)
@@ -410,6 +455,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				rect := skald.Rect{b.x + l.rect[0], b.y + l.rect[1], l.rect[2], l.rect[3]}
 				skald.draw_rect(r, rect, l.background)
 				if l.src.x > 0 do skald.draw_image_region(r, l.image, rect, {0, 0, l.src.x, l.src.y}, inset = false)
+				// Not the focused level: faded into the background, as LDtk's level view shows its neighbours
+				if l.dim do skald.draw_rect(r, rect, {p.bg.r, p.bg.g, p.bg.b, 0.7})
 			}
 			// Links under the outlines: neighbours faint, references as arrows
 			for link in p.links {
@@ -435,7 +482,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				skald.draw_circle(r, a, 3, p.link, aa = true)
 			}
 			for e in p.entities {
-				if !p.showEntities && !e.selected do continue
+				if (!p.showEntities || e.dim) && !e.selected do continue
 				rect := skald.Rect{b.x + e.rect[0], b.y + e.rect[1], max(e.rect[2], 2), max(e.rect[3], 2)}
 				switch {
 				case e.selected: skald.draw_rect_outline(r, {rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4}, 2, p.accent)

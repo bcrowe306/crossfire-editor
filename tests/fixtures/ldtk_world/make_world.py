@@ -12,6 +12,9 @@ Weather, level fields (music, difficulty, weather), and every level's neighbours
 external.ldtk: two levels saved as separate files (external/*.ldtkl, "Save levels to separate
 files"), in a GridVania world.
 
+worlds.ldtk: LDtk's Multi-worlds: two worlds, Overworld (Meadow and Hill side by side, Free) and
+Underworld (Crypt, GridVania), the root's levels empty and its world settings null.
+
 Both use ../ldtk/tiles.png (copied beside them). Written with tabs, like the other fixtures; the
 tests check that the editor's edits keep them valid against the schema.
 """
@@ -64,7 +67,7 @@ def field(fd, v, raw):
 	}
 
 
-def make(path, levels_spec, layout, external):
+def make(path, levels_spec, layout, external, worlds=None):
 	t = json.load(open(TEMPLATE))
 	root = {k: v for k, v in t.items() if k not in ("defs", "levels", "worlds")}
 	root["__header__"] = HEADER
@@ -208,9 +211,12 @@ def make(path, levels_spec, layout, external):
 	} for c in coins]}]
 
 	# Neighbours (LDtk's rule: touching levels of the same depth, by side)
+	world_of = {n: w["iid"] for w in (worlds or []) for n in w["levels"]}
 	for l in levels:
 		for o in levels:
 			if o is l: continue
+			# Neighbours are of the same world
+			if world_of.get(l["identifier"]) != world_of.get(o["identifier"]): continue
 			x, y, w, h = l["worldX"], l["worldY"], l["pxWid"], l["pxHei"]
 			ox, oy, ow, oh = o["worldX"], o["worldY"], o["pxWid"], o["pxHei"]
 			overlap = x < ox + ow and x + w > ox and y < oy + oh and y + h > oy
@@ -224,6 +230,22 @@ def make(path, levels_spec, layout, external):
 
 	root["levels"] = levels
 	root["worlds"] = []
+	if worlds:
+		# Multi-worlds: each world its levels; the root's own world settings are null
+		by_name = {l["identifier"]: l for l in levels}
+		for w in worlds:
+			root["worlds"].append({"iid": w["iid"], "identifier": w["name"], "defaultLevelWidth": 256, "defaultLevelHeight": 128,
+				"worldGridWidth": w.get("grid", 256), "worldGridHeight": w.get("grid", 128), "worldLayout": w["layout"],
+				"levels": [by_name[n] for n in w["levels"]]})
+		root["levels"] = []
+		root["worldLayout"] = None
+		root["worldGridWidth"] = None
+		root["worldGridHeight"] = None
+		root["flags"] = sorted(set(root.get("flags", []) + ["MultiWorlds"]))
+		for entry in root["toc"]:
+			for d in entry["instancesData"]:
+				for w in worlds:
+					if any(by_name[n]["iid"] == d["iids"]["levelIid"] for n in w["levels"]): d["iids"]["worldIid"] = w["iid"]
 	ordered = {}
 	for k in t.keys():
 		if k in root: ordered[k] = root[k]
@@ -270,6 +292,17 @@ def main():
 		{"name": "South", "iid": "lvl-south", "x": 0, "y": 128, "w": 256, "h": 128,
 		 "entities": [("Coin", "coin2", [64, 72])]},
 	], "GridVania", True)
+	make(os.path.join(HERE, "worlds.ldtk"), [
+		{"name": "Meadow", "iid": "lvl-meadow", "x": 0, "y": 0, "w": 256, "h": 128, "music": "meadow",
+		 "entities": [("Player", "player1", [32, 96]), ("Coin", "coin1", [104, 72])]},
+		{"name": "Hill", "iid": "lvl-hill", "x": 256, "y": 0, "w": 256, "h": 128,
+		 "entities": [("Coin", "coin2", [64, 72])]},
+		{"name": "Crypt", "iid": "lvl-crypt", "x": 0, "y": 0, "w": 256, "h": 128,
+		 "entities": [("Coin", "coin3", [56, 56])]},
+	], "Free", False, worlds=[
+		{"name": "Overworld", "iid": "world-over", "layout": "Free", "levels": ["Meadow", "Hill"]},
+		{"name": "Underworld", "iid": "world-under", "layout": "GridVania", "levels": ["Crypt"]},
+	])
 
 
 if __name__ == "__main__":

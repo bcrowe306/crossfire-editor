@@ -156,12 +156,17 @@ expectValid :: proc(t: ^testing.T, path: string, loc := #caller_location) {
 	if project != nil do e.LDtk_Destroy(project)
 }
 
-// A value at a JSON path of a file, as written ("" when it's missing)
+// A value at a JSON path of a file as the editor has it (an edited document's unsaved text, else
+// the file on disk; "" when it's missing)
 @(private="file")
 valueAt :: proc(path, at: string) -> string {
-	text, err := os.read_entire_file(path, context.temp_allocator)
-	if err != nil do return ""
-	doc, problem := Json_Parse(string(text), context.temp_allocator)
+	text, found := LDtkDoc_CachedText(path)
+	if !found {
+		data, err := os.read_entire_file(path, context.temp_allocator)
+		if err != nil do return ""
+		text = string(data)
+	}
+	doc, problem := Json_Parse(text, context.temp_allocator)
 	if problem != "" do return ""
 	node := Json_Path(&doc, at)
 	if Json_Kind(&doc, node) == .String do return strings.clone(Json_String(&doc, node), context.temp_allocator)
@@ -208,7 +213,7 @@ worldCopy :: proc(name: string) -> string {
 ldtk_json_keeps_its_text :: proc(t: ^testing.T) {
 	// Every LDtk file the tests know reads and writes back byte for byte, untouched
 	files := make([dynamic]string, context.temp_allocator)
-	append(&files, "tests/fixtures/ldtk/world.ldtk", "tests/fixtures/ldtk_world/world.ldtk", "tests/fixtures/ldtk_world/external.ldtk",
+	append(&files, "tests/fixtures/ldtk/world.ldtk", "tests/fixtures/ldtk_world/world.ldtk", "tests/fixtures/ldtk_world/external.ldtk", "tests/fixtures/ldtk_world/worlds.ldtk",
 		"tests/fixtures/ldtk_world/external/0000-North.ldtkl", "examples/demo_project/assets/levels/legacy.ldtk", LDTK_SCHEMA_PATH)
 	// LDtk's own samples (written by LDtk itself), when the workspace has LDtk's source
 	samples := "../ldtk/app/extraFiles/samples"
@@ -274,7 +279,7 @@ ldtk_fixtures_match_the_schema :: proc(t: ^testing.T) {
 	// The validator itself catches what's wrong
 	broken := LDtk_SchemaProblems(`{"iid": 5}`)
 	testing.expect(t, len(broken) > 0, "a broken project has problems")
-	for path in ([]string{"tests/fixtures/ldtk_world/world.ldtk", "tests/fixtures/ldtk_world/external.ldtk", "examples/demo_project/assets/levels/legacy.ldtk"}) {
+	for path in ([]string{"tests/fixtures/ldtk_world/world.ldtk", "tests/fixtures/ldtk_world/external.ldtk", "tests/fixtures/ldtk_world/worlds.ldtk", "examples/demo_project/assets/levels/legacy.ldtk"}) {
 		expectValid(t, path)
 	}
 }
@@ -292,9 +297,12 @@ ldtk_edits_write_valid_files :: proc(t: ^testing.T) {
 		problem, _ := LDtkOps_Apply(dir, edit)
 		return problem
 	}
+	// Each edit saved (written as Save writes it), then the file checked
 	ok :: proc(t: ^testing.T, dir, path: string, edit: LDtk_Edit, loc := #caller_location) {
 		problem := apply(t, dir, edit, loc)
 		testing.expectf(t, problem == "", "%v: %s", edit.op, problem, loc = loc)
+		testing.expect_value(t, LDtkDoc_Save(dir, "world.ldtk"), "", loc = loc)
+		testing.expect(t, !LDtkDoc_IsUnsaved(dir, "world.ldtk"), "saved", loc = loc)
 		expectValid(t, path, loc)
 	}
 	// Layers (Walls is uid 3, Tiles 2, Entities 1)
@@ -408,9 +416,10 @@ ldtk_edits_write_valid_files :: proc(t: ^testing.T) {
 	testing.expect(t, apply(t, dir, {op = .Level_Moved, level = "lvl-tower", number = 0, number2 = 0}) != "", "linear worlds' levels don't move")
 }
 
-// A file's text (temp allocated)
+// A file's text as the editor has it (temp allocated)
 @(private="file")
 after2 :: proc(path: string) -> []byte {
+	if text, found := LDtkDoc_CachedText(path); found do return transmute([]byte)strings.clone(text, context.temp_allocator)
 	text, _ := os.read_entire_file(path, context.temp_allocator)
 	return text
 }
@@ -452,6 +461,13 @@ ldtk_external_levels_are_written_where_they_are :: proc(t: ^testing.T) {
 	// Layers: an opacity in every level's file
 	testing.expect_value(t, apply(dir, {op = .Layer_Opacity, def = 2, number = 0.25}), "")
 	testing.expect_value(t, valueAt(south, "layerInstances.layerDefUid=2.__opacity"), "0.25")
+	// Nothing's on disk until it's saved: then every changed file, each a valid level
+	disk, _ := os.read_entire_file(south, context.temp_allocator)
+	testing.expect(t, string(disk) == string(southBefore), "unsaved: the file as it was")
+	testing.expect(t, LDtkDoc_IsUnsaved(dir, "external.ldtk"), "unsaved")
+	testing.expect_value(t, LDtkDoc_Save(dir, "external.ldtk"), "")
+	disk, _ = os.read_entire_file(south, context.temp_allocator)
+	testing.expect(t, strings.contains(string(disk), `"__opacity": 0.25`), "saved")
 	expectValid(t, path)
 }
 
@@ -473,11 +489,20 @@ ldtk_edits_undo_and_redo :: proc(t: ^testing.T) {
 		log.infof("ldtk_edits_undo_and_redo: the step at line %d", loc.line)
 		state^, _ = update(state^, m)
 	}
+	append(&state.project.assets, AssetDef{path = strings.clone("world.ldtk"), kind = .LDtk})
 	original, _ := os.read_entire_file(path, context.temp_allocator)
 	original = transmute([]byte)strings.clone(string(original), context.temp_allocator)
+	disk :: proc(path: string) -> string {
+		text, _ := os.read_entire_file(path, context.temp_allocator)
+		return string(text)
+	}
 
+	// Edits change the document in memory: the file stays as it was until Save
 	send(&state, LDtk_Edit{op = .Layer_Opacity, file = "world.ldtk", def = 3, number = 0.2})
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.2")
+	testing.expect(t, disk(path) == string(original), "not written yet")
+	testing.expect(t, LDtkDoc_IsUnsaved(dir, "world.ldtk"), "unsaved")
+	testing.expect(t, Project_IsModified(&state), "the project shows unsaved")
 	testing.expect_value(t, len(state.history.undo), 1)
 	send(&state, LDtk_Edit{op = .Entity_Moved, file = "world.ldtk", entity = "coin2", number = 10, number2 = 20})
 	testing.expect_value(t, len(state.history.undo), 2)
@@ -489,22 +514,31 @@ ldtk_edits_undo_and_redo :: proc(t: ^testing.T) {
 	testing.expect_value(t, valueAt(path, "levels.identifier=Cave.layerInstances.layerDefUid=1.entityInstances.iid=coin2.px"), "[64,72]")
 	testing.expect_value(t, state.mode, EditorMode.Level)
 	send(&state, Action.Undo)
-	now, _ := os.read_entire_file(path, context.temp_allocator)
-	testing.expect(t, string(now) == string(original), "both undone: the file as it was, byte for byte")
+	testing.expect(t, string(after2(path)) == string(original), "both undone: the document as it was, byte for byte")
+	testing.expect(t, !LDtkDoc_IsUnsaved(dir, "world.ldtk") && !Project_IsModified(&state), "undone back to the saved text: nothing to save")
 	send(&state, Action.Redo)
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.2")
 
-	// Changed outside since (LDtk saved): a change elsewhere in the file is kept by the undo
-	text := string(after2(path))
+	// Save writes it (and the project)
+	send(&state, Action.Save_Project)
+	testing.expect(t, !LDtkDoc_IsUnsaved(dir, "world.ldtk") && !Project_IsModified(&state), "saved")
+	testing.expect(t, strings.contains(disk(path), `"displayOpacity": 0.2`), "written")
+	expectValid(t, path)
+
+	// Saved in LDtk since: the document is read again; an undo of a change elsewhere in it keeps LDtk's
+	text := disk(path)
 	outside, _ := strings.replace(text, `"defaultLevelBgColor": "#202838"`, `"defaultLevelBgColor": "#112233"`, 1, context.temp_allocator)
 	testing.expect(t, outside != text, "the outside change applies")
 	testing.expect_value(t, LDtk_WriteFile(path, outside, ldtkModified(path)), "")
 	send(&state, Action.Undo)
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.5")
 	testing.expect_value(t, valueAt(path, "defaultLevelBgColor"), "#112233")
+	_, outsideNoted := LDtkDoc_Outside(dir, "world.ldtk")
+	testing.expect(t, outsideNoted, "noted")
 	// A change on the same spot asks first
 	send(&state, Action.Redo)
-	text = string(after2(path))
+	send(&state, Action.Save_Project)
+	text = disk(path)
 	clash, _ := strings.replace(text, `"displayOpacity": 0.2`, `"displayOpacity": 0.9`, 1, context.temp_allocator)
 	testing.expect_value(t, LDtk_WriteFile(path, clash, ldtkModified(path)), "")
 	send(&state, Action.Undo)
@@ -514,6 +548,102 @@ ldtk_edits_undo_and_redo :: proc(t: ^testing.T) {
 	testing.expect(t, !state.level.conflict.open, "answered")
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.9")
 	expectValid(t, path)
+}
+
+/*
+LDtk saves the file while the editor has unsaved edits in it: a change elsewhere is merged into
+them; one on the same spot waits for the answer (reload the file: the edits are dropped; keep the
+edits: Save writes them over it), and Save refuses until then.
+*/
+@(test)
+ldtk_unsaved_edits_and_outside_changes :: proc(t: ^testing.T) {
+	dir := worldCopy("ldtk_unsaved_outside")
+	defer removeAll(dir)
+	defer LDtkDoc_DestroyAll()
+	project := Project_CreateEmpty(dir, "Levels")
+	state := State{project = project, browserSelection = {kind = .None}, selectedNode = -1, layout = {bottomOpen = true}, settings = Settings_Default()}
+	state.settings.builtInCodeEditor = false
+	state.mode = .Level
+	append(&state.project.assets, AssetDef{path = strings.clone("world.ldtk"), kind = .LDtk})
+	defer State_Destroy(&state)
+	send :: proc(state: ^State, m: Msg) { state^, _ = update(state^, m) }
+	path := joinPath(dir, "world.ldtk", allocator = context.temp_allocator)
+	disk :: proc(path: string) -> string {
+		text, _ := os.read_entire_file(path, context.temp_allocator)
+		return string(text)
+	}
+	outside :: proc(t: ^testing.T, path, from, to: string, loc := #caller_location) {
+		text := disk(path)
+		changed, _ := strings.replace(text, from, to, 1, context.temp_allocator)
+		testing.expect(t, changed != text, "the outside change applies", loc = loc)
+		testing.expect_value(t, LDtk_WriteFile(path, changed, ldtkModified(path)), "", loc = loc)
+	}
+
+	// Elsewhere: merged into the unsaved edit, which stays unsaved
+	send(&state, LDtk_Edit{op = .Layer_Opacity, file = "world.ldtk", def = 3, number = 0.3})
+	outside(t, path, `"defaultLevelBgColor": "#202838"`, `"defaultLevelBgColor": "#445566"`)
+	testing.expect(t, LDtkDoc_Get(dir, "world.ldtk") != nil, "read")
+	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.3")
+	testing.expect_value(t, valueAt(path, "defaultLevelBgColor"), "#445566")
+	change, noted := LDtkDoc_Outside(dir, "world.ldtk")
+	testing.expect(t, noted && change.merged, "merged, and noted")
+	testing.expect(t, LDtkDoc_IsUnsaved(dir, "world.ldtk"), "still unsaved")
+	_, clash := LDtkDoc_DiskConflict(dir, "world.ldtk")
+	testing.expect(t, !clash, "no clash")
+	// Undo takes back the edit and keeps LDtk's change
+	send(&state, Action.Undo)
+	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.5")
+	testing.expect_value(t, valueAt(path, "defaultLevelBgColor"), "#445566")
+	testing.expect(t, !LDtkDoc_IsUnsaved(dir, "world.ldtk"), "the document is the file again")
+
+	// The same spot: it waits; Save refuses meanwhile; Keep My Edits, then Save writes them
+	send(&state, LDtk_Edit{op = .Layer_Opacity, file = "world.ldtk", def = 3, number = 0.4})
+	outside(t, path, `"displayOpacity": 0.5`, `"displayOpacity": 0.8`)
+	testing.expect(t, LDtkDoc_Get(dir, "world.ldtk") != nil, "read")
+	names, waiting := LDtkDoc_DiskConflict(dir, "world.ldtk")
+	testing.expect(t, waiting && len(names) == 1 && names[0] == "world.ldtk", "the clash waits")
+	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.4")
+	testing.expect(t, LDtkDoc_Save(dir, "world.ldtk") != "", "Save refuses while it waits")
+	testing.expect(t, strings.contains(disk(path), `"displayOpacity": 0.8`), "the file is LDtk's")
+	send(&state, LDtk_Disk_Chosen{reload = false})
+	_, waiting = LDtkDoc_DiskConflict(dir, "world.ldtk")
+	testing.expect(t, !waiting && LDtkDoc_IsUnsaved(dir, "world.ldtk"), "kept: still unsaved")
+	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.4")
+	send(&state, Action.Save_Project)
+	testing.expect(t, strings.contains(disk(path), `"displayOpacity": 0.4`), "written over LDtk's")
+	expectValid(t, path)
+
+	// Again, then Reload It: the file as LDtk saved it, the edit dropped
+	send(&state, LDtk_Edit{op = .Layer_Opacity, file = "world.ldtk", def = 3, number = 0.6})
+	outside(t, path, `"displayOpacity": 0.4`, `"displayOpacity": 0.7`)
+	testing.expect(t, LDtkDoc_Get(dir, "world.ldtk") != nil, "read")
+	_, waiting = LDtkDoc_DiskConflict(dir, "world.ldtk")
+	testing.expect(t, waiting, "waits")
+	send(&state, LDtk_Disk_Chosen{reload = true})
+	_, waiting = LDtkDoc_DiskConflict(dir, "world.ldtk")
+	testing.expect(t, !waiting && !LDtkDoc_IsUnsaved(dir, "world.ldtk"), "reloaded: nothing unsaved")
+	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.7")
+
+	// What the engine reads of an unsaved document: the stamp moves with each edit, the game gets it
+	before := LDtkDoc_Stamp(dir, "world.ldtk")
+	send(&state, LDtk_Edit{op = .Level_Moved, file = "world.ldtk", level = "lvl-tower", number = 512, number2 = 0})
+	testing.expect(t, LDtkDoc_Stamp(dir, "world.ldtk") != before, "a new stamp")
+	project2 := LDtkEdit_Project(dir, "world.ldtk")
+	testing.expect(t, project2 != nil, "the inspector's copy")
+	if project2 != nil {
+		tower := e.LDtk_FindLevel(project2, "Tower")
+		testing.expect(t, tower != nil && tower.world.x == 512, "the inspector reads the unsaved document")
+	}
+	game := new(e.Game)
+	defer free(game)
+	defer e.Game_ForgetLDtk(game)
+	testing.expect(t, LDtkDoc_ProvideToGame(game, dir, "world.ldtk"), "given to a game")
+	loaded := e.Game_LoadLDtk(game, "world.ldtk", dir)
+	testing.expect(t, loaded != nil && e.LDtk_FindLevel(loaded, "Tower") != nil && e.LDtk_FindLevel(loaded, "Tower").world.x == 512, "the game builds the unsaved level")
+	// Save As writes the unsaved text into the copy (unsaved texts by file)
+	texts := LDtkDocs_UnsavedTexts(&state)
+	testing.expect_value(t, len(texts), 1)
+	testing.expect(t, path in texts, "the project file's text")
 }
 
 // A rename of an entity type or a layer is followed by the scenes' and the components' LDtkLevel
@@ -636,7 +766,7 @@ level_canvas_drags_levels_and_entities :: proc(t: ^testing.T) {
 
 	// The first size fits the world: 512 x 256 world pixels in 800 x 400
 	send(&state, Level_Canvas_Measured{800, 400})
-	testing.expect_value(t, state.level.view.fitted, "world.ldtk")
+	testing.expect_value(t, state.level.view.fitted, "world.ldtk||")
 	testing.expect(t, state.level.view.zoom > 1.3 && state.level.view.zoom < 1.5, "fitted")
 
 	// A level dragged (Free: whole pixels), one undo step
@@ -649,9 +779,10 @@ level_canvas_drags_levels_and_entities :: proc(t: ^testing.T) {
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldX"), "100")
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldY"), "131")
 	testing.expect_value(t, len(state.history.undo), 1)
-	testing.expect(t, !Project_IsModified(&state), "file steps don't make the project modified")
+	testing.expect(t, Project_IsModified(&state), "an unsaved LDtk edit makes the project modified")
 	send(&state, Msg(Action.Undo))
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldX"), "0")
+	testing.expect(t, !Project_IsModified(&state), "undone to the saved text: nothing to save")
 	// A press that doesn't move only selects
 	send(&state, Level_Canvas_Pressed{world = {64, 192}, level = "Tower"})
 	send(&state, Level_Canvas_Moved{world = {64.5, 192}, delta = {0.5, 0}})
@@ -671,9 +802,10 @@ level_canvas_drags_levels_and_entities :: proc(t: ^testing.T) {
 
 	// An entity: selected (its level too, the tab shows its type), dragged onto its layer's grid
 	// (Coin: 16 px cells, pivot at the bottom middle), or by the pixel with Shift
+	state.level.bottomTab = .World
 	send(&state, Level_Canvas_Pressed{world = {104, 64}, level = "Start", entity = "coin1"})
 	testing.expect_value(t, state.level.entity, "coin1")
-	testing.expect_value(t, state.level.tab, LDtkTab.Entities)
+	testing.expect_value(t, state.level.bottomTab, BottomTab.Entities)
 	testing.expect_value(t, state.level.entityDef, 11)
 	send(&state, Level_Canvas_Moved{world = {124, 69}, delta = {20, 5}})
 	send(&state, Level_Canvas_Released{})
@@ -700,5 +832,6 @@ level_canvas_drags_levels_and_entities :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(state.history.undo), undo + 1)
 	send(&state, Msg(Action.Undo))
 	testing.expect_value(t, valueAt(path, "defs.entities.uid=10.identifier"), "Player")
+	testing.expect_value(t, LDtkDoc_Save(dir, "world.ldtk"), "")
 	expectValid(t, path)
 }

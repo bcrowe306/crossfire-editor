@@ -116,6 +116,17 @@ ICON_ARROW_RIGHT :: "\uf061"
 ICON_HOUSE       :: "\uf015"
 ICON_BOOK        :: "\uf02d"
 ICON_SEARCH      :: "\uf002"
+// The Level mode's tools and layers (view_level_tools.odin, view_level_sidebars.odin)
+ICON_PENCIL      :: "\uf303"
+ICON_DICE        :: "\uf522"
+ICON_FILL        :: "\uf576"
+ICON_ERASER      :: "\uf12d"
+ICON_EYEDROPPER  :: "\uf1fb"
+ICON_STAMP       :: "\uf5bf"
+ICON_EYE         :: "\uf06e"
+ICON_EYE_SLASH   :: "\uf070"
+ICON_GRIP_LINES  :: "\uf7a4"
+ICON_LAYERS      :: "\uf5fd"
 ICON_EXTERNAL    :: "\uf08e"
 
 @(private="file")

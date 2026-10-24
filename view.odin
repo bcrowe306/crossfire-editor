@@ -63,7 +63,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.flex(1, skald.spacer(0)),
 			cross_align = .Center,
 		),
-		toolbarView(&state, ctx),
+		// The Level mode's tool row replaces the toolbar there (view_level_tools.odin)
+		state.mode == .Level ? LevelTools_View(&state, ctx) : toolbarView(&state, ctx),
 		skald.divider(ctx),
 		// The mode's workspace needs its own size to place the panels, so it's built once layout
 		// knows it (editor_modes.odin)
