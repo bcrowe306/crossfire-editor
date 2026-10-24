@@ -30,7 +30,7 @@ If you'd rather use another program (Zed, VS Code...), you can: see
 - [Which shortcuts work while you type code](#which-shortcuts-work-while-you-type-code)
 - [Keymaps and themes](#keymaps-and-themes)
 - [Auto-closing brackets and quotes](#auto-closing-brackets-and-quotes)
-- [Dropping nodes and assets onto the code](#dropping-nodes-and-assets-onto-the-code)
+- [Dragging things into the code](#dragging-things-into-the-code)
 - [Using an external editor instead](#using-an-external-editor-instead)
 - [Questions](#questions)
 
@@ -175,11 +175,12 @@ code tab, with or without the language server:
   [Code and scenes, linked](#code-and-scenes-linked) below: marks in the margin list every node
   using a script or overriding a field, Find Usages lists them in a panel, and renaming a
   script, a field or an event (F2) renames it in your scenes too.
-- **Drops land where you drop them.** A scene tree node or a browser asset dropped **between a
-  call's brackets** goes in as its constant: `e.Node_FindPath(self.node, |)` becomes
-  `e.Node_FindPath(self.node, PATH_HERO_SPRITE)`, `e.Game_PlaySound(self.game, |)` gets
-  `SOUND_COIN`. Dropped anywhere else it adds a field to the script's struct, as described in
-  [Dropping nodes and assets onto the code](#dropping-nodes-and-assets-onto-the-code).
+- **Drops land where you drop them.** Drag almost anything from the editor onto the code (a
+  node, a property's label, an animation, an input action, a sound...): in the struct it becomes
+  a field, in a procedure a statement (`e.AnimationPlayer_Play(&self.sprite.animation,
+  ANIM_HERO_RUN)`), between a call's brackets its constant (`PATH_HERO_SPRITE`, `SOUND_COIN`).
+  Hold Shift as you let go for the other choices. See
+  [Dragging things into the code](#dragging-things-into-the-code).
 
 - **Names that don't exist are underlined.** `e.Game_ChangeScene(game, "Forrest")` gets a
   warning, "did you mean "Forest"?", with a quick fix (Ctrl+.). See
@@ -447,26 +448,66 @@ When you type an opening bracket or quote, the code editor adds its closer after
 
 Turn it off with **Settings > Editor > Auto-close**.
 
-## Dropping nodes and assets onto the code
+## Dragging things into the code
 
-Where you drop decides what goes in. **Between a call's brackets** (on an argument), a node or
-asset goes in as its constant from `scripts/assets.odin` (`PATH_HERO_SPRITE`, `SOUND_COIN`; a
-node without one goes in as its path in quotes). **Anywhere else** you drag things into the code
-to add **exported fields** (the values the inspector shows) to the script's struct:
+Drag something from the editor onto a code tab and it becomes code: you don't have to remember
+what a node's path is, which constant names an animation, or which engine procedure plays it.
+**Where you let go decides the shape:**
 
-- **A node from the scene tree:** drag it onto the code. The script gets a field pointing at that
-  node, named after it, like `camera: ^e.Camera2D` with the node's path as its default. When the
-  game starts, the field already points at the node. In the inspector, the field becomes a list
-  of the scene's nodes of that kind.
-- **An asset from the browser** (an image, sound, music, font, component, data resource or
-  animation): drag it onto the code. The script gets a field of its handle type (`TextureAsset`,
-  `SoundAsset`, `ComponentAsset`...) set to that asset, with a comment showing a line of code that
-  uses it. The inspector can then choose another asset for each node.
+- **In the script's struct** (or anywhere outside a procedure): a **field**, before the struct's
+  closing brace. A node becomes a pointer to it (`camera: ^e.Camera2D` with its path as the
+  default: the game sets it before `ready`), an asset a field of its handle type, a name (an
+  action, an animation, a bus...) an exported field of its name type, so each node can change
+  it in the inspector.
+- **In a procedure:** a **statement**, on the line after the one you dropped on (or on that line
+  when it's empty), indented like the code there. A condition comes as an `if` block with the
+  cursor inside it; a value as `x := ...`.
+- **Between a call's brackets** (on an argument): the thing's **constant** from
+  `scripts/assets.odin` (`ACTION_JUMP`, `PATH_HERO_SPRITE`; text in quotes when it has none, like
+  an Animator's clips), or, where the call doesn't take that kind of name, an expression for it
+  (`self.hero`, `self.hero.position`). **Inside a string**, the name itself.
 
-The field goes before the closing brace of the file's script struct, in one step you can undo
-with Ctrl+Z. Save the script so the inspector shows the new field.
+**A plain drop does the most common thing. Hold Shift when you let go** for a small menu of the
+other useful choices (at most four), with a preview of the code each one writes: Up and Down
+move through it, Enter (or a click) writes the one you picked, Escape writes nothing.
 
-## Using an external editor instead
+**What each kind of thing becomes** (the first is the plain drop; the others are in the menu):
+
+| Drag | From | In a struct | In a procedure | On an argument |
+|---|---|---|---|---|
+| A node | The scene tree | `hero: ^e.CharacterMover` (its path) | What its kind does first: `e.AudioPlayer_Play(self.jump)`, `e.ParticleEmitter_Start(self.dust)`, `e.Camera2D_Shake(self.camera, 4, 0.3)`; any node: its world position, hide it, remove it | Its path constant where the call takes a path, else the node (`self.hero`); its path as text |
+| A property (Position, Rotation, Visible, a label's Text...) | Its label in the inspector | A field for its node | Set it (`self.hero.position.x = 0`), read it; Position also: its world position, move it in the world | Its value (`self.hero.visible`) |
+| A script field | Its label in the inspector's Script section | A field for its node | Set it, read it (`self.speed`, or `e.Node_GetScript(self.enemy, Enemy).speed` on another node) | Its value |
+| An event | Its name in the inspector's Events section | A field for its node | Listen to it: `e.Event_Subscribe(&self.node.onExit, proc(...) {...}, self)`, reading its data; a script's event: also fire it | Its subject (`&self.door.onOpened`) |
+| An animation | The grip beside the Animation panel's list | `runAnimation: e.AnimationName` | Play it, play it from the start, if it's playing | `ANIM_HERO_RUN`, `"run"` |
+| A state | The grip by the selected state in the States tab | `attackState: e.StateName` | Travel to it, if it's the current state | `STATE_HERO_BRAIN_ATTACK` |
+| A state machine parameter | The grip beside it in the States tab | A field of its name | Set it (a Float or Bool), fire it (a Trigger), read it | `PARAM_HERO_BRAIN_SPEED` |
+| An input action | Project Settings > Input's list (the dialog steps aside while you drag) | `jumpAction: e.ActionName` | If it was just pressed, if it's held, if it was just released, its strength | `ACTION_JUMP`, or a condition |
+| A group | The chips under the inspector's Groups field | `enemiesGroup: e.GroupName` | For each node in it, add this node to it, if this node is in it | `GROUP_ENEMIES` |
+| A bus | The grip on its strip in the Mixer | `musicBus: e.BusName` | Set its volume, mute it | `BUS_MUSIC` |
+| A clip | The grip beside the Timeline's clip list | `introClip: e.ClipName` | Play it, play it from the start | `"intro"` |
+| A scene | The browser | `forestScene: e.SceneName` (`kind=scene`: a scene list in the inspector) | Change to it, push it over this one | `SCENE_FOREST` |
+| A sound | The browser | `jump: e.SoundAsset` (with a line using it) | Play it, play it on a bus | `SOUND_JUMP` |
+| Music | The browser | `theme: e.MusicAsset` | Crossfade a MusicPlayer to it, play it on one | `MUSIC_THEME` |
+| A component | The browser | `coin: e.ComponentAsset` | Add one here, add one under this node | `COMPONENT_COIN` |
+| An image, a font, a data resource, an animation asset | The browser | A field of its handle type | Load it (`e.Asset_Texture`, `e.Asset_Font`, `e.Data`), use the animations on a sprite | Its constant |
+| A dialogue | The browser | A field with its path | Show it in a new dialogue box | `DIALOGUE_STORY` |
+
+The grips (a small dotted handle) show only while a code tab is open; the labels, event names,
+action rows and browser rows are dragged as they are. A press that doesn't move still does what a
+click does (it selects the row, opens the scene).
+
+**The code uses what your script already has.** Code that needs a node uses your script's field
+for it when there's one (a field whose default path leads to that node; for something without a
+node of its own, like music played on a MusicPlayer, the script's field of that type, else the
+scene's first node of it), and `self.node` for the node the script is on. When the
+script has none, **the drop adds the field too** (`sprite: ^e.AnimatedSprite` with the node's
+path), in the same step. Everything a drop writes is **one step you can undo** with Ctrl+Z, and
+the cursor ends where you'd type next: after the statement, inside the `if` block, before a value
+you'll want to change. "The script" is the procedure's parameter of your struct's type (`self` in
+the template's procedures).
+
+## Using an external editor instead## Using an external editor instead
 
 To open scripts in another program, open **Edit > Settings > Editor** and, under **Scripts**:
 

@@ -42,7 +42,9 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   providers; the names engine calls take, completed and checked inside their strings, with
   quick fixes; gutter markers listing every node using a script or setting a field, Find Usages
   in the scenes, and renames of scripts, fields and events carried into scenes, components,
-  globals, listeners and Timeline tracks) or an external one; the script index (the scripts' declarations read from their
+  globals, listeners and Timeline tracks; drops of nodes, inspector properties, events, groups,
+  animations, states, input actions, buses, clips, scenes and assets that become a field, a
+  statement or a constant by where they land, Shift for a menu of choices) or an external one; the script index (the scripts' declarations read from their
   source as they're typed, before any build); typed constants for assets, animations, states,
   groups, buses, scenes, dialogue nodes and node paths (scripts/assets.odin); Play / Play
   Scene / Restart, hot reload, the live view of the running game; editor plugins (plugin_api/).
@@ -191,11 +193,13 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_browser_info.odin` | The preview for scripts (`scriptInfoPreview`: what each registered script and data type is, where it's used) and scenes (`scenePreview`: facts, actions, the scene's own settings) |
 | `scene_settings.odin` | A scene's own settings (`SceneDef.settings`, the engine's `e.SceneSettings`): their messages and undo |
 | `node_listeners.odin`, `view_inspector_events.odin` | **Listening to node events**: the inspector's Events section (`eventsSection`), the Listen... dialog (`listenerDialogView`), attaching (`Listener_Attach`: the listener on the node, the handler appended to the script's file) |
-| `asset_fields.odin` | A browser asset dropped on a code tab (outside a call's brackets: code_providers.odin's drop provider decides): a field of its handle type (`AssetField_Type`, `AssetField_Line`, `AssetField_Insert`) |
-| `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), adding one by dropping a node on a code tab (`NodeField_Insert`, through the drop provider) |
+| `asset_fields.odin` | An asset's field in a script struct (a drop in the struct: code_drops.odin): its handle type and the line using it (`AssetField_Type`, `AssetField_Line`) |
+| `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), the script struct in a file (`NodeField_FindStruct`: its fields and their lines), a node's field line (`NodeField_Line`, for drops: code_drops.odin) |
+| `code_drops.odin` | **Drops into code**: `DropSource` (what a panel drags: its kind, name, node, asset or scene, detail), `CODE_DROP_KINDS` (the one table: each kind's name type and shape in a struct), `codeUseKeys` (which of the engine's `e.CODE_USES` apply), `CodeDrops_Build` (the choices by syntactic context: a field, a statement, the constant or expression, the name in a string), `CodeDrops_PropertyField` (an inspector label's engine field) |
+| `code_drag.odin` | **Dragging editor things into code**: `State.codeDrag`, `CodeDrag_From` / `_Zone` / `_Handle` (a widget, a label, a grip starts one), `CodeDrag_View` (the label by the pointer, the drop or cancel), `CodeDrag_HidesDialogs` (Project Settings steps aside for an input action), `Code_Drag_*` / `Code_Source_Dropped` / `Code_Drop_Chosen` |
 | `script_index.odin` | **The script index**: `ScriptIndex` (`State.scriptIndex`), `ScriptIndex_ParseSource` (core:odin/parser: structs, fields with types, tags, comments, enums, `Script_Register` / `Data_Register` / `NodeType_Register` calls), `ScriptIndex_Take` (a broken file keeps its last good declarations), `ScriptIndex_Derive` (ScriptDescs like the catalog's, events, problems), `ScriptIndex_Plan` (changed files and still code tab buffers), engine calls' string literal arguments and procedures' lines (`IndexCall`, `IndexProc`: the name providers'), `ScriptIndex_Tick` / `_Parsed` (the worker), `ScriptIndex_Apply` / `_TakeBuild` (merged into `State.scripts`, the build authoritative where newer) |
 | `script_constants.odin` | **scripts/assets.odin's constants**: `Scripts_Constants` (every constant, sections, `GeneratedConstant`), `Scripts_AssetsSource` (the file), `ConstantWords` (the new kinds' names), `Constants_ChangeMatters` / `Scripts_NewestFor` (a change to unused constants doesn't rebuild the player), Aseprite tags cached on the heap |
-| `code_providers.odin` | **The code editor's providers**: `CodeProviders_Registry` (completion of the constants, hovers on constants and scripts, the index's problems, drops; the name providers of code_names.odin; the link providers of script_links.odin), `CodeProviders_Begin` / `_End` (the State they read), what the providers leave for the view (`CodeProviders_TakeOpen`, `_TakeRename`), `scriptUsers`, `CodeProviders_Constants` (cached per project version) |
+| `code_providers.odin` | **The code editor's providers**: `CodeProviders_Registry` (completion of the constants, hovers on constants and scripts, the index's problems, drops (code_drops.odin); the name providers of code_names.odin; the link providers of script_links.odin), `CodeProviders_Begin` / `_End` (the State they read), what the providers leave for the view (`CodeProviders_TakeOpen`, `_TakeRename`), `scriptUsers`, `CodeProviders_Constants` (cached per project version) |
 | `script_links.odin` | **Code and scene links**: usages of a registered type, field or event (`ScriptLinks_TypeUsages` / `_FieldUsages` / `_EventUsages`: nodes, component instances, globals, data, Timeline tracks, listeners), the gutter markers with their choices and inlay hints, Find Usages and Rename providers, `ScriptRename_Project` (the project side of a rename; `dryRun` counts), `ScriptRename_Apply` (`Code_Rename_Requested`: the project as one `.Project` step, other files' edits in hidden code tabs), `ScriptLinks_Open` (`Code_Usage_Opened`) |
 | `script_rename.odin` | **The code side of renames**: the scripts package parsed (`CodeModel`), each identifier classified (a package type, a field of a struct whose receiver type the code shows, `kind=` tags, engine calls' strings), `ScriptRename_SymbolAt`, `ScriptRename_Code` (edits, names taken, uses left alone) |
 | `name_kinds.odin` | **Which engine parameters take which kind of name**, read from the engine's source (its name types, names.odin): `NameKind`, `NameTable_Read` (core:odin/parser; groups merged; `_Add` / `_Create` procedures declare), `NameTable_Start` / `_Load` / `_Get` (once, on a worker; heap, never freed), `NameTable_ParamKind` |
@@ -1023,9 +1027,9 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
   (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 
-### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`; code_editor's `providers.odin`, `rename.odin`)
+### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`, `code_drops.odin`, `code_drag.odin`; code_editor's `providers.odin`, `rename.odin`; the engine's `code_uses.odin`)
 
-Rounds 1 to 3 of TODO.md's "Code editor integration". What the code relies on:
+Rounds 1 to 4 of TODO.md's "Code editor integration". What the code relies on:
 
 - **The provider interface is code_editor's** (`code_editor/editor/providers.odin`, its README's
   "Providers"): completion, hover, diagnostics, gutter markers, inlay hints and drops, each a
@@ -1048,11 +1052,10 @@ Rounds 1 to 3 of TODO.md's "Code editor integration". What the code relies on:
 - **The syntactic context** (`ce.editor_syntax_context_at`) is a tokenizer scan, not a parse:
   brackets on a stack, what each opened decided from the tokens before it (`Name :: struct`,
   `proc` and `proc "contextless"` parameter lists, `if` / `for` / `when` blocks, literals). The
-  drop provider uses `Call_Argument` (not in a string) to insert a constant; anything else keeps
-  the old field insert (`NodeField_Insert`, `AssetField_Insert`), so drops in the struct or below
-  it behave as before. Drops carry the mouse (`Tree_Drag_Dropped_On_Code{mouse}`,
-  `Asset_Dropped_On_Code{mouse}`), turned into the editor's pixels with the shown view's rect and
-  scale (`host.shownRect`, `shownScale`).
+  drop provider decides by it (round 4, below). Drops carry the mouse and Shift
+  (`Tree_Drag_Dropped_On_Code{mouse, menu}`, `Asset_Dropped_On_Code`, `Code_Source_Dropped`),
+  turned into the editor's pixels with the shown view's rect and scale (`host.shownRect`,
+  `shownScale`).
 - **The script index** (script_index.odin's doc block): `core:odin/parser` per file, the AST in a
   growing virtual arena freed at once; results copied to the heap. Parsing runs on a
   `skald.cmd_thread` worker with copied texts (`ScriptIndex_Tick` every 0.5 s while a project is
@@ -1179,6 +1182,62 @@ Rounds 1 to 3 of TODO.md's "Code editor integration". What the code relies on:
     box with a provider and through a fake server), `tests/ui/code_links.script` (markers, the
     menu, Alt+Shift+F12, F2 on a field and a type with both undos, an orphaned value removed;
     driver: `code_state rename.*`).
+- **Round 4: drops into code** (code_drops.odin's and code_drag.odin's doc blocks; the manual's
+  "Dragging things into the code" has the table of what each kind becomes).
+  - **Sources describe themselves** (`DropSource`), panels know nothing of code: scene tree
+    nodes and browser assets through their own drags (`treeDrag`, `assetDrag`: they also drop
+    into the tree and the viewport); everything else through `State.codeDrag`: inspector
+    property labels (`inspectorRow`, thread-local `inspectorDrag`: a label is draggable when
+    `CodeDrops_PropertyField` finds the engine field, `Position X` as `position.x`, aliases in
+    `PROPERTY_ALIASES`; key `inspector-label-<label, spaces as _>-<node>`), the Script section's
+    fields (as `.Script_Field`), event names (`inspector-event-drag-...`), group chips under the
+    Groups field (`inspector-group-<g>-<node>`), grips (`ICON_GRIP`, only while a code tab
+    shows) for the Animation panel's animation (`animation-drag`), the selected state
+    (`states-drag`) and each parameter (`states-param-drag-<i>`), the Timeline's clip
+    (`timeline-clip-drag`) and each Mixer strip (`mixer-drag-<i>`), Project Settings > Input's
+    action buttons (`input-action-<i>`), browser scenes. A press only arms the drag: the click
+    still happens (a scene row's waits for the release, since opening it would hide the code
+    tab: `browserRow`).
+  - **Input actions in a modal dialog** (decided): Project Settings and Settings (whose Project
+    tab shows the same list) hide while an action is dragged (`CodeDrag_HidesDialogs`:
+    `closedDialog`), so the code tab under them takes the drop; they show again after. Presses
+    behind a dialog never start a drag (`pressStarts`; the browser checks `modal_rect_prev`: the
+    workspace is built after the dialogs, so its press came last and won).
+  - **One table** (`CODE_DROP_KINDS`: noun, name type, struct shape, a name field's suffix);
+    **what code does is the engine's** (`e.CODE_USES`, code_uses.odin: uses per name type,
+    handle type, node type and `Type.field`, the first being the plain drop; checked by the
+    engine's code_uses_test.odin against its source and by `code_drops_engine_uses_compile`,
+    which fills every use in and runs `odin check`). `codeUseKeys` picks the keys of a source,
+    most specific first (`StateParamName:Trigger`, then `StateParamName`; a node's type chain).
+  - **Shapes** (`CodeDrops_Build`): struct (or outside a procedure): a field before the closing
+    brace (node fields, asset fields as before, name fields `<name><Suffix>: e.<NameType>` with
+    `export:"default=..."`, an owner's node field); procedure body: a statement after the
+    dropped-on line (on it when blank, before it when it closes a block), indented like it,
+    conditions as `if` blocks, values as `x := `; argument: the constant (`constantOf`: the
+    section, value and owner group of `Scripts_Constants`, else the name quoted) first where
+    `NameTable_ParamKind` says the parameter takes that kind, else the expression; in a string the
+    name; in a comment the constant.
+  - **Reaching nodes** (`nodeExpr`): `self.node` for the script's own node (when any node type
+    will do: `fieldOwnerType` says which type declares a field, so `position` needs only a
+    Node), a field whose default path leads to the node and whose type fits, else a new field in
+    the same edits (one undo step: code_editor applies a choice's edits together). A thing
+    without a node (music, a group) takes the struct's only field of the type, else the scene's
+    first node of it. The script variable is the procedure's `^Struct` parameter
+    (`Syntax_Context.proc_params`), else `self`. `e.` becomes the file's import name.
+  - **The menu** is code_editor's (`Drop_Choice`, `Drop_Request.menu`: Shift at the release); at
+    most `CODE_DROP_MAX_CHOICES` (4). A drop focuses the code tab (`host.focusNext`) so the menu's
+    keys reach it; a pick's message comes back through `Code_Drop_Chosen`.
+  - **Tests:** the engine's code_uses_test.odin; `code_drops_test.odin` (the table, use keys,
+    property fields; every kind in a struct, a body, an argument and a string in a real code
+    tab with one undo step each; the menu's choices and previews; every engine use compiled);
+    code_editor's `test_provider_drop_choices_and_their_menu`; `tests/ui/code_drops.script` (each
+    source dragged at a line or text, Shift's menu picked by keys, then saved and built).
+  - **Found doing it:** the driver's drop point was the middle of a character cell, which the code
+    editor rounds either way (now a quarter in: `CodeEditor_WindowPoint`), and `RevealLine`
+    didn't scroll sideways, so a drop at a long line's end in a tiled window landed in the
+    inspector (it reveals the column now). A click on an inspector button right after the code
+    tab took the keyboard was sometimes lost (the events toggle): the script opens the Events
+    section first; not investigated further.
 
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 
@@ -1224,9 +1283,9 @@ Rounds 1 to 3 of TODO.md's "Code editor integration". What the code relies on:
   `sender := e.Node_GetScript(source, X)` hint, a global's `x := e.Global(X)`. Listeners whose
   event is gone show "(no such event)" once the scripts are built. Tests:
   `scripts_publish_events_in_the_editor`; scripts.script (New Event, build, listen, play).
-- **Assets dropped on a code tab** (asset_fields.odin; the browser's `browserDrag`, which now
-  starts for every asset kind with a handle type and for LDtk projects; between a call's brackets
-  the drop provider inserts the asset's constant instead, code_providers.odin): an exported field of
+- **Assets dropped on a code tab's struct** (asset_fields.odin; the browser's `browserDrag`, which
+  starts for every asset kind with a handle type and for LDtk projects, and for any asset while a
+  code tab shows; elsewhere in the code the drop does what code_drops.odin says): an exported field of
   its handle type (`TextureAsset`, `SoundAsset`, `MusicAsset`, `FontAsset`, `ComponentAsset`,
   `DataAsset` with `kind=<type>`) defaulting to the asset, with a comment using it (a
   component: `e.Scene_AddComponent(self.scene, self.coin, position = e.Node_GetWorldPosition(self.node))`:
@@ -1241,14 +1300,13 @@ Rounds 1 to 3 of TODO.md's "Code editor integration". What the code relies on:
   to a node type (`camera: ^e.Camera2D `export:"default=../Camera"``) holds a path
   (`e.Node_FindPath`). The inspector's control is a dropdown of the scene's nodes that fit
   (`NodeField_Choices`: `e.SceneNodeKind_IsType`, a Component instance counting as its root's
-  kind), as paths from the script's node. **Dropping a scene tree node on a code tab**
+  kind), as paths from the script's node. **Dropping a scene tree node on a code tab's struct**
   (`Tree_Drag_Dropped_On_Code`, `sceneTreeMouse`; a label follows the pointer) adds such a
   field to the file's script struct (`NodeField_FindStruct`: the one with `using script:`),
-  before its closing brace through the code editor's buffer (`CodeEditor_InsertAtLine`: one
-  undo step, no auto-indent), named after the node (`NodeField_Name`), defaulting to its path
-  from the node using the script (the selected one, else the scene's first; none: from the top
-  level). Between a call's brackets the drop provider inserts the node's `PATH_` constant
-  instead (code_providers.odin). Tests: code_editor.script (the drop), scripts.script (built, the inspector's picker,
+  before its closing brace as the drop's edits (one undo step, no auto-indent), named after the
+  node (`NodeField_Name`), defaulting to its path from the node using the script (the selected
+  one, else the scene's first; none: from the top level). Elsewhere in the code the drop does
+  what code_drops.odin says (a statement using the node, its `PATH_` constant on an argument). Tests: code_editor.script (the drop), scripts.script (built, the inspector's picker,
   played without a warning); the driver's `drag_row_to <tree> <row> <widget>`.
 - **Code completion:** `Scripts_WriteOLSConfig` writes `scripts/ols.json` for OLS (the Odin
   language server): collections `engine` (this editor's engine checkout) and `project`. Written
@@ -2861,8 +2919,10 @@ Highlights:
   than 0.5 s later, and a click aimed at the old layout misses (the first script of a run failed).
   Not on the offscreen driver (headless runs), where the size never changes.
 - **Drops onto a code tab say where** (`drag_row_to <tree> <row> code-editor at_text <text>` /
-  `at_line <n> [<column>]`, `drag_asset_to ... code-editor at_text ...`; the line scrolled into
-  view first, `CodeEditor_RevealLine` / `CodeEditor_FindText`): the drop providers decide by
+  `at_line <n> [<column>]`, `drag_asset_to ... code-editor at_text ...`, `drag_widget_to
+  <widget> code-editor ...` from a label or grip, a trailing `shift` for the menu; the line and
+  column scrolled into view first, `CodeEditor_RevealLine` / `CodeEditor_FindText`; the point a
+  quarter into the cell, so it's the position before it whichever way the code editor rounds): the drop providers decide by
   where it lands, and the view's middle is another line in another window size (macOS CI's
   installed-app run, v0.1.0-dev.56, dropped outside the struct). Checked at 640x660, 900x500
   and 1280x720.

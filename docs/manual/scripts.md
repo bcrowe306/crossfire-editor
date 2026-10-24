@@ -272,9 +272,10 @@ built, so the editor knows which fields hold nodes): a path that no longer leads
 rewritten, and a field still on its default gets a value of its own. A path written from the top
 (`/World/Door`) stays one.
 
-A quick way to make one: **drag a node from the scene tree onto a code tab**. The editor adds a
-field of the node's kind to the script's struct, named after the node, with its path as the
-default.
+A quick way to make one: **drag a node from the scene tree onto the script's struct in a code
+tab**. The editor adds a field of the node's kind, named after the node, with its path as the
+default. (Dropped in a procedure instead, it writes code using the node, adding the field too:
+[Dragging things into the code](code_editor.md#dragging-things-into-the-code).)
 
 ### Asset fields
 
@@ -328,8 +329,9 @@ Scripts open in **code tabs** beside the scene tabs, in the editor's built-in co
   or `self.` for your struct's fields.
 - Errors and warnings marked as you type, go to definition, find references, quick fixes.
 - **Ctrl+W** closes the code tab; saving a script (and Play) saves the open tabs.
-- Drops: a scene tree node or a browser asset dropped on a code tab adds a field for it (above);
-  dropped between a call's brackets, it goes in as its constant.
+- Drops: almost anything dragged onto a code tab becomes code: a field in the struct, a statement
+  in a procedure, its constant on a call's argument (Shift: the other choices). See the code
+  editor's [Dragging things into the code](code_editor.md#dragging-things-into-the-code).
 - Your project in the code: its constants complete, hovers say what they name and which nodes run
   a script, `export` tags the inspector can't use are flagged, and `Script_Register` lines and
   exported fields show who uses and sets them (click to open the node).

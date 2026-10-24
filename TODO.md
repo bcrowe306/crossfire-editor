@@ -12,15 +12,6 @@ environment: no memorizing how to refer to things in code. Everything goes throu
 provider interface in code_editor (completion, hover, diagnostics, gutter, inlay, drop sources)
 that the editor fills in, so code_editor stays engine-agnostic. Not doing: a debugger (DAP), for now.
 
-4. **Context-aware drag and drop into code:** every editor thing is a drop source (scene-tree
-   nodes, inspector property labels, animations, state machine parameters and states, input
-   actions, events, scenes, components, sounds, music, dialogues, Timeline clips, buses, groups).
-   Where it lands decides the shape (in a struct: a field; in a procedure: a statement; on an
-   argument: the constant); a plain drop does the common thing, a menu offers the few useful
-   alternatives with a preview. Inserted code uses the typed constants. Sources describe
-   themselves and the engine describes which procedures act on which kind, so new node kinds
-   get drops with little work. (Round 2's name types already say which parameters take which
-   kind of name: the engine's names.odin, read by the editor's name_kinds.odin.)
 5. **Hovers and previews:** asset constants show the image / play the sound / show the
    animation's frames / the dialogue's first line; color literals get a swatch and the picker;
    engine procedures show their doc comment and example (the website's docgen output, bundled);
