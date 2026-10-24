@@ -355,6 +355,8 @@ State :: struct {
 		asset: int,
 		start: [2]f32,
 	},
+	// A drag into a code tab of anything else (code_drag.odin)
+	codeDrag: CodeDrag,
 	// A press on a scene tree row, which becomes a drag once the mouse moves
 	treeDrag: struct {
 		pressed: bool,
@@ -470,6 +472,7 @@ Inputs:
 - state: The state to free
 */
 State_Destroy :: proc(state: ^State) {
+	CodeDrag_Clear(state)
 	CodeTabs_CloseAll(state)
 	delete(state.codeTabs)
 	Project_Destroy(&state.project)

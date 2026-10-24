@@ -101,7 +101,8 @@ code_providers_in_a_code_tab :: proc(t: ^testing.T) {
 	// A node dropped on the call's argument: its path constant
 	line := cebuf.buffer_line_str(&c.ed.buf, 14)
 	at := strings.index(line, ", )") + 2
-	message, handled := ce.editor_drop_at(&c.ed, {14, at}, ce.Drop_Request{kind = CODE_DROP_NODE, data = rawptr(uintptr(ship))})
+	shipSource := DropSource{kind = .Node, node = ship, index = -1}
+	message, handled := ce.editor_drop_at(&c.ed, {14, at}, ce.Drop_Request{kind = CODE_DROP_SOURCE, data = &shipSource})
 	CodeProviders_End()
 	testing.expect(t, handled && strings.contains(message, "PATH_PLAY_SCENE_WORLD_SPACESHIP"), "taken")
 	testing.expect(t, strings.contains(cebuf.buffer_line_str(&c.ed.buf, 14), "e.Node_FindPath(self.node, PATH_PLAY_SCENE_WORLD_SPACESHIP)"), "inserted")

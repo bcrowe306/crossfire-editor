@@ -172,7 +172,7 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 		if s.treeDrag.active && valid {
 			skald.send(ctx, Msg(Tree_Drag_Dropped{target = target, position = position}))
 		} else if overCode {
-			skald.send(ctx, Msg(Tree_Drag_Dropped_On_Code{mouse}))
+			skald.send(ctx, Msg(Tree_Drag_Dropped_On_Code{mouse, .Shift in ctx.input.modifiers}))
 		} else {
 			skald.send(ctx, Msg(Tree_Drag_Cancelled{}))
 		}
@@ -198,7 +198,7 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 	}
 	if overCode {
 		// What the drop will do, by the pointer
-		label := fmt.tprintf("%s  Add a field for %s", ICON_FILE_CODE, scene.nodes[s.treeDrag.node].name)
+		label := fmt.tprintf("%s  %s into the code (Shift: choices)", ICON_FILE_CODE, scene.nodes[s.treeDrag.node].name)
 		return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
 			skald.col(skald.text(label, th.color.on_primary, th.font.size_sm), padding = th.spacing.xs, bg = th.color.primary, radius = th.radius.sm),
 			no_shadow = true, pin = true)
@@ -355,6 +355,9 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	node := &scene.nodes[s.selectedNode]
 	// Ids include the node index so a half-typed value doesn't carry over to another node
 	key := s.selectedNode
+	// The rows' labels drag into code (inspectorRow)
+	inspectorDrag = {state = s, node = s.selectedNode, kind = NodeDef_BuiltKind(&s.project, node)}
+	defer inspectorDrag = {}
 	// Several selected: the inspector edits the primary one
 	multiNote: skald.View = skald.View_Spacer{size = 0}
 	if len(s.selection) > 1 {
@@ -402,6 +405,19 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", NodeTextField.Groups, key)),
 			width = controlWidth, padding = InspectorFieldPadding(ctx))),
 	)
+	// While a code tab shows, each group drags into code by its chip (code_drag.odin): key
+	// inspector-group-<name>-<node>
+	if s.codeTab > 0 && strings.trim_space(node.groups) != "" {
+		chips := make([dynamic]skald.View, context.temp_allocator)
+		rest := node.groups
+		for part in strings.split_iterator(&rest, ",") {
+			g := strings.trim_space(part)
+			if g == "" do continue
+			chip := skald.col(skald.text(fmt.tprintf("%s %s", ICON_GRIP, g), th.color.fg_muted, th.font.size_xs), padding = 2, bg = th.color.surface, radius = th.radius.sm)
+			append(&chips, CodeDrag_Zone(ctx, s, chip, fmt.tprintf("inspector-group-%s-%d", g, key), DropSource{kind = .Group, name = g, node = key, index = -1}))
+		}
+		append(&rows, inspectorLabelled(ctx, skald.spacer(0), skald.wrap_row(..chips[:], spacing = th.spacing.xs, line_spacing = 2, width = controlWidth)))
+	}
 
 	// Properties of this node's kind
 	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
@@ -603,7 +619,29 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 @(private="package")
 inspectorRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View, tip := "") -> skald.View {
 	// Hovering the label explains the setting (tooltips.odin; `tip` adds to it)
-	return inspectorLabelled(ctx, tipLabel(ctx, label, skald.text(label, ctx.theme.color.fg_muted, ctx.theme.font.size_sm), tip), control)
+	view := tipLabel(ctx, label, skald.text(label, ctx.theme.color.fg_muted, ctx.theme.font.size_sm), tip)
+	// A node's property or script field drags into code (code_drag.odin): key
+	// inspector-label-<label>-<node>, spaces as underscores (inspector-label-Position_X-2)
+	if d := inspectorDrag; d.state != nil && d.state.codeTab > 0 && label != "" {
+		spaced, _ := strings.replace_all(label, " ", "_", context.temp_allocator)
+		key := fmt.tprintf("inspector-label-%s-%d", spaced, d.node)
+		if d.script != "" {
+			view = CodeDrag_Zone(ctx, d.state, view, key, DropSource{kind = .Script_Field, name = label, node = d.node, index = -1, script = d.script})
+		} else if _, _, ok := CodeDrops_PropertyField(d.kind, label); ok {
+			view = CodeDrag_Zone(ctx, d.state, view, key, DropSource{kind = .Property, name = label, node = d.node, index = -1})
+		}
+	}
+	return inspectorLabelled(ctx, view, control)
+}
+
+// The node whose rows the inspector is building, and the script whose fields they are (set by
+// inspectorView; per thread: unit tests build views in parallel)
+@(thread_local, private="file")
+inspectorDrag: struct {
+	state:  ^State,
+	node:   int,
+	kind:   NodeKind,
+	script: string,
 }
 
 /*
@@ -796,10 +834,13 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 	if len(desc.fields) == 0 {
 		append(&rows, skald.text("No exported fields (tag a field with export:\"\" to edit it here).", th.color.fg_muted, th.font.size_xs, max_width = 260))
 	}
+	// Their labels drag into code as the script's fields
+	inspectorDrag.script = node.script
 	for &field in desc.fields {
 		append(&rows, inspectorRow(ctx, field.name, FieldControl(ctx, s, node.props[:], &field, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth, numberWidth), scriptFieldTip(&field)))
 		append(&rows, ..FieldMismatchRows(ctx, node.props[:], &field, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth + 100))
 	}
+	inspectorDrag.script = ""
 	// Values of fields the code no longer has: kept and shown, not dropped
 	append(&rows, ..OrphanedValueRows(ctx, node.props[:], desc, fmt.tprintf("%d", key), SelectedNodeTarget{}, controlWidth + 100))
 	return rows[:]

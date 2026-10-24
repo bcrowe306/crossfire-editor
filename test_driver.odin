@@ -115,12 +115,17 @@ copy: `open_project {project}`).
 	right_click_widget <key>         Right-click the middle of a widget (a tab, a log line...)
 	drag_guide <top | left> <world>  Pull a guide out of a ruler to a world y (top) or x (left)
 	drag_guide_back <i>              Drag guide i back onto its ruler (it's removed)
-	drag_row_to <tree key> <row> <widget key> [at_line <n> [<column>] | at_text <text>]
+	drag_row_to <tree key> <row> <widget key> [at_line <n> [<column>] | at_text <text>] [shift]
 	                                 Drag a row onto a widget (a scene tree node onto the code tab:
 	                                 code-editor). Onto the code tab, say where: a line (1-based;
 	                                 column 1 unless given) or on the first text found (its start),
 	                                 scrolled into view first; without it, the middle of the view
-	                                 (which line that is depends on the window's size)
+	                                 (which line that is depends on the window's size). shift: Shift
+	                                 held at the release (a drop's menu of choices)
+	drag_widget_to <widget key> <widget key> [at_line <n> [<column>] | at_text <text>] [shift]
+	                                 The same from a widget's middle: an inspector label
+	                                 (inspector-label-<label>-<node>), an event, a grip
+	                                 (animation-drag, states-drag, mixer-drag-<i>...), an input action
 	drag_row <tree key> <from> <to> <before | inside | after>
 	                                 Drag a row onto another row (top quarter, middle, bottom
 	                                 quarter); a `to` past the last row drops below the rows
@@ -161,7 +166,7 @@ copy: `open_project {project}`).
 	select_asset <path>              Select an asset in the browser (its folder opened), e.g. a component
 	right_click_asset <path>         Right-click an asset's browser row (its context menu: browser-menu)
 	double_click_asset <path>        Double-click an asset's browser row
-	drag_asset_to <path start> <widget> [at_line <n> [<column>] | at_text <text>]
+	drag_asset_to <path start> <widget> [at_line <n> [<column>] | at_text <text>] [shift]
 	                                 Drag the first asset whose path starts so onto a widget (a
 	                                 component onto the code tab: code-editor; where, as drag_row_to)
 	import <path>                    Import a file as an asset, as if picked in the Import dialog
@@ -1069,36 +1074,45 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
-	case "drag_row_to":
-		if len(args) < 3 {
-			fail(fmt.tprintf("%s: expected a tree key, a row and a widget key", line))
+	case "drag_row_to", "drag_widget_to":
+		// drag_row_to <tree> <row> <widget> [where] [shift]; drag_widget_to <from widget> <widget> [where] [shift]
+		row := command == "drag_row_to"
+		target := row ? 2 : 1
+		if len(args) <= target {
+			fail(fmt.tprintf("%s: expected %s and a widget key", line, row ? "a tree key, a row" : "a widget key"))
 			return true
 		}
+		// Shift held at the release: a drop's choices in a menu
+		shift := args[len(args) - 1] == "shift"
 		rect, ok := widgetRect(ctx, args[0])
-		target, targetOk := widgetRect(ctx, args[2])
+		targetRect, targetOk := widgetRect(ctx, args[target])
 		if !ok || !targetOk {
-			fail(fmt.tprintf("%s: no widget '%s' or '%s' was drawn last frame", line, args[0], args[2]))
+			fail(fmt.tprintf("%s: no widget '%s' or '%s' was drawn last frame", line, args[0], args[target]))
 			return true
 		}
-		top := ctx.widgets.states[skald.hash_id(args[0])].last_rect.y
-		from := [2]f32{rect.x + rect.w * 0.5, top + (f32(atoi(args, 1, 0)) + 0.5) * s.settings.rowHeight}
-		if !rowVisible(ctx, args[0], from.y) {
-			fail(fmt.tprintf("%s: row %s is scrolled out of view", line, args[1]))
-			return true
+		from := [2]f32{rect.x + rect.w * 0.5, rect.y + rect.h * 0.5}
+		if row {
+			top := ctx.widgets.states[skald.hash_id(args[0])].last_rect.y
+			from = {rect.x + rect.w * 0.5, top + (f32(atoi(args, 1, 0)) + 0.5) * s.settings.rowHeight}
+			if !rowVisible(ctx, args[0], from.y) {
+				fail(fmt.tprintf("%s: row %s is scrolled out of view", line, args[1]))
+				return true
+			}
 		}
-		to := [2]f32{target.x + target.w * 0.5, target.y + target.h * 0.5}
+		to := [2]f32{targetRect.x + targetRect.w * 0.5, targetRect.y + targetRect.h * 0.5}
 		// Onto the code tab at a line or after a text: scrolled into view first (a frame later)
-		if len(args) > 3 {
+		if len(args) > target + 1 && args[target + 1] != "shift" {
 			path := CodeTabs_Active(s)
 			codeLine, codeColumn := -1, 0
-			switch args[3] {
+			switch args[target + 1] {
 			case "at_line":
-				n, _ := strconv.parse_int(len(args) > 4 ? args[4] : "")
+				n, _ := strconv.parse_int(len(args) > target + 2 ? args[target + 2] : "")
 				codeLine = n - 1
-				if len(args) > 5 do codeColumn, _ = strconv.parse_int(args[5])
+				if len(args) > target + 3 && args[target + 3] != "shift" do codeColumn, _ = strconv.parse_int(args[target + 3])
 				codeColumn = max(codeColumn - 1, 0)
 			case "at_text":
 				_, _, text := strings.partition(rest, " at_text ")
+				if shift do text = strings.trim_suffix(text, " shift")
 				codeLine, codeColumn = CodeEditor_FindText(path, text)
 			case:
 				fail(fmt.tprintf("%s: expected at_line <n> or at_text <text> after the widget", line))
@@ -1108,7 +1122,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 				fail(fmt.tprintf("%s: no such line or text in the code tab", line))
 				return true
 			}
-			scrolled, open := CodeEditor_RevealLine(path, codeLine)
+			scrolled, open := CodeEditor_RevealLine(path, codeLine, codeColumn)
 			if !open {
 				fail(fmt.tprintf("%s: no code tab shows", line))
 				return true
@@ -1131,7 +1145,9 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, from))
 		STEPS :: 6
 		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, from + (to - from) * f32(i) / STEPS))
+		if shift do queueBatch(keyEvent(.KEY_DOWN, {.LSHIFT}))
 		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, to))
+		if shift do queueBatch(keyEvent(.KEY_UP, {}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
@@ -3104,6 +3120,18 @@ click :: proc(position: [2]f32, mods: sdl.Keymod = {}) {
 		queueBatch(release)
 	}
 	driver.waitFrames = INPUT_SETTLE_FRAMES
+}
+
+// A Shift key event to queue (down: carrying `mods`)
+@(private="file")
+keyEvent :: proc(type: sdl.EventType, mods: sdl.Keymod) -> sdl.Event {
+	event: sdl.Event
+	event.type = type
+	event.key.scancode = .LSHIFT
+	event.key.key = sdl.GetKeyFromScancode(event.key.scancode, {}, false)
+	event.key.mod = mods
+	event.key.down = type == .KEY_DOWN
+	return event
 }
 
 // A modifier key press (Ctrl or Shift) carrying `mods`

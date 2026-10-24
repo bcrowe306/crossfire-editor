@@ -71,7 +71,10 @@ StatesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	edit := make([dynamic]skald.View, context.temp_allocator)
 	if ed.state >= 0 && ed.state < len(sm.states) {
 		st := sm.states[ed.state]
-		append(&edit, skald.text(fmt.tprintf("State %s", st.name), th.color.fg, th.font.size_sm))
+		append(&edit, skald.row(skald.text(fmt.tprintf("State %s", st.name), th.color.fg, th.font.size_sm),
+			// It drags into code by its grip (code_drag.odin)
+			CodeDrag_Handle(ctx, s, "states-drag", DropSource{kind = .State, name = st.name, node = index, index = -1}),
+			spacing = th.spacing.xs, cross_align = .Center))
 		append(&edit, labeled(ctx, "Name", skald.text_input(ctx, strings.clone(st.name, context.temp_allocator), proc(v: string) -> Msg { return SM_Changed{op = .State_Renamed, text = v} },
 			id = skald.hash_id("states-name"), width = 110)))
 		animations := make([dynamic]string, context.temp_allocator)
@@ -111,6 +114,7 @@ StatesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	for p, i in sm.params {
 		Payload :: struct { index: int }
 		row := skald.row(
+			CodeDrag_Handle(ctx, s, fmt.tprintf("states-param-drag-%d", i), DropSource{kind = .State_Param, name = p.name, node = index, index = -1, detail = fmt.tprint(p.kind)}),
 			skald.text_input(ctx, strings.clone(p.name, context.temp_allocator), Payload{i}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Param_Renamed, index = pl.index, text = v} },
 				id = skald.hash_id(fmt.tprintf("states-param-name-%d", i)), width = 100),
 			skald.select(ctx, fmt.tprint(p.kind), kinds, Payload{i}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Param_Kind, index = pl.index, text = v} },

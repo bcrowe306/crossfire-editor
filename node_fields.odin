@@ -11,7 +11,7 @@ Script node fields: exported pointers to nodes (`sword: ^e.Area `export:"default
 which the engine sets just before `ready` from a path (`e.Node_FindPath`: relative to the
 script's node, `..` for its parent, a leading `/` for the scene's top level). The inspector
 offers the scene's nodes that fit a field (`NodeField_Choices`), and dropping a scene tree node
-on a code tab adds a field for it (`NodeField_Insert`, code_tabs.odin).
+on a code tab adds a field for it (code_drops.odin).
 */
 
 /*
@@ -115,6 +115,8 @@ NodeField_Struct :: struct {
 	engineAlias: string,
 	// The struct's field names (temp allocated)
 	fields: []string,
+	// Each field's line, trimmed (as `fields`; temp allocated)
+	lines: []string,
 }
 
 /*
@@ -144,6 +146,7 @@ NodeField_FindStruct :: proc(text: string, name := "") -> (found: NodeField_Stru
 		depth := 0
 		isScript := false
 		fields := make([dynamic]string, context.temp_allocator)
+		fieldLines := make([dynamic]string, context.temp_allocator)
 		for j := i; j < len(lines); j += 1 {
 			for c in lines[j] {
 				if c == '{' do depth += 1
@@ -154,10 +157,11 @@ NodeField_FindStruct :: proc(text: string, name := "") -> (found: NodeField_Stru
 			if j > i && depth == 1 {
 				if field, _, after := strings.partition(body, ":"); after != "" && !strings.has_prefix(body, "//") {
 					append(&fields, strings.trim_space(strings.trim_prefix(field, "using ")))
+					append(&fieldLines, body)
 				}
 			}
 			if depth == 0 {
-				if isScript do return {strings.trim_space(structName), j, found.engineAlias, fields[:]}, true
+				if isScript do return {strings.trim_space(structName), j, found.engineAlias, fields[:], fieldLines[:]}, true
 				i = j
 				break
 			}
@@ -200,7 +204,7 @@ NodeField_TypeName :: proc(kind: NodeKind) -> string {
 }
 
 /*
-The field line `NodeField_Insert` adds for a node: `\t<name>: ^e.<Type> `export:"default=<path>"`\n`.
+The field line a drop adds for a node (code_drops.odin): `\t<name>: ^e.<Type> `export:"default=<path>"`\n`.
 
 Inputs:
 - st: The script struct (its fields, so the name is unique, and the engine's import name)
@@ -234,32 +238,6 @@ NodeField_From :: proc(scene: ^SceneDef, script: string, selected: int) -> int {
 	for &n, i in scene.nodes do if NodeDef_Runs(&n, script) do return i
 	if Scene_IsComponent(scene) && len(scene.nodes) > 0 do return 0
 	return -1
-}
-
-/*
-Adds a node field for a node of the open scene to the script shown in the code tab: a pointer
-of the node's type, defaulting to the node's path from the script's node (the selected node if
-it uses this script, else the scene's first that does; none: a component's root, or in a scene a
-path from the top level). The
-engine sets it before `ready`. The edit is the code editor's (undoable, unsaved until saved).
-
-Returns:
-- What happened, for the Console, and false when nothing was added
-*/
-NodeField_Insert :: proc(state: ^State, node: int) -> (message: string, ok: bool) {
-	if state.codeTab < 1 || state.codeTab > len(state.codeTabs) do return "No script is shown", false
-	scene := &state.project.scenes[state.currentScene]
-	if node < 0 || node >= len(scene.nodes) do return "No node", false
-	path := state.codeTabs[state.codeTab - 1]
-	st, found := NodeField_FindStruct(CodeEditor_Text(path))
-	if !found do return fmt.tprintf("%s has no script struct (a struct with `using script: e.Script`)", path), false
-	from := NodeField_From(scene, st.name, state.selectedNode)
-	line, name := NodeField_Line(st, &state.project, scene, node, from)
-	// The field above needs a comma now that another follows it
-	if at, col, needed := Struct_MissingComma(CodeEditor_Text(path), st.closeLine); needed do CodeEditor_InsertAt(path, at, col, ",")
-	if !CodeEditor_InsertAtLine(path, st.closeLine, line) do return "The code editor couldn't take the field", false
-	CodeEditor_GotoLine(path, st.closeLine + 1)
-	return fmt.tprintf("Added %s to %s: %s (save, and it's set before ready)", name, st.name, strings.trim_space(line)), true
 }
 
 /*

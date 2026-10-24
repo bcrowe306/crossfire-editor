@@ -73,6 +73,8 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			for n, i in c.names do if n == v do return Timeline_View{op = .Clip_Chosen, index = i}
 			return {}
 		}, id = skald.hash_id("timeline-clip"), width = 130)))
+		// The clip drags into code by its grip (code_drag.odin)
+		append(&toolbar, CodeDrag_Handle(ctx, s, "timeline-clip-drag", DropSource{kind = .Clip, name = clip.name, node = index, index = -1}))
 	}
 	append(&toolbar, button(ctx, "timeline-add-clip", fmt.tprintf("%s  Clip", ICON_PLUS), Msg(Timeline_Changed{op = .Clip_Added})))
 	if clip != nil {

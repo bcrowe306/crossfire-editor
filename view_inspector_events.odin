@@ -50,10 +50,17 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 	width := inspectorRowWidth(controlWidth)
 	shown := make([dynamic]int, context.temp_allocator)
 	// One event: its name (the description on hover), Listen..., its listeners
-	event :: proc(ctx: ^skald.Ctx(Msg), s: ^State, rows: ^[dynamic]skald.View, shown: ^[dynamic]int, node: ^NodeDef, ev: e.NodeEventInfo, global, label, key: string, listen: Msg, width: f32) {
+	// The name drags into code (a subscription, its subject: code_drops.odin): key
+	// inspector-event-drag-<...> beside Listen...'s inspector-event-listen-<...>
+	event :: proc(ctx: ^skald.Ctx(Msg), s: ^State, rows: ^[dynamic]skald.View, shown: ^[dynamic]int, node: ^NodeDef, ev: e.NodeEventInfo, global, label, key: string, listen: Msg, width: f32, script := "") {
 		th := ctx.theme
+		name := tipLabel(ctx, Event_ShortName(ev.name), skald.text(label, th.color.fg_muted, th.font.size_sm, max_width = width - 70), ev.description)
+		if global == "" && s.codeTab > 0 {
+			dragKey, _ := strings.replace(key, "inspector-event-listen-", "inspector-event-drag-", 1, context.temp_allocator)
+			name = CodeDrag_Zone(ctx, s, name, dragKey, DropSource{kind = .Event, name = ev.name, node = s.selectedNode, index = -1, script = script, detail = ev.dataHint})
+		}
 		append(rows, skald.row(
-			tipLabel(ctx, Event_ShortName(ev.name), skald.text(label, th.color.fg_muted, th.font.size_sm, max_width = width - 70), ev.description),
+			name,
 			skald.flex(1, skald.spacer(0)),
 			skald.button(ctx, "Listen...", listen, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
 				padding = {th.spacing.sm, 1}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = listen == nil),
@@ -77,7 +84,7 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 		))
 		if ScriptCatalog_Find(&s.scripts, script) == nil do append(&rows, muted(ctx, fmt.tprintf("Build the scripts%s to see %s's events.", keyParen(s, .Build_Scripts), script), width))
 		for ev in scriptEvents {
-			event(ctx, s, &rows, &shown, node, ev, "", Event_ShortName(ev.name), fmt.tprintf("inspector-event-listen-%s", ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width)
+			event(ctx, s, &rows, &shown, node, ev, "", Event_ShortName(ev.name), fmt.tprintf("inspector-event-listen-%s", ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width, script)
 		}
 	}
 	// Its node type's and more scripts' events ("script.x" too: the game looks in each)
@@ -89,7 +96,7 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 			cross_align = .Center,
 		))
 		for ev in Script_Events(s, name) {
-			event(ctx, s, &rows, &shown, node, ev, "", Event_ShortName(ev.name), fmt.tprintf("inspector-event-listen-%s-%s", name, ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width)
+			event(ctx, s, &rows, &shown, node, ev, "", Event_ShortName(ev.name), fmt.tprintf("inspector-event-listen-%s-%s", name, ev.name), Msg(Listener_Dialog_Opened{s.selectedNode, ev.name}), width, name)
 		}
 	}
 	// The globals' events: this node's script listens (stored on this node)

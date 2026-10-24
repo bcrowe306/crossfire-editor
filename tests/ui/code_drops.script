@@ -1,0 +1,158 @@
+# Drops into code (code_drops.odin, code_drag.odin): editor things dragged onto a code tab become
+# a field in the struct, a statement in a procedure, the constant or expression on a call's
+# argument, the name in a string; Shift opens the menu of choices; the project still builds.
+# Sources: scene tree nodes, inspector property labels, events and group chips, an input action
+# (from Project Settings, which hides for the drag), the Animation panel's, the States tab's and
+# the Timeline's grips, the Mixer's, browser scenes and assets.
+# Run with: task test:ui (and the fullscreen and short runs)
+#
+# PlayScene's rows: World (0), Camera (1), Spaceship (2), ShipLight (3), ...; a top-level node
+# added with nothing selected is node 11
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+
+# A StateMachine (11) and an Animator (12) at the top level, before the code tab takes the keys
+key escape
+key ctrl+shift+a
+type StateMachine
+click_widget add-node-StateMachine
+expect kind StateMachine
+scroll_into_view inspector-scroll inspector-sm-edit-{selected}
+click_widget inspector-sm-edit-{selected}
+expect tab States
+scroll_into_view states-scroll states-add-param
+click_widget states-add-param
+key escape
+key ctrl+shift+a
+type Animator
+click_widget add-node-Animator
+expect kind Animator
+scroll_into_view inspector-scroll inspector-animator-timeline-{selected}
+click_widget inspector-animator-timeline-{selected}
+expect tab Timeline
+click_widget timeline-add-clip
+expect timeline clips 1
+
+# The input actions (Project Settings > Input's defaults)
+action Open_Project_Settings
+click_widget project-settings-tab-Input
+click_widget input-defaults
+click_widget project-settings-apply
+expect project_settings closed
+
+# Spaceship in a group, with a script in a code tab
+scroll_by scene-tree-scroll 0
+click_row scene-tree 2
+expect selected Spaceship
+scroll_into_view inspector-scroll inspector-Groups-2
+click_widget inspector-Groups-2
+type ships
+key RETURN
+# Its events shown (before the code tab: opened then, they're the same)
+scroll_into_view inspector-scroll inspector-events-toggle
+click_widget inspector-events-toggle
+scroll_into_view inspector-scroll inspector-event-listen-onExit
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Mover
+click_widget new-script-create
+expect code_tab mover.odin
+write_project_file scripts/mover.odin package scripts\n\nimport e "engine:."\n\nMover :: struct {\n\tusing script: e.Script,\n\tspeed: f32 `export:"default=100 min=0"`,\n}\n\n@(init)\nregister_Mover :: proc "contextless" () {\n\te.Script_Register(Mover, {\n\t\tready = proc(self: ^Mover) {\n\t\t\t// drops\n\t\t\t_ = e.Input_IsActionPressed(/**/)\n\t\t\t_ = e.Node_FindPath(self.node, "")\n\t\t},\n\t})\n}\n
+wait_until code_contains true // drops timeout=10
+# (New Script's build: the inspector's events section closes when it ends)
+wait_until scripts Ready timeout=240
+
+# A scene tree node in the struct: a node field, its path from Spaceship
+scroll_by scene-tree-scroll 0
+drag_row_to scene-tree 1 code-editor at_text using script: e.Script,
+wait_until code_contains true \tcamera: ^e.Camera2D `export:"default=../Camera"`,\n} timeout=5
+expect console_contains Added camera to Mover
+# Inside a string: the name (ShipLight's path from Spaceship)
+drag_row_to scene-tree 3 code-editor at_text ")
+wait_until code_contains true e.Node_FindPath(self.node, "ShipLight") timeout=5
+# (dragging the row selected ShipLight: Spaceship again for the inspector's labels)
+scroll_by scene-tree-scroll 0
+click_row scene-tree 2
+expect selected Spaceship
+
+# An input action dragged out of Project Settings onto the call's argument: its constant (the
+# dialog hides for the drag and comes back)
+action Open_Project_Settings
+click_widget project-settings-tab-Input
+drag_widget_to input-action-4 code-editor at_text /**/)
+wait_until code_contains true e.Input_IsActionPressed(ACTION_UI_ACCEPT/**/) timeout=5
+expect project_settings open
+click_widget project-settings-cancel
+expect project_settings closed
+
+# Inspector labels in the procedure: a property's setter, through the script's own node
+scroll_into_view inspector-scroll inspector-label-Position_X-2
+drag_widget_to inspector-label-Position_X-2 code-editor at_text // drops
+wait_until code_contains true \t\t\t// drops\n\t\t\tself.node.position.x = 0\n timeout=5
+# The script's own field
+scroll_into_view inspector-scroll inspector-label-speed-2
+drag_widget_to inspector-label-speed-2 code-editor at_text // drops
+wait_until code_contains true \t\t\tself.speed = 100\n timeout=5
+# An event: a subscription
+scroll_into_view inspector-scroll inspector-event-drag-onExit
+drag_widget_to inspector-event-drag-onExit code-editor at_text // drops
+wait_until code_contains true e.Event_Subscribe(&self.node.onExit, proc(_: ^e.EventSubject, source: rawptr, data: e.EventData, user: rawptr) { timeout=5
+expect code_contains true \t\t\t\tself := (^Mover)(user)\n
+# A group chip: the group's nodes
+scroll_into_view inspector-scroll inspector-group-ships-2
+drag_widget_to inspector-group-ships-2 code-editor at_text // drops
+wait_until code_contains true for node in e.Scene_GetGroup(self.scene, GROUP_SHIPS) { timeout=5
+
+# The Mixer's Master: its volume
+send Bottom_Tab Mixer
+drag_widget_to mixer-drag-0 code-editor at_text // drops
+wait_until code_contains true e.Audio_SetBusVolume(BUS_MASTER, 1) timeout=5
+# The Timeline's clip: played, the Animator reached through a new field
+send Bottom_Tab Timeline
+drag_widget_to timeline-clip-drag code-editor at_text // drops
+wait_until code_contains true e.Animator_Play(self.animator, "clip") timeout=5
+expect code_contains true animator: ^e.Animator `export:"default=../../Animator"`,
+# The States tab's parameter: set (a Float)
+send Bottom_Tab States
+scroll_into_view states-scroll states-param-drag-0
+drag_widget_to states-param-drag-0 code-editor at_text // drops
+wait_until code_contains true e.StateMachine_SetFloat(self.stateMachine, PARAM_PLAY_SCENE_STATE_MACHINE_PARAM, 0) timeout=5
+# The selected state with Shift: the menu (its preview), the second choice picked with the keys
+scroll_into_view states-scroll states-graph
+click_state 0
+scroll_into_view states-scroll states-drag
+drag_widget_to states-drag code-editor at_text // drops shift
+wait_until code_state code_actions.visible true timeout=5
+expect code_state code_actions.titles 2
+expect code_contains false STATE_PLAY_SCENE_STATE_MACHINE_IDLE
+key DOWN
+key RETURN
+wait_until code_contains true if e.StateMachine_Is(self.stateMachine, STATE_PLAY_SCENE_STATE_MACHINE_IDLE) { timeout=5
+expect console_contains Inserted if e.StateMachine_Is
+
+# The Animation panel's grip (ShipLight's animation): played on the sprite's new field
+scroll_by scene-tree-scroll 0
+click_row scene-tree 3
+expect selected ShipLight
+send Bottom_Tab Animation
+drag_widget_to animation-drag code-editor at_text // drops
+wait_until code_contains true e.AnimationPlayer_Play(&self.shipLight.animation, timeout=5
+expect code_contains true shipLight: ^e.AnimatedSprite `export:"default=ShipLight"`,
+# A scene in the browser (MenuScene): changed to
+scroll_by browser-scroll 0
+drag_row_to browser-tree 1 code-editor at_text // drops
+wait_until code_contains true e.Game_ChangeScene(self.game, SCENE_MENU_SCENE) timeout=5
+# An image: loaded
+drag_asset_to assets/ship code-editor at_text // drops
+wait_until code_contains true texture := e.Asset_Texture(self.game, TEXTURE_SHIP) timeout=5
+
+# One undo step per drop (the image), then everything saved and built
+click_widget code-editor
+wait_until code_focused true timeout=5
+key ctrl+z
+expect code_contains false TEXTURE_SHIP
+key ctrl+s
+expect code_dirty false
+wait_until scripts Ready timeout=240

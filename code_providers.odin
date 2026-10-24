@@ -28,9 +28,10 @@ every tab (`CodeProviders_Registry`):
   listens to, those; a click opens the one, or a menu of them (script_links.odin)
 - **Find Usages and Rename** of registered types, their exported fields and events
   (script_links.odin, script_rename.odin)
-- **Drops:** a scene tree node or a browser asset dropped on a call's argument inserts its constant
-  (`PATH_...`, `TEXTURE_...`; a node without one: its path in quotes); anywhere else it adds a
-  field to the script struct, as before (`NodeField_Insert`, `AssetField_Insert`)
+- **Drops:** anything the editor drags onto a code tab (a node, a property, an animation, an
+  action, an asset...: a `DropSource`) becomes a field in a struct, a statement in a procedure,
+  the constant or expression on a call's argument, with a menu of alternatives on Shift
+  (code_drops.odin)
 
 The providers read the editor's State through `providerState`, set around every call into the
 code editor (`CodeProviders_Begin` / `_End`: the code view, a drop); outside those it's nil and
@@ -59,6 +60,8 @@ codeProviders: struct {
 	renameSymbol: ScriptSymbol,
 	renameKnown: bool,
 	rename: Maybe(Code_Rename_Requested),
+	// Why the last drop inserted nothing (owned)
+	dropProblem: string,
 }
 
 // The registry every code tab uses (registered on first use)
@@ -76,7 +79,7 @@ CodeProviders_Registry :: proc() -> ^ce.Provider_Registry {
 		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "script users", inlay = linkInlays})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Usages, name = "project usages", usages = linkUsages, on_open = linkUsageOpened})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Rename, name = "project renames", prepare_rename = linkPrepareRename, rename = linkRename})
-		ce.provider_register(&p.registry, ce.Provider{kind = .Drop, name = "scene nodes and assets", drop = projectDrop})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Drop, name = "editor things", drop = projectDrop})
 	}
 	return &p.registry
 }
@@ -114,6 +117,7 @@ CodeProviders_Shutdown :: proc() {
 	constantsFree()
 	delete(p.constants)
 	delete(p.notice)
+	delete(p.dropProblem)
 	delete(p.usageTargets)
 	symbolFree(&p.renameSymbol)
 	renameFree()
@@ -456,55 +460,33 @@ indexDiagnostics :: proc(doc: ce.Provider_Document, ctx: ce.Provider_Context, ou
 	}
 }
 
-// What the code editor is given when something is dropped on it (DropRequest.kind)
-CODE_DROP_NODE :: "node"
-CODE_DROP_ASSET :: "asset"
-
+// Something dropped on the code: what it becomes there (code_drops.odin)
 @(private="file")
 projectDrop :: proc(doc: ce.Provider_Document, pos: cebuf.Position, ctx: ce.Provider_Context, drop: ce.Drop_Request, out: ^ce.Drop_Result) -> bool {
 	state := codeProviders.state
-	if state == nil do return false
-	index := int(uintptr(drop.data))
-	onArgument := ctx.syntax.kind == .Call_Argument && !ctx.syntax.in_string
-	switch drop.kind {
-	case CODE_DROP_NODE:
-		scene := &state.project.scenes[state.currentScene]
-		if index < 0 || index >= len(scene.nodes) do return false
-		if onArgument {
-			path := constantPathOf(state, scene, index)
-			name := path
-			for c in CodeProviders_Constants(state) do if c.section == .Node_Paths && c.value == fmt.tprintf("%q", path) && c.target == (Scene_IsComponent(scene) ? ComponentName(scene.component) : scene.name) {
-				name = c.name
-				break
-			}
-			text := name == path ? fmt.tprintf("%q", path) : name
-			append(&out.edits, ce.Text_Edit{start = pos, end = pos, text = text})
-			out.message = fmt.aprintf("Inserted %s (%s)", text, path, allocator = ctx.allocator)
-			return true
-		}
-		message, _ := NodeField_Insert(state, index)
-		out.message = strings.clone(message, ctx.allocator)
-		return true
-	case CODE_DROP_ASSET:
-		if index < 0 || index >= len(state.project.assets) do return false
-		if onArgument {
-			asset := state.project.assets[index]
-			for c in CodeProviders_Constants(state) do if c.section == .Assets && c.target == asset.path {
-				append(&out.edits, ce.Text_Edit{start = pos, end = pos, text = c.name})
-				out.message = fmt.aprintf("Inserted %s (%s)", c.name, asset.path, allocator = ctx.allocator)
-				return true
-			}
-		}
-		message, _ := AssetField_Insert(state, index)
-		out.message = strings.clone(message, ctx.allocator)
-		return true
+	if state == nil || drop.kind != CODE_DROP_SOURCE || drop.data == nil do return false
+	src := (^DropSource)(drop.data)^
+	if !CodeDrops_Build(state, doc, pos, ctx.syntax, src, out, ctx.allocator) {
+		// Nothing to insert: the reason is still the host's to log
+		delete(codeProviders.dropProblem)
+		codeProviders.dropProblem = strings.clone(out.message)
+		return false
 	}
-	return false
+	return true
+}
+
+// Why the last drop inserted nothing, once ("" none; temp allocated)
+CodeProviders_TakeDropProblem :: proc() -> string {
+	p := &codeProviders
+	text := strings.clone(p.dropProblem, context.temp_allocator)
+	delete(p.dropProblem)
+	p.dropProblem = ""
+	return text
 }
 
 // A node's path as its PATH_ constant has it: from a component's root, or "/..." from a scene's top
-@(private="file")
-constantPathOf :: proc(state: ^State, scene: ^SceneDef, node: int) -> string {
+@(private)
+constantPathOf :: proc(scene: ^SceneDef, node: int) -> string {
 	if Scene_IsComponent(scene) {
 		parts := make([dynamic]string, context.temp_allocator)
 		for at := node; at >= 0 && scene.nodes[at].parent >= 0; at = scene.nodes[at].parent do inject_at(&parts, 0, scene.nodes[at].name)

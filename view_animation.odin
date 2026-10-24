@@ -152,6 +152,9 @@ animationPicker :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animat
 		for label, i in c.labels do if label == v do return Anim_Selected(i)
 		return {}
 	}, id = skald.hash_id("animation-select"), width = 150)
+	// The selected animation drags into code by its grip (code_drag.odin)
+	owner := src.node != nil ? s.selectedNode : -1
+	grip := CodeDrag_Handle(ctx, s, "animation-drag", DropSource{kind = .Animation, name = animation.name, node = owner, index = -1, detail = src.path})
 	tool :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, disabled := false) -> skald.View {
 		th := ctx.theme
 		button := skald.button(ctx, icon, msg, id = skald.hash_id(key), bg = th.color.bg, fg = th.color.fg_muted,
@@ -173,12 +176,12 @@ animationPicker :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animat
 	if src.readOnly {
 		// Aseprite's tags: which one, and that's all
 		groups := make([dynamic]skald.View, context.temp_allocator)
-		append(&groups, group(ctx, "", skald.text(ICON_FILM, th.color.fg_muted, th.font.size_sm), picker))
+		append(&groups, group(ctx, "", skald.text(ICON_FILM, th.color.fg_muted, th.font.size_sm), picker, grip))
 		return groups[:]
 	}
 	groups := make([dynamic]skald.View, context.temp_allocator)
 	append(&groups,
-		group(ctx, "", skald.text(ICON_FILM, th.color.fg_muted, th.font.size_sm), picker),
+		group(ctx, "", skald.text(ICON_FILM, th.color.fg_muted, th.font.size_sm), picker, grip),
 		group(ctx, "",
 			tool(ctx, "animation-add", ICON_PLUS, "New animation (every frame of this one's sheet)", Msg(Anim_Added{})),
 			tool(ctx, "animation-duplicate", ICON_COPY, "Duplicate this animation", Msg(Anim_Duplicated{})),

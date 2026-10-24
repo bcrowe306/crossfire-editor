@@ -350,6 +350,7 @@ switchProject :: proc(state: ^State, project: Project) {
 	state.rename = {}
 	state.treeDrag = {}
 	state.assetDrag = {}
+	CodeDrag_Clear(state)
 	// The new project's scripts haven't been built
 	ScriptCatalog_Clear(&state.scripts)
 	state.scripts.status = .Unknown

@@ -130,6 +130,8 @@ host: struct {
 	uploadedSize: [2]int,
 	// The code editor had keyboard focus last frame (Tab gives it back)
 	hadFocus: bool,
+	// Something was dropped on it: it takes the keyboard next frame (its menu's keys)
+	focusNext: bool,
 	// The editor holding the shared language server client (nil: none started)
 	server: ^CodeEditor,
 	// Language servers started (one per project's first file: tests check they're shared)
@@ -585,26 +587,32 @@ CodeEditor_WindowPoint :: proc(path: string, line, column: int, marker := false)
 	if c == nil || host.lastShown != c || host.shownScale <= 0 do return {}, false
 	x, y := ce.editor_position_to_screen(&c.ed, {line, column})
 	if marker do x = c.ed.origin_x + ce.editor_gutter_width(&c.ed) - ce.GUTTER_MARKER_SPACE / 2 - 2
-	// The middle of the cell (or row)
-	x += marker ? 0 : c.ed.char_w / 2
+	// A quarter into the cell (the position before it, whether the code editor rounds or cuts),
+	// the middle of the row
+	x += marker ? 0 : c.ed.char_w / 4
 	y += c.ed.char_h / 2
 	return {host.shownRect.x + x / host.shownScale, host.shownRect.y + y / host.shownScale}, true
 }
 
 /*
-Scrolls the shown code tab so a line (0-based) is in view, in the middle when it wasn't (the
-caret stays), for the test driver's drops.
+Scrolls the shown code tab so a position (0-based line, byte column) is in view: the line in the
+middle when it wasn't, the column too when it's past the view's width (a narrow tab), the caret
+staying where it is. For the test driver's drops.
 
 Returns:
 - Whether it scrolled (the next frames show it), and whether the file is open
 */
-CodeEditor_RevealLine :: proc(path: string, line: int) -> (scrolled, ok: bool) {
+CodeEditor_RevealLine :: proc(path: string, line: int, column := 0) -> (scrolled, ok: bool) {
 	c := CodeEditor_Find(path)
 	if c == nil do return false, false
 	rows := max(1, ce.editor_text_rows(&c.ed))
-	if line >= c.ed.scroll_line && line < c.ed.scroll_line + rows && c.ed.scroll_col == 0 do return false, true
+	cols := max(1, c.ed.visible_cols)
+	vcol := ce.editor_visual_col(&c.ed, {line, column})
+	// The column with a few cells after it, from the line's start when that fits
+	wantCol := vcol + 4 < cols ? 0 : vcol - cols / 2
+	if line >= c.ed.scroll_line && line < c.ed.scroll_line + rows && c.ed.scroll_col == wantCol do return false, true
 	c.ed.scroll_line = max(0, line - rows / 2)
-	c.ed.scroll_col = 0
+	c.ed.scroll_col = wantCol
 	ce.editor_clamp_scroll(&c.ed)
 	return true, true
 }
@@ -633,15 +641,16 @@ CodeEditor_Buffer :: proc(path: string, wantText := false) -> (text: string, ver
 /*
 Something dropped on the shown code tab at a window point: the code editor works out where it
 landed (a struct, a procedure, a call's argument) and the providers decide what goes there
-(code_providers.odin's projectDrop).
+(code_drops.odin). The code editor takes the keyboard, so a menu's keys reach it.
 
 Inputs:
-- kind: CODE_DROP_NODE (index: a node of the current scene) or CODE_DROP_ASSET (an asset)
+- source: What was dropped (its panel's description)
+- menu: List the choices with a preview instead of doing the plain drop (Shift held)
 
 Returns:
-- What happened, for the Console, and whether a provider took it
+- What happened, for the Console ("" when a menu opened), and whether a provider took it
 */
-CodeEditor_Drop :: proc(state: ^State, path: string, mouse: [2]f32, kind: string, index: int) -> (message: string, handled: bool) {
+CodeEditor_Drop :: proc(state: ^State, path: string, mouse: [2]f32, source: DropSource, menu := false) -> (message: string, handled: bool) {
 	c := CodeEditor_Find(path)
 	if c == nil do return "No script is shown", false
 	scale := host.shownScale > 0 ? host.shownScale : 1
@@ -649,7 +658,14 @@ CodeEditor_Drop :: proc(state: ^State, path: string, mouse: [2]f32, kind: string
 	y := (mouse.y - host.shownRect.y) * scale
 	CodeProviders_Begin(state)
 	defer CodeProviders_End()
-	return ce.editor_drop(&c.ed, x, y, ce.Drop_Request{kind = kind, data = rawptr(uintptr(index))})
+	src := source
+	message, handled = ce.editor_drop(&c.ed, x, y, ce.Drop_Request{kind = CODE_DROP_SOURCE, data = &src, menu = menu})
+	if !handled {
+		if problem := CodeProviders_TakeDropProblem(); problem != "" do message = problem
+	}
+	host.focusNext = true
+	c.renderKey = 0
+	return
 }
 
 // Asks the language server for completions at the caret again (the popup shows the answer)
@@ -764,9 +780,10 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	popupOpen := len(ctx.widgets.overlay_rects_prev) > 0 || ctx.widgets.modal_rect_prev.w > 0
 	mouse := ctx.input.mouse_pos
 	over := rect.w > 0 && mouse.x >= rect.x && mouse.y >= rect.y && mouse.x < rect.x + rect.w && mouse.y < rect.y + rect.h && !popupOpen
-	if ctx.input.mouse_pressed[.Left] && over && !focused {
+	if ctx.input.mouse_pressed[.Left] && over && !focused || host.focusNext {
 		skald.widget_focus(ctx, id)
 		focused = true
+		host.focusNext = false
 	}
 	if focused do ctx.widgets.wants_text_input = true
 
@@ -835,6 +852,8 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	if c.ed.lsp_enabled && c.ed.lsp_doc_open do c.openedIn = serverProcess(c)
 	// What the providers left: a usage to open (a marker, Find Usages), a rename's project side
 	linksSend(ctx)
+	// A drop's menu picked from: what it wrote, for the Console
+	if message := ce.editor_take_drop_message(&c.ed); message != "" do skald.send(ctx, Msg(Code_Drop_Chosen{message}))
 	// The language server's rename changed other files: their tabs apply them
 	if others := ce.editor_take_file_edits(&c.ed); len(others) > 0 {
 		paths := make([dynamic]string, context.temp_allocator)

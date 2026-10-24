@@ -837,6 +837,7 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 		clear(&s.selection)
 		s.viewport.drag = {}
 		s.treeDrag = {}
+		CodeDrag_Clear(s)
 		command.mergeKey = 0
 		append(to, command)
 		return command.label, true
@@ -869,6 +870,7 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	clear(&s.selection)
 	s.viewport.drag = {}
 	s.treeDrag = {}
+	CodeDrag_Clear(s)
 	// A merge must not extend a command that was undone and redone
 	command.mergeKey = 0
 	append(to, command)

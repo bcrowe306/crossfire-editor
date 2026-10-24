@@ -191,15 +191,19 @@ Tree_Drag_Dropped :: struct {
 }
 // Released anywhere else
 Tree_Drag_Cancelled :: struct {}
-// A browser asset released over the code tab: a field of its handle type goes into the script (asset_fields.odin)
+// A browser asset released over the code tab: what it becomes depends on where (code_drops.odin)
 Asset_Dropped_On_Code :: struct {
 	// Where it was dropped (window coordinates)
 	mouse: [2]f32,
+	// Shift was held: the drop's choices in a menu (code_drops.odin)
+	menu: bool,
 }
-// Released over the code tab: a node field for the dragged node goes into its script (node_fields.odin)
+// Released over the code tab: what the node becomes depends on where (code_drops.odin)
 Tree_Drag_Dropped_On_Code :: struct {
 	// Where it was dropped (window coordinates)
 	mouse: [2]f32,
+	// Shift was held: the drop's choices in a menu (code_drops.odin)
+	menu: bool,
 }
 
 // Scene management in the project browser (project_scenes.odin)
@@ -991,6 +995,11 @@ Msg :: union {
 	Tree_Drag_Dropped,
 	Tree_Drag_Cancelled,
 	Tree_Drag_Dropped_On_Code,
+	Code_Drag_Pressed,
+	Code_Drag_Started,
+	Code_Drag_Cancelled,
+	Code_Source_Dropped,
+	Code_Drop_Chosen,
 	Component_Close_Chosen,
 	Asset_Dropped_On_Code,
 	Confirm_Chosen,

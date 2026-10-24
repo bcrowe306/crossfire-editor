@@ -66,6 +66,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		componentCloseDialogView(&state, ctx),
 		aboutDialogView(&state, ctx),
 		gitDiscardDialog(&state, ctx),
+		// A drag into code: its label, its drop (code_drag.odin)
+		CodeDrag_View(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)

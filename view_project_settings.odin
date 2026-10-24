@@ -31,6 +31,8 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
 	// Embedded: the Settings dialog's Project tab shows it (ProjectSettings_TabsView)
 	if !s.projectSettings.open || s.projectSettings.embedded do return closedDialog(ctx, "project-settings-dialog")
+	// An action dragged into code: hidden meanwhile, so the code tab under it takes the drop
+	if CodeDrag_HidesDialogs(s) do return closedDialog(ctx, "project-settings-dialog")
 	th := ctx.theme
 	d := &s.projectSettings
 	content: skald.View = skald.View_Spacer{size = 0}
@@ -355,6 +357,8 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	list := make([dynamic]skald.View, context.temp_allocator)
 	for a, i in d.actions {
 		shown := i == d.selectedAction
+		// Dragged out of the dialog onto a code tab: the action in code (code_drag.odin)
+		CodeDrag_From(ctx, s, skald.hash_id(fmt.tprintf("input-action-%d", i)), DropSource{kind = .Action, name = a.name, node = -1, index = -1})
 		append(&list, skald.row(
 			skald.button(ctx, fmt.tprintf("%s  (%d)", a.name, len(a.bindings)), Msg(Input_Action_Selected(i)), id = skald.hash_id(fmt.tprintf("input-action-%d", i)),
 				bg = shown ? th.color.primary : th.color.bg, fg = shown ? th.color.on_primary : th.color.fg,

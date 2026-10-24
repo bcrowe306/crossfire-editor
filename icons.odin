@@ -7,6 +7,8 @@ import "gui:skald"
 ICON_FONT :: #load("assets/fonts/fa-solid-900.ttf", []byte)
 
 ICON_FILE        :: "\uf15b"
+// A grip: something dragged by it (code_drag.odin)
+ICON_GRIP        :: "\uf58e"
 ICON_FOLDER      :: "\uf07b"
 ICON_FOLDER_OPEN :: "\uf07c"
 ICON_SAVE        :: "\uf0c7"

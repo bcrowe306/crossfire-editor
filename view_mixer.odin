@@ -96,14 +96,16 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 	used := skald.tooltip(ctx, tiny(ctx, fmt.tprintf("%s %d", ICON_VOLUME, count), th.color.fg_muted),
 		fmt.tprintf("%d sound node%s on %s", count, count == 1 ? "" : "s", i == 0 ? e.MASTER_BUS : b.name),
 		id = skald.hash_id(fmt.tprintf("mixer-count-tip-%d", i)))
+	// The bus drags into code by its grip (code_drag.odin)
+	grip := CodeDrag_Handle(ctx, s, fmt.tprintf("mixer-drag-%d", i), DropSource{kind = .Bus, name = i == 0 ? e.MASTER_BUS : b.name, node = -1, index = -1})
 	if i > 0 {
 		remove := skald.button(ctx, ICON_TRASH, Msg(Bus_Removed(i)), id = skald.hash_id(fmt.tprintf("mixer-remove-%d", i)),
 			bg = th.color.surface, fg = th.color.fg_muted, padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
-		append(&rows, skald.row(used, skald.flex(1, skald.spacer(0)),
+		append(&rows, skald.row(used, skald.flex(1, skald.spacer(0)), grip,
 			skald.tooltip(ctx, remove, "Remove the bus (its sounds go to Master)", id = skald.hash_id(fmt.tprintf("mixer-remove-tip-%d", i))),
 			width = inner, cross_align = .Center))
 	} else {
-		append(&rows, skald.row(used, width = inner, cross_align = .Center))
+		append(&rows, skald.row(used, skald.flex(1, skald.spacer(0)), grip, width = inner, cross_align = .Center))
 	}
 	// Its effects: the inspector shows them (bus_effects_edit.odin)
 	fx := skald.button(ctx, b.effectCount > 0 ? fmt.tprintf("FX %d", b.effectCount) : "FX", Msg(Bus_Effects_Opened(i)), id = skald.hash_id(fmt.tprintf("mixer-fx-%d", i)),

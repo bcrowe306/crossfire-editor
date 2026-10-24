@@ -25,6 +25,8 @@ shortcut buttons `settings-key-<Action>-<slot>` (slot 0 or 1), `settings-reset-<
 settingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
 	if !s.settingsDialog.open do return closedDialog(ctx, "settings-dialog")
+	// An input action (its Project tab) dragged into code: hidden meanwhile (code_drag.odin)
+	if CodeDrag_HidesDialogs(s) do return closedDialog(ctx, "settings-dialog")
 	th := ctx.theme
 	dialog := &s.settingsDialog
 	if dialog.open && dialog.capture.active do captureKey(ctx)

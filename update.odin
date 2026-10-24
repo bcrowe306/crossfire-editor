@@ -117,6 +117,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := Plugins_Update(&out, m); handled do return out, command
 	if command, handled := ScriptIndex_Update(&out, m); handled do return out, command
 	if command, handled := CodeProviders_Update(&out, m); handled do return out, command
+	if command, handled := CodeDrag_Update(&out, m); handled do return out, command
 	if DialogueBoxEdit_Update(&out, m) do return out, {}
 	if LineEdit_Update(&out, m) do return out, {}
 	if command, handled := ShaderEdit_Update(&out, m); handled do return out, command
@@ -168,6 +169,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by ScriptIndex_Update above
 	case Code_Usage_Opened, Code_Rename_Requested, NameTable_Loaded:
 		// Handled by CodeProviders_Update above
+	case Code_Drag_Pressed, Code_Drag_Started, Code_Drag_Cancelled, Code_Source_Dropped, Code_Drop_Chosen:
+		// Handled by CodeDrag_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:
 		// Handled by AsepriteEdit_Update above
 	case TileMap_Setting_Changed:
@@ -579,9 +582,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Asset_Dropped_On_Code:
 		asset := out.assetDrag.asset
 		out.assetDrag = {}
-		// Where it lands decides what goes in: its constant on a call's argument, else a field
-		// (code_providers.odin)
-		message, added := CodeEditor_Drop(&out, CodeTabs_Active(&out), v.mouse, CODE_DROP_ASSET, asset)
+		// Where it lands decides what goes in (code_drops.odin)
+		message, added := CodeEditor_Drop(&out, CodeTabs_Active(&out), v.mouse, DropSource{kind = .Asset, node = -1, index = asset}, v.menu)
 		if message != "" do logLine(&out, added ? .Info : .Warning, strings.clone(message))
 	case Asset_Dropped:
 		asset := out.assetDrag.asset
@@ -940,9 +942,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Tree_Drag_Dropped_On_Code:
 		node := out.treeDrag.node
 		out.treeDrag = {}
-		// Where it lands decides what goes in: its path constant on a call's argument, else a
-		// node field (code_providers.odin)
-		message, added := CodeEditor_Drop(&out, CodeTabs_Active(&out), v.mouse, CODE_DROP_NODE, node)
+		// Where it lands decides what goes in (code_drops.odin)
+		scene := &out.project.scenes[out.currentScene]
+		name := node >= 0 && node < len(scene.nodes) ? scene.nodes[node].name : ""
+		message, added := CodeEditor_Drop(&out, CodeTabs_Active(&out), v.mouse, DropSource{kind = .Node, name = name, node = node, index = -1}, v.menu)
 		if message != "" do logLine(&out, added ? .Info : .Warning, strings.clone(message))
 	case Tree_Drag_Dropped:
 		scene := &out.project.scenes[out.currentScene]

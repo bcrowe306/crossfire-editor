@@ -271,13 +271,21 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 	overArea := mouse.x >= area.x && mouse.x < area.x + area.w && mouse.y >= area.y && mouse.y < area.y + area.h
 	row := int(math.floor((mouse.y - treeState.last_rect.y) / s.settings.rowHeight))
 
-	if ctx.input.mouse_pressed[.Left] && overArea && !skald.mouse_over_overlay(ctx) && row >= 0 && row < len(items) {
+	// (Not through a dialog over the browser: Project Settings' input actions drag from there)
+	if ctx.input.mouse_pressed[.Left] && overArea && !skald.mouse_over_overlay(ctx) && ctx.widgets.modal_rect_prev.w == 0 && row >= 0 && row < len(items) {
 		item := items[row]
 		// Images and components go into the viewport; every asset with a handle type into a code tab
 		handled := false
 		if item.kind == .Asset do _, handled = AssetField_Type(s.project.assets[item.index].kind)
-		if item.kind == .Asset && (handled || s.project.assets[item.index].kind == .LDtk) {
+		// While a code tab shows, any asset drags into the code (a dialogue, a theme: its path)
+		if item.kind == .Asset && (handled || s.project.assets[item.index].kind == .LDtk || s.codeTab > 0) {
 			skald.send(ctx, Msg(Asset_Drag_Pressed{asset = item.index, start = mouse}))
+		}
+		// A scene drags into the code (its constant, a change to it: code_drag.odin). Opening it
+		// would hide the code tab, so the press waits: released without a drag, it's the click
+		if item.kind == .Scene && s.codeTab > 0 && !s.codeDrag.pressed {
+			skald.send(ctx, Msg(Code_Drag_Pressed{source = DropSource{kind = .Scene, name = s.project.scenes[item.index].name, node = -1, index = item.index}, start = mouse, browserRow = row}))
+			ctx.input.mouse_pressed[.Left] = false
 		}
 		return none
 	}
@@ -286,7 +294,7 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 		world, overViewport := ViewportWorldAt(s, ctx, mouse)
 		codeArea := ctx.widgets.states[skald.hash_id("code-editor")].last_rect
 		if s.assetDrag.active && s.codeTab > 0 && pointIn(codeArea, mouse) {
-			skald.send(ctx, Msg(Asset_Dropped_On_Code{mouse}))
+			skald.send(ctx, Msg(Asset_Dropped_On_Code{mouse, .Shift in ctx.input.modifiers}))
 		} else if s.assetDrag.active && s.project.assets[s.assetDrag.asset].kind == .Image && AnimationPanel_TakesDrop(s, ctx, mouse) {
 			// An image on the Animation panel: the selected animation's sheet
 			skald.send(ctx, Msg(Anim_Sheet_Dropped{}))
@@ -311,12 +319,12 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 	kind := s.project.assets[s.assetDrag.asset].kind
 	hint := "drag into the viewport"
 	switch {
-	case s.codeTab > 0 && pointIn(codeArea, mouse): hint = "drop to add a field to the script"
+	case s.codeTab > 0 && pointIn(codeArea, mouse): hint = "drop into the code (Shift: choices)"
 	case overViewport && kind == .Component: hint = "drop to add an instance"
 	case overViewport && kind == .Image: hint = "drop to add a Sprite"
 	case overViewport && kind == .LDtk: hint = "drop to add the level"
 	case kind == .Image && AnimationPanel_TakesDrop(s, ctx, mouse): hint = "drop to make it the animation's sheet"
-	case kind != .Image && kind != .Component && kind != .LDtk: hint = "drag into a script's code tab"
+	case kind != .Image && kind != .Component && kind != .LDtk && kind != .Animation: hint = "drag into a script's code tab"
 	}
 	return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
 		skald.col(
