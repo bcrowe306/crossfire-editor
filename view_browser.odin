@@ -298,6 +298,10 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 		} else if s.assetDrag.active && s.project.assets[s.assetDrag.asset].kind == .Image && AnimationPanel_TakesDrop(s, ctx, mouse) {
 			// An image on the Animation panel: the selected animation's sheet
 			skald.send(ctx, Msg(Anim_Sheet_Dropped{}))
+		} else if s.assetDrag.active && s.project.assets[s.assetDrag.asset].kind == .Image && slicerTakesDrop(s, ctx, mouse) {
+			// An image on the center tabs (or the slicer's sheet): it opens in the slicer
+			skald.send(ctx, Msg(Asset_Drag_Cancelled{}))
+			skald.send(ctx, Msg(Slicer_Opened(strings.clone(s.project.assets[s.assetDrag.asset].path, context.temp_allocator))))
 		} else if s.assetDrag.active && overViewport {
 			skald.send(ctx, Msg(Asset_Dropped{world = world}))
 		} else {
@@ -324,6 +328,7 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 	case overViewport && kind == .Image: hint = "drop to add a Sprite"
 	case overViewport && kind == .LDtk: hint = "drop to add the level"
 	case kind == .Image && AnimationPanel_TakesDrop(s, ctx, mouse): hint = "drop to make it the animation's sheet"
+	case kind == .Image && slicerTakesDrop(s, ctx, mouse): hint = "drop to slice it in the sprite sheet slicer"
 	case kind != .Image && kind != .Component && kind != .LDtk && kind != .Animation: hint = "drag into a script's code tab"
 	}
 	return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
@@ -636,4 +641,15 @@ translationPreview :: proc(ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) 
 		}
 	}
 	return skald.col(..lines[:], spacing = th.spacing.xs)
+}
+
+// Whether an image dragged from the browser drops into the sprite sheet slicer: over the center
+// panel's tab strip, or the slicer's sheet while its tab shows
+@(private="file")
+slicerTakesDrop :: proc(s: ^State, ctx: ^skald.Ctx(Msg), mouse: [2]f32) -> bool {
+	if s.mode != .Scene do return false
+	if tabs, drawn := ctx.widgets.states[skald.hash_id("center-tabs")]; drawn && pointIn(tabs.last_rect, mouse) do return true
+	if s.slicer.shown == 0 do return false
+	canvas, drawn := ctx.widgets.states[skald.hash_id("slicer-canvas")]
+	return drawn && pointIn(canvas.last_rect, mouse)
 }

@@ -109,9 +109,12 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			Mode_Set(&out, .Scene)
 		}
 	}
-	// Anything that opens another scene shows it (not a code tab), in its tab
+	// A code tab picked hides the slicer (slicer_edit.odin)
+	if out.codeTab > 0 && out.codeTab != state.codeTab do out.slicer.shown = 0
+	// Anything that opens another scene shows it (not a code tab, not the slicer), in its tab
 	if out.currentScene != state.currentScene {
 		out.codeTab = 0
+		out.slicer.shown = 0
 		if out.currentScene >= 0 && out.currentScene < len(out.project.scenes) do out.project.scenes[out.currentScene].tabClosed = false
 	}
 	// A structural edit renumbers nodes: the old multi-selection is meaningless unless the edit
@@ -190,6 +193,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	if command, handled := ProjectSettings_Update(out, m); handled do return command
 	if SceneSettings_Update(out, m) do return {}
 	if command, handled := AnimEdit_Update(out, m); handled do return command
+	if command, handled := Slicer_Update(out, m); handled do return command
 	if command, handled := CodeTabs_Update(out, m); handled do return command
 	if Mixer_Update(out, m) do return {}
 	if BusEffects_Update(out, m) do return {}
@@ -267,8 +271,11 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	case Anim_Selected, Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed,
 	     Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed, Anim_Asset_Shown, Anim_Set_From_Node, Anim_Set_New,
 	     Anim_Loop_Changed, Anim_Mode_Changed, Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Durations_Toggled, Anim_Duration_Changed, Anim_Playback_Toggled,
-	     Anim_Tick, Anim_Tick_Requested:
+	     Anim_Tick, Anim_Tick_Requested, Anim_Rects_Cleared:
 		// Handled by AnimEdit_Update above
+	case Slicer_Opened, Slicer_Tab_Selected, Slicer_Tab_Closed, Slicer_Changed, Slicer_Number_Changed, Slicer_Duration_Changed,
+	     Slicer_Detected, Slicer_Tick, Slicer_Tick_Requested, Slicer_Asset_Created, Slicer_Applied, Slicer_Added_To_Scene:
+		// Handled by Slicer_Update above
 	case Input_New_Name_Changed, Input_Action_Added, Input_Defaults_Added, Input_Action_Selected, Input_Action_Removed,
 	     Input_Action_Moved, Input_Action_Renamed, Input_Deadzone_Changed, Input_Binding_Added, Input_Binding_Removed,
 	     Input_Capture_Started, Input_Capture_Cancelled, Input_Device_Changed:
@@ -809,6 +816,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		if BottomTab(int(v)) == .Git do return Git_Refresh(out)
 	case Scene_Tab_Changed:
 		out.codeTab = 0
+		out.slicer.shown = 0
 		tabs := ViewportTabScenes(out)
 		if int(v) >= 0 && int(v) < len(tabs) do openScene(out, tabs[v])
 	case Scene_Tab_Closed:
@@ -1491,6 +1499,8 @@ handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 		return Script_Open(out, path, line)
 	case .Close_Code_Tab:
 		if out.codeTab > 0 do return skald.cmd_now(Msg(Code_Tab_Close_Requested(out.codeTab - 1)))
+		// The slicer's tab closes the same way
+		if out.slicer.shown > 0 do Slicer_Close(out, out.slicer.shown - 1)
 	case .Mode_Scene, .Mode_Level:
 		// Modes_Update switches (editor_modes.odin)
 	case .Open_Settings:

@@ -81,7 +81,9 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	canvasId := skald.hash_id("viewport-canvas")
 	scene := &s.project.scenes[s.currentScene]
-	// A code tab shows the built-in code editor instead (code_tabs.odin)
+	// A slicer tab shows the sprite sheet slicer (view_slicer.odin), a code tab the built-in code
+	// editor (code_tabs.odin)
+	if tab := Slicer_Shown(s); tab != nil do return slicerCenterView(s, ctx, tab)
 	if codePath := CodeTabs_Active(s); codePath != "" do return codeCenterView(s, ctx, codePath)
 	CodeEditor_DrainEvents()
 
@@ -184,7 +186,8 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 /*
 The center panel's tab strip: a tab per scene, then per open component (the one being edited
-always has one), then the code tabs. The scene tab is lit only while the scene shows.
+always has one), then the code tabs, then the slicer's. The scene tab is lit only while the scene
+shows.
 */
 @(private="file")
 centerTabs :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width: f32) -> skald.View {
@@ -199,7 +202,7 @@ centerTabs :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width: f32) -> skald.View {
 		dirty := Scene_IsDirty(s, index)
 		mark := dirty ? fmt.tprintf("%s ", ICON_CIRCLE) : ""
 		label := Scene_IsComponent(scene) ? fmt.tprintf("%s %s%s", ICON_CUBES, mark, scene.name) : fmt.tprintf("%s%s", mark, scene.name)
-		shown := index == s.currentScene && CodeTabs_Active(s) == ""
+		shown := index == s.currentScene && CodeTabs_Active(s) == "" && s.slicer.shown == 0
 		if shown do active = i
 		tip := Scene_IsComponent(scene) ? scene.component : fmt.tprintf("Scene %s", scene.name)
 		if dirty do tip = fmt.tprintf("%s (unsaved changes: Save%s)", tip, keyParen(s, .Save_Project))
@@ -207,11 +210,13 @@ centerTabs :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width: f32) -> skald.View {
 			Msg(Scene_Tab_Changed(i)), Msg(Scene_Tab_Closed(i)), fmt.tprintf("scene-tab-%d", i), closable, menu = Ctx_Scene_Tab(index)))
 	}
 	append(&views, ..CodeTabs_View(s, ctx))
+	append(&views, ..SlicerTabs_View(s, ctx))
 	strip := skald.row(..views[:], spacing = ctx.theme.spacing.xs, cross_align = .End)
 	// More tabs than fit scroll sideways (the wheel, or the bar under them); the tab that shows
 	// is scrolled into view when it changes (its close button, its right end)
 	shownKey := s.codeTab > 0 ? fmt.tprintf("code-tab-%d", s.codeTab - 1) : fmt.tprintf("scene-tab-%d", max(active, 0))
-	shown := skald.hash_id(closable || s.codeTab > 0 ? tabCloseKey(shownKey) : shownKey)
+	if s.slicer.shown > 0 do shownKey = fmt.tprintf("slicer-tab-%d", s.slicer.shown - 1)
+	shown := skald.hash_id(closable || s.codeTab > 0 || s.slicer.shown > 0 ? tabCloseKey(shownKey) : shownKey)
 	hScroll_Reveal(ctx, "center-tabs", shown)
 	// The bar is a thin line over the tabs' bottom: the header keeps its height either way
 	height := ctx.renderer != nil ? skald.view_size(ctx.renderer, strip).y : 30
@@ -223,7 +228,6 @@ The center panel's header: the tabs and, at the right, the view's buttons. When 
 leave the tabs less than `CENTER_TABS_MIN_WIDTH` (a narrow window), the tabs get a row of their
 own above the buttons.
 */
-@(private="file")
 centerHeader :: proc(s: ^State, ctx: ^skald.Ctx(Msg), buttons: skald.View) -> skald.View {
 	th := ctx.theme
 	room := tabsRoom(s, ctx, buttons)
@@ -326,7 +330,8 @@ layout).
 ViewportWorldAt :: proc(s: ^State, ctx: ^skald.Ctx(Msg), window: [2]f32) -> ([2]f32, bool) {
 	rect := lastRect(ctx, skald.hash_id("viewport-canvas"))
 	view := window - {rect.x + RULER_SIZE, rect.y + RULER_SIZE}
-	inside := rect.w > 0 && s.viewport.zoom > 0 && view.x >= 0 && view.y >= 0 && view.x < rect.w - RULER_SIZE && view.y < rect.h - RULER_SIZE
+	// The slicer's tab hides the viewport (its last rect stays in Skald's store)
+	inside := rect.w > 0 && s.viewport.zoom > 0 && s.slicer.shown == 0 && view.x >= 0 && view.y >= 0 && view.x < rect.w - RULER_SIZE && view.y < rect.h - RULER_SIZE
 	return Viewport_ViewToWorld(&s.viewport, view), inside
 }
 

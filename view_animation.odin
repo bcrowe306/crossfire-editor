@@ -2,9 +2,11 @@ package crossfire_editor
 
 import "core:fmt"
 import "core:path/filepath"
+import "core:slice"
 import "core:strings"
 import "gui:skald"
 import e "engine:."
+import sdl "vendor:sdl3"
 
 /*
 The Animation panel (the bottom panel's Animation tab): the animation editor for the selected
@@ -273,6 +275,22 @@ sheetSettings :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animatio
 	for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)
 	sheet := skald.select(ctx, animation.sheet == "" ? TEXTURE_NONE : animation.sheet, images[:], proc(v: string) -> Msg { return Anim_Sheet_Texture_Changed(v) },
 		id = skald.hash_id(fmt.tprintf("animation-sheet-%d", key)), width = 150, placeholder = "Choose an image")
+	// The sprite sheet slicer, on this sheet (slicer_edit.odin)
+	slice := skald.tooltip(ctx, skald.button(ctx, fmt.tprintf("%s  Slice a sheet…", ICON_SCISSORS), Msg(Slicer_Opened(strings.clone(animation.sheet, context.temp_allocator))),
+		id = skald.hash_id("animation-slice"), bg = th.color.bg, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs,
+		radius = th.radius.sm, disabled = animation.sheet == ""),
+		"Open the sheet in the sprite sheet slicer: cut it by a grid or find its sprites, pick frames, name animations", id = skald.hash_id("animation-slice-tip"))
+	if len(animation.rects) > 0 {
+		// A sliced sheet: its cells are rectangles (no grid to edit here)
+		append(&groups,
+			group(ctx, "Sheet", sheet),
+			skald.text(fmt.tprintf("%d frames sliced from the sheet (each its own rectangle)", len(animation.rects)), th.color.fg_muted, th.font.size_xs),
+			slice,
+			skald.button(ctx, "Use a grid instead", Msg(Anim_Rects_Cleared{}), id = skald.hash_id("animation-rects-clear"),
+				bg = th.color.bg, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+		)
+		return groups[:]
+	}
 	modes := make([]string, len(e.SheetGridMode), context.temp_allocator)
 	for mode in e.SheetGridMode do modes[mode] = fmt.tprintf("%v", mode)
 	gridMode := skald.select(ctx, fmt.tprintf("%v", animation.grid.mode), modes, proc(v: string) -> Msg { return Anim_Grid_Mode_Changed(v) },
@@ -297,8 +315,10 @@ sheetSettings :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animatio
 		values,
 		group(ctx, "Margin", number(ctx, s, key, .Margin, animation.grid.margin, 0, 1000)),
 		group(ctx, "Gap", number(ctx, s, key, .Spacing, animation.grid.spacing, 0, 1000)),
+		group(ctx, "Offset", number(ctx, s, key, .Offset_X, animation.grid.offset.x, 0, 4096), toolLabel(ctx, ","), number(ctx, s, key, .Offset_Y, animation.grid.offset.y, 0, 4096)),
 		skald.text(fmt.tprintf("%d frames", cells), th.color.fg_muted, th.font.size_xs),
 		derived,
+		slice,
 	)
 	if note != "" do append(&groups, skald.text(note, th.color.warning, th.font.size_xs))
 	if animation.sheet == "" do append(&groups, skald.text("Pick a sheet, or drag an image from the browser onto this panel.", th.color.warning, th.font.size_xs))
@@ -354,12 +374,13 @@ frameStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animation: 
 	Strip :: struct {
 		sheet: SheetImage,
 		grid: e.SheetGrid,
+		rects: []sdl.FRect,
 		cells, perRow, start, end, current: int,
 		lit, dim, edge, current_color, text, muted: skald.Color,
 		font: f32,
 	}
 	strip := new_clone(Strip{
-		sheet = sheet, grid = animation.grid, cells = cells, perRow = perRow, start = start, end = end,
+		sheet = sheet, grid = animation.grid, rects = slice.clone(animation.rects[:], context.temp_allocator), cells = cells, perRow = perRow, start = start, end = end,
 		current = s.animEditor.playing ? AnimationDef_FrameAt(animation, cells, s.animEditor.clock) : -1,
 		lit = th.color.primary, dim = th.color.surface, edge = th.color.border, current_color = th.color.fg,
 		text = th.color.fg, muted = th.color.fg_muted, font = th.font.size_xs,
@@ -371,7 +392,7 @@ frameStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animation: 
 			box := skald.Rect{x, y, THUMB_SIZE, THUMB_SIZE}
 			inRange := frame >= st.start && frame <= st.end
 			skald.draw_rect(p.r, box, st.dim, 3)
-			drawCell(p.r, st.sheet, st.grid, frame, box, inRange ? {1, 1, 1, 1} : {1, 1, 1, 0.35})
+			drawCell(p.r, st.sheet, st.grid, st.rects, frame, box, inRange ? {1, 1, 1, 1} : {1, 1, 1, 0.35})
 			ring(p.r, box, frame == st.current ? st.current_color : inRange ? st.lit : st.edge, frame == st.current || inRange ? 2 : 1)
 			caption := fmt.tprintf("%d", frame)
 			if frame == st.start && frame == st.end do caption = fmt.tprintf("%d  start·end", frame)
@@ -390,11 +411,11 @@ animationPreview :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, anima
 	start, end := AnimationDef_Range(animation, cells)
 	backwards := animation.playMode == .Reverse || animation.playMode == .PingPongReverse
 	frame := s.animEditor.playing ? AnimationDef_FrameAt(animation, cells, s.animEditor.clock) : (backwards ? end : start)
-	Preview :: struct { sheet: SheetImage, grid: e.SheetGrid, frame: int, bg, edge: skald.Color }
-	preview := new_clone(Preview{sheet, animation.grid, frame, th.color.surface, th.color.border}, context.temp_allocator)
+	Preview :: struct { sheet: SheetImage, grid: e.SheetGrid, rects: []sdl.FRect, frame: int, bg, edge: skald.Color }
+	preview := new_clone(Preview{sheet, animation.grid, slice.clone(animation.rects[:], context.temp_allocator), frame, th.color.surface, th.color.border}, context.temp_allocator)
 	canvas := skald.canvas(ctx, preview, proc(pv: ^Preview, p: skald.Canvas_Painter) {
 		skald.draw_rect(p.r, p.bounds, pv.bg, 4)
-		drawCell(p.r, pv.sheet, pv.grid, pv.frame, {p.bounds.x + 4, p.bounds.y + 4, p.bounds.w - 8, p.bounds.h - 8}, {1, 1, 1, 1})
+		drawCell(p.r, pv.sheet, pv.grid, pv.rects, pv.frame, {p.bounds.x + 4, p.bounds.y + 4, p.bounds.w - 8, p.bounds.h - 8}, {1, 1, 1, 1})
 		ring(p.r, p.bounds, pv.edge, 1)
 	}, id = skald.hash_id("animation-preview"), width = PREVIEW_SIZE, height = PREVIEW_SIZE)
 	playing := s.animEditor.playing
@@ -426,9 +447,8 @@ sheets: map[string]SheetImage
 
 /*
 An animation's sprite sheet as a Skald image, loaded (`Image_LoadRGBA`: stb_image, or the engine for
-Aseprite files) and uploaded the first time.
+Aseprite files) and uploaded the first time (the sprite sheet slicer's sheet too).
 */
-@(private="file")
 sheetImage :: proc(ctx: ^skald.Ctx(Msg), s: ^State, texture: string) -> SheetImage {
 	if texture == "" || ctx.renderer == nil do return {}
 	path := joinPath(s.project.rootPath, texture, allocator = context.temp_allocator)
@@ -479,11 +499,11 @@ AnimationPanel_SheetLoaded :: proc(s: ^State, texture: string) -> bool {
 	return false
 }
 
-// Draws one cell of a sheet into `box`, keeping its shape (centered)
+// Draws one cell of a sheet (its grid's, or its rectangle) into `box`, keeping its shape (centered)
 @(private="file")
-drawCell :: proc(r: ^skald.Renderer, sheet: SheetImage, grid: e.SheetGrid, frame: int, box: skald.Rect, tint: skald.Color) {
+drawCell :: proc(r: ^skald.Renderer, sheet: SheetImage, grid: e.SheetGrid, rects: []sdl.FRect, frame: int, box: skald.Rect, tint: skald.Color) {
 	if sheet.name == "" do return
-	cell := e.SheetGrid_CellRect(grid, sheet.size, frame)
+	cell := e.Sheet_CellRect(grid, rects, sheet.size, frame)
 	if cell.w <= 0 || cell.h <= 0 do return
 	scale := min(box.w / cell.w, box.h / cell.h)
 	shown := skald.Rect{box.x + (box.w - cell.w * scale) * 0.5, box.y + (box.h - cell.h * scale) * 0.5, cell.w * scale, cell.h * scale}

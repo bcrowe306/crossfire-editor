@@ -147,6 +147,8 @@ DocsPanel :: enum {
 	Code,
 	// The Level mode's world map and level panel (level_mode.odin)
 	Level,
+	// The sprite sheet slicer's tab (view_slicer.odin)
+	Slicer,
 }
 
 @(private)
@@ -156,7 +158,7 @@ docsPointerPanel: DocsPanel
 Notes which panel the pointer is over, from the panels' rects last frame (called by `view`, so
 F1's `.User_Manual` knows where it was pressed).
 */
-Docs_TrackPointer :: proc(ctx: ^skald.Ctx(Msg), mode := EditorMode.Scene) {
+Docs_TrackPointer :: proc(ctx: ^skald.Ctx(Msg), mode := EditorMode.Scene, slicer := false) {
 	p := ctx.input.mouse_pos
 	inside :: proc(ctx: ^skald.Ctx(Msg), key: string, p: [2]f32) -> bool {
 		st, ok := ctx.widgets.states[skald.hash_id(key)]
@@ -178,6 +180,8 @@ Docs_TrackPointer :: proc(ctx: ^skald.Ctx(Msg), mode := EditorMode.Scene) {
 		return
 	}
 	switch {
+	// The slicer's tab hides the viewport and the code (whose rects stay in Skald's store)
+	case slicer && (inside(ctx, "slicer-canvas", p) || inside(ctx, "slicer-scroll", p)): docsPointerPanel = .Slicer
 	case inside(ctx, "code-editor", p):       docsPointerPanel = .Code
 	case inside(ctx, "viewport-canvas", p):   docsPointerPanel = .Viewport
 	case inside(ctx, "scene-tree-scroll", p): docsPointerPanel = .Scene_Tree
@@ -214,6 +218,8 @@ Docs_HelpAddress :: proc(state: ^State, panel: DocsPanel) -> string {
 		return Docs_ManualAddress(DOCS_BOTTOM_TAB_PAGES[Mode_BottomTab(state)])
 	case .Level:
 		return Docs_ManualAddress(EDITOR_MODES[.Level].manual)
+	case .Slicer:
+		return Docs_ManualAddress(DOCS_SLICER_PAGE)
 	case .Browser:
 		if address := Docs_BrowserAddress(state); address != "" do return address
 		return Docs_ManualAddress(DOCS_BROWSER_PAGE)

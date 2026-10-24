@@ -235,8 +235,16 @@ imageImportRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, index: int) -> skald.Vi
 	previewAsset = index
 	effective := asset.filter != .Default ? asset.filter : s.project.textureFilter
 	if effective == .Default do effective = e.Aseprite_IsFile(asset.path) ? .Pixel : .Smooth
+	// The sprite sheet slicer, on this image (slicer_edit.odin)
+	slice := skald.button(ctx, fmt.tprintf("%s  Slice Sprite Sheet…", ICON_SCISSORS), Msg(Slicer_Opened(strings.clone(asset.path, context.temp_allocator))),
+		id = skald.hash_id("browser-slice"), bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+	// Beside the Filtering label, not on a line of its own: a short browser keeps room for the picture
 	return skald.col(
-		skald.text("Filtering", th.color.fg, th.font.size_xs),
+		skald.row(
+			skald.text("Filtering", th.color.fg, th.font.size_xs),
+			skald.flex(1, skald.spacer(0)),
+			skald.tooltip(ctx, slice, "Cut it into frames (by a grid, or by finding its sprites) and name animations from them", id = skald.hash_id("browser-slice-tip")),
+			spacing = th.spacing.xs, cross_align = .Center, width = previewTextWidth),
 		textureFilterSelect(ctx, asset.filter, "asset-filter", false, on),
 		skald.text(effective == .Pixel ? "Drawn with hard square pixels when scaled or turned." : "Drawn smoothly when scaled or turned.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
 		spacing = th.spacing.xs,

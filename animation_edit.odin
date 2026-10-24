@@ -61,8 +61,9 @@ AnimEdit_Selection :: proc(s: ^State) -> (src: AnimSource, animation: ^Animation
 }
 
 /*
-How many cells an animation's sheet has: its grid on the image (`e.SheetGrid_CellCount`; a grid of
-cell sizes needs the image's size, `Image_Size`, read once per file time).
+How many cells an animation's sheet has: its rectangles (a sliced sheet), else its grid on the
+image (`e.Sheet_CellCount`; a grid of cell sizes needs the image's size, `Image_Size`, read once
+per file time).
 
 Inputs:
 - root: The project folder
@@ -72,7 +73,8 @@ Returns:
 - The cells (at least 1)
 */
 AnimEdit_Cells :: proc(root: string, animation: AnimationDef) -> int {
-	return e.SheetGrid_CellCount(animation.grid, AnimEdit_SheetSize(root, animation.sheet))
+	if len(animation.rects) > 0 do return len(animation.rects)
+	return e.Sheet_CellCount(animation.grid, nil, AnimEdit_SheetSize(root, animation.sheet))
 }
 
 // An animation's sheet's size in pixels (0 when it has none or it can't be read)
@@ -188,7 +190,7 @@ AnimEdit_IsEdit :: proc(m: Msg) -> bool {
 	#partial switch v in m {
 	case Anim_Added, Anim_Duplicated, Anim_Removed, Anim_Moved, Anim_Name_Typed, Anim_Field_Changed, Anim_Loop_Changed, Anim_Mode_Changed,
 	     Anim_Autoplay_Set, Anim_Frame_Clicked, Anim_Sheet_Texture_Changed, Anim_Sheet_Dropped, Anim_Grid_Mode_Changed,
-	     Anim_Durations_Toggled, Anim_Duration_Changed:
+	     Anim_Durations_Toggled, Anim_Duration_Changed, Anim_Rects_Cleared:
 		return true
 	case Number_Text_Changed:
 		_, isAnim := v.target.(AnimField)
@@ -323,6 +325,11 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		animation.sheet = strings.clone(dropped)
 		logLine(s, .Info, fmt.aprintf("%s plays on %s now", animation.name, filepath.base(dropped)))
 		restart(ed)
+	case Anim_Rects_Cleared:
+		// Back to the grid (the rectangles go; the range is kept within the grid's cells)
+		if animation == nil || len(animation.rects) == 0 do break
+		clear(&animation.rects)
+		restart(ed)
 	case Anim_Grid_Mode_Changed:
 		// The other mode's values from the image, so the cells stay where they are
 		if animation == nil do break
@@ -351,6 +358,8 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		case .Cell_Height: grid.cellSize.y = clamp(f32(int(v.value)), 1, 4096)
 		case .Margin:      grid.margin = clamp(f32(v.value), 0, 1000)
 		case .Spacing:     grid.spacing = clamp(f32(v.value), 0, 1000)
+		case .Offset_X:    grid.offset.x = clamp(f32(int(v.value)), 0, 4096)
+		case .Offset_Y:    grid.offset.y = clamp(f32(int(v.value)), 0, 4096)
 		case:              gridChanged = false
 		}
 		if gridChanged do break
@@ -522,6 +531,7 @@ Returns:
 - The note (temp allocated), or ""
 */
 AnimEdit_SheetNote :: proc(root: string, animation: AnimationDef) -> string {
+	if len(animation.rects) > 0 do return ""
 	size := AnimEdit_SheetSize(root, animation.sheet)
 	if left := e.SheetGrid_Leftover(animation.grid, size); left.x >= 1 || left.y >= 1 {
 		parts := make([dynamic]string, context.temp_allocator)

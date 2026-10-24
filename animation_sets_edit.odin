@@ -6,6 +6,7 @@ import "core:path/filepath"
 import "core:strings"
 import "gui:skald"
 import e "engine:."
+import sdl "vendor:sdl3"
 
 /*
 Animation assets in the editor (the engine's animation_sets.odin plays them): named animations, each
@@ -17,7 +18,8 @@ on its own sheet, that AnimatedSprite nodes share (`NodeDef.animationSet`, the s
   resources), edited in the Animation panel; an **Aseprite file** (an Image asset) is one too, read
   only: its tags are the animations (`AsepriteEdit_AnimationSet`), edited in Aseprite.
 - **Undo:** edits to a set are `.Project` steps (the snapshot holds every set, by file); making or
-  removing one touches files and isn't undone, like data resources.
+  removing one touches files and isn't undone, like data resources, except the sprite sheet
+  slicer's (`stepMade`: in memory until Save, so undo takes it out of the project again).
 - **The Animation panel** edits an `AnimSource`: the selected AnimatedSprite's own animations, the
   set it uses, or the set chosen in the browser (`AnimEditor.asset`).
 */
@@ -35,6 +37,9 @@ AnimationSetDef :: struct {
 	autoplay: string,
 	// Its animations (owned)
 	animations: [dynamic]AnimationDef,
+	// Made by an undoable step (the sprite sheet slicer's Create animation asset): undo and redo
+	// take it out of the project and back (history.odin); not saved
+	stepMade: bool,
 }
 
 // A copy of an animation (owning its strings and lists)
@@ -42,6 +47,8 @@ AnimationDef_Clone :: proc(a: AnimationDef) -> AnimationDef {
 	copy := a
 	copy.name = strings.clone(a.name)
 	copy.sheet = strings.clone(a.sheet)
+	copy.rects = make([dynamic]sdl.FRect, 0, len(a.rects))
+	append(&copy.rects, ..a.rects[:])
 	copy.durations = make([dynamic]f32, 0, len(a.durations))
 	append(&copy.durations, ..a.durations[:])
 	copy.events = make([dynamic]string, 0, len(a.events))
@@ -53,6 +60,7 @@ AnimationDef_Clone :: proc(a: AnimationDef) -> AnimationDef {
 AnimationDef_Destroy :: proc(a: ^AnimationDef) {
 	delete(a.name)
 	delete(a.sheet)
+	delete(a.rects)
 	delete(a.durations)
 	for event in a.events do delete(event)
 	delete(a.events)
@@ -60,8 +68,9 @@ AnimationDef_Destroy :: proc(a: ^AnimationDef) {
 
 // Whether two animations are the same
 AnimationDef_Equal :: proc(a, b: AnimationDef) -> bool {
-	if a.name != b.name || a.sheet != b.sheet || a.grid != b.grid || a.start != b.start || a.end != b.end || a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || a.repeat != b.repeat || len(a.durations) != len(b.durations) do return false
+	if a.name != b.name || a.sheet != b.sheet || a.grid != b.grid || a.start != b.start || a.end != b.end || a.fps != b.fps || a.loop != b.loop || a.playMode != b.playMode || a.repeat != b.repeat || len(a.durations) != len(b.durations) || len(a.rects) != len(b.rects) do return false
 	for d, i in a.durations do if d != b.durations[i] do return false
+	for r, i in a.rects do if r != b.rects[i] do return false
 	if len(a.events) != len(b.events) do return false
 	for event, i in a.events do if event != b.events[i] do return false
 	return true
@@ -70,6 +79,8 @@ AnimationDef_Equal :: proc(a, b: AnimationDef) -> bool {
 // An engine animation as the editor's (owned)
 AnimationDef_FromData :: proc(a: e.AnimationData) -> AnimationDef {
 	def := AnimationDef{name = strings.clone(a.name), sheet = strings.clone(a.sheet), grid = a.grid, start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, repeat = a.repeat}
+	def.rects = make([dynamic]sdl.FRect, 0, len(a.rects))
+	append(&def.rects, ..a.rects[:])
 	def.durations = make([dynamic]f32, 0, len(a.durations))
 	append(&def.durations, ..a.durations[:])
 	def.events = make([dynamic]string, 0, len(a.events))
@@ -79,7 +90,7 @@ AnimationDef_FromData :: proc(a: e.AnimationData) -> AnimationDef {
 
 // The editor's animation as the engine's (its name, sheet and lists borrowed)
 AnimationDef_ToData :: proc(a: AnimationDef) -> e.AnimationData {
-	return {name = a.name, sheet = a.sheet, grid = a.grid, start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, durations = a.durations, repeat = a.repeat, events = a.events}
+	return {name = a.name, sheet = a.sheet, grid = a.grid, rects = a.rects, start = a.start, end = a.end, fps = a.fps, loop = a.loop, playMode = a.playMode, durations = a.durations, repeat = a.repeat, events = a.events}
 }
 
 // A copy of a set (owning everything)
@@ -161,11 +172,12 @@ Inputs:
 - project: The project
 - name: Its name (the file's)
 - from: What it starts with (its path is ignored)
+- write: Write its file now (false: Save writes it, as it writes edited sets)
 
 Returns:
 - Its index in `project.animationSets`, or -1 and why
 */
-Project_CreateAnimationSet :: proc(project: ^Project, name: string, from: AnimationSetDef) -> (int, string) {
+Project_CreateAnimationSet :: proc(project: ^Project, name: string, from: AnimationSetDef, write := true) -> (int, string) {
 	base := strings.to_lower(sanitize(strings.trim_space(name)), context.temp_allocator)
 	if base == "" do base = "animations"
 	taken :: proc(project: ^Project, path: string) -> bool {
@@ -178,11 +190,13 @@ Project_CreateAnimationSet :: proc(project: ^Project, name: string, from: Animat
 	delete(set.path)
 	set.path = strings.clone(path)
 	if len(set.animations) == 0 do append(&set.animations, AnimationDef_Default())
-	full := joinPath(project.rootPath, path, allocator = context.temp_allocator)
-	_ = os.make_directory_all(filepath.dir(full))
-	if err := os.write_entire_file(full, AnimationSetToXML(&set, context.temp_allocator)); err != nil {
-		AnimationSetDef_Destroy(&set)
-		return -1, fmt.tprintf("Couldn't write %s: %v", path, err)
+	if write {
+		full := joinPath(project.rootPath, path, allocator = context.temp_allocator)
+		_ = os.make_directory_all(filepath.dir(full))
+		if err := os.write_entire_file(full, AnimationSetToXML(&set, context.temp_allocator)); err != nil {
+			AnimationSetDef_Destroy(&set)
+			return -1, fmt.tprintf("Couldn't write %s: %v", path, err)
+		}
 	}
 	append(&project.assets, AssetDef{path = strings.clone(path), kind = .Animation})
 	append(&project.animationSets, set)

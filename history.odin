@@ -253,6 +253,16 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	#partial switch v in m {
 	case Anim_Set_From_Node:
 		if hasSelection do return node(selected, fmt.tprintf("Save the animations of %s as an asset", name))
+	// The sprite sheet slicer's outputs (slicer_edit.odin); its own settings aren't undo steps
+	case Slicer_Asset_Created:
+		if tab := Slicer_Shown(s); tab != nil {
+			if Slicer_AssetIndex(s, tab) >= 0 do return {scope = .Project, label = fmt.tprintf("Update %s from %s", filepath.base(tab.settings.asset), filepath.base(tab.image))}
+			return {scope = .Project, label = fmt.tprintf("Make an animation asset from %s", filepath.base(tab.image))}
+		}
+	case Slicer_Applied:
+		if tab := Slicer_Shown(s); tab != nil && Slicer_TargetSprite(s) != nil do return node(selected, fmt.tprintf("Give %s the animations of %s", name, filepath.base(tab.image)))
+	case Slicer_Added_To_Scene:
+		if tab := Slicer_Shown(s); tab != nil do return {scope = .Scene, label = fmt.tprintf("Add an AnimatedSprite of %s", filepath.base(tab.image))}
 	case Code_Scrub_Write:
 		// A scrubbed value written to a node's own value (the code's default is the code tab's undo)
 		if v.kind == .Node_Value && v.scene >= 0 && v.scene < len(s.project.scenes) && v.node >= 0 && v.node < len(s.project.scenes[v.scene].nodes) {
@@ -1321,10 +1331,30 @@ restoreProjectSnapshot :: proc(s: ^State, snapshot: ^ProjectSnapshot) {
 		DataDef_Destroy(&p.data[i])
 		p.data[i] = DataDef_Clone(d)
 	}
-	// Animation assets by file, the same way
+	// Animation assets by file, the same way; the ones an undoable step made (the sprite sheet
+	// slicer's: `stepMade`) come and go with it, their asset entries too
+	#reverse for &set, i in p.animationSets {
+		if !set.stepMade do continue
+		kept := false
+		for had in snapshot.animationSets do if had.path == set.path do kept = true
+		if kept do continue
+		for asset, a in p.assets do if asset.path == set.path {
+			delete(asset.path)
+			ordered_remove(&p.assets, a)
+			break
+		}
+		AnimationSetDef_Destroy(&set)
+		ordered_remove(&p.animationSets, i)
+	}
 	for set in snapshot.animationSets {
 		i := Project_FindAnimationSet(p, set.path)
-		if i < 0 do continue
+		if i < 0 {
+			if set.stepMade {
+				append(&p.animationSets, AnimationSetDef_Clone(set))
+				append(&p.assets, AssetDef{path = strings.clone(set.path), kind = .Animation})
+			}
+			continue
+		}
 		AnimationSetDef_Destroy(&p.animationSets[i])
 		p.animationSets[i] = AnimationSetDef_Clone(set)
 	}

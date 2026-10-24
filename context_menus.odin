@@ -27,6 +27,7 @@ menu bar do the same thing), then `Context_Menu_Closed`.
 	Ctx_Browser       the browser's row (selected first): per scene, asset kind, script, folder
 	Ctx_Scene_Tab     a scene tab: play, set as start, show in the browser, close (others, right)
 	Ctx_Code_Tab      a code tab: save, close (others, saved), copy path, show in the browser
+	Ctx_Slicer_Tab    a sprite sheet slicer's tab: close, show the image in the browser, its file
 	Ctx_Log           a Console or Output line: go to the error it names, copy it, copy all
 	                  shown, hide or show only its category, show everything, clear
 	Ctx_Log_Categories  the Console's (Output's) category button: every category seen, checked
@@ -46,6 +47,7 @@ ContextTarget :: union {
 	Ctx_Browser,
 	Ctx_Scene_Tab,
 	Ctx_Code_Tab,
+	Ctx_Slicer_Tab,
 	Ctx_Log,
 	Ctx_Log_Categories,
 	Ctx_Graph,
@@ -99,6 +101,9 @@ Ctx_Scene_Tab :: distinct int
 
 // A code tab (0-based)
 Ctx_Code_Tab :: distinct int
+
+// A sprite sheet slicer's tab (0-based: slicer_edit.odin)
+Ctx_Slicer_Tab :: distinct int
 
 // A line of the Console (or the Output tab), by its serial number (`LogList.serial` + its index,
 // so lines dropped meanwhile don't shift it); -1: below the lines
@@ -262,6 +267,8 @@ ContextMenu_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 			}
 		case Ctx_Code_Tab:
 			if int(t) < 0 || int(t) >= len(state.codeTabs) do state.contextMenu.open = false
+		case Ctx_Slicer_Tab:
+			if int(t) < 0 || int(t) >= len(state.slicer.tabs) do state.contextMenu.open = false
 		case Ctx_Scene_Tab:
 			if int(t) < 0 || int(t) >= len(state.project.scenes) do state.contextMenu.open = false
 		}
@@ -369,6 +376,7 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 	case Ctx_Browser:   browserItems(s, &items)
 	case Ctx_Scene_Tab: sceneTabItems(s, &items, int(t))
 	case Ctx_Code_Tab:  codeTabItems(s, &items, int(t))
+	case Ctx_Slicer_Tab: slicerTabItems(s, &items, int(t))
 	case Ctx_Log:       logItems(s, &items, t)
 	case Ctx_Log_Categories: logCategoryItems(s, &items, t)
 	case Ctx_Graph:     ContextMenu_PanelItems(s, &items, t)
@@ -436,6 +444,8 @@ contextDocsAddress :: proc(s: ^State) -> string {
 		return Docs_ManualAddress(DOCS_SCENE_PAGE)
 	case Ctx_Code_Tab:
 		return Docs_ManualAddress(DOCS_CODE_PAGE)
+	case Ctx_Slicer_Tab:
+		return Docs_ManualAddress(DOCS_SLICER_PAGE)
 	case Ctx_Graph:
 		tab: BottomTab
 		switch t.graph {
@@ -680,7 +690,9 @@ assetItems :: proc(s: ^State, items: ^MenuItems, index: int) {
 			MENU_SEPARATOR,
 			msgItem("New Component", Msg(Component_New{})))
 	case .Image:
-		append(items, msgItem("Add to Scene as a Sprite", Msg(Asset_Add_To_Scene(index))))
+		append(items,
+			msgItem("Add to Scene as a Sprite", Msg(Asset_Add_To_Scene(index))),
+			msgItem("Slice Sprite Sheet…", Msg(Slicer_Opened(strings.clone(asset.path, context.temp_allocator)))))
 		if e.Aseprite_IsFile(asset.path) {
 			append(items,
 				msgItem("Open in Aseprite", Msg(Aseprite_Asset_Open_Requested(index))),
@@ -812,6 +824,22 @@ codeTabItems :: proc(s: ^State, items: ^MenuItems, index: int) {
 		msgItem("Close All", Msg(Tab_Command{.Close_All, index, true})),
 		MENU_SEPARATOR)
 	fileItems(items, path)
+}
+
+// A slicer tab's items: show it, close it, its image in the browser and on disk
+@(private="file")
+slicerTabItems :: proc(s: ^State, items: ^MenuItems, index: int) {
+	if index < 0 || index >= len(s.slicer.tabs) do return
+	image := s.slicer.tabs[index].image
+	asset := -1
+	for a, i in s.project.assets do if a.path == image do asset = i
+	append(items,
+		msgItem("Show", Msg(Slicer_Tab_Selected(index))),
+		msgItem("Close", Msg(Slicer_Tab_Closed(index))),
+		MENU_SEPARATOR,
+		msgItem("Add to Scene as a Sprite", Msg(Asset_Add_To_Scene(asset)), disabled = asset < 0),
+		MENU_SEPARATOR)
+	fileItems(items, projectFilePath(s, image))
 }
 
 @(private="file")

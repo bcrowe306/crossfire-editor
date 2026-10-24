@@ -522,17 +522,24 @@ writeAnimation :: proc(w: ^XMLWriter, a: AnimationDef) {
 	open(w, "animation")
 	attr(w, "name", a.name)
 	if a.sheet != "" do attr(w, "sheet", a.sheet)
-	switch a.grid.mode {
-	case .Cells:
-		attr(w, "columns", max(a.grid.columns, 1))
-		attr(w, "rows", max(a.grid.rows, 1))
-	case .Size:
-		attr(w, "grid", a.grid.mode)
-		attr(w, "cellWidth", a.grid.cellSize.x)
-		attr(w, "cellHeight", a.grid.cellSize.y)
+	if len(a.rects) > 0 {
+		// A sheet of uneven sprites: its cells are rectangles (the grid isn't used)
+		attr(w, "rects", e.FormatSheetRects(a.rects[:], context.temp_allocator))
+	} else {
+		switch a.grid.mode {
+		case .Cells:
+			attr(w, "columns", max(a.grid.columns, 1))
+			attr(w, "rows", max(a.grid.rows, 1))
+		case .Size:
+			attr(w, "grid", a.grid.mode)
+			attr(w, "cellWidth", a.grid.cellSize.x)
+			attr(w, "cellHeight", a.grid.cellSize.y)
+		}
+		if a.grid.margin != 0 do attr(w, "margin", a.grid.margin)
+		if a.grid.spacing != 0 do attr(w, "spacing", a.grid.spacing)
+		if a.grid.offset.x != 0 do attr(w, "offsetX", a.grid.offset.x)
+		if a.grid.offset.y != 0 do attr(w, "offsetY", a.grid.offset.y)
 	}
-	if a.grid.margin != 0 do attr(w, "margin", a.grid.margin)
-	if a.grid.spacing != 0 do attr(w, "spacing", a.grid.spacing)
 	attr(w, "start", a.start)
 	attr(w, "end", a.end)
 	attr(w, "fps", a.fps)

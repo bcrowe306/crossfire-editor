@@ -520,6 +520,9 @@ AnimationDef :: struct {
 	sheet: string,
 	// How the sheet is cut into cells: columns x rows, or cells of a size (the engine's)
 	grid: e.SheetGrid,
+	// The sheet's cells as rectangles instead of the grid's (a sheet of uneven sprites, from the
+	// sprite sheet slicer; owned); empty: the grid's cells
+	rects: [dynamic]sdl.FRect,
 	start: int,
 	end: int,
 	fps: f32,

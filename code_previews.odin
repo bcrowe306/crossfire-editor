@@ -462,8 +462,8 @@ addAnimationStrip :: proc(out: ^ce.Hover_Content, state: ^State, a: AnimationDef
 		return
 	}
 	full := joinPath(state.project.rootPath, a.sheet, allocator = context.temp_allocator)
-	Key :: struct { grid: e.SheetGrid, start, end: int }
-	k := Key{a.grid, a.start, a.end}
+	Key :: struct { grid: e.SheetGrid, start, end: int, rects: u64 }
+	k := Key{a.grid, a.start, a.end, len(a.rects) > 0 ? hash.fnv64a(slice.to_bytes(a.rects[:])) : 0}
 	key := fmt.tprintf("%s|%s|%x|%s", owner, a.name, hash.fnv64a(([^]u8)(&k)[:size_of(k)]), fileKey("sheet", strings.trim_suffix(full, e.ASEPRITE_SHEET_SUFFIX)))
 	p, ok := cacheGet(key)
 	if !ok {
@@ -473,12 +473,12 @@ addAnimationStrip :: proc(out: ^ce.Hover_Content, state: ^State, a: AnimationDef
 			return
 		}
 		size := [2]f32{f32(w), f32(h)}
-		cells := e.SheetGrid_CellCount(a.grid, size)
+		cells := e.Sheet_CellCount(a.grid, a.rects[:], size)
 		start, end := AnimationDef_Range(a, cells)
 		count := cells > 0 ? end - start + 1 : 0
 		frames := make([dynamic]FrameCell, context.temp_allocator)
 		for i in 0 ..< min(count, PREVIEW_STRIP_FRAMES) {
-			cell := e.SheetGrid_CellRect(a.grid, size, start + i)
+			cell := e.Sheet_CellRect(a.grid, a.rects[:], size, start + i)
 			append(&frames, FrameCell{int(cell.x), int(cell.y), int(cell.w), int(cell.h)})
 		}
 		strip, sw, sh := Preview_Strip(pixels, w, h, frames[:], PREVIEW_FRAME)

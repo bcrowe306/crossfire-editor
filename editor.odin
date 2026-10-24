@@ -248,6 +248,8 @@ State :: struct {
 	docs: DocsWindow,
 	// The Animation panel (view_animation.odin)
 	animEditor: AnimEditor,
+	// The sprite sheet slicer's tabs (slicer_edit.odin)
+	slicer: SlicerState,
 	// The Tiles panel: the brush, tool and layer painted (tile_paint.odin)
 	tilePainter: TilePainter,
 	// The Timeline tab: the Animator it edits, the playhead (timeline_edit.odin)
@@ -525,6 +527,7 @@ State_Destroy :: proc(state: ^State) {
 	ProjectSettings_Destroy(&state.projectSettings)
 	delete(state.animEditor.nameText)
 	delete(state.animEditor.asset)
+	SlicerState_Destroy(&state.slicer)
 	Editor_ForgetProcesses()
 	delete(state.numberEdit.text)
 	delete(state.session.newProject.name)

@@ -48,6 +48,8 @@ ICON_IMAGE       :: "\uf03e"
 ICON_MUSIC       :: "\uf001"
 ICON_FONT_GLYPH  :: "\uf031"
 ICON_FILM        :: "\uf008"
+// The sprite sheet slicer (slicer_edit.odin)
+ICON_SCISSORS    :: "\uf0c4"
 ICON_CHEVRON_DOWN :: "\uf078"
 ICON_CHEVRON_UP  :: "\uf077"
 ICON_CUBE        :: "\uf1b2"

@@ -349,6 +349,8 @@ switchProject :: proc(state: ^State, project: Project) {
 	state.browserSelection = {kind = .None}
 	// The Particles tab's emitter was the old project's
 	state.particles.shown = false
+	// So were the slicer's images
+	SlicerState_Destroy(&state.slicer)
 	state.viewport.drag = {}
 	// Fit the new game area on the next measure
 	state.viewport.zoom = 0

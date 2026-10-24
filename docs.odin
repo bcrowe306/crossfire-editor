@@ -417,6 +417,7 @@ DOCS_VIEWPORT_PAGE   :: "scenes_and_nodes#the-viewport"
 DOCS_SCENE_TREE_PAGE :: "scenes_and_nodes#the-scene-tree"
 DOCS_INSPECTOR_PAGE  :: "scenes_and_nodes#every-nodes-settings"
 DOCS_BROWSER_PAGE    :: "projects"
+DOCS_SLICER_PAGE     :: "sprite_slicer"
 
 // An asset kind's page (temp allocated)
 Docs_AssetKindAddress :: proc(kind: AssetKind) -> string {

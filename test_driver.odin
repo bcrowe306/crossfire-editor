@@ -83,6 +83,8 @@ copy: `open_project {project}`).
 	drag_timeline_key <track> <key> <seconds>
 	                                 Drag a key of the Timeline's clip to a time
 	click_frame <n> [shift | right]  Click thumbnail n of the Animation panel's frames (right: its menu)
+	click_cell <n> [shift | ctrl]    Click cell n of the sprite sheet slicer's sheet (in view)
+	click_slicer_frame <n>           Click frame n of the slicer's shown animation (its frame strip)
 	click_overlay_item <i>           Click button i (top to bottom) of the open popup, e.g. a
 	                                 dropdown's choices after click_widget opened it
 	drag_widget <key> <fx0> <fy0> <fx1> <fy1> [shift] [middle | right]
@@ -225,6 +227,10 @@ Checks:
 	components <count>           Components in the project
 	anim_source <None | Node | Set path | Aseprite path>
 	                             What the Animation panel shows
+	slicer <shown | tabs | mode | grid | cells | picked | found | detecting | animations |
+	        animation | frames | fps | loop | durations | asset | use_asset | zoom> <value>
+	                             The sprite sheet slicer's shown tab (shown: its image or none;
+	                             picked and frames: cells apart by spaces, "none" for none)
 	animation_set <path | none>  The selected AnimatedSprite's animation asset
 	animation_sets <n>           The project's animation assets (.anim.xml)
 	kind <NodeKind | none>       The selected node's kind
@@ -1113,6 +1119,35 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		for i in 1..=4 do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / 4))
 		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b, button))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "click_cell":
+		// A cell of the slicer's sheet, at its middle (Shift or Ctrl held)
+		tab := Slicer_Shown(s)
+		state, ok := ctx.widgets.states[skald.hash_id("slicer-canvas")]
+		if tab == nil || !ok || state.last_rect.w <= 0 {
+			fail(fmt.tprintf("%s: the slicer's sheet wasn't drawn last frame", line))
+			return true
+		}
+		local, inView := Slicer_CellCenter(s, tab, atoi(args, 0, 0))
+		if !inView {
+			fail(fmt.tprintf("%s: the cell isn't in view", line))
+			return true
+		}
+		mods, _ := clickModifiers(args, 1)
+		click({state.last_rect.x + local.x, state.last_rect.y + local.y}, mods)
+		report(true, line)
+		return false
+
+	case "click_slicer_frame":
+		state, ok := ctx.widgets.states[skald.hash_id("slicer-frames")]
+		if !ok || state.last_rect.w <= 0 {
+			fail(fmt.tprintf("%s: the slicer's frames weren't drawn last frame", line))
+			return true
+		}
+		offset := Slicer_FrameStripCenter(atoi(args, 0, 0), state.last_rect.w)
+		click({state.last_rect.x + offset.x, state.last_rect.y + offset.y})
 		report(true, line)
 		return false
 
@@ -3236,6 +3271,47 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		src := AnimEdit_Source(s)
 		if src.kind == .None do return false, "no animations shown"
 		found = fmt.tprint(len(src.animations^))
+	case "slicer":
+		tab := Slicer_Shown(s)
+		field, _, expected := strings.partition(value, " ")
+		if field == "shown" {
+			found = tab != nil ? tab.image : "none"
+			return found == strings.trim_space(expected), found
+		}
+		if field == "tabs" {
+			found = fmt.tprint(len(s.slicer.tabs))
+			return found == strings.trim_space(expected), found
+		}
+		if tab == nil do return false, "no slicer tab shows"
+		ints :: proc(list: []int) -> string {
+			if len(list) == 0 do return "none"
+			parts := make([dynamic]string, context.temp_allocator)
+			for n in list do append(&parts, fmt.tprint(n))
+			return strings.join(parts[:], " ", context.temp_allocator)
+		}
+		a := Slicer_Animation(tab)
+		switch field {
+		case "mode":       found = fmt.tprint(tab.settings.mode)
+		case "grid":       found = fmt.tprintf("%v %dx%d %vx%v", tab.settings.grid.mode, tab.settings.grid.columns, tab.settings.grid.rows, tab.settings.grid.cellSize.x, tab.settings.grid.cellSize.y)
+		case "cells":      found = fmt.tprint(Slicer_CellCount(&tab.settings, Slicer_SheetSize(s, tab)))
+		case "picked":     found = ints(tab.selection[:])
+		case "found":      found = fmt.tprint(len(tab.settings.found))
+		case "detecting":  found = fmt.tprint(tab.detecting)
+		case "animations": found = fmt.tprint(len(tab.settings.animations))
+		case "animation":  found = a != nil ? a.name : "none"
+		case "frames":     found = a != nil ? ints(a.frames[:]) : "none"
+		case "fps":        found = a != nil ? fmt.tprint(a.fps) : "none"
+		case "loop":       found = a != nil ? fmt.tprint(a.loop) : "none"
+		case "durations":
+			ms := make([dynamic]int, context.temp_allocator)
+			if a != nil do for d in a.durations do append(&ms, int(d * 1000 + 0.5))
+			found = ints(ms[:])
+		case "asset":      found = tab.settings.asset != "" ? tab.settings.asset : "none"
+		case "use_asset":  found = fmt.tprint(s.slicer.useAsset)
+		case "zoom":       found = fmt.tprintf("%.2f", tab.zoom)
+		case: return false, fmt.tprintf("unknown slicer field '%s'", field)
+		}
+		return found == strings.trim_space(expected), found
 	case "anim_source":
 		src := AnimEdit_Source(s)
 		found = src.path == "" ? fmt.tprint(src.kind) : fmt.tprintf("%v %s", src.kind, src.path)

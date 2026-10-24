@@ -783,6 +783,9 @@ AnimField :: enum {
 	// Pixels around the grid and between cells
 	Margin,
 	Spacing,
+	// Where the grid starts: pixels from the sheet's left and top
+	Offset_X,
+	Offset_Y,
 	// Times a non-looping animation plays (0 or 1: once)
 	Repeat,
 }
@@ -800,6 +803,8 @@ Anim_Sheet_Texture_Changed :: distinct string
 Anim_Sheet_Dropped :: struct {}
 // How the selected animation's sheet is cut: an `e.SheetGridMode` by name (Cells, Size)
 Anim_Grid_Mode_Changed :: distinct string
+// The selected animation's sheet is cut by its grid again, not the rectangles the slicer gave it
+Anim_Rects_Cleared :: struct {}
 // The browser shows an animation asset in the Animation panel (its path; "": the selected sprite's)
 Anim_Asset_Shown :: distinct string
 // The inspector's Save as Animation Asset: the selected sprite's own animations become an asset it uses
@@ -1351,6 +1356,20 @@ Msg :: union {
 	Anim_Playback_Toggled,
 	Anim_Tick,
 	Anim_Tick_Requested,
+	Anim_Rects_Cleared,
+	// The sprite sheet slicer (slicer_edit.odin)
+	Slicer_Opened,
+	Slicer_Tab_Selected,
+	Slicer_Tab_Closed,
+	Slicer_Changed,
+	Slicer_Number_Changed,
+	Slicer_Duration_Changed,
+	Slicer_Detected,
+	Slicer_Tick,
+	Slicer_Tick_Requested,
+	Slicer_Asset_Created,
+	Slicer_Applied,
+	Slicer_Added_To_Scene,
 	Particle_Field_Changed,
 	Particle_Axis_Changed,
 	Particle_Link_Toggled,

@@ -53,6 +53,9 @@ NumberTarget :: union {
 	AtlasPaddingTarget,
 	// A number of an LDtk project (the Level mode's LDtk tab: ldtk_ops.odin)
 	LDtkNumberTarget,
+	// The sprite sheet slicer's numbers and frame times (slicer_edit.odin)
+	SlicerNumber,
+	SlicerDurationTarget,
 }
 
 // An LDtk tab's number: the edit it makes, its `number` the field's value (strings: the frame's)
@@ -220,6 +223,8 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case CameraNumber: return Camera_Changed{field = CameraField(t), value = f32(value)}
 	case TraceNumber: return Trace_Setting_Changed{field = TraceField(t), value = f32(value)}
 	case AtlasPaddingTarget: return Atlas_Padding_Changed(int(value))
+	case SlicerNumber: return Slicer_Number_Changed{t, value}
+	case SlicerDurationTarget: return Slicer_Duration_Changed{int(t), value}
 	case LDtkNumberTarget:
 		edit := t.edit
 		edit.number = value

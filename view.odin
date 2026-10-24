@@ -43,9 +43,10 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	Branding_SetWindowIcon()
 	Git_View_Tick(&state, ctx)
 	// Where F1 (Help > User Manual) is pressed: the docs window opens at that panel's page
-	Docs_TrackPointer(ctx, state.mode)
-	// The viewport is the Scene mode's (its last rect stays in Skald's store while another mode shows)
-	KeymapDispatch(ctx, &state.settings.keymap, state.mode == .Scene && ViewportHovered(ctx), dialogOpen = keysTaken,
+	Docs_TrackPointer(ctx, state.mode, state.slicer.shown > 0)
+	// The viewport is the Scene mode's (its last rect stays in Skald's store while another mode, or
+	// the slicer's tab, shows)
+	KeymapDispatch(ctx, &state.settings.keymap, state.mode == .Scene && state.slicer.shown == 0 && ViewportHovered(ctx), dialogOpen = keysTaken,
 		mode = state.mode, browserFocused = state.browserFocused)
 
 	// The right-click menu, built first so it takes its clicks before the widgets under it

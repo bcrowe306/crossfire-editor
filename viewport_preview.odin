@@ -905,7 +905,7 @@ sceneSignature :: proc(s: ^State, scene: ^SceneDef) -> u64 {
 		fmt.sbprintf(&b, "|%s|%s|%s|%v|%s|%s", node.asepriteLayers, node.pivotSlice, node.nineSlice, node.nineSize, node.slice, node.region)
 		// Its animations, each with its own sheet and grid
 		for a in node.animations {
-			fmt.sbprintf(&b, "|%s %s %v %d %d %v %v %v %d %v", a.name, a.sheet, a.grid, a.start, a.end, a.fps, a.loop, a.playMode, a.repeat, a.durations[:])
+			fmt.sbprintf(&b, "|%s %s %v %v %d %d %v %v %v %d %v", a.name, a.sheet, a.grid, a.rects[:], a.start, a.end, a.fps, a.loop, a.playMode, a.repeat, a.durations[:])
 		}
 		// An animation asset: what it holds (an Aseprite file's: its time)
 		if node.animationSet != "" {

@@ -1,0 +1,160 @@
+# The sprite sheet slicer: opened from an image's preview, a grid, frames picked (a run, then out
+# of order, then reordered), two named animations, an animation asset made (undone, redone),
+# applied to a sprite (undone; then as its own animations), added to the scene (undone), its
+# sprites auto-detected, the Animation panel's link back, a narrow center panel, saved, closed.
+# Run with: task test:ui
+#
+# PlayScene's rows: World, Camera, Spaceship, ShipLight, Props, Balloon (node 5, a 4x1 sheet)
+
+wait 5
+# From the image's preview in the browser
+select_asset assets/balloons.png
+scroll_into_view browser-scroll browser-slice
+click_widget browser-slice
+expect slicer shown assets/balloons.png
+expect slicer tabs 1
+expect widget_visible slicer-canvas true
+# Its × closes it; the image's right-click menu opens it again
+click_widget slicer-tab-close-0
+expect slicer tabs 0
+right_click_asset assets/balloons.png
+click_context_item Slice Sprite Sheet
+expect slicer shown assets/balloons.png
+
+# A grid of 4 columns
+scroll_into_view slicer-scroll slicer-Columns
+click_widget slicer-Columns
+key ctrl+a
+type 4
+expect slicer cells 4
+expect slicer grid Cells 4x1 0x0
+
+# A run: a click, then Shift+click its last
+click_cell 0
+click_cell 2 shift
+expect slicer picked 0 1 2
+scroll_into_view slicer-scroll slicer-add
+click_widget slicer-add
+expect slicer animations 1
+scroll_into_view slicer-scroll slicer-name
+click_widget slicer-name
+key ctrl+a
+type float
+expect slicer animation float
+scroll_into_view slicer-scroll slicer-FPS
+click_widget slicer-FPS
+key ctrl+a
+type 12
+expect slicer fps 12
+
+# Out of order: a click, then Ctrl+click another
+click_cell 3
+click_cell 1 ctrl
+expect slicer picked 3 1
+scroll_into_view slicer-scroll slicer-add
+click_widget slicer-add
+scroll_into_view slicer-scroll slicer-name
+click_widget slicer-name
+key ctrl+a
+type pop
+expect slicer animation pop
+expect slicer frames 3 1
+# Frame times, and the second frame moved first (its time with it)
+scroll_into_view slicer-scroll slicer-durations
+click_widget slicer-durations
+expect slicer durations 125 125
+scroll_into_view slicer-scroll slicer-frames
+click_slicer_frame 1
+scroll_into_view slicer-scroll slicer-frame-earlier
+click_widget slicer-frame-earlier
+expect slicer frames 1 3
+# The preview plays
+scroll_into_view slicer-scroll slicer-play
+click_widget slicer-play
+wait 10
+click_widget slicer-play
+
+# Create animation asset: in the project, a project step
+scroll_into_view slicer-scroll slicer-create
+click_widget slicer-create
+expect animation_sets 1
+expect slicer asset animations/balloons.anim.xml
+action Undo
+expect animation_sets 0
+action Redo
+expect animation_sets 1
+
+# Apply to sprite: PlayScene's Balloon (opening the scene shows it; the slicer's tab shows again)
+send Scene_Tab_Changed 1
+expect scene PlayScene
+expect slicer shown none
+click_row scene-tree 5
+expect selected Balloon
+click_widget slicer-tab-0
+expect slicer shown assets/balloons.png
+scroll_into_view slicer-scroll slicer-apply
+click_widget slicer-apply
+expect animation_set animations/balloons.anim.xml
+action Undo
+expect animation_set none
+expect selected Balloon
+# Or as its own animations
+scroll_into_view slicer-scroll slicer-use-asset
+click_widget slicer-use-asset
+expect slicer use_asset false
+scroll_into_view slicer-scroll slicer-apply
+click_widget slicer-apply
+expect animation_set none
+expect animations 2
+
+# Add to scene: a new AnimatedSprite, selected; undone
+scroll_into_view slicer-scroll slicer-add-to-scene
+click_widget slicer-add-to-scene
+expect selected Balloons
+expect kind AnimatedSprite
+action Undo
+expect selected Balloon
+
+# Auto-detect: the four balloons
+scroll_into_view slicer-scroll slicer-mode
+click_widget slicer-mode
+wait 3
+click_overlay_item 1
+expect slicer mode Auto
+wait_until slicer found 4
+expect slicer cells 4
+click_cell 3
+expect slicer picked 3
+
+# The Animation panel's link: the sprite's sheet in the slicer (its tab already open)
+send Scene_Tab_Changed 1
+scroll_into_view inspector-scroll inspector-edit-animations-5
+click_widget inspector-edit-animations-5
+expect tab Animation
+scroll_into_view animation-scroll animation-slice
+click_widget animation-slice
+expect slicer shown assets/balloons.png
+expect slicer tabs 1
+
+# A narrow center panel: the controls go under the sheet and stay clear of the scrollbar
+send Right_Sidebar_Width 420
+wait 5
+scroll_into_view slicer-scroll slicer-apply
+expect in_window slicer-apply
+expect clear_of_scrollbar slicer-apply slicer-scroll
+expect widget_visible slicer-canvas true
+
+# Saved: the asset's file
+key ctrl+s
+wait_until project_file animations/balloons.anim.xml
+
+# Closed by Close Code Tab (Ctrl+W), as a code tab is; the tab's × closes it too (a wide window)
+action Close_Code_Tab
+expect slicer tabs 0
+expect slicer shown none
+
+# An image dragged from the browser onto the center tabs opens in the slicer
+select_asset assets/light.png
+drag_asset_to assets/light.png center-tabs
+expect slicer shown assets/light.png
+expect slicer tabs 1

@@ -94,9 +94,10 @@ Trace_Pieces :: proc(project: ^Project, scene: ^SceneDef, body, sprite: int, set
 	pixels, w, h, ok := Image_LoadRGBA(joinPath(project.rootPath, picture, allocator = context.temp_allocator))
 	if !ok do return nil, fmt.tprintf("Couldn't read %s", picture)
 	// An AnimatedSprite draws one cell of its sheet: the first animation's first, cut by its grid
+	// (or its rectangles: a sliced sheet)
 	if node.kind == .AnimatedSprite && len(node.animations) > 0 {
 		first := node.animations[0]
-		rect := e.SheetGrid_CellRect(first.grid, {f32(w), f32(h)}, max(first.start, 0))
+		rect := e.Sheet_CellRect(first.grid, first.rects[:], {f32(w), f32(h)}, max(first.start, 0))
 		cx, cy, cw, ch := int(rect.x), int(rect.y), int(rect.w), int(rect.h)
 		if cw <= 0 || ch <= 0 || cx < 0 || cy < 0 || cx + cw > w || cy + ch > h do return nil, "The sheet's grid doesn't fit the image"
 		crop := make([]u8, cw * ch * 4, context.temp_allocator)
