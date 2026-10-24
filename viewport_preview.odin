@@ -24,7 +24,9 @@ Skald image when `Preview_FrameKey` says the picture changed. Without SDL video 
 when no GPU renderer can be made, or with EDITOR_PREVIEW_SOFTWARE set, it draws with SDL's
 software renderer into a surface instead (slower: a whole forest level took about 38 ms; and it
 has had its own bugs, see the engine's LDtk tile drawing).
-The preview keeps SDL resources, so it lives here as package state, not in `State`:
+The preview keeps SDL resources, so it lives here as package state, not in `State`
+(thread-local: the editor uses it on its main thread only; unit tests on several threads each
+get their own, see `preview`):
 - The engine scene is rebuilt only when the scene's structure changes (node kinds, textures, text,
   animation settings...), detected with `sceneSignature`.
 - Transforms, visibility and layers are copied to the engine nodes every frame, so dragging is
@@ -78,7 +80,14 @@ Preview :: struct {
 	importKey: u64,
 }
 
-@(private="file")
+// Thread-local, like every piece of the preview's state below: the editor touches it only on
+// its main thread, but unit tests run on several. Shared, a test on another thread that made a
+// font's atlas, packed an atlas or compiled a shader (Preview_FontChanged, Preview_AtlasChanged,
+// Preview_ShadersChanged: none of them take previewTestLock) zeroed the signature of the scene a
+// preview test had just built, so its LDtk collision shapes vanished (Preview_IsCurrent false:
+// ldtk_collision_shows_in_the_viewport failed about one run in ten), and it reached into that
+// test's game, freeing memory from another test's allocator
+@(private="file", thread_local)
 preview: Preview
 
 // How often the viewport looks for image files saved since it read them
@@ -592,7 +601,7 @@ Thumbnail :: struct {
 	pixels: [dynamic]u8,
 }
 
-@(private="file")
+@(private="file", thread_local)
 thumbnail: Thumbnail
 
 /*
@@ -997,7 +1006,7 @@ LDtkLevelRect :: struct {
 }
 
 // Each picture's levels, as last drawn (identifiers owned)
-@(private="file")
+@(private="file", thread_local)
 ldtkLevelRects: [LDtkThumbnailSlot][dynamic]LDtkLevelRect
 
 /*
@@ -1024,7 +1033,7 @@ LDtkThumbnailSlot :: enum {
 	Inspector,
 }
 
-@(private="file")
+@(private="file", thread_local)
 ldtkThumbnails: [LDtkThumbnailSlot]Thumbnail
 
 // A thumbnail's surface, software renderer and game at a size (made again when the size changes)
@@ -1128,8 +1137,8 @@ mem_slice :: proc(tiles: []u32) -> []u8 {
 
 // The project's themes as the preview game reads them (controls look them up as they draw): one
 // entry per file, kept and updated in place, so a font's resolved path is made only when it
-// changes. Package state like `preview`
-@(private="file")
+// changes. Package state like `preview` (thread-local too)
+@(private="file", thread_local)
 previewThemes: map[string]^e.ThemeData
 
 // Gives the preview game the themes as they are in memory (unsaved edits show) and the project's

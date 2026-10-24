@@ -476,7 +476,15 @@ features (particles) appear without editor work.
   - The cheap upload was a Skald change (no mipmaps, a reused staging buffer, no
     `QueueWaitIdle`: Skald's `mipmaps = false`). Sharing Skald's device (above) removed the
     upload and the readback altogether.
-- The preview is package state, not `State`, because it holds SDL resources:
+- The preview is package state, not `State`, because it holds SDL resources. **It's
+  thread-local** (`preview`, `thumbnail`, `ldtkThumbnails`, `ldtkLevelRects`, `previewThemes`):
+  the editor uses it on its main thread only, and unit tests run on several. Shared, a test that
+  made a font's MSDF atlas, packed an atlas or compiled a shader (`Preview_FontChanged`,
+  `Preview_AtlasChanged`, `Preview_ShadersChanged`, which take no lock) zeroed the signature of
+  the scene a preview test had just built and reached into that test's game:
+  `ldtk_collision_shows_in_the_viewport` lost its shapes about one run in ten (2026-10-23:
+  traced to `Preview_FontChanged` from import_settings_in_the_editor on another thread; none
+  in 60 runs after). `previewTestLock` still serializes the tests that render (SDL_ttf):
   - The engine scene is rebuilt only when the scene's structure changes (`sceneSignature`).
   - Transforms, visibility and layers are copied to the engine nodes every frame (`syncTransforms`).
   - The surface only grows.

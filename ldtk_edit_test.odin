@@ -374,9 +374,10 @@ ldtk_collision_shows_in_the_viewport :: proc(t: ^testing.T) {
 	counts = kinds(&state)
 	testing.expectf(t, counts[.Area] == 3 && counts[.One_Way] == 0, "an area: %v", counts)
 	if ok do testing.expect(t, near(pixels, GENERATED_SHAPE_COLORS[.Area]) > 50, "drawn purple")
-	// (It failed once with no one-way shapes after the undo, not reproduced since: in 50 runs, 20
-	// of them under load. Each step that could leave nothing says so: the undo, the render, the
-	// preview being current)
+	// (It failed about one run in ten, at any of these steps, with no shapes: the preview was
+	// shared by every test thread, and tests making fonts' atlases or compiling shaders zeroed
+	// its signature meanwhile. It's thread-local now: viewport_preview.odin's `preview`. Each
+	// step that could leave nothing still says so: the undo, the render, the preview being current)
 	undoBefore := len(state.history.undo)
 	sendTo(&state, Action.Undo)
 	testing.expectf(t, len(state.history.undo) == undoBefore - 1, "one step undone (%d steps before, %d after)", undoBefore, len(state.history.undo))
