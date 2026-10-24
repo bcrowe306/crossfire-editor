@@ -41,24 +41,68 @@ ActionKeyRule :: struct {
 	viewportOnly: bool,
 	// Not while typing: text fields use the same chord
 	textChord: bool,
+	// Only in these editor modes (empty: every mode); the menu bar disables it in the others
+	onlyIn: bit_set[EditorMode],
 }
 
 ACTION_KEY_RULES := #partial [Action]ActionKeyRule{
 	.Undo = {textChord = true},
 	.Redo = {textChord = true},
-	.Duplicate_Node = {textChord = true},
-	.Copy_Node = {textChord = true},
-	.Cut_Node = {textChord = true},
-	.Paste_Node = {textChord = true},
-	.Select_All = {textChord = true},
-	.Nudge_Left = {viewportOnly = true},
-	.Nudge_Right = {viewportOnly = true},
-	.Nudge_Up = {viewportOnly = true},
-	.Nudge_Down = {viewportOnly = true},
-	.Nudge_Left_Large = {viewportOnly = true},
-	.Nudge_Right_Large = {viewportOnly = true},
-	.Nudge_Up_Large = {viewportOnly = true},
-	.Nudge_Down_Large = {viewportOnly = true},
+	// The scene's nodes, its viewport and the code tabs are the Scene mode's (editor_modes.odin)
+	.Add_Node = {onlyIn = {.Scene}},
+	.Delete_Node = {onlyIn = {.Scene}},
+	.Duplicate_Node = {textChord = true, onlyIn = {.Scene}},
+	.Copy_Node = {textChord = true, onlyIn = {.Scene}},
+	.Cut_Node = {textChord = true, onlyIn = {.Scene}},
+	.Paste_Node = {textChord = true, onlyIn = {.Scene}},
+	.Rename_Node = {onlyIn = {.Scene}},
+	.Save_As_Component = {onlyIn = {.Scene}},
+	.Add_Script = {onlyIn = {.Scene}},
+	.Select_All = {textChord = true, onlyIn = {.Scene}},
+	.Toggle_Grid = {onlyIn = {.Scene}},
+	.Toggle_Snap = {onlyIn = {.Scene}},
+	.Toggle_Collision_Shapes = {onlyIn = {.Scene}},
+	.Toggle_Lighting = {onlyIn = {.Scene}},
+	.Tool_Select = {onlyIn = {.Scene}},
+	.Tool_Move = {onlyIn = {.Scene}},
+	.Tool_Rotate = {onlyIn = {.Scene}},
+	.Tool_Scale = {onlyIn = {.Scene}},
+	.Tool_Pan = {onlyIn = {.Scene}},
+	.Tool_Transform = {onlyIn = {.Scene}},
+	.Tool_Zoom = {onlyIn = {.Scene}},
+	.Toggle_Local_Axes = {onlyIn = {.Scene}},
+	.Toggle_Guides = {onlyIn = {.Scene}},
+	.Frame_Selected = {onlyIn = {.Scene}},
+	.View_Fit = {onlyIn = {.Scene}},
+	.Zoom_In = {onlyIn = {.Scene}},
+	.Zoom_Out = {onlyIn = {.Scene}},
+	.Zoom_100 = {onlyIn = {.Scene}},
+	.Toggle_Animation = {onlyIn = {.Scene}},
+	.Deselect = {onlyIn = {.Scene}},
+	.Nudge_Left = {viewportOnly = true, onlyIn = {.Scene}},
+	.Nudge_Right = {viewportOnly = true, onlyIn = {.Scene}},
+	.Nudge_Up = {viewportOnly = true, onlyIn = {.Scene}},
+	.Nudge_Down = {viewportOnly = true, onlyIn = {.Scene}},
+	.Nudge_Left_Large = {viewportOnly = true, onlyIn = {.Scene}},
+	.Nudge_Right_Large = {viewportOnly = true, onlyIn = {.Scene}},
+	.Nudge_Up_Large = {viewportOnly = true, onlyIn = {.Scene}},
+	.Nudge_Down_Large = {viewportOnly = true, onlyIn = {.Scene}},
+	.Open_Script = {onlyIn = {.Scene}},
+	.Close_Code_Tab = {onlyIn = {.Scene}},
+}
+
+/*
+Whether an action's keys work in a mode (`ActionKeyRule.onlyIn`). The browser's routed keys
+(Delete, Ctrl+D/C/X/V, F2 on its selected scene: `Browser_RouteAction`) work wherever the browser
+shows, so they count while it has the keyboard.
+*/
+Action_InMode :: proc(action: Action, mode: EditorMode, browserFocused := false) -> bool {
+	only := ACTION_KEY_RULES[action].onlyIn
+	if only == {} || mode in only do return true
+	#partial switch action {
+	case .Delete_Node, .Duplicate_Node, .Copy_Node, .Cut_Node, .Paste_Node, .Rename_Node: return browserFocused
+	}
+	return false
 }
 
 // Readable names for the Keys tab and menus
@@ -84,6 +128,7 @@ ACTION_LABELS := [Action]string{
 	.Stop_Audio_Preview = "Stop sound preview",
 	.Open_Settings = "Settings", .Play_Scene = "Play the open scene", .Open_Project_Settings = "Project settings", .Build_Scripts = "Build scripts", .Open_Script = "Open script in code editor",
 	.Close_Code_Tab = "Close code tab",
+	.Mode_Scene = "Scene mode", .Mode_Level = "Level mode",
 }
 
 /*
@@ -174,8 +219,10 @@ Inputs:
 - keymap: The keymap
 - overViewport: Whether the mouse is over the viewport
 - dialogOpen: A modal dialog or popup menu is open; nothing is dispatched
+- mode: The editor mode that shows: actions only for others don't fire (`Action_InMode`)
+- browserFocused: The project browser has the keyboard (its routed keys work in every mode)
 */
-KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), keymap: ^Keymap, overViewport: bool, dialogOpen := false) {
+KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), keymap: ^Keymap, overViewport: bool, dialogOpen := false, mode := EditorMode.Scene, browserFocused := false) {
 	// A modal dialog handles its own keys (Escape closes it)
 	if dialogOpen do return
 	typing := IsTyping(ctx)
@@ -185,6 +232,7 @@ KeymapDispatch :: proc(ctx: ^skald.Ctx(Msg), keymap: ^Keymap, overViewport: bool
 		if coding && action not_in CODE_EDITOR_PASSTHROUGH do continue
 		rule := ACTION_KEY_RULES[action]
 		if rule.viewportOnly && !overViewport do continue
+		if !Action_InMode(action, mode, browserFocused) do continue
 		for chord in chords {
 			if chord == {} do continue
 			if typing && !coding && (isPlainKey(chord) || rule.textChord) do continue

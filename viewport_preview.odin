@@ -1027,10 +1027,30 @@ Preview_LDtkLevelAt :: proc(slot: LDtkThumbnailSlot, point: [2]f32) -> (identifi
 	return "", {}, false
 }
 
+/*
+A level's rectangle in an LDtk picture, as last drawn, by its identifier.
+
+Returns:
+- The rectangle (the picture's pixels), and whether the picture has that level
+*/
+Preview_LDtkLevelRect :: proc(slot: LDtkThumbnailSlot, identifier: string) -> (rect: [4]f32, ok: bool) {
+	for level in ldtkLevelRects[slot] do if level.identifier == identifier do return level.rect, true
+	return {}, false
+}
+
+// The levels an LDtk picture shows, as last drawn (temp allocated; the UI tests' driver)
+Preview_LDtkLevels :: proc(slot: LDtkThumbnailSlot) -> []LDtkLevelRect {
+	out := make([]LDtkLevelRect, len(ldtkLevelRects[slot]), context.temp_allocator)
+	copy(out, ldtkLevelRects[slot][:])
+	return out
+}
+
 // Where an LDtk picture is shown (each has its own cache)
 LDtkThumbnailSlot :: enum {
 	Browser,
 	Inspector,
+	// The Level mode's world map (level_mode.odin)
+	Level,
 }
 
 @(private="file", thread_local)

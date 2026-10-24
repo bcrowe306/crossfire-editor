@@ -1,0 +1,105 @@
+# Editor modes (editor_modes.odin) and the Level mode (level_mode.odin): switching by the mode bar,
+# the keys and the View menu's actions; the Level mode showing an LDtk project's world, a level
+# selected, a scene made for it and opened in the Scene mode, undone back into the Level mode;
+# each mode keeping its state when the other shows; Scene-only keys doing nothing in the Level
+# mode; the mode remembered when the project opens again.
+# Run with: task test:ui
+#
+# PlayScene has 11 nodes
+
+wait 5
+expect mode Scene
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+
+# The mode bar, the keys (Ctrl+Alt+1 / 2) and View > Scene Mode / Level Mode (the menu's actions)
+click_widget mode-tab-Level
+expect mode Level
+click_widget mode-tab-Scene
+expect mode Scene
+key ctrl+alt+2
+expect mode Level
+key ctrl+alt+1
+expect mode Scene
+action Mode_Level
+expect mode Level
+action Mode_Scene
+expect mode Scene
+
+# A node selected in the Scene mode stays selected across a trip to the Level mode
+click_row scene-tree 1
+expect selected Camera
+key ctrl+alt+2
+expect mode Level
+# Scene-only keys do nothing here: Delete, the tools
+key DELETE
+key w
+key ctrl+alt+1
+expect selected Camera
+expect nodes 11
+expect tool Select
+
+# No LDtk file yet: the Level mode says so
+key ctrl+alt+2
+wait_until widget_visible level-import true
+
+# An LDtk project: its world, with its one level
+import tests/fixtures/ldtk/world.ldtk
+expect level file assets/world/world.ldtk
+wait_until level levels 1
+expect level level none
+# The LDtk tab, then the Console: the Level mode's own bottom tabs
+click_tab level-bottom-tabs 0
+expect level tab LDtk
+click_tab level-bottom-tabs 1
+expect level tab Console
+click_tab level-bottom-tabs 0
+
+# A click selects the level; nothing shows it yet
+click_at ldtk-map-Level 0.5 0.5
+expect level level Level_0
+expect level shown_in 0
+expect mode Level
+
+# New Scene with This Level: a scene showing it, opened in the Scene mode, its node selected
+click_widget level-new-scene
+expect mode Scene
+expect scene Level_0
+expect selected Level
+expect kind LDtkLevel
+expect ldtk_level Level_0
+
+# Undo goes back to the Level mode, the scene gone; redo brings both back
+key ctrl+z
+expect mode Level
+expect level shown_in 0
+key ctrl+shift+z
+expect mode Scene
+expect scene Level_0
+
+# Switching back keeps the Level mode's state: its level, its tab
+key ctrl+alt+2
+expect level level Level_0
+expect level tab LDtk
+expect level shown_in 1
+# Its scene, opened from the level panel
+click_widget level-open-scene-0
+expect mode Scene
+expect scene Level_0
+expect selected Level
+
+# Things that belong to the Scene mode bring it forward: a scene opened in the browser
+key ctrl+alt+2
+double_click_row browser-tree 2
+expect mode Scene
+expect scene PlayScene
+
+# The mode is remembered for the project: saved, opened again, in the Level mode
+key ctrl+alt+2
+key ctrl+s
+open_project {project}
+expect mode Level
+expect level file assets/world/world.ldtk
+key ctrl+alt+1
+expect mode Scene

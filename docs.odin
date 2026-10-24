@@ -405,6 +405,7 @@ DOCS_BOTTOM_TAB_PAGES := [BottomTab]string{
 	.States    = "state_machines",
 	.Dialogue  = "dialogue",
 	.Plugins   = "plugins",
+	.LDtk      = "level_mode#the-ldtk-tab",
 }
 
 // The other places' pages (scenes, scripts, the editor's panels)
@@ -438,17 +439,21 @@ Docs_NodeKindOfType :: proc(typeName: string) -> (NodeKind, bool) {
 
 /*
 Where a type written in code goes (`^e.Door`, `e.Sprite`, `[]^e.Area`): an engine node type's
-guide, `e.Script` the scripts page, any other engine declaration its API entry.
+guide, `e.Script` the scripts page, any other engine declaration its API entry. A type of the
+project's own (`^Door`, with `Door :: struct { using sprite: e.Sprite }`) goes through what it
+embeds (`projectTypes`): the Sprite's guide.
 
 Inputs:
 - typeText: The type as written
 - alias: The file's import name of the engine
 - table: The engine's documentation (nil: only node types are known)
+- projectTypes: The project's structs by name, each to the type its first field embeds with
+  `using` (`ScriptIndex_Embeds`; nil: none)
 
 Returns:
 - The address ("" when it isn't the engine's; temp allocated)
 */
-Docs_TypeAddress :: proc(typeText, alias: string, table: ^EngineDocs) -> string {
+Docs_TypeAddress :: proc(typeText, alias: string, table: ^EngineDocs, projectTypes: map[string]string = nil, depth := 0) -> string {
 	t := strings.trim_space(typeText)
 	// Through pointers, slices, arrays and maps' values
 	for {
@@ -463,7 +468,13 @@ Docs_TypeAddress :: proc(typeText, alias: string, table: ^EngineDocs) -> string 
 			else do return ""
 		case:
 			t = strings.trim_space(t)
-			if alias == "" || !strings.has_prefix(t, alias) || len(t) <= len(alias) + 1 || t[len(alias)] != '.' do return ""
+			if alias == "" || !strings.has_prefix(t, alias) || len(t) <= len(alias) + 1 || t[len(alias)] != '.' {
+				// The project's own type: what it embeds (a chain of them, not forever)
+				name := t
+				if paren := strings.index_any(name, "( {"); paren >= 0 do name = name[:paren]
+				if embeds, ok := projectTypes[name]; ok && embeds != "" && depth < 8 do return Docs_TypeAddress(embeds, alias, table, projectTypes, depth + 1)
+				return ""
+			}
 			name := t[len(alias) + 1:]
 			if paren := strings.index_any(name, "( {"); paren >= 0 do name = name[:paren]
 			return Docs_EngineNameAddress(name, table)

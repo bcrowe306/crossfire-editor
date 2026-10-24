@@ -97,6 +97,10 @@ Action :: enum {
 	Open_Script,
 	// Close the code tab that shows (code_tabs.odin)
 	Close_Code_Tab,
+
+	// Editor modes (editor_modes.odin): show the Scene mode, the Level mode
+	Mode_Scene,
+	Mode_Level,
 }
 
 // Panel resizing. Each carries the new size of a split's first pane
@@ -1381,4 +1385,11 @@ Msg :: union {
 	Guide_Moved,
 	Guide_Removed,
 	Guides_Cleared,
+	// Editor modes (editor_modes.odin) and the Level mode (level_mode.odin)
+	Mode_Changed,
+	Bottom_Tab_Picked,
+	Level_File_Chosen,
+	Level_Map_Clicked,
+	Level_Scene_Opened,
+	Level_Scene_Created,
 }

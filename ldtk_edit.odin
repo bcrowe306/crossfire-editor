@@ -588,7 +588,7 @@ Scene_AddLDtkAt :: proc(scene: ^SceneDef, path: string, parent: int, world: [2]f
 
 // The Skald images LDtk pictures are uploaded to, and what each holds
 @(private="file")
-LDTK_IMAGES := [LDtkThumbnailSlot]string{.Browser = "ldtk-thumbnail-browser", .Inspector = "ldtk-thumbnail-inspector"}
+LDTK_IMAGES := [LDtkThumbnailSlot]string{.Browser = "ldtk-thumbnail-browser", .Inspector = "ldtk-thumbnail-inspector", .Level = "ldtk-thumbnail-level"}
 @(private="file")
 ldtkImageKeys: [LDtkThumbnailSlot]u64
 @(private="file")
@@ -596,19 +596,23 @@ ldtkImageSizes: [LDtkThumbnailSlot][2]int
 
 /*
 A picture of an LDtk level (or the whole world) filling the space it gets (Preview_RenderLDtk;
-re-uploaded only when the picture changes).
+re-uploaded only when the picture changes). On the browser's world map (`.Browser`) hovering a
+level outlines it and a click picks it (`LDtk_Level_Picked`); on the Level mode's (`.Level`,
+level_mode.odin) a press selects it or, double, opens it (`Level_Map_Clicked`), and the selected
+level stays outlined.
 
 Inputs:
 - height: 0 to flex (fill what the parent gives)
+- selected: The level outlined in the accent color ("" none)
 */
-ldtkThumbnailView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, slot: LDtkThumbnailSlot, file, level: string, allLevels: bool, width, height: f32) -> skald.View {
+ldtkThumbnailView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, slot: LDtkThumbnailSlot, file, level: string, allLevels: bool, width, height: f32, selected := "") -> skald.View {
 	Data :: struct {
 		s: ^State,
 		slot: LDtkThumbnailSlot,
-		file, level: string,
+		file, level, selected: string,
 		allLevels: bool,
 	}
-	data := new_clone(Data{s, slot, strings.clone(file, context.temp_allocator), strings.clone(level, context.temp_allocator), allLevels}, context.temp_allocator)
+	data := new_clone(Data{s, slot, strings.clone(file, context.temp_allocator), strings.clone(level, context.temp_allocator), strings.clone(selected, context.temp_allocator), allLevels}, context.temp_allocator)
 	picture := skald.sized(ctx, data, proc(ctx: ^skald.Ctx(Msg), d: ^Data, size: [2]f32) -> skald.View {
 		pixelSize := [2]int{max(int(size.x), 1), max(int(size.y), 1)}
 		pixels, key, ok := Preview_RenderLDtk(d.s, d.slot, d.file, d.level, d.allLevels, pixelSize)
@@ -617,29 +621,36 @@ ldtkThumbnailView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, slot: LDtkThumbnailSl
 			else do skald.image_load_pixels(ctx.renderer, LDTK_IMAGES[d.slot], u32(pixelSize.x), u32(pixelSize.y), pixels)
 			ldtkImageKeys[d.slot], ldtkImageSizes[d.slot] = key, pixelSize
 		}
-		// The browser's world map: hovering a level outlines it, a click picks it for the selected
-		// LDtkLevel node (LDtk_Level_Picked)
+		// The world maps: hovering a level outlines it, a click picks it (the browser's: for the
+		// selected LDtkLevel node, LDtk_Level_Picked; the Level mode's: Level_Map_Clicked)
 		id := skald.hash_id(fmt.tprintf("ldtk-map-%v", d.slot))
 		hovered: [4]f32
 		hovering := false
-		if d.slot == .Browser {
+		if d.slot == .Browser || d.slot == .Level {
 			if state, drawn := ctx.widgets.states[id]; drawn && skald.widget_hovered(ctx, id) && len(ctx.widgets.overlay_rects_prev) == 0 {
 				local := ctx.input.mouse_pos - {state.last_rect.x, state.last_rect.y}
-				if identifier, rect, ok := Preview_LDtkLevelAt(d.slot, local); ok {
-					hovered, hovering = rect, true
-					if ctx.input.mouse_pressed[.Left] do skald.send(ctx, Msg(LDtk_Level_Picked{file = strings.clone(d.file, context.temp_allocator), level = strings.clone(identifier, context.temp_allocator)}))
+				identifier, rect, onLevel := Preview_LDtkLevelAt(d.slot, local)
+				if onLevel do hovered, hovering = rect, true
+				if ctx.input.mouse_pressed[.Left] {
+					file := strings.clone(d.file, context.temp_allocator)
+					picked := strings.clone(identifier, context.temp_allocator)
+					if d.slot == .Level {
+						skald.send(ctx, Msg(Level_Map_Clicked{file = file, level = picked, double = ctx.input.mouse_click_count[.Left] >= 2}))
+					} else if onLevel {
+						skald.send(ctx, Msg(LDtk_Level_Picked{file = file, level = picked}))
+					}
 				}
 			}
 		}
-		Paint :: struct { slot: LDtkThumbnailSlot, hovered: [4]f32, hovering: bool, color: skald.Color }
-		paint := new_clone(Paint{d.slot, hovered, hovering, ctx.theme.color.primary}, context.temp_allocator)
+		chosen, hasChosen := Preview_LDtkLevelRect(d.slot, d.selected)
+		Paint :: struct { slot: LDtkThumbnailSlot, hovered, chosen: [4]f32, hovering, hasChosen: bool, color, hoverColor: skald.Color }
+		paint := new_clone(Paint{d.slot, hovered, chosen, hovering, hasChosen && d.selected != "", ctx.theme.color.primary, ctx.theme.color.fg}, context.temp_allocator)
 		return skald.canvas(ctx, paint, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 			skald.draw_image(painter.r, LDTK_IMAGES[p.slot], painter.bounds, .Fill)
-			if p.hovering {
-				b := painter.bounds
-				skald.draw_rect_outline(painter.r, {b.x + p.hovered[0], b.y + p.hovered[1], p.hovered[2], p.hovered[3]}, 2, p.color)
-			}
-		}, id = id, width = max(size.x, 1), height = max(size.y, 1), cursor = d.slot == .Browser && hovering ? .Pointer : .Default)
+			b := painter.bounds
+			if p.hasChosen do skald.draw_rect_outline(painter.r, {b.x + p.chosen[0] - 1, b.y + p.chosen[1] - 1, p.chosen[2] + 2, p.chosen[3] + 2}, 3, p.color)
+			if p.hovering do skald.draw_rect_outline(painter.r, {b.x + p.hovered[0], b.y + p.hovered[1], p.hovered[2], p.hovered[3]}, 2, p.hasChosen && p.hovered == p.chosen ? p.color : (p.slot == .Level ? p.hoverColor : p.color))
+		}, id = id, width = max(size.x, 1), height = max(size.y, 1), cursor = (d.slot == .Browser || d.slot == .Level) && hovering ? .Pointer : .Default)
 	})
 	if height <= 0 do return skald.flex(1, picture)
 	return skald.col(picture, width = width, height = height)

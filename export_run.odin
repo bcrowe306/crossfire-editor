@@ -132,7 +132,7 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 		return skald.cmd_batch(install, advance(state))
 	}
 	if !Export_Busy(state) do return {}
-	state.bottomTab = .Output
+	Mode_ShowLogTab(state, .Output)
 	state.layout.bottomOpen = true
 	return advance(state)
 }

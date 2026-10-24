@@ -63,9 +63,11 @@ Ctx_Script_Field :: struct {
 }
 
 // The toolbar's overflow button, in a narrow window (view.odin's `Toolbar_Overflow`): the
-// viewport's tools, and with `files` the file and undo / redo buttons too
+// viewport's tools (not with `noTools`: a mode without them, editor_modes.odin), and with `files`
+// the file and undo / redo buttons too
 Ctx_Toolbar_More :: struct {
 	files: bool,
+	noTools: bool,
 }
 
 // A guide of the open scene (its index)
@@ -380,10 +382,10 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 				actionItem(s, "Save", .Save_Project),
 				MENU_SEPARATOR,
 				actionItem(s, "Undo", .Undo),
-				actionItem(s, "Redo", .Redo),
-				MENU_SEPARATOR)
+				actionItem(s, "Redo", .Redo))
+			if !t.noTools do append(&items, MENU_SEPARATOR)
 		}
-		append(&items,
+		if !t.noTools do append(&items,
 			actionItem(s, "Select Tool", .Tool_Select, checked = s.tool == .Select),
 			actionItem(s, "Move Tool", .Tool_Move, checked = s.tool == .Move),
 			actionItem(s, "Rotate Tool", .Tool_Rotate, checked = s.tool == .Rotate),

@@ -431,7 +431,7 @@ AnimEdit_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		ed.clock += min(time.duration_seconds(time.tick_diff(ed.lastTick, now)), 0.25)
 		ed.lastTick = now
 		// Only while it plays and the panel shows an animation; the view asks again when it does
-		if !ed.playing || animation == nil || s.bottomTab != .Animation || !s.layout.bottomOpen || !EditorFocused() {
+		if !ed.playing || animation == nil || s.mode != .Scene || s.bottomTab != .Animation || !s.layout.bottomOpen || !EditorFocused() {
 			ed.tickPending = false
 			break
 		}

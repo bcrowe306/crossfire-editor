@@ -14,6 +14,7 @@ from installing the editor to running your first game.
 - [Installing it](#installing-it)
 - [The demo project](#the-demo-project)
 - [The window](#the-window)
+- [Editor modes](#editor-modes)
 - [Your first game](#your-first-game)
 - [What you'll need for scripts](#what-youll-need-for-scripts)
 - [Where to go next](#where-to-go-next)
@@ -60,7 +61,7 @@ use **File > Open Project** (Ctrl+O). See [Projects](projects.md).
 
 ```
 +------------------------------------------------------------------+
-| menu bar: File  Edit  Scripts  View  Scene  Help                 |
+| menu bar: File Edit Scripts View Scene Help   [Scene] [Level]     |
 | toolbar: new, open, save | undo, redo | tools | play controls    |
 +-----------+--------------------------------------+---------------+
 | browser   | scene tabs              view buttons | scene tree    |
@@ -77,6 +78,7 @@ use **File > Open Project** (Ctrl+O). See [Projects](projects.md).
 | Part | What it's for |
 |---|---|
 | **Menu bar** | Every command. Each menu shows the shortcut beside the command |
+| **Mode bar** (beside the menus) | The editor's modes: **Scene** (this layout) and **Level** (the world). See [Editor modes](#editor-modes) |
 | **Toolbar** | New, Open, Save; Undo and Redo; the tools (Select, Move, Rotate, Scale, Transform, Zoom, Pan); in the middle **Play**, **Play this scene**, **Pause**, **Stop**, **Restart** and the game's collision shapes (on while you develop: [Seeing the shapes](physics.md#seeing-the-shapes)); **Export** on the right. In a narrow window the tools (narrower still, the file and undo buttons too) move into the **…** button's menu |
 | **Browser** (left) | Your project's files, sorted into folders: Scenes, Scripts, Images, Audio, Music, Fonts, Data, Components, Levels and more. The search box at the top filters them. **+** imports a file (Ctrl+I), the trash button removes one |
 | **Preview** (under the browser) | What the selected file is: an image's picture and size, a sound you can play, a scene's facts and its settings |
@@ -93,6 +95,28 @@ name in the inspector) to see what it does.
 the engine's API reference and a guide to every node kind; right-click a node, a scene or an
 asset and choose **Open Docs** to read about it. **Help > Keyboard Shortcuts** lists every shortcut (you can change
 them there too).
+
+## Editor modes
+
+The tabs beside the menu bar switch the whole window between the editor's **modes**: each has
+its own layout, made for one kind of work.
+
+| Mode | What it's for | Keys |
+|---|---|---|
+| **Scene** | Building scenes from nodes: the layout above, with the viewport, the scene tree, the inspector and the code tabs | Ctrl+Alt+1 |
+| **Level** | Your game's world: an LDtk project's levels laid out as in its world, and the scenes showing each one ([Level mode](level_mode.md)) | Ctrl+Alt+2 |
+
+**View > Scene Mode** and **View > Level Mode** do the same (on a Mac the keys are Cmd+Alt+1 and
+Cmd+Alt+2). The editor remembers which mode each project was left in.
+
+Some parts are the same in every mode: the menus, the toolbar's file, undo and play buttons and
+Export, the browser, the **Console** and **Output** tabs, Settings, Project Settings and the docs
+window. Each mode keeps its own panel sizes. Commands of another mode are greyed out in the
+menus (Add Node in the Level mode), and things that belong to a mode bring it forward: opening a
+scene or a script shows the Scene mode.
+
+**Undo** is one history for every mode: Ctrl+Z undoes the last edit wherever it was made, and
+shows the mode it was made in.
 
 ### The Console and Output tabs
 
@@ -211,6 +235,9 @@ Once your project has scripts (your own Odin code), the editor compiles your gam
 | Save, copy and share your project | [Projects](projects.md) |
 
 ## Questions
+
+**The viewport, scene tree and inspector are gone.** The editor is in another mode: click
+**Scene** beside the menus, or press Ctrl+Alt+1 ([Editor modes](#editor-modes)).
 
 **The editor opens a different project.** It opens the demo when started without a project. Use
 **File > Open Recent** to get back to yours, or start it with your project's folder.

@@ -21,7 +21,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Before anything else registers shortcuts (see keymap.odin)
 	// Dialogs and the open context menu take Escape (and every other key) themselves
 	// Tab gives the keyboard back to the code editor that had it (code_editor_host.odin)
-	coding := CodeEditor_Frame(ctx, CodeTabs_Active(&state) != "")
+	// Code tabs show in the Scene mode only (editor_modes.odin)
+	coding := CodeEditor_Frame(ctx, state.mode == .Scene && CodeTabs_Active(&state) != "")
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
 		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.listenerDialog.open || state.newEvent.open || state.componentClose.open || state.newData.open || state.projectSettings.open || state.aboutOpen || state.git.discardAsk != "" ||
 		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open
@@ -40,20 +41,30 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	Branding_SetWindowIcon()
 	Git_View_Tick(&state, ctx)
 	// Where F1 (Help > User Manual) is pressed: the docs window opens at that panel's page
-	Docs_TrackPointer(ctx)
-	KeymapDispatch(ctx, &state.settings.keymap, ViewportHovered(ctx), dialogOpen = keysTaken)
+	Docs_TrackPointer(ctx, state.mode)
+	// The viewport is the Scene mode's (its last rect stays in Skald's store while another mode shows)
+	KeymapDispatch(ctx, &state.settings.keymap, state.mode == .Scene && ViewportHovered(ctx), dialogOpen = keysTaken,
+		mode = state.mode, browserFocused = state.browserFocused)
 
 	// The right-click menu, built first so it takes its clicks before the widgets under it
 	contextMenu := contextMenuView(&state, ctx)
 	return skald.col(
 		contextMenu,
 		// The menu bar's shortcuts are off while the code editor has the keyboard (the keymap's few
-		// that still work fire through KeymapDispatch)
-		menuBarView(&state, ctx, keysTaken || coding),
+		// that still work fire through KeymapDispatch). The mode bar sits in its row, centered in
+		// what the menus leave (no taller than it: the Scene mode's layout is as it was)
+		skald.row(
+			menuBarView(&state, ctx, keysTaken || coding),
+			skald.flex(1, skald.spacer(0)),
+			modeBarView(&state, ctx),
+			skald.flex(1, skald.spacer(0)),
+			cross_align = .Center,
+		),
 		toolbarView(&state, ctx),
 		skald.divider(ctx),
-		// The workspace needs its own size to place the panels, so it's built once layout knows it
-		skald.flex(1, skald.sized(ctx, &state, workspaceView)),
+		// The mode's workspace needs its own size to place the panels, so it's built once layout
+		// knows it (editor_modes.odin)
+		skald.flex(1, skald.sized(ctx, &state, modeWorkspaceView)),
 		skald.divider(ctx),
 		statusBarView(&state, ctx),
 		removeAssetDialog(&state, ctx),
@@ -88,11 +99,13 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // otherwise fire them itself (Escape would deselect instead of closing the dialog)
 @(private="file")
 menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
-	Keys :: struct { keymap: ^Keymap, typing, taken: bool }
-	keys := Keys{&s.settings.keymap, IsTyping(ctx), keysTaken}
-	item :: proc(label: string, action: Action, keys: Keys) -> skald.Menu_Item(Msg) {
-		if keys.taken do return {label = label, msg = action}
-		return {label = label, shortcut = Chord_OnPlatform(Keymap_Shortcut(keys.keymap, action, keys.typing)), msg = action}
+	Keys :: struct { keymap: ^Keymap, typing, taken: bool, mode: EditorMode, browserFocused: bool }
+	keys := Keys{&s.settings.keymap, IsTyping(ctx), keysTaken, s.mode, s.browserFocused}
+	// An item for another mode is disabled: the menu bar registers no shortcut for it then
+	item :: proc(label: string, action: Action, keys: Keys, checked := false) -> skald.Menu_Item(Msg) {
+		disabled := !Action_InMode(action, keys.mode, keys.browserFocused)
+		if keys.taken do return {label = label, msg = action, disabled = disabled, checked = checked}
+		return {label = label, shortcut = Chord_OnPlatform(Keymap_Shortcut(keys.keymap, action, keys.typing)), msg = action, disabled = disabled, checked = checked}
 	}
 	// "Undo Rename Spaceship"
 	undoLabel := History_NextLabel(&s.history, false)
@@ -145,12 +158,16 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Settings...", .Open_Settings, keys),
 		}},
 		{"Scripts", []skald.Menu_Item(Msg){
-			{label = "New Script...", msg = Msg(New_Script_Opened{})},
+			{label = "New Script...", msg = Msg(New_Script_Opened{}), disabled = s.mode != .Scene},
 			item("Open Script", .Open_Script, keys),
 			item("Build Scripts", .Build_Scripts, keys),
 			item("Close Code Tab", .Close_Code_Tab, keys),
 		}},
 		{"View", []skald.Menu_Item(Msg){
+			// The editor's modes (editor_modes.odin), the one showing checked
+			item("Scene Mode", .Mode_Scene, keys, checked = s.mode == .Scene),
+			item("Level Mode", .Mode_Level, keys, checked = s.mode == .Level),
+			{separator = true},
 			item("Select Tool", .Tool_Select, keys),
 			item("Move Tool", .Tool_Move, keys),
 			item("Rotate Tool", .Tool_Rotate, keys),
@@ -158,8 +175,8 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Transform Tool", .Tool_Transform, keys),
 			item("Zoom Tool", .Tool_Zoom, keys),
 			item("Pan Tool", .Tool_Pan, keys),
-			{label = "Move Along the Node's Axes", shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Toggle_Local_Axes, keys.typing)), msg = Msg(Action.Toggle_Local_Axes), checked = s.viewport.localAxes},
-			{label = "Show Guides", shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Toggle_Guides, keys.typing)), msg = Msg(Action.Toggle_Guides), checked = !s.viewport.guidesHidden},
+			item("Move Along the Node's Axes", .Toggle_Local_Axes, keys, checked = s.viewport.localAxes),
+			item("Show Guides", .Toggle_Guides, keys, checked = !s.viewport.guidesHidden),
 			{separator = true},
 			item("Frame Selected", .Frame_Selected, keys),
 			item("Fit Game Area", .View_Fit, keys),
@@ -169,9 +186,9 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Play/Pause Animations", .Toggle_Animation, keys),
 			{separator = true},
 			item("Show Grid", .Toggle_Grid, keys),
-			{label = "Show Collision Shapes", shortcut = keys.taken ? {} : Chord_OnPlatform(Keymap_Shortcut(keys.keymap, .Toggle_Collision_Shapes, keys.typing)), msg = Msg(Action.Toggle_Collision_Shapes), checked = s.viewport.showShapes},
+			item("Show Collision Shapes", .Toggle_Collision_Shapes, keys, checked = s.viewport.showShapes),
 			item("Snap to Grid", .Toggle_Snap, keys),
-			{label = "Grid Settings...", msg = Msg(Open_Grid_Settings{})},
+			{label = "Grid Settings...", msg = Msg(Open_Grid_Settings{}), disabled = s.mode != .Scene},
 			{separator = true},
 			item("Toggle Bottom Panel", .Toggle_Bottom_Panel, keys),
 			item("Clear Console", .Clear_Console, keys),
@@ -213,7 +230,9 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Paused:   playTip = actionTip(s, "Resume", .Play)
 	case .Playing, .Stopped:
 	}
-	overflow := Toolbar_Overflow(s.layout.workspace.x, math.round(th.font.size_md * 2.4), th.spacing.xs, th.spacing.sm)
+	// The viewport's tools are the Scene mode's (editor_modes.odin)
+	tools := s.mode == .Scene
+	overflow := Toolbar_Overflow(s.layout.workspace.x, math.round(th.font.size_md * 2.4), th.spacing.xs, th.spacing.sm, tools)
 	items := make([dynamic]skald.View, context.temp_allocator)
 	if overflow < .Files {
 		append(&items,
@@ -225,7 +244,7 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			toolButton(ctx, "redo", ICON_REDO, actionTip(s, "Redo", .Redo), Action.Redo),
 			toolbarSeparator(ctx))
 	}
-	if overflow == .None {
+	if overflow == .None && tools {
 		append(&items,
 			toolButton(ctx, "select", ICON_POINTER, actionTip(s, "Select", .Tool_Select), Action.Tool_Select, active = s.tool == .Select),
 			toolButton(ctx, "move", ICON_MOVE, actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
@@ -234,12 +253,12 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			toolButton(ctx, "transform", ICON_VECTOR_SQUARE, actionTip(s, "Transform: move, rotate and scale handles at once", .Tool_Transform), Action.Tool_Transform, active = s.tool == .Transform),
 			toolButton(ctx, "zoom", ICON_ZOOM, actionTip(s, "Zoom: click to zoom in (Alt: out), drag a box to zoom to it", .Tool_Zoom), Action.Tool_Zoom, active = s.tool == .Zoom),
 			toolButton(ctx, "pan", ICON_HAND, actionTip(s, "Pan the view", .Tool_Pan), Action.Tool_Pan, active = s.tool == .Pan))
-	} else {
+	} else if overflow != .None {
 		// The menu opens under the button
 		r := lastRect(ctx, skald.hash_id("toolbar-more"))
 		append(&items, toolButton(ctx, "more", ICON_ELLIPSIS,
-			overflow == .Files ? "File, undo and the viewport's tools" : "The viewport's tools",
-			Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Toolbar_More{files = overflow == .Files}})))
+			!tools ? "File and undo" : overflow == .Files ? "File, undo and the viewport's tools" : "The viewport's tools",
+			Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Toolbar_More{files = overflow == .Files, noTools = !tools}})))
 	}
 	append(&items,
 		// Play controls sit in the middle of the toolbar
@@ -280,11 +299,12 @@ Inputs:
 - button: A tool button's width
 - spacing: Between items
 - padding: At each end
+- tools: The viewport's tools are on it (the Scene mode; other modes have none)
 
 Returns:
-- What overflows
+- What overflows (without the tools: None or Files)
 */
-Toolbar_Overflow :: proc(width, button, spacing, padding: f32) -> ToolbarOverflow {
+Toolbar_Overflow :: proc(width, button, spacing, padding: f32, tools := true) -> ToolbarOverflow {
 	if width <= 0 do return .None
 	separator := 1 + spacing * 2
 	// items: buttons and separators, and the two spacers around the play controls
@@ -293,6 +313,7 @@ Toolbar_Overflow :: proc(width, button, spacing, padding: f32) -> ToolbarOverflo
 		return padding * 2 + f32(buttons) * button + f32(separators) * separator + f32(items - 1) * spacing
 	}
 	// File 3, undo 2, tools 7, play controls 6, Export 1; the overflow button replaces what it holds
+	if !tools do return needed(12, 2, button, separator, spacing, padding) <= width ? .None : .Files
 	if needed(19, 2, button, separator, spacing, padding) <= width do return .None
 	if needed(13, 2, button, separator, spacing, padding) <= width do return .Tools
 	return .Files
@@ -328,17 +349,12 @@ toolbarSeparator :: proc(ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 /*
-The resizable panels. Built by `sized`, so it knows the space it has: the left sidebar and the
-bottom panel are stored as their own sizes and the viewport gets what is left.
+The Scene mode's workspace (editor_modes.odin), its resizable panels. Built by `sized`, so it knows
+the space it has: the left sidebar and the bottom panel are stored as their own sizes and the
+viewport gets what is left.
 */
-@(private="file")
-workspaceView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
-	// update needs the workspace size to turn divider drags into sidebar sizes
-	if size != s.layout.workspace {
-		skald.send(ctx, Workspace_Measured(size))
-	}
-
-	// Use this frame's size even if update hasn't stored it yet
+sceneModeView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
+	// Use this frame's size even if update hasn't stored it yet (modeWorkspaceView reports it)
 	layout := s.layout
 	layout.workspace = size
 	left, right := FittedSidebarWidths(&layout)
@@ -406,16 +422,27 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		branch = skald.button(ctx, text, Msg(Bottom_Tab_Changed(int(BottomTab.Git))), id = skald.hash_id("status-git-branch"),
 			bg = {}, fg = git.merging ? th.color.warning : th.color.fg_muted, padding = {th.spacing.xs, 0}, font_size = th.font.size_sm)
 	}
+	// The Scene mode's scene, nodes, selection and tool; the Level mode's world and level
+	middle: [3]skald.View
+	tool: skald.View = skald.View_Spacer{size = 0}
+	switch s.mode {
+	case .Scene:
+		middle = {statusText(ctx, fmt.tprintf("Scene: %s", scene.name)), statusText(ctx, fmt.tprintf("%d nodes", len(scene.nodes))), statusText(ctx, fmt.tprintf("Selection: %s", selection))}
+		tool = statusText(ctx, fmt.tprintf("Tool: %v", s.tool))
+	case .Level:
+		world, level := LevelMode_Status(s)
+		middle = {statusText(ctx, "Level mode"), statusText(ctx, world), statusText(ctx, level)}
+	}
 	return skald.row(
 		statusText(ctx, fmt.tprintf("%s  %s", ICON_SITEMAP, s.project.name)),
 		Project_IsModified(s) ? skald.text("Modified", th.color.warning, th.font.size_sm) : skald.text("Saved", th.color.fg_muted, th.font.size_sm),
 		branch,
-		statusText(ctx, fmt.tprintf("Scene: %s", scene.name)),
-		statusText(ctx, fmt.tprintf("%d nodes", len(scene.nodes))),
-		statusText(ctx, fmt.tprintf("Selection: %s", selection)),
+		middle[0],
+		middle[1],
+		middle[2],
 		skald.flex(1, skald.spacer(0)),
 		statusText(ctx, FrameStats_Text()),
-		statusText(ctx, fmt.tprintf("Tool: %v", s.tool)),
+		tool,
 		statusText(ctx, fmt.tprintf("%v", s.playState)),
 		statusText(ctx, fmt.tprintf("%.0fx%.0f", s.project.gameSize.x, s.project.gameSize.y)),
 		spacing = th.spacing.lg,

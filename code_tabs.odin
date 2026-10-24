@@ -81,6 +81,8 @@ CodeTabs_Open :: proc(state: ^State, path: string, line: int, column := 0, readO
 	if show {
 		state.codeTab = index + 1
 		state.codeFocusPending = true
+		// Code tabs are the Scene mode's (editor_modes.odin)
+		Mode_Set(state, .Scene)
 	}
 	if readOnly && !known do CodeEditor_SetReadOnly(absolute, true)
 	// Line 1 (the browser's Open) only for a new tab: an open one keeps its caret

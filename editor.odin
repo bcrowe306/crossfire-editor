@@ -63,6 +63,8 @@ BottomTab :: enum {
 	Dialogue,
 	// The project's editor plugins (view_plugins.odin)
 	Plugins,
+	// The Level mode's LDtk tab (level_mode.odin; not the Scene mode's)
+	LDtk,
 }
 
 // Folders shown in the project browser
@@ -374,9 +376,13 @@ State :: struct {
 		node: int,
 		start: [2]f32,
 	},
+	// The editor mode that shows (editor_modes.odin), and the Level mode's own state (level_mode.odin)
+	mode: EditorMode,
+	level: LevelMode,
 	tool: Tool,
 	viewport: ViewportState,
 	playState: PlayState,
+	// The Scene mode's bottom tab and panel sizes (the Level mode's are in `level`: Mode_Layout)
 	bottomTab: BottomTab,
 	layout: Layout,
 	// Console tab: editor messages and the running game's output, with its filters (console.odin)
@@ -418,6 +424,7 @@ init :: proc() -> State {
 			previewOpen = true,
 			previewHeight = 220,
 		},
+		level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .LDtk},
 	}
 	args := parseArgs()
 	settings, problems := Settings_Load(args.settings)
@@ -472,6 +479,8 @@ init :: proc() -> State {
 	// After the project is chosen: list its script files for the browser
 	Scripts_Refresh(&state)
 	if message == "" do Recent_Add(&state.recentProjects, state.project.rootPath)
+	// The mode the project was left in (editor_modes.odin)
+	Mode_Load(&state)
 	return state
 }
 
@@ -487,6 +496,7 @@ State_Destroy :: proc(state: ^State) {
 	CodeRangeDialog_Destroy(&state.codeRange)
 	LogPoints_Destroy(&state.logPoints)
 	DocsWindow_Destroy(&state.docs)
+	LevelMode_Destroy(&state.level)
 	delete(state.lastLink)
 	CodeTabs_CloseAll(state)
 	delete(state.codeTabs)

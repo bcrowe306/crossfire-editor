@@ -50,6 +50,9 @@ UndoCommand :: struct {
 	scene: int,
 	selectionBefore: int,
 	selectionAfter: int,
+	// The editor mode it was made in, and the one it left (editor_modes.odin): undo shows the
+	// first, redo the second, so edits in every mode undo in order from one history
+	modeBefore, modeAfter: EditorMode,
 	// 0 = never merges
 	mergeKey: u64,
 	// Merges with the same key regardless of time (a drag)
@@ -149,6 +152,8 @@ EditSnapshot :: struct {
 	info: EditInfo,
 	scene: int,
 	selection: int,
+	// The mode the edit was made in
+	mode: EditorMode,
 	node: NodeDef,
 	nodes: [dynamic]NodeDef,
 	project: ProjectSnapshot,
@@ -461,7 +466,12 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 			info.label = fmt.tprintf("%v %d nodes", drag.mode, len(s.selection))
 		}
 		return info
+	case Level_Scene_Created:
+		// The Level mode's New Scene with This Level (level_mode.odin)
+		return {scope = .Project, label = fmt.tprintf("New scene for level %s", s.level.level)}
 	case LDtk_Level_Picked:
+		// While the Level mode shows, a level picked on the browser's map selects it there
+		if s.mode == .Level do break
 		return {scope = .Scene, label = fmt.tprintf("Show level %s", v.level)}
 	case LDtk_Setting_Changed:
 		if !hasSelection do break
@@ -672,7 +682,7 @@ message.
 */
 History_Snapshot :: proc(s: ^State, info: EditInfo) -> EditSnapshot {
 	scene := &s.project.scenes[s.currentScene]
-	snap := EditSnapshot{info = info, scene = s.currentScene, selection = s.selectedNode}
+	snap := EditSnapshot{info = info, scene = s.currentScene, selection = s.selectedNode, mode = s.mode}
 	snap.info.label = strings.clone(info.label)
 	switch info.scope {
 	case .None:
@@ -702,6 +712,8 @@ History_Commit :: proc(s: ^State, snap: EditSnapshot, now: time.Tick) {
 		scene = snap.scene,
 		selectionBefore = snap.selection,
 		selectionAfter = s.selectedNode,
+		modeBefore = snap.mode,
+		modeAfter = s.mode,
 		mergeKey = snap.info.mergeKey,
 		sticky = snap.info.sticky,
 		started = now,
@@ -771,6 +783,7 @@ History_Push :: proc(h: ^History, command: UndoCommand, settings: ^Settings, now
 		}
 		top.last = now
 		top.selectionAfter = command.selectionAfter
+		top.modeAfter = command.modeAfter
 		delete(command.label)
 		return
 	}
@@ -800,8 +813,8 @@ mergeTarget :: proc(h: ^History, command: ^UndoCommand, settings: ^Settings, now
 }
 
 /*
-Undoes the newest command: switches to its scene and puts back its "before" state and
-selection.
+Undoes the newest command: switches to the mode it was made in and its scene, and puts back its
+"before" state and selection.
 
 Returns:
 - The command's label, and whether there was one to undo
@@ -825,6 +838,8 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	if len(from) == 0 do return "", false
 	command := pop(from)
 	s.history.version += 1
+	// The mode the step was made in (undo) or left (redo), as the step's scene shows
+	Mode_Set(s, undo ? command.modeBefore : command.modeAfter)
 	// The scene list itself: restore it whole, then show the scene that was open
 	if change, isProject := command.change.(ProjectChange); isProject {
 		snapshot := undo ? &change.before : &change.after

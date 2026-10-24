@@ -1,7 +1,7 @@
 ---
 title: Settings and the toolchain
 description: Change how the editor looks (a live theme editor) and behaves, rebind its shortcuts, check and install the tools that build your games, and find your way around Project Settings.
-order: 36
+order: 37
 ---
 
 # Settings and the toolchain

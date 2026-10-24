@@ -172,7 +172,7 @@ buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 	}
 	state.play.stage = .Building
 	state.playState = .Building
-	state.bottomTab = .Output
+	Mode_ShowLogTab(state, .Output)
 	state.layout.bottomOpen = true
 	return playPoll(state)
 }
@@ -371,7 +371,7 @@ startGame :: proc(state: ^State, restore := "") -> skald.Command(Msg) {
 	playReloadStarted(state)
 	state.play.stage = .Running
 	state.playState = .Playing
-	state.bottomTab = .Console
+	Mode_ShowLogTab(state, .Console)
 	return playPoll(state)
 }
 

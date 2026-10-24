@@ -48,6 +48,9 @@ SessionState :: struct {
 	},
 	// The recent project waiting on the prompt (owned)
 	recent: string,
+	// Projects opened since the editor started (`switchProject`): a message that opened one keeps
+	// the mode it was left in (update doesn't take its new scene for a scene opened by hand)
+	opened: int,
 	newProject: struct {
 		open: bool,
 		// Save As: the dialog names the copy instead of a new project
@@ -364,6 +367,9 @@ switchProject :: proc(state: ^State, project: Project) {
 	Scripts_Refresh(state)
 	// Another folder: its version control is read again
 	state.git.stale = true
+	// The mode it was left in, and its world (editor_modes.odin)
+	Mode_Load(state)
+	state.session.opened += 1
 }
 
 /*

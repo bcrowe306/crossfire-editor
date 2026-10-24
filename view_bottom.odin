@@ -7,21 +7,35 @@ import "core:strings"
 import "gui:skald"
 
 /*
-Bottom panel: Console, Output, Animation (view_animation.odin), Mixer (view_mixer.odin), Git
-(view_git.odin), Tiles (view_tiles.odin) Timeline (view_timeline.odin) and Live (view_live.odin) tabs.
-Keyboard shortcuts are listed in Settings > Keyboard (Help > Keyboard Shortcuts opens it). The chevron collapses it to just its header;
-clicking a tab while collapsed opens it again.
+Bottom panel: the shown mode's tabs (editor_modes.odin's `bottomTabs`): the Scene mode's Console,
+Output, Animation (view_animation.odin), Mixer (view_mixer.odin), Git (view_git.odin), Tiles
+(view_tiles.odin), Timeline (view_timeline.odin), Live (view_live.odin), States, Dialogue and
+Plugins; the Level mode's LDtk (level_mode.odin), Console and Output. The Console and Output are
+the same lists in every mode. Keyboard shortcuts are listed in Settings > Keyboard (Help >
+Keyboard Shortcuts opens it). The chevron collapses it to just its header; clicking a tab while
+collapsed opens it again. Keys: the Scene mode's strip `bottom-tabs` (a tab's index is its
+BottomTab), another mode's `<mode>-bottom-tabs` (`level-bottom-tabs`), scrolled by
+`bottom-tabs-scroll` / `<mode>-bottom-tabs-scroll`.
 */
 bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
-	open := s.layout.bottomOpen
+	layout := Mode_Layout(s)
+	open := layout.bottomOpen
+	tabList := EDITOR_MODES[s.mode].bottomTabs
+	shown := Mode_BottomTab(s)
+	active := 0
+	labels := make([]string, len(tabList), context.temp_allocator)
+	for tab, i in tabList {
+		labels[i] = fmt.tprintf("%v", tab)
+		if tab == shown do active = i
+	}
+	prefix := s.mode == .Scene ? "" : fmt.tprintf("%s-", strings.to_lower(EDITOR_MODES[s.mode].name, context.temp_allocator))
+	tabsKey := fmt.tprintf("%sbottom-tabs", prefix)
+	scrollKey := fmt.tprintf("%sbottom-tabs-scroll", prefix)
 
-	labels := make([]string, len(BottomTab), context.temp_allocator)
-	for tab in BottomTab do labels[tab] = fmt.tprintf("%v", tab)
-
-	tabs := skald.tooltip(ctx, skald.tabs(ctx, labels, int(s.bottomTab),
-		proc(index: int) -> Msg { return Bottom_Tab_Changed(index) },
-		id = skald.hash_id("bottom-tabs")), BOTTOM_TABS_TIP, id = skald.hash_id("bottom-tabs-tip"))
+	tabs := skald.tooltip(ctx, skald.tabs(ctx, labels, active,
+		proc(index: int) -> Msg { return Bottom_Tab_Picked(index) },
+		id = skald.hash_id(tabsKey)), s.mode == .Scene ? BOTTOM_TABS_TIP : LEVEL_BOTTOM_TABS_TIP, id = skald.hash_id(fmt.tprintf("%s-tip", tabsKey)))
 	buttons := skald.row(
 		panelButton(ctx, "clear-log", ICON_TRASH, "Clear", Action.Clear_Console,
 			disabled = !clearable(s)),
@@ -33,16 +47,16 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// More tabs than the panel is wide scroll sideways, like the center's: unclipped, the ones
 	// past its edge took clicks meant for the inspector beside it (a dropdown's choice there
 	// switched the tab)
-	left, right := FittedSidebarWidths(&s.layout)
-	panelWidth := s.layout.workspace.x - left - right - DIVIDER * 2
+	left, right := FittedSidebarWidths(layout)
+	panelWidth := layout.workspace.x - left - right - DIVIDER * 2
 	tabsWidth, tabsHeight := f32(200), f32(30)
 	if ctx.renderer != nil {
 		tabsWidth = max(panelWidth - skald.view_size(ctx.renderer, buttons).x - th.spacing.xs * 3, 60)
 		tabsHeight = skald.view_size(ctx.renderer, tabs).y
 	}
-	hScroll_Reveal(ctx, "bottom-tabs-scroll", skald.widget_make_sub_id(skald.hash_id("bottom-tabs"), u64(int(s.bottomTab) + 1)))
+	hScroll_Reveal(ctx, scrollKey, skald.widget_make_sub_id(skald.hash_id(tabsKey), u64(active + 1)))
 	header := skald.row(
-		hScroll(ctx, "bottom-tabs-scroll", tabs, tabsWidth, tabsHeight, thin = true),
+		hScroll(ctx, scrollKey, tabs, tabsWidth, tabsHeight, thin = true),
 		skald.flex(1, skald.spacer(0)),
 		buttons,
 		spacing = th.spacing.xs,
@@ -53,7 +67,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if !open do return header
 
 	content: skald.View
-	switch s.bottomTab {
+	switch shown {
 	case .Console:   content = logView(ctx, s, false, "Console is empty.", "console-scroll")
 	case .Output:    content = logView(ctx, s, true, "Build output appears here when you press Play.", "output-scroll")
 	case .Animation: content = AnimationPanel(s, ctx)
@@ -65,6 +79,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .States:    content = StatesPanel(s, ctx)
 	case .Dialogue:  content = DialoguePanel(s, ctx)
 	case .Plugins:   content = PluginsPanel(s, ctx)
+	case .LDtk:      content = LevelMode_LDtkTab(s, ctx)
 	}
 
 	return skald.col(
@@ -78,7 +93,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 @(private="file")
 clearable :: proc(s: ^State) -> bool {
-	#partial switch s.bottomTab {
+	#partial switch Mode_BottomTab(s) {
 	case .Console: return len(LogList_Lines(&s.console)) > 0
 	case .Output:  return len(LogList_Lines(&s.output)) > 0
 	}

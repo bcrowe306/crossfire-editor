@@ -145,6 +145,8 @@ DocsPanel :: enum {
 	Browser,
 	Bottom,
 	Code,
+	// The Level mode's world map and level panel (level_mode.odin)
+	Level,
 }
 
 @(private)
@@ -154,7 +156,7 @@ docsPointerPanel: DocsPanel
 Notes which panel the pointer is over, from the panels' rects last frame (called by `view`, so
 F1's `.User_Manual` knows where it was pressed).
 */
-Docs_TrackPointer :: proc(ctx: ^skald.Ctx(Msg)) {
+Docs_TrackPointer :: proc(ctx: ^skald.Ctx(Msg), mode := EditorMode.Scene) {
 	p := ctx.input.mouse_pos
 	inside :: proc(ctx: ^skald.Ctx(Msg), key: string, p: [2]f32) -> bool {
 		st, ok := ctx.widgets.states[skald.hash_id(key)]
@@ -162,6 +164,19 @@ Docs_TrackPointer :: proc(ctx: ^skald.Ctx(Msg)) {
 		return ok && r.w > 0 && p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h
 	}
 	docsPointerPanel = .None
+	// Another mode's panels keep their last rects in Skald's store: only the shown mode's count
+	if mode == .Level {
+		switch {
+		case inside(ctx, "browser-scroll", p): docsPointerPanel = .Browser
+		case:
+			docsPointerPanel = .Level
+			if st, ok := ctx.widgets.states[skald.hash_id("level-bottom-tabs-scroll")]; ok {
+				r := st.last_rect
+				if r.w > 0 && p.y >= r.y && p.x >= r.x - 8 && p.x < r.x + r.w + 200 do docsPointerPanel = .Bottom
+			}
+		}
+		return
+	}
 	switch {
 	case inside(ctx, "code-editor", p):       docsPointerPanel = .Code
 	case inside(ctx, "viewport-canvas", p):   docsPointerPanel = .Viewport
@@ -196,7 +211,9 @@ Docs_HelpAddress :: proc(state: ^State, panel: DocsPanel) -> string {
 	case .Scene_Tree:
 		return Docs_ManualAddress(DOCS_SCENE_TREE_PAGE)
 	case .Bottom:
-		return Docs_ManualAddress(DOCS_BOTTOM_TAB_PAGES[state.bottomTab])
+		return Docs_ManualAddress(DOCS_BOTTOM_TAB_PAGES[Mode_BottomTab(state)])
+	case .Level:
+		return Docs_ManualAddress(EDITOR_MODES[.Level].manual)
 	case .Browser:
 		if address := Docs_BrowserAddress(state); address != "" do return address
 		return Docs_ManualAddress(DOCS_BROWSER_PAGE)

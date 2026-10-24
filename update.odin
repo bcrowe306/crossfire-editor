@@ -64,6 +64,18 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			out.dialogue = {path = strings.clone(path), node = 0, step = -1}
 		}
 	}
+	// An LDtk project chosen in the browser is the world the Level mode shows (level_mode.odin)
+	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
+	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .LDtk {
+		path := out.project.assets[out.browserSelection.index].path
+		if path != out.level.file {
+			delete(out.level.file)
+			out.level.file = strings.clone(path)
+			delete(out.level.level)
+			out.level.level = ""
+			Mode_Save(&out)
+		}
+	}
 	// And an atlas (atlas_edit.odin)
 	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
 	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Atlas {
@@ -78,6 +90,14 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	// A bus opened from the Mixer: until a node or something in the browser is chosen
 	if (out.selectedNode >= 0 && out.selectedNode != state.selectedNode) || (out.browserSelection != state.browserSelection && out.browserSelection.kind != .None) do out.busSelection = -1
 	if out.busSelection >= len(out.project.buses) do out.busSelection = -1
+	// What belongs to the Scene mode shows it (editor_modes.odin): another scene opened, a node
+	// selected, a code tab picked (CodeTabs_Open shows the mode itself). Undo and redo go to
+	// their step's own mode (history.odin); a project opened, to the mode it was left in
+	if out.mode != .Scene && !isUndoRedo(m) && out.session.opened == state.session.opened {
+		if out.currentScene != state.currentScene || (out.selectedNode >= 0 && out.selectedNode != state.selectedNode) || (out.codeTab > 0 && out.codeTab != state.codeTab) {
+			Mode_Set(&out, .Scene)
+		}
+	}
 	// Anything that opens another scene shows it (not a code tab), in its tab
 	if out.currentScene != state.currentScene {
 		out.codeTab = 0
@@ -91,12 +111,23 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	return out, command
 }
 
+// Undo or Redo (they restore their step's mode themselves)
+@(private="file")
+isUndoRedo :: proc(m: Msg) -> bool {
+	a, isAction := m.(Action)
+	return isAction && (a == .Undo || a == .Redo)
+}
+
 @(private="file")
 applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
 	// The open project's log points (read when the project changes: log_points.odin)
 	LogPoints_Follow(&out)
 	if command, handled := ContextMenu_Update(&out, m); handled do return out, command
+	// Switching modes, and the Level mode's messages (before the LDtk ones: a level picked on the
+	// browser's world map selects it there while the Level mode shows)
+	if command, handled := Modes_Update(&out, m); handled do return out, command
+	if command, handled := LevelMode_Update(&out, m); handled do return out, command
 	if Console_Update(&out, m) do return out, {}
 	if ViewportTools_Update(&out, m) do return out, {}
 	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
@@ -144,7 +175,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if Mixer_Update(&out, m) do return out, {}
 	if BusEffects_Update(&out, m) do return out, {}
 	if MusicLayers_Update(&out, m) do return out, {}
-	layout := &out.layout
+	// The shown mode's panel sizes (editor_modes.odin): the Scene mode's or the Level mode's
+	layout := Mode_Layout(&out)
 
 	switch v in m {
 	case Action:
@@ -235,6 +267,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Guide_Added, Guide_Moved, Guide_Removed, Guides_Cleared,
 	     Text_Copied:
 		// Handled by ContextMenu_Update and ViewportTools_Update above
+	case Mode_Changed, Bottom_Tab_Picked, Level_File_Chosen, Level_Map_Clicked, Level_Scene_Opened, Level_Scene_Created:
+		// Handled by Modes_Update and LevelMode_Update above
 	case Log_Follow_Toggled, Log_Follow_Set, Log_Level_Toggled, Log_Category_Toggled,
 	     Log_Categories_Shown, Log_Search_Changed, Log_Filters_Cleared, Log_Test_Lines:
 		// Handled by Console_Update above
@@ -292,8 +326,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Toolchain_Emscripten_Requested:
 		if out.emscriptenInstalling do break
 		out.emscriptenInstalling = true
-		out.bottomTab = .Output
-		out.layout.bottomOpen = true
+		Mode_ShowLogTab(&out, .Output)
+		Mode_Layout(&out).bottomOpen = true
 		logLine(&out, .Info, fmt.aprintf("Installing Emscripten %s for web exports (about 1 GB, a few minutes; once per machine) into %s...", EMSDK_VERSION, Toolchain_DataDir()))
 		return out, Toolchain_InstallEmscripten()
 	case Toolchain_Emscripten_Finished:
@@ -741,15 +775,16 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Viewport_Resized:
 		layout.bottomHeight = max(layout.workspace.y - f32(v) - DIVIDER, MIN_BOTTOM_HEIGHT)
 	case Scene_Tree_Resized:
-		layout.sceneTreeHeight = max(f32(v), MIN_SCENE_TREE_HEIGHT)
+		out.layout.sceneTreeHeight = max(f32(v), MIN_SCENE_TREE_HEIGHT)
 	case Workspace_Measured:
-		layout.workspace = cast([2]f32)v
+		// Every mode's workspace is the same area
+		for mode in EditorMode do Mode_LayoutOf(&out, mode).workspace = cast([2]f32)v
 
 	case Bottom_Tab_Changed:
-		out.bottomTab = BottomTab(int(v))
-		layout.bottomOpen = true
+		// A tab only another mode has shows that mode (editor_modes.odin)
+		Mode_ShowBottomTab(&out, BottomTab(int(v)))
 		// What git says may have changed since it was read
-		if out.bottomTab == .Git do return out, Git_Refresh(&out)
+		if BottomTab(int(v)) == .Git do return out, Git_Refresh(&out)
 	case Scene_Tab_Changed:
 		out.codeTab = 0
 		tabs := ViewportTabScenes(&out)
@@ -1305,10 +1340,10 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		out.viewport.drag = {}
 
 	case .Toggle_Bottom_Panel:
-		out.layout.bottomOpen = !out.layout.bottomOpen
+		Mode_Layout(&out).bottomOpen = !Mode_Layout(&out).bottomOpen
 	case .Clear_Console:
 		// Clears whichever log tab is showing
-		LogList_Clear(logListOf(&out, out.bottomTab == .Output))
+		LogList_Clear(logListOf(&out, Mode_BottomTab(&out) == .Output))
 
 	case .Tool_Select: out.tool = .Select
 	case .Tool_Move:   out.tool = .Move
@@ -1432,6 +1467,8 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		return out, Script_Open(&out, path, line)
 	case .Close_Code_Tab:
 		if out.codeTab > 0 do return out, skald.cmd_now(Msg(Code_Tab_Close_Requested(out.codeTab - 1)))
+	case .Mode_Scene, .Mode_Level:
+		// Modes_Update switches (editor_modes.odin)
 	case .Open_Settings:
 		SettingsDialog_Open(&out)
 	case .Export:

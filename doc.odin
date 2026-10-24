@@ -8,10 +8,10 @@ Built with Skald's Elm architecture:
 - `update` (update.odin) is the only place `State` changes.
 - `view` (view.odin and view_*.odin) draws the whole window from `State` every frame.
 
-Window layout:
+Window layout (the Scene mode: editor_modes.odin; the Level mode's workspace is level_mode.odin's):
 
 	+-----------------------------------------------------------+
-	| menu bar                                                  |
+	| menu bar                          mode bar: Scene  Level  |
 	| toolbar: file, undo, tools, play controls, export        |
 	+-----------+-----------------------------------+-----------+
 	| browser   | scene tabs                        | scene     |
@@ -19,7 +19,7 @@ Window layout:
 	|  files)   |                                   |-----------|
 	|           +-----------------------------------+ inspector |
 	|           | bottom panel: Console / Output /  |           |
-	|           | Animation tabs, collapsible       |           |
+	|           | Animation / ... tabs, collapsible |           |
 	+-----------+-----------------------------------+-----------+
 	| status bar                                                |
 	+-----------------------------------------------------------+

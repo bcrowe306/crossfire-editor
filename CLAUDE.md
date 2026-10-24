@@ -66,6 +66,10 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   docs window over the editor showing the bundled manual (with a guide to every node kind) and
   the engine's API reference, offline, from F1, Open Docs in every right-click menu and code tab,
   and the panels' Manual buttons (see "Docs in the editor" below).
+- **Editor modes** (`editor_modes.odin`, `level_mode.odin`): the mode bar beside the menus
+  switches the workspace between the **Scene** mode (everything above) and the **Level** mode (a
+  world editor: an LDtk project's levels laid out, the scenes showing each one, a scene made for
+  a level, the LDtk tab as a read-only summary for now); see "Editor modes" below.
 - **The website** [crossfireengine.io](https://crossfireengine.io) (`../crossfire_astro`,
   bcrowe306/crossfire-astro) publishes this repository's `docs/manual/` and the engine's doc
   comments (see "Documentation").
@@ -177,6 +181,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `doc.odin` | Package overview and a diagram of the window layout |
 | `editor.odin` | `State`, `Layout`, panel size rules (`FittedSidebarWidths`, `FittedBottomHeight`), `init`, args, `main` |
 | `msg.odin` | `Msg` union and `Action` (menu, toolbar and shortcut commands) |
+| `editor_modes.odin` | **Editor modes**: `EditorMode` (Scene, Level), `EDITOR_MODES` (each mode's registration: name, icon, its `view`, its bottom tabs, its manual page, the `Action` switching to it), `Mode_Layout` / `Mode_LayoutOf` (each mode's panel sizes), `Mode_BottomTab`, `Mode_ShowBottomTab` / `Mode_ShowLogTab`, `Mode_Set`, `.editor/modes.ini` (`Mode_Save` / `Mode_Load`), the mode bar (`modeBarView`), `modeWorkspaceView`, `Modes_Update` |
+| `level_mode.odin` | **The Level mode**: `LevelMode` (`State.level`: its layout, bottom tab, world, selected level), `levelModeView` (browser, world map over the bottom panel, the level panel), `LevelMode_File`, `LevelMode_ScenesShowing`, `Level_*` messages (`LevelMode_Update`), the LDtk tab (`LevelMode_LDtkTab`), `LevelMode_Status` |
 | `update.odin` | `update`, the only place State changes |
 | `keymap.odin` | `DEFAULT_KEYMAP`, shortcut dispatch, typing guard, the platform's keys (`Chord_OnPlatform` / `Chord_FromPlatform` / `Chord_Format`: the keymap's Ctrl is Cmd on macOS), `keyParen` (an action's keys for text) |
 | `context_menus.odin` | **Right-click menus everywhere**: `ContextTarget` (what was clicked), `State.contextMenu`, `Context_Menu_Opened` / `_Closed`, `ContextMenu_Items` (the items per target: nodes, empty viewport, the tree, the browser's every kind, tabs, logs), `contextMenuView` (Skald's `popup_menu`, built first in the frame), `rightPressOpens`, the commands without an older message (`Node_Command`, `Add_Node_Here`, `Paste_Here`, `Tab_Command`, `File_Command`, `Log_Command`, `Asset_Add_To_Scene`) |
@@ -199,7 +205,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `atlas_edit.odin` | **Texture atlases**: `AtlasDef` (`Project.atlases`, asset kind Atlas, `atlases/`), `Project_CreateAtlas` (the browser's New Atlas), `Atlas_PackFiles` (packs with `e.Atlas_Pack`, writes the PNG and `.atlas.xml` on every edit), `atlasInspector` (`State.atlasSelection`), `atlasPreview`, Sprites' `NodeDef.region` (the Region row) |
 | `node_scripts_edit.odin` | **Several scripts per node and node types of game code**: `NodeDef.moreScripts` / `customKind` / `customProps`, `Node_Script_Added` / `_Removed` / `_Open`, `NodeScriptTarget` / `NodeCustomTarget` (PropTarget), `AddNode_Entries` (Add Node's "Your node types"), `NodeDef_Codes` (what a node runs, in the engine's order), the inspector's rows (`moreScriptsRows`, `nodeTypeRows`) |
 | `tree_rows.odin` | Flattens the project into browser and scene tree rows, applying the browser search. Shared by view and update, because Skald's tree reports clicks by row index |
-| `view.odin` | Root layout: menu bar, toolbar, resizable workspace, status bar, remove-asset dialog, panel header helpers |
+| `view.odin` | Root layout: menu bar with the mode bar, toolbar, the mode's workspace (the Scene mode's: `sceneModeView`), status bar, remove-asset dialog, panel header helpers |
 | `view_browser.odin` | Left sidebar: project browser (search, tree, collapsible preview panel) |
 | `view_browser_info.odin` | The preview for scripts (`scriptInfoPreview`: what each registered script and data type is, where it's used) and scenes (`scenePreview`: facts, actions, the scene's own settings) |
 | `scene_settings.odin` | A scene's own settings (`SceneDef.settings`, the engine's `e.SceneSettings`): their messages and undo |
@@ -293,7 +299,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
 | `view_inspector_particles.odin` | The inspector's ParticleEmitter settings, built from the engine's `e.ParticleSettings_Fields` (sliders, linked pairs, colors with alpha, the color ramp editor `colorRampEditor`, Reset) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
-| `view_bottom.odin` | Bottom panel: Console / Output / Animation / Mixer tabs, collapsible; the log tabs' view (`logView`: header of filters, a `virtual_list` of lines, `logFollow`) |
+| `view_bottom.odin` | Bottom panel: the shown mode's tabs (the Scene mode's Console / Output / Animation / Mixer ..., the Level mode's LDtk / Console / Output), collapsible; the log tabs' view (`logView`: header of filters, a `virtual_list` of lines, `logFollow`) |
 | `console.odin` | **The Console's and Output tab's lines**: `LogList` (`State.console` / `output`: lines with a level and category, the categories seen, counts, the history limit, filters, following), `LogList_Append` / `Trim` / `Clear` / `Shown`, `LOG_*_CATEGORY`, `LogLevel` (the engine's), `Console_Update` (the `Log_*` messages) |
 | `console_test.odin` | Tests: categories and the limit, filters, the game's lines parsed, the messages and menus, the setting |
 | `error_locations.odin` | **Clickable errors**: `ErrorLocation_Parse` (a line's `path(line:col)` / `path:line:col`, Windows drive letters, paths with spaces), `ErrorLocation_Resolve` (where the file is), `ErrorLocation_Open` (Go to Error: `Script_Open` at the line and column, read-only outside the project), `Path_InProject`; tests in `error_locations_test.odin` |
@@ -326,6 +332,17 @@ Skald is not immediate-mode and not a retained widget tree:
 | `tools/demo/player/` | The demo's own player (the engine's player with its scripts): `task play:demo` |
 
 **Layout rules learned building it:**
+- **Each mode owns its workspace and panel sizes** (editor_modes.odin): the dividers' messages
+  (`Left_Resized`, `Center_Resized`, `Viewport_Resized`) and Toggle_Bottom_Panel change the shown
+  mode's `Layout` (`Mode_Layout`); `Workspace_Measured` sets every mode's (one area). A mode's
+  splits need ids of their own (`level-split-left`...): a split keeps its drag state by id.
+  `State.layout` and `State.bottomTab` are the Scene mode's.
+- **Another mode's widgets keep their last rects in Skald's store** (states live about two
+  minutes unbuilt): code that hit-tests a widget's last rect without building it (the viewport's
+  `ViewportHovered`, F1's `Docs_TrackPointer`) must check the mode first, or the Level mode's map
+  counted as the viewport under the pointer.
+- **The mode bar sits in the menu bar's row**, centered in what the menus leave, and is no taller
+  than it: the Scene mode's layout is as it was. Under `MODE_BAR_COMPACT_WIDTH` it shows icons.
 - `skald.split` only sizes its **first** pane. Panels that should keep their size (sidebars, bottom
   panel, browser preview) are stored as their own sizes. Their container is built with
   `skald.sized` and reports its size back (`Workspace_Measured`, `Browser_Body_Measured`), so
@@ -545,7 +562,7 @@ behave (`viewportOnly`, `textChord`).
 - Defaults:
   - Q W E R T Z H tools (T: transform, Z: zoom, H: pan), L the node's own axes, F frame selected,
     Shift+; guides
-  - Ctrl+0 fit, Ctrl+1 100%, Ctrl+=/- zoom, P animations
+  - Ctrl+0 fit, Ctrl+1 100%, Ctrl+=/- zoom, P animations; Ctrl+Alt+1 / 2 the Scene / Level mode
   - arrows nudge (Shift ×10), Esc deselect, Delete
   - Ctrl+D duplicate, Ctrl+C/X/V copy/cut/paste nodes (not while typing)
   - Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo (not while typing: the text field undoes typing)
@@ -558,6 +575,12 @@ behave (`viewportOnly`, `textChord`).
 - Settings > Keyboard lists and edits the keymap (Help > Keyboard Shortcuts opens it there).
 - **A new Action needs a line in `settings.default.ini`'s `[keymap]`** (a test checks), and an
   `ACTION_LABELS` entry. Don't add ad-hoc `skald.shortcut` calls.
+- **Keys of one mode** (`ActionKeyRule.onlyIn`, `Action_InMode`): the nodes', the viewport's and
+  the code tabs' actions are the Scene mode's; `KeymapDispatch` skips them in another mode and the
+  menu bar disables their items (a disabled item registers no shortcut: the menu bar would fire
+  Del itself). The browser's routed keys (Delete, Ctrl+D/C/X/V, F2 on its scene) work wherever it
+  has the keyboard. Ctrl+Alt+1 / Ctrl+Alt+2 switch modes (`Mode_Scene`, `Mode_Level`; Ctrl+1 is
+  the viewport's 100%), in `CODE_EDITOR_PASSTHROUGH` too.
 - Tooltips and menu hints read the keymap (`actionTip`, `Keymap_Shortcut`, `keyParen` for text);
   never hard-code a shortcut in a label.
 - **macOS: the keymap's Ctrl is Cmd.** Chords are stored once for every platform (editor.ini is
@@ -1646,7 +1669,9 @@ stops the game.
 
 A command history in `State.history`: each `UndoCommand` holds what changed (one node:
 `NodeChange`, or a scene's node list: `SceneChange`) before and after, the selection before and
-after, and its scene. Undo switches to that scene and restores "before"; redo restores "after".
+after, its scene, and the editor mode it was made in and left (`modeBefore` / `modeAfter`). Undo
+switches to that mode and scene and restores "before"; redo shows `modeAfter` and restores
+"after". **One history for every mode**: edits undo in order wherever they were made.
 - **Recording is automatic.** `update` wraps `applyMsg`: `History_Classify` says what a message
   edits (`.Node`, `.Scene` or `.None`), `History_Snapshot` copies it, and `History_Commit`
   compares after the message and pushes a command if anything changed. **A new edit message needs
@@ -1728,7 +1753,8 @@ MyGame/
   export.ini               export targets and their settings (only once changed)
   export/<target>/         export output (the default folder; gitignored in this repo's examples)
   .editor/                 per-user editor state (gitignored): guides.ini (the viewport's guides),
-                           logpoints.ini (the code tabs' log points)
+                           logpoints.ini (the code tabs' log points), modes.ini (the editor mode
+                           and the Level mode's world: editor_modes.odin)
 ```
 
 - **Version 14:** an AnimatedSprite's animations each have their own sheet (`AnimationDef.sheet`,
@@ -2250,6 +2276,57 @@ inspector's **Animations**): an `.anim.xml` file (kind Animation) or an Aseprite
   save, a CRT ScreenEffect, Play: `Renderer: gpu`; driver checks `shader`, `viewport_has_color`,
   `render_path effects`; checked with Vulkan validation). User guide: `docs/manual/shaders.md`.
 
+## Editor modes (implemented, `editor_modes.odin`, `level_mode.odin`)
+
+TODO.md's Round 4 "Editor modes: a top tab bar" (asked 2026-10-24: "the current app could be a tab
+called Scene, the next mode would be Level... in the future 3D, or a pixel editor"). The manual's
+pages: getting_started.md's "Editor modes" and `docs/manual/level_mode.md`.
+- **A mode is a registration** (`EDITOR_MODES[mode]`): its workspace view (built by
+  `modeWorkspaceView` inside the root view's `sized`), its bottom tabs, its manual page and the
+  `Action` switching to it. Its state lives beside `State.level`; its panel sizes are a `Layout`
+  (`Mode_LayoutOf`). A new mode: an `EditorMode` value, its registration, an Action with its
+  `[keymap]` line and label, and its state.
+- **The mode bar** (`modeBarView`, keys `mode-tab-<Name>`): in the menu bar's row (Godot's
+  workspace buttons are the model: no height of its own), each tab an icon and a name, the shown
+  one in the accent color, a tooltip with its keys.
+- **Shared:** the menu bar (View > Scene Mode / Level Mode, checked; another mode's items
+  disabled), the toolbar's file, undo, play buttons and Export (its tools are the Scene mode's:
+  `Toolbar_Overflow(tools = false)`, `Ctx_Toolbar_More.noTools`), the browser (its preview and
+  tree state are `State.layout`'s and Skald's, so they're the same in both), the Console and
+  Output (one list each; the Level mode's strip shows them too), Settings, Project Settings, the
+  docs window, the history. Per mode: the workspace, panel sizes, the bottom tab, the status
+  bar's middle (`LevelMode_Status`).
+- **Code tabs are the Scene mode's**, beside the scene tabs: `CodeTabs_Open(show = true)` shows the
+  Scene mode, so Go to Error, Open Script and the docs' links reach the code from any mode; the
+  code view, `CodeEditor_Frame` and the live values only run there.
+- **What belongs to a mode shows it** (`update`, after the message): in another mode, a scene
+  opened, a node selected or a code tab picked shows the Scene mode; `Bottom_Tab_Changed` with a
+  tab only another mode has shows that mode (`Mode_ShowBottomTab`: the status bar's Git branch);
+  Play's and exports' log tabs show in every mode that has them, without switching
+  (`Mode_ShowLogTab`). Not after undo / redo (their step's own mode) or a project opened
+  (`session.opened`: the mode it was left in). Scene-only ticks (the Animation panel's, the
+  Timeline's) stop in another mode.
+- **Persistence:** `.editor/modes.ini` (`mode`, `level_file`), written when the mode or the
+  Level mode's world changes (`Mode_Save`; only for a project folder on disk), read by `init`
+  and `switchProject` (`Mode_Load`).
+- **The Level mode** (level_mode.odin's doc block): the world map is the browser's renderer in
+  its own slot (`LDtkThumbnailSlot.Level`, `ldtkThumbnailView(..., selected)`: hover outlines, a
+  press sends `Level_Map_Clicked`, a double-click opens the first scene showing the level,
+  `Preview_LDtkLevelRect` outlines the selected one); the level panel lists the scenes whose
+  LDtkLevel nodes show it (`LevelMode_ScenesShowing`: by identifier, iid or "" for the first
+  level, then All levels nodes; components skipped) and **New Scene with This Level**
+  (`Level_Scene_Created`, a `.Project` step: a scene named after the level before the
+  components, an LDtkLevel node under its World). While it shows, the browser's map picks levels
+  for it (`LDtk_Level_Picked` is taken by `LevelMode_Update`), and an LDtk asset selected in the
+  browser is its world. The LDtk tab only reads the file (layers, entity types, enums,
+  tilesets): TODO.md's next item makes it the editor.
+- Tests: `editor_modes_test.odin` (switching, bottom tabs and panel sizes per mode, what shows the
+  Scene mode, the keys' scope and chords, persistence, a level's scene made and opened, undo and
+  redo across modes); `tests/ui/modes.script` (the bar, the keys, the actions, a selection kept
+  across modes, Scene-only keys idle in the Level mode, the world of an imported LDtk file, a
+  level selected, New Scene with This Level, undo back into the Level mode, the mode remembered
+  when the project opens again); docs_test's `Docs_TypeAddress` with project types.
+
 ## Docs in the editor (implemented, `docs.odin`, `docs_window.odin`, `view_docs.odin`, `markdown.odin`)
 
 TODO.md's Round 4 item 1 (asked 2026-10-24): the docs in a popup inside the editor, offline, with
@@ -2298,8 +2375,10 @@ TODO.md's Round 4 item 1 (asked 2026-10-24): the docs in a popup inside the edit
   name (a node type to its guide), else `ScriptCode_TypeAt` (script_rename.odin: the type the
   code model shows for a field, parameter or local, `self.door` through the struct's field) to
   `Docs_TypeAddress`; **Open Docs** in the right-click menus (context_menus.odin); `Manual_Opened`
-  (the panels' Manual buttons). Not followed yet: a project's own node type (`^Door` declared
-  `Door :: struct { using sprite: e.Sprite }`) to its base kind's guide.
+  (the panels' Manual buttons). A project's own node type (`^Door` declared
+  `Door :: struct { using sprite: e.Sprite }`, or the name `Door` itself) goes to its base kind's
+  guide through what it embeds (`ScriptIndex_Embeds`, `Docs_TypeAddress`'s `projectTypes`, a chain
+  of them); a script's struct to the scripts page.
 - **Looking at it:** Skald's offscreen renderer (`render_view_to_pixels`) is private, so the
   window was checked by making it public in the submodule's working tree for a scratch driver
   command (rendering `docsWindowContent` to a PNG), then putting it back: it reads back sRGB, so
@@ -2765,7 +2844,8 @@ Their files' doc comments describe them; what the code relies on:
   clamped in `update`), checkboxes `Audio_Flag_Changed`, the sound and bus through
   `Node_Text_Changed` (`.Sound`, `.Bus`; choosing Master stores ""). A bus name that no bus has
   is warned about (the engine plays it on Master). **Preview** plays the node's sound through the
-  browser's audio preview with its volume, pitch and pan (`AudioPreview_SetSettings`; not its bus).
+  browser's audio preview with its volume, pitch and pan (`AudioPreview_SetSettings`), through its bus
+  (`Mixer_RoutePreview`: see "Meters show the editor's own playback" below).
 - **Mixer tab** (`MixerPanel`, `Mixer_Update`), laid out like a DAW's mixer: channel strips for
   the buses in an `hScroll` (wheel or bar), Master pinned on the far right with + (Add Bus,
   "Bus", "Bus 2", ...; the new strip is scrolled into view: `hScroll_ScrollToEnd`) beside it.
@@ -3221,6 +3301,10 @@ Highlights:
   is clicked with `click_widget toolbar-play`; its rectangle is read from Skald's widget store
   (`ctx.widgets.states`) without touching its state. **Give every widget a test should reach a
   stable `hash_id` key.** Existing keys:
+  - the mode bar's tabs `mode-tab-<Name>` (`mode-tab-Level`); the Level mode's `ldtk-map-Level`
+    (its world map), `level-new-scene`, `level-open-scene-<i>`, `level-file`, `level-open-ldtk`,
+    `level-import`, `level-manual`, its bottom strip `level-bottom-tabs` (driver checks `mode`,
+    `level <file | level | tab | levels | shown_in>`; tests/ui/modes.script)
   - toolbar buttons `toolbar-<name>` (`toolbar-physics-debug`: the game's collision shapes,
     `toolbar-restart`, `toolbar-more`: the overflow in a narrow window, drawn instead of the tools),
     panel buttons `panel-<name>`

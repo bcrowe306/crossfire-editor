@@ -252,6 +252,11 @@ Checks:
 	modified <true | false>      The project has unsaved changes
 	project <name>               The open project's name
 	ldtk_level <identifier|first>    The selected LDtkLevel node's level
+	mode <Scene | Level>         The editor mode that shows (editor_modes.odin)
+	level <file | level | tab | levels | shown_in> <value>
+	                             The Level mode (level_mode.odin): its world's file, the selected
+	                             level (none), its bottom tab, how many levels its map drew, how
+	                             many scenes show the selected level
 	about_dialog <open | closed>, confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
 	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit | console_limit> <value>
@@ -3194,6 +3199,20 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprint(Project_IsModified(s))
 	case "project":
 		found = s.project.name
+	case "mode":
+		found = fmt.tprint(s.mode)
+	case "level":
+		// The Level mode: `level <field> <value>`
+		field, _, wanted := strings.partition(strings.trim_space(value), " ")
+		switch field {
+		case "file":     found = LevelMode_File(s)
+		case "level":    found = s.level.level == "" ? "none" : s.level.level
+		case "tab":      found = fmt.tprint(s.level.bottomTab)
+		case "levels":   found = fmt.tprint(len(Preview_LDtkLevels(.Level)))
+		case "shown_in": found = fmt.tprint(len(LevelMode_ScenesShowing(s, LevelMode_File(s), s.level.level)))
+		case:            return false, fmt.tprintf("unknown level field %q", field)
+		}
+		return found == strings.trim_space(wanted), found
 	case "ldtk_level":
 		// The selected node's LDtk level ("" shows as "first")
 		if selected == nil do return false, "nothing selected"

@@ -418,7 +418,7 @@ Timeline_Update :: proc(s: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		t.lastTick = now
 		clip := Timeline_Clip(s)
 		node, _ := Timeline_Animator(s)
-		if !t.playing || clip == nil || s.bottomTab != .Timeline || !s.layout.bottomOpen || !EditorFocused() {
+		if !t.playing || clip == nil || s.mode != .Scene || s.bottomTab != .Timeline || !s.layout.bottomOpen || !EditorFocused() {
 			t.tickPending = false
 			break
 		}

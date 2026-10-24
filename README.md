@@ -119,9 +119,19 @@ The Taskfile passes the flags every build needs:
 
 ## Layout
 
+The editor has **modes**, switched by the tabs beside the menu bar (the mode bar), View > Scene
+Mode / Level Mode, or Ctrl+Alt+1 / Ctrl+Alt+2: **Scene** (the layout below) and **Level**, a world
+editor showing an LDtk project's levels laid out as in its world, the scenes showing each one, a
+scene made for a level in one click, and an LDtk tab ([docs/manual/level_mode.md](docs/manual/level_mode.md)).
+Each mode has its own layout and panel sizes; the menus, the toolbar's file, undo and play
+buttons, the browser, the Console and Output, the settings and one undo history are shared. The
+mode is remembered per project (`.editor/modes.ini`).
+
+The Scene mode:
+
 | Area | Contents |
 |---|---|
-| Top | Menu bar and toolbar: file actions, undo/redo, tools, play controls (Restart too), export; in a narrow window the tools move into an overflow menu |
+| Top | Menu bar (with the mode bar) and toolbar: file actions, undo/redo, tools, play controls (Restart too), export; in a narrow window the tools move into an overflow menu |
 | Left | Project browser: scenes and assets |
 | Center | Scene tabs and the scene view |
 | Right | Scene node tree and the inspector for the selected node |
