@@ -290,8 +290,8 @@ under the Script dropdown. Hover a field's name to see its type, range and defau
 is undoable (Ctrl+Z), and only values that differ from the default are written to the scene.
 
 The editor also reads the scripts' **source** as you type or save them (the script index): a field
-you add shows in the inspector a moment later, before any build, with "Fields from the source:
-not built yet." under the dropdown. Once the scripts are built, the build's description is used
+you add shows in the inspector a moment later, before any build, with "From the source: not
+built yet" over the fields ("From the last build" once it's built). Once the scripts are built, the build's description is used
 for every file that hasn't changed since. When the editor can't tell (a script it can't read yet),
 the inspector says "Build the scripts (Ctrl+B) to edit Mover's fields." and lists the stored
 values, read only. Nothing is lost meanwhile.

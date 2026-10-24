@@ -1,0 +1,45 @@
+# Clicks on the inspector while a code tab has the keyboard (TODO round 5's lost clicks): New
+# Script opens its file in a code tab, which takes the keyboard; the Events toggle under the
+# Script section must take the very next click, and the one after. They were lost because the
+# Script section's rows changed as the script index read the new file and again when its build
+# ended, moving the toggle between the pointer's move and the press; New Script now reads the
+# file into the index at once and the section's source line is always there.
+# Run with: task test:ui SCRIPT=tests/ui/code_focus_clicks.script (and the fullscreen and short runs)
+#
+# PlayScene's rows: World, Camera, Spaceship (2), ...
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Probe
+click_widget new-script-create
+expect code_tab probe.odin
+wait_until code_focused true timeout=5
+# At once, while the build runs: the toggle opens, then closes
+scroll_into_view inspector-scroll inspector-events-toggle
+click_widget inspector-events-toggle
+expect inspector_events open
+click_widget inspector-events-toggle
+expect inspector_events closed
+# With the keyboard back in the code: typing, then a click on the toggle
+click_widget code-editor
+wait_until code_focused true timeout=5
+key ctrl+END
+type // typed
+scroll_into_view inspector-scroll inspector-events-toggle
+click_widget inspector-events-toggle
+expect inspector_events open
+expect code_focused false
+# When the build has ended, the same
+wait_until scripts Ready timeout=240
+click_widget code-editor
+wait_until code_focused true timeout=5
+scroll_into_view inspector-scroll inspector-events-toggle
+click_widget inspector-events-toggle
+expect inspector_events closed
+click_widget inspector-events-toggle
+expect inspector_events open

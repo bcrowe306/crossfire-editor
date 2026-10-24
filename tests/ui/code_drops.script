@@ -87,7 +87,9 @@ expect project_settings open
 click_widget project-settings-cancel
 expect project_settings closed
 
-# Inspector labels in the procedure: a property's setter, through the script's own node
+# Inspector labels in the procedure: a property's setter, through the script's own node (the
+# index has read the camera field first: its row appearing above speed's moved the labels)
+wait_until script_field Mover camera true timeout=10
 scroll_into_view inspector-scroll inspector-label-Position_X-2
 drag_widget_to inspector-label-Position_X-2 code-editor at_text // drops
 wait_until code_contains true \t\t\t// drops\n\t\t\tself.node.position.x = 0\n timeout=5

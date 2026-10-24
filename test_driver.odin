@@ -191,6 +191,7 @@ Checks:
 	viewport_center <x> <y>      The world point at the viewport's center, rounded
 	viewport_center_not <x> <y>  ... isn't that point (the view moved)
 	typing <true | false>        Whether a text or number field has keyboard focus
+	inspector_events <open | closed>   The inspector's Events section is shown (its toggle)
 	assets <count>               Assets in the project
 	browser_rows <count>         Rows the project browser shows (after search filtering)
 	preview <image | audio | font | data | component | none>   What the browser's preview panel shows
@@ -1913,6 +1914,8 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = center != value ? value : fmt.tprintf("still %s", center)
 	case "typing":
 		found = fmt.tprint(IsTyping(ctx))
+	case "inspector_events":
+		found = s.inspectorEventsOpen ? "open" : "closed"
 	case "assets":
 		found = fmt.tprint(len(s.project.assets))
 	case "browser_rows":

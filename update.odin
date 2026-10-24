@@ -412,6 +412,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Data:
 		}
 		path, line := Script_Location(&out, name)
+		// The index reads it now: the Script section's rows don't move under the pointer later
+		ScriptIndex_ReadNow(&out, path)
 		return out, skald.cmd_batch(Script_Open(&out, path, line), scriptsBuild(&out))
 
 	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Renderer_Changed, Project_Settings_Texture_Filter_Changed, Project_Settings_Background_Changed,

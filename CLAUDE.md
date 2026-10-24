@@ -215,6 +215,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `zip.odin` | Zip files: `Zip_Write` (stored), `Zip_List` / `Zip_Read` (stored and deflated, CRC checked), `Zip_SafeName` |
 | `project_archive.odin` | Project archives (`.odinsdl`): `ProjectArchive_Create` (outside assets brought in), `ProjectArchive_Extract`, the File menu's flow |
 | `vcs.odin` | Version control through `git`: `GitSnapshot` / `Git_ReadSnapshot`, `GitOp` / `Git_Commands` / `Git_RunCommands`, `Git_Update` |
+| `process_exec.odin` | `Process_Exec`: `os.process_exec` without its lost output (a program that wrote and exited between Linux pipe poll's two looks seemed to print nothing); every program the editor runs and reads goes through it |
 | `view_git.odin` | The bottom panel's Git tab |
 | `view_about.odin` | Help > About: the logo (the built-in 256 px icon, uploaded once), `EDITOR_VERSION` (`-define:EDITOR_VERSION`: the Taskfile's `git describe`, CI's tag), Odin's version, links (opened with `sdl.OpenURL`); `tests/ui/about.script` |
 | `branding.odin` | `APP_NAME`, `APP_IDENTIFIER`; `Branding_SetAppMetadata` (the Wayland app ID / X11 class) and `Branding_SetWindowIcon` (the built-in 256 px logo) |
@@ -782,6 +783,18 @@ Git through the `git` program (`Script_FindEditorProgram`; Settings > Toolchain 
   to). Commit with nothing staged runs `git add -A -- .` first.
 - **Layout:** the history column is left out under 720 px (a tiled window), so the commit
   controls keep their width.
+- **Reads and commands take turns** (`GitState.queued`): no snapshot read while a command runs
+  (`Git_Refresh` returns nothing: its end reads one; a save during it only marks `stale`), and a
+  command asked for during a read waits for it, then runs on the new snapshot. git status
+  refreshes the index under its lock, so a commit or checkout beside it could fail, or the read
+  show the repository half changed (a commit's own save marked the snapshot stale and the view
+  started a read the next frame, while the commit ran). Test: `git_reads_and_commands_take_turns`.
+- **Output is never lost:** git runs through `Process_Exec` (process_exec.odin). With
+  `os.process_exec`, a read under heavy CPU load sometimes got an empty `git status` (no branch:
+  `git_init_stage_commit_branch_push` failed with `ahead` 0 vs 1, then the push's "invalid
+  refspec"; 4 of 384 runs, 16 at once beside 8 CPU hogs, and none of 224 after; 3 of 12000 runs
+  of `printf` lost their output, none after). `gitDo` in the test checks each read had no
+  problem; `process_exec_keeps_output` runs git 200 times.
 - Tests: `git_init_stage_commit_branch_push` (a real repository in build/: init, stage and
   unstage, commits, branches, a bare remote for push, upstream and ahead counts; sets
   `GIT_AUTHOR_*` since CI has no identity) and `tests/ui/git.script` (the Taskfile's UI tasks set
@@ -1236,8 +1249,16 @@ Rounds 1 to 4 of TODO.md's "Code editor integration". What the code relies on:
     editor rounds either way (now a quarter in: `CodeEditor_WindowPoint`), and `RevealLine`
     didn't scroll sideways, so a drop at a long line's end in a tiled window landed in the
     inspector (it reveals the column now). A click on an inspector button right after the code
-    tab took the keyboard was sometimes lost (the events toggle): the script opens the Events
-    section first; not investigated further.
+    tab took the keyboard was sometimes lost (the Events toggle): not the focus handoff (Skald
+    drops the code view's focus on the press and the button takes it), but the layout moving
+    under the pointer: the Script section's rows changed half a second after New Script (the
+    index read the file: "Building..." became the fields and a note) and again when its build
+    ended (the note went), so the toggle moved between the driver's move and its press; and in a
+    tiled window the toggle sat at the row's right end, under the inspector's scrollbar strip
+    (the press went to the scrollbar; repeated clicks too). Fixed in round 5:
+    `ScriptIndex_ReadNow`, a source line that's always there, the toggle beside the Events
+    title; `tests/ui/code_focus_clicks.script` (driver check `inspector_events`) clicks it at
+    once, while typing and after the build, in all three sizes.
 
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 
@@ -1246,7 +1267,10 @@ Rounds 1 to 4 of TODO.md's "Code editor integration". What the code relies on:
 - The catalog (`State.scripts`: status Unknown/Building/Ready/Failed, and each script's fields)
   comes from builds, merged with the **script index** (script_index.odin, below) for every file
   changed since the build (or all, before one): those `ScriptDesc`s have `fromIndex` and the
-  inspector says "Fields from the source: not built yet". The status is the build's either way.
+  inspector says "From the source: not built yet" (else "From the last build": always a line, so
+  the rows below don't move when a build ends). New Script reads its file into the index at once
+  (`ScriptIndex_ReadNow`), so its section has its final rows from the first frame. The status is
+  the build's either way.
   A script neither knows: nodes keep their script and values; the inspector lists the stored
   values read-only.
 - Inspector: a dropdown of built scripts (or None), New (the New Script dialog: name, then

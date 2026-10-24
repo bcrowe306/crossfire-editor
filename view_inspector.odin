@@ -822,17 +822,21 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 	desc := ScriptCatalog_Find(&s.scripts, node.script)
 	if desc == nil {
 		message := s.scripts.status == .Building ? "Building..." : fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), node.script)
-		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
+		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 		for prop in node.props do append(&rows, inspectorRowView(ctx, prop.name, skald.text(prop.value, th.color.fg_muted, th.font.size_sm)))
 		return rows[:]
 	}
-	// Read from the source by the script index: the file changed since the last build (or
-	// there's been none), so the game runs the old fields until it's built
-	if desc.fromIndex {
-		append(&rows, skald.text(fmt.tprintf("Fields from the source: not built yet%s.", keyParen(s, .Build_Scripts)), th.color.fg_muted, th.font.size_xs, max_width = 260))
-	}
+	// Where the fields come from: read from the source by the script index (the file changed
+	// since the last build, or there's been none: the game runs the old fields until it's built),
+	// or the build. Always one short line: a row that came and went with the build moved the rows
+	// below when the build ended (a click on the Events toggle was lost when they moved between
+	// the pointer's move and the press)
+	source := desc.fromIndex ? fmt.tprintf("From the source: not built yet%s", keyParen(s, .Build_Scripts)) : "From the last build"
+	// As wide as the rows (a wider text widened the inspector's content in a narrow window, and
+	// pushed the Events' Listen... buttons under its scrollbar)
+	append(&rows, skald.text(source, th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	if len(desc.fields) == 0 {
-		append(&rows, skald.text("No exported fields (tag a field with export:\"\" to edit it here).", th.color.fg_muted, th.font.size_xs, max_width = 260))
+		append(&rows, skald.text("No exported fields (tag a field with export:\"\" to edit it here).", th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
 	}
 	// Their labels drag into code as the script's fields
 	inspectorDrag.script = node.script

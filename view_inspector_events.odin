@@ -40,10 +40,14 @@ eventsSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWi
 	muted :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View {
 		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
 	}
+	// The toggle beside the title, not at the row's right end: when the inspector's content is
+	// wider than a narrow (tiled) inspector, the right end is under the scrollbar strip or past
+	// the window's edge, and a click there scrolled instead (lost clicks on Show / Hide)
 	append(&rows, skald.row(
 		skald.text(fmt.tprintf("%s  Events (%d)", ICON_LINK, len(own) + len(scriptEvents) + otherCount), th.color.fg, th.font.size_sm),
-		skald.flex(1, skald.spacer(0)),
 		len(node.listeners) > 0 ? skald.View(skald.View_Spacer{size = 0}) : small(ctx, open ? "Hide" : "Show", "inspector-events-toggle", Msg(Inspector_Events_Toggled{})),
+		skald.flex(1, skald.spacer(0)),
+		spacing = th.spacing.sm,
 		cross_align = .Center,
 	))
 	if !open do return rows[:]

@@ -188,9 +188,10 @@ code tab, with or without the language server:
 
 **The inspector follows what you type.** The editor reads the scripts' source as you type (the
 **script index**; it never waits for a build): a field you add to a script's struct shows in the
-inspector a moment later, before you save or build, with "Fields from the source: not built
-yet." under it. After a build, the build's description is used again for every file that hasn't
-changed since.
+inspector a moment later, before you save or build, with "From the source: not built yet" over
+the fields (after a build: "From the last build"). After a build, the build's description is used
+again for every file that hasn't changed since. A new script's fields show the moment New Script
+makes it.
 
 ## Code and scenes, linked
 
@@ -560,7 +561,7 @@ import (`e.Game_ChangeScene(...)`), and the list opens on the opening quote or a
 otherwise). Node paths need the script attached to a node first; animations, states and clips
 need a node field (`self.sprite`) to know which node's, otherwise every one of the project shows.
 
-**The inspector says "Fields from the source: not built yet."** The fields come from the script's
+**The inspector says "From the source: not built yet."** The fields come from the script's
 source, which changed since the last build (or there's been none). They're right for editing; the
 game runs the new code once it's built (Ctrl+B, or Play).
 

@@ -935,6 +935,32 @@ ScriptIndex_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) 
 	return {}, false
 }
 
+/*
+Reads one script file into the index now, on the caller's thread, and applies it to the catalog:
+New Script's file, so the inspector's Script section shows the script's fields at once instead
+of changing under the pointer half a second later (a click on a button below it was lost when
+the rows moved between the pointer's move and the press). A small file parses in a millisecond.
+Does nothing before the index has read the project's folder (its first tick reads them all).
+
+Inputs:
+- path: The file (absolute, in the project's scripts folder)
+*/
+ScriptIndex_ReadNow :: proc(state: ^State, path: string) {
+	index := &state.scriptIndex
+	folder := absolutePath(joinPath(state.project.rootPath, SCRIPTS_FOLDER, allocator = context.temp_allocator))
+	if index.folder != folder || index.running do return
+	key := filepath.join({folder, filepath.base(path)}, context.temp_allocator) or_else ""
+	info, statErr := os.stat(key, context.temp_allocator)
+	if key == "" || statErr != nil do return
+	text, err := os.read_entire_file(key, context.temp_allocator)
+	if err != nil do return
+	f := ScriptIndex_ParseSource(key, string(text))
+	f.modTime = info.modification_time
+	files := []IndexFile{f}
+	ScriptIndex_Take(index, files)
+	ScriptIndex_Apply(state)
+}
+
 // A code tab's buffer for the index: its version, whether it has unsaved changes, its text (asked for)
 @(private="file")
 codeBufferOf :: proc(path: string, wantText: bool) -> (text: string, version: int, dirty: bool) {
