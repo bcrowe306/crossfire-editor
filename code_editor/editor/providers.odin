@@ -26,6 +26,9 @@
 //   renames       renaming the symbol at the caret (F2): the provider says what it would rename
 //                 and does it (its edits to this document, and whatever else it owns); without
 //                 one, the language server renames
+//   code actions  what the host can do at the caret (Ctrl+.'s menu, after the diagnostics'
+//                 fixes and before the server's actions): edits applied as one undo step, with
+//                 a preview of the code, and a callback for what the host does besides
 //
 // The editor stays independent of any host: providers are plain procedures with a user data
 // pointer. They run on the editor's thread, inside `editor_update` / event handling, so they
@@ -174,6 +177,26 @@ Provider_Fix :: struct {
 	edits:     []Text_Edit,
 	// Listed first and selected (like the server's preferred actions)
 	preferred: bool,
+}
+
+/*
+A code action a provider offers at the caret: listed by Ctrl+.'s menu after the diagnostics' quick
+fixes and before the server's actions, with its `preview` beside the menu while it's selected.
+Picking it applies `edits` (buffer positions in the text as it is when the provider runs) as one
+undo step, then calls the provider's `on_action` with it (when set): an action may be only that
+(open a dialog, show something in the host).
+*/
+Provider_Action :: struct {
+	title:     string,
+	edits:     []Text_Edit,
+	// Where the caret goes after the edits (in the edited text); unset: after the last edit
+	caret:     Maybe(buf.Position),
+	// The code it writes, shown beside the menu while it's selected ("" none)
+	preview:   string,
+	// Selected when the menu opens (the first preferred entry is)
+	preferred: bool,
+	// The host's own number, given back to `on_action`
+	id:        int,
 }
 
 // The shapes a gutter marker can have
@@ -338,6 +361,10 @@ Usage_Open_Proc          :: proc(doc: Provider_Document, usage: Provider_Usage, 
 Rename_Prepare_Proc      :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, out: ^Rename_Target) -> bool
 // Renames what prepare_rename offered to `new_name`; returns false (or sets `out.error`) when it can't
 Rename_Proc              :: proc(doc: Provider_Document, target: Rename_Target, new_name: string, ctx: Provider_Context, out: ^Rename_Result) -> bool
+// The code actions at a position (Ctrl+.); offer only what's valid there
+Code_Action_Provider_Proc :: proc(doc: Provider_Document, pos: buf.Position, ctx: Provider_Context, out: ^[dynamic]Provider_Action)
+// A provider's code action picked, after its edits were applied (`doc` is the edited text)
+Code_Action_Run_Proc     :: proc(doc: Provider_Document, action: Provider_Action, user_data: rawptr)
 
 Provider_Kind :: enum {
 	Completion,
@@ -352,6 +379,8 @@ Provider_Kind :: enum {
 	Scrub,
 	// Entries in the right-click menu (providers_scrub.odin)
 	Menu,
+	// Code actions in Ctrl+.'s menu (code_actions.odin)
+	Action,
 }
 
 // One registered provider
@@ -384,6 +413,9 @@ Provider :: struct {
 	// The right-click menu's entries for a position, and one picked
 	menu_items:   Menu_Items_Proc,
 	on_menu_item: Menu_Item_Proc,
+	// Code actions at a position (Ctrl+.), and one picked (after its edits)
+	actions:   Code_Action_Provider_Proc,
+	on_action: Code_Action_Run_Proc,
 	// Timing: calls, the last and the slowest call
 	calls:      int,
 	last, worst: time.Duration,
@@ -665,7 +697,7 @@ editor_run_cached_providers :: proc(ed: ^Editor) {
 				provider_timed(&prov, start)
 				for len(inlay_from) < len(inlays) do append(&inlay_from, pi)
 			}
-		case .Completion, .Hover, .Drop, .Usages, .Rename, .Scrub, .Menu:
+		case .Completion, .Hover, .Drop, .Usages, .Rename, .Scrub, .Menu, .Action:
 		}
 	}
 	count := buf.buffer_line_count(&ed.buf)
@@ -745,6 +777,75 @@ editor_provider_fixes_at :: proc(ed: ^Editor, pos: buf.Position, allocator := co
 		for d in ed.provided.diagnostics do if d.start.line <= pos.line && pos.line <= d.end.line do for f in d.fixes do append(&out, f)
 	}
 	return out[:]
+}
+
+/*
+The code action providers' actions at a position (Ctrl+.), in the providers' order.
+
+Returns:
+- The actions (the providers' temp allocations: copy what's kept) and the provider of each
+  (its index in the registry)
+*/
+editor_provider_actions_at :: proc(ed: ^Editor, pos: buf.Position) -> (actions: []Provider_Action, providers: []int) {
+	if ed.providers == nil do return
+	out := make([dynamic]Provider_Action, context.temp_allocator)
+	owners := make([dynamic]int, context.temp_allocator)
+	doc := editor_provider_document(ed)
+	for &prov, i in ed.providers.providers {
+		if prov.kind != .Action || prov.actions == nil do continue
+		ctx := provider_context(&prov, .Invoked)
+		ctx.syntax = editor_syntax_context_at(ed, pos)
+		before := len(out)
+		start := time.tick_now()
+		prov.actions(doc, pos, ctx, &out)
+		provider_timed(&prov, start)
+		for _ in before ..< len(out) do append(&owners, i)
+	}
+	return out[:], owners[:]
+}
+
+// A provider action's copy (its strings and edits in `allocator`)
+@(private)
+provider_action_clone :: proc(a: Provider_Action, allocator := context.allocator) -> Provider_Action {
+	out := a
+	out.title = strings.clone(a.title, allocator)
+	out.preview = strings.clone(a.preview, allocator)
+	out.edits = make([]Text_Edit, len(a.edits), allocator)
+	for e, j in a.edits do out.edits[j] = {e.start, e.end, strings.clone(e.text, allocator)}
+	return out
+}
+
+@(private)
+provider_actions_clone :: proc(actions: []Provider_Action) -> []Provider_Action {
+	if len(actions) == 0 do return nil
+	out := make([]Provider_Action, len(actions))
+	for a, i in actions do out[i] = provider_action_clone(a)
+	return out
+}
+
+@(private)
+provider_actions_free :: proc(actions: []Provider_Action) {
+	for a in actions {
+		delete(a.title)
+		delete(a.preview)
+		for e in a.edits do delete(e.text)
+		delete(a.edits)
+	}
+	delete(actions)
+}
+
+// A provider's action picked: its edits as one undo step, then its provider's `on_action`
+@(private)
+editor_run_provider_action :: proc(ed: ^Editor, provider: int, action: Provider_Action) {
+	if len(action.edits) > 0 do editor_apply_edits(ed, action.edits, action.caret)
+	ed.actions.last_applied = len(action.edits)
+	ed.actions.last_skipped = 0
+	if ed.providers == nil || provider < 0 || provider >= len(ed.providers.providers) do return
+	prov := &ed.providers.providers[provider]
+	if prov.on_action == nil do return
+	start := time.tick_now()
+	prov.on_action(editor_provider_document(ed), action, prov.user_data)
+	provider_timed(prov, start)
 }
 
 // Whether a typed character opens completion for a provider (its `trigger_chars`)

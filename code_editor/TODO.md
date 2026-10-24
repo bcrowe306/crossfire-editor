@@ -6,8 +6,8 @@ Tracks progress against `REQUIREMENTS.md`'s numbered requirements.
 
 1. **Taskfile** — `Taskfile.yml` with `check`, `test` (+ per-package
    variants), `build`, `run`, `fmt`, `ols:fetch`, `ols:build`, `clean`.
-2. **Unit tests for every feature** — 235 tests across 6 packages (counted
-   2026-10-23), all passing with zero tracked memory leaks (`task test`):
+2. **Unit tests for every feature** — 241 tests across 6 packages (counted
+   2026-10-24), all passing with zero tracked memory leaks (`task test`):
    - `buffer`: 39 (editing, undo/redo with cursor restoration and grouped
      single-caret steps, cursors, selection, multi-cursor, file IO,
      change-version tracking, auto-closing pairs, read-only buffers).
@@ -16,11 +16,11 @@ Tracks progress against `REQUIREMENTS.md`'s numbered requirements.
    - `syntax`: 9 (the Odin tokenizer).
    - `lsp`: 27 (JSON-RPC framing, requests, dispatch, stale responses, dead
      servers, URIs, UTF-16 columns, rename edits).
-   - `editor`: 139 (input, actions, completion/signature UI, LSP sync and its
+   - `editor`: 145 (input, actions, completion/signature UI, LSP sync and its
      shadow replay, popups and overlays in small views, diagnostics, mouse,
      find, palette, navigation, keymap and theme editors, providers: merging,
-     syntax contexts, drops and their menu, quick fixes, markers, usages,
-     renames).
+     syntax contexts, drops and their menu, quick fixes, code actions,
+     markers, usages, renames).
    - `control`: 7 (chord/command/mouse-target parsing, escapes, errors,
      state JSON).
 3. **OLS integration** — `lsp` package implements the JSON-RPC/LSP subset

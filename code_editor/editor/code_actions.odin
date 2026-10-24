@@ -5,8 +5,9 @@
 // WorkspaceEdit on the open document as one undo step; edits aimed at
 // other files are skipped (and counted) since the editor only owns this
 // buffer. Quick fixes of the providers' diagnostics at the caret
-// (`Provider_Diagnostic.fixes`) come first, and show at once (also without
-// a server). The same menu lists a gutter marker's choices when it has several
+// (`Provider_Diagnostic.fixes`) come first, then the code action providers'
+// actions (`Provider_Action`, with a preview of their code beside the menu),
+// and show at once (also without a server). The same menu lists a gutter marker's choices when it has several
 // (`Gutter_Marker.choices`: the nodes using a script, say); picking one calls
 // the marker's provider with it; a clickable inlay hint's choices and a scrub's (where to write
 // the scrubbed value) are listed the same way. A drop asking for its menu
@@ -44,6 +45,10 @@ Code_Action_Menu :: struct {
 	// The providers' quick fixes at the caret when it opened (owned), listed
 	// before the server's actions
 	fixes: []Provider_Fix,
+	// The code action providers' actions at the caret (owned), listed after the
+	// fixes, and the provider (its index) of each
+	provided:         []Provider_Action,
+	action_providers: []int,
 	// A gutter marker's choices (owned): listed instead of fixes and actions,
 	// and the gutter provider (its index) and marker they're for (its line,
 	// icon and id; not its strings)
@@ -67,7 +72,7 @@ Code_Action_Menu :: struct {
 editor_code_action_count :: proc(ed: ^Editor) -> int {
 	if ed.actions.choices != nil do return len(ed.actions.choices)
 	if ed.actions.drops != nil do return len(ed.actions.drops)
-	return len(ed.actions.fixes) + (len(ed.lsp.last_code_actions) if ed.lsp_enabled && !ed.actions.waiting else 0)
+	return len(ed.actions.fixes) + len(ed.actions.provided) + (len(ed.lsp.last_code_actions) if ed.lsp_enabled && !ed.actions.waiting else 0)
 }
 
 // An entry's title, and whether it's preferred
@@ -75,7 +80,8 @@ editor_code_action_title :: proc(ed: ^Editor, index: int) -> (title: string, pre
 	if ed.actions.choices != nil do return ed.actions.choices[index], false
 	if ed.actions.drops != nil do return ed.actions.drops[index].title, index == 0
 	if index < len(ed.actions.fixes) do return ed.actions.fixes[index].title, ed.actions.fixes[index].preferred
-	a := ed.lsp.last_code_actions[index - len(ed.actions.fixes)]
+	if at := index - len(ed.actions.fixes); at < len(ed.actions.provided) do return ed.actions.provided[at].title, ed.actions.provided[at].preferred
+	a := ed.lsp.last_code_actions[index - len(ed.actions.fixes) - len(ed.actions.provided)]
 	return a.title, a.preferred
 }
 
@@ -86,21 +92,35 @@ editor_request_code_actions :: proc(ed: ^Editor) {
 	c := editor_primary_cursor(ed)
 	editor_consume_buffer_changes(ed)
 	fixes := editor_provider_fixes_at(ed, c.pos)
-	if !server && len(fixes) == 0 {
+	actions, owners := editor_provider_actions_at(ed, c.pos)
+	if !server && len(fixes) == 0 && len(actions) == 0 {
+		editor_set_status(ed, "No code actions here")
 		return
 	}
 	editor_close_completion(ed)
 	m := &ed.actions
 	provider_fixes_free(m.fixes)
+	provider_actions_free(m.provided)
+	delete(m.action_providers)
 	m.fixes = provider_fixes_clone(fixes)
+	m.provided = provider_actions_clone(actions)
+	m.action_providers = len(owners) > 0 ? slice.clone(owners) : nil
 	m.active = true
 	m.waiting = server
 	m.selected = 0
 	m.scroll = 0
 	m.anchor = c.pos
+	preferred := false
 	for f, i in m.fixes {
 		if f.preferred {
 			m.selected = i
+			preferred = true
+			break
+		}
+	}
+	if !preferred do for a, i in m.provided {
+		if a.preferred {
+			m.selected = len(m.fixes) + i
 			break
 		}
 	}
@@ -132,6 +152,10 @@ editor_close_code_actions :: proc(ed: ^Editor) {
 	ed.actions.waiting = false
 	provider_fixes_free(ed.actions.fixes)
 	ed.actions.fixes = nil
+	provider_actions_free(ed.actions.provided)
+	ed.actions.provided = nil
+	delete(ed.actions.action_providers)
+	ed.actions.action_providers = nil
 	marker_choices_free(ed.actions.choices)
 	ed.actions.choices = nil
 	delete(ed.actions.choice_text)
@@ -260,7 +284,7 @@ editor_open_choices :: proc(ed: ^Editor, pos: buf.Position, choices: []string) {
 // actions" placeholder once the server answered with nothing). The providers'
 // fixes show while the server's answer is still coming.
 editor_code_actions_visible :: proc(ed: ^Editor) -> bool {
-	return ed.actions.active && (!ed.actions.waiting || len(ed.actions.fixes) > 0)
+	return ed.actions.active && (!ed.actions.waiting || len(ed.actions.fixes) > 0 || len(ed.actions.provided) > 0)
 }
 
 // editor_update_code_actions picks up the response and closes the menu if
@@ -270,7 +294,7 @@ editor_update_code_actions :: proc(ed: ^Editor) {
 	if !m.active {
 		return
 	}
-	if editor_primary_cursor(ed).pos != m.anchor || !ed.lsp_enabled && len(m.fixes) == 0 && m.choices == nil && m.drops == nil {
+	if editor_primary_cursor(ed).pos != m.anchor || !ed.lsp_enabled && len(m.fixes) == 0 && len(m.provided) == 0 && m.choices == nil && m.drops == nil {
 		editor_close_code_actions(ed)
 		return
 	}
@@ -283,10 +307,11 @@ editor_update_code_actions :: proc(ed: ^Editor) {
 		// Preferred actions first, like VSCode (a provider's preferred fix stays selected)
 		preferred_fix := false
 		for f in m.fixes do preferred_fix ||= f.preferred
+		for a in m.provided do preferred_fix ||= a.preferred
 		if !preferred_fix {
 			for a, i in ed.lsp.last_code_actions {
 				if a.preferred {
-					m.selected = len(m.fixes) + i
+					m.selected = len(m.fixes) + len(m.provided) + i
 					break
 				}
 			}
@@ -340,7 +365,14 @@ editor_apply_code_action :: proc(ed: ^Editor, index: int) -> bool {
 		ed.actions.last_skipped = 0
 		return len(edits) > 0
 	}
-	index := index - len(ed.actions.fixes)
+	if at := index - len(ed.actions.fixes); at >= 0 && at < len(ed.actions.provided) {
+		action := provider_action_clone(ed.actions.provided[at], context.temp_allocator)
+		provider := ed.actions.action_providers[at]
+		editor_close_code_actions(ed)
+		editor_run_provider_action(ed, provider, action)
+		return true
+	}
+	index := index - len(ed.actions.fixes) - len(ed.actions.provided)
 	actions := ed.lsp.last_code_actions[:]
 	editor_close_code_actions(ed)
 	if index < 0 || index >= len(actions) {
@@ -438,7 +470,7 @@ render_code_actions :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 		room := int((rect.w - 2 * POPUP_PAD) / ed.char_w) - 3
 		draw_text(renderer, font, truncate_cols(title, max(room, 1)), rect.x + POPUP_PAD + 2 * ed.char_w, y, theme.popup_text, ed.char_h)
 	}
-	// A drop's choices: the selected one's code
+	// A drop's choices, or a provider's action: the selected one's code
 	if lines, prect, shown := editor_drop_preview_layout(ed); shown {
 		draw_popup_box(renderer, prect, theme)
 		room := max(int((prect.w - 2 * POPUP_PAD) / ed.char_w), 1)
@@ -452,18 +484,24 @@ render_code_actions :: proc(ed: ^Editor, renderer: ^sdl.Renderer, font: ^ttf.Fon
 DROP_PREVIEW_MAX_LINES :: 8
 
 /*
-Where the selected drop choice's preview goes: under the menu, else above it, as wide as its
-longest line allows in the view. Tabs show as four spaces.
+Where the selected drop choice's (or provider action's) preview goes: under the menu, else above
+it, as wide as its longest line allows in the view. Tabs show as four spaces.
 
 Returns:
 - Its lines (temp allocated), its rect, and whether one shows
 */
 editor_drop_preview_layout :: proc(ed: ^Editor) -> (lines: []string, rect: sdl.FRect, ok: bool) {
 	m := &ed.actions
-	if m.drops == nil || m.selected < 0 || m.selected >= len(m.drops) do return
+	preview := ""
+	if m.drops != nil && m.selected >= 0 && m.selected < len(m.drops) {
+		preview = m.drops[m.selected].preview
+	} else if at := m.selected - len(m.fixes); m.choices == nil && m.drops == nil && at >= 0 && at < len(m.provided) {
+		preview = m.provided[at].preview
+	}
+	if preview == "" do return
 	menu, shown := editor_code_actions_layout(ed)
 	if !shown do return
-	text, _ := strings.replace_all(strings.trim_right(m.drops[m.selected].preview, "\n"), "\t", "    ", context.temp_allocator)
+	text, _ := strings.replace_all(strings.trim_right(preview, "\n"), "\t", "    ", context.temp_allocator)
 	if text == "" do return
 	all := strings.split_lines(text, context.temp_allocator)
 	lines = all[:min(len(all), DROP_PREVIEW_MAX_LINES)]
