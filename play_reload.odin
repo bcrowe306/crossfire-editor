@@ -11,7 +11,8 @@ import "gui:skald"
 Hot reload: scripts saved while the game plays restart it where it was (`settings.hotReload`).
 
 While a project player runs, `playReloadTick` (every Play_Tick) looks at the scripts folder
-every PLAY_RELOAD_LOOK ticks. When a script is newer than what the game was built from:
+every PLAY_RELOAD_LOOK ticks. When a script is newer than what the game was built from, or the
+log points changed (log_points.odin: `LogPoints_Signature` against `builtLogPoints`):
 
 1. **Build** the player again beside the running one (`player-reload` in the same folder: the
    running binary can't be overwritten on Windows, and Linux refuses to write a running file).
@@ -59,6 +60,8 @@ PlayReload :: struct {
 	built: time.Time,
 	// The newest script when this build started: the restarted game's `built`
 	building: time.Time,
+	// The log points the running game was built with (`LogPoints_Signature`), and this build's
+	builtLogPoints, buildingLogPoints: u64,
 	// Ticks until the next look at the scripts folder
 	look: int,
 	// When the snapshot was asked for
@@ -85,8 +88,10 @@ playReloadTick :: proc(state: ^State) -> (skald.Command(Msg), bool) {
 		reload.look = PLAY_RELOAD_LOOK
 		// A change to assets.odin's constants no script uses isn't one (script_constants.odin)
 		newest := Scripts_NewestFor(playReloadScripts(state), playerTarget(state).binary)
-		if time.diff(reload.built, newest) <= 0 do return {}, false
-		playReloadBuild(state, newest)
+		// Log points added, changed or removed build it again too (log_points.odin)
+		scriptsChanged := time.diff(reload.built, newest) > 0
+		if !scriptsChanged && LogPoints_Signature(&state.logPoints) == reload.builtLogPoints do return {}, false
+		playReloadBuild(state, newest, scriptsChanged ? "scripts changed" : "log points changed")
 	case .Building, .Describing:
 		playReloadDrain(state)
 		status, err := os.process_wait(reload.process, 0)
@@ -150,6 +155,7 @@ playReloadSnapshotTaken :: proc(state: ^State, ok: bool) {
 playReloadStarted :: proc(state: ^State) {
 	state.play.reload.look = PLAY_RELOAD_LOOK
 	if Project_HasScripts(&state.project) do state.play.reload.built = newestSource(playReloadScripts(state))
+	state.play.reload.builtLogPoints = LogPoints_Signature(&state.logPoints)
 }
 
 // Stops a reload's process (the session ends: endSession)
@@ -170,7 +176,7 @@ playReloadAbort :: proc(state: ^State) {
 
 // Starts the build of the new player
 @(private="file")
-playReloadBuild :: proc(state: ^State, newest: time.Time) {
+playReloadBuild :: proc(state: ^State, newest: time.Time, why: string) {
 	reload := &state.play.reload
 	target := playerTarget(state)
 	odin := Toolchain_Odin(FixedText_String(&state.settings.odinPath))
@@ -180,9 +186,13 @@ playReloadBuild :: proc(state: ^State, newest: time.Time) {
 		return
 	}
 	if message := Scripts_WriteAssetsFile(&state.project); message != "" do logLine(state, .Warning, strings.clone(message))
+	// Log points: the build's copy of the scripts with them in
+	reload.buildingLogPoints = LogPoints_Signature(&state.logPoints)
+	reload.builtLogPoints = reload.buildingLogPoints
+	if target.logPoints != "" do logPointsWriteBuild(state, target.logPoints)
 	command := playerBuildCommand(state, odin, target, playReloadBinary(state))
 	outputLine(state, .Info, fmt.aprintf("Hot reload: $ %s", strings.join(command, " ", context.temp_allocator)))
-	logLine(state, .Info, fmt.aprintf("Hot reload: scripts changed, building the game again..."))
+	logLine(state, .Info, fmt.aprintf("Hot reload: %s, building the game again...", why))
 	reload.building = newest
 	// The constants it's built with (beside the binary it replaces when it's through)
 	Constants_Snapshot(&state.project, playerTarget(state).binary)
@@ -213,7 +223,10 @@ playReloadRestart :: proc(state: ^State) -> skald.Command(Msg) {
 	logLine(state, .Info, fmt.aprintf(snapshot != "" ? "Hot reload: restarting the game where it was" : "Hot reload: restarting the game"))
 	command := startGame(state, snapshot)
 	// What the new game was built from (saves during the build start another reload)
-	if state.play.stage == .Running do state.play.reload.built = reload.building
+	if state.play.stage == .Running {
+		state.play.reload.built = reload.building
+		state.play.reload.builtLogPoints = reload.buildingLogPoints
+	}
 	return command
 }
 
@@ -290,7 +303,7 @@ playReloadLine :: proc(state: ^State, line: string) {
 		return
 	}
 	text, level, _ := parseLogLine(strings.trim_right(line, "\r"))
-	outputLine(state, level, strings.clone(text))
+	outputLine(state, level, strings.clone(LogPoints_ProjectPaths(state, text)))
 }
 
 // The project's scripts folder (temp allocated)

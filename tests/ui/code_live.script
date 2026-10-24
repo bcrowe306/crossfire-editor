@@ -1,0 +1,106 @@
+# The running game in the code (round 6: code_live.odin, log_points.odin): while the game plays,
+# a script's fields show their live values; Alt+dragging a default's number changes the running
+# game, and the menu at the release writes it to the node's own value or to the code's default;
+# a log point set from the gutter logs through a hot reload (the script isn't changed) and its
+# Console line opens the line; turned off, it's built out again; the hints go when the game stops.
+# Builds the project's own player three times (unoptimized: a few seconds each).
+# Run with: task test:ui SCRIPT=tests/ui/code_live.script (and the fullscreen and short runs)
+#
+# PlayScene's rows: World, Camera, Spaceship (2), ...
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Mover
+click_widget new-script-create
+expect code_tab mover.odin
+wait_until scripts Ready timeout=240
+# Lines: 6 the struct, 8 speed, 9 ticks, 15 the log point's line
+write_project_file scripts/mover.odin package scripts\n\nimport e "engine:."\nimport sdl "vendor:sdl3"\n\nMover :: struct {\n\tusing script: e.Script,\n\tspeed: f32 `export:"default=100 min=0 max=500"`,\n\tticks: int,\n}\n\nmoverTick :: proc(self: ^Mover) {\n\tself.ticks += 1\n\tif self.ticks % 120 == 1 {\n\t\tself.speed += 0\n\t}\n}\n\n@(init)\nregister_Mover :: proc "contextless" () {\n\te.Script_Register(Mover, {\n\t\tupdate = proc(self: ^Mover, events: []sdl.Event, dt: f64) {\n\t\t\tmoverTick(self)\n\t\t},\n\t})\n}\n
+wait_until code_contains true moverTick timeout=10
+
+# Play this scene: the values beside the fields, from the Spaceship
+key ctrl+F5
+wait_until play Playing timeout=240
+wait_until live connected true timeout=30
+wait_until code_inlay 6 live: Spaceship timeout=20
+wait_until code_inlay 8 = 100 timeout=10
+wait_until live_field Mover speed 100 timeout=10
+wait_until code_inlay 9 = timeout=10
+
+# Alt+drag the default's 100 by 25 steps: the running game's speed follows (the Live tab's view of
+# the node says so); the menu offers the code's default first (the node has no value of its own)
+code_click 8 2
+wait_until code_focused true timeout=5
+code_scrub 8 100 25
+live_select Spaceship
+wait_until live prop script.speed 125 timeout=10
+wait_until code_state code_actions.visible true timeout=5
+expect code_contains true default=100 min=0
+# The second choice: Spaceship's own value (the inspector's), an undo step
+key Down
+key Return
+wait_until script_prop Mover speed 125 timeout=5
+expect console_contains speed of Spaceship is 125
+expect code_contains true default=100 min=0
+wait_until code_inlay 8 (Spaceship's own: 125) timeout=10
+
+# Again, 10 steps down from the game's 125: now the node's own value comes first, so the second
+# choice is the code's default (Spaceship keeps its own: the menu says so)
+code_click 8 2
+code_scrub 8 100 -10
+wait_until live prop script.speed 115 timeout=10
+wait_until code_state code_actions.visible true timeout=5
+key Down
+key Return
+wait_until code_contains true default=115 min=0 timeout=5
+expect code_dirty true
+expect script_prop Mover speed 125
+
+# A log point on line 15 from the gutter: the dialog, an expression, OK; the game is built again
+# with it (the script on disk and in the tab isn't changed) and its lines reach the Console
+key ctrl+z
+wait_until code_contains true default=100 min=0 timeout=5
+code_click_marker 15
+wait_until logpoint_dialog open timeout=5
+click_widget logpoint-expression
+type self.ticks, self.speed
+click_widget logpoint-ok
+expect logpoint_dialog closed
+expect log_points 1
+expect log_point mover.odin:15 on
+wait_until code_marker 15 true timeout=5
+wait_until code_inlay 15 log self.ticks, self.speed timeout=5
+wait_until console_contains Hot reload: log points changed timeout=10
+wait_until console_contains Hot reload: restarting the game timeout=240
+wait_until console_contains mover.odin:15: self.ticks = timeout=30
+expect console_line_category logpoint Debug mover.odin:15: self.ticks =
+expect code_contains false Log_Debug
+expect project_file_contains scripts/mover.odin self.speed += 0
+expect project_file_contains .editor/logpoints.ini [mover.odin:15]
+# A click on the line's location opens the line (the caret on it); the Console stops following
+# first, so new lines don't move the row under the pointer
+click_widget console-scroll-follow
+wait_until console_following false timeout=5
+click_log_location console
+wait_until code_tab mover.odin timeout=5
+wait_until code_caret 15 1 timeout=5
+
+# Turned off from its marker's menu: built out again
+code_click_marker 15
+wait_until code_state code_actions.visible true timeout=5
+key Down
+key Return
+wait_until log_point mover.odin:15 off timeout=5
+wait_until console_contains Hot reload: log points changed timeout=10
+
+# The game stops: the hints go
+key shift+F5
+wait_until play Stopped timeout=10
+wait_until code_inlay_lacks 6 live: timeout=10
+expect code_inlay_lacks 8 = 1
+quit

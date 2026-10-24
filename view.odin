@@ -24,7 +24,9 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	coding := CodeEditor_Frame(ctx, CodeTabs_Active(&state) != "")
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
 		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.listenerDialog.open || state.newEvent.open || state.componentClose.open || state.newData.open || state.projectSettings.open || state.aboutOpen || state.git.discardAsk != "" ||
-		state.contextMenu.open
+		state.contextMenu.open || state.logPoints.dialog.open
+	// The running game's values a code tab shows (code_live.odin)
+	CodeLive_Frame(&state, ctx)
 	// A project with scripts is built once in the background when it opens, so the inspector
 	// knows their fields
 	if len(state.scriptFiles) > 0 && !state.scriptsAutoBuilt && state.play.stage == .None {
@@ -58,6 +60,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		newProjectDialogView(&state, ctx),
 		newScriptDialogView(&state, ctx),
 		CodeColorDialogView(&state, ctx),
+		LogPointDialogView(&state, ctx),
 		listenerDialogView(&state, ctx),
 		newEventDialogView(&state, ctx),
 		newDataDialogView(&state, ctx),

@@ -89,6 +89,12 @@ CodeProviders_Registry :: proc() -> ^ce.Provider_Registry {
 		ce.provider_register(&p.registry, ce.Provider{kind = .Usages, name = "project usages", usages = linkUsages, on_open = linkUsageOpened})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Rename, name = "project renames", prepare_rename = linkPrepareRename, rename = linkRename})
 		ce.provider_register(&p.registry, ce.Provider{kind = .Drop, name = "editor things", drop = projectDrop})
+		// The running game (code_live.odin) and log points (log_points.odin)
+		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "live values", inlay = liveInlays, on_inlay_click = liveInlayClicked})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Scrub, name = "live values", scrub_target = liveScrubTarget, on_scrub = liveScrubbed, on_scrub_choice = liveScrubChosen})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Gutter, name = "log points", gutter = logPointMarkers, on_click = logPointMarkerClicked, on_gutter_line = logPointGutterLine})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Inlay, name = "log points", inlay = logPointInlays})
+		ce.provider_register(&p.registry, ce.Provider{kind = .Menu, name = "log points", menu_items = logPointMenuItems, on_menu_item = logPointMenuPicked})
 	}
 	return &p.registry
 }
@@ -100,8 +106,17 @@ when the project, the script index or the catalog changed since they last ran.
 CodeProviders_Begin :: proc(state: ^State) {
 	p := &codeProviders
 	p.state = state
-	Key :: struct { history, index, catalog, scenes, assets: int }
-	k := Key{state.history.version, state.scriptIndex.generation, state.scripts.generation, len(state.project.scenes), len(state.project.assets)}
+	Key :: struct {
+		history, index, catalog, scenes, assets: int,
+		// The running game's tree, watched values and link; what's chosen; the log points
+		liveTree, liveFields: int,
+		connected: bool,
+		liveSelected: u64,
+		selected, logPoints: int,
+	}
+	k := Key{state.history.version, state.scriptIndex.generation, state.scripts.generation, len(state.project.scenes), len(state.project.assets),
+		state.live.treeGeneration, state.live.fieldsGeneration, CodeLive_Active(state), hash.fnv64a(transmute([]byte)state.live.selected),
+		state.selectedNode, state.logPoints.generation}
 	key := hash.fnv64a(([^]u8)(&k)[:size_of(k)])
 	if key != p.seenKey {
 		p.seenKey = key

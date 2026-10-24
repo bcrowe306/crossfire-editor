@@ -94,6 +94,8 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 @(private="file")
 applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	out := s
+	// The open project's log points (read when the project changes: log_points.odin)
+	LogPoints_Follow(&out)
 	if command, handled := ContextMenu_Update(&out, m); handled do return out, command
 	if Console_Update(&out, m) do return out, {}
 	if ViewportTools_Update(&out, m) do return out, {}
@@ -118,6 +120,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if command, handled := ScriptIndex_Update(&out, m); handled do return out, command
 	if command, handled := CodeProviders_Update(&out, m); handled do return out, command
 	if command, handled := CodeColors_Update(&out, m); handled do return out, command
+	if CodeLive_Update(&out, m) do return out, {}
+	if LogPoints_Update(&out, m) do return out, {}
 	if command, handled := CodeDrag_Update(&out, m); handled do return out, command
 	if DialogueBoxEdit_Update(&out, m) do return out, {}
 	if LineEdit_Update(&out, m) do return out, {}
@@ -172,6 +176,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by CodeProviders_Update above
 	case Code_Color_Requested, Code_Color_Changed, Code_Color_Hex_Changed, Code_Color_Alpha_Changed, Code_Color_Applied, Code_Color_Cancelled:
 		// Handled by CodeColors_Update above
+	case Code_Live_Watch, Code_Live_Picked, Code_Scrub_Changed, Code_Scrub_Write:
+		// Handled by CodeLive_Update above
+	case Log_Point_Dialog_Opened, Log_Point_Expression_Changed, Log_Point_Saved, Log_Point_Cancelled, Log_Point_Command, Log_Point_Refused:
+		// Handled by LogPoints_Update above
 	case Code_Drag_Pressed, Code_Drag_Started, Code_Drag_Cancelled, Code_Source_Dropped, Code_Drop_Chosen:
 		// Handled by CodeDrag_Update above
 	case Aseprite_Asset_Open_Requested, Aseprite_Layer_Toggled:

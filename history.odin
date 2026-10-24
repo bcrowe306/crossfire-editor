@@ -200,6 +200,11 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	#partial switch v in m {
 	case Anim_Set_From_Node:
 		if hasSelection do return node(selected, fmt.tprintf("Save the animations of %s as an asset", name))
+	case Code_Scrub_Write:
+		// A scrubbed value written to a node's own value (the code's default is the code tab's undo)
+		if v.kind == .Node_Value && v.scene >= 0 && v.scene < len(s.project.scenes) && v.node >= 0 && v.node < len(s.project.scenes[v.scene].nodes) {
+			return {scope = .Project, label = fmt.tprintf("Change %s of %s (from the running game)", v.field, s.project.scenes[v.scene].nodes[v.node].name)}
+		}
 	case Listener_Target_Chosen:
 		if d := s.listenerDialog; d.node >= 0 && d.node < len(scene.nodes) do return node(d.node, fmt.tprintf("Listen to %s's %s", scene.nodes[d.node].name, d.event))
 	case Global_Listen_Requested:

@@ -290,6 +290,8 @@ State :: struct {
 	inspectorEventsOpen: bool,
 	// The Color dialog a code tab's swatch opened (code_colors.odin)
 	codeColor: CodeColorDialog,
+	// The project's log points and their dialog (log_points.odin)
+	logPoints: LogPoints,
 	// The last link opened in the browser (Links_Open; owned): the UI tests read it
 	lastLink: string,
 	// The LDtkLevel inspector's list of the level's entities is shown
@@ -478,6 +480,7 @@ Inputs:
 State_Destroy :: proc(state: ^State) {
 	CodeDrag_Clear(state)
 	CodeColorDialog_Destroy(&state.codeColor)
+	LogPoints_Destroy(&state.logPoints)
 	delete(state.lastLink)
 	CodeTabs_CloseAll(state)
 	delete(state.codeTabs)

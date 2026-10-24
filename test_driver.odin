@@ -104,6 +104,10 @@ copy: `open_project {project}`).
 	code_click_hover_widget          Click the code tab's hover's first widget (a play button)
 	code_click <line> [<column>]     Click a position of the shown code tab (1-based): the caret goes there
 	code_click_swatch <line> [<n>]   Click a line's n-th color swatch (1-based; n from 1)
+	code_click_inlay <line> [<n>]    Click a line's n-th clickable inlay hint (a live hint's node menu)
+	code_scrub <line> <text> <steps> Alt+drag the number at the text's middle on a line (1-based) of
+	                                 the shown code tab by that many scrub steps (negative: left),
+	                                 then release (the code tab must have the keyboard: code_click)
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
 	scroll_into_view <scroll key> <widget key>
@@ -397,6 +401,11 @@ Checks:
 	last_link <text>                 The last link the editor opened (Links_Open: nothing opens in
 	                                 a script run) contains the text
 	code_inlay <line> <text>         A line's inlay hints contain the text (1-based)
+	code_inlay_lacks <line> <text>   ... don't contain it
+	log_points <n>                   The project's log points (log_points.odin)
+	log_point <file:line> <on | off | missing>   One of them (hero.odin:42)
+	logpoint_dialog <open | closed>  The Log Point dialog
+	live_field <Script> <field> <value>   A script's field as the running game sent it for a code tab
 	code_marker <line> <true | false>   A line has a gutter marker
 	code_diagnostic_has <text>       The code tab shows a problem whose message contains it
 	code_diagnostic_lacks <text>     It shows none whose message contains it
@@ -1474,6 +1483,66 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return true
 		}
 		click(at)
+		report(true, line)
+		return false
+
+	case "code_click_inlay":
+		// A line's n-th clickable inlay hint (1-based line, n from 1): its label, scrolled into view
+		parts := strings.fields(rest, context.temp_allocator)
+		lineNumber, _ := strconv.parse_int(len(parts) > 0 ? parts[0] : "")
+		n := 1
+		if len(parts) > 1 do n, _ = strconv.parse_int(parts[1])
+		text, _, _ := CodeEditor_Buffer(CodeTabs_Active(s), true)
+		lines := strings.split_lines(text, context.temp_allocator)
+		width := lineNumber - 1 < len(lines) && lineNumber >= 1 ? len(lines[lineNumber - 1]) : 0
+		if codeRevealFirst(s, lineNumber - 1, width + 4) do return false
+		at, ok := CodeEditor_InlayLabelPoint(CodeTabs_Active(s), lineNumber - 1, n - 1)
+		if !ok {
+			fail(fmt.tprintf("%s: no clickable hint %d in view on line %d", line, n, lineNumber))
+			return true
+		}
+		click(at)
+		report(true, line)
+		return false
+
+	case "code_scrub":
+		// Alt held, a press on the number, a drag sideways over several frames, the release
+		parts := strings.fields(rest, context.temp_allocator)
+		if len(parts) < 3 {
+			fail(fmt.tprintf("%s: expected a line, a text and steps", line))
+			return true
+		}
+		lineNumber, _ := strconv.parse_int(parts[0])
+		steps, _ := strconv.parse_int(parts[2])
+		path := CodeTabs_Active(s)
+		text, _, _ := CodeEditor_Buffer(path, true)
+		lines := strings.split_lines(text, context.temp_allocator)
+		column := lineNumber >= 1 && lineNumber - 1 < len(lines) ? strings.index(lines[lineNumber - 1], parts[1]) : -1
+		if column < 0 {
+			fail(fmt.tprintf("%s: line %d has no %q", line, lineNumber, parts[1]))
+			return true
+		}
+		column += len(parts[1]) / 2
+		if codeRevealFirst(s, lineNumber - 1, column) do return false
+		at, perStep, ok := CodeEditor_ScrubPoint(path, lineNumber - 1, column)
+		if !ok {
+			fail(fmt.tprintf("%s: the code tab isn't shown", line))
+			return true
+		}
+		// Half a step more, so rounding can't lose one
+		delta := f32(steps) * perStep + (steps < 0 ? -perStep : perStep) * 0.5
+		pushMouse(.MOUSE_MOTION, at)
+		pushKey(.KEY_DOWN, {.LALT})
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, at))
+		STEPS :: 4
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, at + {delta * f32(i) / STEPS, 0}))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, at + {delta, 0}))
+		release: sdl.Event
+		release.type = .KEY_UP
+		release.key.scancode = .LALT
+		release.key.key = sdl.GetKeyFromScancode(.LALT, {}, false)
+		queueBatch(release)
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 
@@ -2627,6 +2696,32 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			return strings.to_string(b)
 		}
 		return strings.contains(squeeze(found), squeeze(value)), found
+	case "code_inlay_lacks":
+		number, _, unwanted := strings.partition(value, " ")
+		n, _ := strconv.parse_int(number)
+		inlays, _ := CodeEditor_LineNotes(CodeTabs_Active(s), n - 1)
+		return !strings.contains(inlays, strings.trim_space(unwanted)), inlays
+	case "log_points":
+		found = fmt.tprint(len(s.logPoints.points))
+	case "log_point":
+		// "log_point <file:line> <on | off | missing>"
+		at, _, expected := strings.partition(value, " ")
+		file, _, number := strings.partition(at, ":")
+		n, _ := strconv.parse_int(number)
+		found = "missing"
+		if p := LogPoints_Find(&s.logPoints, file, n); p != nil do found = p.enabled ? "on" : "off"
+		return found == strings.trim_space(expected), found
+	case "logpoint_dialog":
+		found = s.logPoints.dialog.open ? "open" : "closed"
+	case "live_field":
+		// "live_field <Script> <field> <value>": the field as the running game last sent it for a code tab
+		parts := strings.fields(value, context.temp_allocator)
+		if len(parts) < 3 do return false, "expected a script, a field and a value"
+		found = "(not sent)"
+		for f in s.live.fields do if f.script == parts[0] {
+			for v in f.values do if v.name == parts[1] do found = v.value
+		}
+		return found == parts[2], found
 	case "code_inlay", "code_marker":
 		number, _, expected := strings.partition(value, " ")
 		n, _ := strconv.parse_int(number)

@@ -262,6 +262,8 @@ CodeEditor_Shutdown :: proc() {
 	CodeProviders_Shutdown()
 	CodePreviews_Shutdown()
 	CodeColors_Shutdown()
+	CodeLive_Shutdown()
+	LogPoints_Shutdown()
 }
 
 // Whether a file's editor has unsaved changes
@@ -609,6 +611,48 @@ CodeEditor_SwatchPoint :: proc(path: string, line, n: int) -> ([2]f32, bool) {
 	return {host.shownRect.x + x / host.shownScale, host.shownRect.y + y / host.shownScale}, true
 }
 
+// Where a line's n-th clickable inlay hint's label is in the window (0-based line and n; the shown
+// file only): a live hint's node menu
+CodeEditor_InlayLabelPoint :: proc(path: string, line, n: int) -> ([2]f32, bool) {
+	c := CodeEditor_Find(path)
+	if c == nil || host.lastShown != c || host.shownScale <= 0 do return {}, false
+	x, y, ok := ce.editor_inlay_label_point(&c.ed, line, n)
+	if !ok do return {}, false
+	return {host.shownRect.x + x / host.shownScale, host.shownRect.y + y / host.shownScale}, true
+}
+
+/*
+The lines a code tab shows: its first (0-based) and how many (code_live.odin asks the game for the
+fields there).
+
+Returns:
+- The first line and the count, and false when the file isn't open
+*/
+CodeEditor_VisibleLines :: proc(path: string) -> (first, count: int, ok: bool) {
+	c := CodeEditor_Find(path)
+	if c == nil do return 0, 0, false
+	return c.ed.scroll_line, ce.editor_text_rows(&c.ed), true
+}
+
+/*
+Where a position's character is in the window (0-based line and byte column; the shown file
+only), and how far the pointer moves for one scrub step there, for the test driver's scrubs.
+*/
+CodeEditor_ScrubPoint :: proc(path: string, line, column: int) -> (at: [2]f32, perStep: f32, ok: bool) {
+	c := CodeEditor_Find(path)
+	if c == nil || host.lastShown != c || host.shownScale <= 0 do return
+	x, y, inView := ce.editor_text_point(&c.ed, {line, column})
+	if !inView do return
+	return {host.shownRect.x + x / host.shownScale, host.shownRect.y + y / host.shownScale}, f32(ce.SCRUB_PIXELS_PER_STEP) * max(c.ed.char_w, 1) / 8 / host.shownScale, true
+}
+
+// The value a scrub of the code tab is at ("" when none is being dragged; temp allocated)
+CodeEditor_ScrubText :: proc(path: string) -> string {
+	c := CodeEditor_Find(path)
+	if c == nil do return ""
+	return ce.editor_scrub_text(&c.ed)
+}
+
 // Whether a line has a color swatch (0-based)
 CodeEditor_HasSwatch :: proc(path: string, line: int) -> bool {
 	c := CodeEditor_Find(path)
@@ -853,7 +897,7 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	// Help (F1): an engine declaration's API page, else the manual (the code editor's own F1, its
 	// palette, keeps Ctrl+Shift+P)
 	help := actionChords(&s.settings.keymap, .User_Manual)
-	dragging := c.ed.mouse.drag != .None
+	dragging := c.ed.mouse.drag != .None || ce.editor_scrub_held(&c.ed)
 	// Input reaching the editor this frame: it's drawn again
 	handled := 0
 	for i in 0 ..< host.eventCount {
@@ -919,6 +963,9 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	if c.ed.lsp_enabled && c.ed.lsp_doc_open do c.openedIn = serverProcess(c)
 	// What the providers left: a usage to open (a marker, Find Usages), a rename's project side
 	linksSend(ctx)
+	// A scrub's value for the game, a running node picked, a write-back; a log point's change
+	CodeLive_Take(ctx)
+	LogPoints_Take(ctx)
 	// A swatch's Color dialog, a hover's play button
 	if request, ok := CodeColors_TakeRequest(); ok do skald.send(ctx, Msg(request))
 	if audio, ok := CodePreviews_TakeAudio(); ok do skald.send(ctx, Msg(audio))
@@ -1014,7 +1061,12 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	Data :: struct { ready: bool, bg: skald.Color, onGPU: bool, size: [2]int }
 	theme := c.ed.theme.background
 	data := new_clone(Data{imageReady, skald.rgba(u32(theme.r) << 24 | u32(theme.g) << 16 | u32(theme.b) << 8 | 0xff), host.onGPU, host.uploadedSize}, context.temp_allocator)
-	cursor := ce.editor_mouse_cursor(&c.ed) == .Text ? skald.Cursor_Shape.Text : skald.Cursor_Shape.Default
+	cursor := skald.Cursor_Shape.Default
+	switch ce.editor_mouse_cursor(&c.ed) {
+	case .Text:    cursor = .Text
+	case .Scrub:   cursor = .EW_Resize
+	case .Default:
+	}
 	return skald.canvas(ctx, data, proc(d: ^Data, p: skald.Canvas_Painter) {
 		skald.draw_rect(p.r, p.bounds, d.bg)
 		if d.ready && d.onGPU {

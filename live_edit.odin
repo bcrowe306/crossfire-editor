@@ -1,6 +1,7 @@
 package crossfire_editor
 
 import "core:encoding/json"
+import "core:hash"
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -20,6 +21,10 @@ The live view: the game run with Play, seen and changed while it plays (the engi
 - **The view** (view_live.odin, the bottom panel's Live tab): the stats with a graph of frame
   times, the running scene's nodes, the chosen node's properties to edit, and the pause and step
   buttons. Nothing here is saved or undoable: the running game changes, not the project.
+- **Live values in the code** (code_live.odin): the tree says which scripts each node runs
+  (`LiveNode.scripts`); `fields <Script> <id> <field>...` asks for the fields a code tab shows
+  (`Live_Watch`: only what changed is sent), whose values come back with the stats
+  (`LiveView.fields`).
 */
 
 // The running game as the live view knows it (`State.live`; strings heap, owned)
@@ -51,6 +56,31 @@ LiveView :: struct {
 	// `shapes` was sent: stats saying otherwise are ignored until one agrees (as for pausing)
 	shapesPending: bool,
 	shapesSent: time.Tick,
+	// Script fields a code tab shows, as the game last sent them (`fields` replies; code_live.odin)
+	fields: [dynamic]LiveFields,
+	// The `fields` watches sent ("<Script> <id> <field>..." each, owned), so only changes are sent
+	watches: [dynamic]string,
+	// Bumped when the tree's nodes or scripts change, and when a watched value changes (the code
+	// tab's hints are asked again)
+	treeGeneration, fieldsGeneration: int,
+	treeHash: u64,
+	// A node picked in a code tab for a script (its hint's menu): script name to node id (owned)
+	codePicks: map[string]LiveCodePick,
+}
+
+// A live node a code tab's hint was pointed at (`LiveView.codePicks`)
+LiveCodePick :: struct {
+	// The live node's id (owned)
+	id: string,
+	// What the Live tab and the scene had chosen then: when either changes, the pick gives way
+	liveSelected: u64,
+	editorSelected: int,
+}
+
+// A script's fields on a node, as the game sent them (`fields` reply; strings owned)
+LiveFields :: struct {
+	script, id: string,
+	values: [dynamic]LiveProperty,
 }
 
 LiveNode :: struct {
@@ -58,6 +88,8 @@ LiveNode :: struct {
 	visible: bool,
 	// Its depth in the tree (0: top level)
 	depth: int,
+	// The scripts it runs, its node type's first (owned)
+	scripts: []string,
 }
 
 LiveProperty :: struct {
@@ -140,13 +172,28 @@ Live_Ingest :: proc(s: ^State, text: string) {
 		live.scene = strings.clone(str(object, "scene"))
 		nodes, _ := object["nodes"].(json.Array)
 		depths := make(map[string]int, context.temp_allocator)
+		// What the code tab's hints depend on: the nodes and their scripts
+		h := hash.fnv64a(transmute([]byte)live.scene)
 		for n in nodes {
 			o := n.(json.Object) or_continue
 			id, parent := str(o, "id"), str(o, "parent")
 			depth := parent == "" ? 0 : depths[parent] + 1
 			depths[id] = depth
 			visible, _ := o["visible"].(json.Boolean)
-			append(&live.nodes, LiveNode{strings.clone(id), strings.clone(str(o, "name")), strings.clone(str(o, "type")), strings.clone(parent), visible, depth})
+			list, _ := o["scripts"].(json.Array)
+			scripts := make([]string, len(list))
+			for s, i in list {
+				name, _ := s.(json.String)
+				scripts[i] = strings.clone(name)
+				h = hash.fnv64a(transmute([]byte)name, h)
+			}
+			h = hash.fnv64a(transmute([]byte)id, h)
+			h = hash.fnv64a(transmute([]byte)str(o, "name"), h)
+			append(&live.nodes, LiveNode{strings.clone(id), strings.clone(str(o, "name")), strings.clone(str(o, "type")), strings.clone(parent), visible, depth, scripts})
+		}
+		if h != live.treeHash {
+			live.treeHash = h
+			live.treeGeneration += 1
 		}
 	case "node":
 		if str(object, "id") != live.selected do break
@@ -156,6 +203,28 @@ Live_Ingest :: proc(s: ^State, text: string) {
 			o := p.(json.Object) or_continue
 			append(&live.properties, LiveProperty{strings.clone(str(o, "name")), strings.clone(str(o, "value"))})
 		}
+	case "fields":
+		// A watched script's fields (a code tab's live values)
+		script, id := str(object, "script"), str(object, "id")
+		entry: ^LiveFields
+		for &f in live.fields do if f.script == script && f.id == id do entry = &f
+		if entry == nil {
+			append(&live.fields, LiveFields{script = strings.clone(script), id = strings.clone(id)})
+			entry = &live.fields[len(live.fields) - 1]
+		}
+		values, _ := object["values"].(json.Array)
+		changed := len(values) != len(entry.values)
+		for v, i in values {
+			o := v.(json.Object) or_continue
+			if !changed && (entry.values[i].name != str(o, "name") || entry.values[i].value != str(o, "value")) do changed = true
+		}
+		if !changed do break
+		liveFieldsClear(entry)
+		for v in values {
+			o := v.(json.Object) or_continue
+			append(&entry.values, LiveProperty{strings.clone(str(o, "name")), strings.clone(str(o, "value"))})
+		}
+		live.fieldsGeneration += 1
 	case "snapshot":
 		// Hot reload: the game wrote its state (play_reload.odin)
 		ok, _ := object["ok"].(json.Boolean)
@@ -254,7 +323,101 @@ Live_Reset :: proc(live: ^LiveView) {
 	delete(live.properties)
 	delete(live.edits)
 	delete(live.history)
+	for &f in live.fields {
+		liveFieldsClear(&f)
+		delete(f.script)
+		delete(f.id)
+		delete(f.values)
+	}
+	delete(live.fields)
+	for w in live.watches do delete(w)
+	delete(live.watches)
+	for k, v in live.codePicks {
+		delete(k)
+		delete(v.id)
+	}
+	delete(live.codePicks)
+	// The code tab's hints go with the game: they're asked again
+	generation := live.treeGeneration + live.fieldsGeneration + 1
 	live^ = {}
+	live.treeGeneration = generation
+}
+
+/*
+Sends the `fields` watches a code tab wants (code_live.odin's `CodeLive_Watches`), only those
+that changed: a script no longer wanted is stopped (`fields <Script>`), a new or changed one sent
+whole.
+
+Inputs:
+- s: Editor state
+- wanted: "<Script> <id> <field>..." lines, one per script
+*/
+Live_Watch :: proc(s: ^State, wanted: []string) {
+	live := &s.live
+	scriptOf :: proc(line: string) -> string {
+		name, _, _ := strings.partition(line, " ")
+		return name
+	}
+	// Stopped: scripts sent before and not wanted now
+	for i := len(live.watches) - 1; i >= 0; i -= 1 {
+		old := live.watches[i]
+		kept := false
+		for w in wanted do if scriptOf(w) == scriptOf(old) do kept = true
+		if kept do continue
+		Live_Send(s, fmt.tprintf("fields %s", scriptOf(old)))
+		liveFieldsForget(live, scriptOf(old))
+		delete(old)
+		ordered_remove(&live.watches, i)
+	}
+	for w in wanted {
+		at := -1
+		for old, i in live.watches do if scriptOf(old) == scriptOf(w) do at = i
+		if at >= 0 && live.watches[at] == w do continue
+		Live_Send(s, fmt.tprintf("fields %s", w))
+		if at >= 0 {
+			delete(live.watches[at])
+			live.watches[at] = strings.clone(w)
+		} else {
+			append(&live.watches, strings.clone(w))
+		}
+	}
+}
+
+/*
+A script's field on a live node, as the game last sent it.
+
+Returns:
+- The value's text (the live view's), and whether it was sent
+*/
+Live_FieldValue :: proc(live: ^LiveView, script, id, field: string) -> (string, bool) {
+	for f in live.fields do if f.script == script && f.id == id {
+		for v in f.values do if v.name == field do return v.value, true
+	}
+	return "", false
+}
+
+// A script no longer watched: its values go
+@(private="file")
+liveFieldsForget :: proc(live: ^LiveView, script: string) {
+	for i := len(live.fields) - 1; i >= 0; i -= 1 {
+		f := &live.fields[i]
+		if f.script != script do continue
+		liveFieldsClear(f)
+		delete(f.script)
+		delete(f.id)
+		delete(f.values)
+		ordered_remove(&live.fields, i)
+		live.fieldsGeneration += 1
+	}
+}
+
+@(private="file")
+liveFieldsClear :: proc(f: ^LiveFields) {
+	for v in f.values {
+		delete(v.name)
+		delete(v.value)
+	}
+	clear(&f.values)
 }
 
 @(private="file")
@@ -264,6 +427,8 @@ liveClearNodes :: proc(live: ^LiveView) {
 		delete(n.name)
 		delete(n.type)
 		delete(n.parent)
+		for s in n.scripts do delete(s)
+		delete(n.scripts)
 	}
 	clear(&live.nodes)
 }
