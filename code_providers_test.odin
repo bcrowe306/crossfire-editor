@@ -39,7 +39,7 @@ code_providers_in_a_code_tab :: proc(t: ^testing.T) {
 	// The code editors are package state, and SDL_ttf isn't thread-safe: these tests take turns
 	sync.guard(&previewTestLock)
 	defer CodeEditor_Shutdown()
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_code_providers"}, context.temp_allocator)
 	_ = removeAll(dir)
 	defer removeAll(dir)

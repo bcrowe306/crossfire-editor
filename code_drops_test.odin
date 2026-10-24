@@ -84,7 +84,7 @@ DropFixture :: struct {
 
 @(private="file")
 dropFixture :: proc(t: ^testing.T, f: ^DropFixture, name: string) -> bool {
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	f.dir, _ = filepath.join({base, name}, context.temp_allocator)
 	_ = removeAll(f.dir)
 	folder := joinPath(f.dir, SCRIPTS_FOLDER, allocator = context.temp_allocator)
@@ -191,7 +191,9 @@ code_drops_by_context :: proc(t: ^testing.T) {
 	anim := DropSource{kind = .Animation, name = f.animation, node = f.light, index = -1}
 	_, ok = dropAt(&f, anim, LINE_BLANK, 0)
 	testing.expect(t, ok && strings.contains(dropText(&f), "\tshipLight: ^e.AnimatedSprite `export:\"default=ShipLight\"`,\n}"), "the sprite's field added")
-	testing.expectf(t, strings.contains(dropText(&f), fmt.tprintf("\t\t\te.AnimationPlayer_Play(&self.shipLight.animation, %q)\n", f.animation)), "played through it (no constant for a sprite's only animation):\n%s", dropText(&f))
+	// Its constant: the sprite's own animations have them, listed under the sprite (the providers'
+	// cache of the constants lost their groups until round 7, so this got the quoted name)
+	testing.expectf(t, strings.contains(dropText(&f), "\t\t\te.AnimationPlayer_Play(&self.shipLight.animation, ANIM_PLAY_SCENE_SHIP_LIGHT_DEFAULT)\n"), "played through it, by its constant:\n%s", dropText(&f))
 	// The caret at the statement's end, moved down by the field above
 	testing.expect_value(t, f.c.ed.buf.cursors[0].pos.line, LINE_BLANK + 1)
 	undone(t, &f, "the animation")
@@ -348,7 +350,7 @@ code_drops_engine_uses_compile :: proc(t: ^testing.T) {
 		nodeType := use.node != "" ? use.node : (typeName != "" && field != "" ? typeName : "Node")
 		fmt.sbprintf(&b, "use%d :: proc(self: ^S, node: ^e.%s) {{\n\t// %s: %s\n\t%s\n}\n\n", i, nodeType, use.on, use.title, code)
 	}
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_code_uses"}, context.temp_allocator)
 	_ = removeAll(dir)
 	defer removeAll(dir)

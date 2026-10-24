@@ -312,6 +312,7 @@ CodeProviders_Constants :: proc(state: ^State) -> []GeneratedConstant {
 		append(&p.constants, GeneratedConstant{
 			name = strings.clone(c.name), value = strings.clone(c.value), section = c.section,
 			about = strings.clone(c.about), comment = strings.clone(c.comment), target = strings.clone(c.target),
+			group = strings.clone(c.group),
 		})
 	}
 	return p.constants[:]
@@ -320,7 +321,7 @@ CodeProviders_Constants :: proc(state: ^State) -> []GeneratedConstant {
 @(private="file")
 constantsFree :: proc() {
 	for c in codeProviders.constants {
-		delete(c.name); delete(c.value); delete(c.about); delete(c.comment); delete(c.target)
+		delete(c.name); delete(c.value); delete(c.about); delete(c.comment); delete(c.target); delete(c.group)
 	}
 	clear(&codeProviders.constants)
 }

@@ -798,7 +798,8 @@ Project_Load :: proc(rootPath: string) -> (project: Project, message: string, wa
 
 	project = {
 		name = strings.clone(data.name),
-		rootPath = strings.clone(rootPath),
+		// Resolved, so what's derived from it matches the code tabs' paths (absolutePath)
+		rootPath = strings.clone(absolutePath(rootPath)),
 		gameSize = data.size,
 		scaleMode = data.scaleMode,
 		renderer = data.renderer,
@@ -1100,7 +1101,7 @@ Returns:
 Project_CreateDemo :: proc(rootPath: string) -> Project {
 	project := Project{
 		name = strings.clone("Legacy of the Wardens"),
-		rootPath = strings.clone(rootPath),
+		rootPath = strings.clone(absolutePath(rootPath)),
 		gameSize = {1280, 720},
 		scaleMode = .Letterbox,
 		background = {42, 32, 80, 255},

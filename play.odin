@@ -632,10 +632,24 @@ projectBuildFolder :: proc(projectDir: string) -> string {
 	return fmt.tprintf("%s-%x", sanitize(filepath.base(projectDir)), hash.fnv32a(transmute([]byte)projectDir))
 }
 
+/*
+A path made absolute and resolved (links followed: on macOS the temporary folder /var is a link to
+/private/var), so two spellings of one file compare equal: the project's root, the script index's
+files, the code tabs' paths all go through it. A file that doesn't exist yet is resolved through
+its folder (temp allocated).
+*/
 @(private="package")
 absolutePath :: proc(path: string) -> string {
-	result, err := os.get_absolute_path(path, context.temp_allocator)
-	return err == nil ? result : path
+	if result, err := os.get_absolute_path(path, context.temp_allocator); err == nil do return result
+	parent, base := filepath.dir(path), filepath.base(path)
+	if path == "" || parent == path || base == "" || base == "." || base == filepath.SEPARATOR_STRING do return path
+	return joinPath(absolutePath(parent), base, allocator = context.temp_allocator)
+}
+
+// Whether two paths name the same file (both resolved: `absolutePath`)
+@(private="package")
+Paths_Same :: proc(a, b: string) -> bool {
+	return a == b || absolutePath(a) == absolutePath(b)
 }
 
 @(private="package")

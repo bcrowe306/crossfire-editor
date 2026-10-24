@@ -212,7 +212,7 @@ names_complete_and_report_per_kind :: proc(t: ^testing.T) {
 		testing.expect(t, false, "the engine's names")
 		return
 	}
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_code_names"}, context.temp_allocator)
 	defer removeAll(dir)
 	state, path := namesState(t, dir)
@@ -369,10 +369,14 @@ names_demo_project_timing :: proc(t: ^testing.T) {
 		text, _ := os.read_entire_file(file, context.temp_allocator)
 		fb := cebuf.buffer_init()
 		cebuf.buffer_set_text(&fb, string(text))
-		diags := make([dynamic]ce.Provider_Diagnostic, context.temp_allocator)
-		start = time.tick_now()
-		nameDiagnostics({path = file, buffer = &fb}, {allocator = context.temp_allocator}, &diags)
-		took := time.tick_since(start)
+		diags: [dynamic]ce.Provider_Diagnostic
+		took := time.Duration(max(i64))
+		for _ in 0 ..< TIMING_RUNS {
+			diags = make([dynamic]ce.Provider_Diagnostic, context.temp_allocator)
+			start = time.tick_now()
+			nameDiagnostics({path = file, buffer = &fb}, {allocator = context.temp_allocator}, &diags)
+			took = min(took, time.tick_since(start))
+		}
 		if took > slowest do slowest, slowestFile = took, filepath.base(file)
 		calls += len(f.calls)
 		for d in diags do log.errorf("demo problem in %s:%d: %s", filepath.base(file), d.start.line + 1, d.message)
@@ -389,19 +393,27 @@ names_demo_project_timing :: proc(t: ^testing.T) {
 
 	// A completion in a string: StateMachine_Is(self.brain, "|
 	at := findIn(&b, `StateMachine_Is(self.brain, "`)
-	start = time.tick_now()
-	items := completionsAt(&state, path, &b, at)
-	completed := time.tick_since(start)
+	items: []ce.Provider_Completion
+	completed := time.Duration(max(i64))
+	for _ in 0 ..< TIMING_RUNS {
+		start = time.tick_now()
+		items = completionsAt(&state, path, &b, at)
+		completed = min(completed, time.tick_since(start))
+	}
 	_, attack := hasLabel(items, "attack")
 	testing.expect(t, attack, "the hero's brain's states")
 	// And outside one: the parameters' constants
 	at = findIn(&b, "e.StateMachine_SetFloat(self.brain, ")
-	start = time.tick_now()
-	items = completionsAt(&state, path, &b, at)
-	constants := time.tick_since(start)
+	constants := time.Duration(max(i64))
+	for _ in 0 ..< TIMING_RUNS {
+		start = time.tick_now()
+		items = completionsAt(&state, path, &b, at)
+		constants = min(constants, time.tick_since(start))
+	}
 	_, speed := hasLabel(items, "PARAM_HERO_BRAIN_SPEED")
 	testing.expect(t, speed, "the brain's parameters' constants")
 	log.infof("names, demo: table %v; %d literals in %d files, the slowest file (%s) checked in %v; a completion in a string %v, of constants %v", loaded, calls, len(state.scriptIndex.files), slowestFile, checked, completed, constants)
-	testing.expect(t, checked < 50 * time.Millisecond && completed < 20 * time.Millisecond, "fast enough")
+	// The best of TIMING_RUNS each; generous limits (0.07 ms and 0.6 ms here, optimized)
+	testing.expectf(t, checked < 100 * time.Millisecond && completed < 50 * time.Millisecond, "fast enough: %v, %v", checked, completed)
 	free_all(context.temp_allocator)
 }

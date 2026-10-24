@@ -133,7 +133,7 @@ go_to_error_opens_the_file_at_the_line :: proc(t: ^testing.T) {
 // A fresh empty folder under the system temp directory
 @(private="file")
 scratchDir :: proc(name: string) -> string {
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir := joinPath(base, name, allocator = context.temp_allocator)
 	_ = removeAll(dir)
 	_ = os.make_directory_all(dir)

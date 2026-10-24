@@ -9,7 +9,7 @@ import e "engine:."
 // A fresh folder under the system temp directory (temp allocated)
 @(private="file")
 indexTestDir :: proc(name: string) -> string {
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, name}, context.temp_allocator)
 	_ = removeAll(dir)
 	_ = os.make_directory_all(dir)

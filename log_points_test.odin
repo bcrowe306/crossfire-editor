@@ -124,7 +124,7 @@ log_point_injection :: proc(t: ^testing.T) {
 // compiles with it), turned off and removed
 @(test)
 log_points_kept_and_built :: proc(t: ^testing.T) {
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_log_points"}, context.temp_allocator)
 	_ = removeAll(dir)
 	defer removeAll(dir)

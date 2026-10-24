@@ -2987,6 +2987,17 @@ Match the engine's style:
 - **Memory:** the per-frame temp allocator is for anything that dies within the frame
   (`fmt.tprintf`). Long-lived data belongs to an explicit owner (project, scene, panel) and is freed
   with it. Strings in a `Msg` only live for the frame: clone them in `update` before storing.
+- **Paths are compared resolved** (`absolutePath`, play.odin: links followed, a file that doesn't
+  exist yet through its folder; `Paths_Same`): the project's root is resolved when a project
+  loads, is created or is saved elsewhere, the script index keys its files that way, code tabs
+  keep resolved paths and `ScriptIndex_File` / `CodeEditor_Find` resolve what they're given. On
+  macOS the temporary folder /var is a link to /private/var, and paths spelled both ways broke
+  the live values' tests on CI (v0.1.0-dev.61 and .62); tests make their folders under
+  `testTempBase()` (resolved), and `code_paths_through_a_link` opens a project through a link.
+- **Timing tests assert on the best of `TIMING_RUNS`** (editor_test.odin) with generous limits:
+  one run under load (other tests' threads, a UI suite beside them, CI's Mac) took several times
+  as long (`names_demo_project_timing`, `engine_docs_read_render_and_link`). The numbers in this
+  file are the logged best times.
 - **Delete folders with `removeAll`** (export_run.odin), never `os.remove_all`: on Windows that
   goes through the shell (SHFileOperationW), whose COM copy hooks crashed the tests running on
   several threads.

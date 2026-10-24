@@ -62,7 +62,7 @@ register :: proc "contextless" () {
 // A fresh folder under the system temp directory (temp allocated)
 @(private="file")
 indexTestDir :: proc(name: string) -> string {
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, name}, context.temp_allocator)
 	_ = removeAll(dir)
 	_ = os.make_directory_all(dir)
@@ -288,12 +288,20 @@ script_index_demo_project_timing :: proc(t: ^testing.T) {
 	// One file again (the largest script; assets.odin is generated), as an edit would
 	largest := 0
 	for s, i in sources do if filepath.base(s.path) != ASSETS_FILE && (filepath.base(sources[largest].path) == ASSETS_FILE || len(s.text) > len(sources[largest].text)) do largest = i
-	start = time.tick_now()
-	again, one := ScriptIndex_ParseAll(sources[largest:largest + 1])
-	ScriptIndex_Take(&index, again)
-	incremental := time.tick_since(start)
+	// The best of TIMING_RUNS
+	again: []IndexFile
+	one: time.Duration
+	incremental := time.Duration(max(i64))
+	for run in 0 ..< TIMING_RUNS {
+		if run > 0 do delete(again)
+		start = time.tick_now()
+		again, one = ScriptIndex_ParseAll(sources[largest:largest + 1])
+		ScriptIndex_Take(&index, again)
+		incremental = min(incremental, time.tick_since(start))
+	}
 	log.infof("script index, demo: %d files, %d lines: full %v (parse %v), one file (%s) %v (parse %v)", len(sources), lines, full, parse, filepath.base(sources[largest].path), incremental, one)
-	testing.expect(t, full < 5 * time.Second, "fast enough")
+	// Generous: it's 8-10 ms here (a catch for something gone slow, not a busy machine)
+	testing.expectf(t, full < 5 * time.Second, "fast enough (%v)", full)
 	// And the constants of assets.odin (written on every save; the providers' list)
 	project, message, _ := Project_Load(DEMO_PROJECT)
 	defer Project_Destroy(&project)

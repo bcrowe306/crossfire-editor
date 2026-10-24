@@ -55,14 +55,32 @@ send :: proc(state: ^State, msg: Msg) {
 	state^, _ = update(state^, msg)
 }
 
-// A fresh empty folder under the system temp directory
-@(private="file")
+/*
+How many times a timing test measures what it asserts on, keeping the best: a single run under CPU
+load (the other tests' threads, a UI suite beside it, a CI machine) took several times as long
+(names_demo_project_timing failed once that way). The limits are generous too: they catch a
+change that makes something slow, not a machine that's busy. The numbers in CLAUDE.md come from
+the logged best times.
+*/
+TIMING_RUNS :: 5
+
+// A fresh empty folder under the system temp directory, its path resolved (`testTempBase`)
+@(private)
 tempDir :: proc(name: string) -> string {
-	base, _ := os.temp_directory(context.temp_allocator)
-	dir, _ := filepath.join({base, name}, context.temp_allocator)
+	dir, _ := filepath.join({testTempBase(), name}, context.temp_allocator)
 	_ = removeAll(dir)
 	_ = os.make_directory_all(dir)
 	return dir
+}
+
+/*
+The system's temporary folder, resolved: on macOS it's under /var, a link to /private/var, and a
+path spelled through the link didn't match the code tabs' resolved ones (macOS CI, v0.1.0-dev.61).
+*/
+@(private)
+testTempBase :: proc() -> string {
+	base, _ := os.temp_directory(context.temp_allocator)
+	return absolutePath(base)
 }
 
 // A program that exits at once, standing in for the external code editor (Windows has no `true`)
@@ -4221,7 +4239,7 @@ scene_settings_save_load_and_undo :: proc(t: ^testing.T) {
 	send(&state, Scene_Screen_Layer_Toggled{len(state.project.scenes) + 3, .Layer1})
 
 	// Written on the scene's root, read back
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_scene_settings"}, context.temp_allocator)
 	_ = removeAll(dir)
 	defer removeAll(dir)

@@ -58,7 +58,7 @@ liveRunProviders :: proc(state: ^State, c: ^CodeEditor) {
 code_live_values_in_a_code_tab :: proc(t: ^testing.T) {
 	sync.guard(&previewTestLock)
 	defer CodeEditor_Shutdown()
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_code_live"}, context.temp_allocator)
 	_ = removeAll(dir)
 	defer removeAll(dir)
@@ -166,7 +166,7 @@ code_scrub_literals :: proc(t: ^testing.T) {
 code_scrub_sends_and_writes_back :: proc(t: ^testing.T) {
 	sync.guard(&previewTestLock)
 	defer CodeEditor_Shutdown()
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_code_scrub"}, context.temp_allocator)
 	_ = removeAll(dir)
 	defer removeAll(dir)
@@ -266,4 +266,36 @@ code_scrub_sends_and_writes_back :: proc(t: ^testing.T) {
 	testing.expect(t, ok && target.integer && target.value == 3, "lives (not sent: its default)")
 	_ = CodeLive_Messages()
 	free_all(context.temp_allocator)
+}
+
+// A project opened through a symbolic link (as macOS's temporary folder, /var linking to
+// /private/var) behaves as through its real folder: the paths a test or an error line spells
+// through the link find the tab, the index's file, the live values and the providers
+@(test)
+code_paths_through_a_link :: proc(t: ^testing.T) {
+	when ODIN_OS == .Windows do return
+	sync.guard(&previewTestLock)
+	defer CodeEditor_Shutdown()
+	real := tempDir("editor_test_code_link_real")
+	link := joinPath(testTempBase(), "editor_test_code_link", allocator = context.temp_allocator)
+	_ = os.remove(link)
+	if !testing.expectf(t, os.symlink(real, link) == nil, "a link to %s", real) do return
+	defer os.remove(link)
+	defer removeAll(real)
+	state, _ := liveTestState(t, link)
+	defer State_Destroy(&state)
+	testing.expect_value(t, state.project.rootPath, real)
+	// The script spelled through the link, as a path from elsewhere would be
+	path := joinPath(link, SCRIPTS_FOLDER, "hero.odin", allocator = context.temp_allocator)
+	_ = Script_Open(&state, path, 1)
+	c := CodeEditor_Find(path)
+	if !testing.expect(t, c != nil, "the tab, found through the link") do return
+	testing.expect(t, isProjectScript(&state, path), "a project script through the link")
+	testing.expect(t, ScriptIndex_File(&state.scriptIndex, absolutePath(path)) != nil, "the index's file")
+	liveRunProviders(&state, c)
+	notes, _ := CodeEditor_LineNotes(path, 7)
+	testing.expectf(t, strings.contains(notes, "= 312"), "the live value: %q", notes)
+	watches := CodeLive_Watches(&state, path, 0, 30)
+	testing.expect_value(t, len(watches), 1)
+	testing.expect(t, Paths_Same(path, joinPath(real, SCRIPTS_FOLDER, "hero.odin", allocator = context.temp_allocator)), "one file, two spellings")
 }

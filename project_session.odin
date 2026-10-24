@@ -203,7 +203,7 @@ Returns:
 Project_CreateEmpty :: proc(root, name: string) -> Project {
 	project := Project{
 		name = strings.clone(name),
-		rootPath = strings.clone(root),
+		rootPath = strings.clone(absolutePath(root)),
 		gameSize = {1280, 720},
 		scaleMode = .Letterbox,
 		background = {18, 20, 28, 255},
@@ -308,7 +308,7 @@ saveProjectAs :: proc(state: ^State, root, name: string) -> bool {
 	}
 	// The project as it's open, written into the copy
 	delete(state.project.rootPath)
-	state.project.rootPath = strings.clone(root)
+	state.project.rootPath = strings.clone(absolutePath(root))
 	delete(state.project.name)
 	state.project.name = strings.clone(name)
 	if message := Project_Save(&state.project); message != "" {

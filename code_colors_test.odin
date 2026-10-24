@@ -54,7 +54,7 @@ code_color_literals_parse_and_write :: proc(t: ^testing.T) {
 code_color_swatches_in_a_code_tab :: proc(t: ^testing.T) {
 	sync.guard(&previewTestLock)
 	defer CodeEditor_Shutdown()
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_code_colors"}, context.temp_allocator)
 	_ = removeAll(dir)
 	defer removeAll(dir)

@@ -576,7 +576,7 @@ ScriptIndex_Forget :: proc(index: ^ScriptIndex, path: string) {
 }
 
 // The engine's node types by name (`Camera2D`...), for node fields
-@(private="file")
+@(private)
 engineNodeTypeName :: proc(name: string) -> bool {
 	if name == "Node" do return true
 	for kind in NodeKind do if NodeField_TypeName(kind) == name do return true
@@ -1046,14 +1046,21 @@ Scripts_NewestSource :: proc(project: ^Project) -> time.Time {
 	return newest
 }
 
-// The index's problems in a file (absolute path)
+// The index's problems in a file (any spelling of its path: `absolutePath`)
 ScriptIndex_ProblemsIn :: proc(index: ^ScriptIndex, path: string) -> []IndexProblem {
 	out := make([dynamic]IndexProblem, context.temp_allocator)
-	for p in index.problems do if p.path == path do append(&out, p)
+	resolved := absolutePath(path)
+	for p in index.problems do if p.path == path || p.path == resolved do append(&out, p)
 	return out[:]
 }
 
-// The file entry for a path, or nil
+/*
+The file entry for a path, or nil. The index keys files by their resolved paths (its folder is
+resolved); a path spelled another way (through a link: macOS's /var is /private/var) is resolved
+first, so every lookup of a document goes through here.
+*/
 ScriptIndex_File :: proc(index: ^ScriptIndex, path: string) -> ^IndexFile {
-	return &index.files[path] if path in index.files else nil
+	if f, ok := &index.files[path]; ok do return f
+	if f, ok := &index.files[absolutePath(path)]; ok do return f
+	return nil
 }

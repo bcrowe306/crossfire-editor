@@ -21,7 +21,7 @@ Returns:
 Project_CreateTestProject :: proc(rootPath: string) -> Project {
 	project := Project{
 		name = strings.clone("Test Game"),
-		rootPath = strings.clone(rootPath),
+		rootPath = strings.clone(absolutePath(rootPath)),
 		gameSize = {1280, 720},
 		scaleMode = .Letterbox,
 		background = {15, 18, 30, 255},

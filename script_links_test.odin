@@ -367,7 +367,7 @@ script_rename_in_code_tabs :: proc(t: ^testing.T) {
 	sync.guard(&previewTestLock)
 	defer CodeEditor_Shutdown()
 	defer CodeProviders_Shutdown()
-	base, _ := os.temp_directory(context.temp_allocator)
+	base := testTempBase()
 	dir, _ := filepath.join({base, "editor_test_script_rename"}, context.temp_allocator)
 	_ = removeAll(dir)
 	defer removeAll(dir)

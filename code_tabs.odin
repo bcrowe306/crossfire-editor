@@ -97,7 +97,7 @@ the file, so it fails for one that doesn't exist yet (a Save As target): the tab
 spellings of one file.
 */
 codeAbsolutePath :: proc(path: string) -> string {
-	if full, err := os.get_absolute_path(path, context.temp_allocator); err == nil do return full
+	if full := absolutePath(path); filepath.is_abs(full) do return full
 	if filepath.is_abs(path) do return path
 	cwd, err := os.get_working_directory(context.temp_allocator)
 	if err != nil do return path
