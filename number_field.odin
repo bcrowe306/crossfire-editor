@@ -41,8 +41,8 @@ NumberTarget :: union {
 	NavNumberTarget,
 	// Project Settings' transition time
 	TransitionTimeTarget,
-	// The States tab's transition wait
-	SMAfterTarget,
+	// The States tab's numbers: a transition's wait and priority, a state's speed
+	SMNumberTarget,
 	// The selected camera tool's numbers
 	CameraToolNumber,
 	// The selected Camera's numbers (camera_edit.odin)
@@ -210,7 +210,12 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case UINumberTarget: return UI_Setting_Changed{field = UIField(t), value = value}
 	case NavNumberTarget: return Nav_Setting_Changed{field = NavField(t), value = value}
 	case TransitionTimeTarget: return Project_Settings_Transition_Changed{field = .Duration, value = value}
-	case SMAfterTarget: return SM_Changed{op = .Transition_After, number = f32(value)}
+	case SMNumberTarget:
+		switch t {
+		case .After: return SM_Changed{op = .Transition_After, number = f32(value)}
+		case .Priority: return SM_Changed{op = .Transition_Priority, number = f32(value)}
+		case .Speed: return SM_Changed{op = .State_Speed, number = f32(value)}
+		}
 	case CameraToolNumber: return Camera_Tool_Changed{field = CameraToolField(t), value = f32(value)}
 	case CameraNumber: return Camera_Changed{field = CameraField(t), value = f32(value)}
 	case TraceNumber: return Trace_Setting_Changed{field = TraceField(t), value = f32(value)}

@@ -102,6 +102,7 @@ statesItems :: proc(s: ^State, items: ^MenuItems, t: Ctx_Graph) {
 		tr := sm.transitions[t.sub]
 		append(items,
 			msgItem("At Its Animation's End", Msg(SM_Changed{op = .Transition_On_Finished, flag = !tr.onFinished}), checked = tr.onFinished),
+			msgItem("Ignores the Exit Guard", Msg(SM_Changed{op = .Transition_Interrupts, flag = !tr.interrupts}), checked = tr.interrupts),
 			MENU_SEPARATOR,
 			msgItem("Delete Transition", Msg(SM_Changed{op = .Transition_Removed})))
 	case:

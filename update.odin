@@ -236,7 +236,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Handled by CameraTools_Update above
 	case Camera_Changed:
 		// Handled by CameraEdit_Update above
-	case SM_Changed, SM_View:
+	case SM_Changed, SM_View, States_Live_Watch:
 		// Handled by States_Update above
 	case Live_Command, Live_Selected, Live_Property_Edited:
 		// Handled by Live_Update above

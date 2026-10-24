@@ -307,7 +307,10 @@ Checks:
 	                             The selected ParallaxLayer's, CameraZone's or CameraView's settings ("none": no camera)
 	cam <target|mode|smoothTime|maxSpeed|deadzoneX|offsetY|lookAheadX|limits|limitLeft|limitRight|shakeStrength|zoom> <value>
 	                             The selected Camera's follow target and settings ("none": no target; limits as Left,Top or none)
-	states <states|transitions|params|start|selected|position> <value>
+	states <states|transitions|params|start|selected|position|transition> <value>   The States tab's machine
+	states <can_exit|speed|loop> <value>           The selected state's exit guard, speed, loop
+	states <condition|guard|priority|interrupts|after> <value>   The selected transition's
+	states live_state <name>; states live_status <transition> <status>   The running game's machine (Play)
 	                             The States tab's machine: counts, its start, the selected state's name
 	                             ("none") and position ("x, y")
 	live <connected|paused|shapes|nodes|properties|selected|scene> <value>
@@ -2393,6 +2396,34 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			if s.states.state < 0 || s.states.state >= len(m.states) do return false, "no state selected"
 			p := m.states[s.states.state].position
 			found = fmt.tprintf("%v, %v", p.x, p.y)
+		// The selected state's exit guard, speed, loop; the selected transition's condition, guard,
+		// priority, interrupts, after
+		case "can_exit", "speed", "loop":
+			if s.states.state < 0 || s.states.state >= len(m.states) do return false, "no state selected"
+			st := m.states[s.states.state]
+			found = field == "can_exit" ? st.canExit : field == "speed" ? fmt.tprint(st.speed) : fmt.tprint(st.loop)
+		case "condition", "guard", "priority", "interrupts", "after":
+			if s.states.transition < 0 || s.states.transition >= len(m.transitions) do return false, "no transition selected"
+			t := m.transitions[s.states.transition]
+			switch field {
+			case "condition":  found = t.condition
+			case "guard":      found = t.guard
+			case "priority":   found = fmt.tprint(t.priority)
+			case "interrupts": found = fmt.tprint(t.interrupts)
+			case "after":      found = fmt.tprint(t.after)
+			}
+		case "transition":  found = fmt.tprint(s.states.transition)
+		// What the running game says (the live link's `machine` reply)
+		case "live_state":
+			found = "(none)"
+			if live := States_Live(s); live != nil do found = live.state
+		case "live_status":
+			// "states live_status <transition> <status>"
+			index, _, want := strings.partition(expected, " ")
+			i, _ := strconv.parse_int(index)
+			found = "(none)"
+			if live := States_Live(s); live != nil && i >= 0 && i < len(live.transitions) do found = fmt.tprint(live.transitions[i].status)
+			return found == strings.trim_space(want), found
 		case: return false, fmt.tprintf("unknown states field '%s'", field)
 		}
 		return found == strings.trim_space(expected), found

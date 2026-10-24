@@ -1,0 +1,93 @@
+# State machines' transition logic in the States tab's sidebar: a state's exit guard built from a
+# clause (negated, undone), a transition's condition (a value typed, a comparison picked), its
+# guard, priority and interrupts (undone and redone), then played: the sidebar's machine is the
+# running one, its state and the transition's status come over the live link.
+# Run with: task test:ui
+
+wait 5
+click_row browser-tree 2
+expect scene PlayScene
+key escape
+key ctrl+shift+a
+type AnimatedSprite
+click_widget add-node-AnimatedSprite
+expect kind AnimatedSprite
+key ctrl+shift+a
+type StateMachine
+click_widget add-node-StateMachine
+expect kind StateMachine
+scroll_into_view inspector-scroll inspector-sm-edit-{selected}
+click_widget inspector-sm-edit-{selected}
+expect tab States
+expect states states 1
+
+# A parameter, a second state (selected) and its exit guard: a clause, negated, undone
+scroll_into_view states-scroll states-add-param
+click_widget states-add-param
+expect states params 1
+scroll_into_view states-scroll states-add
+click_widget states-add
+expect states selected state
+scroll_into_view states-scroll states-exit-add
+click_widget states-exit-add
+expect states can_exit param > 0
+scroll_into_view states-scroll states-exit-neg-0
+click_widget states-exit-neg-0
+expect states can_exit !param > 0
+key ctrl+z
+expect states can_exit param > 0
+scroll_into_view states-scroll states-speed-inc
+click_widget states-speed-inc
+expect states speed 1.1
+
+# A transition from idle to it, its condition built in the rows
+scroll_into_view states-scroll states-graph
+click_state 0
+expect states selected idle
+scroll_into_view states-scroll states-connect
+click_widget states-connect
+click_overlay_item 0
+expect states transitions 1
+expect states transition 0
+scroll_into_view states-scroll states-when-add
+click_widget states-when-add
+expect states condition param > 0
+scroll_into_view states-scroll states-when-value-0
+click_widget states-when-value-0
+key ctrl+a
+type 5
+expect states condition param > 5
+scroll_into_view states-scroll states-when-op-0
+click_widget states-when-op-0
+click_overlay_item 0
+expect states condition param
+# Its guard, priority, interrupts
+scroll_into_view states-scroll states-guard-add
+click_widget states-guard-add
+expect states guard param > 0
+scroll_into_view states-scroll states-priority-inc
+click_widget states-priority-inc
+expect states priority 1
+scroll_into_view states-scroll states-interrupts
+click_widget states-interrupts
+expect states interrupts true
+key ctrl+z
+expect states interrupts false
+key ctrl+y
+expect states interrupts true
+expect states guard param > 0
+
+# Played (this scene): the running machine, in idle; the transition's condition doesn't hold
+key ctrl+s
+expect modified false
+key ctrl+F5
+wait_until play Playing timeout=240
+wait_until live connected true timeout=30
+wait_until live scene PlayScene timeout=10
+send Bottom_Tab States
+expect tab States
+wait_until states live_state idle timeout=20
+wait_until states live_status 0 Condition_False timeout=10
+key shift+F5
+wait_until play Stopped
+expect states live_state (none)

@@ -121,13 +121,14 @@ send Bottom_Tab States
 scroll_into_view states-scroll states-param-drag-0
 drag_widget_to states-param-drag-0 code-editor at_text // drops
 wait_until code_contains true e.StateMachine_SetFloat(self.stateMachine, PARAM_PLAY_SCENE_STATE_MACHINE_PARAM, 0) timeout=5
-# The selected state with Shift: the menu (its preview), the second choice picked with the keys
+# The selected state with Shift: the menu (its preview: travel, if current, travel if it can be
+# left, when it's entered; at most four), the second choice picked with the keys
 scroll_into_view states-scroll states-graph
 click_state 0
 scroll_into_view states-scroll states-drag
 drag_widget_to states-drag code-editor at_text // drops shift
 wait_until code_state code_actions.visible true timeout=5
-expect code_state code_actions.titles 2
+expect code_state code_actions.titles 4
 expect code_contains false STATE_PLAY_SCENE_STATE_MACHINE_IDLE
 key DOWN
 key RETURN

@@ -338,8 +338,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		if field, isCamera := v.target.(CameraNumber); isCamera && hasSelection {
 			return node(selected, fmt.tprintf("Change %v of %s", CameraField(field), name), key("camera", CameraField(field), s.currentScene, selected))
 		}
-		if _, isAfter := v.target.(SMAfterTarget); isAfter {
-			if _, i := States_Machine(s); i >= 0 do return node(i, "Change a transition's wait", key("states-after", i, s.states.transition))
+		if field, isSM := v.target.(SMNumberTarget); isSM {
+			if _, i := States_Machine(s); i >= 0 do return node(i, fmt.tprintf("Change a state machine's %v", field), key("states-number", field, i, s.states.state, s.states.transition))
 		}
 		if field, isNav := v.target.(NavNumberTarget); isNav && hasSelection {
 			return node(selected, fmt.tprintf("Change %v of %s", NavField(field), name), key("nav", NavField(field), s.currentScene, selected))
@@ -392,8 +392,11 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 				info := node(i, label, key("states-drag", s.history.gesture))
 				info.sticky = true
 				return info
-			case .State_Renamed, .Transition_Condition, .Param_Renamed, .Param_Value:
+			case .State_Renamed, .Transition_Condition, .Transition_Guard, .State_Can_Exit, .State_Enter_Event, .State_Exit_Event, .Param_Renamed, .Param_Value:
 				return node(i, label, key("states-text", v.op, i, s.states.state, s.states.transition, v.index))
+			case .Clause_Changed:
+				// Typing a value merges; a choice is a step of its own
+				if v.part == .Value do return node(i, label, key("states-clause", v.condition, i, s.states.state, s.states.transition, v.index))
 			}
 			return node(i, label)
 		}

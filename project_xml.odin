@@ -332,6 +332,11 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 				if st.animation != "" do attr(&w, "animation", st.animation)
 				attr(&w, "x", st.position.x)
 				attr(&w, "y", st.position.y)
+				if st.canExit != "" do attr(&w, "canExit", st.canExit)
+				if st.speed != 1 && st.speed != 0 do attr(&w, "speed", st.speed)
+				if st.loop != .As_Made do attr(&w, "loop", st.loop)
+				if st.enterEvent != "" do attr(&w, "onEnter", st.enterEvent)
+				if st.exitEvent != "" do attr(&w, "onExit", st.exitEvent)
 				closeEmpty(&w)
 			}
 			for t in machine.transitions {
@@ -341,6 +346,9 @@ SceneToXML :: proc(scene: ^SceneDef, allocator := context.allocator) -> string {
 				if t.condition != "" do attr(&w, "when", t.condition)
 				if t.after != 0 do attr(&w, "after", t.after)
 				if t.onFinished do attr(&w, "onFinished", true)
+				if t.guard != "" do attr(&w, "guard", t.guard)
+				if t.priority != 0 do attr(&w, "priority", t.priority)
+				if t.interrupts do attr(&w, "interrupts", true)
 				closeEmpty(&w)
 			}
 		}

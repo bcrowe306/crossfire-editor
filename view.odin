@@ -28,6 +28,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open || state.level.conflict.open
 	// The running game's values a code tab shows (code_live.odin)
 	CodeLive_Frame(&state, ctx)
+	// The States tab's machine in the running game (state_machine_edit.odin)
+	States_LiveFrame(&state, ctx)
 	// A project with scripts is built once in the background when it opens, so the inspector
 	// knows their fields
 	if len(state.scriptFiles) > 0 && !state.scriptsAutoBuilt && state.play.stage == .None {

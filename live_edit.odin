@@ -4,8 +4,10 @@ import "core:encoding/json"
 import "core:hash"
 import "core:fmt"
 import "core:os"
+import "core:reflect"
 import "core:strings"
 import "core:time"
+import e "engine:."
 
 /*
 The live view: the game run with Play, seen and changed while it plays (the engine's live.odin).
@@ -66,6 +68,56 @@ LiveView :: struct {
 	treeHash: u64,
 	// A node picked in a code tab for a script (its hint's menu): script name to node id (owned)
 	codePicks: map[string]LiveCodePick,
+	// The StateMachine the States tab watches (`machine <id>` sent; "": none; owned), and what
+	// the game last said about it
+	machineWatch: string,
+	machine: LiveMachine,
+}
+
+/*
+A running StateMachine as the game sends it (`machine` replies; strings owned): the States tab's
+sidebar shows its state, whether it can be left, which clauses hold.
+*/
+LiveMachine :: struct {
+	// The node's id ("": nothing yet)
+	id: string,
+	state, previous: string,
+	time: f32,
+	canExit: bool,
+	// Whether each clause of the current state's exit guard holds (flat ones)
+	exit: [dynamic]bool,
+	// Each parameter's value as text
+	params: [dynamic]LiveProperty,
+	// Each transition (the settings' order): its status (an e.StateMachineTransitionStatus) and
+	// its condition's and guard's clauses
+	transitions: [dynamic]LiveTransition,
+}
+
+// A transition of a running machine (`LiveMachine.transitions`)
+LiveTransition :: struct {
+	status: e.StateMachineTransitionStatus,
+	condition, guard: [dynamic]bool,
+}
+
+/*
+Empties a running machine's view (frees its strings and lists).
+*/
+LiveMachine_Clear :: proc(m: ^LiveMachine) {
+	delete(m.id)
+	delete(m.state)
+	delete(m.previous)
+	delete(m.exit)
+	for p in m.params {
+		delete(p.name)
+		delete(p.value)
+	}
+	delete(m.params)
+	for &t in m.transitions {
+		delete(t.condition)
+		delete(t.guard)
+	}
+	delete(m.transitions)
+	m^ = {}
 }
 
 // A live node a code tab's hint was pointed at (`LiveView.codePicks`)
@@ -225,6 +277,38 @@ Live_Ingest :: proc(s: ^State, text: string) {
 			append(&entry.values, LiveProperty{strings.clone(str(o, "name")), strings.clone(str(o, "value"))})
 		}
 		live.fieldsGeneration += 1
+	case "machine":
+		// The States tab's machine (state_machine_edit.odin)
+		if str(object, "id") != live.machineWatch do break
+		m := &live.machine
+		LiveMachine_Clear(m)
+		m.id = strings.clone(str(object, "id"))
+		m.state = strings.clone(str(object, "state"))
+		m.previous = strings.clone(str(object, "previous"))
+		m.time = num(object, "time")
+		canExit, _ := object["canExit"].(json.Boolean)
+		m.canExit = canExit
+		bools :: proc(v: json.Value) -> [dynamic]bool {
+			out := make([dynamic]bool)
+			list, _ := v.(json.Array)
+			for b in list {
+				value, _ := b.(json.Boolean)
+				append(&out, value)
+			}
+			return out
+		}
+		m.exit = bools(object["exit"])
+		params, _ := object["params"].(json.Array)
+		for p in params {
+			o := p.(json.Object) or_continue
+			append(&m.params, LiveProperty{strings.clone(str(o, "name")), strings.clone(str(o, "value"))})
+		}
+		transitions, _ := object["transitions"].(json.Array)
+		for tr in transitions {
+			o := tr.(json.Object) or_continue
+			status, _ := reflect.enum_from_name(e.StateMachineTransitionStatus, str(o, "status"))
+			append(&m.transitions, LiveTransition{status, bools(o["when"]), bools(o["guard"])})
+		}
 	case "snapshot":
 		// Hot reload: the game wrote its state (play_reload.odin)
 		ok, _ := object["ok"].(json.Boolean)
@@ -337,6 +421,8 @@ Live_Reset :: proc(live: ^LiveView) {
 		delete(v.id)
 	}
 	delete(live.codePicks)
+	delete(live.machineWatch)
+	LiveMachine_Clear(&live.machine)
 	// The code tab's hints go with the game: they're asked again
 	generation := live.treeGeneration + live.fieldsGeneration + 1
 	live^ = {}

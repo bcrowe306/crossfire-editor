@@ -1174,6 +1174,7 @@ Msg :: union {
 	Camera_Tool_Changed,
 	Camera_Changed,
 	SM_View,
+	States_Live_Watch,
 	Live_Command,
 	Live_Selected,
 	Live_Property_Edited,
