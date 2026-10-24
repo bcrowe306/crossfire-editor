@@ -120,14 +120,17 @@ The Taskfile passes the flags every build needs:
 ## Layout
 
 The editor has **modes**, switched by the tabs beside the menu bar (the mode bar), View > Scene
-Mode / Level Mode, or Ctrl+Alt+1 / Ctrl+Alt+2: **Scene** (the layout below) and **Level**, a world
-editor: an LDtk project's levels on a canvas (pan, zoom, drag levels and entities, links between
-them), the scenes showing each level, a scene made for a level in one click, and an LDtk tab
-editing layers, entities, fields, enums and the world, saved into the `.ldtk` file
-([docs/manual/level_mode.md](docs/manual/level_mode.md)).
-Each mode has its own layout and panel sizes; the menus, the toolbar's file, undo and play
-buttons, the browser, the Console and Output, the settings and one undo history are shared. The
-mode is remembered per project (`.editor/modes.ini`).
+Mode / Level Mode, or Ctrl+Alt+1 / Ctrl+Alt+2: **Scene** (the layout below) and **Level**, the
+LDtk level editor laid out like LDtk: a tool row (LDtk's tools per layer type; painting comes in
+its phase 2), a Levels sidebar (worlds, levels: select, focus), the canvas (pan, zoom, drag
+levels and entities, links between them, a focused level larger), a Layers sidebar (select, show
+or hide, drag to reorder), and LDtk's panels as bottom tabs (World, Level, Layers, Entities,
+Enums, Tilesets, Auto-layer Rules, Project) editing layers, entities, fields, enums and the
+world; edits are saved into the `.ldtk` file with the project, and the scenes showing each level
+are a click away ([docs/manual/level_mode.md](docs/manual/level_mode.md)).
+Each mode has its own layout and panel sizes; the menus, the play controls, the Console and
+Output, the settings and one undo history are shared. The mode is remembered per project
+(`.editor/modes.ini`).
 
 The Scene mode:
 

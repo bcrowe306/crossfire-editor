@@ -206,17 +206,19 @@ The LDtkLevel's inspector explains how the level is built, so there are no surpr
 
 ## Editing levels in the editor
 
-The editor's **Level mode** ([Level mode](level_mode.md)) edits the LDtk project itself, and saves
-every change into the `.ldtk` file at once: drag levels around the world and entities around their
-level, and in its **LDtk** tab change layers (name, opacity, parallax, grid size, order), entity
-types and their fields, every entity's and level's field values, entity references, IntGrid
-values' names and colors, enums and the world's layout. Each change is an undo step, and only the
-values it changes are rewritten, so LDtk opens the file as before. Painting tiles and placing new
-entities stay LDtk's.
+The editor's **Level mode** ([Level mode](level_mode.md)) edits the LDtk project itself, laid out
+like LDtk: drag levels around the world and entities around their level, show, hide and reorder
+layers, and in its tabs (LDtk's panels: World, Level, Layers, Entities, Enums...) change layers
+(name, opacity, parallax, grid size, order), entity types and their fields, every entity's and
+level's field values, entity references, IntGrid values' names and colors, enums and the world's
+layout. Each change is an undo step, made in the editor at once and written into the `.ldtk` file
+when you save (Play and Export save first); only the values it changes are rewritten, so LDtk
+opens the file as before. Painting tiles and placing new entities stay LDtk's for now (the Level
+mode's phase 2).
 
-The scenes follow: their LDtkLevel nodes show the change as soon as it's saved, a renamed layer or
-entity type is renamed in their settings too, and a game running from Play reloads it like an LDtk
-save.
+The scenes follow: their LDtkLevel nodes show the change at once in the viewport, a renamed layer
+or entity type is renamed in their settings too, and a game running from Play reloads it like an
+LDtk save once it's saved.
 
 ## Editing in LDtk while you work
 
@@ -232,9 +234,10 @@ Keep LDtk open beside the editor:
 
 Exported games don't watch their files.
 
-LDtk itself doesn't watch its project file: after editing the level in the editor's Level mode,
-open the file again in LDtk before you edit it there, or its next save writes over the editor's
-changes.
+LDtk itself doesn't watch its project file: after editing the level in the editor's Level mode
+and saving, open the file again in LDtk before you edit it there, or its next save writes over the
+editor's changes. The other way round, the editor merges LDtk's save with its unsaved edits, or
+asks when they clash ([Level mode](level_mode.md#saving-undo-and-ldtk)).
 
 ## Levels in scripts
 
@@ -349,6 +352,6 @@ and the field must be one of the kinds that set script fields; arrays and refere
 work](#editing-in-ldtk-while-you-work)).
 
 **Can I edit a level without LDtk?** Partly: the Level mode moves levels and entities and edits
-layers, entity types, fields, enums and the world, saved into the file
+layers, entity types, fields, enums and the world, saved into the file with the project
 ([Editing levels in the editor](#editing-levels-in-the-editor)). Painting tiles and placing new
-entities need LDtk.
+entities need LDtk until the Level mode's phase 2.

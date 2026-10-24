@@ -104,14 +104,15 @@ its own layout, made for one kind of work.
 | Mode | What it's for | Keys |
 |---|---|---|
 | **Scene** | Building scenes from nodes: the layout above, with the viewport, the scene tree, the inspector and the code tabs | Ctrl+Alt+1 |
-| **Level** | Your game's world: an LDtk project's levels laid out as in its world, to move around and edit (its layers, entities, fields, enums, saved into the `.ldtk` file), and the scenes showing each one ([Level mode](level_mode.md)) | Ctrl+Alt+2 |
+| **Level** | The LDtk level editor, laid out like LDtk: a tool row, the world's levels in a sidebar and on a canvas (move them, focus one), the selected level's layers, and LDtk's panels as tabs (layers, entities, fields, enums, the world), saved into the `.ldtk` file with the project; the scenes showing each level ([Level mode](level_mode.md)) | Ctrl+Alt+2 |
 
 **View > Scene Mode** and **View > Level Mode** do the same (on a Mac the keys are Cmd+Alt+1 and
 Cmd+Alt+2). The editor remembers which mode each project was left in.
 
-Some parts are the same in every mode: the menus, the toolbar's file, undo and play buttons and
-Export, the browser, the **Console** and **Output** tabs, Settings, Project Settings and the docs
-window. Each mode keeps its own panel sizes. Commands of another mode are greyed out in the
+Some parts are the same in every mode: the menus, the play controls, the **Console** and
+**Output** tabs, Settings, Project Settings and the docs window. The Level mode has its own tool
+row instead of the toolbar, and its Levels sidebar instead of the browser. Each mode keeps its own
+panel sizes. Commands of another mode are greyed out in the
 menus (Add Node in the Level mode), and things that belong to a mode bring it forward: opening a
 scene or a script shows the Scene mode.
 

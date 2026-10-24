@@ -99,6 +99,13 @@ So Claude can measure, change and measure again on its own, and the numbers can 
 
 ## LDtk level editor: parity with LDtk (asked 2026-10-24; build in phases, each released)
 
+**Phase 1 done (2026-10-24):** the Level mode in the design's layout with what existed (the tool
+row with LDtk's tools per layer type, Select working, painting greyed out; the Levels and Layers
+sidebars; focus; several worlds; LDtk's panels as the bottom tabs; narrow windows), and the
+saving switch: edits in memory, written on Save, Play, exports and Open in LDtk, LDtk's saves
+merged or asked about. CLAUDE.md's "The Level mode: LDtk's layout" and "Editing LDtk projects"
+describe it, the manual's level_mode.md is the guide. Next: phase 2 (painting).
+
 The Level mode becomes a better interface for editing LDtk projects, with full parity with LDtk
 itself (its source: the workspace's `ldtk/`). The layout comes from the user's design,
 `LDtk_interface.html` (a Penpot export, 1920x1080: rendered, it shows):
@@ -124,7 +131,7 @@ The user's decisions (2026-10-24):
   Enums, Tilesets, Auto-layer Rules, Project; Console and Output kept at the end.
 - **Saving:** edits change the document in memory (fast painting, an undo step per stroke);
   Save (Ctrl+S), Play and exports write the .ldtk / .ldtkl files, as LDtk does. The file shows
-  unsaved until then. (Today every edit is written at once: phase 1 or 2 changes that.)
+  unsaved until then. (Done in phase 1.)
 - **Chrome:** the menu bar with the mode bar stays; the design's tool row replaces the editor's
   toolbar in the Level mode (play controls kept at its end); the Levels list replaces the
   project browser there.
