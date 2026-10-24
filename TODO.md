@@ -4,6 +4,40 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
+## LDtk level editor: parity with LDtk (asked 2026-10-24; build in phases, each released)
+
+The Level mode becomes a better interface for editing LDtk projects, with full parity with LDtk
+itself (its source: the workspace's `ldtk/`). The layout comes from the user's design,
+`LDtk_interface.html` (a Penpot export, 1920x1080: rendered, it shows):
+- a **tool row** across the top (75 px; seven 45 px square icon buttons, centered);
+- **left sidebar** (300 px): "Levels" header, then a row per level (60 px: a document icon,
+  the level's name; the selected row highlighted);
+- **center**: the canvas (the world / level);
+- **bottom panel** under the canvas (about a third of the height): a row of tabs (40 px) over
+  the selected tab's content;
+- **right sidebar** (300 px): "Layers" header, then a row per layer of the selected level
+  (60 px: a drag handle to reorder, the layer's name and type, an eye toggle on the right).
+
+The user's decisions (2026-10-24):
+- **Phases, each released and usable:** 1) the new layout with what exists today; 2) painting
+  in the level: IntGrid values, tiles, entities placed / moved / resized, with LDtk's tools;
+  3) the definitions editors: layers, entities and their fields, enums, tilesets, level fields;
+  4) auto-layer rules; 5) worlds (several, layouts), project settings and everything else
+  LDtk does (a parity audit against `ldtk/`).
+- **Tools:** LDtk's (select / move, pencil, rectangle, fill, eraser, picker, tile stamp and
+  random), the set adapting to the selected layer's type as LDtk's does; the mock's seven icons
+  are placeholders.
+- **Bottom tabs:** LDtk's panels: World, Level (its fields and settings), Layers, Entities,
+  Enums, Tilesets, Auto-layer Rules, Project; Console and Output kept at the end.
+- **Saving:** edits change the document in memory (fast painting, an undo step per stroke);
+  Save (Ctrl+S), Play and exports write the .ldtk / .ldtkl files, as LDtk does. The file shows
+  unsaved until then. (Today every edit is written at once: phase 1 or 2 changes that.)
+- **Chrome:** the menu bar with the mode bar stays; the design's tool row replaces the editor's
+  toolbar in the Level mode (play controls kept at its end); the Levels list replaces the
+  project browser there.
+- **Colors:** the layout and sizes only; the editor keeps its theme (Settings > Appearance).
+- **Several worlds:** supported, with a world picker (Levels sidebar, World tab).
+
 ## Code editor integration (asked 2026-10-23; done 2026-10-24)
 
 Built in seven steps: providers, the script index and typed constants; names in strings; code and
