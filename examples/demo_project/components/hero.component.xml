@@ -19,8 +19,8 @@
 			<state name="attack" animation="attack" x="440" y="40"/>
 			<state name="hurt" animation="hurt" x="640" y="40"/>
 			<state name="dead" animation="dead" x="640" y="180"/>
-			<transition from="*" to="dead" when="dead"/>
-			<transition from="*" to="hurt" when="hurt"/>
+			<transition from="*" to="dead" when="dead" priority="20"/>
+			<transition from="*" to="hurt" when="hurt" priority="10"/>
 			<transition from="hurt" to="idle" when="!dead" after="0.3"/>
 			<transition from="*" to="attack" when="attack"/>
 			<transition from="attack" to="idle" when="onFloor" onFinished="true"/>

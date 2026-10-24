@@ -76,7 +76,7 @@ defeat, starts from the last one you touched.
 | Feature | Where to look |
 |---|---|
 | **A platformer on a CharacterMover** | `scripts/hero.odin`: acceleration and friction, a jump cut when let go, a hang at the top, coyote time and jump buffering, one-way planks, knockback, pits and water |
-| **A state machine and Aseprite animations** | The hero's `Brain` StateMachine (the editor's States tab) picks her animation from parameters the script sets; the animations are the tags of `assets/characters/hero.aseprite` (made by `tools/demo/hero.lua` from the pack's files) with a pivot slice at her feet |
+| **A state machine and Aseprite animations** | The hero's `Brain` StateMachine (the editor's States tab) picks her animation from parameters the script sets (death and hurt win by their transitions' priority); the animations are the tags of `assets/characters/hero.aseprite` (made by `tools/demo/hero.lua` from the pack's files) with a pivot slice at her feet |
 | **Aseprite frame events** | "step" and "slash" in hero.aseprite's cels: footsteps with dust, and the sword's hits, on the frames they happen (`onFrameEvent`) |
 | **Animation assets, a sheet per animation** | `animations/boar.anim.xml` and `bee.anim.xml` put one Aseprite file per animation together; `snail.anim.xml` cuts PNG sheets by cell size |
 | **A shader: the hit flash** | Sprites use `builtin:hit_flash` (set in their components); scripts drive its `amount` (`e.Node_SetShaderParam`). The project turns shaders on (Project Settings), so the GPU renderer runs it; without one a tint stands in |
