@@ -68,8 +68,11 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   and the panels' Manual buttons (see "Docs in the editor" below).
 - **Editor modes** (`editor_modes.odin`, `level_mode.odin`): the mode bar beside the menus
   switches the workspace between the **Scene** mode (everything above) and the **Level** mode (a
-  world editor: an LDtk project's levels laid out, the scenes showing each one, a scene made for
-  a level, the LDtk tab as a read-only summary for now); see "Editor modes" below.
+  world editor: an LDtk project's levels on a canvas to pan, zoom and rearrange, entities picked
+  and moved, links drawn; the LDtk tab editing layers, entity types, fields, links, enums and the
+  world, written back into the `.ldtk` file, undoable; the scenes showing each level, a scene
+  made for a level, Open in LDtk at a level); see "Editor modes" and "Editing LDtk projects"
+  below.
 - **The website** [crossfireengine.io](https://crossfireengine.io) (`../crossfire_astro`,
   bcrowe306/crossfire-astro) publishes this repository's `docs/manual/` and the engine's doc
   comments (see "Documentation").
@@ -182,7 +185,12 @@ Skald is not immediate-mode and not a retained widget tree:
 | `editor.odin` | `State`, `Layout`, panel size rules (`FittedSidebarWidths`, `FittedBottomHeight`), `init`, args, `main` |
 | `msg.odin` | `Msg` union and `Action` (menu, toolbar and shortcut commands) |
 | `editor_modes.odin` | **Editor modes**: `EditorMode` (Scene, Level), `EDITOR_MODES` (each mode's registration: name, icon, its `view`, its bottom tabs, its manual page, the `Action` switching to it), `Mode_Layout` / `Mode_LayoutOf` (each mode's panel sizes), `Mode_BottomTab`, `Mode_ShowBottomTab` / `Mode_ShowLogTab`, `Mode_Set`, `.editor/modes.ini` (`Mode_Save` / `Mode_Load`), the mode bar (`modeBarView`), `modeWorkspaceView`, `Modes_Update` |
-| `level_mode.odin` | **The Level mode**: `LevelMode` (`State.level`: its layout, bottom tab, world, selected level), `levelModeView` (browser, world map over the bottom panel, the level panel), `LevelMode_File`, `LevelMode_ScenesShowing`, `Level_*` messages (`LevelMode_Update`), the LDtk tab (`LevelMode_LDtkTab`), `LevelMode_Status` |
+| `level_mode.odin` | **The Level mode**: `LevelMode` (`State.level`: its layout, bottom tab, world, selected level and entity, the canvas's `LevelView` and `LevelDrag`, the LDtk tab's section and items, the last edit's problem, the conflict dialog), `levelModeView` (browser, world canvas over the bottom panel, the level panel), `LevelMode_File`, `LevelMode_ScenesShowing`, the `Level_*` / `LDtk_*` messages (`LevelMode_Update`: canvas presses, drags and releases, edits and renames the scenes follow), `LevelDrag_Target` (where a drag lands: GridVania's grid, an entity's layer grid), `LevelMode_Status`, `ldtkConflictDialogView` |
+| `level_canvas.odin` | **The world canvas**: `levelCanvasView` / `LevelCanvas_Build` (input from its last rect, the levels' pictures, outlines, entities, links), `LevelCanvas_Content` (levels, entities and links in world pixels, a drag's target applied), the level pictures (`Preview_RenderLDtkLevel`, Skald images keyed by the level's content: a move doesn't redraw), `LevelCanvas_Fit` / `_FitOnce`, `LevelCanvas_WorldToWindow` (the driver's) |
+| `view_ldtk_tab.odin` | **The LDtk tab** (`LevelMode_LDtkTab`): the vertical tabs (`LDtkTab`; under `LDTK_TAB_COMPACT_WIDTH` a choice over the content), each section's rows (Layers, Entities with their fields and instances, Collisions with the scenes' collision kinds, Links, Level fields, Enums, World, Tilesets), text fields keeping what's typed in `State.numberEdit`, number fields (`LDtkNumberTarget`) |
+| `ldtk_json.odin` | **JSON that keeps its text**: `Json_Parse` (a flat tree of nodes with their spans), lookups (`Json_Get`, `Json_At`, `Json_Items`, `Json_String`, `Json_Path`), patches (`Json_SetPatch`, `Json_AppendPatch`, `Json_InsertPatch`, `Json_AddMemberPatch`, `Json_RemovePatch`, `Json_Apply`), values written like their neighbours (`Json_Quote`, `Json_FormatNumber`, `Json_Object`, `Json_Array`, minified files kept minified) |
+| `ldtk_doc.odin` | **An LDtk project's files as the tab edits them**: `LDtkDoc` (the .ldtk file and its levels' .ldtkl files, worlds, levels), the cache (`LDtkDoc_Get`, read again when a file changes; `LDtkDoc_Outside`: changed outside the editor), lookups (levels' rects as LDtk lays them out, definitions by uid, layer instances, entities by iid), `LDtkPatches`, `LDtkDoc_Commit` / `_WriteTexts` / `LDtk_WriteFile` (atomic, the modification time always moved on) |
+| `ldtk_ops.odin` | **The LDtk edits**: `LDtk_Edit` (`LDtkEditOp`: layers, entity types, fields, instances, references, levels' places and fields, IntGrid values, enums, the world), `LDtkOps_Apply` (each op's patches and the mirrors LDtk keeps: `__identifier`s, `__type`s, enum values everywhere, `__grid`, `__opacity`, layer instance order, neighbours, world positions, the table of contents), LDtk's rules ported (`LDtk_CleanIdentifier`, `LDtkDoc_Neighbours`, layout changes, `LDtk_SnapToGrid`, field values and defaults), `LDtkOps_GridSizeLocked`, `LDtkOps_FieldLocked`, `LDtkOps_RefAllowed` |
 | `update.odin` | `update`, the only place State changes |
 | `keymap.odin` | `DEFAULT_KEYMAP`, shortcut dispatch, typing guard, the platform's keys (`Chord_OnPlatform` / `Chord_FromPlatform` / `Chord_Format`: the keymap's Ctrl is Cmd on macOS), `keyParen` (an action's keys for text) |
 | `context_menus.odin` | **Right-click menus everywhere**: `ContextTarget` (what was clicked), `State.contextMenu`, `Context_Menu_Opened` / `_Closed`, `ContextMenu_Items` (the items per target: nodes, empty viewport, the tree, the browser's every kind, tabs, logs), `contextMenuView` (Skald's `popup_menu`, built first in the frame), `rightPressOpens`, the commands without an older message (`Node_Command`, `Add_Node_Here`, `Paste_Here`, `Tab_Command`, `File_Command`, `Log_Command`, `Asset_Add_To_Scene`) |
@@ -237,7 +245,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `viewport_math.odin` | Viewport pan/zoom math and drag (move/rotate/scale) math |
 | `add_node.odin` | Add Node dialog logic: `AddNode_Kinds` (search over the engine's `SCENE_NODE_KINDS`), `AddNode_Create` (parent, unique name) |
 | `node_edit.odin` | Subtree copy/paste/duplicate, `Scene_MoveNode` (reorder and reparent keeping the world transform), unique names |
-| `history.odin` | Undo/redo: command history, automatic recording (`History_Classify`), merging |
+| `history.odin` | Undo/redo: command history, automatic recording (`History_Classify`), merging; file steps (`FileChange`: the LDtk tab's, `History_RestoreFiles`, `History_MergeText`, `History_ResolveConflict`, `LDtkEdit_Info`) |
 | `settings.odin` | `Settings`, loading/saving editor.ini over `settings.default.ini`, chord text, the Skald theme |
 | `zip.odin` | Zip files: `Zip_Write` (stored), `Zip_List` / `Zip_Read` (stored and deflated, CRC checked), `Zip_SafeName` |
 | `project_archive.odin` | Project archives (`.odinsdl`): `ProjectArchive_Create` (outside assets brought in), `ProjectArchive_Extract`, the File menu's flow |
@@ -268,7 +276,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_tiles.odin` | The bottom panel's Tiles tab: layer and tileset choices, tools, flips, the tile palette (`TilesPanel`) |
 | `docs/manual/` | **The user manual**: a page per feature for users new to the editor (`README.md` lists them in reading order), and the node guides (`nodes.md` and `nodes_*.md`: a `## <Kind>` section per node kind). Help > User Manual (F1), Open Docs and panels' Manual buttons open it in the docs window (`docs_window.odin`; `Manual_URL` is a page's address on crossfireengine.io). **Every new feature gets a page here.** Pages are ready for a static site (Astro, later): YAML frontmatter `title` / `description` (quoted when they hold `: `) / `order` (the reading order, unique, README 0; a new page takes its place and the ones after it move up), plain relative links, no GitHub-only syntax (no `> [!NOTE]`, no `<details>`), a Questions section at the end, examples that compile |
 | `aseprite_edit.odin` | Aseprite files: the parsed-file cache (`AsepriteEdit_File`), the browser preview (`AsepriteEdit_Preview`, `AsepriteEdit_Summary`), Open in Aseprite (`AsepriteEdit_Open`, Settings > Editor > Aseprite program), `Image_LoadRGBA` (any image, Aseprite files through the engine), `Image_Size` (its size, cached per file time: the header only) |
-| `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk, the browser preview, `Scene_AddLDtkAt` |
+| `ldtk_edit.odin` | LDtk levels: the inspector's LDtkLevel section, `LDtk_Setting_Changed`, the parsed-file cache (`LDtkEdit_Project`), importing with dependencies (`LDtkEdit_Import`), export files, Open in LDtk (at a level: `LDtk_RememberLevel` in LDtk's settings, `LDtk_SettingsPath`), the browser preview, `Scene_AddLDtkAt` |
 | `toolchain.odin` | What building games needs, found at run time: `Toolchain_Odin` (setting, PATH, installed), `Toolchain_EngineDir`, `Toolchain_PrebuiltPlayer`, `Toolchain_Check` (Settings > Toolchain), `Toolchain_InstallOdin` |
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard, Toolchain tabs |
@@ -1673,9 +1681,10 @@ after, its scene, and the editor mode it was made in and left (`modeBefore` / `m
 switches to that mode and scene and restores "before"; redo shows `modeAfter` and restores
 "after". **One history for every mode**: edits undo in order wherever they were made.
 - **Recording is automatic.** `update` wraps `applyMsg`: `History_Classify` says what a message
-  edits (`.Node`, `.Scene` or `.None`), `History_Snapshot` copies it, and `History_Commit`
-  compares after the message and pushes a command if anything changed. **A new edit message needs
-  a case in `History_Classify`**, or it won't be undoable.
+  edits (`.Node`, `.Scene`, `.Project`, `.Files` or `.None`), `History_Snapshot` copies it, and
+  `History_Commit` compares after the message and pushes a command if anything changed. **A new
+  edit message needs a case in `History_Classify`**, or it won't be undoable. `.Files` steps are
+  files the editor wrote at once (the LDtk tab's: "Editing LDtk projects"), restored on undo.
 - **Merging:** commands with the same `mergeKey` (the same field of the same node) fold together
   when they come within `undoMergeMs` of each other (debounce), until the run is `undoGroupMaxMs`
   long (throttle; 0 = never cut). Viewport drags are `sticky`: one step from press to release,
@@ -2309,23 +2318,119 @@ pages: getting_started.md's "Editor modes" and `docs/manual/level_mode.md`.
 - **Persistence:** `.editor/modes.ini` (`mode`, `level_file`), written when the mode or the
   Level mode's world changes (`Mode_Save`; only for a project folder on disk), read by `init`
   and `switchProject` (`Mode_Load`).
-- **The Level mode** (level_mode.odin's doc block): the world map is the browser's renderer in
-  its own slot (`LDtkThumbnailSlot.Level`, `ldtkThumbnailView(..., selected)`: hover outlines, a
-  press sends `Level_Map_Clicked`, a double-click opens the first scene showing the level,
-  `Preview_LDtkLevelRect` outlines the selected one); the level panel lists the scenes whose
-  LDtkLevel nodes show it (`LevelMode_ScenesShowing`: by identifier, iid or "" for the first
-  level, then All levels nodes; components skipped) and **New Scene with This Level**
-  (`Level_Scene_Created`, a `.Project` step: a scene named after the level before the
-  components, an LDtkLevel node under its World). While it shows, the browser's map picks levels
-  for it (`LDtk_Level_Picked` is taken by `LevelMode_Update`), and an LDtk asset selected in the
-  browser is its world. The LDtk tab only reads the file (layers, entity types, enums,
-  tilesets): TODO.md's next item makes it the editor.
+- **The Level mode** (level_mode.odin's doc block): the world canvas (level_canvas.odin: below);
+  the level panel lists the scenes whose LDtkLevel nodes show the selected level
+  (`LevelMode_ScenesShowing`: by identifier, iid or "" for the first level, then All levels nodes;
+  components skipped) and **New Scene with This Level** (`Level_Scene_Created`, a `.Project` step:
+  a scene named after the level before the components, an LDtkLevel node under its World). While
+  it shows, the browser's map picks levels for it (`LDtk_Level_Picked` is taken by
+  `LevelMode_Update`), and an LDtk asset selected in the browser is its world. The LDtk tab edits
+  the file ("Editing LDtk projects" below).
+- **The world canvas** (`LevelCanvas_Build` in a `sized`): its view is `LevelView` (the world point
+  at the center, a zoom; fitted once per file: `LevelCanvas_FitOnce` on `Level_Canvas_Measured`).
+  Input comes from its last rect like the viewport's: the wheel through `wheelAction`, a press
+  (`Level_Canvas_Pressed`: the entity under it first, then the level, `pan` for middle / right /
+  Space) starts a `LevelDrag` (Pan, Level, Entity), every move sends `Level_Canvas_Moved`
+  anywhere, the release `Level_Canvas_Released`, which writes the move (`LevelDrag_Target`: a
+  GridVania world's grid, an entity's layer grid with its pivot on a cell's, Shift free) as one
+  `.Files` step (`History_Classify` names it from the drag). Each level is a Skald image
+  (`level-map-<hash>`) drawn by `Preview_RenderLDtkLevel` (one software renderer for all,
+  its surface only growing, the file read again when its time changes), re-rendered only when
+  its content key changes (its layers, size, background and the definitions, per document
+  version: `levelContentKeys`), so dragging a level doesn't redraw it. Entities are outlined from
+  the JSON (pivot, size, smart color), links are EntityRef `__value`s (arrows) and the selected
+  level's neighbours (`LDtkDoc_Neighbours`, dashed). The old thumbnail slot `.Level` is gone.
+- **The LDtk tab** (view_ldtk_tab.odin): `LDtkTab` sections as vertical tabs (`ldtk-tab-<Tab>`),
+  or, under `LDTK_TAB_COMPACT_WIDTH` (380 px of panel: a tiled window's is about 200), a choice
+  (`ldtk-tab-select`) over the content, which then keeps the panel's width; rows stack their
+  labels when narrow. Each section picks its item (`ldtk-item-<Tab>`, `LDtk_Item_Picked`, by uid:
+  the first when gone). Text fields send `LDtk_Text_Typed` (the typed text kept in
+  `State.numberEdit` while focused, written whenever valid: an invalid name never reaches the
+  file, `LevelMode.problem` says why above the section), numbers `LDtkNumberTarget`, flags and
+  choices `LDtk_Edit` directly. The Collisions section's kind choices edit scenes' LDtkLevel
+  nodes (`Level_Collision_Kind_Changed`, a `.Project` step: the node may be in another scene).
 - Tests: `editor_modes_test.odin` (switching, bottom tabs and panel sizes per mode, what shows the
   Scene mode, the keys' scope and chords, persistence, a level's scene made and opened, undo and
   redo across modes); `tests/ui/modes.script` (the bar, the keys, the actions, a selection kept
   across modes, Scene-only keys idle in the Level mode, the world of an imported LDtk file, a
   level selected, New Scene with This Level, undo back into the Level mode, the mode remembered
-  when the project opens again); docs_test's `Docs_TypeAddress` with project types.
+  when the project opens again); docs_test's `Docs_TypeAddress` with project types;
+  `level_canvas_drags_levels_and_entities` (fit, drags of levels in Free and GridVania worlds and
+  of entities on and off their grid, a click that doesn't move, panning, typing merged into one
+  step, undo); `tests/ui/ldtk_tab.script` (below).
+
+## Editing LDtk projects (implemented, `ldtk_json.odin`, `ldtk_doc.odin`, `ldtk_ops.odin`)
+
+TODO.md's Round 4 "Level mode and the LDtk tab" (asked 2026-10-24: "Dedicated LDtk tab for deeper
+level integration... Also allow tighter integration with the LDtk"; decided: the Level mode is a
+world/level editor and the groundwork for our own LDtk-format editor; edits write back into the
+.ldtk file). ldtk_ops.odin's doc block lists what each edit writes and what isn't editable yet.
+- **Write-back keeps the file's text** (ldtk_json.odin): the JSON is parsed into nodes that know
+  their spans, and an edit is a list of patches (`LDtkPatches`, per file) replacing only the
+  values it changes; untouched files and values stay byte for byte as written (key order, number
+  forms like `1.0`, LDtk's odd pretty-printing, minified files). New values are written like their
+  neighbours (`Json_AppendPatch` copies the separator between the first two items; minified
+  stays minified; small objects LDtk-style, `{ "id": "V_Int", "params": [5] }`). Patches that
+  overlap or a result that doesn't parse are refused before anything is written.
+- **One write per edit, atomic** (`LDtkDoc_Commit`): the op's patches, then from what they make
+  (`LDtkDoc_FromTexts`, still in memory) a second pass for what LDtk derives (`ldtkCommit`:
+  neighbours, entities' `__worldX/Y`, the table of contents), then each changed file written to a
+  temporary file and renamed over it (`LDtk_WriteFile`, never a half-written file), its
+  modification time moved past the last one seen (`ensureNewerTime`: Linux's file clock is coarse,
+  two writes a few ms apart got one time, and every cache keyed by it (`LDtkEdit_Project`, the
+  viewport's `forgetChangedLDtk`, the thumbnails, a running game's `LDtk_WatchFiles`) missed the
+  second). So the viewport, the inspector and a game from Play reload an edit as they do LDtk's saves.
+- **LDtk's consistency, ported from its source** (`../ldtk`, 1.5.3): identifiers cleaned as
+  `Project.cleanupIdentifier` with the project's style (fields and IntGrid values: Free), unique;
+  `__identifier` / `__type` mirrors, enum value renames into values, editor values, defaults and
+  tilesets' tags (`EnumDef.renameValue`); a field value is `__value` and `realEditorValues`
+  (`FieldInstance.toJson`: `[]` for the default; points `V_String("cx,cy")`, colors `V_Int`);
+  `__grid` (`EntityInstance.getCx`: a pivot of 1 counts the pixel before); neighbours
+  (`Level.getNeighboursJson`; an equal set is left as written); layouts
+  (`World.onWorldLayoutChange`, `onWorldGridChange`; linear worlds store -1 and are laid out 48 px
+  apart); new enums take `nextUid`. Renames of layers and entity types also rename scenes'
+  LDtkLevel settings (collision layer, entity rules) in the same step (`LDtkRename`,
+  `EditInfo.withProject`). Files LDtk older than 1.0 wrote aren't edited (`LDtkOps_TooOld`).
+- **Undo** (history.odin, `.Files`): the snapshot is every file of the document read from disk,
+  the step keeps the files that changed (`FileChange`: before and after texts, and the project's
+  snapshot for renames). Undo writes "before" when the file is as the step left it; when LDtk
+  changed it since, `History_MergeText` applies the step's change to LDtk's version when the two
+  changes don't overlap (common prefix and suffix of each against the step's text) and the result
+  parses; otherwise the step waits on the conflict dialog (`ldtkConflictDialogView`:
+  Overwrite, Keep the File (the step and the older history go), Cancel). File-only steps don't
+  make the project modified (`History.fileVersion`, `Project_IsModified`).
+- **External changes**: `LDtkDoc_Get` reads a document again when any of its files' times change,
+  and remembers when one changed that the editor didn't write (`LDtkDoc_Outside`): the status bar
+  and the World header say so. LDtk itself doesn't watch its project file (its FileWatcher watches
+  images and external enums), so the manual says to reopen the file in LDtk after editing here.
+- **Open in LDtk at a level**: LDtk's command line takes only a file (App.hx's `getArgPath`; a
+  `.ldtkl` path's level index is parsed but unused, Editor.hx's TODO), but its editor selects
+  `settings.lastProject.levelUid` whenever it opens a project, so `LDtk_RememberLevel` patches that
+  member of LDtk's settings.cfg (`LDtk_SettingsPath`: Electron's userData per OS;
+  `CROSSFIRE_LDTK_SETTINGS` overrides it) before starting it. An entity can't be selected.
+- **Schema**: LDtk's JSON_SCHEMA.json (1.5.3, MIT) is in `tests/fixtures/ldtk_schema/`;
+  `LDtk_SchemaProblems` (ldtk_doc_test.odin) checks the keywords it uses (`$ref`, `type`,
+  `required`, `properties`, `additionalProperties: false`, `items`, `oneOf`, `enum`; a .ldtkl as
+  `Level` without its `__header__`). Not checked with LDtk itself: it's an Electron app and this
+  machine has no headless display server (no Xvfb); its source was read instead.
+- **The demo's legacy.ldtk** (generated, never saved by LDtk) had Point fields' editor values as
+  `V_Int` (LDtk's `getPointStr` throws on them: its load would fail) and its EntityRef's empty (LDtk
+  reads that as unset and would drop the gate's reference on save): fixed in the file (a Python
+  round trip is byte-identical but for them) and in `tools/demo/make_demo.py`.
+- **Fixtures**: `tests/fixtures/ldtk_world/` (`make_world.py`, from the schema and the older
+  fixture: world.ldtk, three levels in a Free world, every simple field type, enums, references,
+  level fields, a table of contents; external.ldtk, two levels in .ldtkl files in a GridVania world).
+- Tests: ldtk_doc_test.odin: `ldtk_json_keeps_its_text` (every fixture, the demo and LDtk's own
+  samples when `../ldtk` exists, untouched byte for byte; patches, inserts, removals, minified
+  style, numbers, identifiers), `ldtk_fixtures_match_the_schema`, `ldtk_edits_write_valid_files`
+  (every edit kind, its mirrors, refusals, each result schema-checked and read by the engine),
+  `ldtk_external_levels_are_written_where_they_are`, `ldtk_edits_undo_and_redo` (byte-identical
+  undo, a merged outside change, a conflict kept), `ldtk_opens_at_a_level`,
+  `level_canvas_drags_levels_and_entities`; `tests/ui/ldtk_tab.script` (the tabs or the choice,
+  a layer's opacity and name, a refused name, undo / redo, an entity clicked on the canvas and its
+  field, a level field, a level and an entity dragged, a touched file's status and merged undo,
+  saved and opened again; driver: `drag_level`, `drag_entity`, `click_entity`, checks `ldtk
+  [<file>:]<path>`, `level entity|ldtk_tab|problem|conflict|outside`, `send LDtk_Tab_Picked`).
 
 ## Docs in the editor (implemented, `docs.odin`, `docs_window.odin`, `view_docs.odin`, `markdown.odin`)
 
@@ -3302,9 +3407,12 @@ Highlights:
   (`ctx.widgets.states`) without touching its state. **Give every widget a test should reach a
   stable `hash_id` key.** Existing keys:
   - the mode bar's tabs `mode-tab-<Name>` (`mode-tab-Level`); the Level mode's `ldtk-map-Level`
-    (its world map), `level-new-scene`, `level-open-scene-<i>`, `level-file`, `level-open-ldtk`,
-    `level-import`, `level-manual`, its bottom strip `level-bottom-tabs` (driver checks `mode`,
-    `level <file | level | tab | levels | shown_in>`; tests/ui/modes.script)
+    (its world canvas), `level-new-scene`, `level-open-scene-<i>`, `level-file`, `level-fit`,
+    `level-open-ldtk`, `level-import`, `level-manual`, its bottom strip `level-bottom-tabs`, the
+    LDtk tab's (view_ldtk_tab.odin's doc block: `ldtk-tab-<Tab>`, `ldtk-tab-select`,
+    `ldtk-layer-name`...), the conflict dialog's `ldtk-conflict-overwrite` / `-keep` / `-cancel`
+    (driver checks `mode`, `level <file | level | tab | levels | shown_in | entity | ldtk_tab |
+    problem | conflict | outside>`, `ldtk`; tests/ui/modes.script, ldtk_tab.script)
   - toolbar buttons `toolbar-<name>` (`toolbar-physics-debug`: the game's collision shapes,
     `toolbar-restart`, `toolbar-more`: the overflow in a narrow window, drawn instead of the tools),
     panel buttons `panel-<name>`

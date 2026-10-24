@@ -121,8 +121,10 @@ The Taskfile passes the flags every build needs:
 
 The editor has **modes**, switched by the tabs beside the menu bar (the mode bar), View > Scene
 Mode / Level Mode, or Ctrl+Alt+1 / Ctrl+Alt+2: **Scene** (the layout below) and **Level**, a world
-editor showing an LDtk project's levels laid out as in its world, the scenes showing each one, a
-scene made for a level in one click, and an LDtk tab ([docs/manual/level_mode.md](docs/manual/level_mode.md)).
+editor: an LDtk project's levels on a canvas (pan, zoom, drag levels and entities, links between
+them), the scenes showing each level, a scene made for a level in one click, and an LDtk tab
+editing layers, entities, fields, enums and the world, saved into the `.ldtk` file
+([docs/manual/level_mode.md](docs/manual/level_mode.md)).
 Each mode has its own layout and panel sizes; the menus, the toolbar's file, undo and play
 buttons, the browser, the Console and Output, the settings and one undo history are shared. The
 mode is remembered per project (`.editor/modes.ini`).
@@ -594,6 +596,11 @@ Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:
    tile; or one of those on purpose, or nothing) and the script it **runs** (Auto: the one named
    like the entity; or another, or none). Its LDtk fields set the script's fields with the same
    name.
+
+The editor's **Level mode** edits the LDtk project too, saving into the `.ldtk` file as you go
+(undoable): levels and entities dragged into place, and in its LDtk tab the layers, entity types
+and their fields, field values, entity references, IntGrid values, enums and the world's layout
+(only the values changed are rewritten, so LDtk opens the file as before).
 
 While the game runs from Play, saving in LDtk updates it: tiles, collision, backgrounds, layers
 added or removed, and entities placed or deleted (the others keep running where they are). Parallax layers follow the camera, entities draw their tiles as
