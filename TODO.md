@@ -4,6 +4,44 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
+## Round 4 features (asked 2026-10-24; build in this order)
+
+The user's decisions (2026-10-24): Level mode is a world/level editor (we'll eventually build our
+own editor for the LDtk format); LDtk editing writes back into the .ldtk file; docs open in an
+in-app popup rendering the bundled markdown (offline, with a link to the same page on
+crossfireengine.io); "Handle event" code actions keep subscribing in ready code.
+
+1. **Docs in the editor** (asked as items 2 and 4). An in-app docs window (a popup inside the
+   editor) rendering the markdown: the engine API reference (the website's docgen output, or the
+   same parse), the manual, and a usage guide for **every node kind** (what it does, its
+   properties, how to use it from the inspector and from code, an example that compiles; new
+   manual pages where none exist). Links, search, back/forward, "Open on crossfireengine.io".
+   Reached by: F1 in code (the symbol under the caret), a code tab's right-click "Open Docs" on a
+   field, variable, type or procedure; right-click "Open Docs" on any node (scene tree,
+   viewport), scene, component and asset kind in the GUI; panels' Manual buttons. Docs ship with
+   releases (bundled, offline).
+2. **Editor modes: a top tab bar** (item 7). The current app becomes the **Scene** mode; a second
+   mode, **Level**, is a world/level editor; the structure allows more later (3D, pixel editor).
+   Each mode owns its layout; shared pieces (menus, toolbar's play controls, project browser,
+   Console) stay sensible across modes; the mode is remembered per project.
+3. **Level mode and the LDtk tab** (item 3). Level mode: the LDtk world on a big canvas (levels
+   placed, linked, opened), with the LDtk panels. A bottom **LDtk** tab: a left sidebar of
+   vertical tabs (Layers, Entities, Collisions, Links, Level fields, Enums, World), the selected
+   item's settings in the content area. Edits **write back into the .ldtk file** (kept valid
+   against LDtk's schema; LDtk's saves reload in the editor), undoable. Tighter integration with
+   LDtk itself (open at the level/entity, reload on save). Groundwork for our own LDtk-format
+   editor later.
+4. **State machines** (item 1): transition logic and exit guards, in code (the engine API:
+   conditions, guard procedures a script provides, can-exit checks) and in the GUI (the States
+   tab's graph plus a **right sidebar** showing the selected state's or transition's
+   properties: conditions, guards, priorities, on-enter/exit, animation).
+5. **A Particles bottom tab** (item 6): a left sidebar of vertical tabs for the particle settings'
+   categories (the engine's `group` tags), the selected category's settings in the right content
+   pane, for the selected ParticleEmitter.
+6. **A sprite sheet slicer** (item 5): its own viewport tab; slice a sheet by grid (cells or
+   cell size, margin, gap) or by auto-detecting sprites, pick frames, name animations, and load
+   them into an animation asset and/or an AnimatedSprite (the animation player).
+
 ## Code editor integration (asked 2026-10-23; done 2026-10-24)
 
 Built in seven steps: providers, the script index and typed constants; names in strings; code and
