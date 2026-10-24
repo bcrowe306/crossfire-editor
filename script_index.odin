@@ -1064,3 +1064,17 @@ ScriptIndex_File :: proc(index: ^ScriptIndex, path: string) -> ^IndexFile {
 	if f, ok := &index.files[absolutePath(path)]; ok do return f
 	return nil
 }
+
+/*
+The project's structs that embed a type with `using` in their first field, by name: `Door` to
+`e.Sprite` for `Door :: struct { using sprite: e.Sprite }` (the docs follow a node type of the
+game's to its base kind's guide: `Docs_TypeAddress`).
+
+Returns:
+- The names and what each embeds (temp allocated; the strings are the index's)
+*/
+ScriptIndex_Embeds :: proc(index: ^ScriptIndex) -> map[string]string {
+	out := make(map[string]string, context.temp_allocator)
+	for _, file in index.files do for st in file.structs do if st.embeds != "" do out[st.name] = st.embeds
+	return out
+}

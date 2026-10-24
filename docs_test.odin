@@ -232,6 +232,14 @@ docs_symbols_find_their_pages :: proc(t: ^testing.T) {
 	testing.expect_value(t, Docs_TypeAddress("e.TextureAsset", "e", table), "/api/assets-and-import/#textureasset")
 	testing.expect_value(t, Docs_TypeAddress("crossfire.Sprite", "crossfire", table), "/manual/nodes-graphics/#sprite")
 	testing.expect_value(t, Docs_TypeAddress("^Hero", "e", table), "")
+	// The project's own node types go to their base kind's guide, through what they embed
+	own := make(map[string]string, context.temp_allocator)
+	own["Door"], own["BigDoor"], own["Hero"], own["Loop"] = "e.Sprite", "Door", "e.Script", "Loop"
+	testing.expect_value(t, Docs_TypeAddress("^Door", "e", table, own), "/manual/nodes-graphics/#sprite")
+	testing.expect_value(t, Docs_TypeAddress("[]^BigDoor", "e", table, own), "/manual/nodes-graphics/#sprite")
+	testing.expect_value(t, Docs_TypeAddress("^Hero", "e", table, own), "/manual/scripts/")
+	testing.expect_value(t, Docs_TypeAddress("Loop", "e", table, own), "")
+	testing.expect_value(t, Docs_TypeAddress("Window", "e", table, own), "")
 	testing.expect_value(t, Docs_TypeAddress("f32", "e", table), "")
 	testing.expect_value(t, Docs_EngineNameAddress("Camera2D_Follow", table), "/api/camera/#camera2d_follow")
 	testing.expect_value(t, Docs_EngineNameAddress("NoSuchThing", table), "")

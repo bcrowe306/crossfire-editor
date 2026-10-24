@@ -72,8 +72,9 @@ type DocsProbe
 click_widget new-script-create
 expect code_tab docs_probe.odin
 wait_until code_focused true timeout=5
-# Lines: 7 the node field, 11 self.door used, 16 e.Script_Register
-write_project_file scripts/docs_probe.odin package scripts\n\nimport e "engine:."\n\nDocsProbe :: struct {\n\tusing script: e.Script,\n\tdoor: ^e.Sprite `export:"default=."`,\n}\n\nDocsProbe_ready :: proc(self: ^DocsProbe) {\n\tself.door.visible = true\n}\n\n@(init)\nregister_DocsProbe :: proc "contextless" () {\n\te.Script_Register(DocsProbe, {ready = auto_cast DocsProbe_ready})\n}\n
+# Lines: 7 the node field, 11 self.door used, 16 e.Script_Register; 19 a node type of the
+# project's (Door, a Sprite), 23 a parameter of that type
+write_project_file scripts/docs_probe.odin package scripts\n\nimport e "engine:."\n\nDocsProbe :: struct {\n\tusing script: e.Script,\n\tdoor: ^e.Sprite `export:"default=."`,\n}\n\nDocsProbe_ready :: proc(self: ^DocsProbe) {\n\tself.door.visible = true\n}\n\n@(init)\nregister_DocsProbe :: proc "contextless" () {\n\te.Script_Register(DocsProbe, {ready = auto_cast DocsProbe_ready})\n}\n\nDoor :: struct {\n\tusing sprite: e.Sprite,\n}\n\nDocsProbe_gate :: proc(gate: ^Door) {\n\tgate.visible = false\n}\n
 wait_until code_contains true self.door.visible timeout=10
 wait 2
 code_click 16 6
@@ -83,6 +84,19 @@ key escape
 expect docs closed
 click_widget code-editor
 code_right_click 11 8
+code_menu_pick Open Docs
+wait_until docs_address /manual/nodes-graphics/#sprite timeout=5
+key escape
+# The project's own node type goes to its base kind's guide: on its name, through a parameter
+click_widget code-editor
+code_right_click 19 2
+code_menu_pick Open Docs
+wait_until docs_address /manual/nodes-graphics/#sprite timeout=5
+key escape
+send Docs_Opened /manual/
+key escape
+click_widget code-editor
+code_right_click 23 25
 code_menu_pick Open Docs
 wait_until docs_address /manual/nodes-graphics/#sprite timeout=5
 key escape

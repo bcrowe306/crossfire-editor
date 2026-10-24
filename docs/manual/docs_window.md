@@ -1,7 +1,7 @@
 ---
 title: The docs window
 description: "This manual and the engine's API reference inside the editor, offline: F1, Open Docs and the Manual buttons, links, search, back and forward, the same page on crossfireengine.io."
-order: 38
+order: 39
 ---
 
 # The docs window
@@ -88,7 +88,9 @@ release; the window shows the ones of your editor. After updating the editor the
 
 **Open Docs isn't in a code tab's menu.** It's there when the name under the pointer is one the
 docs know: an engine name, or a field, variable or parameter whose type the code shows as an
-engine type. Your own types and procedures have no page.
+engine type. A node type of your own (`Door :: struct { using sprite: e.Sprite }`) goes to the guide of
+the kind it's built on (the Sprite's); a script's struct to the scripts page. Your own
+procedures have no page.
 
 **F1 opened the wrong page.** F1 goes by where the pointer is, not by which panel you clicked
 last. Point at the panel (or select the node) and press F1 again, or use the node's

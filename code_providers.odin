@@ -583,8 +583,30 @@ CodeProviders_DocsAt :: proc(state: ^State, doc: ce.Provider_Document, pos: cebu
 	if state == nil do return ""
 	table := EngineDocs_Get()
 	if d, ok := engineDocAt(state, doc, pos); ok do return Docs_EngineNameAddress(d.name, table)
-	typeText, alias := ScriptCode_TypeAt(scriptSources(state), absolutePath(doc.path), pos.line, pos.col)
-	return Docs_TypeAddress(typeText, alias, table)
+	// The project's own node types go to their base kind's guide (`Door :: struct { using sprite:
+	// e.Sprite }`): on the type's name itself (its declaration, `^Door`), or through a field's type
+	projectTypes := ScriptIndex_Embeds(&state.scriptIndex)
+	alias := "e"
+	if file := ScriptIndex_File(&state.scriptIndex, absolutePath(doc.path)); file != nil && file.engineAlias != "" do alias = file.engineAlias
+	if word := identifierAt(cebuf.buffer_line_str(doc.buffer, pos.line), pos.col); word != "" {
+		if _, own := projectTypes[word]; own {
+			if address := Docs_TypeAddress(word, alias, table, projectTypes); address != "" do return address
+		}
+	}
+	typeText, typeAlias := ScriptCode_TypeAt(scriptSources(state), absolutePath(doc.path), pos.line, pos.col)
+	if typeAlias != "" do alias = typeAlias
+	return Docs_TypeAddress(typeText, alias, table, projectTypes)
+}
+
+// The identifier a byte column is in or right after ("" none)
+@(private="file")
+identifierAt :: proc(line: string, column: int) -> string {
+	isWord :: proc(c: u8) -> bool { return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') }
+	col := clamp(column, 0, len(line))
+	start, end := col, col
+	for start > 0 && isWord(line[start - 1]) do start -= 1
+	for end < len(line) && isWord(line[end]) do end += 1
+	return line[start:end]
 }
 
 // The address "Open Docs" in a code tab's menu left for the view to open (heap; "" none)
