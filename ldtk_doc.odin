@@ -505,13 +505,47 @@ LDtk_WriteFile :: proc(path, text: string, before: time.Time) -> string {
 		os.remove(temp)
 		return fmt.tprintf("Couldn't write %s: %v", filepath.base(path), err)
 	}
-	if err := os.rename(temp, path); err != nil {
+	if err := File_Replace(temp, path, text); err != nil {
 		os.remove(temp)
 		return fmt.tprintf("Couldn't replace %s: %v", filepath.base(path), err)
 	}
 	ensureNewerTime(path, before)
 	return ""
 }
+
+/*
+Puts a new file (`temp`, holding `text`) in place of another: a rename over it, which replaces
+it whole on every OS (Windows: `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`, what `os.rename`
+does). On Windows a rename fails while another program has the file open without sharing its
+deletion (LDtk, an indexer, a virus scanner looking at the new file), so it's tried again a few
+times, then the text is written into the file itself (not atomic, but the edit isn't lost).
+
+Inputs:
+- temp: The new file, beside `path`
+- path: The file to replace
+- text: What `temp` holds (written into `path` when the rename can't be done)
+
+Returns:
+- nil, or the last error (then `path` is as it was)
+*/
+File_Replace :: proc(temp, path, text: string) -> os.Error {
+	err := os.rename(temp, path)
+	for attempt := 0; err != nil && attempt < FILE_REPLACE_ATTEMPTS; attempt += 1 {
+		time.sleep(10 * time.Millisecond)
+		err = os.rename(temp, path)
+	}
+	if err == nil do return nil
+	when ODIN_OS == .Windows {
+		if os.write_entire_file(path, transmute([]byte)text) == nil {
+			os.remove(temp)
+			return nil
+		}
+	}
+	return err
+}
+
+// How many more times `File_Replace` tries a rename that failed (10 ms apart)
+FILE_REPLACE_ATTEMPTS :: 10
 
 // Moves a written file's modification time past `before` when the clock didn't (a coarse file
 // system clock gives two writes within a few milliseconds the same time)

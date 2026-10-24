@@ -2376,7 +2376,10 @@ world/level editor and the groundwork for our own LDtk-format editor; edits writ
   (`LDtkDoc_FromTexts`, still in memory) a second pass for what LDtk derives (`ldtkCommit`:
   neighbours, entities' `__worldX/Y`, the table of contents), then each changed file written to a
   temporary file and renamed over it (`LDtk_WriteFile`, never a half-written file), its
-  modification time moved past the last one seen (`ensureNewerTime`: Linux's file clock is coarse,
+  modification time moved past the last one seen; the rename is `File_Replace`, which tries again
+  for about 100 ms when Windows refuses it (a file another program has open without sharing its
+  deletion) and then writes the text into the file itself (`ldtk_files_are_replaced_even_when_open`).
+  The time is moved past the last one seen (`ensureNewerTime`: Linux's file clock is coarse,
   two writes a few ms apart got one time, and every cache keyed by it (`LDtkEdit_Project`, the
   viewport's `forgetChangedLDtk`, the thumbnails, a running game's `LDtk_WatchFiles`) missed the
   second). So the viewport, the inspector and a game from Play reload an edit as they do LDtk's saves.
@@ -3384,6 +3387,13 @@ Match the engine's style:
   one run under load (other tests' threads, a UI suite beside them, CI's Mac) took several times
   as long (`names_demo_project_timing`, `engine_docs_read_render_and_link`). The numbers in this
   file are the logged best times.
+- **Unit tests step the State through a pointer** (`send :: proc(state: ^State, m: Msg)`), not
+  `state, _ = update(state, m)` at every step: each such call keeps a copy of the State (35 KB)
+  in the test's frame in debug builds, and a test thread's stack on Windows is 1 MB (8 MB on
+  Linux). `ldtk_edits_undo_and_redo` had a 458 KB frame and, under update, History_Commit and
+  History_Push (whose UndoCommand copies were 25 KB each: now pointers), overflowed it on
+  Windows CI (v0.1.0-dev.66, "Signal caught: Unknown"). Check a frame with `objdump -d` of
+  the test binary (`odin build . -build-mode:test -debug`) and `sub $N,%rsp`.
 - **Delete folders with `removeAll`** (export_run.odin), never `os.remove_all`: on Windows that
   goes through the shell (SHFileOperationW), whose COM copy hooks crashed the tests running on
   several threads.

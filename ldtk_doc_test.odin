@@ -2,10 +2,12 @@ package crossfire_editor
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:log"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:testing"
+import "core:time"
 import e "engine:."
 
 // The LDtk tab's write-back: the JSON that keeps its text, LDtk's schema, every edit kind, external
@@ -464,47 +466,83 @@ ldtk_edits_undo_and_redo :: proc(t: ^testing.T) {
 	state.mode = .Level
 	defer State_Destroy(&state)
 	path := joinPath(dir, "world.ldtk", allocator = context.temp_allocator)
+	// Through a pointer: `state, _ = update(state, ...)` at every step kept a copy of the State
+	// (35 KB) per call in this frame, and with update's own frames it overflowed a Windows test
+	// thread's 1 MB stack. Each step is logged, so a crash says where it was
+	send :: proc(state: ^State, m: Msg, loc := #caller_location) {
+		log.infof("ldtk_edits_undo_and_redo: the step at line %d", loc.line)
+		state^, _ = update(state^, m)
+	}
 	original, _ := os.read_entire_file(path, context.temp_allocator)
 	original = transmute([]byte)strings.clone(string(original), context.temp_allocator)
 
-	state, _ = update(state, Msg(LDtk_Edit{op = .Layer_Opacity, file = "world.ldtk", def = 3, number = 0.2}))
+	send(&state, LDtk_Edit{op = .Layer_Opacity, file = "world.ldtk", def = 3, number = 0.2})
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.2")
 	testing.expect_value(t, len(state.history.undo), 1)
-	state, _ = update(state, Msg(LDtk_Edit{op = .Entity_Moved, file = "world.ldtk", entity = "coin2", number = 10, number2 = 20}))
+	send(&state, LDtk_Edit{op = .Entity_Moved, file = "world.ldtk", entity = "coin2", number = 10, number2 = 20})
 	testing.expect_value(t, len(state.history.undo), 2)
 	// A refused edit is no step
-	state, _ = update(state, Msg(LDtk_Edit{op = .Layer_Name, file = "world.ldtk", def = 3, text = "Tiles"}))
+	send(&state, LDtk_Edit{op = .Layer_Name, file = "world.ldtk", def = 3, text = "Tiles"})
 	testing.expect_value(t, len(state.history.undo), 2)
 
-	state, _ = update(state, Msg(Action.Undo))
+	send(&state, Action.Undo)
 	testing.expect_value(t, valueAt(path, "levels.identifier=Cave.layerInstances.layerDefUid=1.entityInstances.iid=coin2.px"), "[64,72]")
 	testing.expect_value(t, state.mode, EditorMode.Level)
-	state, _ = update(state, Msg(Action.Undo))
+	send(&state, Action.Undo)
 	now, _ := os.read_entire_file(path, context.temp_allocator)
 	testing.expect(t, string(now) == string(original), "both undone: the file as it was, byte for byte")
-	state, _ = update(state, Msg(Action.Redo))
+	send(&state, Action.Redo)
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.2")
 
 	// Changed outside since (LDtk saved): a change elsewhere in the file is kept by the undo
 	text := string(after2(path))
 	outside, _ := strings.replace(text, `"defaultLevelBgColor": "#202838"`, `"defaultLevelBgColor": "#112233"`, 1, context.temp_allocator)
 	testing.expect(t, outside != text, "the outside change applies")
-	_ = LDtk_WriteFile(path, outside, ldtkModified(path))
-	state, _ = update(state, Msg(Action.Undo))
+	testing.expect_value(t, LDtk_WriteFile(path, outside, ldtkModified(path)), "")
+	send(&state, Action.Undo)
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.5")
 	testing.expect_value(t, valueAt(path, "defaultLevelBgColor"), "#112233")
 	// A change on the same spot asks first
-	state, _ = update(state, Msg(Action.Redo))
+	send(&state, Action.Redo)
 	text = string(after2(path))
 	clash, _ := strings.replace(text, `"displayOpacity": 0.2`, `"displayOpacity": 0.9`, 1, context.temp_allocator)
-	_ = LDtk_WriteFile(path, clash, ldtkModified(path))
-	state, _ = update(state, Msg(Action.Undo))
+	testing.expect_value(t, LDtk_WriteFile(path, clash, ldtkModified(path)), "")
+	send(&state, Action.Undo)
 	testing.expect(t, state.level.conflict.open, "asked")
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.9")
-	state, _ = update(state, Msg(LDtk_Conflict_Chosen(.Keep_File)))
+	send(&state, LDtk_Conflict_Chosen(.Keep_File))
 	testing.expect(t, !state.level.conflict.open, "answered")
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.9")
 	expectValid(t, path)
+}
+
+// The write-back's replace: over an existing file, over one another handle has open (Windows
+// refuses the rename then: File_Replace tries again, then writes into it), and a refusal that
+// leaves the file as it was and says why
+@(test)
+ldtk_files_are_replaced_even_when_open :: proc(t: ^testing.T) {
+	dir := tempDir("ldtk_replace")
+	defer removeAll(dir)
+	path := joinPath(dir, "level.ldtk", allocator = context.temp_allocator)
+	testing.expect(t, os.write_entire_file(path, transmute([]byte)string("{\"a\": 1}")) == nil, "written")
+	before := ldtkModified(path)
+	testing.expect_value(t, LDtk_WriteFile(path, "{\"a\": 2}", before), "")
+	got, _ := os.read_entire_file(path, context.temp_allocator)
+	testing.expect_value(t, string(got), "{\"a\": 2}")
+	testing.expect(t, time.diff(before, ldtkModified(path)) > 0, "a newer time")
+	testing.expect(t, !os.exists(fmt.tprintf("%s.crossfire-tmp", path)), "no temporary file left")
+	// Open for reading meanwhile (LDtk or a scanner holding it)
+	f, err := os.open(path)
+	testing.expect(t, err == nil, "opened")
+	testing.expect_value(t, LDtk_WriteFile(path, "{\"a\": 3}", ldtkModified(path)), "")
+	if err == nil do os.close(f)
+	got, _ = os.read_entire_file(path, context.temp_allocator)
+	testing.expect_value(t, string(got), "{\"a\": 3}")
+	testing.expect(t, !os.exists(fmt.tprintf("%s.crossfire-tmp", path)), "no temporary file left")
+	// A folder that isn't there: an error, nothing made
+	missing := joinPath(dir, "nowhere", "level.ldtk", allocator = context.temp_allocator)
+	testing.expect(t, LDtk_WriteFile(missing, "{}", {}) != "", "refused")
+	testing.expect(t, !os.exists(missing), "not made")
 }
 
 @(test)

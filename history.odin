@@ -795,16 +795,19 @@ History_Commit :: proc(s: ^State, snap: EditSnapshot, now: time.Tick) {
 			return
 		}
 		command.change = SceneChange{snap.nodes, cloneNodes(scene.nodes[:])}
+	// The big changes are built in place (`command.change`), not copied in: see History_Push
 	case .Project:
-		after := takeProjectSnapshot(s)
-		if projectSnapshotsEqual(&snap.project, &after) {
-			destroyProjectSnapshot(&after)
+		command.change = ProjectChange{before = snap.project}
+		change := &command.change.(ProjectChange)
+		change.after = takeProjectSnapshot(s)
+		if projectSnapshotsEqual(&change.before, &change.after) {
+			destroyProjectSnapshot(&change.after)
 			discardSnapshot(&snap)
 			return
 		}
-		command.change = ProjectChange{snap.project, after}
 	case .Files:
-		change := FileChange{ldtkFile = snap.info.ldtkFile}
+		command.change = FileChange{ldtkFile = snap.info.ldtkFile}
+		change := &command.change.(FileChange)
 		snap.info.ldtkFile = ""
 		for &f in snap.files {
 			data, err := os.read_entire_file(f.path, context.temp_allocator)
@@ -819,13 +822,14 @@ History_Commit :: proc(s: ^State, snap: EditSnapshot, now: time.Tick) {
 		delete(snap.files)
 		snap.files = nil
 		if snap.info.withProject {
-			after := takeProjectSnapshot(s)
-			if projectSnapshotsEqual(&snap.project, &after) {
-				destroyProjectSnapshot(&after)
-				destroyProjectSnapshot(&snap.project)
+			change.project.before = snap.project
+			change.project.after = takeProjectSnapshot(s)
+			if projectSnapshotsEqual(&change.project.before, &change.project.after) {
+				destroyProjectSnapshot(&change.project.after)
+				destroyProjectSnapshot(&change.project.before)
+				change.project = {}
 			} else {
 				change.hasProject = true
-				change.project = {snap.project, after}
 			}
 		}
 		if len(change.files) == 0 && !change.hasProject {
@@ -834,7 +838,6 @@ History_Commit :: proc(s: ^State, snap: EditSnapshot, now: time.Tick) {
 			delete(snap.info.label)
 			return
 		}
-		command.change = change
 	}
 	History_Push(&s.history, command, &s.settings, now)
 }
@@ -844,30 +847,32 @@ Adds a command to the history, or merges it into the newest command (see the mer
 top of this file). Clears the redo stack. Takes ownership of `command`.
 */
 History_Push :: proc(h: ^History, command: UndoCommand, settings: ^Settings, now: time.Tick) {
+	// Pointers, not copies: an UndoCommand is about 25 KB, and copies of it in debug builds took
+	// most of a Windows test thread's 1 MB stack (ldtk_edits_undo_and_redo overflowed it)
 	command := command
 	h.version += 1
-	if change, isFiles := command.change.(FileChange); isFiles && !change.hasProject do h.fileVersion += 1
+	if change, isFiles := &command.change.(FileChange); isFiles && !change.hasProject do h.fileVersion += 1
 	if top, ok := mergeTarget(h, &command, settings, now); ok {
 		// Keep the top's "before"; take the new "after"
 		switch &change in top.change {
 		case NodeChange:
 			NodeDef_Destroy(&change.after)
-			new := command.change.(NodeChange)
+			new := &command.change.(NodeChange)
 			change.after = new.after
 			NodeDef_Destroy(&new.before)
 		case SceneChange:
 			destroyNodes(&change.after)
-			new := command.change.(SceneChange)
+			new := &command.change.(SceneChange)
 			change.after = new.after
 			destroyNodes(&new.before)
 		case ProjectChange:
 			destroyProjectSnapshot(&change.after)
-			new := command.change.(ProjectChange)
+			new := &command.change.(ProjectChange)
 			change.after = new.after
 			destroyProjectSnapshot(&new.before)
 		case FileChange:
 			// Each file keeps the first "before", takes the newest "after"
-			new := command.change.(FileChange)
+			new := &command.change.(FileChange)
 			for &f in new.files {
 				merged := false
 				for &old in change.files do if old.path == f.path {
@@ -965,7 +970,7 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 		return command.label, true
 	}
 	// The scene list itself: restore it whole, then show the scene that was open
-	if change, isProject := command.change.(ProjectChange); isProject {
+	if change, isProject := &command.change.(ProjectChange); isProject {
 		snapshot := undo ? &change.before : &change.after
 		// The selection stays when the step didn't change the open scene's tree (an animation
 		// asset's edit: the Animation panel keeps showing it; a rename of a script: its nodes
@@ -992,7 +997,7 @@ step :: proc(s: ^State, from, to: ^[dynamic]UndoCommand, undo: bool) -> (string,
 	}
 	if s.currentScene != command.scene do openScene(s, command.scene)
 	scene := &s.project.scenes[command.scene]
-	switch change in command.change {
+	switch &change in command.change {
 	case NodeChange:
 		if change.index < len(scene.nodes) {
 			node := &scene.nodes[change.index]
