@@ -348,6 +348,16 @@ changes to it, a bar asks whether to reload it or keep yours. The code editor's 
 and theme (its Keymap Editor and Theme Editor, in the command palette) are kept next to the
 editor's settings. All tabs share one language server.
 
+**The editor knows the project in the code** (with or without the language server): the
+project's names complete and are checked inside engine calls' strings, hovers preview assets and
+show the engine's documentation (F1 opens its API page), gutter marks list who uses a script or
+sets a field (Find Usages, and renames carried into the scenes), things dragged from the editor
+become fields and statements, a running game's values show beside the fields (Alt+drag a
+default's number, log points), and Ctrl+. offers engine-aware code actions: a handler for a
+node's event, export a field with a range, a switch over a state machine's states, register a
+struct, add a hook, show a field in the inspector (and a script field's label in the inspector
+goes to its declaration). The manual's code editor page has the guide.
+
 The language server is `ols`: the one in Settings > Editor > Language server, else `ols` in PATH,
 else one built with `task ols` (into `code_editor/third_party/ols`), else Zed's Odin extension's.
 Without one the editor still works, without completion and diagnostics.

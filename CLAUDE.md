@@ -51,7 +51,10 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   groups, buses, scenes, dialogue nodes and node paths (scripts/assets.odin); Play / Play
   Scene / Restart, hot reload, the live view of the running game, and the running game in the
   code (live field values beside the declarations, Alt+drag on a default's number changing the
-  game with a write-back menu, log points built in through hot reload); editor plugins (plugin_api/).
+  game with a write-back menu, log points built in through hot reload; engine-aware code actions in Ctrl+.'s menu: a handler for
+  a node's event, export a field (with a range), a switch over a state machine's states, register
+  a struct, add a hook, and the jump between an inspector field and its declaration); editor
+  plugins (plugin_api/).
 - **Export:** Linux, Windows and macOS (built on their own OS, or for projects without scripts
   from the prebuilt players every release carries) and the web (Emscripten, installed on
   demand); headless (`--export <target>`).
@@ -213,6 +216,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `script_rename.odin` | **The code side of renames**: the scripts package parsed (`CodeModel`), each identifier classified (a package type, a field of a struct whose receiver type the code shows, `kind=` tags, engine calls' strings), `ScriptRename_SymbolAt`, `ScriptRename_Code` (edits, names taken, uses left alone) |
 | `name_kinds.odin` | **Which engine parameters take which kind of name**, read from the engine's source (its name types, names.odin): `NameKind`, `NameTable_Read` (core:odin/parser; groups merged; `_Add` / `_Create` procedures declare), `NameTable_Start` / `_Load` / `_Get` (once, on a worker; heap, never freed), `NameTable_ParamKind` |
 | `code_names.odin` | **Project-aware strings**: the name providers (`nameCompletions`: names inside a call's string, its kind's constants outside; `nameDiagnostics`: unknown names, "did you mean", quick fixes), the scenes' trees through component instances (`NameTree`, `treeResolve` as the engine's three lookups), a script's attachments, receivers (`self.node`, node fields), `Names_Check`, `Names_Closest` |
+| `code_actions.odin` | **Engine-aware code actions** (Ctrl+.): the tab's text read for them (`CodeActions_Read`: structs with tag columns, registrations with their hooks, procedures), the action provider (`projectActions` / `projectActionRun`: handlers for events, export / remove export / ranges, a switch over a state machine's states, registering a struct, hooks, Show in the inspector), the Range dialog (`CodeRangeDialog`, `State.codeRange`, `Code_Range_*`, `CodeRange_Write`), `CodeActions_Reveal`, `ScriptField_Declaration` (the inspector's Go to Declaration) |
 | `view_viewport.odin` | Center: scene tabs, view controls, and the viewport canvas (rendered scene, rulers, gizmos, input) |
 | `viewport_preview.odin` | Engine-rendered preview of the open scene (the shared GPU renderer straight into a Skald image; fallbacks: a GPU readback, software); the collision LDtk levels and TileMaps build, drawn into it (`Preview_GeneratedShapes`) |
 | `gpu_share.odin` | **The shared GPU renderer**: SDL's Vulkan renderer on Skald's device (`SharedGPU_Renderer`, `SharedGPU_Shutdown`), `GPUTarget` (a Skald `image_create_target` image as an SDL render target: `_Ensure`, `_Begin` / `_End`, `_Draw`, `_ReadPixels` for tests), used by the viewport and the code tabs |
@@ -964,7 +968,7 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   takes it before `view`, so `CodeEditor_Frame` gives it back; `IsTyping` counts it, and
   `KeymapDispatch` runs only `CODE_EDITOR_PASSTHROUGH` then (their chords don't reach the code
   editor); the menu bar drops its shortcuts. Help's chord (F1, `User_Manual`) is the code view's
-  own: the API page of the engine declaration at the caret, else the manual (round 5).
+  own: the API page of the engine declaration at the caret, else the manual ("Hovers and previews", below).
 - **Unsaved scripts** count in `Project_IsModified`; `Session_Save`, Play and Export call
   `CodeTabs_SaveAll` first; Save starts a background script build when a script was saved.
 - **Language server:** `Code_FindOLS` (the setting `ols_path`, PATH, `code_editor/third_party/ols`
@@ -1058,9 +1062,42 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
   (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 
-### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`, `code_drops.odin`, `code_drag.odin`, `code_previews.odin`, `code_colors.odin`, `engine_docs.odin`, `code_live.odin`, `log_points.odin`; code_editor's `providers.odin`, `providers_scrub.odin`, `rename.odin`; the engine's `code_uses.odin`, `live.odin`)
+### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`, `code_drops.odin`, `code_drag.odin`, `code_previews.odin`, `code_colors.odin`, `engine_docs.odin`, `code_live.odin`, `log_points.odin`, `code_actions.odin`; code_editor's `providers.odin`, `providers_scrub.odin`, `rename.odin`; the engine's `code_uses.odin`, `live.odin`)
 
-Rounds 1 to 6 of TODO.md's "Code editor integration". What the code relies on:
+Odin editing that knows the project: the scenes, assets, actions, animations, the running game.
+Code and scene editing are one environment (no remembering how to refer to things in code). Built
+as TODO.md's "Code editor integration" (asked 2026-10-23, built in seven steps, done 2026-10-24); the
+manual's code editor page is the user's guide, "Your project in the code" its part on this.
+
+#### Overview: how it's put together
+
+- **Architecture:** code_editor (`code_editor/`, engine-agnostic, imports nothing of the editor
+  or the engine) has a **provider registry** (`ce.Provider_Registry`, `providers.odin`): plain
+  procedures with a user-data pointer, per kind, merged with OLS's answers and working without
+  it. The editor registers its providers once (`CodeProviders_Registry`, code_providers.odin);
+  they read State through package state set around every call into the code editor
+  (`CodeProviders_Begin` / `_End`) and never change it: what needs State changed (open a node, a
+  rename's project side, a dialog, the game) is left in package state and sent as a message by
+  the code view after the code editor ran (`linksSend`, `CodeLive_Take`, `LogPoints_Take`,
+  `CodeColors_TakeRequest`, `CodeActions_Take`). Everything reads the **script index** (the
+  scripts' declarations from their source, no build) and the project; slow reads (the engine's
+  name table and docs) run once on a worker.
+
+| Part | What it gives | Where (editor; code_editor; engine) |
+|---|---|---|
+| Provider interface | completion, hover, diagnostics + fixes, gutter, inlay, drops, usages, renames, scrubbing, menu entries, code actions | code_providers.odin; `providers.odin`, `providers_scrub.odin`, `rename.odin`, `code_actions.odin` |
+| Script index | each file's structs, fields, tags, registrations, engine calls' string literals, procedures; problems; merged into the catalog | script_index.odin (`ScriptIndex_*`) |
+| Typed constants | `scripts/assets.odin`: assets, animations, states, groups, buses, scenes, dialogue nodes, node paths | script_constants.odin |
+| Names | which engine parameters take which kind of name (name types), completion and checks inside strings | name_kinds.odin, code_names.odin; the engine's names.odin |
+| Links | gutter markers of who uses a script / sets a field / listens, Find Usages, renames carried into the project | script_links.odin, script_rename.odin |
+| Drops | editor things dragged onto code become fields, statements, constants | code_drops.odin, code_drag.odin, asset_fields.odin; the engine's code_uses.odin |
+| Hovers | previews of assets and scenes, the engine's docs (F1), color swatches and their dialog | code_previews.odin, engine_docs.odin, code_colors.odin |
+| Live | the running game's values beside fields, scrubbing defaults, log points | code_live.odin, log_points.odin; the engine's live.odin |
+| Actions | Ctrl+.'s engine-aware code actions, the inspector-to-code jump | code_actions.odin, view_inspector.odin (`inspectorRow`, `Inspector_RevealWidget`) |
+
+The parts below say what each relies on; the files' doc blocks have the details.
+
+#### The provider interface, the State they read, the syntactic context
 
 - **The provider interface is code_editor's** (`code_editor/editor/providers.odin`, its README's
   "Providers"): completion, hover, diagnostics, gutter markers, inlay hints and drops, each a
@@ -1079,14 +1116,17 @@ Rounds 1 to 6 of TODO.md's "Code editor integration". What the code relies on:
   inside the code editor's calls, which only happen there. `CodeProviders_Begin` invalidates the
   cached providers when the history version, the index's or catalog's generation, or the scene or
   asset count changed. A gutter click can't change State from inside the code editor: it leaves
-  the script's name (`CodeProviders_TakeClick`) for the view to send as `Code_Marker_Clicked`.
+  its target (`CodeProviders_SetOpen`) for the view to send as `Code_Usage_Opened`.
 - **The syntactic context** (`ce.editor_syntax_context_at`) is a tokenizer scan, not a parse:
   brackets on a stack, what each opened decided from the tokens before it (`Name :: struct`,
   `proc` and `proc "contextless"` parameter lists, `if` / `for` / `when` blocks, literals). The
-  drop provider decides by it (round 4, below). Drops carry the mouse and Shift
+  drop provider decides by it ("Drops into code", below), and the code actions read it. Drops carry the mouse and Shift
   (`Tree_Drag_Dropped_On_Code{mouse, menu}`, `Asset_Dropped_On_Code`, `Code_Source_Dropped`),
   turned into the editor's pixels with the shown view's rect and scale (`host.shownRect`,
   `shownScale`).
+
+#### The script index, the catalog and the constants
+
 - **The script index** (script_index.odin's doc block): `core:odin/parser` per file, the AST in a
   growing virtual arena freed at once; results copied to the heap. Parsing runs on a
   `skald.cmd_thread` worker with copied texts (`ScriptIndex_Tick` every 0.5 s while a project is
@@ -1132,8 +1172,12 @@ Rounds 1 to 6 of TODO.md's "Code editor integration". What the code relies on:
   `code_hover`, `code_click_marker`, `code_completion_provided`, `code_hover_has`,
   `code_inlay`, `code_marker`, `code_diagnostic_has`, `script_field`, `script_from_index`,
   `key <combo> <times>`).
-- **Round 2: project-aware strings** (name_kinds.odin's and code_names.odin's doc blocks). **The
-  engine says which parameters take which kind of name with name types** (its names.odin:
+
+#### Names in strings (project-aware strings)
+
+See name_kinds.odin's and code_names.odin's doc blocks.
+
+- **The engine says which parameters take which kind of name with name types** (its names.odin:
   `NodePath :: string`, `SceneName`, `AnimationName`... 14 of them), chosen over distinct types
   and over a table: aliases break no caller (a `string` variable still passes; distinct types
   would have needed casts in the engine, the demo, the website's examples and users' code), they
@@ -1171,226 +1215,300 @@ Rounds 1 to 6 of TODO.md's "Code editor integration". What the code relies on:
   the demo's timing and its clean bill); code_editor's `providers_names_test.odin`;
   `tests/ui/code_names.script` (a quote opens the scenes, a path after "../", a misspelled scene's
   squiggle fixed with Ctrl+.; driver: `code_diagnostic_lacks`).
-- **Round 3: code and scene links** (script_links.odin's and script_rename.odin's doc blocks).
-  - **Markers** on registration lines list every user (nodes as script, more script or node type;
-    component instances through their root; globals; data resources), on exported fields the
-    nodes, globals and data that set a value plus Timeline tracks, on events the listeners. Each
-    is a `ce.Gutter_Marker` with `choices` (code_editor opens its code actions menu for several,
-    `Gutter_Marker.choice` says which); a click can't change State inside the code editor, so the
-    provider leaves the target (`CodeProviders_SetOpen`) and the view sends `Code_Usage_Opened`
-    (`linksSend` in `CodeEditor_View`). The click is recomputed from the marker's line, not kept.
-  - **Find Usages** is code_editor's `.Usages` provider kind: the references panel's rows are the
-    provider's (`Ref_Item.provider`, `id`), opened through `on_open`.
-  - **Rename is the index's, not OLS's** (the reason is in script_rename.odin's doc): OLS's rename
-    reads other files from disk (unsaved tabs missed), may not be running, and answers later; the
-    project side must match the code side exactly. So the editor parses the package itself
-    (`CodeModel`, an arena per call: 40-45 ms for the demo's 13 files, debug or optimized,
-    measured by `script_rename_demo_project_timing`; only when asked: F2, Enter, Find Usages) and classifies every
-    identifier: a package type, or a field with the struct its receiver resolves to (parameters,
-    locals and globals with types or values, composite literals, casts, `&`, the package's
-    procedures' results, `e.Node_GetScript` / `Global` / `Data` / `CreateNode` / `new`, ranged
-    slices, `using`). A `.field` whose receiver isn't known is left and reported, never guessed.
-    code_editor's `.Rename` provider kind: `prepare_rename` (the box's title and a dry-run note)
-    and `rename` (this file's edits as one undo step); the provider leaves the rest
-    (`CodeProviders_SetRename`) for `Code_Rename_Requested`: the project in one `.Project` undo
-    step (History_Classify), other files opened in hidden tabs (`CodeTabs_Open(show = false)`,
-    `CodeEditor_ApplyEdits`: their own undo step, unsaved), written to disk only when no tab can
-    open. Without a project symbol, F2 falls to OLS's `textDocument/rename` (code_editor's
-    rename.odin): its edits to other files come through `editor_take_file_edits`, sent as
-    `Code_File_Edits_Requested` and applied in hidden tabs of project files the same way.
-  - **Undoing a project step keeps the selection** when the open scene's tree (names, parents)
-    is the same (`nodesSameTree`): a rename changes nodes, not which they are.
-  - **The inspector keeps what it can't place**: values of fields the code no longer has are
-    listed under the fields with a × (`OrphanedValueRows`), values that don't fit a field's
-    changed type get a warning and Reset (`FieldMismatchRows`, `ScriptProp_Fits` as the engine's
-    `Script_SetField` parses); in the node's Script section, more scripts, node types, globals
-    and data resources.
-  - **Tests:** `script_links_test.odin` (the code side's edits for a type, a field through every
-    receiver kind, an event's strings, a data type's tags, taken names, uses left; the project side
-    through the message with undo and redo across scenes, components, globals, listeners, tracks,
-    data; a real code tab: markers and their menu, Find Usages, F2, the other file in a hidden tab,
-    each undo), code_editor's `providers_links_test.odin` (the marker menu, usages, the rename
-    box with a provider and through a fake server), `tests/ui/code_links.script` (markers, the
-    menu, Alt+Shift+F12, F2 on a field and a type with both undos, an orphaned value removed;
-    driver: `code_state rename.*`).
-- **Round 4: drops into code** (code_drops.odin's and code_drag.odin's doc blocks; the manual's
-  "Dragging things into the code" has the table of what each kind becomes).
-  - **Sources describe themselves** (`DropSource`), panels know nothing of code: scene tree
-    nodes and browser assets through their own drags (`treeDrag`, `assetDrag`: they also drop
-    into the tree and the viewport); everything else through `State.codeDrag`: inspector
-    property labels (`inspectorRow`, thread-local `inspectorDrag`: a label is draggable when
-    `CodeDrops_PropertyField` finds the engine field, `Position X` as `position.x`, aliases in
-    `PROPERTY_ALIASES`; key `inspector-label-<label, spaces as _>-<node>`), the Script section's
-    fields (as `.Script_Field`), event names (`inspector-event-drag-...`), group chips under the
-    Groups field (`inspector-group-<g>-<node>`), grips (`ICON_GRIP`, only while a code tab
-    shows) for the Animation panel's animation (`animation-drag`), the selected state
-    (`states-drag`) and each parameter (`states-param-drag-<i>`), the Timeline's clip
-    (`timeline-clip-drag`) and each Mixer strip (`mixer-drag-<i>`), Project Settings > Input's
-    action buttons (`input-action-<i>`), browser scenes. A press only arms the drag: the click
-    still happens (a scene row's waits for the release, since opening it would hide the code
-    tab: `browserRow`).
-  - **Input actions in a modal dialog** (decided): Project Settings and Settings (whose Project
-    tab shows the same list) hide while an action is dragged (`CodeDrag_HidesDialogs`:
-    `closedDialog`), so the code tab under them takes the drop; they show again after. Presses
-    behind a dialog never start a drag (`pressStarts`; the browser checks `modal_rect_prev`: the
-    workspace is built after the dialogs, so its press came last and won).
-  - **One table** (`CODE_DROP_KINDS`: noun, name type, struct shape, a name field's suffix);
-    **what code does is the engine's** (`e.CODE_USES`, code_uses.odin: uses per name type,
-    handle type, node type and `Type.field`, the first being the plain drop; checked by the
-    engine's code_uses_test.odin against its source and by `code_drops_engine_uses_compile`,
-    which fills every use in and runs `odin check`). `codeUseKeys` picks the keys of a source,
-    most specific first (`StateParamName:Trigger`, then `StateParamName`; a node's type chain).
-  - **Shapes** (`CodeDrops_Build`): struct (or outside a procedure): a field before the closing
-    brace (node fields, asset fields as before, name fields `<name><Suffix>: e.<NameType>` with
-    `export:"default=..."`, an owner's node field); procedure body: a statement after the
-    dropped-on line (on it when blank, before it when it closes a block), indented like it,
-    conditions as `if` blocks, values as `x := `; argument: the constant (`constantOf`: the
-    section, value and owner group of `Scripts_Constants`, else the name quoted) first where
-    `NameTable_ParamKind` says the parameter takes that kind, else the expression; in a string the
-    name; in a comment the constant.
-  - **Reaching nodes** (`nodeExpr`): `self.node` for the script's own node (when any node type
-    will do: `fieldOwnerType` says which type declares a field, so `position` needs only a
-    Node), a field whose default path leads to the node and whose type fits, else a new field in
-    the same edits (one undo step: code_editor applies a choice's edits together). A thing
-    without a node (music, a group) takes the struct's only field of the type, else the scene's
-    first node of it. The script variable is the procedure's `^Struct` parameter
-    (`Syntax_Context.proc_params`), else `self`. `e.` becomes the file's import name.
-  - **The menu** is code_editor's (`Drop_Choice`, `Drop_Request.menu`: Shift at the release); at
-    most `CODE_DROP_MAX_CHOICES` (4). A drop focuses the code tab (`host.focusNext`) so the menu's
-    keys reach it; a pick's message comes back through `Code_Drop_Chosen`.
-  - **Tests:** the engine's code_uses_test.odin; `code_drops_test.odin` (the table, use keys,
-    property fields; every kind in a struct, a body, an argument and a string in a real code
-    tab with one undo step each; the menu's choices and previews; every engine use compiled);
-    code_editor's `test_provider_drop_choices_and_their_menu`; `tests/ui/code_drops.script` (each
-    source dragged at a line or text, Shift's menu picked by keys, then saved and built).
-  - **Found doing it:** the driver's drop point was the middle of a character cell, which the code
-    editor rounds either way (now a quarter in: `CodeEditor_WindowPoint`), and `RevealLine`
-    didn't scroll sideways, so a drop at a long line's end in a tiled window landed in the
-    inspector (it reveals the column now). A click on an inspector button right after the code
-    tab took the keyboard was sometimes lost (the Events toggle): not the focus handoff (Skald
-    drops the code view's focus on the press and the button takes it), but the layout moving
-    under the pointer: the Script section's rows changed half a second after New Script (the
-    index read the file: "Building..." became the fields and a note) and again when its build
-    ended (the note went), so the toggle moved between the driver's move and its press; and in a
-    tiled window the toggle sat at the row's right end, under the inspector's scrollbar strip
-    (the press went to the scrollbar; repeated clicks too). Fixed in round 5:
-    `ScriptIndex_ReadNow`, a source line that's always there, the toggle beside the Events
-    title; `tests/ui/code_focus_clicks.script` (driver check `inspector_events`) clicks it at
-    once, while typing and after the build, in all three sizes.
 
-- **Round 5: hovers and previews** (code_previews.odin's, code_colors.odin's and
-  engine_docs.odin's doc blocks; the manual's "Hovers and previews").
-  - **code_editor grew** (its README): `Hover_Widget.click` (a left press on the widget calls it
-    with the point in its block; the hover stays: `editor_click_hover_widget`), and
-    `Hover_Content.replace_server` (the server isn't asked, its answer isn't shown); images up
-    to `HOVER_IMAGE_MAX` tall and twice as wide (strips); `Inlay_Hint.swatch` (a square of the
-    color before the label) and the inlay provider's `on_inlay_click` (`editor_click_inlay_swatch`,
-    `Provided.inlay_providers` says whose each hint is); inlay hints count in the scrollable width
-    (`editor_max_visual_width`, keyed by `provided.seq` too), so a narrow tab scrolls to a swatch.
-  - **Asset previews** (`CodePreviews_*`): on a constant (the preview first, then what it is: a
-    play button stays in view in a short tab), a string literal or a tag's `default=` naming an
-    asset or a scene. Pictures are made once, scaled down, kept by path and modification time (a
-    component's by its XML's hash) in a cache of at most 64. **Scenes get facts, no picture:**
-    drawing ForestScene took 200 ms on the editor's thread. Sounds: the length is read by
-    SDL3_mixer without decoding or opening the device (`AudioPreview_Length`, its own mixer); the
-    play button is a `Hover_Widget` whose click leaves `Code_Hover_Audio` for the code view to
-    send (it can't change State inside the code editor), update plays it through the audio
-    preview; `codeRenderKey` has the playing state, so the button turns back to ▶ when it ends.
-  - **Engine docs** (`EngineDocs`): the engine's source parsed once per run on a worker (started
-    from the index's tick with the name table), docgen's rules (public declarations, `when`
-    blocks, the comment attached or ending on the line above); `EngineDocs_At` takes the name
-    after the file's import name (`IndexFile.engineAlias`). The hover renders the declaration,
-    the comment, Inputs / Returns bold, Example as code, and stands in for OLS's (which repeats
-    the declaration and the raw comment). **F1 in a code tab** is the host's
-    (`CodeEditor_View`: the editor's `User_Manual` chords are taken before the code editor, whose
-    own F1 opened its palette; Ctrl+Shift+P still does): the declaration at the caret's API page
-    (`EngineDoc_URL`: the area from `ENGINE_API_AREAS`, the anchor the name lower-cased, as the
-    website's build-api.mjs makes them; checked on crossfireengine.io for five names), else the
-    manual. Links go through `Links_Open` (`State.lastLink`; nothing opens while a script runs:
-    the driver's `last_link`), as Help > User Manual and the panels' Manual buttons do now.
-    **A new engine file needs an area in the website's api-groups.json and in
-    `ENGINE_API_AREAS`** (`engine_api_areas_match_the_website` and the docs test catch both).
-  - **Color literals** (`ColorLiterals_InLine`): typed composites (`sdl.Color{...}`, whatever the
-    file imports vendor:sdl3 as; positional or named, 3 or 4 integers 0-255, decimal or hex),
-    `x: sdl.Color = {...}` (not `-> sdl.Color {`, a procedure body), hex in a color field's tag
-    and in `e.ParseColor("#...")`. The engine has no `e.Color` (its colors are `sdl.Color`) and
-    takes hex only in those places. A swatch's click leaves `Code_Color_Requested` (the literal's
-    line, bytes and text) for the view to send; the dialog (Skald's color picker, the hex, the
-    alpha; keys `code-color-picker`, `-hex`, `-alpha`, `-ok`, `-cancel`) writes on OK with
-    `CodeEditor_ApplyEdits` (one undo step in the tab), only when the literal is still there as
-    it was.
-  - **Measured** (2026-10-23, the demo, `code_previews_of_every_kind` and
-    `engine_docs_read_render_and_link`, optimized; debug in brackets): a warm hover of every kind
-    14-30 µs; cold: an image 0.08 ms, an Aseprite file 15 ms (46), a sound's length 0.9 ms, a
-    font's sample 0.8 ms (1.0), a component's picture 10 ms (27), an animation strip 0.5-0.6 ms
-    (1.3-1.7), a dialogue or a scene's facts under 0.05 ms; the engine's docs read in 74 ms (225)
-    on the worker (1307 declarations, 100 files), a docs hover 3 µs (11).
-  - **Tests:** code_editor's `providers_previews_test.odin`; `code_previews_test.odin` (every
-    kind on the demo with its timing, literals, fitting and strips, `ENGINE_API_AREAS` against the
-    website's file), `code_colors_test.odin` (every form read and written back; a real code tab:
-    swatches, the dialog, OK, one undo, a stale literal left alone), `engine_docs_test.odin`
-    (rendering, URLs, the name at a column, every engine file in an area);
-    `tests/ui/code_previews.script` (an image's hover, a sound's play button, an engine
-    procedure's docs, a swatch's dialog and undo, F1 both ways; driver: `code_hover_image`,
-    `code_hover_widget`, `code_click_hover_widget`, `code_swatch`, `code_click_swatch`,
-    `code_color_dialog`, `code_click`, `audio_loaded`, `last_link`). The driver's `code_hover`,
-    `code_click` and `code_click_swatch` scroll the line (and a swatch's column) into view first
-    (`CodeEditor_RevealLine` keeps clear of the last row: the horizontal scrollbar), and
-    `code_hover` moves twice, a frame apart (a tooltip still up on the first frame kept the code
-    view from the motion).
+#### Code and scene links
 
-- **Round 6: the running game in the code** (code_live.odin's and log_points.odin's doc blocks;
-  the manual's "The running game in the code").
-  - **code_editor grew** (its README, `providers_scrub.odin`): clickable inlay hints with
-    `choices` (a menu, then `on_inlay_click` with `hint.choice`); the `.Scrub` provider kind
-    (Alt+press on a number the provider accepts, a sideways drag, `.Change` values and `.End`
-    choices in the code actions menu, `on_scrub_choice`; the buffer untouched, the value drawn
-    over the literal; an Alt+click that doesn't move still toggles a cursor); the `.Menu` kind
-    (host entries after the right-click menu's own); gutter providers' `on_gutter_line` (the
-    marker column of a line without a marker). **Found doing it:** a marker's click went to the
-    first gutter provider with an `on_click`, whatever provider made it (one gutter provider
-    hid it); markers now keep their provider (`Provided.marker_providers`).
-  - **The engine sends what's asked** (its live.odin): `fields <Script> <id> <field>...` (any
-    field, read by reflection: `e.LiveLink_FieldText`), sent with the stats; the tree's nodes say
-    which scripts they run (`LiveNode.scripts`). **Ask for what's shown:** `CodeLive_Frame`
-    (every `view`) works out the shown tab's visible lines' fields (`CODE_LIVE_MARGIN` more) and
-    `Live_Watch` sends only the watches that changed; no code tab or no game, they stop.
-    `CodeProviders_Begin`'s key has the live tree's and values' generations, the link, the Live
-    tab's choice, the selection and the log points, so hints follow them and go with the game.
-  - **Which node** (`CodeLive_Target`): a pick from the struct hint's menu
-    (`LiveView.codePicks`, kept while the Live tab's choice and the selection stay as they were
-    then), else the Live tab's node, else the scene's selected node by its path in the running
-    scene of that name (`CodeLive_NodePath`, `CodeLive_ProjectNode`), else the first.
-  - **Scrubbing (decided):** only numbers in an exported field's `default=` (vectors' numbers
-    too: the property keeps the other one), from the game's value, in the tag's range; each value
-    is `set` over the link (`Code_Scrub_Changed`, sent by the view: providers can't change
-    State). The release's menu (`CodeScrubWriteKind`): the code's default (`CodeEditor_ApplyEdits`,
-    one undo step in the tab, only when the literal is still as it was), the node's own value (a
-    `.Project` undo step: History_Classify; offered first when the node has its own value, and the
-    default's title then says the node keeps it), or the game only. **Plain literals in procedure
-    bodies aren't scrubbed:** they need a rebuild, and hot reload restarts the game, so it can't
-    follow a drag. The field hint shows the node's own value beside the game's.
-  - **Log points (decided: the build's copy, never the user's file):** while any is on, the
-    player's main imports `logpoints:scripts` (`playerMainSource(logPoints)`, `PlayerTarget.logPoints`,
-    `-collection:logpoints=`), a copy of `scripts/` under `build/players/<project>/logpoints/`
-    written before each build (only changed files; a fourth input of `playerIsCurrent`), each
-    point's line starting with `e.Log_Debug("file:line: expr = %v", expr, category = "logpoint"); `
-    so no line moves (compiler errors land on the user's lines: `LogPoints_ProjectPaths` turns
-    the copy's paths back in the Output tab). Hot reload builds again when
-    `LogPoints_Signature` differs from `PlayReload.builtLogPoints` ("Hot reload: log points
-    changed"). A file not importing the engine gets an import at its end. Points follow their
-    line's text (`LogPoints_Relocate`, at each build and in the providers); refused or lost ones
-    are skipped with an Output warning. Exports never use them.
-  - **Tests:** the engine's live_test.odin (`liveFieldsCheck`); code_editor's
-    `providers_scrub_test.odin`; `code_live_test.odin` (hints in a real code tab, the target
-    rules, the watches, a pick, gone when the game stops; literals; a scrub sent and written
-    back each way with undo, a vector, an int); `log_points_test.odin` (the statement, where one
-    can go, injection, relocation, the file, the dialog and marker commands, the copy compiling
-    with `odin check`, the paths); `tests/ui/code_live.script` (a fixture played: hints, two
-    scrubs seen in the game and written back both ways, a log point from the gutter rebuilt into
-    the game, its Console line clicked, turned off, the hints gone after Stop; driver:
-    `code_scrub`, `code_click_inlay`, checks `code_inlay_lacks`, `log_points`, `log_point`,
-    `logpoint_dialog`, `live_field`).
+See script_links.odin's and script_rename.odin's doc blocks.
+
+- **Markers** on registration lines list every user (nodes as script, more script or node type;
+  component instances through their root; globals; data resources), on exported fields the
+  nodes, globals and data that set a value plus Timeline tracks, on events the listeners. Each
+  is a `ce.Gutter_Marker` with `choices` (code_editor opens its code actions menu for several,
+  `Gutter_Marker.choice` says which); a click can't change State inside the code editor, so the
+  provider leaves the target (`CodeProviders_SetOpen`) and the view sends `Code_Usage_Opened`
+  (`linksSend` in `CodeEditor_View`). The click is recomputed from the marker's line, not kept.
+- **Find Usages** is code_editor's `.Usages` provider kind: the references panel's rows are the
+  provider's (`Ref_Item.provider`, `id`), opened through `on_open`.
+- **Rename is the index's, not OLS's** (the reason is in script_rename.odin's doc): OLS's rename
+  reads other files from disk (unsaved tabs missed), may not be running, and answers later; the
+  project side must match the code side exactly. So the editor parses the package itself
+  (`CodeModel`, an arena per call: 40-45 ms for the demo's 13 files, debug or optimized,
+  measured by `script_rename_demo_project_timing`; only when asked: F2, Enter, Find Usages) and classifies every
+  identifier: a package type, or a field with the struct its receiver resolves to (parameters,
+  locals and globals with types or values, composite literals, casts, `&`, the package's
+  procedures' results, `e.Node_GetScript` / `Global` / `Data` / `CreateNode` / `new`, ranged
+  slices, `using`). A `.field` whose receiver isn't known is left and reported, never guessed.
+  code_editor's `.Rename` provider kind: `prepare_rename` (the box's title and a dry-run note)
+  and `rename` (this file's edits as one undo step); the provider leaves the rest
+  (`CodeProviders_SetRename`) for `Code_Rename_Requested`: the project in one `.Project` undo
+  step (History_Classify), other files opened in hidden tabs (`CodeTabs_Open(show = false)`,
+  `CodeEditor_ApplyEdits`: their own undo step, unsaved), written to disk only when no tab can
+  open. Without a project symbol, F2 falls to OLS's `textDocument/rename` (code_editor's
+  rename.odin): its edits to other files come through `editor_take_file_edits`, sent as
+  `Code_File_Edits_Requested` and applied in hidden tabs of project files the same way.
+- **Undoing a project step keeps the selection** when the open scene's tree (names, parents)
+  is the same (`nodesSameTree`): a rename changes nodes, not which they are.
+- **The inspector keeps what it can't place**: values of fields the code no longer has are
+  listed under the fields with a × (`OrphanedValueRows`), values that don't fit a field's
+  changed type get a warning and Reset (`FieldMismatchRows`, `ScriptProp_Fits` as the engine's
+  `Script_SetField` parses); in the node's Script section, more scripts, node types, globals
+  and data resources.
+- **Tests:** `script_links_test.odin` (the code side's edits for a type, a field through every
+  receiver kind, an event's strings, a data type's tags, taken names, uses left; the project side
+  through the message with undo and redo across scenes, components, globals, listeners, tracks,
+  data; a real code tab: markers and their menu, Find Usages, F2, the other file in a hidden tab,
+  each undo), code_editor's `providers_links_test.odin` (the marker menu, usages, the rename
+  box with a provider and through a fake server), `tests/ui/code_links.script` (markers, the
+  menu, Alt+Shift+F12, F2 on a field and a type with both undos, an orphaned value removed;
+  driver: `code_state rename.*`).
+
+#### Drops into code
+
+See code_drops.odin's and code_drag.odin's doc blocks; the manual's "Dragging things into the code" has the table of what each kind becomes.
+
+- **Sources describe themselves** (`DropSource`), panels know nothing of code: scene tree
+  nodes and browser assets through their own drags (`treeDrag`, `assetDrag`: they also drop
+  into the tree and the viewport); everything else through `State.codeDrag`: inspector
+  property labels (`inspectorRow`, thread-local `inspectorDrag`: a label is draggable when
+  `CodeDrops_PropertyField` finds the engine field, `Position X` as `position.x`, aliases in
+  `PROPERTY_ALIASES`; key `inspector-label-<label, spaces as _>-<node>`), the Script section's
+  fields (as `.Script_Field`), event names (`inspector-event-drag-...`), group chips under the
+  Groups field (`inspector-group-<g>-<node>`), grips (`ICON_GRIP`, only while a code tab
+  shows) for the Animation panel's animation (`animation-drag`), the selected state
+  (`states-drag`) and each parameter (`states-param-drag-<i>`), the Timeline's clip
+  (`timeline-clip-drag`) and each Mixer strip (`mixer-drag-<i>`), Project Settings > Input's
+  action buttons (`input-action-<i>`), browser scenes. A press only arms the drag: the click
+  still happens (a scene row's waits for the release, since opening it would hide the code
+  tab: `browserRow`).
+- **Input actions in a modal dialog** (decided): Project Settings and Settings (whose Project
+  tab shows the same list) hide while an action is dragged (`CodeDrag_HidesDialogs`:
+  `closedDialog`), so the code tab under them takes the drop; they show again after. Presses
+  behind a dialog never start a drag (`pressStarts`; the browser checks `modal_rect_prev`: the
+  workspace is built after the dialogs, so its press came last and won).
+- **One table** (`CODE_DROP_KINDS`: noun, name type, struct shape, a name field's suffix);
+  **what code does is the engine's** (`e.CODE_USES`, code_uses.odin: uses per name type,
+  handle type, node type and `Type.field`, the first being the plain drop; checked by the
+  engine's code_uses_test.odin against its source and by `code_drops_engine_uses_compile`,
+  which fills every use in and runs `odin check`). `codeUseKeys` picks the keys of a source,
+  most specific first (`StateParamName:Trigger`, then `StateParamName`; a node's type chain).
+- **Shapes** (`CodeDrops_Build`): struct (or outside a procedure): a field before the closing
+  brace (node fields, asset fields as before, name fields `<name><Suffix>: e.<NameType>` with
+  `export:"default=..."`, an owner's node field); procedure body: a statement after the
+  dropped-on line (on it when blank, before it when it closes a block), indented like it,
+  conditions as `if` blocks, values as `x := `; argument: the constant (`constantOf`: the
+  section, value and owner group of `Scripts_Constants`, else the name quoted) first where
+  `NameTable_ParamKind` says the parameter takes that kind, else the expression; in a string the
+  name; in a comment the constant.
+- **Reaching nodes** (`nodeExpr`): `self.node` for the script's own node (when any node type
+  will do: `fieldOwnerType` says which type declares a field, so `position` needs only a
+  Node), a field whose default path leads to the node and whose type fits, else a new field in
+  the same edits (one undo step: code_editor applies a choice's edits together). A thing
+  without a node (music, a group) takes the struct's only field of the type, else the scene's
+  first node of it. The script variable is the procedure's `^Struct` parameter
+  (`Syntax_Context.proc_params`), else `self`. `e.` becomes the file's import name.
+- **The menu** is code_editor's (`Drop_Choice`, `Drop_Request.menu`: Shift at the release); at
+  most `CODE_DROP_MAX_CHOICES` (4). A drop focuses the code tab (`host.focusNext`) so the menu's
+  keys reach it; a pick's message comes back through `Code_Drop_Chosen`.
+- **Tests:** the engine's code_uses_test.odin; `code_drops_test.odin` (the table, use keys,
+  property fields; every kind in a struct, a body, an argument and a string in a real code
+  tab with one undo step each; the menu's choices and previews; every engine use compiled);
+  code_editor's `test_provider_drop_choices_and_their_menu`; `tests/ui/code_drops.script` (each
+  source dragged at a line or text, Shift's menu picked by keys, then saved and built).
+- **Found doing it:** the driver's drop point was the middle of a character cell, which the code
+  editor rounds either way (now a quarter in: `CodeEditor_WindowPoint`), and `RevealLine`
+  didn't scroll sideways, so a drop at a long line's end in a tiled window landed in the
+  inspector (it reveals the column now). A click on an inspector button right after the code
+  tab took the keyboard was sometimes lost (the Events toggle): not the focus handoff (Skald
+  drops the code view's focus on the press and the button takes it), but the layout moving
+  under the pointer: the Script section's rows changed half a second after New Script (the
+  index read the file: "Building..." became the fields and a note) and again when its build
+  ended (the note went), so the toggle moved between the driver's move and its press; and in a
+  tiled window the toggle sat at the row's right end, under the inspector's scrollbar strip
+  (the press went to the scrollbar; repeated clicks too). Fixed with the hovers:
+  `ScriptIndex_ReadNow`, a source line that's always there, the toggle beside the Events
+  title; `tests/ui/code_focus_clicks.script` (driver check `inspector_events`) clicks it at
+  once, while typing and after the build, in all three sizes.
+
+#### Hovers and previews
+
+See code_previews.odin's, code_colors.odin's and engine_docs.odin's doc blocks; the manual's "Hovers and previews".
+
+- **code_editor grew** (its README): `Hover_Widget.click` (a left press on the widget calls it
+  with the point in its block; the hover stays: `editor_click_hover_widget`), and
+  `Hover_Content.replace_server` (the server isn't asked, its answer isn't shown); images up
+  to `HOVER_IMAGE_MAX` tall and twice as wide (strips); `Inlay_Hint.swatch` (a square of the
+  color before the label) and the inlay provider's `on_inlay_click` (`editor_click_inlay_swatch`,
+  `Provided.inlay_providers` says whose each hint is); inlay hints count in the scrollable width
+  (`editor_max_visual_width`, keyed by `provided.seq` too), so a narrow tab scrolls to a swatch.
+- **Asset previews** (`CodePreviews_*`): on a constant (the preview first, then what it is: a
+  play button stays in view in a short tab), a string literal or a tag's `default=` naming an
+  asset or a scene. Pictures are made once, scaled down, kept by path and modification time (a
+  component's by its XML's hash) in a cache of at most 64. **Scenes get facts, no picture:**
+  drawing ForestScene took 200 ms on the editor's thread. Sounds: the length is read by
+  SDL3_mixer without decoding or opening the device (`AudioPreview_Length`, its own mixer); the
+  play button is a `Hover_Widget` whose click leaves `Code_Hover_Audio` for the code view to
+  send (it can't change State inside the code editor), update plays it through the audio
+  preview; `codeRenderKey` has the playing state, so the button turns back to ▶ when it ends.
+- **Engine docs** (`EngineDocs`): the engine's source parsed once per run on a worker (started
+  from the index's tick with the name table), docgen's rules (public declarations, `when`
+  blocks, the comment attached or ending on the line above); `EngineDocs_At` takes the name
+  after the file's import name (`IndexFile.engineAlias`). The hover renders the declaration,
+  the comment, Inputs / Returns bold, Example as code, and stands in for OLS's (which repeats
+  the declaration and the raw comment). **F1 in a code tab** is the host's
+  (`CodeEditor_View`: the editor's `User_Manual` chords are taken before the code editor, whose
+  own F1 opened its palette; Ctrl+Shift+P still does): the declaration at the caret's API page
+  (`EngineDoc_URL`: the area from `ENGINE_API_AREAS`, the anchor the name lower-cased, as the
+  website's build-api.mjs makes them; checked on crossfireengine.io for five names), else the
+  manual. Links go through `Links_Open` (`State.lastLink`; nothing opens while a script runs:
+  the driver's `last_link`), as Help > User Manual and the panels' Manual buttons do now.
+  **A new engine file needs an area in the website's api-groups.json and in
+  `ENGINE_API_AREAS`** (`engine_api_areas_match_the_website` and the docs test catch both).
+- **Color literals** (`ColorLiterals_InLine`): typed composites (`sdl.Color{...}`, whatever the
+  file imports vendor:sdl3 as; positional or named, 3 or 4 integers 0-255, decimal or hex),
+  `x: sdl.Color = {...}` (not `-> sdl.Color {`, a procedure body), hex in a color field's tag
+  and in `e.ParseColor("#...")`. The engine has no `e.Color` (its colors are `sdl.Color`) and
+  takes hex only in those places. A swatch's click leaves `Code_Color_Requested` (the literal's
+  line, bytes and text) for the view to send; the dialog (Skald's color picker, the hex, the
+  alpha; keys `code-color-picker`, `-hex`, `-alpha`, `-ok`, `-cancel`) writes on OK with
+  `CodeEditor_ApplyEdits` (one undo step in the tab), only when the literal is still there as
+  it was.
+- **Measured** (2026-10-23, the demo, `code_previews_of_every_kind` and
+  `engine_docs_read_render_and_link`, optimized; debug in brackets): a warm hover of every kind
+  14-30 µs; cold: an image 0.08 ms, an Aseprite file 15 ms (46), a sound's length 0.9 ms, a
+  font's sample 0.8 ms (1.0), a component's picture 10 ms (27), an animation strip 0.5-0.6 ms
+  (1.3-1.7), a dialogue or a scene's facts under 0.05 ms; the engine's docs read in 74 ms (225)
+  on the worker (1307 declarations, 100 files), a docs hover 3 µs (11).
+- **Tests:** code_editor's `providers_previews_test.odin`; `code_previews_test.odin` (every
+  kind on the demo with its timing, literals, fitting and strips, `ENGINE_API_AREAS` against the
+  website's file), `code_colors_test.odin` (every form read and written back; a real code tab:
+  swatches, the dialog, OK, one undo, a stale literal left alone), `engine_docs_test.odin`
+  (rendering, URLs, the name at a column, every engine file in an area);
+  `tests/ui/code_previews.script` (an image's hover, a sound's play button, an engine
+  procedure's docs, a swatch's dialog and undo, F1 both ways; driver: `code_hover_image`,
+  `code_hover_widget`, `code_click_hover_widget`, `code_swatch`, `code_click_swatch`,
+  `code_color_dialog`, `code_click`, `audio_loaded`, `last_link`). The driver's `code_hover`,
+  `code_click` and `code_click_swatch` scroll the line (and a swatch's column) into view first
+  (`CodeEditor_RevealLine` keeps clear of the last row: the horizontal scrollbar), and
+  `code_hover` moves twice, a frame apart (a tooltip still up on the first frame kept the code
+  view from the motion).
+
+#### The running game in the code
+
+See code_live.odin's and log_points.odin's doc blocks; the manual's "The running game in the code".
+
+- **code_editor grew** (its README, `providers_scrub.odin`): clickable inlay hints with
+  `choices` (a menu, then `on_inlay_click` with `hint.choice`); the `.Scrub` provider kind
+  (Alt+press on a number the provider accepts, a sideways drag, `.Change` values and `.End`
+  choices in the code actions menu, `on_scrub_choice`; the buffer untouched, the value drawn
+  over the literal; an Alt+click that doesn't move still toggles a cursor); the `.Menu` kind
+  (host entries after the right-click menu's own); gutter providers' `on_gutter_line` (the
+  marker column of a line without a marker). **Found doing it:** a marker's click went to the
+  first gutter provider with an `on_click`, whatever provider made it (one gutter provider
+  hid it); markers now keep their provider (`Provided.marker_providers`).
+- **The engine sends what's asked** (its live.odin): `fields <Script> <id> <field>...` (any
+  field, read by reflection: `e.LiveLink_FieldText`), sent with the stats; the tree's nodes say
+  which scripts they run (`LiveNode.scripts`). **Ask for what's shown:** `CodeLive_Frame`
+  (every `view`) works out the shown tab's visible lines' fields (`CODE_LIVE_MARGIN` more) and
+  `Live_Watch` sends only the watches that changed; no code tab or no game, they stop.
+  `CodeProviders_Begin`'s key has the live tree's and values' generations, the link, the Live
+  tab's choice, the selection and the log points, so hints follow them and go with the game.
+- **Which node** (`CodeLive_Target`): a pick from the struct hint's menu
+  (`LiveView.codePicks`, kept while the Live tab's choice and the selection stay as they were
+  then), else the Live tab's node, else the scene's selected node by its path in the running
+  scene of that name (`CodeLive_NodePath`, `CodeLive_ProjectNode`), else the first.
+- **Scrubbing (decided):** only numbers in an exported field's `default=` (vectors' numbers
+  too: the property keeps the other one), from the game's value, in the tag's range; each value
+  is `set` over the link (`Code_Scrub_Changed`, sent by the view: providers can't change
+  State). The release's menu (`CodeScrubWriteKind`): the code's default (`CodeEditor_ApplyEdits`,
+  one undo step in the tab, only when the literal is still as it was), the node's own value (a
+  `.Project` undo step: History_Classify; offered first when the node has its own value, and the
+  default's title then says the node keeps it), or the game only. **Plain literals in procedure
+  bodies aren't scrubbed:** they need a rebuild, and hot reload restarts the game, so it can't
+  follow a drag. The field hint shows the node's own value beside the game's.
+- **Log points (decided: the build's copy, never the user's file):** while any is on, the
+  player's main imports `logpoints:scripts` (`playerMainSource(logPoints)`, `PlayerTarget.logPoints`,
+  `-collection:logpoints=`), a copy of `scripts/` under `build/players/<project>/logpoints/`
+  written before each build (only changed files; a fourth input of `playerIsCurrent`), each
+  point's line starting with `e.Log_Debug("file:line: expr = %v", expr, category = "logpoint"); `
+  so no line moves (compiler errors land on the user's lines: `LogPoints_ProjectPaths` turns
+  the copy's paths back in the Output tab). Hot reload builds again when
+  `LogPoints_Signature` differs from `PlayReload.builtLogPoints` ("Hot reload: log points
+  changed"). A file not importing the engine gets an import at its end. Points follow their
+  line's text (`LogPoints_Relocate`, at each build and in the providers); refused or lost ones
+  are skipped with an Output warning. Exports never use them.
+- **Tests:** the engine's live_test.odin (`liveFieldsCheck`); code_editor's
+  `providers_scrub_test.odin`; `code_live_test.odin` (hints in a real code tab, the target
+  rules, the watches, a pick, gone when the game stops; literals; a scrub sent and written
+  back each way with undo, a vector, an int); `log_points_test.odin` (the statement, where one
+  can go, injection, relocation, the file, the dialog and marker commands, the copy compiling
+  with `odin check`, the paths); `tests/ui/code_live.script` (a fixture played: hints, two
+  scrubs seen in the game and written back both ways, a log point from the gutter rebuilt into
+  the game, its Console line clicked, turned off, the hints gone after Stop; driver:
+  `code_scrub`, `code_click_inlay`, checks `code_inlay_lacks`, `log_points`, `log_point`,
+  `logpoint_dialog`, `live_field`).
+
+#### Code actions
+
+See code_actions.odin's doc block; the manual's "Code actions (Ctrl+.)".
+
+- **code_editor grew** (its README): the `.Action` provider kind (`Provider_Action`: a title,
+  edits, a caret, a preview shown beside the menu as a drop choice's, `preferred`, an id;
+  `on_action` after the edits), listed after the diagnostics' fixes and before the server's
+  actions, at once and without a server; with nothing offered and no server the menu doesn't
+  open ("No code actions here").
+- **Read when asked:** Ctrl+. parses the tab's text again (`CodeActions_Read`, the index's parser
+  in an arena: about a millisecond) for the positions it writes at (a field's type end and tag
+  columns, a registration's literal and hooks with their braces, the declaration's attribute
+  line, procedures with their `self`); other files come from the script index (registrations,
+  node types' events, enums) and the catalog it keeps (fields to show, node fields to resolve).
+  No build. Only a closed struct counts (a half-typed one runs into what follows).
+- **The actions** (each only where it applies): **Handle <x>'s <event>** on a node field (its
+  line, or `self.x` in the script's procedures) whose type has events (an engine type: its
+  kind's `e.SceneNodeKind_Events`; a node type of the game's: its base kind's and its tagged
+  `EventSubject` fields), and on the struct's line, its `using` line or its registration for the
+  node it runs on (every node running it of one kind, through `e.Node_Is` and a cast; a node
+  type: its own). **Export x** (the default from the struct's procedures' first `self.x = ...`,
+  else the type's zero, a node field the first node that fits from the first node running it),
+  **Export x with a range...**, **Remove export from x**, **Set x's range...** (the Range dialog:
+  `CodeRange_Problem` refuses what isn't a number, a fraction for an int, min over max, a
+  default outside; `CodeRange_Write` checks the line is as it was), **Show x in the inspector**.
+  **Insert a switch over x's states** on a `^e.StateMachine` field in a procedure of the script
+  (or a blank line there, one per such field): the machine the field points to from the nodes
+  running the script (`CodeNames_FieldNodes`), a case per `STATE_` constant (the constants' group
+  says the machine; the providers' cache keeps groups since this round: drops of a sprite's own
+  animation now get its constant), in a nil check, placed as a drop's statement
+  (`CodeStatement_Edit`). **Register x as a script / node type** on a struct embedding
+  `e.Script` or an engine node type that nothing registers: New Script's registration
+  (`ScriptTemplate_Registration`), the `vendor:sdl3` import added when missing. **Add the <hook>
+  hook** on a registration: ready, update, draw, destroy; the physics four for bodies and areas;
+  sceneChanged and loaded for globals.
+- **Decided (handlers):** the subscription is code in `ready`
+  (`if self.door != nil do e.Event_Subscribe(&self.door.onOpened, Hero_onDoorOpened, self)`, the
+  handler `proc(_: ^e.EventSubject, source: rawptr, data: e.EventData, user: rawptr)` with
+  `self := cast(^Hero)user` and the event's data hint), as the demo's scripts subscribe, not a
+  scene listener as Listen... adds: it holds for every node running the script in every scene,
+  needs no scene edit (one undo step), and reads in the code. An event already subscribed in the
+  file isn't offered again. Listen... stays the way to wire one node's event to another node's
+  script.
+- **Decided (state machine constants):** the typed constants already are them (`STATE_` /
+  `PARAM_`), so the action inserts the switch over them instead.
+- **The jump both ways:** Show x in the inspector leaves `Code_Field_Reveal_Requested`
+  (`CodeActions_Take` sends it): `CodeActions_Reveal` selects a node running the script as its
+  first script (the selected one, else one in the open scene, else the first: its tab opens; a
+  global: Project Settings > Globals) and `Inspector_RevealWidget` pages the inspector's scroll
+  until the field's label (`Inspector_ScriptFieldKey`: `inspector-label-<field>-<node>`, always a
+  zone now) is drawn, then brings it into view (at most 60 frames). The label's right-click menu
+  (`Ctx_Script_Field`: Go to Declaration) and Ctrl+click send `Script_Field_Declaration_Requested`
+  (`ScriptField_Declaration`: the index's struct and field line), opened with `Script_Open`. Only
+  the node's first script's fields (the Script section's) have it.
+- **Tests:** code_editor's `providers_actions_test.odin`; `code_actions_test.odin` (the reading;
+  every action offered and not offered, what it writes, one undo step each, the caret, the Range
+  dialog with a refusal, the reveal and the declaration, a struct ending the file; and every
+  action's code applied together compiling with `odin check` and the project's assets.odin);
+  `tests/ui/code_actions.script` (each action through Ctrl+. and the menu, the Range dialog,
+  undo / redo, Show in the inspector, the label's Ctrl+click and menu, saved and built; driver:
+  `code_pick_action`, `code_line_end`, `code_click text`, `click_widget <key> ctrl`, check
+  `code_range_dialog`).
 
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 

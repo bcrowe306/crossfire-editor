@@ -4,17 +4,12 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
-## Code editor integration (asked 2026-10-23; build in this order)
+## Code editor integration (asked 2026-10-23; done 2026-10-24)
 
-The goal: the best Odin editing experience there is, because the editor knows the project (scenes,
-assets, actions, animations, the running game). Code and scene editing should feel like one
-environment: no memorizing how to refer to things in code. Everything goes through a small
-provider interface in code_editor (completion, hover, diagnostics, gutter, inlay, drop sources)
-that the editor fills in, so code_editor stays engine-agnostic. Not doing: a debugger (DAP), for now.
-
-7. **Engine-aware code actions:** add a handler for this node's event, export this field (with a
-   range), generate state machine constants, register this struct as a script, jump from an
-   inspector field to its declaration.
+Built in seven steps: providers, the script index and typed constants; names in strings; code and
+scene links; drops; hovers; the running game in the code; engine-aware code actions. CLAUDE.md's
+"The project in the code" describes it, the manual's code editor page is the guide. Not doing: a
+debugger (DAP), for now.
 
 Also queued (advised 2026-10-23, not yet approved): noticing assets added outside the editor
 (scan on project open and window focus; auto-add, mark missing, a Refresh); the Mixer showing a

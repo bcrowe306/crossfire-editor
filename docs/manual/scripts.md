@@ -342,6 +342,11 @@ Scripts open in **code tabs** beside the scene tabs, in the editor's built-in co
   "...")`, `e.AnimationPlayer_Play(&self.sprite.animation, "...")` and the other engine calls
   that take a name, the project's names of that kind complete, and one it doesn't have is
   underlined with a quick fix ([Names in strings](code_editor.md#names-in-strings-scenes-nodes-animations)).
+- **Ctrl+.** offers code actions where they apply: handle a node field's event (the handler and
+  its subscription in `ready`), export a field (with a range), a switch over a state machine's
+  states, register a struct, add a hook, show a field in the inspector. In the inspector,
+  Ctrl+click a script field's label (or right-click > **Go to Declaration**) to open it in the
+  code ([Code actions](code_editor.md#code-actions-ctrl)).
 
 You can use another program instead: untick **Edit > Settings... > Editor > Code editor** and
 set its path and arguments there (Zed by default). The editor writes `scripts/ols.json` so that
