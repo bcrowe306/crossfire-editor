@@ -1514,7 +1514,7 @@ undo_merge_timing :: proc(t: ^testing.T) {
 		}
 		now := time.Tick{ms * i64(time.Millisecond)}
 		command.started, command.last = now, now
-		History_Push(h, command, settings, now)
+		History_Push(h, &command, settings, now)
 	}
 	push(&h, &settings, node, 0)
 	push(&h, &settings, node, 400)
@@ -1813,7 +1813,7 @@ unsaved_changes_new_and_open_project :: proc(t: ^testing.T) {
 	// Quit with changes asks; Don't Save quits
 	send(&state, Node_Picked(0))
 	send(&state, Node_Field_Changed{.Rotation, 10})
-	state, _ = update(state, Msg(Action.Quit))
+	send(&state, Msg(Action.Quit))
 	testing.expect(t, state.session.confirm.open)
 	testing.expect_value(t, state.session.confirm.pending, PendingAction.Quit)
 	free_all(context.temp_allocator)
@@ -1986,7 +1986,7 @@ new_script_files :: proc(t: ^testing.T) {
 
 	send(&state, New_Script_Opened{})
 	send(&state, New_Script_Name_Changed("Mover"))
-	state, _ = update(state, Msg(New_Script_Created{}))
+	send(&state, Msg(New_Script_Created{}))
 	testing.expect(t, !state.newScript.open)
 	testing.expect(t, os.exists("build/test_script_project/scripts/mover.odin"))
 	testing.expect_value(t, len(state.scriptFiles), 1)

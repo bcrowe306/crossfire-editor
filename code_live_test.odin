@@ -97,10 +97,10 @@ code_live_values_in_a_code_tab :: proc(t: ^testing.T) {
 	node, candidates := CodeLive_Target(&state, "Hero")
 	testing.expect_value(t, len(candidates), 2)
 	testing.expect_value(t, state.live.nodes[node].name, "Spaceship")
-	state, _ = update(state, Msg(Live_Selected("c")))
+	send(&state, Msg(Live_Selected("c")))
 	node, _ = CodeLive_Target(&state, "Hero")
 	testing.expect_value(t, state.live.nodes[node].name, "Clone")
-	state, _ = update(state, Msg(Live_Selected("w")))
+	send(&state, Msg(Live_Selected("w")))
 	for n, i in state.project.scenes[1].nodes do if n.name == "Spaceship" do state.selectedNode = i
 	node, _ = CodeLive_Target(&state, "Hero")
 	testing.expect_value(t, state.live.nodes[node].name, "Spaceship")
@@ -110,10 +110,10 @@ code_live_values_in_a_code_tab :: proc(t: ^testing.T) {
 	CodeProviders_Begin(&state)
 	liveInlayClicked(ce.editor_provider_document(&c.ed), ce.Inlay_Hint{id = 0, choice = 1}, nil)
 	CodeProviders_End()
-	for m in CodeLive_Messages() do state, _ = update(state, m)
+	for m in CodeLive_Messages() do send(&state, m)
 	node, _ = CodeLive_Target(&state, "Hero")
 	testing.expect_value(t, state.live.nodes[node].name, "Clone")
-	state, _ = update(state, Msg(Live_Selected("s")))
+	send(&state, Msg(Live_Selected("s")))
 	node, _ = CodeLive_Target(&state, "Hero")
 	testing.expect_value(t, state.live.nodes[node].name, "Spaceship")
 
@@ -209,7 +209,7 @@ code_scrub_sends_and_writes_back :: proc(t: ^testing.T) {
 	CodeProviders_Begin(&state)
 	liveScrubChosen(doc, target, 320, "320", 1, nil)
 	CodeProviders_End()
-	for m in CodeLive_Messages() do state, _ = update(state, m)
+	for m in CodeLive_Messages() do send(&state, m)
 	testing.expect(t, strings.contains(cebuf.buffer_line_str(&c.ed.buf, 7), "default=320 min=0"), "written")
 	cebuf.buffer_undo(&c.ed.buf)
 	testing.expect(t, strings.contains(cebuf.buffer_line_str(&c.ed.buf, 7), "default=250 min=0"), "undone")
@@ -224,11 +224,11 @@ code_scrub_sends_and_writes_back :: proc(t: ^testing.T) {
 	liveScrubbed(doc, target, 330, "330", .End, nil, &choices)
 	liveScrubChosen(doc, target, 330, "330", 0, nil)
 	CodeProviders_End()
-	for m in CodeLive_Messages() do state, _ = update(state, m)
+	for m in CodeLive_Messages() do send(&state, m)
 	value := ""
 	for p in state.project.scenes[1].nodes[ship].props do if p.name == "speed" do value = p.value
 	testing.expect_value(t, value, "330")
-	state, _ = update(state, Msg(Action.Undo))
+	send(&state, Msg(Action.Undo))
 	for p in state.project.scenes[1].nodes[ship].props do if p.name == "speed" do value = p.value
 	testing.expect_value(t, value, "300")
 	testing.expect(t, strings.contains(cebuf.buffer_line_str(&c.ed.buf, 7), "default=250"), "the code untouched")
@@ -240,7 +240,7 @@ code_scrub_sends_and_writes_back :: proc(t: ^testing.T) {
 	liveScrubbed(doc, target, 340, "340", .End, nil, &choices)
 	liveScrubChosen(doc, target, 340, "340", 2, nil)
 	CodeProviders_End()
-	for m in CodeLive_Messages() do state, _ = update(state, m)
+	for m in CodeLive_Messages() do send(&state, m)
 	testing.expect(t, strings.contains(cebuf.buffer_line_str(&c.ed.buf, 7), "default=250"), "the code untouched")
 
 	// A vector's number: the property keeps the other one
@@ -298,4 +298,10 @@ code_paths_through_a_link :: proc(t: ^testing.T) {
 	watches := CodeLive_Watches(&state, path, 0, 30)
 	testing.expect_value(t, len(watches), 1)
 	testing.expect(t, Paths_Same(path, joinPath(real, SCRIPTS_FOLDER, "hero.odin", allocator = context.temp_allocator)), "one file, two spellings")
+}
+
+// Steps the State through a pointer (a State value per step kept 35 KB each in the test's frame)
+@(private="file")
+send :: proc(state: ^State, msg: Msg) {
+	state^, _ = update(state^, msg)
 }

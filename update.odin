@@ -17,14 +17,24 @@ Edits to the project are recorded for undo here: `History_Classify` says what a 
 which is copied before the message is applied and compared after (see history.odin).
 */
 update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
-	state := s
-	state.selectionSet = false
+	// One copy of the State, changed in place (applyMsg takes a pointer): every State value in
+	// this frame is 35 KB of stack in debug builds, and a Windows test thread has 1 MB
+	out := s
+	out.selectionSet = false
 	// Also before: code outside update (tests, the test driver) may have set selectedNode alone
-	Selection_Normalize(&state)
-	info := History_Classify(&state, m)
-	snap: EditSnapshot
-	if info.scope != .None do snap = History_Snapshot(&state, info)
-	out, command := applyMsg(state, m)
+	Selection_Normalize(&out)
+	// What the checks below compare with: the state before the message
+	state := Update_Before{
+		selectedNode = out.selectedNode,
+		currentScene = out.currentScene,
+		codeTab = out.codeTab,
+		browserSelection = out.browserSelection,
+		session = {opened = out.session.opened},
+	}
+	info := History_Classify(&out, m)
+	snap: ^EditSnapshot
+	if info.scope != .None do snap = History_Snapshot(&out, info)
+	command := applyMsg(&out, m)
 	// The Timeline follows the selected Animator; an edit elsewhere shows the scene as it is
 	// again, not the clip at the playhead
 	if info.scope != .None && !Timeline_IsEdit(m) do out.timeline.previewing = false
@@ -107,8 +117,16 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	// chose a new one. Then make the selection agree with selectedNode (selection.odin)
 	if (info.scope == .Scene || info.scope == .Project) && !out.selectionSet do clear(&out.selection)
 	Selection_Normalize(&out)
-	if info.scope != .None do History_Commit(&out, snap, time.tick_now())
+	if snap != nil do History_Commit(&out, snap, time.tick_now())
 	return out, command
+}
+
+// What `update` remembers of the State before a message, to see what the message changed
+@(private="file")
+Update_Before :: struct {
+	selectedNode, currentScene, codeTab: int,
+	browserSelection: BrowserItem,
+	session: struct { opened: int },
 }
 
 // Undo or Redo (they restore their step's mode themselves)
@@ -119,76 +137,75 @@ isUndoRedo :: proc(m: Msg) -> bool {
 }
 
 @(private="file")
-applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
-	out := s
+applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	// The open project's log points (read when the project changes: log_points.odin)
-	LogPoints_Follow(&out)
-	if command, handled := ContextMenu_Update(&out, m); handled do return out, command
+	LogPoints_Follow(out)
+	if command, handled := ContextMenu_Update(out, m); handled do return command
 	// Switching modes, and the Level mode's messages (before the LDtk ones: a level picked on the
 	// browser's world map selects it there while the Level mode shows)
-	if command, handled := Modes_Update(&out, m); handled do return out, command
-	if command, handled := LevelMode_Update(&out, m); handled do return out, command
-	if Console_Update(&out, m) do return out, {}
-	if ViewportTools_Update(&out, m) do return out, {}
-	if command, handled := SettingsDialog_Update(&out, m); handled do return out, command
-	if command, handled := Session_Update(&out, m); handled do return out, command
-	if command, handled := ProjectArchive_Update(&out, m); handled do return out, command
-	if command, handled := Git_Update(&out, m); handled do return out, command
-	if command, handled := LDtkEdit_Update(&out, m); handled do return out, command
-	if command, handled := AsepriteEdit_Update(&out, m); handled do return out, command
-	if command, handled := TileMapEdit_Update(&out, m); handled do return out, command
-	if TilePaint_Update(&out, m) do return out, {}
-	if command, handled := Timeline_Update(&out, m); handled do return out, command
-	if UIEdit_Update(&out, m) do return out, {}
-	if LightEdit_Update(&out, m) do return out, {}
-	if TouchEdit_Update(&out, m) do return out, {}
-	if command, handled := NodeScripts_Update(&out, m); handled do return out, command
-	if command, handled := AssetImport_Update(&out, m); handled do return out, command
-	if AtlasEdit_Update(&out, m) do return out, {}
-	if SkeletonEdit_Update(&out, m) do return out, {}
-	if DialogueEdit_Update(&out, m) do return out, {}
-	if command, handled := Plugins_Update(&out, m); handled do return out, command
-	if command, handled := ScriptIndex_Update(&out, m); handled do return out, command
-	if command, handled := CodeProviders_Update(&out, m); handled do return out, command
-	if command, handled := CodeColors_Update(&out, m); handled do return out, command
-	if command, handled := Docs_Update(&out, m); handled do return out, command
-	if command, handled := CodeActions_Update(&out, m); handled do return out, command
-	if CodeLive_Update(&out, m) do return out, {}
-	if LogPoints_Update(&out, m) do return out, {}
-	if command, handled := CodeDrag_Update(&out, m); handled do return out, command
-	if DialogueBoxEdit_Update(&out, m) do return out, {}
-	if LineEdit_Update(&out, m) do return out, {}
-	if command, handled := ShaderEdit_Update(&out, m); handled do return out, command
-	if NavEdit_Update(&out, m) do return out, {}
-	if Live_Update(&out, m) do return out, {}
-	if States_Update(&out, m) do return out, {}
-	if CameraTools_Update(&out, m) do return out, {}
-	if CameraEdit_Update(&out, m) do return out, {}
-	if SceneFlowEdit_Update(&out, m) do return out, {}
-	if ThemeEdit_Update(&out, m) do return out, {}
-	if MaterialEdit_Update(&out, m) do return out, {}
-	if TraceEdit_Update(&out, m) do return out, {}
-	if command, handled := ProjectSettings_Update(&out, m); handled do return out, command
-	if SceneSettings_Update(&out, m) do return out, {}
-	if command, handled := AnimEdit_Update(&out, m); handled do return out, command
-	if command, handled := CodeTabs_Update(&out, m); handled do return out, command
-	if Mixer_Update(&out, m) do return out, {}
-	if BusEffects_Update(&out, m) do return out, {}
-	if MusicLayers_Update(&out, m) do return out, {}
+	if command, handled := Modes_Update(out, m); handled do return command
+	if command, handled := LevelMode_Update(out, m); handled do return command
+	if Console_Update(out, m) do return {}
+	if ViewportTools_Update(out, m) do return {}
+	if command, handled := SettingsDialog_Update(out, m); handled do return command
+	if command, handled := Session_Update(out, m); handled do return command
+	if command, handled := ProjectArchive_Update(out, m); handled do return command
+	if command, handled := Git_Update(out, m); handled do return command
+	if command, handled := LDtkEdit_Update(out, m); handled do return command
+	if command, handled := AsepriteEdit_Update(out, m); handled do return command
+	if command, handled := TileMapEdit_Update(out, m); handled do return command
+	if TilePaint_Update(out, m) do return {}
+	if command, handled := Timeline_Update(out, m); handled do return command
+	if UIEdit_Update(out, m) do return {}
+	if LightEdit_Update(out, m) do return {}
+	if TouchEdit_Update(out, m) do return {}
+	if command, handled := NodeScripts_Update(out, m); handled do return command
+	if command, handled := AssetImport_Update(out, m); handled do return command
+	if AtlasEdit_Update(out, m) do return {}
+	if SkeletonEdit_Update(out, m) do return {}
+	if DialogueEdit_Update(out, m) do return {}
+	if command, handled := Plugins_Update(out, m); handled do return command
+	if command, handled := ScriptIndex_Update(out, m); handled do return command
+	if command, handled := CodeProviders_Update(out, m); handled do return command
+	if command, handled := CodeColors_Update(out, m); handled do return command
+	if command, handled := Docs_Update(out, m); handled do return command
+	if command, handled := CodeActions_Update(out, m); handled do return command
+	if CodeLive_Update(out, m) do return {}
+	if LogPoints_Update(out, m) do return {}
+	if command, handled := CodeDrag_Update(out, m); handled do return command
+	if DialogueBoxEdit_Update(out, m) do return {}
+	if LineEdit_Update(out, m) do return {}
+	if command, handled := ShaderEdit_Update(out, m); handled do return command
+	if NavEdit_Update(out, m) do return {}
+	if Live_Update(out, m) do return {}
+	if States_Update(out, m) do return {}
+	if CameraTools_Update(out, m) do return {}
+	if CameraEdit_Update(out, m) do return {}
+	if SceneFlowEdit_Update(out, m) do return {}
+	if ThemeEdit_Update(out, m) do return {}
+	if MaterialEdit_Update(out, m) do return {}
+	if TraceEdit_Update(out, m) do return {}
+	if command, handled := ProjectSettings_Update(out, m); handled do return command
+	if SceneSettings_Update(out, m) do return {}
+	if command, handled := AnimEdit_Update(out, m); handled do return command
+	if command, handled := CodeTabs_Update(out, m); handled do return command
+	if Mixer_Update(out, m) do return {}
+	if BusEffects_Update(out, m) do return {}
+	if MusicLayers_Update(out, m) do return {}
 	// The shown mode's panel sizes (editor_modes.odin): the Scene mode's or the Level mode's
-	layout := Mode_Layout(&out)
+	layout := Mode_Layout(out)
 
 	switch v in m {
 	case Action:
 		return handleAction(out, v)
 	case Play_Tick:
 		out.playTickPending = false
-		cmd := playTick(&out)
-		return out, cmd
+		cmd := playTick(out)
+		return cmd
 	case Export_Tick:
-		return out, exportTick(&out)
+		return exportTick(out)
 	case Export_Requested:
-		return out, Export_Start(&out, bit_set[ExportTarget](v))
+		return Export_Start(out, bit_set[ExportTarget](v))
 	case Settings_Code_Editor_Path_Changed, Settings_Code_Editor_Args_Changed, Settings_Code_Editor_Browse,
 	     Settings_Code_Editor_Picked, Settings_Optimized_Play_Changed, Settings_Hot_Reload_Changed, Settings_Wheel_Pans_Changed, Settings_Builtin_Editor_Changed, Settings_Auto_Close_Changed, Settings_OLS_Path_Changed, Settings_Odin_Path_Changed, Settings_LDtk_Path_Changed, Settings_Aseprite_Path_Changed, Settings_Audio_Device_Changed:
 		// Handled by SettingsDialog_Update above
@@ -276,7 +293,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Log_Categories_Shown, Log_Search_Changed, Log_Filters_Cleared, Log_Test_Lines:
 		// Handled by Console_Update above
 	case Audio_Field_Changed:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil || !isSoundKind(node.kind) do break
 		a := &node.audio
 		switch v.field {
@@ -289,14 +306,14 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Fade_Out:     a.fadeOut = max(v.value, 0)
 		}
 	case Audio_Flag_Changed:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil || !isSoundKind(node.kind) do break
 		switch v.flag {
 		case .Loop:      node.audio.loop = v.value
 		case .Autostart: node.audio.autostart = v.value
 		}
 	case Audio_Preview_Requested:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if !bool(v) || node == nil || node.sound == "" {
 			AudioPreview_Stop()
 			break
@@ -304,7 +321,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		path := joinPath(out.project.rootPath, node.sound, allocator = context.temp_allocator)
 		if !AudioPreview_IsLoaded(path) {
 			if message := AudioPreview_Load(path); message != "" {
-				logLine(&out, .Warning, fmt.aprintf("Preview: %s", message))
+				logLine(out, .Warning, fmt.aprintf("Preview: %s", message))
 				break
 			}
 		}
@@ -319,60 +336,60 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.session.assetsChanged = true
 		out.browserSelection = {kind = .Asset, folder = AssetFolder(v.kind), index = v.index}
 		out.browserOpen[AssetFolder(v.kind)] = true
-		logLine(&out, .Info, fmt.aprintf("%s is %s now", filepath.base(asset.path), v.kind == .Music ? "music (streamed)" : "a sound"))
-		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+		logLine(out, .Info, fmt.aprintf("%s is %s now", filepath.base(asset.path), v.kind == .Music ? "music (streamed)" : "a sound"))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(out, .Warning, strings.clone(message))
 	case Toolchain_Install_Requested:
 		if out.toolchainInstalling do break
 		out.toolchainInstalling = true
-		logLine(&out, .Info, fmt.aprintf("Installing Odin %s (about 70 MB)...", ODIN_VERSION))
-		return out, Toolchain_InstallOdin()
+		logLine(out, .Info, fmt.aprintf("Installing Odin %s (about 70 MB)...", ODIN_VERSION))
+		return Toolchain_InstallOdin()
 	case Toolchain_Emscripten_Requested:
 		if out.emscriptenInstalling do break
 		out.emscriptenInstalling = true
-		Mode_ShowLogTab(&out, .Output)
-		Mode_Layout(&out).bottomOpen = true
-		logLine(&out, .Info, fmt.aprintf("Installing Emscripten %s for web exports (about 1 GB, a few minutes; once per machine) into %s...", EMSDK_VERSION, Toolchain_DataDir()))
-		return out, Toolchain_InstallEmscripten()
+		Mode_ShowLogTab(out, .Output)
+		Mode_Layout(out).bottomOpen = true
+		logLine(out, .Info, fmt.aprintf("Installing Emscripten %s for web exports (about 1 GB, a few minutes; once per machine) into %s...", EMSDK_VERSION, Toolchain_DataDir()))
+		return Toolchain_InstallEmscripten()
 	case Toolchain_Emscripten_Finished:
 		out.emscriptenInstalling = false
 		waiting := out.exportAfterEmscripten
 		out.exportAfterEmscripten = {}
 		if v.problem != "" {
-			logLine(&out, .Error, fmt.aprintf("Installing Emscripten failed: %s", v.problem))
+			logLine(out, .Error, fmt.aprintf("Installing Emscripten failed: %s", v.problem))
 			delete(v.problem)
 			break
 		}
-		logLine(&out, .Info, fmt.aprintf("Installed Emscripten %s", EMSDK_VERSION))
+		logLine(out, .Info, fmt.aprintf("Installed Emscripten %s", EMSDK_VERSION))
 		// The export that asked for it goes on
-		if waiting != {} do return out, Export_Start(&out, waiting)
+		if waiting != {} do return Export_Start(out, waiting)
 	case Toolchain_Install_Finished:
 		out.toolchainInstalling = false
 		if v.problem != "" {
-			logLine(&out, .Error, fmt.aprintf("Installing Odin failed: %s", v.problem))
+			logLine(out, .Error, fmt.aprintf("Installing Odin failed: %s", v.problem))
 			delete(v.problem)
 		} else {
-			logLine(&out, .Info, fmt.aprintf("Installed Odin %s: %s", ODIN_VERSION, v.path))
+			logLine(out, .Info, fmt.aprintf("Installed Odin %s: %s", ODIN_VERSION, v.path))
 			delete(v.path)
 		}
 	case Open_Keyboard_Settings:
-		SettingsDialog_Open(&out)
+		SettingsDialog_Open(out)
 		out.settingsDialog.tab = .Keyboard
 	case Open_Grid_Settings:
-		ProjectSettings_Open(&out, .Grid)
+		ProjectSettings_Open(out, .Grid)
 
 	case Scripts_Auto_Build:
 		if out.scriptsAutoBuilt do break
 		out.scriptsAutoBuilt = true
-		return out, scriptsBuild(&out)
+		return scriptsBuild(out)
 	case Node_Script_Changed:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil do break
 		name := string(v) == TEXTURE_NONE ? "" : string(v)
 		if name == node.script do break
 		// None: the next of its more scripts becomes the first (node_scripts_edit.odin)
 		if name == "" {
 			NodeDef_RemoveFirstScript(node)
-			logLine(&out, .Info, fmt.aprintf("Removed the script from %s", node.name))
+			logLine(out, .Info, fmt.aprintf("Removed the script from %s", node.name))
 			break
 		}
 		// One of its more scripts chosen as the first: it isn't there twice
@@ -387,7 +404,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Values belonged to the old script
 		for prop in node.props { delete(prop.name); delete(prop.value) }
 		clear(&node.props)
-		logLine(&out, .Info, name == "" ? fmt.aprintf("Removed the script from %s", node.name) : fmt.aprintf("Attached %s to %s", name, node.name))
+		logLine(out, .Info, name == "" ? fmt.aprintf("Removed the script from %s", node.name) : fmt.aprintf("Attached %s to %s", name, node.name))
 	case New_Script_Kind_Changed:
 		out.newScript.kind = ScriptKind(v)
 	case New_Data_Opened:
@@ -406,7 +423,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case New_Data_Created:
 		index, problem := Project_CreateData(&out.project, out.newData.name, out.newData.type)
 		if problem != "" {
-			logLine(&out, .Error, fmt.aprintf("New data resource: %s", problem))
+			logLine(out, .Error, fmt.aprintf("New data resource: %s", problem))
 			break
 		}
 		out.newData.open = false
@@ -414,26 +431,26 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.browserOpen[.Data] = true
 		out.dataSelection = index
 		for asset, i in out.project.assets do if asset.path == out.project.data[index].path do out.browserSelection = {kind = .Asset, folder = .Data, index = i}
-		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
-		logLine(&out, .Info, fmt.aprintf("Created %s (%s)", out.project.data[index].path, out.project.data[index].type))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(out, .Warning, strings.clone(message))
+		logLine(out, .Info, fmt.aprintf("Created %s (%s)", out.project.data[index].path, out.project.data[index].type))
 	case Script_Prop_Changed:
 		switch t in v.target {
 		case SelectedNodeTarget:
-			if node := selectedNode(&out); node != nil do NodeDef_SetScriptValue(node, v.name, v.value, v.defaultValue)
+			if node := selectedNode(out); node != nil do NodeDef_SetScriptValue(node, v.name, v.value, v.defaultValue)
 		case DraftGlobalTarget:
 			globals := &out.projectSettings.globals
 			if int(t) >= 0 && int(t) < len(globals) do Props_Set(&globals[t].props, v.name, v.value, v.defaultValue)
 		case DataTarget:
 			if int(t) >= 0 && int(t) < len(out.project.data) do Props_Set(&out.project.data[t].values, v.name, v.value, v.defaultValue)
 		case NodeScriptTarget:
-			if node := selectedNode(&out); node != nil && int(t) >= 0 && int(t) < len(node.moreScripts) do Props_Set(&node.moreScripts[t].props, v.name, v.value, v.defaultValue)
+			if node := selectedNode(out); node != nil && int(t) >= 0 && int(t) < len(node.moreScripts) do Props_Set(&node.moreScripts[t].props, v.name, v.value, v.defaultValue)
 		case NodeCustomTarget:
-			if node := selectedNode(&out); node != nil do Props_Set(&node.customProps, v.name, v.value, v.defaultValue)
+			if node := selectedNode(out); node != nil do Props_Set(&node.customProps, v.name, v.value, v.defaultValue)
 		}
 	case Script_Open_File:
-		return out, Script_Open(&out, v.file, v.line)
+		return Script_Open(out, v.file, v.line)
 	case Editor_Process_Check:
-		return out, Editor_CheckProcesses(&out)
+		return Editor_CheckProcesses(out)
 	case New_Script_Opened:
 		delete(out.newScript.name)
 		out.newScript = {open = true, name = strings.clone(""), kind = out.newScript.kind}
@@ -447,16 +464,16 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		kind := out.newScript.kind
 		file, message := Project_CreateScript(&out.project, name, kind)
 		if message != "" {
-			logLine(&out, .Error, fmt.aprintf("New script: %s", message))
+			logLine(out, .Error, fmt.aprintf("New script: %s", message))
 			break
 		}
 		out.newScript.open = false
-		Scripts_Refresh(&out)
-		logLine(&out, .Info, fmt.aprintf("Created %s", file))
+		Scripts_Refresh(out)
+		logLine(out, .Info, fmt.aprintf("Created %s", file))
 		switch kind {
 		case .Node:
 			// Attach it to the selected node, open it, and build so its fields show up
-			if node := selectedNode(&out); node != nil {
+			if node := selectedNode(out); node != nil {
 				delete(node.script)
 				node.script = strings.clone(name)
 			}
@@ -465,10 +482,10 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			append(&out.project.globals, GlobalDef{script = strings.clone(name)})
 		case .Data:
 		}
-		path, line := Script_Location(&out, name)
+		path, line := Script_Location(out, name)
 		// The index reads it now: the Script section's rows don't move under the pointer later
-		ScriptIndex_ReadNow(&out, path)
-		return out, skald.cmd_batch(Script_Open(&out, path, line), scriptsBuild(&out))
+		ScriptIndex_ReadNow(out, path)
+		return skald.cmd_batch(Script_Open(out, path, line), scriptsBuild(out))
 
 	case Project_Settings_Name_Changed, Project_Settings_Scale_Changed, Project_Settings_Renderer_Changed, Project_Settings_Texture_Filter_Changed, Project_Settings_Background_Changed,
 	     Project_Settings_Start_Changed, Project_Settings_Locale_Changed, Project_Settings_Icon_Changed, Project_Settings_Size_Changed, Project_Settings_Applied, Project_Settings_Cancelled,
@@ -479,12 +496,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	     Steam_Setting_Changed, Steam_Achievement_Added, Steam_Achievement_Removed, Players_Setting_Changed:
 		// Handled by ProjectSettings_Update above
 	case Scene_Action:
-		return out, Scene_DoAction(&out, v)
+		return Scene_DoAction(out, v)
 	case Browser_Focus_Changed:
 		out.browserFocused = bool(v)
 	case Browser_Right_Clicked:
 		// Select the row (without opening a scene), so the context menu acts on it
-		rows := BrowserRows(&out)
+		rows := BrowserRows(out)
 		out.browserSelection = int(v) >= 0 && int(v) < len(rows) ? rows[v] : BrowserItem{kind = .None}
 	case Confirm_Chosen, New_Project_Name_Changed, New_Project_Location_Changed, New_Project_Browse,
 	     New_Project_Location_Chosen, New_Project_Created, New_Project_Cancelled, Open_Project_Chosen,
@@ -511,12 +528,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			out.viewport.tickPending = false
 			break
 		}
-		return out, nextViewportTick(&out.viewport)
+		return nextViewportTick(&out.viewport)
 	case Viewport_Tick_Requested:
 		if out.viewport.tickPending do break
 		out.viewport.tickPending = true
 		out.viewport.nextTick = time.tick_now()
-		return out, nextViewportTick(&out.viewport)
+		return nextViewportTick(&out.viewport)
 	case Script_Tick, Preview_Tick:
 		// Only keep frames coming (test script, viewport animations, audio progress)
 
@@ -531,7 +548,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.layout.previewHeight = max(out.layout.browserBodyHeight - f32(v) - DIVIDER, MIN_PREVIEW_HEIGHT)
 
 	case Asset_Import_Result:
-		return out, importChosen(&out, skald.File_Dialog_Result(v))
+		return importChosen(out, skald.File_Dialog_Result(v))
 
 	case Asset_Remove_Confirmed:
 		index := out.removeConfirm.asset
@@ -544,23 +561,23 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.session.assetsChanged = true
 		// A component's SceneDef goes too: the viewport and the undo steps leave it
 		if component := Project_FindComponent(&out.project, asset.path); component >= 0 {
-			if out.currentScene == component do openScene(&out, Project_FirstScene(&out.project))
+			if out.currentScene == component do openScene(out, Project_FirstScene(&out.project))
 			if out.currentScene > component do out.currentScene -= 1
 			History_SceneRemoved(&out.history, component)
 		}
 		if message := Project_RemoveAsset(&out.project, index, v.deleteFile); message != "" {
-			logLine(&out, .Error, fmt.aprintf("%s", message))
+			logLine(out, .Error, fmt.aprintf("%s", message))
 		} else {
-			logLine(&out, .Info, fmt.aprintf("%s %s%s", v.deleteFile ? "Deleted" : "Removed", name,
+			logLine(out, .Info, fmt.aprintf("%s %s%s", v.deleteFile ? "Deleted" : "Removed", name,
 				usage > 0 ? fmt.tprintf(" (still used by %d node%s)", usage, usage == 1 ? "" : "s") : ""))
 		}
 		out.browserSelection = {kind = .None}
-		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(out, .Warning, strings.clone(message))
 	case Asset_Remove_Cancelled:
 		out.removeConfirm = {}
 
 	case Rename_Started:
-		startRename(&out, int(v))
+		startRename(out, int(v))
 	case Rename_Text_Changed:
 		delete(out.rename.text)
 		out.rename.text = strings.clone(string(v))
@@ -574,18 +591,18 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			if out.rename.node >= 0 && out.rename.node < len(out.project.assets) do old = strings.clone(ComponentName(out.project.assets[out.rename.node].path), context.temp_allocator)
 			references, message := Project_RenameComponent(&out.project, out.rename.node, out.rename.text)
 			if message != "" {
-				logLine(&out, .Error, fmt.aprintf("Can't rename %s: %s", old, message))
+				logLine(out, .Error, fmt.aprintf("Can't rename %s: %s", old, message))
 			} else if old != strings.trim_space(out.rename.text) {
 				out.session.assetsChanged = true
-				logLine(&out, .Info, fmt.aprintf("Renamed component %s to %s (%d instance%s updated)", old, strings.trim_space(out.rename.text), references, references == 1 ? "" : "s"))
-				if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+				logLine(out, .Info, fmt.aprintf("Renamed component %s to %s (%d instance%s updated)", old, strings.trim_space(out.rename.text), references, references == 1 ? "" : "s"))
+				if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(out, .Warning, strings.clone(message))
 			}
 			delete(out.rename.text)
 			out.rename = {}
 			break
 		}
 		if out.rename.active && out.rename.target == .Scene {
-			Scene_CommitRename(&out)
+			Scene_CommitRename(out)
 			delete(out.rename.text)
 			out.rename = {}
 			break
@@ -593,7 +610,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		scene := &out.project.scenes[out.currentScene]
 		index, text := out.rename.node, strings.trim_space(out.rename.text)
 		if out.rename.active && index >= 0 && index < len(scene.nodes) && text != "" && text != scene.nodes[index].name {
-			logLine(&out, .Info, fmt.aprintf("Renamed %s to %s", scene.nodes[index].name, text))
+			logLine(out, .Info, fmt.aprintf("Renamed %s to %s", scene.nodes[index].name, text))
 			if isBodyKind(scene.nodes[index].kind) do Scene_RenameJointReferences(scene, scene.nodes[index].name, text)
 			// Stored paths (cameras' targets, script node fields...) keep leading to the same nodes
 			paths := NodePaths_Resolve(scene, &out.scripts)
@@ -611,7 +628,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.refocus = .None
 	case Number_Text_Changed:
 		// Applies when the text is a number, through the field's own message
-		if apply := NumberEdit_Update(&out, v); apply != nil do return applyMsg(out, apply)
+		if apply := NumberEdit_Update(out, v); apply != nil do return applyMsg(out, apply)
 	case Number_Edit_Ended:
 		if out.numberEdit.id == skald.Widget_ID(v) {
 			delete(out.numberEdit.text)
@@ -625,9 +642,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		Docs_Navigate(&out.docs, Docs_ManualAddress(string(v)))
 	case Frame_Requested:
 	case Quit_Without_Asking:
-		playStop(&out)
-		Export_Cancel(&out)
-		return out, skald.cmd_quit(Msg)
+		playStop(out)
+		Export_Cancel(out)
+		return skald.cmd_quit(Msg)
 
 	case Asset_Drag_Pressed:
 		out.assetDrag = {pressed = true, asset = v.asset, start = v.start}
@@ -639,13 +656,13 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		asset := out.assetDrag.asset
 		out.assetDrag = {}
 		// Where it lands decides what goes in (code_drops.odin)
-		message, added := CodeEditor_Drop(&out, CodeTabs_Active(&out), v.mouse, DropSource{kind = .Asset, node = -1, index = asset}, v.menu)
-		if message != "" do logLine(&out, added ? .Info : .Warning, strings.clone(message))
+		message, added := CodeEditor_Drop(out, CodeTabs_Active(out), v.mouse, DropSource{kind = .Asset, node = -1, index = asset}, v.menu)
+		if message != "" do logLine(out, added ? .Info : .Warning, strings.clone(message))
 	case Asset_Dropped:
 		asset := out.assetDrag.asset
 		out.assetDrag = {}
 		if asset >= 0 && asset < len(out.project.assets) && out.project.assets[asset].kind == .Component {
-			addInstance(&out, out.project.assets[asset].path, v.world)
+			addInstance(out, out.project.assets[asset].path, v.world)
 			break
 		}
 		// An animation asset: an AnimatedSprite playing it
@@ -654,13 +671,13 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			scene := &out.project.scenes[out.currentScene]
 			index := Scene_AddAnimatedSpriteAt(scene, path, out.selectedNode, v.world)
 			out.selectedNode = index
-			logLine(&out, .Info, fmt.aprintf("Added %s, playing %s", scene.nodes[index].name, filepath.base(path)))
+			logLine(out, .Info, fmt.aprintf("Added %s, playing %s", scene.nodes[index].name, filepath.base(path)))
 			break
 		}
 		if asset >= 0 && asset < len(out.project.assets) && out.project.assets[asset].kind == .LDtk {
 			index := Scene_AddLDtkAt(&out.project.scenes[out.currentScene], out.project.assets[asset].path, out.selectedNode, v.world)
 			out.selectedNode = index
-			logLine(&out, .Info, fmt.aprintf("Added %s, a level of %s", out.project.scenes[out.currentScene].nodes[index].name, filepath.base(out.project.assets[asset].path)))
+			logLine(out, .Info, fmt.aprintf("Added %s, a level of %s", out.project.scenes[out.currentScene].nodes[index].name, filepath.base(out.project.assets[asset].path)))
 			break
 		}
 		if asset < 0 || asset >= len(out.project.assets) || out.project.assets[asset].kind != .Image do break
@@ -668,12 +685,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if path := out.project.assets[asset].path; TileMapEdit_HasTilemaps(out.project.rootPath, path) {
 			index := Scene_AddTileMapAt(&out.project.scenes[out.currentScene], path, out.selectedNode, v.world)
 			out.selectedNode = index
-			logLine(&out, .Info, fmt.aprintf("Added %s, the tilemaps of %s", out.project.scenes[out.currentScene].nodes[index].name, filepath.base(path)))
+			logLine(out, .Info, fmt.aprintf("Added %s, the tilemaps of %s", out.project.scenes[out.currentScene].nodes[index].name, filepath.base(path)))
 			break
 		}
 		index := Scene_AddSpriteAt(&out.project.scenes[out.currentScene], out.project.assets[asset].path, out.selectedNode, v.world)
 		out.selectedNode = index
-		logLine(&out, .Info, fmt.aprintf("Added %s", out.project.scenes[out.currentScene].nodes[index].name))
+		logLine(out, .Info, fmt.aprintf("Added %s", out.project.scenes[out.currentScene].nodes[index].name))
 
 	case Add_Node_Search_Changed:
 		delete(out.addNode.search)
@@ -684,11 +701,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if count > 0 do out.addNode.highlight = clamp(out.addNode.highlight + int(v), 0, count - 1)
 	case Add_Node_Confirmed:
 		entries := AddNode_Entries(out.addNode.search, &out.scripts)
-		if out.addNode.highlight < len(entries) do addNodeChosen(&out, entries[out.addNode.highlight].kind, entries[out.addNode.highlight].custom)
+		if out.addNode.highlight < len(entries) do addNodeChosen(out, entries[out.addNode.highlight].kind, entries[out.addNode.highlight].custom)
 	case Add_Node_Kind_Chosen:
-		addNodeChosen(&out, NodeKind(v))
+		addNodeChosen(out, NodeKind(v))
 	case Add_Node_Type_Chosen:
-		if t := ScriptCatalog_FindNodeType(&out.scripts, string(v)); t != nil do addNodeChosen(&out, t.base, t.name)
+		if t := ScriptCatalog_FindNodeType(&out.scripts, string(v)); t != nil do addNodeChosen(out, t.base, t.name)
 	case Add_Node_Cancelled:
 		out.addNode.open = false
 
@@ -714,16 +731,16 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			if v.node < 0 || v.node >= len(scene.nodes) do break
 			// Alt+drag: the selection (the node with it) is duplicated, and the copies are dragged
 			if v.duplicate {
-				if !Selection_Contains(&out, v.node) {
+				if !Selection_Contains(out, v.node) {
 					clear(&out.selection)
 					out.selectedNode = v.node
-					Selection_Normalize(&out)
+					Selection_Normalize(out)
 				}
-				roots := slice.clone(Selection_Roots(&out), context.temp_allocator)
+				roots := slice.clone(Selection_Roots(out), context.temp_allocator)
 				at := slice_index(roots, v.node)
 				if at < 0 do break
 				copies := Scene_DuplicateNodes(scene, roots)
-				Selection_Set(&out, copies, copies[at])
+				Selection_Set(out, copies, copies[at])
 				drag.node = copies[at]
 				drag.duplicated = true
 			}
@@ -731,7 +748,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			v.node = drag.node
 			// Keeps a multi-selection that includes it (they move together)
 			out.selectedNode = v.node
-			if Selection_Contains(&out, v.node) do out.selectionSet = true
+			if Selection_Contains(out, v.node) do out.selectionSet = true
 			node := &scene.nodes[v.node]
 			world := Scene_WorldTransforms(scene)
 			drag.startPosition = node.position
@@ -758,12 +775,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			Guides_SnapNode(scene, drag.node, GUIDE_SNAP_PIXELS / max(out.viewport.zoom, VIEWPORT_MIN_ZOOM), drag.mode)
 		}
 		// The rest of the selection follows
-		if len(out.selection) > 1 && Selection_Contains(&out, drag.node) {
-			Viewport_FollowDrag(scene, drag.node, before, Selection_Roots(&out))
+		if len(out.selection) > 1 && Selection_Contains(out, drag.node) {
+			Viewport_FollowDrag(scene, drag.node, before, Selection_Roots(out))
 			out.selectionSet = true
 		}
 	case Viewport_Drag_End:
-		if out.viewport.drag.mode == .Box do boxSelect(&out, out.viewport.drag)
+		if out.viewport.drag.mode == .Box do boxSelect(out, out.viewport.drag)
 		if out.viewport.drag.mode == .Zoom_Box do ViewportTools_ZoomBox(&out.viewport, out.viewport.drag)
 		out.viewport.drag = {}
 
@@ -781,27 +798,27 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.layout.sceneTreeHeight = max(f32(v), MIN_SCENE_TREE_HEIGHT)
 	case Workspace_Measured:
 		// Every mode's workspace is the same area
-		for mode in EditorMode do Mode_LayoutOf(&out, mode).workspace = cast([2]f32)v
+		for mode in EditorMode do Mode_LayoutOf(out, mode).workspace = cast([2]f32)v
 
 	case Bottom_Tab_Changed:
 		// A tab only another mode has shows that mode (editor_modes.odin)
-		Mode_ShowBottomTab(&out, BottomTab(int(v)))
+		Mode_ShowBottomTab(out, BottomTab(int(v)))
 		// What git says may have changed since it was read
-		if BottomTab(int(v)) == .Git do return out, Git_Refresh(&out)
+		if BottomTab(int(v)) == .Git do return Git_Refresh(out)
 	case Scene_Tab_Changed:
 		out.codeTab = 0
-		tabs := ViewportTabScenes(&out)
-		if int(v) >= 0 && int(v) < len(tabs) do openScene(&out, tabs[v])
+		tabs := ViewportTabScenes(out)
+		if int(v) >= 0 && int(v) < len(tabs) do openScene(out, tabs[v])
 	case Scene_Tab_Closed:
-		tabs := ViewportTabScenes(&out)
+		tabs := ViewportTabScenes(out)
 		if int(v) < 0 || int(v) >= len(tabs) || len(tabs) < 2 do break
 		// A component with unsaved changes asks first (a scene stays in the project: its changes
 		// are saved with it)
-		if Scene_IsComponent(&out.project.scenes[tabs[v]]) && Scene_IsDirty(&out, tabs[v]) {
+		if Scene_IsComponent(&out.project.scenes[tabs[v]]) && Scene_IsDirty(out, tabs[v]) {
 			out.componentClose = {open = true, scene = tabs[v]}
 			break
 		}
-		closeSceneTab(&out, tabs[v])
+		closeSceneTab(out, tabs[v])
 	case Component_Close_Chosen:
 		index := out.componentClose.scene
 		out.componentClose = {}
@@ -810,17 +827,17 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		switch ConfirmChoice(v) {
 		case .Save:
 			if message := Project_WriteComponent(&out.project, scene); message != "" {
-				logLine(&out, .Error, strings.clone(message))
+				logLine(out, .Error, strings.clone(message))
 				break
 			}
-			logLine(&out, .Info, fmt.aprintf("Saved %s", scene.component))
-			closeSceneTab(&out, index)
+			logLine(out, .Info, fmt.aprintf("Saved %s", scene.component))
+			closeSceneTab(out, index)
 		case .Discard:
 			// Back to its file; its undo steps go (they'd undo into what was thrown away)
 			reloaded, problem := Project_LoadComponent(out.project.rootPath, scene.component)
 			if problem != "" {
 				SceneDef_Destroy(&reloaded)
-				logLine(&out, .Error, strings.clone(problem))
+				logLine(out, .Error, strings.clone(problem))
 				break
 			}
 			for &node in scene.nodes do NodeDef_Destroy(&node)
@@ -831,8 +848,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			Scene_MarkSaved(scene)
 			History_DropScene(&out.history, index)
 			if index == out.currentScene do out.selectedNode = -1
-			logLine(&out, .Info, fmt.aprintf("%s: changes thrown away", scene.component))
-			closeSceneTab(&out, index)
+			logLine(out, .Info, fmt.aprintf("%s: changes thrown away", scene.component))
+			closeSceneTab(out, index)
 		case .Cancel:
 		}
 	case Listener_Dialog_Opened:
@@ -841,9 +858,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Listener_Dialog_Cancelled:
 		out.listenerDialog.open = false
 	case Listener_Target_Chosen:
-		message, attached := Listener_Attach(&out, int(v))
+		message, attached := Listener_Attach(out, int(v))
 		out.listenerDialog.open = false
-		logLine(&out, attached ? .Info : .Warning, strings.clone(message))
+		logLine(out, attached ? .Info : .Warning, strings.clone(message))
 	case Listener_Removed:
 		scene := &out.project.scenes[out.currentScene]
 		if v.node < 0 || v.node >= len(scene.nodes) || v.index < 0 || v.index >= len(scene.nodes[v.node].listeners) do break
@@ -857,8 +874,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case LDtk_Entity_Framed:
 		out.viewport.center = cast([2]f32)v
 	case Global_Listen_Requested:
-		message, attached := Listener_Connect(&out, v.node, v.node, v.event, v.global)
-		logLine(&out, attached ? .Info : .Warning, strings.clone(message))
+		message, attached := Listener_Connect(out, v.node, v.node, v.event, v.global)
+		logLine(out, attached ? .Info : .Warning, strings.clone(message))
 	case New_Event_Opened:
 		NewEventDialog_Destroy(&out.newEvent)
 		out.newEvent = {open = true, script = strings.clone(string(v)), name = strings.clone("on"), description = strings.clone("")}
@@ -873,18 +890,18 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case New_Event_Cancelled:
 		out.newEvent.open = false
 	case New_Event_Created:
-		message, added := NewEvent_Insert(&out)
+		message, added := NewEvent_Insert(out)
 		if added do out.newEvent.open = false
-		logLine(&out, added ? .Info : .Warning, strings.clone(message))
+		logLine(out, added ? .Info : .Warning, strings.clone(message))
 	case Script_Usage_Clicked:
 		if v.scene < 0 || v.scene >= len(out.project.scenes) || v.node < 0 || v.node >= len(out.project.scenes[v.scene].nodes) do break
 		if Scene_IsComponent(&out.project.scenes[v.scene]) do out.project.scenes[v.scene].opened = true
-		openScene(&out, v.scene)
+		openScene(out, v.scene)
 		out.selectedNode = v.node
 	case Component_Opened:
 		if int(v) < 0 || int(v) >= len(out.project.scenes) || !Scene_IsComponent(&out.project.scenes[v]) do break
 		out.project.scenes[v].opened = true
-		openScene(&out, int(v))
+		openScene(out, int(v))
 	case Component_Rename_Started:
 		if int(v) < 0 || int(v) >= len(out.project.assets) || out.project.assets[v].kind != .Component do break
 		delete(out.rename.text)
@@ -893,15 +910,15 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		out.browserOpen[.Components] = true
 	case Component_Made_Unique:
 		old := ""
-		if node := selectedNode(&out); node != nil do old = strings.clone(ComponentName(node.component), context.temp_allocator)
+		if node := selectedNode(out); node != nil do old = strings.clone(ComponentName(node.component), context.temp_allocator)
 		path, message := Scene_MakeInstanceUnique(&out.project, out.currentScene, out.selectedNode)
 		if message != "" {
-			logLine(&out, .Error, fmt.aprintf("Can't make it unique: %s", message))
+			logLine(out, .Error, fmt.aprintf("Can't make it unique: %s", message))
 			break
 		}
 		out.session.assetsChanged = true
-		logLine(&out, .Info, fmt.aprintf("This instance has its own copy of %s now: %s", old, path))
-		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+		logLine(out, .Info, fmt.aprintf("This instance has its own copy of %s now: %s", old, path))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(out, .Warning, strings.clone(message))
 	case Component_New:
 		// The Add Node dialog picks its root's kind (newComponent makes it)
 		delete(out.addNode.search)
@@ -913,17 +930,17 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if out.selectedNode >= 0 && out.selectedNode < len(out.project.scenes[out.currentScene].nodes) {
 			world = Scene_WorldTransforms(&out.project.scenes[out.currentScene])[out.selectedNode].origin
 		}
-		addInstance(&out, out.project.assets[v].path, world)
+		addInstance(out, out.project.assets[v].path, world)
 	case Tool_Selected:
 		out.tool = Tool(v)
 
 	case Browser_Toggled:
-		rows := BrowserRows(&out)
+		rows := BrowserRows(out)
 		if int(v) < len(rows) && rows[v].kind == .Folder {
 			out.browserOpen[rows[v].folder] = !out.browserOpen[rows[v].folder]
 		}
 	case Browser_Selected:
-		rows := BrowserRows(&out)
+		rows := BrowserRows(out)
 		if int(v) >= len(rows) do break
 		item := rows[v]
 		out.browserSelection = item
@@ -931,9 +948,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Folder:
 			out.browserOpen[item.folder] = !out.browserOpen[item.folder]
 		case .Scene:
-			openScene(&out, item.index)
+			openScene(out, item.index)
 		case .Asset:
-			selectAsset(&out, item.index)
+			selectAsset(out, item.index)
 		case .Script:
 			// The preview shows its source; a double-click opens it (view_browser.odin's browserMouse)
 		case .None:
@@ -957,9 +974,9 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		clear(&out.selection)
 		out.selectedNode = int(v)
 	case Node_Pick_Toggled:
-		if int(v) >= 0 do Selection_Toggle(&out, int(v))
+		if int(v) >= 0 do Selection_Toggle(out, int(v))
 	case Node_Pick_Added:
-		if int(v) >= 0 && !Selection_Contains(&out, int(v)) do Selection_Toggle(&out, int(v))
+		if int(v) >= 0 && !Selection_Contains(out, int(v)) do Selection_Toggle(out, int(v))
 	case Node_Primary_Picked:
 		out.selectedNode = int(v)
 		out.selectionSet = true
@@ -968,7 +985,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		if v.row < 0 || v.row >= len(rows) do break
 		node := rows[v.row]
 		if !v.range || out.selectedNode < 0 {
-			Selection_Toggle(&out, node)
+			Selection_Toggle(out, node)
 			break
 		}
 		// Shift: every row between the primary node's row and this one
@@ -977,12 +994,12 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		nodes := make([dynamic]int, context.temp_allocator)
 		append(&nodes, ..out.selection[:])
 		for i in min(from, v.row)..=max(from, v.row) do append(&nodes, rows[i])
-		Selection_Set(&out, nodes[:], node)
+		Selection_Set(out, nodes[:], node)
 	case Node_Right_Clicked:
 		// On a node of a multi-selection the menu acts on all of them; elsewhere, just that node
 		rows := SceneTreeRows(&out.project.scenes[out.currentScene])
 		node := int(v) >= 0 && int(v) < len(rows) ? rows[v] : -1
-		if node >= 0 && Selection_Contains(&out, node) {
+		if node >= 0 && Selection_Contains(out, node) {
 			out.selectedNode = node
 			out.selectionSet = true
 		} else {
@@ -1002,8 +1019,8 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Where it lands decides what goes in (code_drops.odin)
 		scene := &out.project.scenes[out.currentScene]
 		name := node >= 0 && node < len(scene.nodes) ? scene.nodes[node].name : ""
-		message, added := CodeEditor_Drop(&out, CodeTabs_Active(&out), v.mouse, DropSource{kind = .Node, name = name, node = node, index = -1}, v.menu)
-		if message != "" do logLine(&out, added ? .Info : .Warning, strings.clone(message))
+		message, added := CodeEditor_Drop(out, CodeTabs_Active(out), v.mouse, DropSource{kind = .Node, name = name, node = node, index = -1}, v.menu)
+		if message != "" do logLine(out, added ? .Info : .Warning, strings.clone(message))
 	case Tree_Drag_Dropped:
 		scene := &out.project.scenes[out.currentScene]
 		node := out.treeDrag.node
@@ -1014,11 +1031,11 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			out.selectedNode = index
 			out.viewport.drag = {}
 			parent := scene.nodes[index].parent
-			logLine(&out, .Info, parent >= 0 ? fmt.aprintf("Moved %s into %s", name, scene.nodes[parent].name) : fmt.aprintf("Moved %s to the top level", name))
+			logLine(out, .Info, parent >= 0 ? fmt.aprintf("Moved %s into %s", name, scene.nodes[parent].name) : fmt.aprintf("Moved %s to the top level", name))
 		}
 
 	case Node_Renamed:
-		if node := selectedNode(&out); node != nil {
+		if node := selectedNode(out); node != nil {
 			// Joints follow a renamed body
 			if isBodyKind(node.kind) do Scene_RenameJointReferences(&out.project.scenes[out.currentScene], node.name, string(v))
 			// Stored paths (cameras' targets, script node fields...) keep leading to the same nodes
@@ -1029,25 +1046,25 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			NodePaths_Repath(&out.project.scenes[out.currentScene], paths)
 		}
 	case Node_Visibility_Changed:
-		if node := selectedNode(&out); node != nil do node.visible = bool(v)
+		if node := selectedNode(out); node != nil do node.visible = bool(v)
 	case Inspector_Link_Toggled:
 		out.inspectorLinks[LinkedPair(v)] = !out.inspectorLinks[LinkedPair(v)]
 	case Particle_Field_Changed:
-		if node := selectedNode(&out); node != nil && node.kind == .ParticleEmitter do e.ParticleSettings_Set(&node.particles, v.name, v.value)
+		if node := selectedNode(out); node != nil && node.kind == .ParticleEmitter do e.ParticleSettings_Set(&node.particles, v.name, v.value)
 	case Particle_Axis_Changed:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil || node.kind != .ParticleEmitter || v.axis < 0 || v.axis > 1 do break
 		ParticleSettings_SetAxis(&node.particles, v.name, v.axis, v.value, ParticleField_Index(v.name) in out.particleLinks)
 	case Particle_Link_Toggled:
 		if int(v) >= 0 && int(v) < 64 do out.particleLinks ~= {int(v)}
 	case Particles_Reset:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil || node.kind != .ParticleEmitter do break
 		node.particles = e.DEFAULT_PARTICLE_SETTINGS
 		delete(node.texture)
 		node.texture = strings.clone("")
 	case Ramp_Edited:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil || node.kind != .ParticleEmitter do break
 		if e.ParticleSettings_Set(&node.particles, "colorRamp", v.text) do out.rampStop = v.selected
 	case Ramp_Stop_Selected:
@@ -1055,7 +1072,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	case Ramp_Drag_Changed:
 		out.rampDragging = bool(v)
 	case Node_Field_Changed:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil do break
 		value := f32(v.value)
 		// A linked pair: the other axis follows in proportion
@@ -1099,7 +1116,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Nine_Height:     node.nineSize.y = max(value, 0)
 		}
 	case Node_Text_Changed:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil do break
 		// Msg strings only live for the frame, so keep copies
 		switch v.field {
@@ -1130,7 +1147,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			path := v.value == TEXTURE_NONE ? "" : v.value
 			current := &out.project.scenes[out.currentScene]
 			if path != "" && Component_Contains(&out.project, path, current.component) {
-				logLine(&out, .Warning, fmt.aprintf("%s holds %s: an instance of it can't go inside it", ComponentName(path), current.name))
+				logLine(out, .Warning, fmt.aprintf("%s holds %s: an instance of it can't go inside it", ComponentName(path), current.name))
 				break
 			}
 			delete(node.component)
@@ -1179,7 +1196,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 			node.bodyB = strings.clone(v.value == JOINT_BODY_NONE ? "" : v.value)
 		}
 	case Node_Flag_Changed:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil do break
 		switch v.flag {
 		case .Centered:       node.centered = v.value
@@ -1197,7 +1214,7 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		case .Effect_Screen_Layers: node.effectScreenLayers = v.value
 		}
 	case Node_Layer_Toggled:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil || v.layer < 1 || v.layer > 64 do break
 		bits := v.mask ? &node.collisionMask : &node.collisionLayer
 		bits^ ~= 1 << u64(v.layer - 1)
@@ -1205,70 +1222,69 @@ applyMsg :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 		// Keep the typed text (like a number field), apply it when every point reads
 		delete(out.numberEdit.text)
 		out.numberEdit = {id = v.id, text = strings.clone(v.text)}
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		points, ok := e.ParsePoints(v.text)
 		if node == nil || !ok do break
 		clear(&node.points)
 		append(&node.points, ..points)
 	}
-	return out, {}
+	return {}
 }
 
 @(private="file")
-handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
-	out := s
+handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 	// With the browser focused, Delete, Ctrl+D/C/X/V and F2 act on its selected scene
-	if sceneAction, routed := Browser_RouteAction(&out, action); routed {
-		return out, Scene_DoAction(&out, sceneAction)
+	if sceneAction, routed := Browser_RouteAction(out, action); routed {
+		return Scene_DoAction(out, sceneAction)
 	}
 	switch action {
 	case .Quit:
-		return out, Session_Request(&out, .Quit)
+		return Session_Request(out, .Quit)
 	case .New_Project:
-		return out, Session_Request(&out, .New_Project)
+		return Session_Request(out, .New_Project)
 	case .Open_Project:
-		return out, Session_Request(&out, .Open_Project)
+		return Session_Request(out, .Open_Project)
 	case .Save_Project_As:
-		Session_OpenSaveAs(&out)
+		Session_OpenSaveAs(out)
 	case .Open_Project_Archive:
-		return out, Session_Request(&out, .Open_Project_Archive)
+		return Session_Request(out, .Open_Project_Archive)
 	case .Export_Project_Archive:
-		return out, ProjectArchive_Export(&out)
+		return ProjectArchive_Export(out)
 	case .Export_Project_Archive_With_History:
-		return out, ProjectArchive_Export(&out, includeGit = true)
+		return ProjectArchive_Export(out, includeGit = true)
 
 	case .Save_Project:
 		// Saved scripts are built again in the background: the inspector learns new fields
-		scripts := CodeTabs_AnyDirty(&out)
-		if Session_Save(&out) && scripts do return out, scriptsBuildQuietly(&out)
+		scripts := CodeTabs_AnyDirty(out)
+		if Session_Save(out) && scripts do return scriptsBuildQuietly(out)
 	case .Play:
-		cmd := playStart(&out)
-		return out, cmd
+		cmd := playStart(out)
+		return cmd
 	case .Play_Scene:
 		if Scene_IsComponent(&out.project.scenes[out.currentScene]) {
-			logLine(&out, .Warning, strings.clone("A component can't play on its own: play a scene that has an instance of it"))
+			logLine(out, .Warning, strings.clone("A component can't play on its own: play a scene that has an instance of it"))
 			break
 		}
-		return out, playStart(&out, out.project.scenes[out.currentScene].name)
+		return playStart(out, out.project.scenes[out.currentScene].name)
 	case .Save_As_Component:
 		name := out.selectedNode >= 0 && out.selectedNode < len(out.project.scenes[out.currentScene].nodes) ? strings.clone(out.project.scenes[out.currentScene].nodes[out.selectedNode].name, context.temp_allocator) : ""
 		index, message := Scene_SaveBranchAsComponent(&out.project, out.currentScene, out.selectedNode)
 		if message != "" {
-			logLine(&out, .Error, fmt.aprintf("Can't save as a component: %s", message))
+			logLine(out, .Error, fmt.aprintf("Can't save as a component: %s", message))
 			break
 		}
 		out.session.assetsChanged = true
 		clear(&out.selection)
-		logLine(&out, .Info, fmt.aprintf("Saved %s as component %s; it's an instance of it now", name, out.project.scenes[index].component))
-		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(&out, .Warning, strings.clone(message))
+		logLine(out, .Info, fmt.aprintf("Saved %s as component %s; it's an instance of it now", name, out.project.scenes[index].component))
+		if message := Scripts_WriteAssetsFile(&out.project); message != "" do logLine(out, .Warning, strings.clone(message))
 	case .Open_Project_Settings:
-		ProjectSettings_Open(&out)
+		ProjectSettings_Open(out)
 	case .Pause:
-		playPause(&out)
+		playPause(out)
 	case .Stop:
-		playStop(&out)
+		playStop(out)
 	case .Restart:
-		return out, playRestart(&out)
+		return playRestart(out)
 
 	case .Add_Node:
 		// Opens the dialog; the node is added when a kind is picked
@@ -1276,44 +1292,44 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		out.addNode = {open = true}
 	// These act on every selected node (the selection's roots: see selection.odin)
 	case .Duplicate_Node:
-		roots := Selection_Roots(&out)
+		roots := Selection_Roots(out)
 		if len(roots) == 0 do break
 		scene := &out.project.scenes[out.currentScene]
 		primary := slice_index(roots, out.selectedNode)
 		copies := Scene_DuplicateNodes(scene, roots)
-		Selection_Set(&out, copies, primary >= 0 ? copies[primary] : -1)
-		logLine(&out, .Info, fmt.aprintf("Duplicated %s", describeNodes(scene, copies)))
+		Selection_Set(out, copies, primary >= 0 ? copies[primary] : -1)
+		logLine(out, .Info, fmt.aprintf("Duplicated %s", describeNodes(scene, copies)))
 	case .Copy_Node, .Cut_Node:
-		roots := Selection_Roots(&out)
+		roots := Selection_Roots(out)
 		if len(roots) == 0 do break
 		scene := &out.project.scenes[out.currentScene]
 		Subtree_Destroy(&out.clipboard)
 		out.clipboard = Scene_CopyNodes(scene, roots)
 		names := describeNodes(scene, roots)
 		if action == .Copy_Node {
-			logLine(&out, .Info, fmt.aprintf("Copied %s", names))
+			logLine(out, .Info, fmt.aprintf("Copied %s", names))
 			break
 		}
-		logLine(&out, .Info, fmt.aprintf("Cut %s", names))
+		logLine(out, .Info, fmt.aprintf("Cut %s", names))
 		Scene_RemoveNodes(scene, roots)
 		out.selectedNode = -1
 		out.viewport.drag = {}
 	case .Paste_Node:
 		if len(out.clipboard) == 0 {
-			logLine(&out, .Info, strings.clone("Nothing to paste: copy a node first"))
+			logLine(out, .Info, strings.clone("Nothing to paste: copy a node first"))
 			break
 		}
 		// Into the selected node, like Add Node
 		scene := &out.project.scenes[out.currentScene]
-		parent := selectedNode(&out) != nil ? out.selectedNode : -1
+		parent := selectedNode(out) != nil ? out.selectedNode : -1
 		roots := Scene_PasteNodes(scene, out.clipboard[:], parent)
-		Selection_Set(&out, roots, roots[0])
-		logLine(&out, .Info, fmt.aprintf("Pasted %s", describeNodes(scene, roots)))
+		Selection_Set(out, roots, roots[0])
+		logLine(out, .Info, fmt.aprintf("Pasted %s", describeNodes(scene, roots)))
 	case .Select_All:
 		scene := &out.project.scenes[out.currentScene]
 		all := make([]int, len(scene.nodes), context.temp_allocator)
 		for &n, i in all do n = i
-		if len(all) > 0 do Selection_Set(&out, all, out.selectedNode >= 0 ? out.selectedNode : 0)
+		if len(all) > 0 do Selection_Set(out, all, out.selectedNode >= 0 ? out.selectedNode : 0)
 	case .Toggle_Grid:
 		out.viewport.gridVisible = !out.viewport.gridVisible
 	case .Toggle_Collision_Shapes:
@@ -1324,29 +1340,29 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		// A project setting (undoable, saved with the project); exports turn it off. It flips
 		// what the toolbar shows: a running game's shapes (F9 may have changed them there), which
 		// the project then agrees with, and the game too, over the live link
-		on := !PhysicsDebug_Shown(&out)
+		on := !PhysicsDebug_Shown(out)
 		out.project.physics.debugDraw = on
-		sent := Live_SetShapes(&out, on)
+		sent := Live_SetShapes(out, on)
 		message := on ? "The game shows its collision shapes (not in exports; F9 toggles them while playing)" : "The game hides its collision shapes (F9 shows them while playing)"
 		if sent do message = on ? "The game shows its collision shapes, now and when played (not in exports)" : "The game hides its collision shapes, now and when played"
-		logLine(&out, .Info, strings.clone(message))
+		logLine(out, .Info, strings.clone(message))
 	case .Toggle_Snap:
 		out.viewport.snap = !out.viewport.snap
 
 	case .Delete_Node:
-		roots := Selection_Roots(&out)
+		roots := Selection_Roots(out)
 		if len(roots) == 0 do break
 		scene := &out.project.scenes[out.currentScene]
-		logLine(&out, .Info, fmt.aprintf("Deleted %s", describeNodes(scene, roots)))
+		logLine(out, .Info, fmt.aprintf("Deleted %s", describeNodes(scene, roots)))
 		Scene_RemoveNodes(scene, roots)
 		out.selectedNode = -1
 		out.viewport.drag = {}
 
 	case .Toggle_Bottom_Panel:
-		Mode_Layout(&out).bottomOpen = !Mode_Layout(&out).bottomOpen
+		Mode_Layout(out).bottomOpen = !Mode_Layout(out).bottomOpen
 	case .Clear_Console:
 		// Clears whichever log tab is showing
-		LogList_Clear(logListOf(&out, Mode_BottomTab(&out) == .Output))
+		LogList_Clear(logListOf(out, Mode_BottomTab(out) == .Output))
 
 	case .Tool_Select: out.tool = .Select
 	case .Tool_Move:   out.tool = .Move
@@ -1395,7 +1411,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 		}
 		// The nudge is in world units; convert it into each parent's space
 		world := Scene_WorldTransforms(scene)
-		for root in Selection_Roots(&out) {
+		for root in Selection_Roots(out) {
 			node := &scene.nodes[root]
 			local := delta
 			if node.parent >= 0 do local = e.Transform2D_ApplyVector(e.Transform2D_Inverse(world[node.parent]), delta)
@@ -1413,7 +1429,7 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 			{"Translations (CSV)", IMPORT_TRANSLATION_PATTERN},
 		}
 		// Several files at once, from where the last ones came from
-		return out, skald.cmd_open_file_dialog(filters[:], importDialogResult,
+		return skald.cmd_open_file_dialog(filters[:], importDialogResult,
 			default_location = FixedText_String(&out.settings.importFolder), allow_many = true)
 	case .Remove_Asset:
 		if out.browserSelection.kind == .Asset {
@@ -1430,60 +1446,60 @@ handleAction :: proc(s: State, action: Action) -> (State, skald.Command(Msg)) {
 
 	case .Undo:
 		shapes := out.project.physics.debugDraw
-		if label, ok := History_Undo(&out); ok {
-			logLine(&out, .Info, fmt.aprintf("Undo: %s", label))
+		if label, ok := History_Undo(out); ok {
+			logLine(out, .Info, fmt.aprintf("Undo: %s", label))
 		} else {
-			logLine(&out, .Info, strings.clone("Nothing to undo"))
+			logLine(out, .Info, strings.clone("Nothing to undo"))
 		}
 		// The game's collision shapes follow an undone toggle (Toggle_Physics_Debug)
-		if out.project.physics.debugDraw != shapes do Live_SetShapes(&out, out.project.physics.debugDraw)
+		if out.project.physics.debugDraw != shapes do Live_SetShapes(out, out.project.physics.debugDraw)
 	case .Redo:
 		shapes := out.project.physics.debugDraw
-		if label, ok := History_Redo(&out); ok {
-			logLine(&out, .Info, fmt.aprintf("Redo: %s", label))
+		if label, ok := History_Redo(out); ok {
+			logLine(out, .Info, fmt.aprintf("Redo: %s", label))
 		} else {
-			logLine(&out, .Info, strings.clone("Nothing to redo"))
+			logLine(out, .Info, strings.clone("Nothing to redo"))
 		}
-		if out.project.physics.debugDraw != shapes do Live_SetShapes(&out, out.project.physics.debugDraw)
+		if out.project.physics.debugDraw != shapes do Live_SetShapes(out, out.project.physics.debugDraw)
 	case .Rename_Node:
-		startRename(&out, out.selectedNode)
+		startRename(out, out.selectedNode)
 	case .Build_Scripts:
-		Scripts_Refresh(&out)
-		return out, scriptsBuild(&out)
+		Scripts_Refresh(out)
+		return scriptsBuild(out)
 	case .Add_Script:
 		// From the scene tree's menu: a node without a script gets New Script (a node script)
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil do break
 		if node.script != "" {
-			path, line := Script_Location(&out, node.script)
-			return out, Script_Open(&out, path, line)
+			path, line := Script_Location(out, node.script)
+			return Script_Open(out, path, line)
 		}
 		delete(out.newScript.name)
 		out.newScript = {open = true, name = strings.clone(""), kind = .Node}
 	case .Open_Script:
-		node := selectedNode(&out)
+		node := selectedNode(out)
 		if node == nil || node.script == "" {
-			logLine(&out, .Info, strings.clone("The selected node has no script"))
+			logLine(out, .Info, strings.clone("The selected node has no script"))
 			break
 		}
-		path, line := Script_Location(&out, node.script)
-		return out, Script_Open(&out, path, line)
+		path, line := Script_Location(out, node.script)
+		return Script_Open(out, path, line)
 	case .Close_Code_Tab:
-		if out.codeTab > 0 do return out, skald.cmd_now(Msg(Code_Tab_Close_Requested(out.codeTab - 1)))
+		if out.codeTab > 0 do return skald.cmd_now(Msg(Code_Tab_Close_Requested(out.codeTab - 1)))
 	case .Mode_Scene, .Mode_Level:
 		// Modes_Update switches (editor_modes.odin)
 	case .Open_Settings:
-		SettingsDialog_Open(&out)
+		SettingsDialog_Open(out)
 	case .Export:
 		enabled: bit_set[ExportTarget]
 		for t, target in out.project.exports.targets do if t.enabled do enabled += {target}
-		return out, Export_Start(&out, enabled)
+		return Export_Start(out, enabled)
 	case .About:
 		out.aboutOpen = true
 	case .User_Manual:
-		Docs_Navigate(&out.docs, Docs_HelpAddress(&out, docsPointerPanel))
+		Docs_Navigate(&out.docs, Docs_HelpAddress(out, docsPointerPanel))
 	}
-	return out, {}
+	return {}
 }
 
 // Shows another scene in the viewport, clearing the selection

@@ -3427,6 +3427,17 @@ Match the engine's style:
   History_Push (whose UndoCommand copies were 25 KB each: now pointers), overflowed it on
   Windows CI (v0.1.0-dev.66, "Signal caught: Unknown"). Check a frame with `objdump -d` of
   the test binary (`odin build . -build-mode:test -debug`) and `sub $N,%rsp`.
+- **`update` keeps one State** (2026-10-24): `applyMsg` and `handleAction` change it through a
+  pointer (`applyMsg(&out, m) -> Command`), `update` remembers what it compares in a small
+  `Update_Before`, and the history's big values live on the heap: `History_Snapshot` returns an
+  `^EditSnapshot` that `History_Commit` frees, the command is built on the heap and pushed by
+  pointer, and `ProjectChange` holds `^ProjectSnapshot`s (12 KB each), so an `UndoCommand` is
+  about 5 KB, not 25. Debug frames before / after: `History_Commit` 250 / 30 KB, `applyMsg`
+  151 / 40 KB, `update` 139 / 37 KB, `History_Snapshot` 59 / 3.5 KB, `History_Push` 26 / 0.7 KB;
+  the tests that still stepped by value (code_colors, log_points, code_live, two in
+  editor_test) use `send` now (`code_color_swatches_in_a_code_tab` 449 / 91 KB). Debug builds
+  give every local of every `switch` case its own slot, so a big value in one case costs the
+  whole procedure: keep them behind pointers in procedures on `update`'s path.
 - **Delete folders with `removeAll`** (export_run.odin), never `os.remove_all`: on Windows that
   goes through the shell (SHFileOperationW), whose COM copy hooks crashed the tests running on
   several threads.

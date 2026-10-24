@@ -87,16 +87,16 @@ code_color_swatches_in_a_code_tab :: proc(t: ^testing.T) {
 	CodeProviders_End()
 	request, ok := CodeColors_TakeRequest()
 	if !testing.expect(t, ok && request.color == {255, 0, 0, 255} && request.form == .Composite, "the literal's request") do return
-	state, _ = update(state, Msg(request))
+	send(&state, Msg(request))
 	testing.expect(t, state.codeColor.open, "the dialog opens")
 	testing.expect_value(t, state.codeColor.hex, "#ff0000")
-	state, _ = update(state, Msg(Code_Color_Hex_Changed("#00ff00")))
-	state, _ = update(state, Msg(Code_Color_Alpha_Changed(128)))
+	send(&state, Msg(Code_Color_Hex_Changed("#00ff00")))
+	send(&state, Msg(Code_Color_Alpha_Changed(128)))
 	testing.expect_value(t, state.codeColor.color, [4]u8{0, 255, 0, 128})
 	// The picker's colors are linear: they come back as the same sRGB bytes
-	state, _ = update(state, Msg(Code_Color_Changed(skald.rgb(0x3080c0))))
+	send(&state, Msg(Code_Color_Changed(skald.rgb(0x3080c0))))
 	testing.expect_value(t, state.codeColor.color, [4]u8{0x30, 0x80, 0xc0, 128})
-	state, _ = update(state, Msg(Code_Color_Applied{}))
+	send(&state, Msg(Code_Color_Applied{}))
 	testing.expect(t, !state.codeColor.open, "OK closes it")
 	testing.expect(t, strings.contains(cebuf.buffer_line_str(&c.ed.buf, 10), "sdl.Color{48, 128, 192, 128}"), "rewritten")
 	// One undo step puts it back
@@ -111,12 +111,18 @@ code_color_swatches_in_a_code_tab :: proc(t: ^testing.T) {
 	CodeProviders_End()
 	request, ok = CodeColors_TakeRequest()
 	testing.expect(t, ok && request.form == .Hex, "the hex's request")
-	state, _ = update(state, Msg(request))
-	state, _ = update(state, Msg(Code_Color_Hex_Changed("#123456")))
-	state, _ = update(state, Msg(Code_Color_Applied{}))
+	send(&state, Msg(request))
+	send(&state, Msg(Code_Color_Hex_Changed("#123456")))
+	send(&state, Msg(Code_Color_Applied{}))
 	testing.expect(t, strings.contains(cebuf.buffer_line_str(&c.ed.buf, 7), "default=#123456"), "hex rewritten")
-	state, _ = update(state, Msg(request))
-	state, _ = update(state, Msg(Code_Color_Applied{}))
+	send(&state, Msg(request))
+	send(&state, Msg(Code_Color_Applied{}))
 	testing.expect(t, strings.contains(cebuf.buffer_line_str(&c.ed.buf, 7), "default=#123456"), "a stale literal isn't touched")
 	free_all(context.temp_allocator)
+}
+
+// Steps the State through a pointer (a State value per step kept 35 KB each in the test's frame)
+@(private="file")
+send :: proc(state: ^State, msg: Msg) {
+	state^, _ = update(state^, msg)
 }

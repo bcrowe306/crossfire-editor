@@ -139,10 +139,10 @@ log_points_kept_and_built :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(state.logPoints.points), 0)
 
 	// The dialog: opened on line 9, typed, OK
-	state, _ = update(state, Msg(Log_Point_Dialog_Opened{"hero.odin", 9, "self.hp -= amount"}))
+	send(&state, Msg(Log_Point_Dialog_Opened{"hero.odin", 9, "self.hp -= amount"}))
 	testing.expect(t, state.logPoints.dialog.open && !state.logPoints.dialog.existing, "a new one")
-	state, _ = update(state, Msg(Log_Point_Expression_Changed("self.hp, amount")))
-	state, _ = update(state, Msg(Log_Point_Saved{}))
+	send(&state, Msg(Log_Point_Expression_Changed("self.hp, amount")))
+	send(&state, Msg(Log_Point_Saved{}))
 	testing.expect(t, !state.logPoints.dialog.open, "closed")
 	testing.expect_value(t, len(state.logPoints.points), 1)
 	testing.expect(t, LogPoints_Active(&state.logPoints), "on")
@@ -175,24 +175,30 @@ log_points_kept_and_built :: proc(t: ^testing.T) {
 	}
 
 	// A marker's commands: off (the copy is the file again), then removed (the file goes)
-	state, _ = update(state, Msg(Log_Point_Command{"hero.odin", 9, .Toggle}))
+	send(&state, Msg(Log_Point_Command{"hero.odin", 9, .Toggle}))
 	testing.expect(t, !LogPoints_Active(&state.logPoints), "off")
 	_ = LogPoints_WriteBuild(&state, buildDir)
 	copied, _ = os.read_entire_file(joinPath(buildDir, SCRIPTS_FOLDER, "hero.odin", allocator = context.temp_allocator), context.temp_allocator)
 	testing.expect_value(t, string(copied), LOG_POINT_SOURCE)
-	state, _ = update(state, Msg(Log_Point_Command{"hero.odin", 9, .Edit}))
+	send(&state, Msg(Log_Point_Command{"hero.odin", 9, .Edit}))
 	testing.expect(t, state.logPoints.dialog.open && state.logPoints.dialog.existing && state.logPoints.dialog.expression == "self.hp, amount", "editing it")
-	state, _ = update(state, Msg(Log_Point_Command{"hero.odin", 9, .Remove}))
+	send(&state, Msg(Log_Point_Command{"hero.odin", 9, .Remove}))
 	testing.expect(t, !state.logPoints.dialog.open, "its dialog closes")
 	testing.expect_value(t, len(state.logPoints.points), 0)
 	testing.expect(t, !os.exists(joinPath(dir, LOG_POINTS_FILE, allocator = context.temp_allocator)), "the file goes")
 
 	// The build's paths read as the project's in the Output tab
-	state, _ = update(state, Msg(Log_Point_Dialog_Opened{"hero.odin", 11, "self.hp = 0"}))
-	state, _ = update(state, Msg(Log_Point_Expression_Changed("self.hp")))
-	state, _ = update(state, Msg(Log_Point_Saved{}))
+	send(&state, Msg(Log_Point_Dialog_Opened{"hero.odin", 11, "self.hp = 0"}))
+	send(&state, Msg(Log_Point_Expression_Changed("self.hp")))
+	send(&state, Msg(Log_Point_Saved{}))
 	copyScripts := joinPath(LogPoints_BuildDir(&state), SCRIPTS_FOLDER, allocator = context.temp_allocator)
 	mapped := LogPoints_ProjectPaths(&state, fmt.tprintf("%s/hero.odin(11:5) Error: Undeclared name: nope", copyScripts))
 	testing.expectf(t, strings.has_prefix(mapped, absolutePath(folder)), "%q", mapped)
 	free_all(context.temp_allocator)
+}
+
+// Steps the State through a pointer (a State value per step kept 35 KB each in the test's frame)
+@(private="file")
+send :: proc(state: ^State, msg: Msg) {
+	state^, _ = update(state^, msg)
 }
