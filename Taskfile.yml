@@ -309,7 +309,7 @@ tasks:
       - ENGINE_DIR={{.ENGINE_DIR}} tools/profile.sh --save-baseline {{.CLI_ARGS}}
 
   profile:compare:
-    desc: Profile the editor and compare with the baseline (profile:baseline); fails when a scenario's median or mean frame got more than 5% slower (--threshold <pct> after --)
+    desc: Profile the editor and compare with the baseline (profile:baseline); fails when a scenario's mean frame got more than 5% slower (--threshold <pct> after --)
     deps: [box2d, sdl]
     cmds:
       - ENGINE_DIR={{.ENGINE_DIR}} tools/profile.sh --compare {{.CLI_ARGS}}

@@ -36,23 +36,23 @@ player spent 61% of its frame in `nodes_update` (8.4 ms a frame), 19% in `presen
 
 ### 3. Making Skald faster (each item measured with the harness)
 
-1. **Cache text measurements across frames:** key on the text's content, size, font and DPI
-   scale; drop entries not used for a few frames. `measure_text_runa`
-   (`Skald/skald/text_runa.odin`) lays out the paragraph again (bidi, line breaking, per-glyph
-   sums) for every label on every frame; only shaping is cached today. Expected to save
-   35-40% of a frame.
-2. **Measure each view once per layout pass:** `view_size` (`Skald/skald/layout.odin`) is called
-   again at each level of nesting, so text deep in the tree is measured many times. Keep the
-   measured size per node for the rest of the pass.
-3. **Pre-size the temp arena** (or keep its blocks) so it stops allocating from the heap every
-   frame.
-4. **Don't build or lay out what's off-screen:** scrolling panels (the inspector, the browser
+**Done (2026-10-24), measured with `task profile` (Skald's CHANGELOG has the numbers):** text
+measurements cached across frames (`measure_text`: 3.7 -> 0.8 ms a frame at rest), stacks
+measured once a frame (1383 -> 919 measurements a frame), drawn text's glyphs cached across
+frames (`draw_text` 3.2 -> 1.2 us a call). Mean frame against the first baseline: at rest 18.7
+-> about 9 ms, the inspector scrolling 21.2 -> 11.2, the Level mode 14.6 -> 3.3, typing in code
+11.3 -> 7.2. **Measured and dropped:** pre-sizing the frame arena (frames fit its first 4 MB block
+once the text caches were in; it grew only at startup).
+
+Left:
+1. **Don't build or lay out what's off-screen:** scrolling panels (the inspector, the browser
    tree, long lists) skip rows outside the visible area, as `virtual_list` already does.
-5. **Reuse unchanged parts of the tree:** something like `cached(key, version, builder)`, which
+2. **Reuse unchanged parts of the tree:** something like `cached(key, version, builder)`, which
    returns last frame's subtree when its version hasn't changed.
-6. **Text drawing** (15%): look again once the measuring is cached (the same layout work
-   probably happens again when drawing).
-7. Offer Skald's general fixes to its upstream (Lee Fry's Skald) when they're done.
+3. **The remaining text calls:** about 900 `measure_text` and 500 `draw_text` calls a frame at
+   rest, each now a hash and a lookup (0.7-1.2 us); fewer calls (the two items above) is what's
+   left there.
+4. Offer Skald's general fixes to its upstream (Lee Fry's Skald) when they're done.
 
 ### 4. The editor and the engine (found by the same profile)
 

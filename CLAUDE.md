@@ -132,8 +132,8 @@ add it as a task and to the README's command table.
 | `task player` | Build the engine's player into `build/player/player` |
 | `task play:demo` | Run the demo project (its scripts linked into its own player: `tools/demo/player`), without the editor |
 | `task demo:playtest` | Play the demo headless (`tools/demo/playtest`: a bot pressing keys), check its mechanics and levels, save frames to `build/playtest/` (`PART=title|forest|hollow|lair|gameover`) |
-| `task profile` | **Profiling** (Spall; "Profiling" below): the scenarios `tests/profile/*.script` in a `-define:SPALL=true` optimized build, headless, `--runs` each (default 3), the median run's report, JSON and trace in `build/profile/results/`; arguments after `--` go to `tools/profile.sh` (scenario names, `--auto`, `--no-build`, `--runs`, `--cpus`) |
-| `task profile:baseline` / `task profile:compare` | Keep the results as the baseline (`build/profile/baseline/`) / profile and compare with it: exit 1 when a scenario's median or mean frame grew more than `--threshold` (5%) |
+| `task profile` | **Profiling** (Spall; "Profiling" below): the scenarios `tests/profile/*.script` in a `-define:SPALL=true` optimized build, headless, `--runs` each (default 3), the report over all runs (pooled), its JSON and the median run's trace in `build/profile/results/`; arguments after `--` go to `tools/profile.sh` (scenario names, `--auto`, `--no-build`, `--runs`, `--cpus`) |
+| `task profile:baseline` / `task profile:compare` | Keep the results as the baseline (`build/profile/baseline/`) / profile and compare with it: exit 1 when a scenario's mean frame (the median jumps between frames with and without a viewport render) grew more than `--threshold` (5%) |
 | `task clean` | Delete build output |
 
 - **Windows:** Task's own shell can't start a `.sh` file there, so the tasks that run the engine's
@@ -3769,7 +3769,13 @@ TODO.md's "Performance" work (asked 2026-10-24): every speed-up is measured befo
   desktop, never resized), every frame drawn uncapped (`SKALD_BENCH_FRAMES`,
   `SKALD_BENCH_UNCAP`), pinned CPUs (`--cpus`, default 2-5), a window of `--size` (1680x1000; a
   script's `# window:` line wins). The report (the engine's `tools/spall_report -from=start
-  -to=end`) is per run; the run with the median frame is kept. It warns when the load average is
+  -to=end`) pools every run's frames and spans; the median run's trace is kept for the viewer.
+  **Judge by the mean and by time per call:** the viewport renders on a timer (30 fps for
+  animations), so frames with and without a scene render alternate and the median jumps
+  between the two kinds; a span driven by that timer (`Preview_Render`, `lighting`) changes
+  per frame when frames get faster or slower, so compare its time per call (`compare` prints
+  both). Run to run, a frame's mean moved by up to 15% on this machine with another process
+  busy: rerun a scenario (`--no-build <scenario>`) before believing a small change. It warns when the load average is
   over a quarter of the CPUs: other work on the machine moves the numbers.
 - **Reading results:** `build/profile/results/<scenario>.txt` (frames: median, mean, p95, p99,
   max of a frame's work, and start to start; spans by self time per frame), `.json` (what

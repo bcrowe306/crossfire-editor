@@ -9,20 +9,21 @@
 #     archive HEAD`, so uncommitted edits to them don't change the numbers), its own settings file
 #     and XDG_DATA_HOME (the editor's data folder, a game's saves);
 #   - every frame drawn and uncapped (SKALD_BENCH_FRAMES, SKALD_BENCH_UNCAP), on pinned CPUs
-#     (taskset), several runs, the median run's report kept.
+#     (taskset), several runs, reported together (their frames pooled: the viewport renders on a
+#     timer, so frames with and without a scene render alternate, and one run's median jumps).
 #
 #   tools/profile.sh [options] [scenario...]       (default: every scenario)
-#     --runs <n>          runs per scenario (default 3; the run with the median frame is kept)
+#     --runs <n>          runs per scenario (default 3; reported together)
 #     --cpus <list>       taskset's CPU list (default 2-5; "" for none)
 #     --size <w>x<h>      window size (default 1680x1000; a scenario's "# window:" line wins)
 #     --no-build          use the last build (build/profile/crossfire-editor)
 #     --auto              build with SPALL_AUTO (every procedure: slow, for finding hot spots)
 #     --save-baseline     keep the results as the baseline (build/profile/baseline/)
-#     --compare           compare the results with the baseline; exit 1 if a scenario's median
-#                         or mean frame got slower by more than --threshold percent (default 5)
+#     --compare           compare the results with the baseline; exit 1 if a scenario's mean
+#                         frame got slower by more than --threshold percent (default 5)
 #     --threshold <pct>
 #
-# Results: build/profile/results/<scenario>.txt (the report) and .json, the median run's trace
+# Results: build/profile/results/<scenario>.txt (the report over all runs) and .json, the median run's trace
 # build/profile/results/<scenario>.spall (open it in Spall: https://gravitymoth.com/spall/), and a
 # summary. Everything under build/profile/ is scratch (gitignored).
 #
@@ -130,14 +131,16 @@ for scenario in "${SCENARIOS[@]}"; do
 		echo "[$scenario $run/$RUNS] median frame $p50 ms"
 	done
 	[[ ${#medians[@]} -gt 0 ]] || continue
-	# The run with the median frame time is the one kept
+	# The report pools every run's frames and spans (steadier than any one run); the trace kept
+	# for Spall's viewer is the run with the median frame
+	traces=()
+	for m in "${medians[@]}"; do traces+=("$OUT/runs/$scenario/${m#* }/trace.spall"); done
+	"$REPORT" "${traces[@]}" -from=start -to=end -json="$OUT/results/$scenario.json" >"$OUT/results/$scenario.txt" 2>&1 || status=1
 	kept=$(printf '%s\n' "${medians[@]}" | sort -g | awk -v n=${#medians[@]} 'NR == int((n + 1) / 2) { print $2 }')
-	dir=$OUT/runs/$scenario/$kept
-	cp "$dir/report.txt" "$OUT/results/$scenario.txt"
-	cp "$dir/report.json" "$OUT/results/$scenario.json"
-	cp "$dir/trace.spall" "$OUT/results/$scenario.spall"
+	cp "$OUT/runs/$scenario/$kept/trace.spall" "$OUT/results/$scenario.spall"
 	all=$(printf '%s\n' "${medians[@]}" | cut -d' ' -f1 | sort -g | tr '\n' ' ')
-	summary+=("$(printf '%-12s kept run %s; median frame per run (ms): %s' "$scenario" "$kept" "$all")")
+	pooled=$(grep -o '"mean_ms": *[0-9.e+-]*' "$OUT/results/$scenario.json" | head -1 | sed 's/.*: *//' | xargs printf '%.3f')
+	summary+=("$(printf '%-12s mean frame %s ms over %s runs; median per run (ms): %s' "$scenario" "$pooled" "${#medians[@]}" "$all")")
 	if [[ $SAVE -eq 1 ]]; then
 		mkdir -p "$OUT/baseline"
 		cp "$OUT/results/$scenario.json" "$OUT/baseline/$scenario.json"
