@@ -646,10 +646,12 @@ def make_levels():
                 kind = {"Float": "V_Float", "Int": "V_Int", "Bool": "V_Bool", "String": "V_String"}.get(fd["__type"])
                 if fd["__type"] == "EntityRef":
                     ref = make("EntityReferenceInfos", entityIid=iid(f"{m.name}/{v['ref']}"), layerIid=entities_iid, levelIid=level_iid, worldIid=world_iid)
-                    fields.append(make("FieldInstance", __identifier=fname, __type="EntityRef", __value=ref, defUid=fd["uid"], __tile=None, realEditorValues=[]))
+                    # LDtk reads the reference from its editor value (an empty one is "unset", and LDtk drops it)
+                    fields.append(make("FieldInstance", __identifier=fname, __type="EntityRef", __value=ref, defUid=fd["uid"], __tile=None,
+                                       realEditorValues=[{"id": "V_String", "params": [ref["entityIid"]]}]))
                 elif fd["__type"] == "Point":
                     fields.append(make("FieldInstance", __identifier=fname, __type="Point", __value=v, defUid=fd["uid"], __tile=None,
-                                       realEditorValues=[{"id": "V_Int", "params": [v["cx"] + v["cy"] * m.w]}]))
+                                       realEditorValues=[{"id": "V_String", "params": [f"{v['cx']},{v['cy']}"]}]))  # LDtk's form: "cx,cy"
                 else:
                     fields.append(field(fd, float(v) if fd["__type"] == "Float" else v, kind))
             # px: where its pivot is (a pivot at the bottom stands on the cell's bottom edge)
