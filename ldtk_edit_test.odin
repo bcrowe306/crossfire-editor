@@ -374,8 +374,16 @@ ldtk_collision_shows_in_the_viewport :: proc(t: ^testing.T) {
 	counts = kinds(&state)
 	testing.expectf(t, counts[.Area] == 3 && counts[.One_Way] == 0, "an area: %v", counts)
 	if ok do testing.expect(t, near(pixels, GENERATED_SHAPE_COLORS[.Area]) > 50, "drawn purple")
+	// (It failed once with no one-way shapes after the undo, not reproduced since: in 50 runs, 20
+	// of them under load. Each step that could leave nothing says so: the undo, the render, the
+	// preview being current)
+	undoBefore := len(state.history.undo)
 	sendTo(&state, Action.Undo)
-	Preview_Render(&state, {128, 64}, 1)
+	testing.expectf(t, len(state.history.undo) == undoBefore - 1, "one step undone (%d steps before, %d after)", undoBefore, len(state.history.undo))
+	testing.expect_value(t, len(state.project.scenes[0].nodes[nodeAt].ldtk.oneWayValues), 1)
+	_, ok = Preview_Render(&state, {128, 64}, 1)
+	testing.expect(t, ok, "rendered after the undo")
+	testing.expect(t, Preview_IsCurrent(&state), "the preview shows the undone scene")
 	counts = kinds(&state)
 	testing.expectf(t, counts[.One_Way] == 3, "undone: one-way again: %v", counts)
 
