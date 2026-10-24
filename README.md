@@ -521,9 +521,14 @@ rectangle on screen (split screen, minimaps, picture in picture). See the
 **State machines:** a **StateMachine** node inside an AnimatedSprite keeps what the character is
 doing (idle, run, jump, attack) and plays each state's animation. Edit it as a graph in the bottom
 panel's **States** tab: states (drag them around), arrows with conditions over parameters
-(`speed > 10 and grounded`), waits and "when its animation ends", transitions from any state.
-Scripts set the parameters (`e.StateMachine_SetFloat`, `SetBool`, `SetTrigger`) and listen to
-`onStateEntered`. See the [manual's state machines page](docs/manual/state_machines.md).
+(`speed > 10 and grounded`, `hurt or dead`, built in rows or typed), guards (a transition's extra
+conditions, a state's "can exit when"), code guards your scripts register by name
+(`e.StateMachine_RegisterGuard`), priorities, exit times and transitions that interrupt, from any
+state; a sidebar beside the graph edits the selected state or transition, and while the game
+plays it shows which clauses hold and what keeps a transition. Scripts set the parameters
+(`e.StateMachine_SetFloat`, `SetBool`, `SetTrigger`), check `e.StateMachine_CanExit`, travel, and
+listen to `onStateEntered`, `onTransition` or one state (`e.StateMachine_OnEnter`). See the
+[manual's state machines page](docs/manual/state_machines.md).
 
 **Scene changes:** Project Settings > General sets how scenes change: a fade, a wipe or a closing
 circle, its time and color. A Button can open a scene **over** the playing one (a pause menu: the

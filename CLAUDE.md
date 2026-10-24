@@ -34,7 +34,8 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   (the Tiles tab), LDtk levels, physics (bodies, shapes, joints, materials, collision traced
   from sprites), particles (CPU and GPU), sound (players, the Mixer, bus effects, music layers),
   UI controls and themes, 2D lighting, navigation, cameras and camera tools, lines and trails,
-  shaders and screen effects, skeletons (meshes, IK, DragonBones), dialogue, state machines, the
+  shaders and screen effects, skeletons (meshes, IK, DragonBones), dialogue, state machines (the
+  States tab's graph and sidebar: conditions, guards, priorities, exit times, live while playing), the
   Timeline (Animators), touch controls.
 - **Game code:** Odin scripts on nodes (several per node), node types, globals, data resources,
   events and listeners; the built-in code editor (OLS completion, clickable errors, and the
@@ -261,8 +262,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `camera_edit.odin` | **A Camera's follow target and settings**: `NodeDef.camera` (`e.CameraSettings`) and `cameraTarget`, `Camera_Changed` (`CameraNumber`), the Camera's inspector rows (`cameraInspectorRows`: Zoom; Follow, Limits, Shake groups) |
 | `node_paths_edit.odin` | **Node paths that follow renames and moves**: `NodePathRef` / `NodePathKind` (cameras' targets, CameraViews' cameras, IK tips and targets, StateMachines' targets, SkinnedMeshes' bones, Timeline tracks, listeners' targets, script node fields from the catalog), `NodePaths_Resolve` before a change, `NodePaths_Repath` after (with a move's `newIndex`), `Scene_HasNodePaths` (a rename is a `.Scene` step then); tests in `node_paths_edit_test.odin` |
 | `camera_tools_edit.odin` | **Camera tools**: `NodeDef.cameraTools` (`e.CameraToolSettings`) and `viewCamera`, `Camera_Tool_Changed` (`CameraToolNumber`), the ParallaxLayer / CameraZone / CameraView inspector rows (`cameraToolInspectorRows`) |
-| `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `Scene_ResolvePath`, the inspector's rows |
-| `view_states.odin` | The bottom panel's States tab (`StatesPanel`): the graph (`graphCanvas`: boxes, arrows with their conditions, Any state; click, drag, double-click), the selected state's and transition's fields, the parameters |
+| `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` (`SMOp`; conditions' rows: `SMCondition`, `SMClausePart`, `States_EditClause`, `States_ConditionText`) / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `States_GuardNames` (the scripts' code guards from the index), the running machine (`States_LiveTarget`, `States_LiveFrame`, `States_Live_Watch`), `Scene_ResolvePath`, the inspector's rows |
+| `view_states.odin` | The bottom panel's States tab (`StatesPanel`, `StatesPanel_Content`): the graph (`graphCanvas`: boxes, arrows with their conditions, guards and priorities, Any state, the running state lit; click, drag, double-click), the sidebar (`statesSidebar`: the selected state's or transition's properties, `conditionEditor`'s clause rows; beside the graph from `STATES_SIDEBAR_SPLIT_WIDTH`, else under it), the parameters, `States_Live` |
 | `scene_flow_edit.odin` | **Scene changes**: `Project.transition` / `loadingScene`, Project Settings > General's rows (`sceneFlowSettingRows`, on the dialog's draft), `Project_Settings_Transition_Changed` / `_Loading_Changed` |
 | `live_edit.odin` | **The live view**: `LiveView` (`State.live`: the running game's tree, chosen node's properties, stats, frame-time history), `Live_Send` (to the game's stdin), `Live_Ingest` (its `@@live` replies), `Live_Update`, `Live_Reset`, the game's collision shapes (`Live_SetShapes`, `PhysicsDebug_Shown`) |
 | `view_live.odin` | The bottom panel's Live tab (`LivePanel`): pause / step, stats and the frame-time graph, the nodes, the chosen node's fields (side by side, or stacked in a narrow panel) |
@@ -2791,6 +2792,31 @@ Its doc comment has the rules; what the code relies on:
 
 ## State machines (implemented, `state_machine_edit.odin`, `view_states.odin`; engine: state_machine.odin)
 
+- **Transition logic and guards** (TODO.md's Round 4 item 1, asked 2026-10-24, done 2026-10-24;
+  the engine's state_machine.odin has the model): conditions with `and` / `or` / `not` /
+  parentheses and code guards (`name()`), a transition's `guard`, `priority`, exit time (`after`,
+  `onFinished`) and `interrupts`, a state's exit guard (`canExit`), `speed`, `loop`, `onEnter` /
+  `onExit` events. No crossfades: the engine has none (an AnimatedSprite shows one animation).
+- **The sidebar** (`statesSidebar`): the selected state's or transition's properties; beside the
+  graph when the panel is at least `STATES_SIDEBAR_SPLIT_WIDTH` (620) wide, else under it, its
+  rows stacked (`inspectorStacked` set while it's built) under `STATES_STACK_WIDTH`. One scroll
+  (`states-scroll`) holds the graph and the sidebar, so scripts reach every widget the same way
+  in every window size. Rows are `inspectorRow`s (tooltips from `fieldTip`; labels unique to
+  state machines: "State name", "Play speed", "Can exit when"...).
+- **Conditions stay text** (the engine's format: backward compatible): the rows edit flat ones
+  (all `and` or all `or`, no parentheses) through the engine's `StateMachine_SplitCondition` /
+  `JoinCondition`; each `Clause_*` op splits, changes, joins (`States_EditClause`), so the text is
+  what's stored and undone. Other conditions show as text only (the text field is always there).
+- **Code guards** are read from the script index, not the catalog: calls of
+  `StateMachine_RegisterGuard` (first argument) and `StateMachine_SetGuard` (second) with a string
+  literal (`IndexCall`), so they're offered and checked (`e.StateMachine_ConditionProblem(...,
+  guards, checkGuards = true)`) as soon as they're typed.
+- **Live** (the engine's `machine <id>` command): `States_LiveFrame` (from `view`, while the
+  States tab shows) works out the running node (`States_LiveTarget`: the Live tab's chosen
+  StateMachine of that name, the same path in the playing scene, else one whose path ends like
+  the machine's below its top node: a component's) and sends `States_Live_Watch` when it changes;
+  `Live_Ingest` keeps the reply in `LiveView.machine` (`LiveMachine`: state, time, can exit, each
+  clause's result, each transition's `e.StateMachineTransitionStatus`, parameters). Not undoable.
 - Like the Timeline, the States tab shows the selected StateMachine and keeps it while other
   nodes are selected (`States_Follow` after every message); `SM_Changed` is a node step on the
   machine's index (a state drag sticky per `history.gesture`, bumped by `SM_View{.Drag_Begin}`;
@@ -2800,8 +2826,14 @@ Its doc comment has the rules; what the code relies on:
 - The graph handles the mouse from last frame's rect (the canvas pattern); arrows run box edge to
   box edge, nudged sideways so both ways between two states show (`States_Arrow`). States'
   positions are graph pixels, saved as `x` / `y`.
-- Tests: `state_machines_in_the_editor`, `tests/ui/states.script` (driver `click_state`,
-  `drag_state`, check `states <field>`). User guide: `docs/manual/state_machines.md`.
+- Tests: `state_machines_in_the_editor`, `state_machine_guards_in_the_editor` (clauses, any of,
+  negation, guards from the index, priority, interrupts, a state's exit guard, speed, loop and
+  events, undo, renames into guards, the round trip), `state_machines_live_in_the_editor`;
+  `tests/ui/states.script`, `tests/ui/state_guards.script` (the sidebar: an exit guard, a
+  condition's rows, a guard, priority, interrupts, undo, played: `states live_state`,
+  `live_status`); driver `click_state`, `drag_state`, check `states <field>`. Checked by eye at
+  640x660, 900x500 and 1280x720 (Skald's offscreen renderer made public for a scratch command,
+  then put back). User guide: `docs/manual/state_machines.md`.
 
 ## Scene changes (implemented, `scene_flow_edit.odin`; engine: scene_flow.odin)
 

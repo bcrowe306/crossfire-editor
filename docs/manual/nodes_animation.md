@@ -110,7 +110,9 @@ More: [Keyframe animation](animation.md#the-timeline-tab)
 
 A StateMachine keeps one of a set of **states** (idle, run, jump, attack) and moves between them
 by **transitions** whose conditions read **parameters** your script sets (a speed, whether the
-character is on the ground, a "jump" trigger). Each state can play an animation of an
+character is on the ground, a "jump" trigger) and **code guards** your scripts provide. Transitions
+have priorities, exit times and guards; a state can refuse to be left (its exit guard) unless a
+transition interrupts it. Each state can play an animation of an
 AnimatedSprite, so the character's animation follows what it's doing without code choosing
 animations. Use it for characters and enemies with a few clear modes. In code it's an
 `e.StateMachine`.
@@ -121,19 +123,21 @@ animations. Use it for characters and enemies with a few clear modes. In code it
 |---|---|
 | **Starts in** | The state it starts in when the scene starts (shown once it has states) |
 | **Animates** | The AnimatedSprite whose animations its states play ((its parent) by default) |
-| **Edit in the States tab** | Opens the bottom panel's States tab: the graph of states, transitions and parameters |
+| **Edit in the States tab** | Opens the bottom panel's States tab: the graph of states, transitions and parameters, and a sidebar with the selected state's or transition's properties |
 
 **In the editor**
 
 1. Select the character's AnimatedSprite, then **Add Node** (Ctrl+Shift+A) > **StateMachine**: it
    goes inside the sprite, and its states play the sprite's animations.
 2. Press **Edit in the States tab**. Add parameters (**+ Parameter**: Float, Bool or Trigger),
-   states (**+ State**, each with the animation it **Plays**) and transitions (**+ Transition
-   to:**, with a **When** condition such as `speed > 10`, and maybe **After**).
+   states (**+ State**, each with the animation it **Plays**, its speed and loop, maybe a **Can
+   exit when**) and transitions (**+ Transition to:**, with a **When** condition such as
+   `speed > 10`, maybe a **Guard**, a **Priority** and an **Exit after**), in the sidebar.
 3. Set **Starts in**. If the inspector says it animates no AnimatedSprite, choose one under
    **Animates**.
 4. Feed the parameters from the character's script (below).
-5. Play (F5): the Live tab shows the machine's state as it changes.
+5. Play (F5): the States tab shows the machine's state as it changes, which clauses hold and what
+   keeps a transition from being taken.
 
 **From code**
 
@@ -141,7 +145,11 @@ Give the script a node field `^e.StateMachine`. Set parameters with `e.StateMach
 `e.StateMachine_SetBool` and `e.StateMachine_SetTrigger` (a trigger is cleared by the transition
 that uses it). Read the state with `e.StateMachine_Current`, `e.StateMachine_Is` and
 `e.StateMachine_TimeInState`; `e.StateMachine_Travel` goes to a state at once, whatever the
-transitions say. Its events are `onStateEntered` and `onStateExited` (data: the state's name).
+transitions say, and `e.StateMachine_TryTravel` only when `e.StateMachine_CanExit` says the state
+can be left. Code guards are `e.StateMachine_RegisterGuard` (from an `@(init)`) and
+`e.StateMachine_SetGuard` (one machine, with the script as `self`). Its events are
+`onStateEntered` and `onStateExited` (data: the state's name), `onTransition` and `onStateEvent`
+(a state's enter or exit event); `e.StateMachine_OnEnter` / `OnExit` listen to one state.
 
 **Example**
 
@@ -180,9 +188,15 @@ register_Knight :: proc "contextless" () {
 [e.StateMachine_Is](https://crossfireengine.io/api/animation/#statemachine_is),
 [e.StateMachine_TimeInState](https://crossfireengine.io/api/animation/#statemachine_timeinstate),
 [e.StateMachine_Travel](https://crossfireengine.io/api/animation/#statemachine_travel),
+[e.StateMachine_TryTravel](https://crossfireengine.io/api/animation/#statemachine_trytravel),
+[e.StateMachine_CanExit](https://crossfireengine.io/api/animation/#statemachine_canexit),
+[e.StateMachine_RegisterGuard](https://crossfireengine.io/api/animation/#statemachine_registerguard),
+[e.StateMachine_SetGuard](https://crossfireengine.io/api/animation/#statemachine_setguard),
+[e.StateMachine_OnEnter](https://crossfireengine.io/api/animation/#statemachine_onenter),
 [e.CreateStateMachine](https://crossfireengine.io/api/animation/#createstatemachine)
 
-More: [State machines](state_machines.md#your-first-state-machine)
+More: [State machines](state_machines.md#your-first-state-machine),
+[Guards](state_machines.md#guards)
 
 ## Skeleton2D
 

@@ -14,16 +14,13 @@ editor (asked as items 2 and 4) is done (2026-10-24): CLAUDE.md's "Docs in the e
 (item 7: the mode bar, the Scene mode, a Level mode shell) is done (2026-10-24): CLAUDE.md's "Editor modes".
 Level mode and the LDtk tab (item 3: the world canvas, the LDtk tab's sections, write-back into the
 .ldtk file, undo, Open in LDtk at a level) is done (2026-10-24): CLAUDE.md's "Editor modes" and
-"Editing LDtk projects".
+"Editing LDtk projects". State machines (item 1: transition logic, guards in code and in the GUI,
+the States tab's sidebar) is done (2026-10-24): CLAUDE.md's "State machines".
 
-1. **State machines** (item 1): transition logic and exit guards, in code (the engine API:
-   conditions, guard procedures a script provides, can-exit checks) and in the GUI (the States
-   tab's graph plus a **right sidebar** showing the selected state's or transition's
-   properties: conditions, guards, priorities, on-enter/exit, animation).
-2. **A Particles bottom tab** (item 6): a left sidebar of vertical tabs for the particle settings'
+1. **A Particles bottom tab** (item 6): a left sidebar of vertical tabs for the particle settings'
    categories (the engine's `group` tags), the selected category's settings in the right content
    pane, for the selected ParticleEmitter.
-3. **A sprite sheet slicer** (item 5): its own viewport tab; slice a sheet by grid (cells or
+2. **A sprite sheet slicer** (item 5): its own viewport tab; slice a sheet by grid (cells or
    cell size, margin, gap) or by auto-detecting sprites, pick frames, name animations, and load
    them into an animation asset and/or an AnimatedSprite (the animation player).
 
