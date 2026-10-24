@@ -38,7 +38,9 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   Timeline (Animators), touch controls.
 - **Game code:** Odin scripts on nodes (several per node), node types, globals, data resources,
   events and listeners; the built-in code editor (OLS completion, clickable errors, and the
-  project's own completions, hovers, problems, gutter markers and drops through code_editor's
+  project's own completions, hovers with previews (images, sounds with a play button, animation
+  frames, dialogue lines, components, fonts) and the engine's documentation (F1 opens its API
+  page), color swatches with a picker, problems, gutter markers and drops through code_editor's
   providers; the names engine calls take, completed and checked inside their strings, with
   quick fixes; gutter markers listing every node using a script or setting a field, Find Usages
   in the scenes, and renames of scripts, fields and events carried into scenes, components,
@@ -196,6 +198,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `asset_fields.odin` | An asset's field in a script struct (a drop in the struct: code_drops.odin): its handle type and the line using it (`AssetField_Type`, `AssetField_Line`) |
 | `node_fields.odin` | Script node fields: paths between nodes (`Scene_NodePath`), the nodes a field takes (`NodeField_Choices`), the script struct in a file (`NodeField_FindStruct`: its fields and their lines), a node's field line (`NodeField_Line`, for drops: code_drops.odin) |
 | `code_drops.odin` | **Drops into code**: `DropSource` (what a panel drags: its kind, name, node, asset or scene, detail), `CODE_DROP_KINDS` (the one table: each kind's name type and shape in a struct), `codeUseKeys` (which of the engine's `e.CODE_USES` apply), `CodeDrops_Build` (the choices by syntactic context: a field, a statement, the constant or expression, the name in a string), `CodeDrops_PropertyField` (an inspector label's engine field) |
+| `code_previews.odin` | **Previews in code hovers**: `CodePreviews_Constant` / `_Asset` / `_Scene` / `_Literal` (an image's thumbnail, a sound's length and play button, an animation's strip, a dialogue node's lines, a component's picture, a scene's facts, a font's sample), the picture cache (`PREVIEW_CACHE_MAX`), `Preview_Fit` / `Preview_Strip` / `Preview_FontSample` / `Preview_LiteralAt`, the play button's `Code_Hover_Audio` |
+| `code_colors.odin` | **Color literals in code**: `ColorLiterals_InLine` / `ColorLiteral_Write` (composites, named, hex in a color field's tag or `e.ParseColor`), the swatch inlay provider (`colorInlays`, `colorSwatchClicked`), the Color dialog (`CodeColorDialog`, `State.codeColor`, `Code_Color_*`, `CodeColorDialogView`, `CodeColors_Rewrite`: one edit in the tab) |
+| `engine_docs.odin` | **The engine's documentation in code**: `EngineDocs` (its source's declarations and doc comments, read once on a worker: `EngineDocs_Start` / `_Load` / `_Read`), `EngineDoc_Markdown` (the hover), `ENGINE_API_AREAS` (the website's api-groups.json, checked by a test), `EngineDoc_URL` (F1's page), `EngineDocs_At` (the name at a column) |
 | `code_drag.odin` | **Dragging editor things into code**: `State.codeDrag`, `CodeDrag_From` / `_Zone` / `_Handle` (a widget, a label, a grip starts one), `CodeDrag_View` (the label by the pointer, the drop or cancel), `CodeDrag_HidesDialogs` (Project Settings steps aside for an input action), `Code_Drag_*` / `Code_Source_Dropped` / `Code_Drop_Chosen` |
 | `script_index.odin` | **The script index**: `ScriptIndex` (`State.scriptIndex`), `ScriptIndex_ParseSource` (core:odin/parser: structs, fields with types, tags, comments, enums, `Script_Register` / `Data_Register` / `NodeType_Register` calls), `ScriptIndex_Take` (a broken file keeps its last good declarations), `ScriptIndex_Derive` (ScriptDescs like the catalog's, events, problems), `ScriptIndex_Plan` (changed files and still code tab buffers), engine calls' string literal arguments and procedures' lines (`IndexCall`, `IndexProc`: the name providers'), `ScriptIndex_Tick` / `_Parsed` (the worker), `ScriptIndex_Apply` / `_TakeBuild` (merged into `State.scripts`, the build authoritative where newer) |
 | `script_constants.odin` | **scripts/assets.odin's constants**: `Scripts_Constants` (every constant, sections, `GeneratedConstant`), `Scripts_AssetsSource` (the file), `ConstantWords` (the new kinds' names), `Constants_ChangeMatters` / `Scripts_NewestFor` (a change to unused constants doesn't rebuild the player), Aseprite tags cached on the heap |
@@ -946,7 +951,8 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   drag's end). Focus is Skald's (`focused_id == hash_id("code-editor")`); Skald's Tab traversal
   takes it before `view`, so `CodeEditor_Frame` gives it back; `IsTyping` counts it, and
   `KeymapDispatch` runs only `CODE_EDITOR_PASSTHROUGH` then (their chords don't reach the code
-  editor); the menu bar drops its shortcuts.
+  editor); the menu bar drops its shortcuts. Help's chord (F1, `User_Manual`) is the code view's
+  own: the API page of the engine declaration at the caret, else the manual (round 5).
 - **Unsaved scripts** count in `Project_IsModified`; `Session_Save`, Play and Export call
   `CodeTabs_SaveAll` first; Save starts a background script build when a script was saved.
 - **Language server:** `Code_FindOLS` (the setting `ols_path`, PATH, `code_editor/third_party/ols`
@@ -1040,9 +1046,9 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
 - Tests also: `code_editor_settings_persist_and_disk_changes`; the script's disk steps
   (`touch_project_file`, `code_disk_conflict`) and shared server (`code_servers`).
 
-### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`, `code_drops.odin`, `code_drag.odin`; code_editor's `providers.odin`, `rename.odin`; the engine's `code_uses.odin`)
+### The project in the code (implemented, `code_providers.odin`, `script_index.odin`, `script_constants.odin`, `name_kinds.odin`, `code_names.odin`, `script_links.odin`, `script_rename.odin`, `code_drops.odin`, `code_drag.odin`, `code_previews.odin`, `code_colors.odin`, `engine_docs.odin`; code_editor's `providers.odin`, `rename.odin`; the engine's `code_uses.odin`)
 
-Rounds 1 to 4 of TODO.md's "Code editor integration". What the code relies on:
+Rounds 1 to 5 of TODO.md's "Code editor integration". What the code relies on:
 
 - **The provider interface is code_editor's** (`code_editor/editor/providers.odin`, its README's
   "Providers"): completion, hover, diagnostics, gutter markers, inlay hints and drops, each a
@@ -1259,6 +1265,67 @@ Rounds 1 to 4 of TODO.md's "Code editor integration". What the code relies on:
     `ScriptIndex_ReadNow`, a source line that's always there, the toggle beside the Events
     title; `tests/ui/code_focus_clicks.script` (driver check `inspector_events`) clicks it at
     once, while typing and after the build, in all three sizes.
+
+- **Round 5: hovers and previews** (code_previews.odin's, code_colors.odin's and
+  engine_docs.odin's doc blocks; the manual's "Hovers and previews").
+  - **code_editor grew** (its README): `Hover_Widget.click` (a left press on the widget calls it
+    with the point in its block; the hover stays: `editor_click_hover_widget`), and
+    `Hover_Content.replace_server` (the server isn't asked, its answer isn't shown); images up
+    to `HOVER_IMAGE_MAX` tall and twice as wide (strips); `Inlay_Hint.swatch` (a square of the
+    color before the label) and the inlay provider's `on_inlay_click` (`editor_click_inlay_swatch`,
+    `Provided.inlay_providers` says whose each hint is); inlay hints count in the scrollable width
+    (`editor_max_visual_width`, keyed by `provided.seq` too), so a narrow tab scrolls to a swatch.
+  - **Asset previews** (`CodePreviews_*`): on a constant (the preview first, then what it is: a
+    play button stays in view in a short tab), a string literal or a tag's `default=` naming an
+    asset or a scene. Pictures are made once, scaled down, kept by path and modification time (a
+    component's by its XML's hash) in a cache of at most 64. **Scenes get facts, no picture:**
+    drawing ForestScene took 200 ms on the editor's thread. Sounds: the length is read by
+    SDL3_mixer without decoding or opening the device (`AudioPreview_Length`, its own mixer); the
+    play button is a `Hover_Widget` whose click leaves `Code_Hover_Audio` for the code view to
+    send (it can't change State inside the code editor), update plays it through the audio
+    preview; `codeRenderKey` has the playing state, so the button turns back to ▶ when it ends.
+  - **Engine docs** (`EngineDocs`): the engine's source parsed once per run on a worker (started
+    from the index's tick with the name table), docgen's rules (public declarations, `when`
+    blocks, the comment attached or ending on the line above); `EngineDocs_At` takes the name
+    after the file's import name (`IndexFile.engineAlias`). The hover renders the declaration,
+    the comment, Inputs / Returns bold, Example as code, and stands in for OLS's (which repeats
+    the declaration and the raw comment). **F1 in a code tab** is the host's
+    (`CodeEditor_View`: the editor's `User_Manual` chords are taken before the code editor, whose
+    own F1 opened its palette; Ctrl+Shift+P still does): the declaration at the caret's API page
+    (`EngineDoc_URL`: the area from `ENGINE_API_AREAS`, the anchor the name lower-cased, as the
+    website's build-api.mjs makes them; checked on crossfireengine.io for five names), else the
+    manual. Links go through `Links_Open` (`State.lastLink`; nothing opens while a script runs:
+    the driver's `last_link`), as Help > User Manual and the panels' Manual buttons do now.
+    **A new engine file needs an area in the website's api-groups.json and in
+    `ENGINE_API_AREAS`** (`engine_api_areas_match_the_website` and the docs test catch both).
+  - **Color literals** (`ColorLiterals_InLine`): typed composites (`sdl.Color{...}`, whatever the
+    file imports vendor:sdl3 as; positional or named, 3 or 4 integers 0-255, decimal or hex),
+    `x: sdl.Color = {...}` (not `-> sdl.Color {`, a procedure body), hex in a color field's tag
+    and in `e.ParseColor("#...")`. The engine has no `e.Color` (its colors are `sdl.Color`) and
+    takes hex only in those places. A swatch's click leaves `Code_Color_Requested` (the literal's
+    line, bytes and text) for the view to send; the dialog (Skald's color picker, the hex, the
+    alpha; keys `code-color-picker`, `-hex`, `-alpha`, `-ok`, `-cancel`) writes on OK with
+    `CodeEditor_ApplyEdits` (one undo step in the tab), only when the literal is still there as
+    it was.
+  - **Measured** (2026-10-23, the demo, `code_previews_of_every_kind` and
+    `engine_docs_read_render_and_link`, optimized; debug in brackets): a warm hover of every kind
+    14-30 µs; cold: an image 0.08 ms, an Aseprite file 15 ms (46), a sound's length 0.9 ms, a
+    font's sample 0.8 ms (1.0), a component's picture 10 ms (27), an animation strip 0.5-0.6 ms
+    (1.3-1.7), a dialogue or a scene's facts under 0.05 ms; the engine's docs read in 74 ms (225)
+    on the worker (1307 declarations, 100 files), a docs hover 3 µs (11).
+  - **Tests:** code_editor's `providers_previews_test.odin`; `code_previews_test.odin` (every
+    kind on the demo with its timing, literals, fitting and strips, `ENGINE_API_AREAS` against the
+    website's file), `code_colors_test.odin` (every form read and written back; a real code tab:
+    swatches, the dialog, OK, one undo, a stale literal left alone), `engine_docs_test.odin`
+    (rendering, URLs, the name at a column, every engine file in an area);
+    `tests/ui/code_previews.script` (an image's hover, a sound's play button, an engine
+    procedure's docs, a swatch's dialog and undo, F1 both ways; driver: `code_hover_image`,
+    `code_hover_widget`, `code_click_hover_widget`, `code_swatch`, `code_click_swatch`,
+    `code_color_dialog`, `code_click`, `audio_loaded`, `last_link`). The driver's `code_hover`,
+    `code_click` and `code_click_swatch` scroll the line (and a swatch's column) into view first
+    (`CodeEditor_RevealLine` keeps clear of the last row: the horizontal scrollbar), and
+    `code_hover` moves twice, a frame apart (a tooltip still up on the first frame kept the code
+    view from the motion).
 
 ### Scripts (implemented, `scripts.odin`, the inspector's Script section)
 

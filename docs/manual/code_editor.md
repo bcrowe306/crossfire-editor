@@ -21,6 +21,8 @@ If you'd rather use another program (Zed, VS Code...), you can: see
 - [Files changed on disk](#files-changed-on-disk)
 - [Completion and errors: the Odin language server](#completion-and-errors-the-odin-language-server)
 - [What the editor adds: your project in the code](#what-the-editor-adds-your-project-in-the-code)
+- [Hovers and previews](#hovers-and-previews)
+- [Code and scenes, linked](#code-and-scenes-linked)
 - [Names in strings: scenes, nodes, animations...](#names-in-strings-scenes-nodes-animations)
 - [Going to definitions](#going-to-definitions)
 - [Going to an error from the Output tab or the Console](#going-to-an-error-from-the-output-tab-or-the-console)
@@ -163,10 +165,14 @@ code tab, with or without the language server:
   after a `.` (that's a member) or in comments. In an engine call that takes a name, the
   constants of that kind come first, and inside its string the names themselves complete (see
   [Names in strings](#names-in-strings-scenes-nodes-animations)).
-- **Hovers say what things are.** Rest the mouse on a constant to see what it names
-  (`Scene ForestScene (8 nodes)`, `Animation "run" of assets/characters/hero.aseprite`). On a
-  script's name: which nodes run it, its exported fields with their defaults, its events, and
-  whether that comes from the last build or from the source you're typing (not built yet).
+- **Hovers say what things are, and show them.** Rest the mouse on a constant to see what it
+  names, with a preview: an image's picture, a sound with a play button, an animation's frames
+  (see [Hovers and previews](#hovers-and-previews)). On an engine procedure or type: its
+  documentation. On a script's name: which nodes run it, its exported fields with their
+  defaults, its events, and whether that comes from the last build or from the source you're
+  typing (not built yet).
+- **Colors have swatches.** `sdl.Color{255, 128, 0, 255}` gets a little square of its color after
+  the line; click it to pick another color.
 - **Problems the build wouldn't tell you.** A field tagged `export:""` with a type the inspector
   can't edit (`[3]f32`, a map...), an option that isn't one (`export:"defualt=3"`), or a `min=`,
   `max=` or number `default=` that isn't a number is underlined as a warning as soon as you type
@@ -192,6 +198,43 @@ inspector a moment later, before you save or build, with "From the source: not b
 the fields (after a build: "From the last build"). After a build, the build's description is used
 again for every file that hasn't changed since. A new script's fields show the moment New Script
 makes it.
+
+## Hovers and previews
+
+Rest the mouse on something in the code and the hover shows it, not only its name. It works on
+the constants of `scripts/assets.odin` (`TEXTURE_SHIP`, `SOUND_JUMP`, `ANIM_HERO_RUN`...), on a
+string that names an asset or a scene (`"assets/ship.png"`, `"ForestScene"`), and on the default
+of an asset field (`` sprite: e.TextureAsset `export:"default=assets/ship.png"` ``):
+
+| Rest on | The hover shows |
+|---|---|
+| An image (or an Aseprite file) | Its picture and size (and its frames and tags) |
+| A sound or music | Its length and a play button: click it to hear the sound, again to stop it |
+| An animation | Its frames side by side (the first eight), its speed and frame count |
+| An animation asset | Its animations, and the first one's frames |
+| A dialogue, or a dialogue node | The node's first lines and options |
+| A component | Its picture, as the project browser shows it |
+| A scene | What's in it: its nodes by kind, its camera, its scripts |
+| A font | A line of text written with it |
+
+The hover stays open while the mouse is on it, so you can reach the play button; move away or
+press Escape to close it.
+
+**Engine documentation.** Rest on an engine procedure, type or constant (`e.Camera2D_Follow`,
+`e.Camera2D`) and the hover shows its documentation as the
+[API reference](https://crossfireengine.io/api/) has it: its declaration, what it does, its
+inputs, what it returns and an example. The editor reads it from the engine it builds with, so
+it's always that engine's. **F1** on one opens its page of the API reference in your browser;
+anywhere else, F1 opens this manual.
+
+**Colors.** A color in the code gets a swatch, a small square of the color after its line:
+`sdl.Color{255, 128, 0, 255}` (or `sdl.Color{r = 255, ...}`), a declared color given a value
+(`tint: sdl.Color = {255, 255, 255, 255}`), the default of an exported color field
+(`` tint: sdl.Color `export:"default=#ff8000"` ``) and `e.ParseColor("#ff8000")`. **Click the
+swatch** to open the **Color** dialog: pick a color, type its hex, set its alpha, and **OK**
+writes it into the code in the same form (numbers stay numbers, hex stays hex). It's one step you
+can undo with Ctrl+Z in the code. A color written with a variable or an expression gets no
+swatch: the editor only changes what it can read back.
 
 ## Code and scenes, linked
 
@@ -347,7 +390,7 @@ right-click the line and choose **Go to Error**.
 
 ## The command palette
 
-**Ctrl+P** (also Ctrl+Shift+P, or F1 while you type code) opens the **command palette**: a
+**Ctrl+P** (also Ctrl+Shift+P) opens the **command palette**: a
 searchable list of everything the code editor can do, with each command's shortcut. Type part of
 a name to filter it, Up and Down to choose, Enter to run, Escape to close. Commands you used
 lately are at the top.
@@ -397,6 +440,7 @@ these editor shortcuts still work then:
 | Ctrl+S | Save (the project and every script) |
 | F5, Ctrl+F5, F6, Shift+F5, Ctrl+Shift+F5 | Play, Play Scene, Pause, Stop, Restart |
 | Ctrl+B | Build Scripts |
+| F1 | Help: the API page of the engine procedure or type at the caret, otherwise this manual |
 | Ctrl+W | Close the code tab |
 | Ctrl+Shift+E | Export |
 | Ctrl+J | Show or hide the bottom panel |
@@ -406,7 +450,7 @@ these editor shortcuts still work then:
 (These are the defaults; if you change them in Settings > Keyboard, your keys work instead.)
 
 The others mean something else in the code: Ctrl+D selects the next match instead of duplicating
-a node, F1 opens the palette instead of this manual, Ctrl+O opens another script in a tab (a file
+a node, Ctrl+O opens another script in a tab (a file
 dialog) instead of another project, and Ctrl+Shift+S saves the script under a new name. Click
 outside the code (the scene tree, the viewport) and the editor's shortcuts are back.
 
@@ -508,7 +552,7 @@ the cursor ends where you'd type next: after the statement, inside the `if` bloc
 you'll want to change. "The script" is the procedure's parameter of your struct's type (`self` in
 the template's procedures).
 
-## Using an external editor instead## Using an external editor instead
+## Using an external editor instead
 
 To open scripts in another program, open **Edit > Settings > Editor** and, under **Scripts**:
 

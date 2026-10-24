@@ -12,10 +12,6 @@ environment: no memorizing how to refer to things in code. Everything goes throu
 provider interface in code_editor (completion, hover, diagnostics, gutter, inlay, drop sources)
 that the editor fills in, so code_editor stays engine-agnostic. Not doing: a debugger (DAP), for now.
 
-5. **Hovers and previews:** asset constants show the image / play the sound / show the
-   animation's frames / the dialogue's first line; color literals get a swatch and the picker;
-   engine procedures show their doc comment and example (the website's docgen output, bundled);
-   F1 opens the API page.
 6. **Live game state in code:** while playing, inlay hints with the selected node's live field
    values; scrubbing a number literal of an exported default changes the running game (written
    back on demand); log points without editing code (through hot reload).
