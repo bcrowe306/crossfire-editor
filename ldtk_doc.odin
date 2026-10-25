@@ -141,7 +141,8 @@ LDtkDoc_Get :: proc(root, path: string) -> ^LDtkDoc {
 		if !ldtkDocChanged(doc) do return doc
 		// Changed outside the editor (its own writes keep the times)
 		changed := ""
-		for f in doc.files do if ldtkModified(f.path) != f.modified do changed = f.path
+		// (a copy: reading the file again and merging free the document's paths)
+		for f in doc.files do if ldtkModified(f.path) != f.modified do changed = strings.clone(f.path, context.temp_allocator)
 		if changed == "" && len(doc.files) == 0 do changed = full
 		if !LDtkDoc_Unsaved(doc) {
 			ldtkNoteOutside(full, changed, false, false)
@@ -630,7 +631,8 @@ Returns:
 */
 LDtkDoc_Commit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches) -> string {
 	texts := LDtkDoc_Texts(doc)
-	if problem := LDtkDoc_Apply(doc, texts, patches); problem != "" do return problem
+	// SetTexts reads the result (and refuses it when it doesn't parse): no need to parse it twice
+	if problem := LDtkDoc_Apply(doc, texts, patches, check = false); problem != "" do return problem
 	return LDtkDoc_SetTexts(doc, texts)
 }
 
@@ -647,18 +649,21 @@ allocated), checking each result still parses.
 
 Inputs:
 - texts: A text per file (`LDtkDoc_Texts`), whose spans the patches refer to
+- check: Parse each result (false: the caller reads it anyway: `LDtkDoc_Commit`)
 
 Returns:
 - "" or what went wrong (then `texts` may be partly changed: don't use them)
 */
-LDtkDoc_Apply :: proc(doc: ^LDtkDoc, texts: []string, patches: ^LDtkPatches) -> string {
+LDtkDoc_Apply :: proc(doc: ^LDtkDoc, texts: []string, patches: ^LDtkPatches, check := true) -> string {
 	for list, i in patches.files {
 		if len(list) == 0 || i >= len(texts) do continue
 		text, ok := Json_Apply(texts[i], list[:], context.temp_allocator)
 		if !ok do return "the edit's changes overlap (nothing was changed)"
-		check, problem := Json_Parse(text, context.temp_allocator)
-		if problem != "" do return fmt.tprintf("the edit made %s unreadable (nothing was changed): %s", filepath.base(doc.files[i].path), problem)
-		Json_Destroy(&check)
+		if check {
+			parsed, problem := Json_Parse(text, context.temp_allocator)
+			if problem != "" do return fmt.tprintf("the edit made %s unreadable (nothing was changed): %s", filepath.base(doc.files[i].path), problem)
+			Json_Destroy(&parsed)
+		}
 		texts[i] = text
 	}
 	return ""

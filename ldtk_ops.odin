@@ -65,6 +65,17 @@ LDtkEditOp :: enum {
 	Entity_Moved,
 	Entity_Field,
 	Entity_Ref,
+	// Painting entities (ldtk_entity_ops.odin; LDtk's EntityTool, SelectionTool, ResizeTool): a new
+	// one of the entity type `def` in the level `level`'s layer `index` (a layer definition's
+	// uid) at `number`, `number2`, its iid `entity`; one removed (`entity`), resized (`number`,
+	// `number2` its position, `number3`, `number4` its size), duplicated (`entity` the source,
+	// `text` the copy's iid, at `number`, `number2`); a point field's point (`field`, `index`
+	// in an array or -1 for a new one, the cell `number`, `number2`; `flag` removes it)
+	Entity_Added,
+	Entity_Removed,
+	Entity_Resized,
+	Entity_Duplicated,
+	Entity_Point,
 	// A level (`level`: its iid): a field's value, its world position (`number`, `number2`)
 	Level_Field,
 	Level_X,
@@ -96,7 +107,7 @@ LDtk_Edit :: struct {
 	// A level's and an entity's iid
 	level, entity: string,
 	text: string,
-	number, number2: f64,
+	number, number2, number3, number4: f64,
 	flag: bool,
 }
 
@@ -107,7 +118,7 @@ LDtkRename :: struct {
 }
 
 // What an edit's second pass brings in step (ldtkCommit)
-@(private="file")
+@(private)
 LDtkRefresh :: struct {
 	// Every level's neighbours, and its entities' world positions
 	neighbours, worldPositions: bool,
@@ -380,6 +391,8 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 		if fieldDef < 0 do return "no such field", {}
 		info := LDtkDoc_FieldInfo(doc, fieldDef)
 		if info.type != .EntityRef do return "not an entity reference", {}
+		// Arrays and symmetrical references: LDtk's FieldInstance.setEntityRefTo (ldtk_entity_ops.odin)
+		if info.isArray || info.symmetrical do return LDtkOps_EntityEdit(doc, edit), {}
 		if why := LDtkOps_FieldLocked(info); why != "" do return why, {}
 		value, raw := "null", "[]"
 		if edit.text != "" {
@@ -396,6 +409,10 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 			set(&patches, doc, e.file, Json_Get(json, fi, "realEditorValues"), raw)
 		}
 		refresh.toc = true
+
+	// Painting entities (ldtk_entity_ops.odin)
+	case .Entity_Added, .Entity_Removed, .Entity_Resized, .Entity_Duplicated, .Entity_Point:
+		return LDtkOps_EntityEdit(doc, edit), {}
 
 	// Levels in the world
 	case .Level_X, .Level_Y, .Level_Moved:
@@ -677,7 +694,7 @@ LDtkDoc_FieldInfo :: proc(doc: ^LDtkDoc, node: int) -> LDtkFieldInfo {
 }
 
 // A field's default as `__value` text, from its `defaultOverride` text (LDtk's FieldDef.get*Default)
-@(private="file")
+@(private)
 ldtkDefaultText :: proc(info: LDtkFieldInfo, override: string) -> string {
 	if info.isArray do return "[]"
 	param := ""
@@ -707,7 +724,7 @@ ldtkDefaultText :: proc(info: LDtkFieldInfo, override: string) -> string {
 }
 
 // Whether a field instance uses its definition's default (no editor value of its own)
-@(private="file")
+@(private)
 ldtkUsesDefault :: proc(json: ^JsonDoc, fieldInstance: int) -> bool {
 	raw := Json_Get(json, fieldInstance, "realEditorValues")
 	for v in Json_Items(json, raw) do if Json_Kind(json, v) != .Null do return false
@@ -721,7 +738,7 @@ FieldInstance.parseValue and toJson): clamped to its range, an enum's value chec
 Returns:
 - The two texts, and false with why when the text isn't a value of the field's type
 */
-@(private="file")
+@(private)
 ldtkFieldValue :: proc(doc: ^LDtkDoc, info: LDtkFieldInfo, text: string, minified: bool) -> (value, raw: string, ok: bool, problem: string) {
 	wrap :: proc(minified: bool, id, param: string) -> string {
 		return Json_Array(Json_Object(minified, {"id", Json_Quote(id)}, {"params", Json_Array(param)}))
@@ -785,7 +802,7 @@ LDtkDoc_EnumValues :: proc(doc: ^LDtkDoc, enumUid: int) -> []string {
 }
 
 // An entity reference's `__value` (LDtk's EntityReferenceInfos)
-@(private="file")
+@(private)
 ldtkRefValue :: proc(doc: ^LDtkDoc, target: LDtkDocEntity, minified: bool) -> string {
 	json := LDtkDoc_Json(doc, target.file)
 	_, levelIid := LDtkDoc_LevelNames(doc, target.level)
@@ -841,7 +858,7 @@ ldtkLayerInstancesOf :: proc(doc: ^LDtkDoc, layerUid: int) -> []LDtkLayerPlace {
 }
 
 // Every instance of an entity definition (temp allocated)
-@(private="file")
+@(private)
 ldtkEntitiesOf :: proc(doc: ^LDtkDoc, defUid: int) -> []LDtkDocEntity {
 	out := make([dynamic]LDtkDocEntity, context.temp_allocator)
 	for e in LDtkDoc_Entities(doc) {
@@ -873,7 +890,7 @@ ldtkAllFieldDefs :: proc(doc: ^LDtkDoc) -> []int {
 }
 
 // Every field instance (entities' and levels', each copy of a level's; temp allocated)
-@(private="file")
+@(private)
 ldtkAllFieldInstances :: proc(doc: ^LDtkDoc) -> []LDtkDocPlace {
 	out := make([dynamic]LDtkDocPlace, context.temp_allocator)
 	for e in LDtkDoc_Entities(doc) {
@@ -957,7 +974,7 @@ ldtkMove :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file: int, items: []int, 
 }
 
 // The grid size of the layer an entity is in
-@(private="file")
+@(private)
 ldtkInstanceGrid :: proc(doc: ^LDtkDoc, e: LDtkDocEntity) -> int {
 	json := LDtkDoc_Json(doc, e.file)
 	return max(Json_Int(json, Json_Get(json, e.layer, "__gridSize"), 16), 1)
@@ -974,7 +991,7 @@ ldtkSetGrid :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, entity, grid: in
 
 // An entity's `__grid` from its position (`px`, or the one given), its pivot and grid
 // (LDtk's EntityInstance.getCx: a pivot of 1 counts the pixel before it)
-@(private="file")
+@(private)
 ldtkSetGridPivot :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, entity, grid: int, pivotX, pivotY: f64, at: Maybe([2]int) = nil) {
 	json := LDtkDoc_Json(doc, file)
 	px := Json_Get(json, entity, "px")
@@ -988,7 +1005,7 @@ ldtkSetGridPivot :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, entity, gri
 Makes an edit in the document (in memory: saving writes it): its patches, then (from what they
 make) what LDtk keeps in step: neighbours, entities' world positions, the table of contents.
 */
-@(private="file")
+@(private)
 ldtkCommit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches, refresh: LDtkRefresh) -> string {
 	texts := LDtkDoc_Texts(doc)
 	if problem := LDtkDoc_Apply(doc, texts, patches); problem != "" do return problem
@@ -1148,7 +1165,7 @@ refreshToc :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 }
 
 // Whether two values are the same JSON (whatever their spacing)
-@(private="file")
+@(private)
 jsonSameValue :: proc(a: ^JsonDoc, an: int, b: ^JsonDoc, bn: int) -> bool {
 	ka, kb := Json_Kind(a, an), Json_Kind(b, bn)
 	if ka != kb do return false
