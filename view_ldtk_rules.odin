@@ -89,9 +89,10 @@ LDtkRules_Tab :: proc(c: ^LDtkTabCtx) {
 // A small button
 @(private="file")
 rButton :: proc(c: ^LDtkTabCtx, key, label: string, msg: Msg, on := false, disabled := false, width: f32 = 0) -> skald.View {
+	tk := uiTokens(c.ctx)
 	th := c.ctx.theme
 	return skald.button(c.ctx, label, msg, id = skald.hash_id(key), bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled, width = width)
+		padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled, width = width)
 }
 
 // A small button with a tooltip
@@ -284,7 +285,7 @@ rectangle of cells: `ids` column by column as LDtk lists them (Tileset.onMouseUp
 rTilePicker :: proc(c: ^LDtkTabCtx, key: string, t: RulesTileset, selected: []int, marked: []int = nil, markColor: u32 = 0, marked2: []int = nil, markColor2: u32 = 0, maxHeight: f32 = 300) -> (skald.View, RulesPicked) {
 	ctx := c.ctx
 	th := ctx.theme
-	if !t.ok do return skald.text("The tileset's image can't be read (or the layer has no tileset).", th.color.warning, th.font.size_xs, max_width = c.rowWidth), {}
+	if !t.ok do return uiText(th, .Muted, "The tileset's image can't be read (or the layer has no tileset).", max_width = c.rowWidth, color = th.color.warning), {}
 	zoom := min(c.rowWidth / max(t.size.x, 1), 3)
 	if t.size.y * zoom > maxHeight do zoom = maxHeight / max(t.size.y, 1)
 	zoom = max(zoom, 0.25)
@@ -509,6 +510,7 @@ rulesList :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	ctx := c.ctx
 	s := c.s
 	th := ctx.theme
+	tk := uiTokens(ctx)
 	main := c.main
 	usable, why := LDtkRules_CanBeUsed(main, layer)
 	groups := LDtkRules_ReadGroups(main, layer)
@@ -624,7 +626,7 @@ rulesList :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 
 	atPointer := LevelRules_AtPointer(layerUid)
 	hoveredRule, hoveredGroup := -1, -1
-	line := skald.col(skald.spacer(0), height = 2, bg = th.color.primary)
+	line := skald.col(skald.spacer(0), height = tk.xxs, bg = th.color.primary)
 	for &g, gi in groups {
 		if drag.active && drag.group && drag.toIndex == gi && drag.fromIndex != gi && drag.toIndex < drag.fromIndex do append(c.rows, line)
 		gh := rGroupHeader(c, layerUid, &g, gi, ts, groups[:], atPointer, &hoveredGroup)
@@ -657,6 +659,7 @@ rulesList :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 // A group's header row
 @(private="file")
 rGroupHeader :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, ts: RulesTileset, groups: []LDtkGroupEdit, atPointer: []int, hoveredGroup: ^int) -> skald.View {
+	tk := uiTokens(c.ctx)
 	ctx := c.ctx
 	s := c.s
 	th := ctx.theme
@@ -684,7 +687,7 @@ rGroupHeader :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, 
 		skald.cursor_request(ctx, .Move)
 		if ctx.input.mouse_pressed[.Left] && !rulesDrag.active do rulesDrag = {active = true, group = true, uid = uid, fromIndex = gi, toIndex = gi}
 	}
-	append(&items, skald.tooltip(ctx, rZone(gripKey, skald.col(skald.text(ICON_GRIP_LINES, th.color.fg_muted, th.font.size_sm), padding = 2)), "Drag to move the group (its rules run in the list's order)", id = skald.hash_id(fmt.tprintf("%s-tip", gripKey))))
+	append(&items, skald.tooltip(ctx, rZone(gripKey, skald.col(uiText(th, .Label, ICON_GRIP_LINES), padding = tk.xxs)), "Drag to move the group (its rules run in the list's order)", id = skald.hash_id(fmt.tprintf("%s-tip", gripKey))))
 	// The toggle: on / off; an optional group's eye in this level
 	toggleKey := fmt.tprintf("ldtk-group-toggle-%d", uid)
 	if g.isOptional {
@@ -707,21 +710,21 @@ rGroupHeader :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, 
 			p^ = {icon.path, {x, y, w, h}}
 			append(&items, skald.canvas(ctx, p, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 				skald.draw_image_region(painter.r, p.path, painter.bounds, p.src, inset = false)
-			}, width = 20, height = 20 * h / max(w, 1)))
+			}, width = tk.iconColumn, height = tk.iconColumn * h / max(w, 1)))
 		}
 	}
 	// The name (a click opens or closes the group), or its text field while renamed
 	if s.level.rules.renaming == uid {
 		e := rEdit(c, .Rule_Group_Set, layerUid, group = uid)
 		e.key = "name"
-		field := tabTextField(c, fmt.tprintf("ldtk-group-rename-%d", uid), g.name, e, width = min(c.controlWidth, 200))
+		field := tabTextField(c, fmt.tprintf("ldtk-group-rename-%d", uid), g.name, e, width = min(c.controlWidth, tk.fieldL))
 		append(&items, field, rButton(c, fmt.tprintf("ldtk-group-rename-done-%d", uid), ICON_CHECK, Msg(Rules_View{op = .Rename, uid = -1})))
 	} else {
 		nameKey := fmt.tprintf("ldtk-group-name-%d", uid)
 		nameId := skald.hash_id(nameKey)
 		count := fmt.tprintf("%d rule%s", len(g.rules), len(g.rules) == 1 ? "" : "s")
-		label := skald.row(skald.text(open ? ICON_CHEVRON_DOWN : ICON_ARROW_RIGHT, th.color.fg_muted, th.font.size_xs),
-			skald.text(g.name, fg, th.font.size_sm, max_width = max(c.rowWidth * 0.4, 80)), skald.text(count, th.color.fg_muted, th.font.size_xs),
+		label := skald.row(uiText(th, .Muted, open ? ICON_CHEVRON_DOWN : ICON_ARROW_RIGHT),
+			skald.text(g.name, fg, th.font.size_sm, max_width = max(c.rowWidth * 0.4, tk.fieldXS)), uiText(th, .Muted, count),
 			spacing = th.spacing.xs, cross_align = .Center)
 		if rHovered(ctx, nameId) {
 			hoveredGroup^ = uid
@@ -739,10 +742,10 @@ rGroupHeader :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, 
 	if Json_Kind(main, Json_Get(main, Json_Path(main, fmt.tprintf("defs.layers.uid=%d", layerUid)), "biomeFieldUid")) == .Number {
 		text := "any biome"
 		if len(g.biome) > 0 do text = strings.join(g.biome[:], g.biomeMode == 1 ? " + " : " / ", context.temp_allocator)
-		append(&items, skald.text(fmt.tprintf("%s %s", ICON_GLOBE, text), th.color.fg_muted, th.font.size_xs, max_width = 160))
+		append(&items, uiText(th, .Muted, fmt.tprintf("%s %s", ICON_GLOBE, text), max_width = tk.textNarrow))
 	}
-	if g.isOptional do append(&items, skald.text("optional", th.color.fg_muted, th.font.size_xs))
-	if enabled && !applied do append(&items, skald.text("not in this level's biomes", th.color.warning, th.font.size_xs))
+	if g.isOptional do append(&items, uiText(th, .Muted, "optional"))
+	if enabled && !applied do append(&items, uiText(th, .Muted, "not in this level's biomes", color = th.color.warning))
 	if !g.usesWizard {
 		add := rEdit(c, .Rule_Added, layerUid, group = uid)
 		append(&items, rTipButton(c, fmt.tprintf("ldtk-group-add-%d", uid), ICON_PLUS, "A new rule, first in the group", Msg(add)))
@@ -782,6 +785,7 @@ rGroupHeader :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, 
 @(private="file")
 rRuleRow :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, r: ^LDtkRule, ri: int, ts: RulesTileset, values: []RulesValue, groups: []RulesGroup,
 	knownValues, knownGroups: map[int]bool, atPointer: []int, hoveredRule: ^int) -> skald.View {
+	tk := uiTokens(c.ctx)
 	ctx := c.ctx
 	s := c.s
 	th := ctx.theme
@@ -795,7 +799,7 @@ rRuleRow :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, r: ^
 		skald.cursor_request(ctx, .Move)
 		if ctx.input.mouse_pressed[.Left] && !rulesDrag.active do rulesDrag = {active = true, uid = uid, fromGroup = gi, fromIndex = ri, toGroup = gi, toIndex = ri}
 	}
-	append(&items, rZone(gripKey, skald.col(skald.text(ICON_GRIP_LINES, th.color.fg_muted, th.font.size_xs), padding = 2)))
+	append(&items, rZone(gripKey, skald.col(uiText(th, .Muted, ICON_GRIP_LINES), padding = tk.xxs)))
 	toggle := rSet(c, layerUid, uid, "active")
 	toggle.flag = !r.active
 	append(&items, rTipButton(c, fmt.tprintf("ldtk-rule-toggle-%d", uid), r.active ? ICON_SQUARE_CHECK : ICON_SQUARE, "Enable or disable this rule", Msg(toggle), on = r.active, disabled = wizard))
@@ -865,10 +869,10 @@ rRuleRow :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, r: ^
 	views := make([]skald.View, len(items), context.temp_allocator)
 	copy(views, items[:])
 	content := skald.wrap_row(..views, spacing = th.spacing.xs, line_spacing = 2, width = c.rowWidth - th.spacing.lg)
-	row := skald.col(content, padding = 2, bg = bg, radius = th.radius.sm, width = c.rowWidth)
+	row := skald.col(content, padding = tk.xxs, bg = bg, radius = th.radius.sm, width = c.rowWidth)
 	if s.level.rules.last == uid {
 		// LDtk's last rule: outlined
-		row = skald.col(row, padding = 1, bg = th.color.primary, radius = th.radius.sm, width = c.rowWidth)
+		row = skald.col(row, padding = tk.hair, bg = th.color.primary, radius = th.radius.sm, width = c.rowWidth)
 	}
 	return rZone(rowKey, skald.row(skald.spacer(th.spacing.md), row))
 }
@@ -877,7 +881,7 @@ rRuleRow :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, r: ^
 @(private="file")
 rPatternPreview :: proc(c: ^LDtkTabCtx, r: ^LDtkRule, ts: RulesTileset, values: []RulesValue, groups: []RulesGroup, knownValues, knownGroups: map[int]bool) -> skald.View {
 	th := c.ctx.theme
-	if LDtkRule_UsesUnknownValues(r, knownValues, knownGroups) do return skald.col(skald.text("Error", th.color.danger, th.font.size_xs), width = 40, height = 40, bg = th.color.bg)
+	if LDtkRule_UsesUnknownValues(r, knownValues, knownGroups) do return skald.col(uiText(th, .Muted, "Error", color = th.color.danger), width = 40, height = 40, bg = th.color.bg)
 	Paint :: struct {
 		size: int,
 		pattern: []int,
@@ -930,6 +934,7 @@ out-of-bounds policy, then every placement option.
 */
 @(private="file")
 rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
+	tk := uiTokens(c.ctx)
 	ctx := c.ctx
 	s := c.s
 	th := ctx.theme
@@ -942,7 +947,7 @@ rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	LevelRules_SetHovered(layerUid, uid, -1)
 	rButtons(c, rButton(c, "ldtk-rule-close", fmt.tprintf("%s  Back to the rules", ICON_ARROW_LEFT), Msg(Rules_View{op = .Close})),
 		rButton(c, "ldtk-rule-help", "Help", Msg(Rules_View{op = .Help, flag = !s.level.rules.help}), on = s.level.rules.help),
-		skald.text(fmt.tprintf("Rule #%d of \"%s\"", uid, g.name), th.color.fg_muted, th.font.size_xs))
+		uiText(th, .Muted, fmt.tprintf("Rule #%d of \"%s\"", uid, g.name)))
 	if s.level.rules.help do tabNote(c, "A rule draws tiles where the level's IntGrid values match its pattern: for example \"grass\" tiles above every wall. First pick the tile(s) to draw, then paint the pattern (the context in which they're drawn).")
 	values, groups := rSourceValues(c, layer)
 	tsUid := rLayerTileset(c, layerUid, layer)
@@ -958,7 +963,7 @@ rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 		for ids in r.tileRectsIds do if len(ids) > 0 do append(&current, ids[0])
 		row := make([dynamic]skald.View, context.temp_allocator)
 		for id in current do append(&row, rTileView(c, ts, {id}, 24))
-		if len(current) == 0 do append(&row, skald.text("No tiles yet: pick them on the tileset below (a drag; Shift adds, the right button removes).", th.color.warning, th.font.size_xs, max_width = c.rowWidth))
+		if len(current) == 0 do append(&row, uiText(th, .Muted, "No tiles yet: pick them on the tileset below (a drag; Shift adds, the right button removes).", max_width = c.rowWidth, color = th.color.warning))
 		rButtons(c, ..row[:])
 		picker, picked := rTilePicker(c, "rule-tiles", ts, current[:])
 		append(c.rows, picker)
@@ -986,7 +991,7 @@ rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 				}
 			}
 			v := rTileView(c, ts, ids[:], 32, stamp = true)
-			if stamp == i do v = skald.col(v, padding = 2, bg = th.color.primary, radius = 2)
+			if stamp == i do v = skald.col(v, padding = tk.xxs, bg = th.color.primary, radius = th.radius.sm)
 			append(&row, skald.tooltip(ctx, rZone(key, v), "Click: the tileset replaces it; right click: remove it", id = skald.hash_id(fmt.tprintf("%s-tip", key))))
 		}
 		append(&row, rButton(c, "ldtk-rule-stamp-add", fmt.tprintf("%s  Stamp", ICON_PLUS), Msg(Rules_View{op = .Stamp, number = -1}), on = stamp < 0 || stamp >= len(r.tileRectsIds)))
@@ -1009,11 +1014,11 @@ rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 				e := rSet(c, layerUid, uid, "pivot")
 				e.number, e.number2 = x, y
 				on := r.pivot.x == x && r.pivot.y == y
-				append(&line, rButton(c, fmt.tprintf("ldtk-rule-pivot-%d-%d", px, py), on ? ICON_CIRCLE_DOT : ICON_CIRCLE, Msg(e), on = on, width = 26))
+				append(&line, rButton(c, fmt.tprintf("ldtk-rule-pivot-%d-%d", px, py), on ? ICON_CIRCLE_DOT : ICON_CIRCLE, Msg(e), on = on, width = tk.panelButtonWidth))
 			}
-			append(&pivots, skald.row(..line[:], spacing = 2))
+			append(&pivots, skald.row(..line[:], spacing = tk.xxs))
 		}
-		tabRow(c, "Stamp pivot", skald.col(..pivots[:], spacing = 2), "Where the stamp is placed from its matching cell (top left to bottom right)")
+		tabRow(c, "Stamp pivot", skald.col(..pivots[:], spacing = tk.xxs), "Where the stamp is placed from its matching cell (top left to bottom right)")
 	}
 
 	// The pattern and its palette
@@ -1087,20 +1092,21 @@ rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	num(c, layerUid, uid, "Tile X offset", "tileXOffset", "Moves the tiles it draws sideways (pixels)", f64(r.tileXOffset), 1, 0, -1024, 1024)
 	num(c, layerUid, uid, "Tile Y offset", "tileYOffset", "Moves the tiles it draws up or down (pixels)", f64(r.tileYOffset), 1, 0, -1024, 1024)
 	randomAxis :: proc(c: ^LDtkTabCtx, layerUid, uid: int, axis: string, lo, hi: int, unlinked: bool) {
+		tk := uiTokens(c.ctx)
 		s := c.s
 		link := Rules_View{op = axis == "X" ? .Unlink_X : .Unlink_Y, flag = !unlinked}
 		linkButton := rTipButton(c, fmt.tprintf("ldtk-rule-link-%s", strings.to_lower(axis, context.temp_allocator)), unlinked ? ICON_LINK_SLASH : ICON_LINK,
 			unlinked ? "Link min and max (-max to max)" : "Unlink min and max", Msg(link), on = !unlinked)
 		if !unlinked {
 			e := rSet(c, layerUid, uid, fmt.tprintf("tileRandom%s", axis))
-			tabRow(c, fmt.tprintf("Random %s", axis), skald.row(numberField(c.ctx, s, fmt.tprintf("ldtk-rule-tileRandom%s", axis), LDtkNumberTarget{e}, f64(hi), 1, 0, 120, 0, 1024), linkButton, spacing = 4, cross_align = .Center),
+			tabRow(c, fmt.tprintf("Random %s", axis), skald.row(numberField(c.ctx, s, fmt.tprintf("ldtk-rule-tileRandom%s", axis), LDtkNumberTarget{e}, f64(hi), 1, 0, 120, 0, 1024), linkButton, spacing = tk.xs, cross_align = .Center),
 				fmt.tprintf("Tiles move at random by up to this many pixels %s either way (-max to max)", axis == "X" ? "sideways" : "up or down"))
 			return
 		}
 		mn := rSet(c, layerUid, uid, fmt.tprintf("tileRandom%sMin", axis))
 		mx := rSet(c, layerUid, uid, fmt.tprintf("tileRandom%sMax", axis))
 		tabRow(c, fmt.tprintf("Random %s", axis), skald.wrap_row(numberField(c.ctx, s, fmt.tprintf("ldtk-rule-tileRandom%sMin", axis), LDtkNumberTarget{mn}, f64(lo), 1, 0, 96, -1024, 1024),
-			numberField(c.ctx, s, fmt.tprintf("ldtk-rule-tileRandom%sMax", axis), LDtkNumberTarget{mx}, f64(hi), 1, 0, 96, -1024, 1024), linkButton, spacing = 4, width = c.controlWidth),
+			numberField(c.ctx, s, fmt.tprintf("ldtk-rule-tileRandom%sMax", axis), LDtkNumberTarget{mx}, f64(hi), 1, 0, 96, -1024, 1024), linkButton, spacing = tk.xs, width = c.controlWidth),
 			"Tiles move at random by a number of pixels from min to max")
 	}
 	randomAxis(c, layerUid, uid, "X", r.tileRandomXMin, r.tileRandomXMax, s.level.rules.unlinkX)
@@ -1138,13 +1144,14 @@ rPalette :: proc(c: ^LDtkTabCtx, values: []RulesValue, groups: []RulesGroup) {
 	th := ctx.theme
 	current := s.level.rules.value
 	chip :: proc(c: ^LDtkTabCtx, key, label: string, color: skald.Color, value: int, on: bool) -> skald.View {
+		tk := uiTokens(c.ctx)
 		th := c.ctx.theme
 		lum := 0.299 * color.r + 0.587 * color.g + 0.114 * color.b
 		fg := lum > 0.55 ? skald.Color{0, 0, 0, 1} : skald.Color{1, 1, 1, 1}
 		b := skald.button(c.ctx, label, Msg(Rules_View{op = .Value, number = value}), id = skald.hash_id(key), bg = color, fg = fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
-		if on do return skald.col(b, padding = 2, bg = th.color.primary, radius = th.radius.sm)
-		return skald.col(b, padding = 2)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
+		if on do return skald.col(b, padding = tk.xxs, bg = th.color.primary, radius = th.radius.sm)
+		return skald.col(b, padding = tk.xxs)
 	}
 	order := make([dynamic]int, context.temp_allocator)
 	append(&order, 0)
@@ -1340,6 +1347,7 @@ removes; a right click on a part clears it), the stacking option, then Create (o
 */
 @(private="file")
 rulesAssistant :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
+	tk := uiTokens(c.ctx)
 	ctx := c.ctx
 	s := c.s
 	th := ctx.theme
@@ -1373,7 +1381,7 @@ rulesAssistant :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	if s.numberEdit.id == nameId && skald.widget_has_focus(ctx, nameId) do nameText = s.numberEdit.text
 	name := skald.text_input(ctx, strings.clone(nameText, context.temp_allocator), 0, proc(_: int, v: string) -> Msg {
 		return Rules_View{op = .Assistant_Name, text = v}
-	}, id = nameId, width = c.controlWidth, padding = {th.spacing.sm, 2})
+	}, id = nameId, width = c.controlWidth, padding = tk.fieldPadding)
 	tabRow(c, "Group's name", name, "The new group's name")
 	// The parts' grid (each a cell of LDtk's 12 x 5 layout)
 	tsUid := rLayerTileset(c, layerUid, layer)
@@ -1487,9 +1495,9 @@ dark green, where they go green, or red past the edge), the copy's name, Confirm
 */
 @(private="file")
 rulesRemap :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
+	tk := uiTokens(c.ctx)
 	ctx := c.ctx
 	s := c.s
-	th := ctx.theme
 	r := &s.level.rules
 	LevelRules_SetHovered(-1, -1, -1)
 	groups := LDtkRules_ReadGroups(c.main, layer)
@@ -1560,7 +1568,7 @@ rulesRemap :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	if s.numberEdit.id == nameId && skald.widget_has_focus(ctx, nameId) do nameText = s.numberEdit.text
 	name := skald.text_input(ctx, strings.clone(nameText, context.temp_allocator), 0, proc(_: int, v: string) -> Msg {
 		return Rules_View{op = .Remap_Name, text = v}
-	}, id = nameId, width = c.controlWidth, padding = {th.spacing.sm, 2})
+	}, id = nameId, width = c.controlWidth, padding = tk.fieldPadding)
 	tabRow(c, "New name", name, "The copy's name")
 	edit := rEdit(c, .Rule_Group_Remapped, layerUid, group = g.uid)
 	edit.text = strings.clone(r.name, context.temp_allocator)
@@ -1598,6 +1606,7 @@ rulesIcon :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 // A group's color picked from LDtk's palette (or typed)
 @(private="file")
 rulesColor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
+	tk := uiTokens(c.ctx)
 	ctx := c.ctx
 	th := ctx.theme
 	r := &c.s.level.rules
@@ -1610,8 +1619,8 @@ rulesColor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	for col, i in LDTK_NICE_PALETTE {
 		e := rEdit(c, .Rule_Group_Set, layerUid, group = r.group)
 		e.key, e.text = "color", LDtk_FormatColor(col)
-		b := skald.button(ctx, "", Msg(e), id = skald.hash_id(fmt.tprintf("ldtk-color-%d", i)), bg = skald.rgb(u32(col)), width = 24, padding = {0, 4}, radius = th.radius.sm)
-		append(&swatches, col == current ? skald.col(b, padding = 2, bg = th.color.fg, radius = th.radius.sm) : skald.col(b, padding = 2))
+		b := skald.button(ctx, "", Msg(e), id = skald.hash_id(fmt.tprintf("ldtk-color-%d", i)), bg = skald.rgb(u32(col)), width = tk.panelButtonWidth, padding = {0, tk.xs}, radius = th.radius.sm)
+		append(&swatches, col == current ? skald.col(b, padding = tk.xxs, bg = th.color.fg, radius = th.radius.sm) : skald.col(b, padding = tk.xxs))
 	}
 	rButtons(c, ..swatches[:])
 	e := rEdit(c, .Rule_Group_Set, layerUid, group = r.group)
@@ -1622,7 +1631,7 @@ rulesColor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 		x := edit
 		x.text = strings.concatenate({"#", skald.color_to_hex(v)}, context.temp_allocator)
 		return x
-	}, id = skald.hash_id("ldtk-color-wheel"), width = min(c.controlWidth, 160))
+	}, id = skald.hash_id("ldtk-color-wheel"), width = min(c.controlWidth, tk.fieldM))
 	tabRow(c, "Any color", wheel, "pick any color on a wheel")
 	none := e
 	none.text = ""

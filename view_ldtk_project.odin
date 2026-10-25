@@ -26,6 +26,7 @@ the toolbar row's `ldtk-level-duplicate`, `-delete`); Project: `ldtk-project-<ke
 // The World tab: the worlds (LDtk's Multi-worlds), the shown one's name, layout, grids and new
 // levels' size, its depths, its levels' places and order
 LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
+	tk := uiTokens(c.ctx)
 	s := c.s
 	doc := c.doc
 	main := c.main
@@ -55,8 +56,8 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 	if multi {
 		tabRow(c, "Name", tabTextField(c, "ldtk-world-name", worldName, name), "The world's identifier (unique among the project's worlds)")
 	}
-	tabRow(c, "IID", skald.row(skald.text(worldIid, c.ctx.theme.color.fg_muted, c.ctx.theme.font.size_xs, max_width = max(c.controlWidth - 60, 60)),
-		smallButton(c, "ldtk-world-iid-copy", ICON_COPY, Msg(Text_Copied(strings.clone(worldIid, context.temp_allocator)))), spacing = 4, cross_align = .Center),
+	tabRow(c, "IID", skald.row(uiText(c.ctx.theme, .Muted, worldIid, max_width = max(c.controlWidth - tk.fieldXS, tk.fieldXS)),
+		smallButton(c, "ldtk-world-iid-copy", ICON_COPY, Msg(Text_Copied(strings.clone(worldIid, context.temp_allocator)))), spacing = tk.xs, cross_align = .Center),
 		"The world's unique id (entity references and the table of contents name it); the button copies it")
 	layout := LDtkDoc_WorldLayout(doc, wi)
 	e := tabBase(c, .World_Layout)
@@ -83,9 +84,9 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 		depth := LevelMode_Depth(s, doc)
 		tabRow(c, "Depth shown", skald.row(
 			smallButton(c, "ldtk-world-depth-prev", ICON_ARROW_DOWN, Msg(Level_Depth_Shown{step = -1}), disabled = depth <= lo),
-			skald.text(fmt.tprintf("%d (of %d to %d)", depth, lo, hi), c.ctx.theme.color.fg, c.ctx.theme.font.size_sm),
+			uiText(c.ctx.theme, .Value, fmt.tprintf("%d (of %d to %d)", depth, lo, hi)),
 			smallButton(c, "ldtk-world-depth-next", ICON_ARROW_UP, Msg(Level_Depth_Shown{step = 1}), disabled = depth >= hi),
-			spacing = 6, cross_align = .Center), "The world depth the canvas shows (PgUp / PgDn); the other depths' levels are faded and can't be picked")
+			spacing = tk.s, cross_align = .Center), "The world depth the canvas shows (PgUp / PgDn); the other depths' levels are faded and can't be picked")
 	}
 	tabHeading(c, "Levels")
 	if s.level.spot do tabNote(c, "Click the canvas where the new level goes (Esc cancels).")
@@ -102,8 +103,8 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 		order := skald.row(
 			smallButton(c, fmt.tprintf("ldtk-world-up-%d", at), ICON_ARROW_UP, Msg(up), disabled = at == 0),
 			smallButton(c, fmt.tprintf("ldtk-world-down-%d", at), ICON_ARROW_DOWN, Msg(down), disabled = at == len(levels) - 1),
-			skald.text(fmt.tprintf("%.0f x %.0f px%s", rect[2], rect[3], LDtkDoc_LevelDepth(doc, i) != 0 ? fmt.tprintf(", depth %d", LDtkDoc_LevelDepth(doc, i)) : ""), c.ctx.theme.color.fg_muted, c.ctx.theme.font.size_xs),
-			spacing = 4, cross_align = .Center)
+			uiText(c.ctx.theme, .Muted, fmt.tprintf("%.0f x %.0f px%s", rect[2], rect[3], LDtkDoc_LevelDepth(doc, i) != 0 ? fmt.tprintf(", depth %d", LDtkDoc_LevelDepth(doc, i)) : "")),
+			spacing = tk.xs, cross_align = .Center)
 		tabRow(c, lname, order, linear ? "The level's place in the world's order (a linear world places them by it)" : "The level's place in the world's order (automatic names count it)")
 		if linear do continue
 		move := tabBase(c, .Level_X)
@@ -121,6 +122,7 @@ The selected level's settings (LDtk's level form): its name and automatic naming
 place, size, background color and image (Duplicate / Delete are on the tab's toolbar row).
 */
 LDtkProject_LevelSettings :: proc(c: ^LDtkTabCtx) {
+	tk := uiTokens(c.ctx)
 	s := c.s
 	ctx := c.ctx
 	th := ctx.theme
@@ -142,13 +144,13 @@ LDtkProject_LevelSettings :: proc(c: ^LDtkTabCtx) {
 		skald.send(ctx, Msg(Level_Field_Focused{}))
 	}
 	if auto {
-		tabRow(c, "Name", skald.text(identifier, th.color.fg, th.font.size_sm, max_width = c.controlWidth), "The level's identifier: the project's name pattern makes it while Automatic name is on")
+		tabRow(c, "Name", uiText(th, .Value, identifier, max_width = c.controlWidth), "The level's identifier: the project's name pattern makes it while Automatic name is on")
 	} else {
 		tabRow(c, "Name", tabTextField(c, nameKey, identifier, set(c, l, "identifier")), "The level's identifier (cleaned up and made unique, LDtk's way); scenes naming the level follow it")
 	}
 	tabFlagRow(c, "Automatic name", "ldtk-level-auto", "Named by the project's level name pattern (the Project tab), as LDtk names new levels", set(c, l, "useAutoIdentifier"), auto)
-	tabRow(c, "IID", skald.row(skald.text(iid, th.color.fg_muted, th.font.size_xs, max_width = max(c.controlWidth - 60, 60)),
-		smallButton(c, "ldtk-level-iid-copy", ICON_COPY, Msg(Text_Copied(l))), spacing = 4, cross_align = .Center), "The level's unique id; the button copies it")
+	tabRow(c, "IID", skald.row(uiText(th, .Muted, iid, max_width = max(c.controlWidth - tk.fieldXS, tk.fieldXS)),
+		smallButton(c, "ldtk-level-iid-copy", ICON_COPY, Msg(Text_Copied(l))), spacing = tk.xs, cross_align = .Center), "The level's unique id; the button copies it")
 	depth := LDtkDoc_LevelDepth(doc, level)
 	further, closer := LDtkDoc_LevelDepthMoves(doc, level)
 	fe, ce := tabBase(c, .Level_Depth), tabBase(c, .Level_Depth)
@@ -158,7 +160,7 @@ LDtkProject_LevelSettings :: proc(c: ^LDtkTabCtx) {
 		numberField(ctx, s, "ldtk-level-depth", LDtkNumberTarget{set(c, l, "worldDepth")}, f64(depth), 1, 0, min(c.controlWidth, 120), -100, 100),
 		smallButton(c, "ldtk-level-further", fmt.tprintf("%s Further", ICON_ARROW_UP), Msg(fe), disabled = !further),
 		smallButton(c, "ldtk-level-closer", fmt.tprintf("%s Closer", ICON_ARROW_DOWN), Msg(ce), disabled = !closer),
-		spacing = 4, cross_align = .Center), "The level's world depth (levels of one depth are side by side; others above or below it)")
+		spacing = tk.xs, cross_align = .Center), "The level's world depth (levels of one depth are side by side; others above or below it)")
 	rect := LDtkDoc_LevelRect(doc, level)
 	layout := LDtkDoc_WorldLayout(doc, doc.levels[level].world)
 	if layout == "Free" || layout == "GridVania" {
@@ -185,7 +187,7 @@ LDtkProject_LevelSettings :: proc(c: ^LDtkTabCtx) {
 	own := Json_Kind(main, Json_Get(main, entry, "bgColor")) == .String
 	bg := Json_String(main, Json_Get(main, entry, "__bgColor"))
 	tabRow(c, "Color", skald.row(tabColorField(c, "ldtk-level-bg", bg, set(c, l, "bgColor")),
-		own ? smallButton(c, "ldtk-level-bg-default", "Default", Msg(set(c, l, "bgColor"))) : skald.text("(default)", th.color.fg_muted, th.font.size_xs), spacing = 4, cross_align = .Center),
+		own ? smallButton(c, "ldtk-level-bg-default", "Default", Msg(set(c, l, "bgColor"))) : uiText(th, .Muted, "(default)"), spacing = tk.xs, cross_align = .Center),
 		"The level's background color; Default uses the project's (the Project tab)")
 	images := LDtkDefs_Images(s, doc)
 	imageLabels := make([dynamic]string, context.temp_allocator)
@@ -227,6 +229,7 @@ LDtk's pivot editor: nine buttons (corners, edges, center) setting `number`, `nu
 */
 @(private)
 pivotPicker :: proc(c: ^LDtkTabCtx, key: string, edit: LDtk_Edit, x, y: f64) -> skald.View {
+	tk := uiTokens(c.ctx)
 	th := c.ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	for py in ([]f64{0, 0.5, 1}) {
@@ -236,24 +239,25 @@ pivotPicker :: proc(c: ^LDtkTabCtx, key: string, edit: LDtk_Edit, x, y: f64) -> 
 			e.number, e.number2 = px, py
 			on := abs(px - x) < 0.01 && abs(py - y) < 0.01
 			append(&cells, skald.button(c.ctx, on ? ICON_CIRCLE : " ", Msg(e), id = skald.hash_id(fmt.tprintf("%s-%v-%v", key, px, py)),
-				bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg, width = 22,
+				bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg, width = tk.panelButtonWidth,
 				padding = {0, 0}, font_size = th.font.size_xs, radius = th.radius.sm))
 		}
-		append(&rows, skald.row(..cells[:], spacing = 2))
+		append(&rows, skald.row(..cells[:], spacing = tk.xxs))
 	}
 	label := fmt.tprintf("%.2g, %.2g", x, y)
-	return skald.row(skald.col(..rows[:], spacing = 2), skald.text(label, th.color.fg_muted, th.font.size_xs), spacing = 6, cross_align = .Center)
+	return skald.row(skald.col(..rows[:], spacing = tk.xxs), uiText(th, .Muted, label), spacing = tk.s, cross_align = .Center)
 }
 
 // The Project tab: the file and its saving, then every option of LDtk's project panel
 LDtkProject_ProjectTab :: proc(c: ^LDtkTabCtx) {
+	tk := uiTokens(c.ctx)
 	main := c.main
 	root := Json_Root(main)
 	th := c.ctx.theme
 	doc := c.doc
 	unsaved := LDtkDoc_IsUnsaved(c.s.project.rootPath, c.file)
 	text :: proc(c: ^LDtkTabCtx, value: string) -> skald.View {
-		return skald.text(value, c.ctx.theme.color.fg, c.ctx.theme.font.size_sm, max_width = c.controlWidth)
+		return uiText(c.ctx.theme, .Value, value, max_width = c.controlWidth)
 	}
 	set :: proc(c: ^LDtkTabCtx, key: string) -> LDtk_Edit {
 		e := tabBase(c, .Project_Set)
@@ -371,7 +375,7 @@ LDtkProject_ProjectTab :: proc(c: ^LDtkTabCtx) {
 			tabChoiceField(c, fmt.tprintf("ldtk-project-when-%d", i), labelOf(triggerLabels, triggers, Json_String(main, Json_Get(main, cmd, "when"))), triggerLabels, triggers, w),
 			smallButton(c, fmt.tprintf("ldtk-project-up-%d", i), ICON_ARROW_UP, Msg(up), disabled = i == 0),
 			smallButton(c, fmt.tprintf("ldtk-project-remove-%d", i), ICON_TRASH, Msg(rm)),
-			spacing = 4, cross_align = .Center), "When LDtk runs it")
+			spacing = tk.xs, cross_align = .Center), "When LDtk runs it")
 	}
 	add := tabBase(c, .Project_Command)
 	add.key = "add"

@@ -1005,13 +1005,14 @@ edits, or a note), over the canvas.
 */
 @(private="file")
 levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	file := LevelMode_File(s)
 	if file == "" {
 		return skald.col(
 			skald.col(
-				skald.text("This project has no LDtk levels yet.", th.color.fg, th.font.size_sm),
-				skald.text("Draw levels in LDtk (ldtk.io) and import the .ldtk file (the Levels sidebar's Import...): its levels show here, laid out as in its world, to edit and to open in scenes.", th.color.fg_muted, th.font.size_xs, max_width = 420),
+				uiText(th, .Value, "This project has no LDtk levels yet."),
+				uiText(th, .Muted, "Draw levels in LDtk (ldtk.io) and import the .ldtk file (the Levels sidebar's Import...): its levels show here, laid out as in its world, to edit and to open in scenes.", max_width = tk.textMeasure),
 				spacing = th.spacing.sm,
 				padding = th.spacing.md,
 			),
@@ -1028,7 +1029,7 @@ levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if readable && len(doc.worlds) > 1 do place, _ = LDtkDoc_WorldNames(doc, LevelMode_World(s, doc))
 	if s.level.focus != "" do place = fmt.tprintf("%s  %s  %s", place, ICON_ARROW_RIGHT, s.level.focus)
 	actions := make([dynamic]skald.View, context.temp_allocator)
-	if s.level.view.zoom > 0 do append(&actions, skald.text(fmt.tprintf("%.0f%%", s.level.view.zoom * 100), th.color.fg_muted, th.font.size_xs))
+	if s.level.view.zoom > 0 do append(&actions, uiText(th, .Muted, fmt.tprintf("%.0f%%", s.level.view.zoom * 100)))
 	if s.level.focus != "" {
 		append(&actions, panelButton(ctx, "level-world-view", ICON_GLOBE, "Back to the world view (or double-click outside the level)", Msg(Level_Focus_Changed(""))))
 	} else if s.level.level != "" {
@@ -1047,9 +1048,9 @@ levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	items := make([dynamic]skald.View, context.temp_allocator)
-	append(&items, skald.text(place, th.color.fg, th.font.size_sm))
-	if LDtkDoc_IsUnsaved(s.project.rootPath, file) do append(&items, skald.text("(unsaved: Ctrl+S saves)", th.color.warning, th.font.size_xs))
-	if summary := LevelSelect_Summary(s); summary != "" do append(&items, skald.text(summary, th.color.fg_muted, th.font.size_xs, max_width = 420))
+	append(&items, uiText(th, .Value, place))
+	if LDtkDoc_IsUnsaved(s.project.rootPath, file) do append(&items, uiText(th, .Muted, "(unsaved: Ctrl+S saves)", color = th.color.warning))
+	if summary := LevelSelect_Summary(s); summary != "" do append(&items, uiText(th, .Muted, summary, max_width = tk.textMeasure))
 	append(&items, skald.flex(1, skald.spacer(0)))
 	append(&items, ..actions[:])
 	header := skald.row(..items[:],
@@ -1062,17 +1063,16 @@ levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// LDtk saved the file over unsaved edits: reload it, or keep the edits
 	if names, clash := LDtkDoc_DiskConflict(s.project.rootPath, file); clash {
 		append(&rows, skald.wrap_row(
-			skald.text(fmt.tprintf("%s  %s changed outside the editor (saved in LDtk?) where you have unsaved edits.", ICON_REFRESH, strings.join(names, ", ", context.temp_allocator)), th.color.warning, th.font.size_xs, max_width = 2000),
+			uiText(th, .Muted, fmt.tprintf("%s  %s changed outside the editor (saved in LDtk?) where you have unsaved edits.", ICON_REFRESH, strings.join(names, ", ", context.temp_allocator)), max_width = 2000, color = th.color.warning),
 			skald.button(ctx, "Reload It", Msg(LDtk_Disk_Chosen{reload = true}), id = skald.hash_id("ldtk-disk-reload"), bg = th.color.surface, fg = th.color.fg,
-				padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+				padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm),
 			skald.button(ctx, "Keep My Edits", Msg(LDtk_Disk_Chosen{reload = false}), id = skald.hash_id("ldtk-disk-keep"), bg = th.color.surface, fg = th.color.fg,
-				padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+				padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm),
 			spacing = th.spacing.xs, line_spacing = 2, padding = th.spacing.xs,
 		))
 	} else if change, outside := LDtkDoc_Outside(s.project.rootPath, file); outside {
 		what := change.merged ? "merged with your unsaved edits" : "read again"
-		append(&rows, skald.text(fmt.tprintf("%s  %s changed outside the editor at %s (saved in LDtk?): %s", ICON_REFRESH, change.file, levelClock(change.at), what),
-			th.color.warning, th.font.size_xs, max_width = 2000))
+		append(&rows, uiText(th, .Muted, fmt.tprintf("%s  %s changed outside the editor at %s (saved in LDtk?): %s", ICON_REFRESH, change.file, levelClock(change.at), what), max_width = 2000, color = th.color.warning))
 	}
 	append(&rows, skald.flex(1, body))
 	return skald.col(..rows[:], cross_align = .Stretch, bg = th.color.bg)
@@ -1111,6 +1111,7 @@ editor since (LDtk saved the file) where the step changes it: put the step's tex
 outside change, keep the document (the step goes), or wait.
 */
 ldtkConflictDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	if !s.level.conflict.open do return closedDialog(ctx, "ldtk-conflict-dialog")
 	th := ctx.theme
 	stack := s.level.conflict.undo ? s.history.undo : s.history.redo
@@ -1122,9 +1123,9 @@ ldtkConflictDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = true,
 		on_dismiss = proc() -> Msg { return LDtk_Conflict_Chosen(.Cancel) },
 		content = skald.col(
-			skald.text(fmt.tprintf("%s changed outside the editor", file), th.color.fg, th.font.size_lg),
-			skald.text(fmt.tprintf("%s \"%s\" would change what changed in %s since (saved in LDtk?).", what, label, file), th.color.fg_muted, th.font.size_sm, max_width = 460),
-			skald.text("Overwrite puts the editor's version back (save to write it); Keep the File leaves it as it is and drops this step (and the older ones of the history).", th.color.fg_muted, th.font.size_sm, max_width = 460),
+			uiText(th, .Title, fmt.tprintf("%s changed outside the editor", file)),
+			uiText(th, .Label, fmt.tprintf("%s \"%s\" would change what changed in %s since (saved in LDtk?).", what, label, file), max_width = tk.textMeasure),
+			uiText(th, .Label, "Overwrite puts the editor's version back (save to write it); Keep the File leaves it as it is and drops this step (and the older ones of the history).", max_width = tk.textMeasure),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.button(ctx, "Cancel", Msg(LDtk_Conflict_Chosen(.Cancel)), id = skald.hash_id("ldtk-conflict-cancel"),

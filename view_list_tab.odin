@@ -133,22 +133,23 @@ Inputs:
 - panel: The bottom panel's width (the toolbar row wraps to it)
 */
 listTabView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, t: ^ListTab, l: ListTabLayout, rows: []skald.View, panel: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	// The toolbar row: the tab's buttons, then its text
 	tools := make([dynamic]skald.View, context.temp_allocator)
 	append(&tools, ..t.tools[:])
 	if t.text != "" {
 		// Beside the buttons while there's room (a wrapped text takes its whole width: a line of its own)
-		text := skald.text(t.text, th.color.fg_muted, th.font.size_xs)
+		text := uiText(th, .Muted, t.text)
 		if ctx.renderer != nil && skald.view_size(ctx.renderer, text).x > panel - th.spacing.sm * 2 {
-			text = skald.text(t.text, th.color.fg_muted, th.font.size_xs, max_width = max(panel - th.spacing.sm * 2, 80))
+			text = uiText(th, .Muted, t.text, max_width = max(panel - th.spacing.sm * 2, tk.fieldXS))
 		}
 		append(&tools, text)
 	}
 	// One line, centered, while it fits; else wrapped (a narrow panel)
 	line := skald.row(..tools[:], spacing = th.spacing.xs, cross_align = .Center)
 	if ctx.renderer != nil && skald.view_size(ctx.renderer, line).x > panel - th.spacing.xs * 2 {
-		line = skald.wrap_row(..tools[:], spacing = th.spacing.xs, line_spacing = th.spacing.xs, width = max(panel - th.spacing.xs * 2, 60))
+		line = skald.wrap_row(..tools[:], spacing = th.spacing.xs, line_spacing = th.spacing.xs, width = max(panel - th.spacing.xs * 2, tk.fieldXS))
 	}
 	toolbar := skald.col(line, padding = th.spacing.xs, bg = th.color.surface, cross_align = .Stretch)
 
@@ -177,7 +178,7 @@ listTabView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, t: ^ListTab, l: ListTabLayo
 listTabSidebar :: proc(ctx: ^skald.Ctx(Msg), s: ^State, t: ^ListTab) -> skald.View {
 	th := ctx.theme
 	if len(t.items) == 0 {
-		return skald.col(skald.text(t.empty, th.color.fg_muted, th.font.size_xs, max_width = LIST_TAB_WIDTH - th.spacing.sm * 2), padding = th.spacing.sm, bg = th.color.bg)
+		return skald.col(uiText(th, .Muted, t.empty, max_width = LIST_TAB_WIDTH - th.spacing.sm * 2), padding = th.spacing.sm, bg = th.color.bg)
 	}
 	rows := make([]ListRow, len(t.items), context.temp_allocator)
 	tree := make([]ColoredTreeRow, len(t.items), context.temp_allocator)

@@ -68,6 +68,7 @@ an LDtk file, how to bring one in).
 */
 @(private="file")
 levelLevelsPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	parts := make([dynamic]skald.View, context.temp_allocator)
 	file := LevelMode_File(s)
@@ -86,9 +87,9 @@ levelLevelsPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 	textWidth := sidebarTextWidth(s, ctx, false)
 	if file == "" {
 		append(&parts, skald.divider(ctx), skald.col(
-			skald.text("No LDtk project yet: import an .ldtk file (LDtk, ldtk.io) and its levels show here.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60),
+			uiText(th, .Muted, "No LDtk project yet: import an .ldtk file (LDtk, ldtk.io) and its levels show here.", max_width = textWidth + tk.fieldXS),
 			skald.button(ctx, fmt.tprintf("%s  Import...", ICON_PLUS), Msg(Action.Import_Asset), id = skald.hash_id("level-import"),
-				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_sm),
+				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_sm),
 			spacing = th.spacing.sm,
 			padding = th.spacing.sm,
 		))
@@ -140,7 +141,7 @@ levelLevelsPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 		append(&tree, row)
 	}
 	if len(rows) == 0 {
-		append(&parts, skald.col(skald.text("This world has no levels: + (New Level) adds one.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
+		append(&parts, skald.col(uiText(th, .Muted, "This world has no levels: + (New Level) adds one.", max_width = textWidth + tk.fieldXS), padding = th.spacing.sm))
 		return parts[:]
 	}
 	Tree_RevealSelected(ctx, tree[:], "level-list", "level-list-scroll", s.settings.rowHeight)
@@ -177,6 +178,7 @@ sends `Layer_Move` by the rows it crossed), as the scene tree's rows move nodes.
 */
 @(private="file")
 levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	parts := make([dynamic]skald.View, context.temp_allocator)
 	file := LevelMode_File(s)
@@ -281,18 +283,19 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 			// Where it goes: a line before (moving up) or after (down) the row under the pointer
 			if drag.to != drag.from {
 				y := listRect.y + f32(at + (drag.to > drag.from ? 1 : 0)) * rowHeight - 1
+				tk := uiTokens(ctx)
 				Line :: struct { color: skald.Color }
 				line := new_clone(Line{th.color.primary}, context.temp_allocator)
 				indicator = skald.overlay({listRect.x, y, listRect.w, 0}, skald.canvas(ctx, line, proc(l: ^Line, p: skald.Canvas_Painter) {
 					skald.draw_rect(p.r, p.bounds, l.color, 1)
-				}, width = listRect.w, height = 2), no_shadow = true, pin = true)
+				}, width = listRect.w, height = tk.xxs), no_shadow = true, pin = true)
 			}
 		}
 	}
 	content := make([dynamic]skald.View, context.temp_allocator)
 	append(&content, list)
-	if level < 0 && len(layers) > 0 do append(&content, skald.col(skald.text("Select a level to show or hide its layers.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
-	if len(layers) == 0 do append(&content, skald.col(skald.text("This project has no layers: add them in the Layers tab.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
+	if level < 0 && len(layers) > 0 do append(&content, skald.col(uiText(th, .Muted, "Select a level to show or hide its layers.", max_width = textWidth + tk.fieldXS), padding = th.spacing.sm))
+	if len(layers) == 0 do append(&content, skald.col(uiText(th, .Muted, "This project has no layers: add them in the Layers tab.", max_width = textWidth + tk.fieldXS), padding = th.spacing.sm))
 	body := skald.col(..content[:], cross_align = .Stretch)
 	// What the selected layer paints with (view_level_palette.odin): LDtk's palette under its
 	// layers, which take what their rows need (at most half the sidebar; 40% beside a tileset)

@@ -83,10 +83,11 @@ actions), the list in a sidebar (or a dropdown in a narrow panel), the selected 
 the inspector's rows. Every tab has a list but the Project tab.
 */
 LevelMode_LDtkTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg), tab: BottomTab) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	file := LevelMode_File(s)
 	doc := file != "" ? LDtkDoc_Get(s.project.rootPath, file) : nil
-	if doc == nil do return skald.col(skald.text("The LDtk tabs edit the world's LDtk project: import an .ldtk file first (the Levels sidebar's Import...).", th.color.fg_muted, th.font.size_sm, max_width = max(Mode_LayoutOf(s, .Level).workspace.x - 500, 200)), padding = th.spacing.md)
+	if doc == nil do return skald.col(uiText(th, .Label, "The LDtk tabs edit the world's LDtk project: import an .ldtk file first (the Levels sidebar's Import...).", max_width = max(Mode_LayoutOf(s, .Level).workspace.x - tk.dialogL, tk.fieldL)), padding = th.spacing.md)
 	if doc.problem != "" do return placeholder(ctx, fmt.tprintf("%s can't be read as an LDtk project: %s", filepath.base(file), doc.problem))
 
 	// The panel's width: the Level mode's center column (its sidebars fitted as the Scene mode's)
@@ -107,8 +108,8 @@ LevelMode_LDtkTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg), tab: BottomTab) -> sk
 	if level >= 0 do _, levelIid = LDtkDoc_LevelNames(doc, level)
 	c := LDtkTabCtx{s = s, ctx = ctx, doc = doc, main = LDtkDoc_Main(doc), file = strings.clone(file, context.temp_allocator), world = LevelMode_World(s, doc), level = level,
 		levelIid = strings.clone(levelIid, context.temp_allocator), controlWidth = l.controlWidth, rowWidth = l.rowWidth, stacked = l.stacked, rows = &rows, list = &list}
-	if s.level.problem != "" do append(&rows, skald.text(fmt.tprintf("Not changed: %s", s.level.problem), th.color.warning, th.font.size_xs, max_width = l.rowWidth))
-	if old := LDtkOps_TooOld(doc); old != "" do append(&rows, skald.text(fmt.tprintf("Read only: %s", old), th.color.warning, th.font.size_xs, max_width = l.rowWidth))
+	if s.level.problem != "" do append(&rows, uiText(th, .Muted, fmt.tprintf("Not changed: %s", s.level.problem), max_width = l.rowWidth, color = th.color.warning))
+	if old := LDtkOps_TooOld(doc); old != "" do append(&rows, uiText(th, .Muted, fmt.tprintf("Read only: %s", old), max_width = l.rowWidth, color = th.color.warning))
 	#partial switch tab {
 	case .World:            ldtkWorldSection(&c)
 	case .Level:            ldtkLevelSection(&c)
@@ -152,7 +153,7 @@ tabBase :: proc(c: ^LDtkTabCtx, op: LDtkEditOp) -> LDtk_Edit {
 tabRow :: proc(c: ^LDtkTabCtx, label: string, control: skald.View, tip: string) {
 	ctx := c.ctx
 	th := ctx.theme
-	text := skald.text(label, th.color.fg_muted, th.font.size_sm, max_width = c.stacked ? c.rowWidth : LDTK_LABEL_WIDTH)
+	text := uiText(th, .Label, label, max_width = c.stacked ? c.rowWidth : LDTK_LABEL_WIDTH)
 	rowTipCount += 1
 	labelView := skald.tooltip(ctx, text, tip, id = skald.hash_id(fmt.tprintf("row-tip-%d", rowTipCount)))
 	append(c.rows, inspectorLabelled(ctx, labelView, control))
@@ -162,7 +163,7 @@ tabRow :: proc(c: ^LDtkTabCtx, label: string, control: skald.View, tip: string) 
 @(private)
 tabHeading :: proc(c: ^LDtkTabCtx, text: string) {
 	th := c.ctx.theme
-	append(c.rows, skald.spacer(th.spacing.xs), skald.text(text, th.color.fg, th.font.size_sm, max_width = c.rowWidth))
+	append(c.rows, uiSection(th, uiTokens(c.ctx), text, max_width = c.rowWidth))
 }
 
 // A tabNote (`warning`: something not editable here, or a problem)
@@ -175,6 +176,7 @@ tabNote :: proc(c: ^LDtkTabCtx, text: string, warning := false) {
 // A text field: what's typed is kept while it has focus, sent with the edit (`edit.text`)
 @(private)
 tabTextField :: proc(c: ^LDtkTabCtx, key, value: string, edit: LDtk_Edit, width: f32 = 0) -> skald.View {
+	tk := uiTokens(c.ctx)
 	ctx := c.ctx
 	s := c.s
 	id := skald.hash_id(key)
@@ -190,7 +192,7 @@ tabTextField :: proc(c: ^LDtkTabCtx, key, value: string, edit: LDtk_Edit, width:
 		edit := p.edit
 		edit.text = v
 		return LDtk_Text_Typed{p.id, edit}
-	}, id = id, width = width > 0 ? width : c.controlWidth, padding = {ctx.theme.spacing.sm, 2})
+	}, id = id, width = width > 0 ? width : c.controlWidth, padding = tk.fieldPadding)
 }
 
 // A number field (−/+ step it)
@@ -213,10 +215,11 @@ tabFlagRow :: proc(c: ^LDtkTabCtx, label, key, tip: string, edit: LDtk_Edit, val
 // A color: its swatch and its #RRGGBB text field
 @(private)
 tabColorField :: proc(c: ^LDtkTabCtx, key, value: string, edit: LDtk_Edit) -> skald.View {
+	tk := uiTokens(c.ctx)
 	color := skald.rgb(0x000000)
 	if v, ok := LDtk_ParseColor(value); ok do color = skald.rgb(u32(v))
-	swatch := skald.col(skald.spacer(0), width = 16, height = 16, bg = color, radius = 2)
-	return skald.row(swatch, tabTextField(c, key, value, edit, max(c.controlWidth - 22, 60)), spacing = 6, cross_align = .Center)
+	swatch := skald.col(skald.spacer(0), width = tk.swatch, height = tk.swatch, bg = color, radius = c.ctx.theme.radius.sm)
+	return skald.row(swatch, tabTextField(c, key, value, edit, max(c.controlWidth - 22, 60)), spacing = tk.s, cross_align = .Center)
 }
 
 // A select of labels sending `values[i]` as the edit's text
@@ -300,6 +303,7 @@ ldtkLayersSection :: proc(c: ^LDtkTabCtx) {
 // Entities: the type's settings, its fields' definitions, its instances in the selected level
 @(private="file")
 ldtkEntitiesSection :: proc(c: ^LDtkTabCtx) {
+	tk := uiTokens(c.ctx)
 	main := c.main
 	th := c.ctx.theme
 	def := LDtkDefs_Entities(c)
@@ -318,7 +322,7 @@ ldtkEntitiesSection :: proc(c: ^LDtkTabCtx) {
 		selected := iid == c.s.level.entity
 		label := fmt.tprintf("%s %s at %d, %d%s", selected ? ICON_CHEVRON_DOWN : ICON_ARROW_RIGHT, Json_String(json, Json_Get(json, en.node, "__identifier")), x, y, c.level < 0 ? fmt.tprintf(" (%s)", levelName) : "")
 		append(c.rows, skald.button(c.ctx, label, Msg(Level_Entity_Picked(strings.clone(iid, context.temp_allocator))), id = skald.hash_id(fmt.tprintf("ldtk-instance-%d", i)),
-			bg = selected ? th.color.primary : th.color.surface, fg = selected ? th.color.on_primary : th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+			bg = selected ? th.color.primary : th.color.surface, fg = selected ? th.color.on_primary : th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 		shown += 1
 		if !selected do continue
 		move := tabBase(c, .Entity_X)
@@ -339,8 +343,8 @@ ldtkEntitiesSection :: proc(c: ^LDtkTabCtx) {
 			size.key = "height"
 			tabNumberRow(c, "Height", "ldtk-instance-h", "The entity's height in pixels", size, f64(Json_Int(json, Json_Get(json, en.node, "height"), 16)), 1, 0, 1, 100000)
 		}
-		tabRow(c, "IID", skald.row(skald.text(iid, th.color.fg_muted, th.font.size_xs, max_width = max(c.controlWidth - 60, 60)),
-			smallButton(c, "ldtk-instance-iid-copy", ICON_COPY, Msg(Text_Copied(strings.clone(iid, context.temp_allocator)))), spacing = 4, cross_align = .Center),
+		tabRow(c, "IID", skald.row(uiText(th, .Muted, iid, max_width = max(c.controlWidth - tk.fieldXS, tk.fieldXS)),
+			smallButton(c, "ldtk-instance-iid-copy", ICON_COPY, Msg(Text_Copied(strings.clone(iid, context.temp_allocator)))), spacing = tk.xs, cross_align = .Center),
 			"The entity's unique id (references name it); the button copies it")
 		referrers := 0
 		for other in LDtkDoc_Entities(c.doc) {
@@ -355,7 +359,7 @@ ldtkEntitiesSection :: proc(c: ^LDtkTabCtx) {
 					label := fmt.tprintf("%s  %s in %s (%s)", ICON_ARROW_RIGHT, Json_String(ojson, Json_Get(ojson, other.node, "__identifier")), otherLevel, Json_String(ojson, Json_Get(ojson, fi, "__identifier")))
 					if referrers == 0 do tabNote(c, "Referring to it (click to select):")
 					append(c.rows, skald.button(c.ctx, label, Msg(Level_Entity_Picked(otherIid)), id = skald.hash_id(fmt.tprintf("ldtk-instance-referrer-%d", referrers)),
-						bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+						bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 					referrers += 1
 				}
 			}
@@ -447,6 +451,7 @@ single tile or file path (LDtk's FieldInstancesForm): `Field_Value` edits.
 */
 @(private="file")
 fieldValueControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, fi: int, edit: LDtk_Edit, key, label, tip: string) {
+	tk := uiTokens(c.ctx)
 	th := c.ctx.theme
 	main := c.main
 	base := tabBase(c, .Field_Value)
@@ -468,7 +473,7 @@ fieldValueControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, f
 	count := fmt.tprintf("%d item%s%s", len(raws), len(raws) == 1 ? "" : "s", minLength > 0 && len(raws) < minLength ? fmt.tprintf(" (at least %d)", minLength) : "")
 	tabRow(c, label, skald.row(skald.text(count, minLength > 0 && len(raws) < minLength ? th.color.warning : th.color.fg_muted, th.font.size_xs),
 		smallButton(c, fmt.tprintf("%s-add", key), fmt.tprintf("%s Add", ICON_PLUS), Msg(add), disabled = maxLength >= 0 && len(raws) >= maxLength),
-		smallButton(c, fmt.tprintf("%s-clear", key), "Clear", Msg(clr), disabled = len(raws) == 0), spacing = 4, cross_align = .Center), tip)
+		smallButton(c, fmt.tprintf("%s-clear", key), "Clear", Msg(clr), disabled = len(raws) == 0), spacing = tk.xs, cross_align = .Center), tip)
 	items := Json_Items(json, value)
 	for i in 0 ..< len(raws) {
 		item := base
@@ -480,7 +485,7 @@ fieldValueControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, f
 		rm.key, rm.index = "remove", i
 		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH),
 			smallButton(c, fmt.tprintf("%s-up-%d", key, i), ICON_ARROW_UP, Msg(up), disabled = i == 0),
-			smallButton(c, fmt.tprintf("%s-remove-%d", key, i), ICON_XMARK, Msg(rm)), spacing = 4))
+			smallButton(c, fmt.tprintf("%s-remove-%d", key, i), ICON_XMARK, Msg(rm)), spacing = tk.xs))
 	}
 }
 
@@ -490,6 +495,7 @@ a color, a tile picked on the field's tileset, a file from the project, else a t
 */
 @(private="file")
 fieldItemControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, value: int, edit: LDtk_Edit, key, label, tip: string) {
+	tk := uiTokens(c.ctx)
 	th := c.ctx.theme
 	main := c.main
 	#partial switch info.type {
@@ -521,7 +527,7 @@ fieldItemControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, va
 		clear := edit
 		clear.text = ""
 		tabRow(c, label, skald.row(skald.text(shown != nil ? fmt.tprintf("%v", shown.?) : "(none)", th.color.fg, th.font.size_xs),
-			smallButton(c, fmt.tprintf("%s-none", key), "None", Msg(clear), disabled = shown == nil), spacing = 4, cross_align = .Center), tip)
+			smallButton(c, fmt.tprintf("%s-none", key), "None", Msg(clear), disabled = shown == nil), spacing = tk.xs, cross_align = .Center), tip)
 		if tileset < 0 {
 			tabNote(c, "   The field has no tileset: pick one in its definition (the Entities or Level tab).", true)
 		} else {
@@ -566,6 +572,7 @@ sliceContains :: proc(list: []string, value: string) -> bool {
 // A button starting a pick on the canvas (the Entities tab's: a reference's target, a point's cell)
 @(private)
 tabPickButton :: proc(c: ^LDtkTabCtx, key, label: string, pick: Level_Pick_Started) -> skald.View {
+	tk := uiTokens(c.ctx)
 	th := c.ctx.theme
 	waiting := c.s.level.paint.pick.kind == pick.kind && c.s.level.paint.pick.entity == pick.entity && c.s.level.paint.pick.field == pick.field && c.s.level.paint.pick.index == pick.index
 	p := pick
@@ -573,7 +580,7 @@ tabPickButton :: proc(c: ^LDtkTabCtx, key, label: string, pick: Level_Pick_Start
 	msg := Msg(p)
 	if waiting do msg = Msg(Level_Pick_Started{})
 	b := skald.button(c.ctx, waiting ? fmt.tprintf("%s  Picking... (Esc)", ICON_CROSSHAIRS) : fmt.tprintf("%s  %s", ICON_CROSSHAIRS, label), msg, id = skald.hash_id(key),
-		bg = waiting ? th.color.primary : th.color.surface, fg = waiting ? th.color.on_primary : th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		bg = waiting ? th.color.primary : th.color.surface, fg = waiting ? th.color.on_primary : th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	return skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), b, spacing = th.spacing.sm)
 }
 
@@ -584,6 +591,7 @@ picks add, LDtk's point picker keeps adding until Esc).
 */
 @(private="file")
 pickedFieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, fi: int, owner: LDtkDocEntity, edit: LDtk_Edit, key, label, tip: string) {
+	tk := uiTokens(c.ctx)
 	th := c.ctx.theme
 	value := Json_Get(json, fi, "__value")
 	items := info.isArray ? Json_Items(json, value) : []int{value}
@@ -612,8 +620,8 @@ pickedFieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, 
 			remove.op = .Entity_Ref
 			remove.text = ""
 		}
-		x := skald.button(c.ctx, ICON_XMARK, Msg(remove), id = skald.hash_id(fmt.tprintf("%s-remove-%d", key, i)), bg = th.color.surface, fg = th.color.fg_muted, padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
-		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), skald.text(fmt.tprintf("%d. %s", i + 1, describe(c, json, item, kind == .Point)), th.color.fg_muted, th.font.size_xs), x, spacing = th.spacing.sm, cross_align = .Center))
+		x := skald.button(c.ctx, ICON_XMARK, Msg(remove), id = skald.hash_id(fmt.tprintf("%s-remove-%d", key, i)), bg = th.color.surface, fg = th.color.fg_muted, padding = {tk.xs, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
+		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), uiText(th, .Muted, fmt.tprintf("%d. %s", i + 1, describe(c, json, item, kind == .Point))), x, spacing = th.spacing.sm, cross_align = .Center))
 	}
 	if !info.isArray && Json_Kind(json, value) == .Object {
 		clear := edit
@@ -625,7 +633,7 @@ pickedFieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, 
 			clear.op = .Entity_Ref
 			clear.text = ""
 		}
-		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), skald.button(c.ctx, "Clear", Msg(clear), id = skald.hash_id(fmt.tprintf("%s-clear", key)), bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)))
+		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), skald.button(c.ctx, "Clear", Msg(clear), id = skald.hash_id(fmt.tprintf("%s-clear", key)), bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)))
 	}
 	append(c.rows, tabPickButton(c, fmt.tprintf("%s-pick", key), info.isArray ? (kind == .Point ? "Add points on the canvas" : "Add a reference on the canvas") : "Pick on the canvas",
 		Level_Pick_Started{kind, edit.entity, edit.field, info.isArray ? -1 : 0}))
@@ -751,9 +759,10 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 	th := ctx.theme
 	doc := c.doc
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
 	// The list: the world's levels (the Levels sidebar's); the toolbar row: a new one, the selected
 	// one's copy, removal, place in the world's order and focus
@@ -812,7 +821,7 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 	layerCount := Json_Count(LDtkDoc_Json(doc, doc.levels[c.level].file), layers)
 	fields := Json_Count(main, Json_Get(main, doc.levels[c.level].entry, "fieldInstances"))
 	neighbours := len(LDtkDoc_Neighbours(doc, c.level))
-	append(c.rows, skald.text(fmt.tprintf("%s  %s", ICON_FILE_LINES, identifier), th.color.fg, th.font.size_sm, max_width = c.rowWidth))
+	append(c.rows, uiText(th, .Value, fmt.tprintf("%s  %s", ICON_FILE_LINES, identifier), max_width = c.rowWidth))
 	tabNote(c, fmt.tprintf("%.0f x %.0f px, at %.0f, %.0f in the world", rect[2], rect[3], rect[0], rect[1]))
 	tabNote(c, fmt.tprintf("%d layer%s, %d entit%s, %d field%s, %d neighbour%s", layerCount, layerCount == 1 ? "" : "s",
 		entities, entities == 1 ? "y" : "ies", fields, fields == 1 ? "" : "s", neighbours, neighbours == 1 ? "" : "s"))
@@ -896,7 +905,8 @@ ldtkProjectSection :: proc(c: ^LDtkTabCtx) {
 // A color's swatch and text (read only)
 @(private)
 tabColorSwatch :: proc(c: ^LDtkTabCtx, value: string) -> skald.View {
+	tk := uiTokens(c.ctx)
 	color := skald.rgb(0x000000)
 	if v, ok := LDtk_ParseColor(value); ok do color = skald.rgb(u32(v))
-	return skald.row(skald.col(skald.spacer(0), width = 16, height = 16, bg = color, radius = 2), skald.text(value, c.ctx.theme.color.fg, c.ctx.theme.font.size_sm), spacing = 6, cross_align = .Center)
+	return skald.row(skald.col(skald.spacer(0), width = tk.swatch, height = tk.swatch, bg = color, radius = c.ctx.theme.radius.sm), uiText(c.ctx.theme, .Value, value), spacing = tk.s, cross_align = .Center)
 }

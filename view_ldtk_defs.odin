@@ -66,9 +66,10 @@ defEdit :: proc(c: ^LDtkTabCtx, kind: LDtkDefKind, uid: int, key: string) -> LDt
 // A small button (a list's actions)
 @(private)
 smallButton :: proc(c: ^LDtkTabCtx, key, label: string, msg: Msg, disabled := false) -> skald.View {
+	tk := uiTokens(c.ctx)
 	th := c.ctx.theme
 	return skald.button(c.ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
+		padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
 }
 
 // A row of buttons (wrapped in a narrow panel)
@@ -303,7 +304,7 @@ LDtkDefs_Layers :: proc(c: ^LDtkTabCtx) {
 	tabRow(c, "Name", tabTextField(c, "ldtk-layer-name", Json_String(main, Json_Get(main, def, "identifier")), edit(c, .Layer_Name, uid)), "The layer's identifier: games and LDtkLevel nodes find it by name (scenes naming it follow a rename)")
 	kind := type
 	if Json_Count(main, Json_Get(main, def, "autoRuleGroups")) > 0 do kind = fmt.tprintf("%s with auto-layer rules", kind)
-	tabRow(c, "Type", skald.text(kind, th.color.fg, th.font.size_sm), "What the layer holds (LDtk's layers keep their type)")
+	tabRow(c, "Type", uiText(th, .Value, kind), "What the layer holds (LDtk's layers keep their type)")
 	memberText(c, "Documentation", "A note about the layer, shown in LDtk's lists (empty: none)", .Layer, uid, "doc", Json_String(main, Json_Get(main, def, "doc")))
 	memberColor(c, "List color", "The layer's color in LDtk's lists, #RRGGBB (empty: none)", .Layer, uid, "uiColor", Json_String(main, Json_Get(main, def, "uiColor")))
 	if c.level >= 0 {
@@ -317,7 +318,7 @@ LDtkDefs_Layers :: proc(c: ^LDtkTabCtx) {
 	memberNumber(c, "Inactive opacity", "How opaque LDtk draws it while another layer is selected, 0 to 1", .Layer, uid, "inactiveOpacity", Json_Float(main, Json_Get(main, def, "inactiveOpacity"), 1), 0.05, 2, 0, 1)
 	grid := Json_Int(main, Json_Get(main, def, "gridSize"), 16)
 	if why := LDtkOps_GridSizeLocked(c.doc, uid); why != "" {
-		tabRow(c, "Grid size", skald.text(fmt.tprintf("%d px", grid), th.color.fg, th.font.size_sm), "The layer's cell size in pixels")
+		tabRow(c, "Grid size", uiText(th, .Value, fmt.tprintf("%d px", grid)), "The layer's cell size in pixels")
 		tabNote(c, fmt.tprintf("%s.", why))
 	} else {
 		tabNumberRow(c, "Grid size", "ldtk-layer-grid", "The layer's cell size in pixels: every level's cells keep their place (those past the new size go), entities move with it", edit(c, .Layer_Grid_Size, uid), f64(grid), 1, 0, 1, LDTK_MAX_GRID_SIZE)
@@ -329,7 +330,7 @@ LDtkDefs_Layers :: proc(c: ^LDtkTabCtx) {
 	tabNumberRow(c, "Parallax X", "ldtk-layer-parallax-x", "How much slower (positive) or faster (negative) the layer scrolls sideways, -1 to 1 (Y follows while they're the same)", edit(c, .Layer_Parallax_X, uid), Json_Float(main, Json_Get(main, def, "parallaxFactorX")), 0.05, 2, -1, 1)
 	scaling := Json_Bool(main, Json_Get(main, def, "parallaxScaling"), true)
 	if scaling {
-		tabRow(c, "Parallax Y", skald.text(fmt.tprintf("%g (as X: parallax scaling)", Json_Float(main, Json_Get(main, def, "parallaxFactorY"))), th.color.fg_muted, th.font.size_xs), "With parallax scaling, Y is X's")
+		tabRow(c, "Parallax Y", uiText(th, .Muted, fmt.tprintf("%g (as X: parallax scaling)", Json_Float(main, Json_Get(main, def, "parallaxFactorY")))), "With parallax scaling, Y is X's")
 	} else {
 		memberNumber(c, "Parallax Y", "The same up and down, -1 to 1", .Layer, uid, "parallaxFactorY", Json_Float(main, Json_Get(main, def, "parallaxFactorY")), 0.05, 2, -1, 1)
 	}
@@ -561,13 +562,13 @@ tilesetPicker :: proc(c: ^LDtkTabCtx, key: string, tileset: int, selected: Maybe
 	th := ctx.theme
 	main := c.main
 	td := LDtkDoc_DefByUid(c.doc, "tilesets", tileset)
-	if td < 0 do return skald.text("No such tileset", th.color.fg_muted, th.font.size_xs)
+	if td < 0 do return uiText(th, .Muted, "No such tileset")
 	rel := Json_String(main, Json_Get(main, td, "relPath"))
 	if rel == "" && Json_String(main, Json_Get(main, td, "embedAtlas")) == "LdtkIcons" do rel = "finalbossblues-icons_full_16.png"
 	path := joinPath(LDtkDoc_Folder(c.doc), rel, allocator = context.temp_allocator)
 	if rel == "" || !os.exists(path) {
-		if Json_String(main, Json_Get(main, td, "embedAtlas")) == "LdtkIcons" do return skald.text("LDtk's internal icons are LDtk's own image (FinalBossBlues' icons): put a copy of finalbossblues-icons_full_16.png beside the .ldtk file to see and pick them here.", th.color.fg_muted, th.font.size_xs, max_width = c.rowWidth)
-		return skald.text("The tileset's image can't be read.", th.color.warning, th.font.size_xs)
+		if Json_String(main, Json_Get(main, td, "embedAtlas")) == "LdtkIcons" do return uiText(th, .Muted, "LDtk's internal icons are LDtk's own image (FinalBossBlues' icons): put a copy of finalbossblues-icons_full_16.png beside the .ldtk file to see and pick them here.", max_width = c.rowWidth)
+		return uiText(th, .Muted, "The tileset's image can't be read.", color = th.color.warning)
 	}
 	size := [2]f32{f32(Json_Int(main, Json_Get(main, td, "pxWid"))), f32(Json_Int(main, Json_Get(main, td, "pxHei")))}
 	grid := f32(max(Json_Int(main, Json_Get(main, td, "tileGridSize"), 16), 1))
@@ -846,6 +847,7 @@ field's settings.
 */
 @(private="file")
 defsFields :: proc(c: ^LDtkTabCtx, entity: int) {
+	tk := uiTokens(c.ctx)
 	main := c.main
 	level := entity < 0
 	tabHeading(c, level ? "Level fields" : "Fields")
@@ -919,7 +921,7 @@ defsFields :: proc(c: ^LDtkTabCtx, entity: int) {
 			x := e
 			x.text = v
 			return x
-		}, id = skald.hash_id(fmt.tprintf("ldtk-%s-convert", prefix)), width = 150))
+		}, id = skald.hash_id(fmt.tprintf("ldtk-%s-convert", prefix)), width = tk.fieldM))
 	}
 	listButtons(c, prefix, e, at, len(items), ..extra[:])
 	defsFieldForm(c, node, info, entity)
@@ -940,7 +942,7 @@ defsFieldForm :: proc(c: ^LDtkTabCtx, node: int, info: LDtkFieldInfo, entity: in
 	name := tabBase(c, .Field_Name)
 	name.field = uid
 	tabRow(c, "Name", tabTextField(c, fmt.tprintf("ldtk-field-name-%d", uid), info.identifier, name), "The field's identifier: games read it by name (scripts' fields named like it take its value)")
-	tabRow(c, "Type", skald.text(Json_String(main, Json_Get(main, node, "__type")), th.color.fg, th.font.size_sm), "The field's type (Convert changes it where LDtk can)")
+	tabRow(c, "Type", uiText(th, .Value, Json_String(main, Json_Get(main, node, "__type"))), "The field's type (Convert changes it where LDtk can)")
 	memberText(c, "Documentation", "A note about the field (empty: none)", .Field, uid, "doc", Json_String(main, Json_Get(main, node, "doc")))
 
 	// The default, by type
@@ -1111,6 +1113,7 @@ The Enums tab (EditEnumDefs): the list's buttons, the selected enum's name, tags
 (name, color, icon, order, removal), new ones; external enum files: imported, synced, removed.
 */
 LDtkDefs_Enums :: proc(c: ^LDtkTabCtx) {
+	tk := uiTokens(c.ctx)
 	main := c.main
 	th := c.ctx.theme
 	add := tabBase(c, .Def_Added)
@@ -1166,7 +1169,7 @@ LDtkDefs_Enums :: proc(c: ^LDtkTabCtx) {
 			e := tabBase(c, .Enum_Value_Name)
 			e.def, e.index = uid, i
 			if external {
-				tabRow(c, fmt.tprintf("Value %d", i + 1), skald.text(Json_String(main, Json_Get(main, v, "id")), th.color.fg, th.font.size_sm), "A value of the file")
+				tabRow(c, fmt.tprintf("Value %d", i + 1), uiText(th, .Value, Json_String(main, Json_Get(main, v, "id"))), "A value of the file")
 			} else {
 				tabRow(c, fmt.tprintf("Value %d", i + 1), tabTextField(c, fmt.tprintf("ldtk-enum-value-%d", i), Json_String(main, Json_Get(main, v, "id")), e), "The value's name: fields set to it follow a rename")
 			}
@@ -1201,7 +1204,7 @@ LDtkDefs_Enums :: proc(c: ^LDtkTabCtx) {
 			value.text = strings.clone(c.s.level.newValue, context.temp_allocator)
 			tabRow(c, "New value", skald.row(
 				skald.text_input(c.ctx, strings.clone(c.s.level.newValue, context.temp_allocator), proc(v: string) -> Msg { return LDtk_New_Name_Typed{true, v} },
-					id = skald.hash_id("ldtk-enum-new-value"), width = max(c.controlWidth - 60, 60), padding = {th.spacing.sm, 2}),
+					id = skald.hash_id("ldtk-enum-new-value"), width = max(c.controlWidth - tk.fieldXS, tk.fieldXS), padding = tk.fieldPadding),
 				smallButton(c, "ldtk-enum-add-value", "Add", Msg(value), disabled = strings.trim_space(c.s.level.newValue) == ""),
 				spacing = th.spacing.xs, cross_align = .Center), "A value to add to the enum")
 		}
@@ -1324,6 +1327,7 @@ enum, and its tiles' data on its picture: an enum value's tags (drag to tag, the
 untags) or a tile's custom data.
 */
 LDtkDefs_Tilesets :: proc(c: ^LDtkTabCtx) {
+	tk := uiTokens(c.ctx)
 	main := c.main
 	th := c.ctx.theme
 	images := LDtkDefs_Images(c.s, c.doc)
@@ -1344,7 +1348,7 @@ LDtkDefs_Tilesets :: proc(c: ^LDtkTabCtx) {
 		e := edit
 		e.text = v
 		return e
-	}, id = skald.hash_id("ldtk-tilesets-add"), width = 150, placeholder = fmt.tprintf("%s From an image...", ICON_PLUS))
+	}, id = skald.hash_id("ldtk-tilesets-add"), width = tk.fieldM, placeholder = fmt.tprintf("%s From an image...", ICON_PLUS))
 	tabToolView(c, skald.tooltip(c.ctx, newTileset, "A tileset of one of the project's images (LDtk takes a file beside the project)", id = skald.hash_id("ldtk-tilesets-add-tip")))
 	tabTool(c, "ldtk-tilesets-add-empty", ICON_PLUS, "A tileset without an image (pick one later)", Msg(empty), label = "Empty")
 	tabTool(c, "ldtk-tilesets-add-icons", ICON_PLUS, "LDtk's internal icons as a tileset (one per project)", Msg(icons), label = "LDtk icons", disabled = hasIcons)

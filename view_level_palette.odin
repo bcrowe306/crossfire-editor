@@ -43,6 +43,7 @@ LevelPalette_Destroy :: proc() {
 
 // The palette of the selected layer (nil when there's nothing to show)
 LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWidth: f32) -> (skald.View, bool) {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	main := LDtkDoc_Main(doc)
 	def := LevelMode_LayerDef(s, doc)
@@ -68,7 +69,7 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 			row := ColoredTreeRow{label = label, icon = ICON_SQUARE_FULL, iconColor = skald.rgb(u32(c)), selected = value == picked}
 			append(&rows, paletteRow(ctx, s, fmt.tprintf("level-value-%d", value), row, Msg(Level_Value_Picked{uid, value})))
 		}
-		if len(values) == 0 do append(&rows, skald.col(skald.text("No values: add them in the Layers tab.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
+		if len(values) == 0 do append(&rows, skald.col(uiText(th, .Muted, "No values: add them in the Layers tab.", max_width = textWidth + tk.fieldXS), padding = th.spacing.sm))
 		list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], cross_align = .Stretch), id = skald.hash_id("level-palette-scroll"))
 		return skald.col(header, skald.flex(1, list), cross_align = .Stretch), true
 	case "Tiles":
@@ -83,7 +84,7 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 		}
 		td := LDtkDoc_DefByUid(doc, "tilesets", tileset)
 		if td < 0 {
-			return skald.col(header, skald.col(skald.text("This layer has no tileset: pick one in LDtk's Layers panel.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm), cross_align = .Stretch), true
+			return skald.col(header, skald.col(uiText(th, .Muted, "This layer has no tileset: pick one in LDtk's Layers panel.", max_width = textWidth + tk.fieldXS), padding = th.spacing.sm), cross_align = .Stretch), true
 		}
 		paint := &s.level.paint
 		toggle :: proc(ctx: ^skald.Ctx(Msg), key, label, tip: string, on: bool, msg: Msg) -> skald.View {
@@ -119,11 +120,11 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 				icon = ICON_SQUARE_FULL, iconColor = skald.rgb(u32(c)), selected = edUid == picked}
 			append(&rows, paletteRow(ctx, s, fmt.tprintf("level-entity-type-%d", edUid), row, Msg(Level_Entity_Type_Picked(edUid))))
 		}
-		if len(rows) == 0 do append(&rows, skald.col(skald.text("No entity type this layer takes: add one in the Entities tab.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
+		if len(rows) == 0 do append(&rows, skald.col(uiText(th, .Muted, "No entity type this layer takes: add one in the Entities tab.", max_width = textWidth + tk.fieldXS), padding = th.spacing.sm))
 		list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], cross_align = .Stretch), id = skald.hash_id("level-palette-scroll"))
 		return skald.col(header, skald.flex(1, list), cross_align = .Stretch), true
 	case "AutoLayer":
-		return skald.col(header, skald.col(skald.text("An auto-layer's tiles come from its rules (the Auto-layer Rules tab): paint its IntGrid source layer.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm), cross_align = .Stretch), true
+		return skald.col(header, skald.col(uiText(th, .Muted, "An auto-layer's tiles come from its rules (the Auto-layer Rules tab): paint its IntGrid source layer.", max_width = textWidth + tk.fieldXS), padding = th.spacing.sm), cross_align = .Stretch), true
 	}
 	return {}, false
 }
@@ -158,6 +159,7 @@ savedIds :: proc(saved: []$T) -> [][]int {
 // The tile palette: the tileset at its zoom, the picked tiles, the drag selecting
 @(private="file")
 tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int, size: [2]f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	main := LDtkDoc_Main(doc)
 	uid := Json_Int(main, Json_Get(main, td, "uid"), -1)
@@ -304,5 +306,5 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 			skald.draw_rect_outline(r, {a.x, a.y, z.x + z.w - a.x, z.y + z.h - a.y}, 2, {1, 1, 1, 0.9})
 		}
 	}, id = id, width = pxW * zoom, height = pxH * zoom, cursor = .Crosshair)
-	return skald.scroll(ctx, {0, 0}, skald.col(canvas, padding = 2), id = scrollId)
+	return skald.scroll(ctx, {0, 0}, skald.col(canvas, padding = tk.xxs), id = scrollId)
 }
