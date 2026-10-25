@@ -782,7 +782,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// the window's size: the toolbar's overflow); otherwise it's skipped
 		key, _, command := strings.partition(rest, " ")
 		st, drawn := ctx.widgets.states[skald.hash_id(key)]
-		if drawn && st.last_frame + 1 >= ctx.widgets.frame && st.last_rect.w > 0 do return runCommand(s, ctx, strings.trim_space(command))
+		if drawn && skald.widget_drawn_last_frame(ctx.widgets, st) && st.last_rect.w > 0 do return runCommand(s, ctx, strings.trim_space(command))
 		report(true, fmt.tprintf("%s (skipped: not drawn)", line))
 		return true
 
@@ -1539,7 +1539,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		widget := ctx.widgets.states[skald.hash_id(args[1])]
 		if driver.scrollAttempts == 0 {
 			scroll.scroll_y = 0
-		} else if widget.last_frame + 2 >= ctx.widgets.frame && widget.last_rect.h > 0 {
+		} else if skald.widget_drawn_last_frame(ctx.widgets, widget) && widget.last_rect.h > 0 {
 			// Laid out (so its rect is current): center it
 			scroll.scroll_y = max(scroll.scroll_y + (widget.last_rect.y + widget.last_rect.h * 0.5) - (area.y + area.h * 0.5), 0)
 		} else {
@@ -3121,7 +3121,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "in_window":
 		// The widget's whole rect (not clipped) is inside the window: nothing pushed off its edge
 		st, ok := ctx.widgets.states[skald.hash_id(value)]
-		if !ok || st.last_frame + 1 < ctx.widgets.frame do return false, "not drawn"
+		if !ok || !skald.widget_drawn_last_frame(ctx.widgets, st) do return false, "not drawn"
 		r := st.last_rect
 		size := ctx.renderer != nil ? [2]f32{f32(ctx.renderer.fb_size.x), f32(ctx.renderer.fb_size.y)} : [2]f32{}
 		return r.w > 0 && r.x >= -0.5 && r.y >= -0.5 && r.x + r.w <= size.x + 0.5 && r.y + r.h <= size.y + 0.5, fmt.tprintf("%v in a %v window", r, size)
@@ -3159,7 +3159,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		_, visible := widgetRect(ctx, key)
 		st := ctx.widgets.states[skald.hash_id(key)]
 		// Drawn last frame: a widget that's gone keeps its state for a while
-		visible = visible && st.last_frame + 1 >= ctx.widgets.frame
+		visible = visible && skald.widget_drawn_last_frame(ctx.widgets, st)
 		found = fmt.tprint(visible)
 		return found == strings.trim_space(expected), fmt.tprintf("%s; rect %v, clip %v", found, st.last_rect, st.clip_rect)
 	case "bus":
@@ -3662,6 +3662,9 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 widgetRect :: proc(ctx: ^skald.Ctx(Msg), key: string) -> (skald.Rect, bool) {
 	state, ok := ctx.widgets.states[skald.hash_id(key)]
 	if !ok do return {}, false
+	// Not drawn last frame (Skald culls what's outside a scroll's viewport): its rect is stale,
+	// as Skald's hit tests treat it
+	if state.last_drawn_frame != 0 && !skald.widget_drawn_last_frame(ctx.widgets, state) do return {}, false
 	rect := state.last_rect
 	if state.clip_rect.w > 0 do rect = intersect(rect, state.clip_rect)
 	if ctx.renderer != nil {

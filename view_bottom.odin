@@ -312,7 +312,7 @@ logFollow :: proc(ctx: ^skald.Ctx(Msg), list: ^LogList, output: bool, id: skald.
 	st, ok := &ctx.widgets.states[id]
 	// Not drawn last frame (the tab or the list was hidden): Skald starts its state afresh, so
 	// there's nothing to compare with (the list's reveal_row takes it to the end when following)
-	if !ok || st.last_rect.h <= 0 || st.last_frame + 1 < ctx.widgets.frame {
+	if !ok || st.last_rect.h <= 0 || !skald.widget_drawn_last_frame(ctx.widgets, st^) {
 		delete_key(&logScrollSeen, id)
 		return
 	}

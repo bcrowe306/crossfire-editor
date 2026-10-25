@@ -456,7 +456,13 @@ Skald is not immediate-mode and not a retained widget tree:
   Skald hit-tests a widget by its rect from the last frame it was *built* in, not drawn, so a
   closed dialog's buttons stayed clickable where they had been (a viewport click where the Add
   Node dialog's "Sprite" row had been added a Sprite; smoke.script caught it once the header's
-  layout moved a node there). Skald itself should check the widget was drawn last frame.
+  layout moved a node there). Skald now checks it too (`widget_drawn_last_frame`: a widget
+  built but not laid out takes no clicks), but keep building nothing for closed dialogs.
+- **Skald culls rows outside a scroll's view** (`stack_render`): they're laid out with drawing
+  suppressed, so their rects stay current (the reveal and scroll-into-view code reads them), and
+  `widget_drawn_last_frame` counts them as laid out. Code that asks "was it laid out last frame" uses `skald.widget_drawn_last_frame`, not
+  `last_frame + 1 >= frame` (tree_view.odin, view_docs.odin, view_inspector.odin,
+  view_bottom.odin, the test driver).
 - **Skald's `draw_text` takes the baseline**, not the top: `drawTextTop` (view_viewport.odin)
   adds `text_ascent`. Drawn from the top, the top ruler's numbers showed only their bottoms.
 - Type colors: node kinds use `kindColor` (scene tree rows and viewport markers); the browser uses
@@ -668,7 +674,7 @@ shows up here with no editor change (it still needs inspector fields).
   Graphics, User interface, Physics, Sound), in a scroll (`add-node-scroll`) as tall as the window
   allows. `AddNode_Kinds` returns them in that order, which the highlight indexes.
 - Up/Down move the highlight and scroll it into view (rows and headers have fixed heights, so
-  its position is known without layout: rows scrolled out of view keep stale rects), Enter or a
+  its position is known without computing it from the rects), Enter or a
   click adds that kind, Escape cancels. add_node.script tests it.
 - The node becomes a child of the selected node (top-level when nothing is selected), is named
   after its kind (`Sprite`, `Sprite2`, ...), and is selected.
@@ -3729,9 +3735,11 @@ Highlights:
   settings file) sets `code_editor_path = true`. Unit tests that create scripts set it too.
 - `scripts.script` really builds a project player (a few seconds unoptimized, longer when the engine
   changed) and plays it.
-- `scroll_into_view <scroll> <widget>` pages a scroll container until the widget is visible: widgets
-  far outside a scroll aren't laid out, and keep stale rects. A `wait_until` that passes lets a few
-  frames settle before the next command.
+- `scroll_into_view <scroll> <widget>` pages a scroll container until the widget is visible
+  (inside the scroll's clip). Rows outside it are laid out but not drawn (Skald's culling); the
+  driver's `visible` means laid out last frame (`widget_drawn_last_frame`, culled rows included)
+  and inside its clip and the window. A `wait_until` that
+  passes lets a few frames settle before the next command.
 - A game window (Play) makes a tiling window manager shrink the editor's window, which moves every
   rect (visible runs; headless games have no window): stop the game before clicking things that
   may move.

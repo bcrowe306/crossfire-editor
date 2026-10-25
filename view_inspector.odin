@@ -929,7 +929,7 @@ inspectorRevealStep :: proc(ctx: ^skald.Ctx(Msg)) {
 	if !drawn || scroll.last_rect.h <= 0 || r.frames < 3 do return
 	area := scroll.last_rect
 	target, seen := ctx.widgets.states[r.id]
-	if !seen || target.last_frame + 1 < ctx.widgets.frame {
+	if !seen || !skald.widget_drawn_last_frame(ctx.widgets, target) {
 		// Not laid out: page down (from the top first)
 		scroll.scroll_y = r.frames == 3 ? 0 : scroll.scroll_y + area.h * 0.8
 		return

@@ -54,15 +54,21 @@ map) and font path fix (no lowercase copy per string) besides Skald's caches.
 **Measured and dropped:** float-free cache keys (a SPALL_AUTO trace made the map hashers look big;
 a microbenchmark put it at 2-4% of a 31 ns lookup).
 
+**Off-screen rows aren't drawn** (2026-10-24): Skald's stacks lay out a child wholly outside
+the active clip with drawing suppressed (`Renderer.draw_suppressed`), so its widgets keep their
+rects for the reveal code, and hit tests skip widgets not laid out last frame
+(`widget_drawn_last_frame`). Mean frame on the CPU clock, ABBA against the build before: browser
+5.8 -> 5.3 ms, code 5.9 -> 5.1, console 6.2 -> 5.2, idle 8.9 -> 8.5, inspector 9.0 -> 8.2, Level
+mode 3.3 -> 2.8, viewport 4.6 -> 4.2 (5-17% less). Building the culled rows' views is still paid;
+item 1 below would skip that.
+
 Left:
-1. **Don't build or lay out what's off-screen:** scrolling panels (the inspector, the browser
-   tree, long lists) skip rows outside the visible area, as `virtual_list` already does.
-2. **Reuse unchanged parts of the tree:** something like `cached(key, version, builder)`, which
+1. **Reuse unchanged parts of the tree:** something like `cached(key, version, builder)`, which
    returns last frame's subtree when its version hasn't changed.
-3. **The remaining text calls:** about 900 `measure_text` and 500 `draw_text` calls a frame at
-   rest, each now a hash and a lookup (0.7-1.2 us); fewer calls (the two items above) is what's
+2. **The remaining text calls:** about 900 `measure_text` and 500 `draw_text` calls a frame at
+   rest, each now a hash and a lookup (0.7-1.2 us); fewer calls (the item above) is what's
    left there.
-4. Offer Skald's general fixes to its upstream (Lee Fry's Skald) when they're done.
+3. Offer Skald's general fixes to its upstream (Lee Fry's Skald) when they're done.
 
 ### 4. The editor and the engine (found by the same profile)
 
