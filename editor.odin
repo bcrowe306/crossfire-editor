@@ -69,6 +69,9 @@ BottomTab :: enum {
 	Dialogue,
 	// The project's editor plugins (view_plugins.odin)
 	Plugins,
+	// The project's problems (problems.odin) and the undo history (undo_history.odin), in every mode
+	Problems,
+	History,
 	// The Level mode's tabs, LDtk's panels (view_ldtk_tab.odin; not the Scene mode's): the world
 	// (its layout, its levels' places), the selected level (its settings, fields, scenes,
 	// neighbours), the layers (the selected one's settings, IntGrid values, collision kinds),
@@ -268,6 +271,9 @@ State :: struct {
 	addNode: AddNodeDialog,
 	// The command palette, also Search Everywhere (command_palette.odin)
 	palette: PaletteState,
+	// Toasts (notifications.odin) and the Problems tab's list (problems.odin)
+	notifications: Notifications,
+	problems: ProblemsState,
 	// Help > About (view_about.odin)
 	aboutOpen: bool,
 	// The docs window (docs_window.odin)
@@ -561,6 +567,8 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.session.newProject.location)
 	delete(state.session.recent)
 	History_Destroy(&state.history)
+	Notifications_Destroy(&state.notifications)
+	Problems_Destroy(&state.problems)
 	ScriptCatalog_Clear(&state.scripts)
 	ScriptIndex_Destroy(&state.scriptIndex)
 	for f in state.scriptFiles do delete(f)

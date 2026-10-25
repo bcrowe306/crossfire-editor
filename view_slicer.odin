@@ -141,7 +141,7 @@ slicerCanvas :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, size: [2]
 		local := input.mouse_pos - {state.last_rect.x, state.last_rect.y}
 		point := center + (local - size * 0.5) / zoom
 		inside := local.x >= 0 && local.y >= 0 && local.x < size.x && local.y < size.y
-		free := len(ctx.widgets.overlay_rects_prev) == 0 && ctx.widgets.modal_rect_prev.w == 0 && !skald.mouse_over_overlay(ctx)
+		free := !Overlay_PopupOpen(ctx) && ctx.widgets.modal_rect_prev.w == 0 && !skald.mouse_over_overlay(ctx)
 		if slicerPanning {
 			if input.mouse_delta != {} do skald.send(ctx, Msg(Slicer_Changed{op = .Pan, point = input.mouse_delta}))
 			if input.mouse_released[.Left] || input.mouse_released[.Middle] || input.mouse_released[.Right] do slicerPanning = false
@@ -543,7 +543,7 @@ slicerAnimationRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, a:
 		rect := state.last_rect
 		visible := state.clip_rect.w > 0 ? state.clip_rect : rect
 		mouse := ctx.input.mouse_pos
-		if pointIn(rect, mouse) && pointIn(visible, mouse) && len(ctx.widgets.overlay_rects_prev) == 0 && ctx.widgets.modal_rect_prev.w == 0 {
+		if pointIn(rect, mouse) && pointIn(visible, mouse) && !Overlay_PopupOpen(ctx) && ctx.widgets.modal_rect_prev.w == 0 {
 			column := int((mouse.x - rect.x) / (SLICER_THUMB + SLICER_THUMB_GAP))
 			row := int((mouse.y - rect.y) / (SLICER_THUMB + SLICER_THUMB_GAP))
 			if picked := row * perRow + column; column < perRow && picked < len(rects) do skald.send(ctx, Msg(Slicer_Changed{op = .Frame_Picked, index = picked}))

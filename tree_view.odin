@@ -241,7 +241,7 @@ rowList :: proc(ctx: ^skald.Ctx(Msg), key: string, rows: []ListRow, rowHeight: f
 	skald.widget_make_focusable(ctx, id)
 	focused := skald.widget_has_focus(ctx, id)
 	press.row = -1
-	blocked := ctx.widgets.modal_rect_prev.w > 0 || skald.mouse_over_overlay(ctx) || len(ctx.widgets.overlay_rects_prev) > 0
+	blocked := ctx.widgets.modal_rect_prev.w > 0 || skald.mouse_over_overlay(ctx) || Overlay_PopupOpen(ctx)
 	selected := -1
 	for r, i in rows do if r.row.selected && selected < 0 do selected = i
 	views := make([]skald.View, len(rows), context.temp_allocator)

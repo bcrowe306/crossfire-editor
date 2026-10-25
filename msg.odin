@@ -1506,4 +1506,13 @@ Msg :: union {
 	Level_Rename_Started,
 	Level_Field_Focused,
 	Level_Size_Typed,
+	// Feedback: toasts (notifications.odin), the Problems tab (problems.odin), the History tab
+	// (undo_history.odin)
+	Toast_Dismissed,
+	Toast_Action_Clicked,
+	Toasts_Expired,
+	Notify_Requested,
+	Problems_Refresh,
+	Problem_Picked,
+	History_Jump,
 }

@@ -181,7 +181,7 @@ dialogueGraph :: proc(ctx: ^skald.Ctx(Msg), s: ^State, data: ^e.DialogueData, wi
 	id := skald.hash_id("dialogue-graph")
 	height: f32 = 180
 	for n in data.nodes do height = max(height, n.position.y + DIALOGUE_BOX.y + 30)
-	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 && len(ctx.widgets.overlay_rects_prev) == 0 {
+	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 && !Overlay_PopupOpen(ctx) {
 		rect := state.last_rect
 		dialogueGraphOrigin = {rect.x, rect.y}
 		visible := state.clip_rect.w > 0 ? state.clip_rect : rect

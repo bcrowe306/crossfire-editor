@@ -77,8 +77,8 @@ StatesPanel_Content :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> (content: skald.
 	th := ctx.theme
 	node, index := States_Machine(s)
 	if node == nil {
-		text := "Select a StateMachine node to edit its states: what a character is doing (idle, run, jump, attack), the conditions that move it from one to another, and the animation each plays. Add Node > StateMachine makes one (inside the AnimatedSprite it animates)."
-		return skald.col(uiText(th, .Label, text, max_width = tk.textWide), padding = th.spacing.md), false
+		text := "Select a StateMachine node to edit its states: what a character is doing (idle, run, jump, attack), the conditions that move it from one to another, and the animation each plays. A new one goes inside the selected node (the AnimatedSprite it animates)."
+		return emptyState(ctx, text, {label = "Add StateMachine", msg = Msg(Add_Node_Kind_Chosen(NodeKind.StateMachine)), key = "states-add"}), false
 	}
 	sm := &node.stateMachine
 	left, right := FittedSidebarWidths(&s.layout)
@@ -428,7 +428,7 @@ graphCanvas :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSettings
 	id := skald.hash_id("states-graph")
 	height: f32 = 200
 	for st in sm.states do height = max(height, st.position.y + STATE_BOX.y + 30)
-	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 && len(ctx.widgets.overlay_rects_prev) == 0 {
+	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 && !Overlay_PopupOpen(ctx) {
 		rect := state.last_rect
 		statesGraphOrigin = {rect.x, rect.y}
 		visible := state.clip_rect.w > 0 ? state.clip_rect : rect

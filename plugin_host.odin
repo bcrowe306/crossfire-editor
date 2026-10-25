@@ -100,6 +100,13 @@ PluginsState :: struct {
 @(private="file")
 plugins: PluginsState = {building = -1}
 
+// The plugin being built, if one is (its name; the toasts' job: notifications.odin)
+Plugins_Building :: proc() -> (name: string, building: bool) {
+	if plugins.building < 0 do return "", false
+	if plugins.building < len(plugins.list) do return plugins.list[plugins.building].name, true
+	return "", true
+}
+
 // The state host procedures act on (set around every call into a plugin)
 @(private="file")
 pluginState: ^State
@@ -424,6 +431,7 @@ pluginFail :: proc(state: ^State, p: ^PluginRecord, problem: string) {
 	delete(p.problem)
 	p.problem = strings.clone(problem)
 	logLine(state, .Error, fmt.aprintf("Plugin %s: %s", p.folder, problem))
+	Notify(state, .Error, fmt.tprintf("Plugin %s failed: %s", p.folder, problem), .Show_Console)
 }
 
 // Drops what a plugin gave and its library

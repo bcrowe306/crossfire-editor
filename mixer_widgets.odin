@@ -88,7 +88,7 @@ hScroll :: proc(ctx: ^skald.Ctx($Msg), key: string, content: skald.View, width, 
 		hScrollToEnd = 0
 	}
 	offset := math.clamp(hScrollOffsets[id], 0, maxOffset)
-	popupOpen := len(ctx.widgets.overlay_rects_prev) > 0
+	popupOpen := Overlay_PopupOpen(ctx)
 	mouse := ctx.input.mouse_pos
 
 	if state, drawn := ctx.widgets.states[id]; drawn && maxOffset > 0 && !popupOpen && rectHas(state.last_rect, mouse) {
@@ -156,7 +156,7 @@ fader :: proc(ctx: ^skald.Ctx($Msg), key: string, gain: f32, payload: $P, on_cha
 		capY := rect.y + (1 - position) * usable
 		mouse := ctx.input.mouse_pos
 		fine := .Shift in ctx.input.modifiers
-		popupOpen := len(ctx.widgets.overlay_rects_prev) > 0
+		popupOpen := Overlay_PopupOpen(ctx)
 		if ctx.input.mouse_pressed[.Left] && !popupOpen && skald.widget_hovered(ctx, id) && rectHas(state.clip_rect, mouse, true) {
 			skald.widget_focus(ctx, id)
 			if ctx.input.mouse_click_count[.Left] >= 2 || skald.PRIMARY_MODIFIER in ctx.input.modifiers {
@@ -224,7 +224,7 @@ panControl :: proc(ctx: ^skald.Ctx($Msg), key: string, pan: f32, payload: $P, on
 		rect := state.last_rect
 		mouse := ctx.input.mouse_pos
 		fine := .Shift in ctx.input.modifiers
-		popupOpen := len(ctx.widgets.overlay_rects_prev) > 0
+		popupOpen := Overlay_PopupOpen(ctx)
 		if ctx.input.mouse_pressed[.Left] && !popupOpen && skald.widget_hovered(ctx, id) && rectHas(state.clip_rect, mouse, true) {
 			skald.widget_focus(ctx, id)
 			if ctx.input.mouse_click_count[.Left] >= 2 || skald.PRIMARY_MODIFIER in ctx.input.modifiers {

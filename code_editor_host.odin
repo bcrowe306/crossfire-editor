@@ -974,7 +974,7 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	CodeProviders_Begin(s)
 	defer CodeProviders_End()
 	focused := ctx.widgets.focused_id == id
-	popupOpen := len(ctx.widgets.overlay_rects_prev) > 0 || ctx.widgets.modal_rect_prev.w > 0
+	popupOpen := Overlay_PopupOpen(ctx) || ctx.widgets.modal_rect_prev.w > 0
 	mouse := ctx.input.mouse_pos
 	over := rect.w > 0 && mouse.x >= rect.x && mouse.y >= rect.y && mouse.x < rect.x + rect.w && mouse.y < rect.y + rect.h && !popupOpen
 	if ctx.input.mouse_pressed[.Left] && over && !focused || host.focusNext {

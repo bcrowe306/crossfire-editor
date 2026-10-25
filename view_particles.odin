@@ -127,13 +127,7 @@ ParticlesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	node, index := Particles_Emitter(s)
 	if node == nil {
 		text := "Select a ParticleEmitter node to edit its settings here, a category at a time, with presets (fire, smoke, sparks, dust, rain). Sparks, smoke, rain, explosions: an emitter sends out small dots, shapes or pictures that move and fade."
-		add := skald.button(ctx, fmt.tprintf("%s  Add ParticleEmitter", ACTION_ICONS[.Add]), Msg(Add_Node_Kind_Chosen(NodeKind.ParticleEmitter)),
-			id = skald.hash_id("particles-tab-add"), padding = tk.fieldPadding, font_size = th.font.size_sm)
-		return skald.col(
-			uiText(th, .Label, text, max_width = tk.textWide),
-			skald.tooltip(ctx, add, "A new ParticleEmitter in the open scene, inside the selected node", id = skald.hash_id("particles-tab-add-tip")),
-			spacing = th.spacing.sm, padding = th.spacing.md,
-		)
+		return emptyState(ctx, text, {label = "Add ParticleEmitter", msg = Msg(Add_Node_Kind_Chosen(NodeKind.ParticleEmitter)), key = "particles-tab-add"})
 	}
 
 	// The panel's width: the Scene mode's center column

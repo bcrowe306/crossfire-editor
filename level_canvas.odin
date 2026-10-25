@@ -436,7 +436,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			local := input.mouse_pos - {state.last_rect.x, state.last_rect.y}
 			world := center + (local - size * 0.5) / zoom
 			inside := local.x >= 0 && local.y >= 0 && local.x < size.x && local.y < size.y
-			hovered := inside && skald.widget_hovered(ctx, id) && !skald.mouse_over_overlay(ctx) && len(ctx.widgets.overlay_rects_prev) == 0
+			hovered := inside && skald.widget_hovered(ctx, id) && !skald.mouse_over_overlay(ctx) && !Overlay_PopupOpen(ctx)
 			#reverse for e, i in entities {
 				// While a level is focused, only its entities
 				if e.ghost || (s.level.focus != "" && e.level != s.level.focus) do continue

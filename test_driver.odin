@@ -125,6 +125,7 @@ copy: `open_project {project}`).
 	                                 program would
 	save_code_render <file.png>      Save the shown code tab's render (its own pixels, not the screen)
 	write_project_file <path> <text> Write a project file ("\n", "\t"), as another program would
+	remove_project_file <path>       Delete a project file, as another program would
 	copy_into_project <file> <project path>
 	                                 Copy a file into the project (its folders made)
 	live_select <node name>          Choose a node of the running game in the Live tab
@@ -208,6 +209,8 @@ copy: `open_project {project}`).
 	                                 LDtk_Item_Picked <Tab> <uid> (a definitions tab's item),
 	                                 LDtk_Def_Picked <Field | Level_Field | Tileset> <uid> or
 	                                 LDtk_Def_Picked Tile_Tag [value] (the tilesets' tile data mode),
+	                                 Notify_Requested <Level> <Action> <text> (a toast: Error
+	                                 Show_Problems boom), Problems_Refresh (the Problems tab's),
 	                                 Bottom_Tab <Tab> (the shown mode's bottom tab: one scrolled
 	                                 out of the strip's view), Level_Tool_Picked <Tool> (the tool
 	                                 row's, in its overflow menu in a narrow window),
@@ -538,6 +541,13 @@ Checks:
 	settings_tab <Tab>               The Settings dialog's tab (Appearance, Editor, ...)
 	settings_highlight <label>       The row the palette lit in it ("none")
 	crumbs <a > b > c>               The Scene mode's breadcrumbs (breadcrumbs.odin), " > " between
+	toasts <n>                       How many toasts show (notifications.odin; jobs aside)
+	toast <i> <text>                 Toast i (0 the oldest) contains the text
+	problems <n>                     How many problems the Problems tab lists (problems.odin)
+	problem <i> <text>               Problem i's text or place contains the text ("problem any
+	                                 <text>": one of them)
+	history <steps> <current>        The undo history's rows (the opened project too) and the
+	                                 current one (undo_history.odin)
 	code_inlay <line> <text>         A line's inlay hints contain the text (1-based)
 	code_inlay_lacks <line> <text>   ... don't contain it
 	log_points <n>                   The project's log points (log_points.odin)
@@ -1408,7 +1418,9 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		for _, st in ctx.widgets.states do if st.kind == .Button do newest = max(newest, st.last_overlay_frame)
 		// Inside the popup: the last overlay drawn (a dialog's own buttons are on an overlay too)
 		popup: skald.Rect
-		if n := len(ctx.widgets.overlay_rects_prev); n > 0 do popup = ctx.widgets.overlay_rects_prev[n - 1]
+		// (the toasts' stack aside: notifications.odin)
+		toasts := lastRect(ctx, skald.hash_id(TOASTS_KEY))
+		for r in ctx.widgets.overlay_rects_prev do if r != toasts do popup = r
 		inside :: proc(r, area: skald.Rect) -> bool {
 			return area.w <= 0 || (r.x >= area.x - 1 && r.y >= area.y - 1 && r.x + r.w <= area.x + area.w + 1 && r.y + r.h <= area.y + area.h + 1)
 		}
@@ -1885,6 +1897,15 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "remove_project_file":
+		// A project file deleted, as another program would (the Problems tab's missing assets)
+		path := joinPath(s.project.rootPath, rest, allocator = context.temp_allocator)
+		if os.remove(path) != nil {
+			fail(fmt.tprintf("%s: can't remove %s", line, path))
+			return true
+		}
+		report(true, line)
+		return false
 	case "write_project_file":
 		// A project file's whole text, as another program would write it ("\n" for line breaks,
 		// "\t" for tabs); its modification time a second ahead, so the change always shows
@@ -2283,6 +2304,14 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		case "Particles_Preset_Applied": msg = Particles_Preset_Applied(strings.clone(value, context.temp_allocator))
 		case "Bottom_Tab":
 			if tab, ok := reflect.enum_from_name(BottomTab, value); ok do msg = Bottom_Tab_Changed(int(tab))
+		case "Notify_Requested":
+			// <Level> <Action> <text>: a toast (notifications.odin)
+			level, _, rest := strings.partition(value, " ")
+			action, _, text := strings.partition(rest, " ")
+			l, okLevel := reflect.enum_from_name(ToastLevel, level)
+			a, okAction := reflect.enum_from_name(ToastAction, action)
+			if okLevel && okAction do msg = Notify_Requested{l, a, strings.clone(text, context.temp_allocator)}
+		case "Problems_Refresh": msg = Problems_Refresh{}
 		case "Right_Sidebar_Width":
 			// The right sidebar (the inspector) that wide, as a drag of its divider would make it
 			if width, ok := strconv.parse_f32(value); ok {
@@ -3407,6 +3436,27 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprintf("%v", s.settingsDialog.tab)
 	case "settings_highlight":
 		found = s.settingsDialog.highlight == "" ? "none" : s.settingsDialog.highlight
+	case "toasts":
+		found = fmt.tprintf("%d", len(s.notifications.toasts))
+	case "toast":
+		number, _, text := strings.partition(value, " ")
+		i, _ := strconv.parse_int(number)
+		if i < 0 || i >= len(s.notifications.toasts) do return false, fmt.tprintf("%d toasts", len(s.notifications.toasts))
+		found = s.notifications.toasts[i].text
+		return strings.contains(found, text), found
+	case "problems":
+		found = fmt.tprintf("%d", len(s.problems.items))
+	case "problem":
+		number, _, text := strings.partition(value, " ")
+		texts := make([dynamic]string, context.temp_allocator)
+		for p, i in s.problems.items do if number == "any" || fmt.tprintf("%d", i) == number {
+			line := fmt.tprintf("%s (%s)", p.text, p.place)
+			if strings.contains(line, text) do return true, line
+			append(&texts, line)
+		}
+		return false, strings.join(texts[:], "; ", context.temp_allocator)
+	case "history":
+		found = fmt.tprintf("%d %d", 1 + len(s.history.undo) + len(s.history.redo), len(s.history.undo))
 	case "crumbs":
 		labels := make([dynamic]string, context.temp_allocator)
 		for c in Breadcrumbs_Scene(s) do append(&labels, c.label)

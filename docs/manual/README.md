@@ -65,6 +65,7 @@ right-click menu, and F1 in a code tab opens the entry of the engine name under 
 | [Settings and the toolchain](settings_and_toolchain.md) | Change how the editor looks (a live theme editor with presets and every color) and behaves, rebind its shortcuts, check and install the tools that build your games, and find your way around Project Settings |
 | [Editor plugins](plugins.md) | Your own Odin code in the editor: commands, importers for other formats, inspector rows; built and reloaded as you save |
 | [The docs window](docs_window.md) | This manual and the engine's API reference inside the editor, offline: opening it from anywhere (F1, Open Docs, Manual buttons), links, search, back and forward, the same page on crossfireengine.io |
+| [Notifications, problems and history](feedback.md) | Notifications in the corner for saves, builds, exports and installs (with progress while they run), the Problems tab listing missing assets, broken node paths and script errors a click away from their cause, the History tab of undo steps, and what empty panels offer |
 | [Node guides](nodes.md) | Every node kind in one table, with a link to its guide |
 | [Node guides: scene structure](nodes_scene.md) | Node2D, Camera, Component, LDtkLevel, CameraZone, NavRegion, NavAgent: what each does, its properties, the inspector, code, an example |
 | [Node guides: graphics](nodes_graphics.md) | Sprite, AnimatedSprite, TileMap, ParallaxLayer, CameraView, Light2D, LightOccluder, ScreenEffect, Line2D, Trail2D, ParticleEmitter |

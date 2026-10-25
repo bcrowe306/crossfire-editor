@@ -726,7 +726,7 @@ ldtkThumbnailView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, slot: LDtkThumbnailSl
 		hovered: [4]f32
 		hovering := false
 		if d.slot == .Browser {
-			if state, drawn := ctx.widgets.states[id]; drawn && skald.widget_hovered(ctx, id) && len(ctx.widgets.overlay_rects_prev) == 0 {
+			if state, drawn := ctx.widgets.states[id]; drawn && skald.widget_hovered(ctx, id) && !Overlay_PopupOpen(ctx) {
 				local := ctx.input.mouse_pos - {state.last_rect.x, state.last_rect.y}
 				identifier, rect, onLevel := Preview_LDtkLevelAt(d.slot, local)
 				if onLevel do hovered, hovering = rect, true

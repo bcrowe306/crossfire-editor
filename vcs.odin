@@ -596,6 +596,7 @@ Git_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 			logLine(state, .Info, strings.clone("Git: for each conflicted file (!), keep this branch's version or take the merged one, then Commit; or Abort the merge"))
 		} else if !v.ok {
 			logLine(state, .Error, fmt.aprintf("Git: %s failed: %s", label, output))
+			Notify(state, .Error, fmt.tprintf("Git: %s failed", label), .Show_Console)
 			if strings.contains(output, "Please tell me who you are") || strings.contains(output, "Author identity unknown") {
 				logLine(state, .Info, strings.clone("Git needs your name and email for commits: run git config --global user.name \"Your Name\" and git config --global user.email you@example.com"))
 			}

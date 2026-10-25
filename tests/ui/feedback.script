@@ -1,0 +1,76 @@
+# Feedback: toasts (notifications.odin), the Problems tab (problems.odin), the History tab
+# (undo_history.odin) and empty states with actions. Runs on a scratch copy of the demo project.
+# Run with: task test:ui
+
+wait 5
+expect toasts 0
+
+# An error stays until dismissed; its action runs and dismisses it
+send Notify_Requested Error Show_Problems Building the scripts failed
+expect toasts 1
+expect toast 0 Building the scripts failed
+wait 2
+expect toasts 1
+click_widget toast-action-0
+expect toasts 0
+expect bottom_tab Problems
+
+# Saving shows one; a click on it dismisses it
+key ctrl+s
+wait_until toasts 1
+expect toast 0 Saved
+click_widget toast-0
+expect toasts 0
+
+# Info goes by itself after a few seconds
+send Notify_Requested Info None Hello
+expect toasts 1
+wait_until toasts 0
+
+# Several stack, the newest last; the × dismisses one
+send Notify_Requested Warning None first
+send Notify_Requested Error None second
+expect toasts 2
+expect toast 1 second
+click_widget toast-close-1
+expect toasts 1
+expect toast 0 first
+click_widget toast-close-0
+expect toasts 0
+
+# The Problems tab: a sprite's image deleted outside the editor is a missing asset; a click
+# selects the node
+remove_project_file assets/ship.png
+send Problems_Refresh
+wait 2
+expect problem any Missing image assets/ship.png
+expect problem any PlayScene > World > Spaceship
+expect problems 1
+click_widget problem-0
+expect scene PlayScene
+expect selected Spaceship
+expect bottom_tab Problems
+
+# The History tab: two deletes are two steps; a click on a row goes back to it and forward again
+click_node Balloon
+action Delete_Node
+click_node WarningLight
+action Delete_Node
+send Bottom_Tab History
+expect history 3 2
+click_widget history-row-1
+expect history 3 1
+expect nodes 10
+click_widget history-row-0
+expect history 3 0
+expect nodes 11
+click_widget history-row-2
+expect history 3 2
+expect nodes 9
+
+# Empty states: nothing selected, the inspector offers Add Node...
+action Deselect
+click_widget inspector-add-node
+expect add_dialog open
+key escape
+expect add_dialog closed

@@ -43,8 +43,7 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	States_Follow(&out)
 	Particles_Follow(&out)
 	// The Level mode's levels by iid after an LDtk step (a rename, an undo of one)
-	isUndo := false
-	if a, ok := m.(Action); ok do isUndo = a == .Undo || a == .Redo
+	isUndo := isUndoRedo(m)
 	if info.scope == .Files || isUndo do LevelMode_Follow(&out)
 	// The inspector shows a data resource chosen in the browser, until a node is selected
 	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
@@ -127,6 +126,12 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	if (info.scope == .Scene || info.scope == .Project) && !out.selectionSet do clear(&out.selection)
 	Selection_Normalize(&out)
 	if snap != nil do History_Commit(&out, snap, time.tick_now())
+	// Toasts: the jobs' times, the old ones gone (notifications.odin)
+	now := time.tick_now()
+	ended := Notifications_Follow(&out.notifications, Notifications_RunningJobs(&out), now)
+	// A build ended: its errors are the Problems tab's (problems.odin)
+	if ended & {.Play_Build, .Scripts_Build} != {} && out.problems.gathered do Problems_Gather(&out)
+	Notifications_Expire(&out.notifications, now)
 	return out, command
 }
 
@@ -141,6 +146,7 @@ Update_Before :: struct {
 // Undo or Redo (they restore their step's mode themselves)
 @(private="file")
 isUndoRedo :: proc(m: Msg) -> bool {
+	if _, jump := m.(History_Jump); jump do return true
 	a, isAction := m.(Action)
 	return isAction && (a == .Undo || a == .Redo)
 }
@@ -180,6 +186,9 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	if command, handled := CodeColors_Update(out, m); handled do return command
 	if command, handled := Docs_Update(out, m); handled do return command
 	if command, handled := Palette_Update(out, m); handled do return command
+	if command, handled := Notifications_Update(out, m); handled do return command
+	if command, handled := Problems_Update(out, m); handled do return command
+	if UndoHistory_Update(out, m) do return {}
 	if command, handled := CodeActions_Update(out, m); handled do return command
 	if CodeLive_Update(out, m) do return {}
 	if LogPoints_Update(out, m) do return {}
@@ -376,19 +385,23 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		out.exportAfterEmscripten = {}
 		if v.problem != "" {
 			logLine(out, .Error, fmt.aprintf("Installing Emscripten failed: %s", v.problem))
+			Notify(out, .Error, fmt.tprintf("Installing Emscripten failed: %s", v.problem), .Show_Output)
 			delete(v.problem)
 			break
 		}
 		logLine(out, .Info, fmt.aprintf("Installed Emscripten %s", EMSDK_VERSION))
+		Notify(out, .Success, fmt.tprintf("Installed Emscripten %s", EMSDK_VERSION))
 		// The export that asked for it goes on
 		if waiting != {} do return Export_Start(out, waiting)
 	case Toolchain_Install_Finished:
 		out.toolchainInstalling = false
 		if v.problem != "" {
 			logLine(out, .Error, fmt.aprintf("Installing Odin failed: %s", v.problem))
+			Notify(out, .Error, fmt.tprintf("Installing Odin failed: %s", v.problem), .Show_Output)
 			delete(v.problem)
 		} else {
 			logLine(out, .Info, fmt.aprintf("Installed Odin %s: %s", ODIN_VERSION, v.path))
+			Notify(out, .Success, fmt.tprintf("Installed Odin %s", ODIN_VERSION))
 			delete(v.path)
 		}
 	case Open_Keyboard_Settings:
@@ -554,6 +567,8 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		out.viewport.tickPending = true
 		out.viewport.nextTick = time.tick_now()
 		return nextViewportTick(&out.viewport)
+	case Toast_Dismissed, Toast_Action_Clicked, Toasts_Expired, Notify_Requested, Problems_Refresh, Problem_Picked, History_Jump:
+		// Handled above (notifications.odin, problems.odin, undo_history.odin)
 	case Script_Tick, Preview_Tick:
 		// Only keep frames coming (test script, viewport animations, audio progress)
 
@@ -826,6 +841,8 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		Mode_ShowBottomTab(out, BottomTab(int(v)))
 		// What git says may have changed since it was read
 		if BottomTab(int(v)) == .Git do return Git_Refresh(out)
+		// The project's problems, as they are now
+		if BottomTab(int(v)) == .Problems do Problems_Gather(out)
 	case Scene_Tab_Changed:
 		out.codeTab = 0
 		out.slicer.shown = 0
@@ -1281,7 +1298,13 @@ handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 	case .Save_Project:
 		// Saved scripts are built again in the background: the inspector learns new fields
 		scripts := CodeTabs_AnyDirty(out)
-		if Session_Save(out) && scripts do return scriptsBuildQuietly(out)
+		saved := Session_Save(out)
+		if saved {
+			Notify(out, .Success, fmt.tprintf("Saved %s", out.project.name))
+			// The Problems tab checks again on every save (problems.odin)
+			if out.problems.gathered do Problems_Gather(out)
+		}
+		if saved && scripts do return scriptsBuildQuietly(out)
 	case .Play:
 		cmd := playStart(out)
 		return cmd
@@ -1644,6 +1667,7 @@ importAsset :: proc(state: ^State, path: string) {
 	if handled, asset, problem := Plugins_Import(state, path); handled {
 		if problem != "" {
 			logLine(state, .Error, fmt.aprintf("Import failed: %s", problem))
+			Notify(state, .Error, fmt.tprintf("Import failed: %s", problem), .Show_Console)
 			return
 		}
 		state.session.assetsChanged = true
@@ -1660,6 +1684,7 @@ importAsset :: proc(state: ^State, path: string) {
 		index, warnings, problem := Yarn_Import(&state.project, path)
 		if problem != "" {
 			logLine(state, .Error, fmt.aprintf("Import failed: %s", problem))
+			Notify(state, .Error, fmt.tprintf("Import failed: %s", problem), .Show_Console)
 			return
 		}
 		state.session.assetsChanged = true
@@ -1675,6 +1700,7 @@ importAsset :: proc(state: ^State, path: string) {
 		index, warnings, problem := DragonBones_Import(&state.project, path)
 		if problem != "" {
 			logLine(state, .Error, fmt.aprintf("Import failed: %s", problem))
+			Notify(state, .Error, fmt.tprintf("Import failed: %s", problem), .Show_Console)
 			return
 		}
 		state.session.assetsChanged = true
@@ -1689,6 +1715,7 @@ importAsset :: proc(state: ^State, path: string) {
 	if message == "" do state.session.assetsChanged = true
 	if message != "" {
 		logLine(state, .Error, fmt.aprintf("Import failed: %s", message))
+		Notify(state, .Error, fmt.tprintf("Import failed: %s", message), .Show_Console)
 		return
 	}
 	asset := state.project.assets[index]

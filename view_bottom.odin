@@ -68,9 +68,16 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if !open do return header
 
 	content: skald.View
+	// Empty states wrap inside the panel (a tiled window's is about 200 px wide)
+	emptyStateWrap = panelWidth - uiTokens(ctx).panelPadding * 2
+	defer emptyStateWrap = 0
 	switch shown {
-	case .Console:   content = logView(ctx, s, false, "Console is empty.", "console-scroll")
-	case .Output:    content = logView(ctx, s, true, "Build output appears here when you press Play.", "output-scroll")
+	case .Console:
+		content = logView(ctx, s, false, "No messages yet: the editor's and the running game's show here.", "console-scroll",
+			{label = "Play", msg = Msg(Action.Play), key = "console-play"})
+	case .Output:
+		content = logView(ctx, s, true, "Build output shows here when you press Play or build the scripts.", "output-scroll",
+			{label = "Build Scripts", msg = Msg(Action.Build_Scripts), key = "output-build"})
 	case .Animation: content = AnimationPanel(s, ctx)
 	case .Mixer:     content = MixerPanel(s, ctx)
 	case .Git:       content = GitPanel(s, ctx)
@@ -81,6 +88,8 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Particles: content = ParticlesPanel(s, ctx)
 	case .Dialogue:  content = DialoguePanel(s, ctx)
 	case .Plugins:   content = PluginsPanel(s, ctx)
+	case .Problems:  content = ProblemsPanel(s, ctx)
+	case .History:   content = UndoHistoryPanel(s, ctx)
 	case .World, .Level, .Layers, .Entities, .Enums, .Tilesets, .Auto_Layer_Rules, .LDtk_Project:
 		content = LevelMode_LDtkTab(s, ctx, shown)
 	}
@@ -114,7 +123,7 @@ in the kept lines), and the header's `<scrollKey>-search`, `-level-<Level>`, `-c
 `-follow`.
 */
 @(private="file")
-logView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, output: bool, emptyText, scrollKey: string) -> skald.View {
+logView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, output: bool, emptyText, scrollKey: string, emptyAction: EmptyAction) -> skald.View {
 	th := ctx.theme
 	list := logListOf(s, output)
 	lines := LogList_Lines(list)
@@ -136,7 +145,7 @@ logView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, output: bool, emptyText, scroll
 	}
 	content: skald.View
 	switch {
-	case len(lines) == 0: content = placeholder(ctx, emptyText)
+	case len(lines) == 0: content = emptyState(ctx, emptyText, emptyAction)
 	case len(shown) == 0: content = placeholder(ctx, "No lines match the filters.")
 	case:
 		logFollow(ctx, list, output, listId, shown, rowHeight)
@@ -346,6 +355,51 @@ logFollow :: proc(ctx: ^skald.Ctx(Msg), list: ^LogList, output: bool, id: skald.
 		topSerial = len(shown) > 0 ? list.serial + shown[top] : list.serial,
 		topOffset = st.scroll_y - f32(top) * rowHeight,
 	}
+}
+
+// The bottom panel's width inside its padding while it builds its tab (`emptyState` wraps there)
+@(private="file")
+emptyStateWrap: f32
+
+// Where an empty state wraps in a Scene-mode sidebar (the left one: the browser; the right: the
+// scene tree and the inspector)
+sidebarEmptyWidth :: proc(s: ^State, ctx: ^skald.Ctx(Msg), right: bool) -> f32 {
+	tk := uiTokens(ctx)
+	left, rightWidth := FittedSidebarWidths(Mode_Layout(s))
+	return max((right ? rightWidth : left) - tk.panelPadding * 2 - tk.s, tk.fieldS)
+}
+
+// A button of an empty state (`emptyState`): its label, what it sends, its widget key
+EmptyAction :: struct {
+	label: string,
+	msg: Msg,
+	key: string,
+}
+
+/*
+What an empty panel shows (TODO.md's "UI and UX" round "Feedback": empty states with actions): a
+short muted line saying why it's empty, then a button for each obvious next step ("No scene open."
+New Scene, Open Scene). Every panel that can be empty uses it, so they look alike.
+
+Inputs:
+- text: Why it's empty
+- actions: Its buttons (none: just the line)
+- width: Where the line wraps (0: `textWide`, or the bottom panel's width when narrower)
+*/
+emptyState :: proc(ctx: ^skald.Ctx(Msg), text: string, actions: ..EmptyAction, width: f32 = 0) -> skald.View {
+	th := ctx.theme
+	tk := uiTokens(ctx)
+	buttons := make([dynamic]skald.View, context.temp_allocator)
+	for a in actions {
+		append(&buttons, skald.button(ctx, a.label, a.msg, id = skald.hash_id(a.key),
+			bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_sm))
+	}
+	parts := make([dynamic]skald.View, context.temp_allocator)
+	wrap := width
+	if wrap <= 0 do wrap = emptyStateWrap > 0 ? min(tk.textWide, emptyStateWrap) : tk.textWide
+	append(&parts, uiText(th, .Muted, text, max_width = wrap))
+	if len(buttons) > 0 do append(&parts, skald.wrap_row(..buttons[:], spacing = tk.buttonGap, line_spacing = tk.buttonGap))
+	return skald.col(..parts[:], spacing = tk.s, padding = tk.panelPadding)
 }
 
 @(private="package")

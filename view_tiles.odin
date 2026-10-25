@@ -35,7 +35,7 @@ TilesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	node, ase := TilePaint_Node(s)
 	if node == nil {
 		text := "Select a TileMap node to paint its tiles: its Aseprite file's tilesets are the palette."
-		return skald.col(uiText(th, .Label, text, max_width = tk.textWide), padding = th.spacing.md)
+		return emptyState(ctx, text, {label = "Add TileMap", msg = Msg(Add_Node_Kind_Chosen(NodeKind.TileMap)), key = "tiles-add"})
 	}
 	p := &s.tilePainter
 	layer := TilePaint_Layer(s, node, ase)
@@ -135,7 +135,7 @@ palette :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, tileset: ^e.Ase
 		mouse := ctx.input.mouse_pos
 		visible := state.clip_rect.w > 0 ? state.clip_rect : rect
 		inside :: proc(r: skald.Rect, p: [2]f32) -> bool { return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h }
-		if inside(rect, mouse) && inside(visible, mouse) && len(ctx.widgets.overlay_rects_prev) == 0 {
+		if inside(rect, mouse) && inside(visible, mouse) && !Overlay_PopupOpen(ctx) {
 			column := int((mouse.x - rect.x) / (TILE_THUMB + TILE_GAP))
 			row := int((mouse.y - rect.y) / (TILE_THUMB + TILE_GAP))
 			tile := row * perRow + column + 1

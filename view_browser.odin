@@ -79,10 +79,12 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	items := BrowserRows(s)
 	if len(items) == 0 {
-		return skald.col(
-			uiText(th, .Label, fmt.tprintf("Nothing matches '%s'", s.browserSearch)),
-			padding = th.spacing.md,
-		)
+		if s.browserSearch == "" {
+			return emptyState(ctx, "The project has no scenes or assets yet.", {label = "Import...", msg = Msg(Action.Import_Asset), key = "browser-import"},
+				width = sidebarEmptyWidth(s, ctx, false))
+		}
+		return emptyState(ctx, fmt.tprintf("Nothing matches '%s'.", s.browserSearch),
+			{label = "Clear Search", msg = Msg(Browser_Search_Changed("")), key = "browser-clear-search"}, width = sidebarEmptyWidth(s, ctx, false))
 	}
 
 	ghost := browserDrag(s, ctx, items)

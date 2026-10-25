@@ -189,7 +189,7 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 		cy := int(math.floor((local.y - padding) / (gridSize + spacing)))
 		return {clamp(cx, 0, cWid - 1), clamp(cy, 0, cHei - 1)}, true
 	}
-	hovered := skald.widget_hovered(ctx, id) && !skald.mouse_over_overlay(ctx) && len(ctx.widgets.overlay_rects_prev) == 0
+	hovered := skald.widget_hovered(ctx, id) && !skald.mouse_over_overlay(ctx) && !Overlay_PopupOpen(ctx)
 	if st, ok := ctx.widgets.states[id]; ok && st.clip_rect.w > 0 {
 		m := ctx.input.mouse_pos
 		c := st.clip_rect

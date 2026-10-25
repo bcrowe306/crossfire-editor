@@ -60,8 +60,10 @@ NodePathRef :: struct {
 	// The field's name and default, for `.Script_Field` (temp allocated)
 	field: string,
 	defaultValue: string,
-	// The node it leads to
+	// The node it leads to (-1: none, `NodePaths_Broken`)
 	target: int,
+	// The path as stored (a slice of the node's string)
+	path: string,
 }
 
 // The first script's slot and the node type's, for `.Script_Field`
@@ -80,11 +82,37 @@ Returns:
 */
 NodePaths_Resolve :: proc(scene: ^SceneDef, catalog: ^ScriptCatalog = nil) -> []NodePathRef {
 	refs := make([dynamic]NodePathRef, context.temp_allocator)
+	for ref in nodePathsAll(scene, catalog) do if ref.target >= 0 do append(&refs, ref)
+	return refs[:]
+}
+
+/*
+Every stored node path of a scene that leads to no node (the Problems tab's broken paths:
+problems.odin).
+
+Inputs:
+- scene: The scene
+- catalog: The script catalog, for script node fields (nil, or not built: they're skipped)
+
+Returns:
+- The paths, `path` set and `target` -1 (temp allocated)
+*/
+NodePaths_Broken :: proc(scene: ^SceneDef, catalog: ^ScriptCatalog = nil) -> []NodePathRef {
+	refs := make([dynamic]NodePathRef, context.temp_allocator)
+	for ref in nodePathsAll(scene, catalog) do if ref.target < 0 do append(&refs, ref)
+	return refs[:]
+}
+
+// Every stored node path of a scene (not empty), with where it leads (-1: nowhere)
+@(private="file")
+nodePathsAll :: proc(scene: ^SceneDef, catalog: ^ScriptCatalog) -> []NodePathRef {
+	refs := make([dynamic]NodePathRef, context.temp_allocator)
 	add :: proc(refs: ^[dynamic]NodePathRef, scene: ^SceneDef, ref: NodePathRef, path: string) {
 		if path == "" do return
 		ref := ref
 		ref.target = nodePathResolve(scene, ref, path)
-		if ref.target >= 0 do append(refs, ref)
+		ref.path = path
+		append(refs, ref)
 	}
 	for &node, i in scene.nodes {
 		#partial switch node.kind {

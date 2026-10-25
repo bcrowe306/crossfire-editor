@@ -46,8 +46,8 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	node, index := Timeline_Animator(s)
 	if node == nil {
-		text := "Select an Animator node to edit its clips: keyframes that move, turn, scale, color, show and hide other nodes, or change their script's fields, over time. Add Node > Animator makes one."
-		return skald.col(uiText(th, .Label, text, max_width = tk.textWide), padding = th.spacing.md)
+		text := "Select an Animator node to edit its clips: keyframes that move, turn, scale, color, show and hide other nodes, or change their script's fields, over time."
+		return emptyState(ctx, text, {label = "Add Animator", msg = Msg(Add_Node_Kind_Chosen(NodeKind.Animator)), key = "timeline-add"})
 	}
 	t := &s.timeline
 	scene := &s.project.scenes[s.currentScene]
@@ -240,7 +240,7 @@ tracksCanvas :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: int
 	rowCount := max(len(clip.tracks), 1)
 	height := f32(TIMELINE_RULER_HEIGHT + TIMELINE_ROW_HEIGHT * rowCount)
 	// The mouse, from last frame's rect (like the Tiles palette)
-	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 && len(ctx.widgets.overlay_rects_prev) == 0 {
+	if state, drawn := ctx.widgets.states[id]; drawn && state.last_rect.w > 0 && !Overlay_PopupOpen(ctx) {
 		rect := state.last_rect
 		visible := state.clip_rect.w > 0 ? state.clip_rect : rect
 		m := ctx.input.mouse_pos

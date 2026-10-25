@@ -292,9 +292,11 @@ ProjectArchive_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		}
 		if v.result.problem != "" {
 			logLine(state, .Error, fmt.aprintf("Export Project Archive failed: %s", v.result.problem))
+			Notify(state, .Error, fmt.tprintf("Export Project Archive failed: %s", v.result.problem), .Show_Console)
 			break
 		}
 		logLine(state, .Info, fmt.aprintf("Wrote the project archive %s (%d files, %s)", v.archive, v.result.files, archiveSize(v.result.bytes)))
+		Notify(state, .Success, fmt.tprintf("Wrote %s", filepath.base(v.archive)), .Open_Folder, filepath.dir(v.archive))
 		if v.result.external > 0 {
 			logLine(state, .Info, fmt.aprintf("%d asset%s from outside the project folder went into the archive's assets/external/", v.result.external, v.result.external == 1 ? "" : "s"))
 		}
@@ -328,6 +330,7 @@ ProjectArchive_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		}
 		if v.problem != "" {
 			logLine(state, .Error, fmt.aprintf("Open Project Archive failed: %s", v.problem))
+			Notify(state, .Error, fmt.tprintf("Open Project Archive failed: %s", v.problem), .Show_Console)
 			break
 		}
 		logLine(state, .Info, fmt.aprintf("Unpacked %s into %s (%d files)", filepath.base(v.archive), v.root, v.files))

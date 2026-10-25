@@ -391,7 +391,7 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 		mouse := ctx.input.mouse_pos
 		area := state.clip_rect.w > 0 ? state.clip_rect : bar
 		t := math.clamp((mouse.x - bar.x) / bar.w, 0, 1)
-		over := pointInRect(bar, mouse) && pointInRect(area, mouse) && len(ctx.widgets.overlay_rects_prev) == 0 && ctx.widgets.modal_rect_prev.w == 0
+		over := pointInRect(bar, mouse) && pointInRect(area, mouse) && !Overlay_PopupOpen(ctx) && ctx.widgets.modal_rect_prev.w == 0
 		if ctx.input.mouse_pressed[.Left] && over {
 			grabbed := -1
 			for i in 0 ..< ramp.count {

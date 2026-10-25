@@ -100,6 +100,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		commandPaletteView(&state, ctx),
 		// A drag into code: its label, its drop (code_drag.odin)
 		CodeDrag_View(&state, ctx),
+		// Toasts over everything, in the bottom-right corner (notifications.odin)
+		notificationsView(&state, ctx),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
@@ -158,6 +160,9 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 		{"Edit", []skald.Menu_Item(Msg){
 			item(undoLabel == "" ? "Undo" : fmt.tprintf("Undo %s", undoLabel), .Undo, keys),
 			item(redoLabel == "" ? "Redo" : fmt.tprintf("Redo %s", redoLabel), .Redo, keys),
+			// The History and Problems tabs (undo_history.odin, problems.odin)
+			{label = "Undo History", msg = Msg(Bottom_Tab_Changed(BottomTab.History))},
+			{label = "Problems", msg = Msg(Bottom_Tab_Changed(BottomTab.Problems))},
 			{separator = true},
 			item("Add Node...", .Add_Node, keys),
 			item("Duplicate Node", .Duplicate_Node, keys),

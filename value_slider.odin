@@ -64,7 +64,7 @@ valueSlider :: proc(
 		mouse := ctx.input.mouse_pos
 		fine := .Shift in ctx.input.modifiers
 		// While a popup is open, a press outside it only closes it
-		popupOpen := len(ctx.widgets.overlay_rects_prev) > 0
+		popupOpen := Overlay_PopupOpen(ctx)
 		if ctx.input.mouse_pressed[.Left] && !popupOpen && skald.widget_hovered(ctx, trackId) {
 			v := value
 			if !fine do v = settle(minValue + math.clamp((mouse.x - rect.x) / rect.w, 0, 1) * span, minValue, maxValue, step)

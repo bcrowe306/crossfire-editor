@@ -28,7 +28,8 @@ LivePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	running := s.playState != .Stopped && s.play.stage == .Running
 	if !running || !live.connected {
 		text := running ? "Waiting for the game..." : "Press Play (F5): the running game shows here. Pause it, step it a frame at a time, see how long its frames take, look at its nodes and change their values while it plays."
-		return skald.col(uiText(th, .Label, text, max_width = tk.textWide), padding = th.spacing.md)
+		if running do return emptyState(ctx, text)
+		return emptyState(ctx, text, {label = "Play", msg = Msg(Action.Play), key = "live-play"})
 	}
 	left, right := FittedSidebarWidths(&s.layout)
 	width := s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.sm * 2

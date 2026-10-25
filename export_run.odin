@@ -73,6 +73,7 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 	}
 	if targets == {} {
 		logLine(state, .Warning, fmt.aprintf("No export targets are enabled: choose some in Project Settings > Export"))
+		Notify(state, .Warning, "No export targets are enabled: choose some in Project Settings > Export")
 		ProjectSettings_Open(state, .Export)
 		return {}
 	}
@@ -83,6 +84,7 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 	_ = Fonts_MakeMSDF(state)
 	if message := Project_Save(&state.project); message != "" {
 		logLine(state, .Error, fmt.aprintf("Export: couldn't save the project: %s", message))
+		Notify(state, .Error, fmt.tprintf("Export: couldn't save the project: %s", message), .Show_Console)
 		return {}
 	}
 	Session_MarkSaved(state)
@@ -120,6 +122,7 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 		}
 		if problem != "" {
 			logLine(state, .Error, fmt.aprintf("Export %s: %s", EXPORT_TARGETS[target].label, problem))
+			Notify(state, .Error, fmt.tprintf("Export %s: %s", EXPORT_TARGETS[target].label, problem), .Show_Console)
 			state.exporting.failed += 1
 			vmem.arena_destroy(&job.arena)
 			free(job)
@@ -337,6 +340,7 @@ finishJob :: proc(state: ^State) {
 	label := EXPORT_TARGETS[job.plan.target].label
 	destination := job.plan.archive != "" ? fmt.tprintf("%s (and %s)", job.plan.outputDir, job.plan.archive) : job.plan.outputDir
 	logLine(state, .Info, fmt.aprintf("Exported %s to %s", label, destination))
+	Notify(state, .Success, fmt.tprintf("Exported %s", label), .Open_Folder, absolutePath(job.plan.outputDir))
 	session.succeeded += 1
 	ordered_remove(&session.jobs, 0)
 	destroyJob(job)
@@ -347,6 +351,7 @@ failJob :: proc(state: ^State, message: string) {
 	session := &state.exporting
 	job := session.jobs[0]
 	logLine(state, .Error, fmt.aprintf("Export %s: %s", EXPORT_TARGETS[job.plan.target].label, message))
+	Notify(state, .Error, fmt.tprintf("Export %s failed: %s", EXPORT_TARGETS[job.plan.target].label, message), .Show_Output)
 	session.failed += 1
 	ordered_remove(&session.jobs, 0)
 	destroyJob(job)

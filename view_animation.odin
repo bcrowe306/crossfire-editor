@@ -61,7 +61,8 @@ AnimationPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	src, animation, index := AnimEdit_Selection(s)
 	if src.kind == .None {
 		if src.path != "" do return placeholder(ctx, fmt.tprintf("%s couldn't be read.", src.path))
-		return placeholder(ctx, "Select an AnimatedSprite node (or an animation asset in the browser) to edit its animations.")
+		return emptyState(ctx, "Select an AnimatedSprite node (or an animation asset in the browser) to edit its animations.",
+			{label = "Add AnimatedSprite", msg = Msg(Add_Node_Kind_Chosen(NodeKind.AnimatedSprite)), key = "animation-add"})
 	}
 	if animation == nil do return placeholder(ctx, fmt.tprintf("%s has no animations.", AnimSource_Name(src)))
 	// The selected animation's own sheet
@@ -364,7 +365,7 @@ frameStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, src: AnimSource, animation: 
 		mouse := ctx.input.mouse_pos
 		visible := state.clip_rect.w > 0 ? state.clip_rect : rect
 		inside :: proc(r: skald.Rect, p: [2]f32) -> bool { return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h }
-		if inside(rect, mouse) && inside(visible, mouse) && len(ctx.widgets.overlay_rects_prev) == 0 && ctx.widgets.modal_rect_prev.w == 0 {
+		if inside(rect, mouse) && inside(visible, mouse) && !Overlay_PopupOpen(ctx) && ctx.widgets.modal_rect_prev.w == 0 {
 			column := int((mouse.x - rect.x) / (THUMB_SIZE + THUMB_GAP))
 			row := int((mouse.y - rect.y) / (THUMB_SIZE + THUMB_GAP + 12))
 			frame := row * perRow + column

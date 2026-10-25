@@ -92,6 +92,10 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 	// Its right-click menu is the editor's (context_menus.odin), opened by sceneTreeMouse
 	menu := tree
+	if len(visible) == 0 {
+		menu = emptyState(ctx, "This scene has no nodes yet.", {label = "Add Node...", msg = Msg(Action.Add_Node), key = "scene-tree-add-node"},
+			width = sidebarEmptyWidth(s, ctx, true))
+	}
 
 	return skald.col(
 		panelHeader(ctx, ICON_SITEMAP, scene.name,
@@ -350,10 +354,8 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		return skald.col(
 			header,
 			skald.divider(ctx),
-			skald.col(
-				uiText(th, .Label, "Select a node in the scene tree or the viewport."),
-				padding = th.spacing.md,
-			),
+			emptyState(ctx, "Nothing selected: select a node in the scene tree or the viewport.",
+				{label = "Add Node...", msg = Msg(Action.Add_Node), key = "inspector-add-node"}, width = sidebarEmptyWidth(s, ctx, true)),
 			cross_align = .Stretch,
 			bg = th.color.bg,
 		)

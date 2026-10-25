@@ -70,14 +70,14 @@ EDITOR_MODES := [EditorMode]EditorModeInfo{
 		name = "Scene", icon = ICON_CUBE, action = .Mode_Scene,
 		about = "Scene mode: scenes and their nodes, the viewport, the inspector and code",
 		view = sceneModeView,
-		bottomTabs = []BottomTab{.Console, .Output, .Animation, .Mixer, .Git, .Tiles, .Timeline, .Live, .States, .Particles, .Dialogue, .Plugins},
+		bottomTabs = []BottomTab{.Console, .Output, .Animation, .Mixer, .Git, .Tiles, .Timeline, .Live, .States, .Particles, .Dialogue, .Plugins, .Problems, .History},
 		manual = "getting_started#editor-modes",
 	},
 	.Level = {
 		name = "Level", icon = ICON_MAP, action = .Mode_Level,
 		about = "Level mode: the world, your LDtk project's levels laid out",
 		view = levelModeView,
-		bottomTabs = []BottomTab{.World, .Level, .Layers, .Entities, .Enums, .Tilesets, .Auto_Layer_Rules, .LDtk_Project, .Console, .Output},
+		bottomTabs = []BottomTab{.World, .Level, .Layers, .Entities, .Enums, .Tilesets, .Auto_Layer_Rules, .LDtk_Project, .Console, .Output, .Problems, .History},
 		manual = "level_mode",
 	},
 }
@@ -281,6 +281,7 @@ Modes_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		if int(v) < 0 || int(v) >= len(tabs) do return {}, true
 		Mode_ShowBottomTab(state, tabs[v])
 		if tabs[v] == .Git do return Git_Refresh(state), true
+		if tabs[v] == .Problems do Problems_Gather(state)
 		return {}, true
 	case Action:
 		for info, mode in EDITOR_MODES do if info.action == v {

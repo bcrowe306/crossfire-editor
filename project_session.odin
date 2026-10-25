@@ -86,6 +86,7 @@ Session_Save :: proc(state: ^State) -> bool {
 	if !LDtkDocs_SaveProject(state) do return false
 	if message := Project_Save(&state.project); message != "" {
 		logLine(state, .Error, fmt.aprintf("Save failed: %s", message))
+		Notify(state, .Error, fmt.tprintf("Save failed: %s", message), .Show_Console)
 		return false
 	}
 	Session_MarkSaved(state)

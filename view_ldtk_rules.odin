@@ -136,7 +136,7 @@ rZone :: proc(key: string, child: skald.View) -> skald.View {
 // Whether the pointer is in a widget's last rect (and its clip: inside the tab's scroll)
 @(private="file")
 rHovered :: proc(ctx: ^skald.Ctx(Msg), id: skald.Widget_ID) -> bool {
-	if !skald.widget_hovered(ctx, id) || skald.mouse_over_overlay(ctx) || len(ctx.widgets.overlay_rects_prev) > 0 do return false
+	if !skald.widget_hovered(ctx, id) || skald.mouse_over_overlay(ctx) || Overlay_PopupOpen(ctx) do return false
 	if st, ok := ctx.widgets.states[id]; ok && st.clip_rect.w > 0 {
 		m := ctx.input.mouse_pos
 		r := st.clip_rect

@@ -105,6 +105,7 @@ playStart :: proc(state: ^State, scene := "") -> skald.Command(Msg) {
 	_ = Fonts_MakeMSDF(state)
 	if message := Project_Save(&state.project); message != "" {
 		logLine(state, .Error, fmt.aprintf("Play: couldn't save the project: %s", message))
+		Notify(state, .Error, fmt.tprintf("Play: couldn't save the project: %s", message), .Show_Console)
 		return {}
 	}
 	Session_MarkSaved(state)
@@ -160,6 +161,7 @@ buildPlayer :: proc(state: ^State, purpose: PlayPurpose) -> skald.Command(Msg) {
 	odin := Toolchain_Odin(FixedText_String(&state.settings.odinPath))
 	if odin == "" {
 		logLine(state, .Error, fmt.aprintf("No Odin compiler to build the game with: install one in Settings > Toolchain"))
+		Notify(state, .Error, "No Odin compiler to build the game with: install one in Settings > Toolchain")
 		state.scripts.status = .Failed
 		return {}
 	}
@@ -294,6 +296,7 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 		if status.exit_code != 0 {
 			state.scripts.status = .Failed
 			logLine(state, .Error, fmt.aprintf("Building the player failed (exit code %d). See the Output tab", status.exit_code))
+			Notify(state, .Error, purpose == .Play ? "Building the game failed" : "Building the scripts failed", .Show_Problems)
 			return {}
 		}
 		outputLine(state, .Info, fmt.aprintf("Player built"))
@@ -399,6 +402,7 @@ startProcess :: proc(state: ^State, command: []string, workingDir: string, live 
 		if inWrite != nil do os.close(inWrite)
 		os.close(reader)
 		logLine(state, .Error, fmt.aprintf("Play: couldn't start %s: %v", command[0], err))
+		Notify(state, .Error, fmt.tprintf("Play: couldn't start %s: %v", command[0], err), .Show_Console)
 		return false
 	}
 	state.play.process = process
