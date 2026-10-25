@@ -533,10 +533,26 @@ LDtkOps_EntityEdit :: proc(doc: ^LDtkDoc, edit: LDtk_Edit) -> string {
 		def := LDtkDoc_DefByUid(doc, "entities", Json_Int(json, Json_Get(json, e.node, "defUid"), -1))
 		w := max(int(math.round(edit.number3)), 1)
 		h := max(int(math.round(edit.number4)), 1)
+		x, y := int(math.round(edit.number)), int(math.round(edit.number2))
+		// The Entities tab's width or height (EntityInstanceEditor: `key`, `number` the size typed;
+		// clamped to the type's limits), the entity staying where it is
+		if edit.key == "width" || edit.key == "height" {
+			px := Json_Get(json, e.node, "px")
+			x, y = Json_Int(json, Json_At(json, px, 0)), Json_Int(json, Json_At(json, px, 1))
+			w, h = Json_Int(json, Json_Get(json, e.node, "width"), 16), Json_Int(json, Json_Get(json, e.node, "height"), 16)
+			limit :: proc(main: ^JsonDoc, def: int, v: int, lo, hi: string) -> int {
+				out := max(v, 1)
+				if n := Json_Get(main, def, lo); Json_Kind(main, n) == .Number do out = max(out, Json_Int(main, n))
+				if n := Json_Get(main, def, hi); Json_Kind(main, n) == .Number do out = min(out, Json_Int(main, n))
+				return out
+			}
+			v := int(math.round(edit.number))
+			if edit.key == "width" do w = limit(main, def, v, "minWidth", "maxWidth")
+			else do h = limit(main, def, v, "minHeight", "maxHeight")
+		}
 		p := LDtkPatches{}
 		LDtkPatches_Set(&p, doc, e.file, Json_Get(json, e.node, "width"), fmt.tprint(w))
 		LDtkPatches_Set(&p, doc, e.file, Json_Get(json, e.node, "height"), fmt.tprint(h))
-		x, y := int(math.round(edit.number)), int(math.round(edit.number2))
 		LDtkPatches_Set(&p, doc, e.file, Json_Get(json, e.node, "px"), LDtk_PrettyJson(jarray(i64(x), i64(y)), minified))
 		ldtkSetGridPivot(&p, doc, e.file, e.node, ldtkInstanceGrid(doc, e), defFloat(main, def, "pivotX", 0.5), defFloat(main, def, "pivotY", 0.5), [2]int{x, y})
 		if problem = stagesApply(&s, &p); problem != "" do return problem

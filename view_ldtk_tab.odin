@@ -296,6 +296,40 @@ ldtkEntitiesSection :: proc(c: ^LDtkTabCtx) {
 		tabNumberRow(c, "X", "ldtk-instance-x", "Where the entity's pivot is in its level, pixels from the left", move, f64(x), 1, 0, -100000, 100000)
 		move.op = .Entity_Y
 		tabNumberRow(c, "Y", "ldtk-instance-y", "Pixels from the top", move, f64(y), 1, 0, -100000, 100000)
+		// EntityInstanceEditor: the size of a resizable type (within its limits), the iid, the
+		// entities referring to it
+		entityDef := LDtkDoc_DefByUid(c.doc, "entities", Json_Int(json, Json_Get(json, en.node, "defUid"), -1))
+		size := tabBase(c, .Entity_Resized)
+		size.entity = move.entity
+		if Json_Bool(c.main, Json_Get(c.main, entityDef, "resizableX")) {
+			size.key = "width"
+			tabNumberRow(c, "Width", "ldtk-instance-w", "The entity's width in pixels (its type's limits apply)", size, f64(Json_Int(json, Json_Get(json, en.node, "width"), 16)), 1, 0, 1, 100000)
+		}
+		if Json_Bool(c.main, Json_Get(c.main, entityDef, "resizableY")) {
+			size.key = "height"
+			tabNumberRow(c, "Height", "ldtk-instance-h", "The entity's height in pixels", size, f64(Json_Int(json, Json_Get(json, en.node, "height"), 16)), 1, 0, 1, 100000)
+		}
+		tabRow(c, "IID", skald.row(skald.text(iid, th.color.fg_muted, th.font.size_xs, max_width = max(c.controlWidth - 60, 60)),
+			smallButton(c, "ldtk-instance-iid-copy", ICON_COPY, Msg(Text_Copied(strings.clone(iid, context.temp_allocator)))), spacing = 4, cross_align = .Center),
+			"The entity's unique id (references name it); the button copies it")
+		referrers := 0
+		for other in LDtkDoc_Entities(c.doc) {
+			ojson := LDtkDoc_Json(c.doc, other.file)
+			for fi in Json_Items(ojson, Json_Get(ojson, other.node, "fieldInstances")) {
+				if !strings.contains(Json_String(ojson, Json_Get(ojson, fi, "__type")), "EntityRef") do continue
+				value := Json_Get(ojson, fi, "__value")
+				values := Json_Kind(ojson, value) == .Array ? Json_Items(ojson, value) : []int{value}
+				for v in values do if Json_String(ojson, Json_Get(ojson, v, "entityIid")) == iid {
+					otherIid := strings.clone(Json_String(ojson, Json_Get(ojson, other.node, "iid")), context.temp_allocator)
+					otherLevel, _ := LDtkDoc_LevelNames(c.doc, other.level)
+					label := fmt.tprintf("%s  %s in %s (%s)", ICON_ARROW_RIGHT, Json_String(ojson, Json_Get(ojson, other.node, "__identifier")), otherLevel, Json_String(ojson, Json_Get(ojson, fi, "__identifier")))
+					if referrers == 0 do tabNote(c, "Referring to it (click to select):")
+					append(c.rows, skald.button(c.ctx, label, Msg(Level_Entity_Picked(otherIid)), id = skald.hash_id(fmt.tprintf("ldtk-instance-referrer-%d", referrers)),
+						bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+					referrers += 1
+				}
+			}
+		}
 		for fi in Json_Items(json, Json_Get(json, en.node, "fieldInstances")) {
 			fieldUid := Json_Int(json, Json_Get(json, fi, "defUid"), -1)
 			_, fieldDef := LDtkDoc_FieldDef(c.doc, fieldUid)

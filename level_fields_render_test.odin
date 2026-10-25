@@ -146,6 +146,19 @@ level_fields_show_on_the_canvas_as_ldtk_shows_them :: proc(t: ^testing.T) {
 	}
 	testing.expect(t, found, "the string shows")
 
+	// The Entities tab's width of a resizable type (EntityInstanceEditor), within its limits
+	edit(t, root, file, {op = .Def_Set, kind = .Entity, def = 11, key = "resizableX", flag = true})
+	edit(t, root, file, {op = .Def_Set, kind = .Entity, def = 11, key = "maxWidth", text = "32"})
+	edit(t, root, file, {op = .Entity_Resized, entity = "coin1", key = "width", number = 24})
+	main0 := LDtkDoc_Main(LDtkDoc_Get(root, file))
+	coin := Json_Path(main0, "levels.identifier=Start.layerInstances.__identifier=Entities.entityInstances.iid=coin1")
+	testing.expect_value(t, Json_Int(main0, Json_Get(main0, coin, "width")), 24)
+	testing.expect_value(t, Json_Text(main0, Json_Get(main0, coin, "px")), "[104,72]")
+	edit(t, root, file, {op = .Entity_Resized, entity = "coin1", key = "width", number = 100})
+	main0 = LDtkDoc_Main(LDtkDoc_Get(root, file))
+	coin = Json_Path(main0, "levels.identifier=Start.layerInstances.__identifier=Entities.entityInstances.iid=coin1")
+	testing.expect_value(t, Json_Int(main0, Json_Get(main0, coin, "width")), 32)
+
 	// A reference picked in another level of the world (the friend field allows it): coin2 in the Cave
 	lfSend(&state, Level_Pick_Started{kind = .Ref, entity = "player1", field = 46, index = -1})
 	lfSend(&state, Level_Canvas_Pressed{world = {256 + 64, 72}, level = "Cave"})

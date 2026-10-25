@@ -88,6 +88,7 @@ copy: `open_project {project}`).
 	level_drag_world x1 y1 x2 y2 [right] [shift]   The same between two points of the focused level
 	                                 (its pixels: entities' handles, points)
 	level_palette_tiles <tileset uid> <id>...   Pick tiles in the palette (Level_Tiles_Picked)
+	level_world_click <x> <y> [right] [double]   Click a world point of the Level mode's canvas
 	paint_cells c1 r1 c2 r2 [right]  A stroke between two cells of the selected TileMap (the Tiles panel's layer)
 	click_state <i>                  Click state i's box in the States tab's graph
 	drag_state <i> <dx> <dy>         Drag state i's box by (dx, dy) pixels
@@ -295,6 +296,9 @@ Checks:
 	                             (none), why the last LDtk edit wasn't made (none), the conflict
 	                             dialog (open | closed), whether the file changed outside the
 	                             editor (yes | no)
+	level <selection | spot | depth> <value>
+	                             The selection's elements (level_select.odin), whether a new level's
+	                             spot is being picked (yes | no), the world depth shown
 	level <world | focus | tool | layer | layer_type | unsaved | disk_conflict | sidebars> <value>
 	                             The shown world's name, the focused level (none), the tool, the
 	                             selected layer and its type, whether the document has unsaved edits
@@ -1066,6 +1070,29 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			release.type = .KEY_UP
 			release.key.scancode = .LSHIFT
 			queueBatch(release)
+		}
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "level_world_click":
+		// level_world_click <x> <y> [right] [double]: a click at a world point of the Level mode's
+		// canvas (a new level's spot, the canvas's right-click menu)
+		p, ok := LevelCanvas_WorldToWindow(s, ctx, {f32(atoi(args, 0, 0)), f32(atoi(args, 1, 0))})
+		if !ok || len(args) < 2 {
+			fail(fmt.tprintf("%s: the canvas hasn't been drawn, or not enough numbers", line))
+			return true
+		}
+		button := sdl.BUTTON_LEFT
+		clicks := 1
+		for arg in args[2:] {
+			if arg == "right" do button = sdl.BUTTON_RIGHT
+			if arg == "double" do clicks = 2
+		}
+		pushMouse(.MOUSE_MOTION, p)
+		for _ in 0 ..< clicks {
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, p, button))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, p, button))
 		}
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
@@ -3702,6 +3729,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			_, _, one := LevelMode_Sidebars(Mode_LayoutOf(s, .Level))
 			found = one ? "one" : "two"
 		case "problem":  found = s.level.problem == "" ? "none" : s.level.problem
+		// Phase 5: the selection's elements, a new level's spot being picked, the depth shown
+		case "selection": found = fmt.tprint(len(s.level.selection))
+		case "spot":      found = s.level.spot ? "yes" : "no"
+		case "depth":     found = fmt.tprint(s.level.depth)
 		case "conflict": found = s.level.conflict.open ? "open" : "closed"
 		case "outside":
 			_, outside := LDtkDoc_Outside(s.project.rootPath, LevelMode_File(s))

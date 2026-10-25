@@ -176,9 +176,20 @@ labelOf :: proc(labels, values: []string, value: string) -> string {
 
 /*
 LevelMode_SelectMade picks what a definition edit made (LDtk selects a new or copied definition):
-the new layer (on top), entity type, field, enum or tileset, a copy (after its original).
+the new layer (on top), entity type, field, enum or tileset, a copy (after its original); a level's
+copy.
 */
 LevelMode_SelectMade :: proc(s: ^State, edit: LDtk_Edit) {
+	// A level's copy is selected (WorldPanel's Duplicate: `editor.selectLevel(copy)`)
+	if edit.op == .Level_Duplicated && edit.text != "" {
+		doc := LDtkDoc_Get(s.project.rootPath, edit.file)
+		if doc == nil || doc.problem != "" do return
+		if at := LDtkDoc_FindLevel(doc, edit.text); at >= 0 {
+			id, _ := LDtkDoc_LevelNames(doc, at)
+			levelSelect(s, edit.file, strings.clone(id, context.temp_allocator))
+		}
+		return
+	}
 	if edit.op != .Def_Added && edit.op != .Def_Duplicated && edit.op != .Enum_Added do return
 	doc := LDtkDoc_Get(s.project.rootPath, edit.file)
 	if doc == nil || doc.problem != "" do return
