@@ -24,7 +24,7 @@ A notification (a "toast") shows in the window's bottom-right corner when someth
 |---|---|---|
 | You save the project (**Ctrl+S**) | Saved, and the project's name | |
 | An export finishes | Exported, and the target | **Open Folder**: the exported game in your file manager |
-| A Play or scripts build fails | Building the game (or the scripts) failed | **Show Problems**: the build's errors in the [Problems tab](#the-problems-tab) |
+| Play's build, or **Scripts > Build Scripts**, fails (the quiet builds after opening a project or saving a script only show in the Output and Problems tabs) | Building the game (or the scripts) failed | **Show Problems**: the build's errors in the [Problems tab](#the-problems-tab) |
 | An export, a save, an import, a Git command or a plugin fails | What failed, and why | **Show Output** or **Show Console**: the full story |
 | Odin or Emscripten is installed (Settings > Toolchain) | Installed, and the version | |
 | A project archive is written | Its file name | **Open Folder** |

@@ -328,6 +328,9 @@ State :: struct {
 	scriptFiles: [dynamic]string,
 	// A background build of the scripts was requested once for this project
 	scriptsAutoBuilt: bool,
+	// The scripts build running was asked for (Scripts > Build Scripts): its failure is a toast;
+	// a background one's (on open, after a save) only shows in the Output and Problems tabs
+	scriptsBuildAsked: bool,
 	// The inspector's Listen... dialog (node_listeners.odin) and whether its Events section is open
 	listenerDialog: ListenerDialog,
 	inspectorEventsOpen: bool,

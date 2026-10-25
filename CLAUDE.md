@@ -3077,7 +3077,8 @@ appear and go at once).
   (`Toast_Dismissed`), the action button (`Toast_Action_Clicked`) shows the Output / Console /
   Problems tab or opens a folder (`sdl.OpenURL`). **Wired at:** the Save action (success, and a
   Problems refresh), Session_Save's failure, Play's failures (no compiler, a failed build: Show
-  Problems), exports (done: Open Folder; failed: Show Output), installs, archives, Git and plugin
+  Problems; a scripts build's only when asked for, `State.scriptsBuildAsked`: background builds
+  on open and save stay quiet), exports (done: Open Folder; failed: Show Output), installs, archives, Git and plugin
   failures, imports. New reports call `Notify` beside their `logLine`.
 - **Jobs** have no queue entry: `Notifications_RunningJobs` reads them from the state (the play
   stage, `Export_Busy`, the install flags, `Plugins_Building`, `archive.busy`); a bar from the

@@ -1512,6 +1512,8 @@ handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 	case .Rename_Node:
 		startRename(out, out.selectedNode)
 	case .Build_Scripts:
+		// Asked for: a failure is a toast (a background build's isn't: play.odin)
+		out.scriptsBuildAsked = true
 		Scripts_Refresh(out)
 		return scriptsBuild(out)
 	case .Add_Script:

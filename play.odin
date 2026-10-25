@@ -293,10 +293,12 @@ playTick :: proc(state: ^State) -> skald.Command(Msg) {
 	}
 	switch stage {
 	case .Building:
+		announce := purpose == .Play || state.scriptsBuildAsked
+		state.scriptsBuildAsked = false
 		if status.exit_code != 0 {
 			state.scripts.status = .Failed
 			logLine(state, .Error, fmt.aprintf("Building the player failed (exit code %d). See the Output tab", status.exit_code))
-			Notify(state, .Error, purpose == .Play ? "Building the game failed" : "Building the scripts failed", .Show_Problems)
+			if announce do Notify(state, .Error, purpose == .Play ? "Building the game failed" : "Building the scripts failed", .Show_Problems)
 			return {}
 		}
 		outputLine(state, .Info, fmt.aprintf("Player built"))
