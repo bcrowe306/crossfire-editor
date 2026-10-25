@@ -20,76 +20,66 @@ isn't installed) put about 45% of the frame in **measuring text** (`view_size` â
 lighting), 13% waiting on the GPU (`drmSyncobjWait` under `SDL_SetRenderTarget`), 11% allocation
 (the temp arena growing through the heap, `mmap`/`munmap`), 3% the editor's `view`.
 
-### 1. Spall profiling (first: everything after it is measured with it)
+**Built (2026-10-24):** Spall profiling in Skald, the engine and the editor, the editor's harness
+(`task profile`, `tools/profile.sh`, `tests/profile/`) and the engine's (`tools/profile_game.sh`),
+and the report tool (the engine's `tools/spall_report`). The editor's CLAUDE.md "Profiling" and the
+engine's "Profiling with Spall" describe them. **Measure every item below with them**: a
+`task profile:baseline` before, `task profile:compare` after (and `profile_game.sh --compare` for
+the engine), on a quiet machine (the harness warns when it isn't).
 
-- **Instrumentation in all three code bases** (Skald, the editor, the engine), compiled out
-  unless asked for: a `when` constant from `-define:SPALL=true`, so normal builds pay nothing.
-  - Named scopes (a deferred begin/end pair, e.g. `prof_scope("render_view")`) at the places
-    that matter: Skald's frame phases (pump, view, layout, measure, draw, `frame_end`), the
-    editor's panels and `update`, the engine's `Scene_Update`, physics, drawing, lighting,
-    particles, audio.
-  - Whole-program captures with Odin's automatic instrumentation
-    (`@(instrumentation_enter)` / `@(instrumentation_exit)`) for finding hot spots the scopes
-    don't name. Check how much it slows things down; use it to find, scopes to measure.
-  - `core:prof/spall` with a buffer per thread (the editor's workers: script index, OLS
-    reading, imports), written to a `.spall` file at exit.
-- One small shared package, or the same few procs in each repo: Skald and the engine must not
-  depend on each other. Decide which when building it.
-- Documented in each repo (CLAUDE.md, the manual, the engine's docs on the website): how to
-  build with profiling, capture, and open a trace in Spall.
-
-### 2. A profiling harness (runs without a person, and without being disturbed)
-
-So Claude can measure, change and measure again on its own, and the numbers can be compared:
-- **A fixed scenario:** a copy of a fixed project in a temporary folder (the demo's files
-  never change), a separate settings file and recent-projects list (`--settings`; the user's
-  own are never touched), a fixed window size and DPI scale, and a UI test script
-  (`--script`, `test_driver.odin`) that drives the same steps every run: open panels, select
-  nodes, scroll the inspector and browser, type in the code editor, switch modes, paint
-  tiles, play.
-- **No interference from the desktop:** no window, no focus taken, no input from the user's
-  mouse and keyboard, no resizing by Hyprland. Run it the way `tools/ui_tests.sh` runs the
-  headless UI tests: `SDL_VIDEO_DRIVER=offscreen` (Vulkan through
-  `VK_EXT_headless_surface`, on the real GPU), `SDL_AUDIO_DRIVER=dummy`, `--window-size`.
-  Check that the numbers match a visible window's (the swapchain path may differ). The
-  driver's `frame_times <frames>` command already exists; build on it.
-- **Stable numbers:** warm-up frames dropped, several runs with the median reported, the CPU
-  pinned (`taskset`), every frame drawn (`SKALD_BENCH_UNCAP`), optimized builds.
-- **Readable results without the Spall UI:** a small Odin tool that reads a `.spall` file and
-  prints the totals per scope (count, total, self time, the slowest ones) and the frame-time
-  statistics, as text and as JSON.
-- **Comparison:** the results of a run saved as a baseline (per machine, gitignored); a run
-  compared against it prints what got faster or slower, and fails past a threshold, so a
-  change can't quietly make things worse.
-- **Tasks:** `task profile` (the editor's scenario), `task profile:compare`, and the same for
-  Skald's examples and for the engine. Each scenario documented with what it covers.
-- **The engine too:** game scenarios that run without the editor for a fixed number of fixed
-  steps with a fixed random seed (the asteroids sample, many nodes, physics, particles,
-  lighting, an LDtk level, labels), profiled with Spall; alongside the existing
-  `bench/main.odin` microbenchmarks, which stay.
+First traces (2026-10-24, the machine busy: load 11-15 on 8 CPUs, so the absolute numbers are
+high): the editor at rest on the title scene spent its frame in `measure_text` (31% of the main
+thread's self time, 1382 calls a frame), `render_view` (17%), the viewport's `lighting` (15%:
+the title scene is lit, 9 ms each render), `draw_text` (13%); the forest level played by the
+player spent 61% of its frame in `nodes_update` (8.4 ms a frame), 19% in `present`, 15% in
+`nodes_draw`.
 
 ### 3. Making Skald faster (each item measured with the harness)
 
-1. **Cache text measurements across frames:** key on the text's content, size, font and DPI
-   scale; drop entries not used for a few frames. `measure_text_runa`
-   (`Skald/skald/text_runa.odin`) lays out the paragraph again (bidi, line breaking, per-glyph
-   sums) for every label on every frame; only shaping is cached today. Expected to save
-   35-40% of a frame.
-2. **Measure each view once per layout pass:** `view_size` (`Skald/skald/layout.odin`) is called
-   again at each level of nesting, so text deep in the tree is measured many times. Keep the
-   measured size per node for the rest of the pass.
-3. **Pre-size the temp arena** (or keep its blocks) so it stops allocating from the heap every
-   frame.
-4. **Don't build or lay out what's off-screen:** scrolling panels (the inspector, the browser
-   tree, long lists) skip rows outside the visible area, as `virtual_list` already does.
-5. **Reuse unchanged parts of the tree:** something like `cached(key, version, builder)`, which
+**Done (2026-10-24), measured with `task profile` (Skald's CHANGELOG has the numbers):** text
+measurements cached across frames (`measure_text`: 3.7 -> 0.8 ms a frame at rest), stacks
+measured once a frame (1383 -> 919 measurements a frame), drawn text's glyphs cached across
+frames (`draw_text` 3.2 -> 1.2 us a call). Mean frame against the first baseline: at rest 18.7
+-> about 9 ms, the inspector scrolling 21.2 -> 11.2, the Level mode 14.6 -> 3.3, typing in code
+11.3 -> 7.2. **Measured and dropped:** pre-sizing the frame arena (frames fit its first 4 MB block
+once the text caches were in; it grew only at startup).
+
+**The whole day, measured on a quiet machine** (2026-10-24 evening: the first profiled build,
+editor ae9c1c6 / Skald e316589 / engine 5f65b22, against today's, ABBA, four runs each, wall
+time): mean frame browser 15.5 -> 10.4 ms, code 12.6 -> 5.4, console 20.6 -> 10.5, at rest
+20.6 -> 11.6, inspector 22.2 -> 10.0, Level mode 5.6 -> 2.0, viewport 12.3 -> 5.9 (33-65% less;
+p95 31-58% less). With the engine's lighting (GPU renderers add lights straight into the light
+map) and font path fix (no lowercase copy per string) besides Skald's caches.
+
+**Measured and dropped:** float-free cache keys (a SPALL_AUTO trace made the map hashers look big;
+a microbenchmark put it at 2-4% of a 31 ns lookup).
+
+**Off-screen rows aren't drawn** (2026-10-24): Skald's stacks lay out a child wholly outside
+the active clip with drawing suppressed (`Renderer.draw_suppressed`), so its widgets keep their
+rects for the reveal code, and hit tests skip widgets not laid out last frame
+(`widget_drawn_last_frame`). Mean frame on the CPU clock, ABBA against the build before: browser
+5.8 -> 5.3 ms, code 5.9 -> 5.1, console 6.2 -> 5.2, idle 8.9 -> 8.5, inspector 9.0 -> 8.2, Level
+mode 3.3 -> 2.8, viewport 4.6 -> 4.2 (5-17% less). Building the culled rows' views is still paid;
+item 1 below would skip that.
+
+Left:
+1. **Reuse unchanged parts of the tree:** something like `cached(key, version, builder)`, which
    returns last frame's subtree when its version hasn't changed.
-6. **Text drawing** (15%): look again once the measuring is cached (the same layout work
-   probably happens again when drawing).
-7. Offer Skald's general fixes to its upstream (Lee Fry's Skald) when they're done.
+2. **The remaining text calls:** about 900 `measure_text` and 500 `draw_text` calls a frame at
+   rest, each now a hash and a lookup (0.7-1.2 us); fewer calls (the item above) is what's
+   left there. `wrap_text` keeps its lines across frames now (2026-10-25: the inspector's
+   0.65 -> 0.19 ms a frame, its median frame 4.6% less). Stacks lay their children out from
+   the sizes measuring them found (each label measured about once a frame, not three times:
+   `measure_text` a third fewer calls, the frame 11-18% less in every scenario).
+3. Offer Skald's general fixes to its upstream (Lee Fry's Skald) when they're done.
 
 ### 4. The editor and the engine (found by the same profile)
 
+- **The viewport's lighting** (`Lighting_Apply` in `Preview_Render`, 15% of the editor's
+  frame on the lit title scene): render the light map less often, or cache it while nothing
+  moves.
+- **The engine's node updates** (`nodes_update`, 61% of the forest level's frame): find which
+  nodes (a SPALL_AUTO run of `profile_game.sh`), then fix.
 - **The viewport:** don't render the scene again in `Preview_Render` when nothing changed
   (`sceneSignature` in `viewport_preview.odin` already exists), and find the GPU wait under
   `SDL_SetRenderTarget` (13% of a frame).

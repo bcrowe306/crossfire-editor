@@ -152,6 +152,8 @@ add it as a task and to the README's command table.
 | `task player` | Build the engine's player into `build/player/player` |
 | `task play:demo` | Run the demo project (its scripts linked into its own player: `tools/demo/player`), without the editor |
 | `task demo:playtest` | Play the demo headless (`tools/demo/playtest`: a bot pressing keys), check its mechanics and levels, save frames to `build/playtest/` (`PART=title|forest|hollow|lair|gameover`) |
+| `task profile` | **Profiling** (Spall; "Profiling" below): the scenarios `tests/profile/*.script` in a `-define:SPALL=true` optimized build, headless, `--runs` each (default 3), the report over all runs (pooled), its JSON and the median run's trace in `build/profile/results/`; arguments after `--` go to `tools/profile.sh` (scenario names, `--auto`, `--no-build`, `--runs`, `--cpus`) |
+| `task profile:baseline` / `task profile:compare` | Keep the results and the build as the baseline (`build/profile/baseline/`) / profile and compare with it, the baseline build's runs interleaved with the new one's: exit 1 when a scenario's mean frame (the median jumps between frames with and without a viewport render) grew more than `--threshold` (5%) |
 | `task clean` | Delete build output |
 
 - **Windows:** Task's own shell can't start a `.sh` file there, so the tasks that run the engine's
@@ -386,7 +388,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_slicer.odin` | **The sprite sheet slicer's tab** (`slicerCenterView`: the header, the canvas beside the controls from `SLICER_SIDE_WIDTH`, else over them), `SlicerTabs_View` (the strip's tabs), the canvas (`slicerCanvas`: input from its last rect, the sheet on a checkerboard, the cells in view, the picks numbered, the shown animation's frames), the controls (`slicerControls`, `slicerAnimationRows`: rows as the inspector's, the preview, the frame strip), the driver's `Slicer_CellCenter` / `Slicer_FrameStripCenter` |
 | `animation_sets_edit.odin` | **Animation assets**: `AnimationSetDef` (`.anim.xml`, `Project.animationSets`: load, save when changed, make: `Project_CreateAnimationSet`), `AnimationDef` / set clone, equal and engine conversions, an Aseprite file's tags as a set (`AsepriteEdit_AnimationSet`), the panel's `AnimSource` (`AnimEdit_Source`), the browser preview, `Scene_AddAnimatedSpriteAt` |
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
-| `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment) |
+| `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment); `repeat <n> <commands>` (written out on load: `ScriptDriver_ExpandRepeats`), `profile_mark <name>` (a trace's mark) |
+| `profiling.odin` | **Profiling with Spall**: `Profiling_Start` (Skald's trace, shared with the engine: `e.Trace_Share`) / `Profiling_Stop` (before any exit), `Profiling_Message` (`update`'s span, named by the message's type) |
+| `tools/profile.sh`, `tests/profile/` | **The profiling harness** and its scenarios (driver scripts between `profile_mark start` and `end`): idle, inspector, browser, viewport, code, level, console |
 | `editor_test.odin` | Unit tests for the model, XML round trips, transforms, assets, search, viewport math, keymap and update |
 | `tests/ui/*.script` | UI test scripts, run by `task test:ui` |
 | `tools/ui_tests.sh` | The UI test runner: headless editors (SDL's offscreen driver) on per-script copies of the fixture, `--jobs` at a time, longest first, per-script results, times and a summary; `--visible` for real windows |
@@ -522,7 +526,13 @@ Skald is not immediate-mode and not a retained widget tree:
   Skald hit-tests a widget by its rect from the last frame it was *built* in, not drawn, so a
   closed dialog's buttons stayed clickable where they had been (a viewport click where the Add
   Node dialog's "Sprite" row had been added a Sprite; smoke.script caught it once the header's
-  layout moved a node there). Skald itself should check the widget was drawn last frame.
+  layout moved a node there). Skald now checks it too (`widget_drawn_last_frame`: a widget
+  built but not laid out takes no clicks), but keep building nothing for closed dialogs.
+- **Skald culls rows outside a scroll's view** (`stack_render`): they're laid out with drawing
+  suppressed, so their rects stay current (the reveal and scroll-into-view code reads them), and
+  `widget_drawn_last_frame` counts them as laid out. Code that asks "was it laid out last frame" uses `skald.widget_drawn_last_frame`, not
+  `last_frame + 1 >= frame` (tree_view.odin, view_docs.odin, view_inspector.odin,
+  view_bottom.odin, the test driver).
 - **Skald's `draw_text` takes the baseline**, not the top: `drawTextTop` (view_viewport.odin)
   adds `text_ascent`. Drawn from the top, the top ruler's numbers showed only their bottoms.
 - Type colors: node kinds use `kindColor` (scene tree rows and viewport markers); the browser uses
@@ -734,7 +744,7 @@ shows up here with no editor change (it still needs inspector fields).
   Graphics, User interface, Physics, Sound), in a scroll (`add-node-scroll`) as tall as the window
   allows. `AddNode_Kinds` returns them in that order, which the highlight indexes.
 - Up/Down move the highlight and scroll it into view (rows and headers have fixed heights, so
-  its position is known without layout: rows scrolled out of view keep stale rects), Enter or a
+  its position is known without computing it from the rects), Enter or a
   click adds that kind, Escape cancels. add_node.script tests it.
 - The node becomes a child of the selected node (top-level when nothing is selected), is named
   after its kind (`Sprite`, `Sprite2`, ...), and is selected.
@@ -4121,11 +4131,13 @@ Highlights:
   settings file) sets `code_editor_path = true`. Unit tests that create scripts set it too.
 - `scripts.script` really builds a project player (a few seconds unoptimized, longer when the engine
   changed) and plays it.
-- `scroll_into_view <scroll> <widget>` pages a scroll container until the widget is visible: widgets
-  far outside a scroll aren't laid out, and keep stale rects. A `wait_until` that passes lets a few
-  frames settle before the next command. `top` puts the widget at the view's top, so what's under
-  it is in view too (a drag's target: ldtk_rules.script's rule dragged onto the next group, in a
-  short window); a widget drawn outside the scroll (a bottom tab's toolbar row) passes as it is.
+- `scroll_into_view <scroll> <widget>` pages a scroll container until the widget is visible
+  (inside the scroll's clip). Rows outside it are laid out but not drawn (Skald's culling); the
+  driver's `visible` means laid out last frame (`widget_drawn_last_frame`, culled rows included)
+  and inside its clip and the window. A `wait_until` that passes lets a few frames settle before
+  the next command. `top` puts the widget at the view's top, so what's under it is in view too (a
+  drag's target: ldtk_rules.script's rule dragged onto the next group, in a short window); a
+  widget drawn outside the scroll (a bottom tab's toolbar row) passes as it is.
 - A game window (Play) makes a tiling window manager shrink the editor's window, which moves every
   rect (visible runs; headless games have no window): stop the game before clicking things that
   may move.
@@ -4136,6 +4148,69 @@ Highlights:
   itself.
 - A context menu fades out after closing and blocks clicks under it meanwhile; the driver waits
   for that (`FADING_MENUS`) before the next command.
+
+## Profiling (Spall: `profiling.odin`, `tools/profile.sh`, `tests/profile/`)
+
+TODO.md's "Performance" work (asked 2026-10-24): every speed-up is measured before and after.
+- **The trace:** built with `-define:SPALL=true`, Skald, the engine and the editor record spans
+  into one `.spall` file (https://gravitymoth.com/spall/), each thread in its own buffer. Skald
+  owns it (its `prof.odin`; its frame loop's spans `frame`, `view`, `render_view`,
+  `render_overlays`, `frame_begin`, `frame_end`, `update`, `events`, `idle`, `pace`; text's
+  `measure_text`, `draw_text`, `wrap_text`), `Profiling_Start` hands it to the engine
+  (`e.Trace_Share`: its `Preview_Render` → `scene_draw` → `draw_order`, `nodes_draw`, `lighting`
+  nest under the editor's spans), and the editor adds each message `update` handles
+  (`Profiling_Message`: its type, an Action's name) and the panels' views (`browserView`,
+  `inspectorView`, `viewportView`, `bottomPanelView`, `CodeEditor_View`, `levelModeView`...).
+  Without the define all of it compiles to nothing. `-define:SPALL_AUTO=true` records every
+  procedure (Skald defines the instrumentation hooks): for finding what no span names, far
+  slower. `SPALL_TRACE` names the file. **`Profiling_Stop` runs after `skald.run`, before
+  `os.exit`** (the script driver's exit code): `os.exit` runs no defers, and the buffers would be
+  lost.
+- **The harness** (`task profile`, `tools/profile.sh`): each scenario is a driver script in
+  `tests/profile/` that sets up (a scene, a selection, a code tab), then `profile_mark start`,
+  the work (`repeat 80 scroll_by inspector-scroll 30 ; wait 1`), `profile_mark end`, `quit`. Each
+  run: a fresh copy of the project **as committed** (`git archive HEAD examples/demo_project`, or
+  the UI fixture with `# project: fixture`), the UI tests' settings file, its own XDG_DATA_HOME,
+  SDL's offscreen video driver and dummy audio (no window, no focus taken, no input from the
+  desktop, never resized), every frame drawn uncapped (`SKALD_BENCH_FRAMES`,
+  `SKALD_BENCH_UNCAP`), pinned CPUs (`--cpus`, default 2-5), a window of `--size` (1680x1000; a
+  script's `# window:` line wins). The report (the engine's `tools/spall_report -from=start
+  -to=end`) pools every run's frames and spans; the median run's trace is kept for the viewer.
+  **Judge by the mean and by time per call:** the viewport renders on a timer (30 fps for
+  animations), so frames with and without a scene render alternate and the median jumps
+  between the two kinds; a span driven by that timer (`Preview_Render`, `lighting`) changes
+  per frame when frames get faster or slower, so compare its time per call (`compare` prints
+  both).
+- **Compare interleaved, on a quiet machine:** `task profile:baseline` keeps the build too
+  (`build/profile/baseline/crossfire-editor`), and `task profile:compare` runs it and the new
+  build in turns, in **ABBA order** (baseline first in odd runs, the new build first in even
+  ones: `--runs` 4 by default). Without a kept build it falls back to the kept results and says
+  so. What was found measuring the harness itself (2026-10-24, one build compared with itself):
+  - results taken an hour apart differed by 60-90% per call in code neither build changed;
+  - with the baseline always first, the second run of each pair came out 3-11% faster (warm
+    file and shader caches, clocks already up): hence ABBA;
+  - with another program compiling (a load of 15-25 on 8 CPUs) runs varied by 10% even on the
+    CPU clock (`--clock cpu`, `SPALL_CLOCK=cpu`: each thread's CPU time), which leaves out time
+    the thread was descheduled but not a hyperthread or cache shared with that work. So each
+    run first waits (`--wait-quiet`, up to 300 s) for the machine's CPU use to drop under
+    `--quiet-busy` (20%), and says when it gave up waiting. A change smaller than about 10% is
+    only believable from a quiet machine.
+  - **The verdict is the median pair:** each ABBA pair gives this build's mean frame over the
+    baseline's; the median of those ratios gates (`Pairs ...; median 0.979`), since one disturbed
+    run in a pooled mean moved a scenario by 16% (pairs 0.69, 2.14, 0.98, 1.08: no change). The
+    pooled comparison still prints where time moved.
+- **SPALL_AUTO inflates small procedures:** every call pays the hooks, so a tiny procedure called
+  thousands of times a frame looks expensive (the map hashers looked like the next target; a
+  microbenchmark put a different key at 2-4% of 31 ns a lookup, about 3 us a frame, so that
+  change was dropped). Use SPALL_AUTO to find where time goes, then confirm a candidate in a
+  normal SPALL build or a microbenchmark before changing it. It warns when the load average is
+  over a quarter of the CPUs: other work on the machine moves the numbers.
+- **Reading results:** `build/profile/results/<scenario>.txt` (frames: median, mean, p95, p99,
+  max of a frame's work, and start to start; spans by self time per frame), `.json` (what
+  `compare` reads), `.spall` (open in Spall's viewer). `task profile:baseline` keeps them,
+  `task profile:compare` fails past the threshold.
+- **The engine's games:** its `tools/profile_game.sh <project> [scene...]` (its CLAUDE.md,
+  "Profiling with Spall") plays scenes headless in a Spall build of the player.
 
 ## Verifying work
 

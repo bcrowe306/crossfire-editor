@@ -1,0 +1,8 @@
+# Profiling scenario (tools/profile.sh): the editor as it opens on the demo's title scene, every
+# frame drawn and nothing happening. The cost of one frame of the whole UI at rest.
+wait_until scene TitleScene
+wait 60
+profile_mark start
+wait 300
+profile_mark end
+quit

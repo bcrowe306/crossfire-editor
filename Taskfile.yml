@@ -296,6 +296,24 @@ tasks:
       - odin build tools/demo/playtest -collection:engine={{.ENGINE_DIR}} -collection:project={{.DEMO_PROJECT}} -out:{{.BUILD_DIR}}/playtest_bin
       - SDL_VIDEO_DRIVER=offscreen SDL_AUDIO_DRIVER=dummy {{.BUILD_DIR}}/playtest_bin {{.DEMO_PROJECT}} {{.BUILD_DIR}}/playtest {{.PART}}
 
+  profile:
+    desc: "Profile the editor: its scenarios (tests/profile/*.script) in a Spall build, headless, several runs each; reports and traces in build/profile/results/. Arguments after --: scenario names, --runs N, --auto (every procedure), --no-build (tools/profile.sh --help)"
+    deps: [box2d, sdl]
+    cmds:
+      - ENGINE_DIR={{.ENGINE_DIR}} tools/profile.sh {{.CLI_ARGS}}
+
+  profile:baseline:
+    desc: Profile the editor and keep the results as the baseline that profile:compare compares with
+    deps: [box2d, sdl]
+    cmds:
+      - ENGINE_DIR={{.ENGINE_DIR}} tools/profile.sh --save-baseline {{.CLI_ARGS}}
+
+  profile:compare:
+    desc: Profile the editor and compare with the baseline (profile:baseline); fails when a scenario's mean frame got more than 5% slower (--threshold <pct> after --)
+    deps: [box2d, sdl]
+    cmds:
+      - ENGINE_DIR={{.ENGINE_DIR}} tools/profile.sh --compare {{.CLI_ARGS}}
+
   clean:
     desc: Delete build output
     cmds:

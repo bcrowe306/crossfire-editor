@@ -22,6 +22,7 @@ Right sidebar: the current scene's node tree above an inspector for the selected
 The divider between them can be dragged.
 */
 rightSidebarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("rightSidebarView")
 	// A narrow inspector stacks its rows' labels over their controls, while it's built
 	_, right := FittedSidebarWidths(&s.layout)
 	_, inspectorStacked = Inspector_Layout(ctx.theme, right)
@@ -63,6 +64,7 @@ SceneTree_Row :: proc(th: ^skald.Theme, scene: ^SceneDef, nodeIndex: int, select
 
 @(private="file")
 sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("sceneTreeView")
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
 	visible := SceneTreeRows(scene)
@@ -289,6 +291,7 @@ pointIn :: proc(r: skald.Rect, p: [2]f32) -> bool {
 
 @(private="file")
 inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("inspectorView")
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
 	header := panelHeader(ctx, ICON_CIRCLE_INFO, "Inspector")
@@ -926,7 +929,7 @@ inspectorRevealStep :: proc(ctx: ^skald.Ctx(Msg)) {
 	if !drawn || scroll.last_rect.h <= 0 || r.frames < 3 do return
 	area := scroll.last_rect
 	target, seen := ctx.widgets.states[r.id]
-	if !seen || target.last_frame + 1 < ctx.widgets.frame {
+	if !seen || !skald.widget_drawn_last_frame(ctx.widgets, target) {
 		// Not laid out: page down (from the top first)
 		scroll.scroll_y = r.frames == 3 ? 0 : scroll.scroll_y + area.h * 0.8
 		return

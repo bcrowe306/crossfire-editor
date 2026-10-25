@@ -49,6 +49,12 @@ copy: `open_project {project}`).
 	frame_times <frames> [<lines>]   Time that many frames, adding lines to the Console on each;
 	                                 reports the median, p95 and max. With SKALD_BENCH_UNCAP=1
 	                                 SKALD_BENCH_FRAMES=1000000000 every frame draws, uncapped
+	repeat <n> <command> [; <command>...]
+	                                 The commands n times, one after another (written out when the
+	                                 script loads): repeat 60 scroll_by inspector-scroll 20 ; wait 1
+	profile_mark <name>              A zero-length span "mark:<name>" in a Spall trace (profiling.odin):
+	                                 the profiling harness counts the frames between two marks
+	                                 (spall_report -from / -to); nothing without SPALL
 	expect <check>                   Fail unless the check passes now
 	click_widget <key> [ctrl|shift]  Click the center of a widget's visible part, e.g. toolbar-play
 	                                 (a modifier held around it: an inspector label's Ctrl+click)
@@ -637,10 +643,39 @@ ScriptDriver_Load :: proc(path: string) -> bool {
 	driver = {
 		active = true,
 		path = path,
-		lines = strings.split_lines(string(data)),
+		lines = ScriptDriver_ExpandRepeats(strings.split_lines(string(data))),
 		started = time.tick_now(),
 	}
 	return true
+}
+
+/*
+A script's lines with each `repeat <n> <command> [; <command>...]` written out as n copies of the
+commands (the profiling scenarios scroll, type and wheel for hundreds of frames). Lines are kept as
+they are otherwise (the slice and the strings point into the script's text).
+
+Inputs:
+- lines: The script's lines
+
+Returns:
+- The lines to run (allocated)
+*/
+ScriptDriver_ExpandRepeats :: proc(lines: []string) -> []string {
+	out := make([dynamic]string, 0, len(lines))
+	for line in lines {
+		trimmed := strings.trim_space(line)
+		if strings.has_prefix(trimmed, "repeat ") {
+			_, _, rest := strings.partition(trimmed, " ")
+			count, _, command := strings.partition(strings.trim_space(rest), " ")
+			if n, ok := strconv.parse_int(count); ok && n >= 0 && strings.trim_space(command) != "" {
+				commands := strings.split(command, " ; ")
+				for _ in 0 ..< n do for c in commands do append(&out, strings.trim_space(c))
+				continue
+			}
+		}
+		append(&out, line)
+	}
+	return out[:]
 }
 
 // The user's clipboard, kept while a script runs (the code editor's Copy and Cut use it) and put back
@@ -803,7 +838,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// the window's size: the toolbar's overflow); otherwise it's skipped
 		key, _, command := strings.partition(rest, " ")
 		st, drawn := ctx.widgets.states[skald.hash_id(key)]
-		if drawn && st.last_frame + 1 >= ctx.widgets.frame && st.last_rect.w > 0 do return runCommand(s, ctx, strings.trim_space(command))
+		if drawn && skald.widget_drawn_last_frame(ctx.widgets, st) && st.last_rect.w > 0 do return runCommand(s, ctx, strings.trim_space(command))
 		report(true, fmt.tprintf("%s (skipped: not drawn)", line))
 		return true
 
@@ -1733,7 +1768,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		widget := ctx.widgets.states[skald.hash_id(args[1])]
 		if driver.scrollAttempts == 0 {
 			scroll.scroll_y = 0
-		} else if (top || widget.last_frame + 2 >= ctx.widgets.frame) && widget.last_rect.h > 0 {
+		} else if (top || skald.widget_drawn_last_frame(ctx.widgets, widget)) && widget.last_rect.h > 0 {
 			// Laid out (so its rect is current; a zone's always is): center it (or put it at the top)
 			at := top ? area.y + TOP_MARGIN + widget.last_rect.h * 0.5 : area.y + area.h * 0.5
 			scroll.scroll_y = max(scroll.scroll_y + (widget.last_rect.y + widget.last_rect.h * 0.5) - at, 0)
@@ -2295,6 +2330,14 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		category := len(args) > 2 ? args[2] : e.LOG_DEFAULT_CATEGORY
 		skald.send(ctx, Msg(Log_Test_Lines{count = count, level = level, category = strings.clone(category, context.temp_allocator)}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "profile_mark":
+		// A zero-length span: begin and end in this frame, so it nests in the trace's frame
+		mark := fmt.tprintf("mark:%s", rest)
+		skald.prof_begin(mark)
+		skald.prof_end()
 		report(true, line)
 		return false
 
@@ -3349,7 +3392,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 	case "in_window":
 		// The widget's whole rect (not clipped) is inside the window: nothing pushed off its edge
 		st, ok := ctx.widgets.states[skald.hash_id(value)]
-		if !ok || st.last_frame + 1 < ctx.widgets.frame do return false, "not drawn"
+		if !ok || !skald.widget_drawn_last_frame(ctx.widgets, st) do return false, "not drawn"
 		r := st.last_rect
 		size := ctx.renderer != nil ? [2]f32{f32(ctx.renderer.fb_size.x), f32(ctx.renderer.fb_size.y)} : [2]f32{}
 		return r.w > 0 && r.x >= -0.5 && r.y >= -0.5 && r.x + r.w <= size.x + 0.5 && r.y + r.h <= size.y + 0.5, fmt.tprintf("%v in a %v window", r, size)
@@ -3387,7 +3430,7 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		_, visible := widgetRect(ctx, key)
 		st := ctx.widgets.states[skald.hash_id(key)]
 		// Drawn last frame: a widget that's gone keeps its state for a while
-		visible = visible && st.last_frame + 1 >= ctx.widgets.frame
+		visible = visible && skald.widget_drawn_last_frame(ctx.widgets, st)
 		found = fmt.tprint(visible)
 		return found == strings.trim_space(expected), fmt.tprintf("%s; rect %v, clip %v", found, st.last_rect, st.clip_rect)
 	case "bus":
@@ -4032,6 +4075,9 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 widgetRect :: proc(ctx: ^skald.Ctx(Msg), key: string) -> (skald.Rect, bool) {
 	state, ok := ctx.widgets.states[skald.hash_id(key)]
 	if !ok do return {}, false
+	// Not drawn last frame (Skald culls what's outside a scroll's viewport): its rect is stale,
+	// as Skald's hit tests treat it
+	if state.last_drawn_frame != 0 && !skald.widget_drawn_last_frame(ctx.widgets, state) do return {}, false
 	rect := state.last_rect
 	if state.clip_rect.w > 0 do rect = intersect(rect, state.clip_rect)
 	if ctx.renderer != nil {

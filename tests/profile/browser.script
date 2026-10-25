@@ -1,0 +1,14 @@
+# Profiling scenario (tools/profile.sh): the project browser: its tree scrolled a step a frame,
+# then a search typed a letter a frame and cleared.
+wait_until scene TitleScene
+wait 60
+profile_mark start
+repeat 60 scroll_by browser-scroll 20 ; wait 1
+scroll_by browser-scroll 0
+repeat 60 scroll_by browser-scroll 20 ; wait 1
+click_widget browser-search
+repeat 4 type h ; wait 2 ; type e ; wait 2 ; type r ; wait 2 ; type o ; wait 2 ; key BACKSPACE 4 ; wait 2
+key ESCAPE
+wait 10
+profile_mark end
+quit

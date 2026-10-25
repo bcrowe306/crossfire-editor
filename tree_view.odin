@@ -80,7 +80,7 @@ Scroll_RevealClicked :: proc(ctx: ^skald.Ctx(Msg), scrollKey: string) {
 	best: skald.Rect
 	found := false
 	for id, st in ctx.widgets.states {
-		if st.last_frame + 1 < ctx.widgets.frame || id == skald.hash_id(scrollKey) do continue
+		if !skald.widget_drawn_last_frame(ctx.widgets, st) || id == skald.hash_id(scrollKey) do continue
 		c := st.clip_rect
 		if c.w <= 0 || c.x < area.x - 0.5 || c.y < area.y - 0.5 || c.x + c.w > area.x + area.w + 0.5 || c.y + c.h > area.y + area.h + 0.5 do continue
 		r := st.last_rect

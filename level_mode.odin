@@ -958,6 +958,7 @@ both as it squeezes the browser and the inspector. Its panels' sizes are its own
 mode's layout.
 */
 levelModeView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
+	skald.prof_scope("levelModeView")
 	layout := Mode_LayoutOf(s, .Level)^
 	layout.workspace = size
 	left, right := FittedSidebarWidths(&layout)

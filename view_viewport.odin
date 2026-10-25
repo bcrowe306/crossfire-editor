@@ -78,6 +78,7 @@ Viewport_LastRender :: proc() -> ([]u8, [2]int) {
 }
 
 viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("viewportView")
 	th := ctx.theme
 	canvasId := skald.hash_id("viewport-canvas")
 	scene := &s.project.scenes[s.currentScene]

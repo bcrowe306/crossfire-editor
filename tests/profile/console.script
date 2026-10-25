@@ -1,0 +1,12 @@
+# Profiling scenario (tools/profile.sh): the Console at its limit, a game's ten lines arriving
+# every frame (the log list filters and virtualizes every frame).
+wait_until scene TitleScene
+expect bottom open
+send Bottom_Tab Console
+wait_until bottom_tab Console
+console_fill 5000
+wait 60
+profile_mark start
+repeat 300 console_fill 10 ; wait 1
+profile_mark end
+quit

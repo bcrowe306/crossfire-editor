@@ -402,6 +402,7 @@ The canvas at a size (levelCanvasView gives it the size layout gives it): its in
 then what it draws.
 */
 LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [2]f32) -> skald.View {
+	skald.prof_scope("LevelCanvas_Build")
 	Data :: struct {
 		s: ^State,
 		file: string,

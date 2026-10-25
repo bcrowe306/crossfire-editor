@@ -63,6 +63,7 @@ DOCS_WIDE_WIDTH :: f32(720)
 DOCS_SIDEBAR_WIDTH :: f32(230)
 
 docsWindowView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	skald.prof_scope("docsWindowView")
 	if !s.docs.open do return closedDialog(ctx, "docs-dialog")
 	if !docsMonoLoaded && ctx.renderer != nil {
 		docsMono = skald.font_load(ctx.renderer, "docs-mono", CODE_FONT)
@@ -537,7 +538,7 @@ Docs_LinkRect :: proc(ctx: ^skald.Ctx(Msg), target: string) -> (skald.Rect, bool
 	best: skald.Rect
 	found := false
 	for _, st in ctx.widgets.states {
-		if st.link_rects == nil || st.last_frame + 1 < ctx.widgets.frame do continue
+		if st.link_rects == nil || !skald.widget_drawn_last_frame(ctx.widgets, st) do continue
 		for lr in st.link_rects^ {
 			r := lr.rect
 			if !strings.contains(lr.link, target) || r.w <= 0 do continue

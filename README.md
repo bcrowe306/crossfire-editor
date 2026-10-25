@@ -109,6 +109,8 @@ Run `task` to list them all.
 | `task player` | Build the engine's game player into `build/player/` |
 | `task play:demo` | Run the demo project (with its scripts, in its own player), without the editor |
 | `task demo:playtest` | Play the demo headless with a bot: every mechanic and level checked, frames saved to `build/playtest/` (`PART=title`, `forest`, `hollow`, `lair` or `gameover` for one part) |
+| `task profile` | Profile the editor: the scenarios in `tests/profile/` in a Spall build (`-define:SPALL=true`), headless, a few runs each; the reports and traces go to `build/profile/results/` (`-- <scenario>...`, `-- --auto` for every procedure, `-- --help`) |
+| `task profile:baseline` / `task profile:compare` | Keep a profile as the baseline / profile again and compare with it (fails when a scenario's frame got more than 5% slower) |
 | `task clean` | Delete build output |
 
 The Taskfile passes the flags every build needs:
