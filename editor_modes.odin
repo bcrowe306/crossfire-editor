@@ -234,6 +234,7 @@ The mode bar: a tab per mode (its icon and name; under about 560 px of window on
 the menu bar. Keys `mode-tab-<Name>`.
 */
 modeBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	compact := s.layout.workspace.x > 0 && s.layout.workspace.x < MODE_BAR_COMPACT_WIDTH
 	tabs := make([dynamic]skald.View, context.temp_allocator)
@@ -245,11 +246,11 @@ modeBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			id = skald.hash_id(key),
 			bg = active ? th.color.primary : th.color.surface,
 			fg = active ? th.color.on_primary : th.color.fg_muted,
-			padding = {th.spacing.sm + 2, 2}, font_size = th.font.size_sm, radius = th.radius.sm,
+			padding = {tk.s + tk.xxs, tk.xxs}, font_size = th.font.size_sm, radius = th.radius.sm,
 			width = compact ? math.round(th.font.size_md * 2.2) : 0)
 		append(&tabs, skald.tooltip(ctx, button, actionTip(s, info.about, info.action), id = skald.hash_id(fmt.tprintf("%s-tip", key))))
 	}
-	return skald.row(..tabs[:], spacing = 2, cross_align = .Center)
+	return skald.row(..tabs[:], spacing = tk.xxs, cross_align = .Center)
 }
 
 // Under this window width the mode bar shows only its tabs' icons

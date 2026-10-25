@@ -184,20 +184,20 @@ The inspector for a theme chosen in the browser: its font, every field, and whet
 project's. Keys `theme-font`, `theme-project`, `theme-<field>` (colors: `-alpha` too).
 */
 themeInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	t := &s.project.themes[s.themeSelection]
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
 	controlWidth := min(inspectorControlWidth(th, sidebarWidth), INSPECTOR_MAX_TEXT_WIDTH)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows,
-		skald.text(fmt.tprintf("%s  %s", ICON_PALETTE, filepath.stem(filepath.stem(t.path))), th.color.fg, th.font.size_md),
-		skald.text(fmt.tprintf("Theme  ·  %s", t.path), th.color.fg_muted, th.font.size_xs, max_width = 260),
+		uiText(th, .Section, fmt.tprintf("%s  %s", ICON_PALETTE, filepath.stem(filepath.stem(t.path)))),
+		uiText(th, .Muted, fmt.tprintf("Theme  ·  %s", t.path), max_width = tk.textNarrow),
 	)
 	isProject := s.project.uiTheme == t.path
 	append(&rows, skald.checkbox(ctx, isProject, "The whole project's theme", proc(v: bool) -> Msg { return Theme_Project_Set(v) },
 		id = skald.hash_id("theme-project")))
-	append(&rows, skald.text(isProject ? "Every control uses it unless it or a parent names another." : "Controls use it when they (or a parent) name it in their Theme.",
-		th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+	append(&rows, uiText(th, .Muted, isProject ? "Every control uses it unless it or a parent names another." : "Controls use it when they (or a parent) name it in their Theme.", max_width = inspectorRowWidth(controlWidth)))
 	append(&rows, skald.divider(ctx))
 	fonts := make([dynamic]string, context.temp_allocator)
 	append(&fonts, THEME_FONT_DEFAULT)
@@ -206,7 +206,7 @@ themeInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		id = skald.hash_id("theme-font"), width = controlWidth)))
 	for field in e.UITheme_Fields() {
 		if field.group != "" {
-			append(&rows, skald.divider(ctx), skald.text(field.group, th.color.fg, th.font.size_sm))
+			append(&rows, skald.divider(ctx), uiText(th, .Value, field.group))
 		}
 		value, _ := e.UITheme_Get(t.theme, field.name)
 		defaultText, _ := e.UITheme_Get(e.DEFAULT_UI_THEME, field.name)
@@ -224,7 +224,7 @@ themeInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			defaultColor, _ := e.ParseColor(defaultText)
 			control = themeColor(ctx, field.name, color, defaultColor.a, key, controlWidth)
 		case:
-			control = skald.text(value, th.color.fg_muted, th.font.size_sm)
+			control = uiText(th, .Label, value)
 		}
 		append(&rows, inspectorRow(ctx, field.label, control))
 	}
@@ -241,6 +241,7 @@ parseThemeNumber :: proc(text: string) -> f32 {
 // A theme color: a picker and an alpha slider
 @(private="file")
 themeColor :: proc(ctx: ^skald.Ctx(Msg), name: string, color: sdl.Color, defaultAlpha: u8, key: string, width: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	Payload :: struct { name: string, color: sdl.Color }
 	payload := Payload{name, color}
@@ -252,14 +253,14 @@ themeColor :: proc(ctx: ^skald.Ctx(Msg), name: string, color: sdl.Color, default
 			return Theme_Field_Changed{p.name, e.FormatColor(picked, context.temp_allocator)}
 		}, id = skald.hash_id(key), width = width),
 		skald.row(
-			skald.col(skald.text("Alpha", th.color.fg_muted, th.font.size_xs), width = 34),
+			skald.col(uiText(th, .Muted, "Alpha"), width = tk.fieldXXS),
 			valueSlider(ctx, fmt.tprintf("%s-alpha", key), f32(color.a), payload, proc(p: Payload, v: f32) -> Msg {
 				c := p.color
 				c.a = u8(math.clamp(math.round(v), 0, 255))
 				return Theme_Field_Changed{p.name, e.FormatColor(c, context.temp_allocator)}
-			}, 0, 255, step = 1, decimals = 0, defaultValue = f32(defaultAlpha), width = width - 34 - th.spacing.xs),
+			}, 0, 255, step = 1, decimals = 0, defaultValue = f32(defaultAlpha), width = width - tk.fieldXXS - tk.xs),
 			spacing = th.spacing.xs, cross_align = .Center,
 		),
-		spacing = 2,
+		spacing = tk.xxs,
 	)
 }

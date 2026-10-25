@@ -129,6 +129,7 @@ The scene preview's lighting rows (view_browser_info.odin): Lit, the ambient col
 shadows.
 */
 sceneLightingRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, index: int, width: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	settings := s.project.scenes[index].settings
@@ -141,18 +142,18 @@ sceneLightingRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, index: int, width: f3
 	if settings.lighting {
 		linear := skald.rgb(u32(ambient.r) << 16 | u32(ambient.g) << 8 | u32(ambient.b))
 		append(&rows, skald.row(
-			skald.text("Ambient", th.color.fg_muted, th.font.size_xs),
+			uiText(th, .Muted, "Ambient"),
 			skald.color_picker(ctx, linear, payload, proc(p: Payload, c: skald.Color) -> Msg {
 				m := p.msg
 				m.ambient, _ = e.ParseColor(fmt.tprintf("#%s", skald.color_to_hex(c)))
 				return m
-			}, id = skald.hash_id("scene-settings-ambient"), width = 90),
+			}, id = skald.hash_id("scene-settings-ambient"), width = tk.fieldXS),
 			spacing = th.spacing.xs, cross_align = .Center,
 		))
 		append(&rows, skald.checkbox(ctx, settings.bodyShadows, "Static bodies cast shadows", payload,
 			proc(p: Payload, on: bool) -> Msg { m := p.msg; m.bodyShadows = on; return m },
 			id = skald.hash_id("scene-settings-body-shadows")))
-		append(&rows, skald.text("Add Light2D nodes to light it, LightOccluder nodes for shadows.", th.color.fg_muted, th.font.size_xs, max_width = width))
+		append(&rows, uiText(th, .Muted, "Add Light2D nodes to light it, LightOccluder nodes for shadows.", max_width = width))
 	}
 	return rows[:]
 }

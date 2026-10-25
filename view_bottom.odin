@@ -176,7 +176,7 @@ LogRows :: struct {
 @(private="file")
 logRowHeight :: proc(ctx: ^skald.Ctx(Msg)) -> f32 {
 	th := ctx.theme
-	if ctx.renderer != nil do return math.ceil(skald.view_size(ctx.renderer, skald.text("Ag", th.color.fg, th.font.size_sm)).y) + 3
+	if ctx.renderer != nil do return math.ceil(skald.view_size(ctx.renderer, uiText(th, .Value, "Ag")).y) + 3
 	return math.ceil(th.font.size_sm * 1.4) + 3
 }
 
@@ -226,7 +226,7 @@ logRow :: proc(ctx: ^skald.Ctx(Msg), rows: ^LogRows, i: int) -> skald.View {
 	}
 	text := new(skald.View, context.temp_allocator)
 	text^ = skald.row(
-		skald.text(fmt.tprintf("%s  %s", tag, LogList_CategoryName(rows.list, line)), th.color.fg_muted, th.font.size_sm),
+		uiText(th, .Label, fmt.tprintf("%s  %s", tag, LogList_CategoryName(rows.list, line))),
 		body,
 		spacing = th.spacing.sm,
 		padding = th.spacing.xs,
@@ -242,12 +242,13 @@ the category menu's button and the Follow toggle. A `wrap_row`, so it wraps in a
 */
 @(private="file")
 logHeader :: proc(ctx: ^skald.Ctx(Msg), list: ^LogList, output: bool, key: string, shownCount: int) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	items := make([dynamic]skald.View, context.temp_allocator)
 	append(&items, skald.text_input(ctx, list.search, output,
 		proc(output: bool, text: string) -> Msg { return Log_Search_Changed{output, text} },
 		id = skald.hash_id(fmt.tprintf("%s-search", key)),
-		placeholder = "Search", width = 150, font_size = th.font.size_sm,
+		placeholder = "Search", width = tk.fieldM, font_size = th.font.size_sm,
 		clear_button = true, escape_clears = true))
 	LABELS := [LogLevel]string{.Debug = "Debug", .Info = "Info", .Warning = "Warnings", .Error = "Errors"}
 	for level in ([]LogLevel{.Error, .Warning, .Info, .Debug}) {
@@ -262,7 +263,7 @@ logHeader :: proc(ctx: ^skald.Ctx(Msg), list: ^LogList, output: bool, key: strin
 		button := skald.button(ctx, fmt.tprintf("%s %d", LABELS[level], list.counts[level]), Msg(Log_Level_Toggled{output, level}),
 			id = skald.hash_id(buttonKey),
 			bg = hidden ? th.color.surface : th.color.elevated, fg = hidden ? th.color.fg_muted : color,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_sm)
+			padding = tk.fieldPadding, font_size = th.font.size_sm)
 		append(&items, skald.tooltip(ctx, button, fmt.tprintf("%s %s lines", hidden ? "Show" : "Hide", strings.to_lower(LABELS[level], context.temp_allocator)),
 			id = skald.hash_id(fmt.tprintf("%s-tip", buttonKey))))
 	}
@@ -275,7 +276,7 @@ logHeader :: proc(ctx: ^skald.Ctx(Msg), list: ^LogList, output: bool, key: strin
 	categories := skald.button(ctx, fmt.tprintf("%s %s", label, ICON_CHEVRON_DOWN),
 		Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Log_Categories{output}}),
 		id = categoriesId, bg = th.color.surface, fg = hiddenCategories == 0 ? th.color.fg : th.color.primary,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_sm)
+		padding = tk.fieldPadding, font_size = th.font.size_sm)
 	append(&items, skald.tooltip(ctx, categories, "Choose the categories shown: engine, SDL, the game's own, build, editor...",
 		id = skald.hash_id(fmt.tprintf("%s-tip", categoriesKey))))
 	following := !list.paused
@@ -283,11 +284,11 @@ logHeader :: proc(ctx: ^skald.Ctx(Msg), list: ^LogList, output: bool, key: strin
 	follow := skald.button(ctx, ICON_ARROW_DOWN, Msg(Log_Follow_Toggled{output}),
 		id = skald.hash_id(followKey),
 		bg = following ? th.color.primary : th.color.surface, fg = following ? th.color.on_primary : th.color.fg_muted,
-		width = math.round(th.font.size_md * 1.9), padding = {0, 3}, font_size = th.font.size_sm)
+		width = math.round(th.font.size_md * 1.9), padding = {0, tk.xs}, font_size = th.font.size_sm)
 	append(&items, skald.tooltip(ctx, follow, following ? "Following the newest line: scroll up to stop" : "Follow the newest line (scrolling to the end does too)",
 		id = skald.hash_id(fmt.tprintf("%s-tip", followKey))))
 	total := len(LogList_Lines(list))
-	if shownCount != total do append(&items, skald.text(fmt.tprintf("%d of %d lines", shownCount, total), th.color.fg_muted, th.font.size_sm))
+	if shownCount != total do append(&items, uiText(th, .Label, fmt.tprintf("%d of %d lines", shownCount, total)))
 	return skald.wrap_row(..items[:], spacing = th.spacing.xs, line_spacing = th.spacing.xs, padding = th.spacing.xs)
 }
 
@@ -351,7 +352,7 @@ logFollow :: proc(ctx: ^skald.Ctx(Msg), list: ^LogList, output: bool, id: skald.
 placeholder :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
 	th := ctx.theme
 	return skald.col(
-		skald.text(text, th.color.fg_muted, th.font.size_sm),
+		uiText(th, .Label, text),
 		padding = th.spacing.md,
 	)
 }

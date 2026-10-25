@@ -13,6 +13,7 @@ Widget keys: `inspector-sound-<node>`, `inspector-bus-<node>`, `inspector-open-m
 (sliders), `inspector-audio-<Flag>-<node>`, `inspector-audio-preview-<node>`.
 */
 audioInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	a := node.audio
@@ -38,7 +39,7 @@ audioInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 		placeholder = music ? "Choose music" : "Choose a sound")))
 	if len(choices) == 1 {
 		hint := music ? "No music yet: import audio, then right-click it > Use as Music" : "No sounds yet: import one into the project"
-		append(&rows, skald.text(hint, th.color.fg_muted, th.font.size_xs))
+		append(&rows, uiText(th, .Muted, hint))
 	}
 
 	bus := node.bus == "" ? e.MASTER_BUS : node.bus
@@ -46,10 +47,10 @@ audioInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 		id = skald.hash_id(fmt.tprintf("inspector-bus-%d", key)), width = controlWidth)))
 	known := false
 	for b in s.project.buses do if b.name == bus do known = true
-	if !known do append(&rows, skald.text(fmt.tprintf("No bus is called %s: it plays on Master", bus), th.color.warning, th.font.size_xs))
+	if !known do append(&rows, uiText(th, .Muted, fmt.tprintf("No bus is called %s: it plays on Master", bus), color = th.color.warning))
 	mixer := skald.button(ctx, fmt.tprintf("%s  Open Mixer", ICON_SLIDERS), Msg(Bottom_Tab_Changed(int(BottomTab.Mixer))),
 		id = skald.hash_id(fmt.tprintf("inspector-open-mixer-%d", key)),
-		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, inspectorRow(ctx, "", mixer))
 
 	append(&rows,
@@ -81,7 +82,7 @@ audioInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 	if playing do skald.send(ctx, Msg(Preview_Tick{}))
 	preview := skald.button(ctx, playing ? fmt.tprintf("%s  Stop", ICON_STOP) : fmt.tprintf("%s  Preview", ICON_PLAY),
 		Msg(Audio_Preview_Requested(!playing)), id = skald.hash_id(fmt.tprintf("inspector-audio-preview-%d", key)),
-		disabled = path == "", bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2},
+		disabled = path == "", bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding,
 		font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, inspectorRow(ctx, "", skald.tooltip(ctx, preview, "Plays it with this node's volume, pitch and pan, through its bus",
 		id = skald.hash_id(fmt.tprintf("inspector-audio-preview-tip-%d", key)))))

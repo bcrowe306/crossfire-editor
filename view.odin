@@ -439,6 +439,7 @@ centerView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), layout: ^Layout) -> skald.Vi
 
 @(private="file")
 statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	skald.prof_scope("statusBarView")
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
@@ -454,7 +455,7 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			git.behind > 0 ? fmt.tprintf("  %s%d", ICON_ARROW_DOWN, git.behind) : "",
 			git.merging ? "  (merging)" : "")
 		branch = skald.button(ctx, text, Msg(Bottom_Tab_Changed(int(BottomTab.Git))), id = skald.hash_id("status-git-branch"),
-			bg = {}, fg = git.merging ? th.color.warning : th.color.fg_muted, padding = {th.spacing.xs, 0}, font_size = th.font.size_sm)
+			bg = {}, fg = git.merging ? th.color.warning : th.color.fg_muted, padding = {tk.xs, 0}, font_size = th.font.size_sm)
 	}
 	// The Scene mode's scene, nodes, selection and tool; the Level mode's world and level
 	middle: [3]skald.View
@@ -466,11 +467,11 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Level:
 		world, level, outside := LevelMode_Status(s)
 		middle = {statusText(ctx, "Level mode"), statusText(ctx, world), statusText(ctx, level)}
-		if outside != "" do tool = skald.text(outside, th.color.warning, th.font.size_sm)
+		if outside != "" do tool = uiText(th, .Value, outside, color = th.color.warning)
 	}
 	return skald.row(
 		statusText(ctx, fmt.tprintf("%s  %s", ICON_SITEMAP, s.project.name)),
-		Project_IsModified(s) ? skald.text("Modified", th.color.warning, th.font.size_sm) : skald.text("Saved", th.color.fg_muted, th.font.size_sm),
+		Project_IsModified(s) ? uiText(th, .Value, "Modified", color = th.color.warning) : uiText(th, .Label, "Saved"),
 		branch,
 		middle[0],
 		middle[1],
@@ -489,7 +490,7 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 @(private="file")
 statusText :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-	return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_sm)
+	return uiText(ctx.theme, .Label, text)
 }
 
 /*
@@ -563,9 +564,9 @@ removeAssetDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = s.removeConfirm.open,
 		on_dismiss = proc() -> Msg { return Asset_Remove_Cancelled{} },
 		content = skald.col(
-			skald.text(fmt.tprintf("Remove %s?", name), th.color.fg, th.font.size_lg),
-			skald.text(usageText, th.color.fg_muted, th.font.size_sm),
-			skald.text("Deleting the file can't be undone.", th.color.fg_muted, th.font.size_sm),
+			uiText(th, .Title, fmt.tprintf("Remove %s?", name)),
+			uiText(th, .Label, usageText),
+			uiText(th, .Label, "Deleting the file can't be undone."),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.button(ctx, "Cancel", Msg(Asset_Remove_Cancelled{}), id = skald.hash_id("dialog-cancel")),

@@ -260,12 +260,13 @@ skeletonInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 	Payload :: struct { field: SkeletonField }
 	id :: proc(field: SkeletonField, key: int) -> string { return fmt.tprintf("inspector-skel-%v-%d", field, key) }
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
+		return uiText(ctx.theme, .Muted, text, max_width = width)
 	}
 	button :: proc(ctx: ^skald.Ctx(Msg), label, key, tip: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		b := skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 		return skald.tooltip(ctx, b, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 	}
 	number :: proc(ctx: ^skald.Ctx(Msg), field: SkeletonField, key: int, value, lo, hi, step: f32, decimals: int, width: f32) -> skald.View {
@@ -300,7 +301,7 @@ skeletonInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 		append(&rows, inspectorRow(ctx, "Mesh rows", number(ctx, .Mesh_Rows, key, f32(meshGrid.y), 1, 32, 1, 0, controlWidth)))
 		append(&rows, inspectorRow(ctx, "", button(ctx, fmt.tprintf("%s  Make Mesh", ICON_DRAW_POLYGON), fmt.tprintf("inspector-mesh-make-%d", key), "Cover the picture with a grid of triangles (empty cells left out); its bones and weights go", Msg(Mesh_Made{}))))
 		append(&rows, inspectorRow(ctx, "", button(ctx, fmt.tprintf("%s  Bind to Bones", ICON_BONE), fmt.tprintf("inspector-mesh-bind-%d", key), "Weight every point to the skeleton's nearest bones", Msg(Mesh_Bound{}))))
-		if len(m.vertices) > 0 && len(m.bones) == 0 do append(&rows, skald.text("Not bound: it won't bend. Put it under a Skeleton2D with bones, then Bind to Bones.", th.color.warning, th.font.size_xs, max_width = width))
+		if len(m.vertices) > 0 && len(m.bones) == 0 do append(&rows, uiText(th, .Muted, "Not bound: it won't bend. Put it under a Skeleton2D with bones, then Bind to Bones.", max_width = width, color = th.color.warning))
 	case .IKChain:
 		bones := make([dynamic]string, context.temp_allocator)
 		targets := make([dynamic]string, context.temp_allocator)
@@ -318,8 +319,8 @@ skeletonInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 		append(&rows, inspectorRow(ctx, "Solve", skald.checkbox(ctx, node.ik.enabled, "", Payload{.IK_Enabled},
 			proc(p: Payload, v: bool) -> Msg { return Skeleton_Setting_Changed{field = p.field, flag = v} }, id = skald.hash_id(id(.IK_Enabled, key)))))
 		append(&rows, note(ctx, "Turns the tip bone and the ones above it so the tip reaches the target (2 bones: a knee or elbow bending the chosen way). Drag the target in the viewport to try it.", width))
-		if node.ikTip != "" && Scene_ResolvePath(scene, s.selectedNode, node.ikTip) < 0 do append(&rows, skald.text("No bone at that path.", th.color.warning, th.font.size_xs, max_width = width))
-		if node.ikTarget != "" && Scene_ResolvePath(scene, s.selectedNode, node.ikTarget) < 0 do append(&rows, skald.text("No node at the target's path.", th.color.warning, th.font.size_xs, max_width = width))
+		if node.ikTip != "" && Scene_ResolvePath(scene, s.selectedNode, node.ikTip) < 0 do append(&rows, uiText(th, .Muted, "No bone at that path.", max_width = width, color = th.color.warning))
+		if node.ikTarget != "" && Scene_ResolvePath(scene, s.selectedNode, node.ikTarget) < 0 do append(&rows, uiText(th, .Muted, "No node at the target's path.", max_width = width, color = th.color.warning))
 	case .Node2D, .Sprite, .AnimatedSprite, .Camera, .Label, .Menu, .StaticBody, .DynamicBody, .CharacterMover, .Area,
 	     .CollisionShape, .RayCast, .Joint, .ParticleEmitter, .Component, .AudioPlayer, .AudioPlayer2D, .MusicPlayer,
 	     .LDtkLevel, .TileMap, .Animator, .Light2D, .LightOccluder, .NavRegion, .NavAgent, .StateMachine, .ParallaxLayer, .CameraZone, .CameraView,

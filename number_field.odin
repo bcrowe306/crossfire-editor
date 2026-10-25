@@ -163,6 +163,7 @@ numberField :: proc(
 	minValue := min(f64),
 	maxValue := max(f64),
 ) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	id := skald.hash_id(key)
 	focused := skald.widget_has_focus(ctx, id)
@@ -185,14 +186,15 @@ numberField :: proc(
 	}
 	input := skald.text_input(ctx, text, Payload{target, id, minValue, maxValue},
 		proc(p: Payload, v: string) -> Msg { return Number_Text_Changed{p.target, p.id, v, p.lo, p.hi} },
-		id = id, width = max(width - 2 * (buttonWidth + gap), NUMBER_FIELD_MIN_BOX), padding = {th.spacing.sm, 2})
+		id = id, width = max(width - 2 * (buttonWidth + gap), NUMBER_FIELD_MIN_BOX), padding = tk.fieldPadding)
 
 	stepButton :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, width: f32) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg,
 			id = skald.hash_id(key),
 			bg = th.color.surface, fg = th.color.fg_muted,
-			width = width, padding = {0, 1}, font_size = th.font.size_sm, radius = th.radius.sm)
+			width = width, padding = {0, tk.hair}, font_size = th.font.size_sm, radius = th.radius.sm)
 	}
 	return skald.row(
 		input,

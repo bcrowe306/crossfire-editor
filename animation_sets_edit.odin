@@ -325,6 +325,7 @@ The browser's preview of an animation asset: its animations (sheet, frames, spee
 many sprites use it, and Edit Animations (the Animation panel).
 */
 AnimationSet_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	text :: proc(ctx: ^skald.Ctx(Msg), value: string, muted := true) -> skald.View {
@@ -334,10 +335,10 @@ AnimationSet_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -
 	append(&rows, text(ctx, filepath.base(asset.path), false))
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  Edit Animations", ICON_FILM), Msg(Anim_Asset_Shown(asset.path)),
 		id = skald.hash_id("browser-animations-edit"), bg = th.color.surface, fg = th.color.fg,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+		padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 	i := Project_FindAnimationSet(&s.project, asset.path)
 	if i < 0 {
-		append(&rows, skald.text(fmt.tprintf("%s couldn't be read.", asset.path), th.color.danger, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, fmt.tprintf("%s couldn't be read.", asset.path), max_width = previewTextWidth, color = th.color.danger))
 	} else {
 		set := &s.project.animationSets[i]
 		users := AnimationSet_UserCount(&s.project, set.path)

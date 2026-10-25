@@ -288,11 +288,12 @@ shaderInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 		return skald.text(text, warning ? ctx.theme.color.warning : ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
 	}
 	small :: proc(ctx: ^skald.Ctx(Msg), id, label: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(id), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
-	if !screen do append(&rows, skald.divider(ctx), skald.text("Shader", th.color.fg, th.font.size_sm))
+	if !screen do append(&rows, skald.divider(ctx), uiText(th, .Value, "Shader"))
 	labels, paths := shaderChoices(s, screen)
 	Choice :: struct { paths: []string, labels: []string }
 	onChoice :: proc(c: Choice, v: string) -> Msg {
@@ -366,31 +367,30 @@ shaderInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 @(private="file")
 shaderParamRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
 	th := ctx.theme
-	return inspectorLabelled(ctx, skald.text(label, th.color.fg_muted, th.font.size_sm), control)
+	return inspectorLabelled(ctx, uiText(th, .Label, label), control)
 }
 
 // A Shader asset's browser preview: what it is, its parameters, Edit, who uses it
 shaderPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+	append(&rows, uiText(th, .Value, filepath.base(asset.path), max_width = previewTextWidth))
 	params, problem := ShaderEdit_Params(s, asset.path)
 	if problem != "" {
-		append(&rows, skald.text(problem, th.color.warning, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, problem, max_width = previewTextWidth, color = th.color.warning))
 	} else {
 		names := make([dynamic]string, context.temp_allocator)
 		for p in params do if !p.builtin do append(&names, p.label != "" ? p.label : p.name)
-		append(&rows, skald.text(len(names) > 0 ? fmt.tprintf("Parameters: %s", strings.join(names[:], ", ", context.temp_allocator)) : "No parameters",
-			th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, len(names) > 0 ? fmt.tprintf("Parameters: %s", strings.join(names[:], ", ", context.temp_allocator)) : "No parameters", max_width = previewTextWidth))
 	}
 	compiled := os.exists(fmt.tprintf("%s.shader", AssetFilePath(&s.project, asset)))
 	users := 0
 	for &scene in s.project.scenes do for &n in scene.nodes do if n.shader == asset.path do users += 1
 	append(&rows,
-		skald.text(fmt.tprintf("%s. Used by %d node%s.", compiled ? "Compiled" : "Not compiled yet (save to compile)", users, users == 1 ? "" : "s"),
-			th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+		uiText(th, .Muted, fmt.tprintf("%s. Used by %d node%s.", compiled ? "Compiled" : "Not compiled yet (save to compile)", users, users == 1 ? "" : "s"), max_width = previewTextWidth),
 		skald.button(ctx, fmt.tprintf("%s  Edit", ICON_CODE), Msg(Script_Open_File{file = absolutePath(AssetFilePath(&s.project, asset)), line = 1}),
-			id = skald.hash_id("shader-preview-edit"), bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+			id = skald.hash_id("shader-preview-edit"), bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm),
 	)
 	return skald.col(..rows[:], spacing = th.spacing.xs)
 }

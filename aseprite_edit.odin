@@ -184,27 +184,28 @@ The browser's preview of an Aseprite file: the sprite (its first frame, as the e
 its frames, layers, tags and tilesets, and Open in Aseprite.
 */
 AsepriteEdit_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, index: int) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	full := joinPath(s.project.rootPath, asset.path, allocator = context.temp_allocator)
 	ase := AsepriteEdit_File(s.project.rootPath, asset.path)
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+	append(&rows, uiText(th, .Value, filepath.base(asset.path), max_width = previewTextWidth))
 	// Outside the scroll, between the picture and the text: in a short window (900x500) the scroll
 	// is a line tall and the buttons were half cut off at its edge
 	actions := skald.row(
 		skald.button(ctx, fmt.tprintf("%s  Open in Aseprite", ICON_IMAGE), Msg(Aseprite_Asset_Open_Requested(index)),
 			id = skald.hash_id("browser-aseprite-open"), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm),
 		skald.button(ctx, fmt.tprintf("%s  Animations", ICON_FILM), Msg(Anim_Asset_Shown(asset.path)),
 			id = skald.hash_id("browser-aseprite-animations"), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm),
 		spacing = th.spacing.xs,
 		padding = th.spacing.xs,
 	)
 	picture: skald.View
 	if ase == nil {
-		append(&rows, skald.text(fmt.tprintf("%s couldn't be read as an Aseprite file.", asset.path), th.color.danger, th.font.size_xs, max_width = previewTextWidth))
-		picture = skald.spacer(1)
+		append(&rows, uiText(th, .Muted, fmt.tprintf("%s couldn't be read as an Aseprite file.", asset.path), max_width = previewTextWidth, color = th.color.danger))
+		picture = skald.spacer(tk.hair)
 	} else {
 		// Uploaded when the file (or its time) changes
 		key := fmt.tprintf("%s@%v", full, ldtkModified(full))
@@ -225,20 +226,20 @@ AsepriteEdit_Preview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, i
 			}, width = max(size.x, 1), height = max(size.y, 1))
 		})
 		info := AsepriteEdit_Summary(ase)
-		append(&rows, skald.text(fmt.tprintf("%s · %s", info, fileInfo(full, "")), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, fmt.tprintf("%s · %s", info, fileInfo(full, "")), max_width = previewTextWidth))
 		if len(ase.tags) > 0 {
 			names := make([dynamic]string, context.temp_allocator)
 			for tag in ase.tags do append(&names, fmt.tprintf("%s (%d-%d)", tag.name, tag.from + 1, tag.to + 1))
-			append(&rows, skald.text(fmt.tprintf("Tags: %s", strings.join(names[:], ", ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+			append(&rows, uiText(th, .Muted, fmt.tprintf("Tags: %s", strings.join(names[:], ", ", context.temp_allocator)), max_width = previewTextWidth))
 		}
 		layers := make([dynamic]string, context.temp_allocator)
 		for layer, i in ase.layers do if layer.type != .Group {
 			append(&layers, e.Aseprite_LayerShown(ase, i) ? layer.name : fmt.tprintf("%s (hidden)", layer.name))
 		}
-		append(&rows, skald.text(fmt.tprintf("Layers: %s", strings.join(layers[:], ", ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
-		append(&rows, skald.text("Used as an image, it's the first frame with every visible layer; as an AnimatedSprite's animations, its tags.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, fmt.tprintf("Layers: %s", strings.join(layers[:], ", ", context.temp_allocator)), max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, "Used as an image, it's the first frame with every visible layer; as an AnimatedSprite's animations, its tags.", max_width = previewTextWidth))
 		if TileMapEdit_HasTilemaps(s.project.rootPath, asset.path) {
-			append(&rows, skald.text("It has tilemap layers: drag it into the viewport for a TileMap of them.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+			append(&rows, uiText(th, .Muted, "It has tilemap layers: drag it into the viewport for a TileMap of them.", max_width = previewTextWidth))
 		}
 	}
 	return skald.col(
@@ -400,7 +401,7 @@ asepriteSpriteRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 	if ase == nil do return rows[:]
 	width := inspectorRowWidth(controlWidth)
 	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
-	append(&rows, skald.text(fmt.tprintf("%s  Aseprite: %s", ICON_IMAGE, filepath.base(path)), th.color.fg, th.font.size_sm, max_width = width))
+	append(&rows, uiText(th, .Value, fmt.tprintf("%s  Aseprite: %s", ICON_IMAGE, filepath.base(path)), max_width = width))
 	// Layers: ticked are drawn (none named: every visible one)
 	drawn := e.Aseprite_LayersNamed(ase, node.asepriteLayers)
 	for layer, i in ase.layers do if layer.type != .Group {
@@ -432,7 +433,7 @@ asepriteSpriteRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 				numberField(ctx, s, fmt.tprintf("inspector-Nine_Width-%d", key), NodeField.Nine_Width, f64(node.nineSize.x), 1, 0, half, 0, 10000),
 				numberField(ctx, s, fmt.tprintf("inspector-Nine_Height-%d", key), NodeField.Nine_Height, f64(node.nineSize.y), 1, 0, half, 0, 10000),
 				spacing = th.spacing.xs)))
-			append(&rows, skald.text("0: the slice's own size. The corners keep their size; the edges and middle stretch.", th.color.fg_muted, th.font.size_xs, max_width = width))
+			append(&rows, uiText(th, .Muted, "0: the slice's own size. The corners keep their size; the edges and middle stretch.", max_width = width))
 		}
 	}
 	// Frame events (cels' text or `event` property), for listeners of animation.onFrameEvent
@@ -440,7 +441,7 @@ asepriteSpriteRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key:
 		events := make([dynamic]string, context.temp_allocator)
 		for f in 0..<len(ase.frames) do if text := e.Aseprite_FrameEvents(ase, f); text != "" do append(&events, fmt.tprintf("frame %d: %s", f, text))
 		if len(events) > 0 {
-			append(&rows, skald.text(fmt.tprintf("Frame events (animation.onFrameEvent): %s", strings.join(events[:], "; ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = width))
+			append(&rows, uiText(th, .Muted, fmt.tprintf("Frame events (animation.onFrameEvent): %s", strings.join(events[:], "; ", context.temp_allocator)), max_width = width))
 		}
 	}
 	return rows[:]

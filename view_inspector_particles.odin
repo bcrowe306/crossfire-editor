@@ -107,6 +107,7 @@ Edit in the Particles tab and a link per category. The settings are edited in th
 */
 @(private="package")
 particleInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	p := node.particles
 	rows := make([dynamic]skald.View, context.temp_allocator)
@@ -130,7 +131,7 @@ particleInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 
 	// The tab: the button (on its own row, the row's width), then a link per category
 	edit := skald.button(ctx, fmt.tprintf("%s  Edit in the Particles tab", ICON_FIRE), Msg(Particles_Tab_Opened(-1)),
-		id = skald.hash_id(fmt.tprintf("inspector-particles-edit-%d", key)), padding = {th.spacing.sm, 4},
+		id = skald.hash_id(fmt.tprintf("inspector-particles-edit-%d", key)), padding = {tk.s, tk.xs},
 		font_size = th.font.size_sm, width = rowWidth)
 	append(&rows, skald.tooltip(ctx, edit, "Every setting, by category, in the bottom panel: sliders, the color ramp, presets, Restart and Reset",
 		id = skald.hash_id(fmt.tprintf("inspector-particles-edit-tip-%d", key))))
@@ -139,7 +140,7 @@ particleInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 		if name == PARTICLES_ALL do continue
 		k := fmt.tprintf("inspector-particles-cat-%s-%d", name, key)
 		link := skald.button(ctx, name, Msg(Particles_Tab_Opened(i)), id = skald.hash_id(k),
-			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
+			bg = th.color.surface, fg = th.color.fg, padding = {tk.xs, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
 		append(&links, skald.tooltip(ctx, link, fmt.tprintf("The Particles tab at %s", Particles_CategoryAbout(name)), id = skald.hash_id(fmt.tprintf("%s-tip", k))))
 	}
 	append(&rows, skald.wrap_row(..links[:], spacing = th.spacing.xs, line_spacing = th.spacing.xs, width = rowWidth))
@@ -153,6 +154,7 @@ colors when it's on, and the Texture shape adds the node's picture under the sha
 */
 @(private="package")
 particleSettingRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, r: ParticleRows) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	settings := node.particles
@@ -180,13 +182,13 @@ particleSettingRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 		if field.type == [2]f32 {
 			// The link button goes with the label: beside the sliders it ran into the scrollbar
 			// strip in a narrow inspector (a click there paged the inspector instead)
-			label := tipLabel(ctx, field.label, skald.text(field.label, th.color.fg_muted, th.font.size_sm), tip)
+			label := tipLabel(ctx, field.label, uiText(th, .Label, field.label), tip)
 			// Stacked, the button goes beside the label
 			labelled: skald.View
 			if inspectorStacked {
 				labelled = skald.row(label, linkButton(ctx, s, field, index), spacing = th.spacing.sm, cross_align = .Center)
 			} else {
-				labelled = skald.col(label, linkButton(ctx, s, field, index), spacing = 2)
+				labelled = skald.col(label, linkButton(ctx, s, field, index), spacing = tk.xxs)
 			}
 			append(&rows, inspectorLabelled(ctx, labelled, control))
 		} else {
@@ -209,7 +211,7 @@ particleSettingRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 @(private="file")
 particleRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View, tip := "") -> skald.View {
 	th := ctx.theme
-	return inspectorLabelled(ctx, tipLabel(ctx, label, skald.text(label, th.color.fg_muted, th.font.size_sm), tip), control)
+	return inspectorLabelled(ctx, tipLabel(ctx, label, uiText(th, .Label, label), tip), control)
 }
 
 // What a setting's control sends: which setting, and what the slider needs to turn a value into text
@@ -224,6 +226,7 @@ ParticlePayload :: struct {
 // The control for one setting, by its type
 @(private="file")
 particleControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int, value: string, node: int, width: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	Key :: struct { prefix: string, node: int }
 	k := Key{PARTICLE_KEYS, node}
@@ -255,26 +258,26 @@ particleControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldI
 		axes: [2]f32
 		ok: bool
 		axes, ok = parsePair(value)
-		if !ok do return skald.text(value, th.color.fg_muted, th.font.size_sm)
+		if !ok do return uiText(th, .Label, value)
 		defaults, _ := parsePair(defaultText)
 		sliderWidth := width - AXIS_LABEL_WIDTH - th.spacing.xs
 		axisRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
 			th := ctx.theme
-			return skald.row(skald.col(skald.text(label, th.color.fg_muted, th.font.size_xs), width = AXIS_LABEL_WIDTH), control, spacing = th.spacing.xs, cross_align = .Center)
+			return skald.row(skald.col(uiText(th, .Muted, label), width = AXIS_LABEL_WIDTH), control, spacing = th.spacing.xs, cross_align = .Center)
 		}
 		px, py := payload, payload
 		px.axis, py.axis = 0, 1
 		return skald.col(
 			axisRow(ctx, "X", slider(ctx, field, px, axes.x, defaults.x, key(field, k, "-x"), sliderWidth)),
 			axisRow(ctx, "Y", slider(ctx, field, py, axes.y, defaults.y, key(field, k, "-y"), sliderWidth)),
-			spacing = 2,
+			spacing = tk.xxs,
 		)
 	case sdl.Color:
 		color, _ := e.ParseColor(value)
 		defaultColor, _ := e.ParseColor(defaultText)
 		return colorWithAlpha(ctx, color, defaultColor.a, field.name, id(field, k), key(field, k, "-alpha"), width)
 	}
-	return skald.text(value, th.color.fg_muted, th.font.size_sm)
+	return uiText(th, .Label, value)
 }
 
 @(private="file")
@@ -285,13 +288,14 @@ AXIS_LABEL_WIDTH :: 10
 // An [2]f32 setting's link toggle (linked, one axis drags the other in proportion)
 @(private="file")
 linkButton :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: e.ParticleFieldInfo, index: int) -> skald.View {
+	tk := uiTokens(ctx)
 	prefix :: PARTICLE_KEYS
 	th := ctx.theme
 	linked := index in s.particleLinks
 	button := skald.button(ctx, linked ? ICON_LINK : ICON_LINK_SLASH, Msg(Particle_Link_Toggled(index)),
 		id = skald.hash_id(fmt.tprintf("%s-particle-link-%s", prefix, field.name)),
 		bg = linked ? th.color.primary : th.color.surface, fg = linked ? th.color.on_primary : th.color.fg_muted,
-		width = LINK_WIDTH, padding = {0, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
+		width = LINK_WIDTH, padding = {0, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
 	tip := linked ? "Unlink: change X and Y separately" : "Link X and Y: changing one changes the other in proportion"
 	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-particle-link-tip-%s", prefix, field.name)))
 }
@@ -337,6 +341,7 @@ as `#rrggbbaa` text.
 */
 @(private="file")
 colorWithAlpha :: proc(ctx: ^skald.Ctx(Msg), color: sdl.Color, defaultAlpha: u8, name: string, pickerId: skald.Widget_ID, alphaKey: string, width: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	Payload :: struct { name: string, color: sdl.Color }
 	payload := Payload{name, color}
@@ -348,15 +353,15 @@ colorWithAlpha :: proc(ctx: ^skald.Ctx(Msg), color: sdl.Color, defaultAlpha: u8,
 			return Particle_Field_Changed{p.name, e.FormatColor(picked, context.temp_allocator)}
 		}, id = pickerId, width = width),
 		skald.row(
-			skald.col(skald.text("Alpha", th.color.fg_muted, th.font.size_xs), width = 34),
+			skald.col(uiText(th, .Muted, "Alpha"), width = tk.fieldXXS),
 			valueSlider(ctx, alphaKey, f32(color.a), payload, proc(p: Payload, v: f32) -> Msg {
 				c := p.color
 				c.a = u8(math.clamp(math.round(v), 0, 255))
 				return Particle_Field_Changed{p.name, e.FormatColor(c, context.temp_allocator)}
-			}, 0, 255, step = 1, decimals = 0, defaultValue = f32(defaultAlpha), width = width - 34 - th.spacing.xs),
+			}, 0, 255, step = 1, decimals = 0, defaultValue = f32(defaultAlpha), width = width - tk.fieldXXS - tk.xs),
 			spacing = th.spacing.xs, cross_align = .Center,
 		),
-		spacing = 2,
+		spacing = tk.xxs,
 	)
 }
 
@@ -446,9 +451,10 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 	if ramp.count == 0 do return rows[:]
 	stop := ramp.stops[selected]
 	small :: proc(ctx: ^skald.Ctx(Msg), id, label, tip: string, msg: Msg, disabled := false) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		button := skald.button(ctx, label, msg, id = skald.hash_id(id), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
 		return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", id)))
 	}
 	// Add: halfway between the selected stop and the next (or the previous, at the end)

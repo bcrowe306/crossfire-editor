@@ -924,7 +924,7 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 	c := CodeEditor_Find(path)
 	if c == nil {
 		drainEvents()
-		return skald.text(fmt.tprintf("%s isn't open", filepath.base(path)), ctx.theme.color.fg_muted, ctx.theme.font.size_sm)
+		return uiText(ctx.theme, .Label, fmt.tprintf("%s isn't open", filepath.base(path)))
 	}
 	// The input comes from an SDL event watch, installed when a code view first shows (only the
 	// running editor gets here: unit tests open files without SDL running)

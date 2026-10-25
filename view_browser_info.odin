@@ -77,6 +77,7 @@ Script_Usages :: proc(project: ^Project, script: string) -> []ScriptUsage {
 // The preview of a script file (replaces showing its contents)
 @(private)
 scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	path, _ := filepath.join({s.project.rootPath, file}, context.temp_allocator)
 	absolute, err := os.get_absolute_path(path, context.temp_allocator)
@@ -84,7 +85,7 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 	data, readErr := os.read_entire_file(path, context.temp_allocator)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	muted :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = previewTextWidth)
+		return uiText(ctx.theme, .Muted, text, max_width = previewTextWidth)
 	}
 	if readErr != nil {
 		append(&rows, skald.text(fmt.tprintf("Couldn't read %s", file), th.color.danger, th.font.size_sm, max_width = previewTextWidth))
@@ -96,7 +97,7 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 			for g in s.project.globals do if g.script == name do global = true
 			usages := Script_Usages(&s.project, name)
 			kind := global ? "Global script: runs for the whole game (Project Settings > Globals)" : "Node script"
-			append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_CODE, name), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+			append(&rows, uiText(th, .Value, fmt.tprintf("%s  %s", ICON_CODE, name), max_width = previewTextWidth))
 			append(&rows, muted(ctx, kind))
 			if !global {
 				if len(usages) == 0 {
@@ -134,7 +135,7 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 		for name in info.dataTypes {
 			count := 0
 			for d in s.project.data do if d.type == name do count += 1
-			append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_DATABASE, name), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+			append(&rows, uiText(th, .Value, fmt.tprintf("%s  %s", ICON_DATABASE, name), max_width = previewTextWidth))
 			append(&rows, muted(ctx, fmt.tprintf("Data type: %d data resource%s (the browser's Data folder)", count, count == 1 ? "" : "s")))
 			append(&rows, skald.spacer(th.spacing.xs))
 		}
@@ -147,13 +148,13 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 	}
 	return skald.col(
 		skald.row(
-			skald.text(fmt.tprintf("%s  %s", ICON_FILE_CODE, filepath.base(file)), th.color.fg, th.font.size_sm, max_width = previewTextWidth - 70),
+			uiText(th, .Value, fmt.tprintf("%s  %s", ICON_FILE_CODE, filepath.base(file)), max_width = previewTextWidth - tk.fieldXS),
 			skald.flex(1, skald.spacer(0)),
 			skald.button(ctx, "Open", Msg(Script_Open_File{file = strings.clone(absolute, context.temp_allocator), line = 1}),
-				id = skald.hash_id("preview-open-script"), font_size = th.font.size_sm, padding = {th.spacing.sm, 2}),
+				id = skald.hash_id("preview-open-script"), font_size = th.font.size_sm, padding = tk.fieldPadding),
 			cross_align = .Center,
 		),
-		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = 2, cross_align = .Start), id = skald.hash_id("preview-script-scroll"))),
+		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = tk.xxs, cross_align = .Start), id = skald.hash_id("preview-script-scroll"))),
 		spacing = th.spacing.xs,
 		cross_align = .Stretch,
 	)
@@ -162,18 +163,20 @@ scriptInfoPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), file: string) -> skal
 // The preview of a scene: what's in it, its actions and its own settings
 @(private)
 scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	scene := &s.project.scenes[index]
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	muted :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = previewTextWidth)
+		return uiText(ctx.theme, .Muted, text, max_width = previewTextWidth)
 	}
 	small :: proc(ctx: ^skald.Ctx(Msg), label, key: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
-		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_xs, padding = {th.spacing.sm, 2})
+		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_xs, padding = tk.fieldPadding)
 	}
 	start := s.project.startScene == scene.name
-	append(&rows, skald.text(fmt.tprintf("%s  %s%s", ICON_FILM, scene.name, start ? "  (start scene)" : ""), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+	append(&rows, uiText(th, .Value, fmt.tprintf("%s  %s%s", ICON_FILM, scene.name, start ? "  (start scene)" : ""), max_width = previewTextWidth))
 	append(&rows, muted(ctx, fmt.tprintf("scenes/%s.scene.xml", scene.name)))
 
 	// Its nodes by kind, most first
@@ -213,7 +216,7 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 
 	// Its own settings
 	append(&rows, skald.spacer(th.spacing.xs))
-	append(&rows, skald.text("Scene settings", th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+	append(&rows, uiText(th, .Value, "Scene settings", max_width = previewTextWidth))
 	settings := scene.settings
 	layers := make([dynamic]skald.View, context.temp_allocator)
 	for layer in e.RenderLayer {
@@ -221,10 +224,10 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 		append(&layers, skald.button(ctx, fmt.tprintf("%d", int(layer) + 1), Msg(Scene_Screen_Layer_Toggled{index, layer}),
 			id = skald.hash_id(fmt.tprintf("scene-settings-layer-%d", int(layer) + 1)),
 			bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg_muted,
-			font_size = th.font.size_xs, padding = {th.spacing.xs, 1}))
+			font_size = th.font.size_xs, padding = {tk.xs, tk.hair}))
 	}
 	append(&rows, muted(ctx, "Screen layers: drawn without the camera (HUDs, menus)"))
-	append(&rows, skald.wrap_row(..layers[:], spacing = 2))
+	append(&rows, skald.wrap_row(..layers[:], spacing = tk.xxs))
 
 	Payload :: struct { scene: int, on: bool, color: sdl.Color }
 	bgPayload := Payload{index, settings.hasBackground, settings.background}
@@ -238,7 +241,7 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 		append(&bgRow, skald.color_picker(ctx, linear, bgPayload, proc(p: Payload, c: skald.Color) -> Msg {
 			color, _ := e.ParseColor(fmt.tprintf("#%s", skald.color_to_hex(c)))
 			return Scene_Background_Changed{p.scene, true, color, false}
-		}, id = skald.hash_id("scene-settings-background-color"), width = 90))
+		}, id = skald.hash_id("scene-settings-background-color"), width = tk.fieldXS))
 	}
 	append(&rows, skald.wrap_row(..bgRow[:], spacing = th.spacing.xs))
 
@@ -253,12 +256,12 @@ scenePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), index: int) -> skald.View 
 		append(&rows, skald.row(
 			numberField(ctx, s, "scene-settings-gravity-x", SceneGravityTarget{index, 0}, f64(gravity.x), 10, 0, 80),
 			numberField(ctx, s, "scene-settings-gravity-y", SceneGravityTarget{index, 1}, f64(gravity.y), 10, 0, 80),
-			skald.text("px/s²", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+			uiText(th, .Muted, "px/s²", max_width = previewTextWidth),
 			spacing = th.spacing.xs,
 			cross_align = .Center,
 		))
 	} else {
 		append(&rows, muted(ctx, fmt.tprintf("The project's: %v, %v px/s²", gravity.x, gravity.y)))
 	}
-	return skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = 3, cross_align = .Start), id = skald.hash_id("preview-scene-scroll"))
+	return skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = tk.xs, cross_align = .Start), id = skald.hash_id("preview-scene-scroll"))
 }

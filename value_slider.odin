@@ -21,7 +21,7 @@ Widget keys: the track is `key`, the text box `key-value`, the reset button `key
 
 Example:
 	onAmount :: proc(name: string, v: f32) -> Msg { return Particle_Field_Changed{name, fmt.tprintf("%d", int(v))} }
-	valueSlider(ctx, "amount-slider", 50, "amount", onAmount, 1, 500, step = 1, decimals = 0, defaultValue = 50, width = 200)
+	valueSlider(ctx, "amount-slider", 50, "amount", onAmount, 1, 500, step = 1, decimals = 0, defaultValue = 50, width = tk.fieldL)
 */
 valueSlider :: proc(
 	ctx: ^skald.Ctx($Msg),
@@ -35,6 +35,7 @@ valueSlider :: proc(
 	defaultValue: Maybe(f32) = nil,
 	width: f32 = 160,
 ) -> skald.View {
+	tk := UiTokens_Of(ctx.theme, uiRowHeight)
 	th := ctx.theme
 	trackId := skald.hash_id(key)
 	textId := skald.hash_id(fmt.tprintf("%s-value", key))
@@ -104,7 +105,7 @@ valueSlider :: proc(
 		v, ok := strconv.parse_f32(strings.trim_space(typed))
 		if !ok do return {}
 		return t.on_change(t.inner, math.clamp(v, t.lo, t.hi))
-	}, id = textId, width = textWidth, padding = {th.spacing.xs, 1}, font_size = th.font.size_xs)
+	}, id = textId, width = textWidth, padding = {tk.xs, tk.hair}, font_size = th.font.size_xs)
 
 	reset: skald.View = skald.View_Spacer{size = 0}
 	resetWidth: f32 = 0
@@ -113,7 +114,7 @@ valueSlider :: proc(
 		resetWidth = SLIDER_RESET_WIDTH
 		button := skald.button(ctx, ICON_UNDO, on_change(payload, d), id = resetId,
 			bg = th.color.surface, fg = atDefault ? th.color.fg_muted : th.color.fg,
-			width = SLIDER_RESET_WIDTH, padding = {0, 1}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = atDefault)
+			width = SLIDER_RESET_WIDTH, padding = {0, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = atDefault)
 		reset = skald.tooltip(ctx, button, fmt.tprintf("Reset to %s", formatSliderValue(d, decimals)), id = skald.hash_id(fmt.tprintf("%s-reset-tip", key)))
 	}
 

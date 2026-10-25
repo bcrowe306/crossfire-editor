@@ -179,6 +179,7 @@ TileMapEdit_LayerInfo :: proc(ase: ^e.Aseprite, layer, frame: int) -> string {
 
 // The inspector's TileMap rows
 tileMapInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	settings := &node.tilemap
@@ -204,7 +205,7 @@ tileMapInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 	// Painting it: the bottom panel's Tiles tab (view_tiles.odin)
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  Paint Tiles", ICON_GRID), Msg(Bottom_Tab_Changed(int(BottomTab.Tiles))),
 		id = skald.hash_id(fmt.tprintf("inspector-tilemap-paint-%d", key)), bg = th.color.surface, fg = th.color.fg,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+		padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 	if len(settings.painted) > 0 {
 		names := make([dynamic]string, context.temp_allocator)
 		for p in settings.painted do append(&names, p.layer)

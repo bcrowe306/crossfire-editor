@@ -52,8 +52,11 @@ Ui_Tokens :: struct {
 	labelWidthWide: f32,
 	// Control widths: a short number, a small, medium, large and extra large field
 	fieldXS, fieldS, fieldM, fieldL, fieldXL: f32,
-	// Dialog widths: a small (a question), medium (a form) and large (a list) dialog
-	dialogS, dialogM, dialogL: f32,
+	// Where text wraps: in a sidebar or the inspector, in a dialog, in Settings' pages, in a wide panel
+	textNarrow, textDialog, textMeasure, textWide: f32,
+	// Dialog widths: a small (a question), medium (a form) and large (a list) dialog; Settings'
+	// and Project Settings' pages, and theirs with a list beside the form
+	dialogS, dialogM, dialogL, dialogSettings, dialogWide: f32,
 
 	// Icons per context: small (rows, tabs, inline), medium (panel header buttons), large (toolbar)
 	iconSmall, iconMedium, iconLarge: f32,
@@ -61,6 +64,8 @@ Ui_Tokens :: struct {
 	toolButtonWidth, panelButtonWidth: f32,
 	// A small square button beside a field (a link toggle, a reset, a remove)
 	squareButton: f32,
+	// A column holding one icon or letter (a status mark), a tiny number field, a color chip
+	iconColumn, fieldXXS, swatch: f32,
 }
 
 // The body text size the token units were measured at: the default look's (settings.default.ini)
@@ -92,7 +97,7 @@ UiTokens_Of :: proc(th: ^skald.Theme, rowHeight: f32) -> (t: Ui_Tokens) {
 	t.xs, t.s, t.m, t.l, t.xl = sp.xs, sp.sm, sp.md, sp.lg, sp.xl
 
 	t.panelPadding = sp.sm
-	t.sectionGap = sp.md
+	t.sectionGap = sp.sm
 	t.rowGap = sp.xs
 	t.buttonGap = sp.xs
 	t.fieldPadding = {sp.sm, t.xxs}
@@ -104,14 +109,20 @@ UiTokens_Of :: proc(th: ^skald.Theme, rowHeight: f32) -> (t: Ui_Tokens) {
 
 	t.labelWidth = em(f, INSPECTOR_LABEL_WIDTH)
 	t.labelWidthWide = em(f, 170)
-	t.fieldXS = em(f, 60)
+	t.fieldXS = em(f, 72)
 	t.fieldS = em(f, 120)
 	t.fieldM = em(f, 150)
-	t.fieldL = em(f, 200)
-	t.fieldXL = em(f, 260)
+	t.fieldL = em(f, 220)
+	t.fieldXL = em(f, 280)
+	t.textNarrow = em(f, 260)
+	t.textDialog = em(f, 380)
+	t.textMeasure = em(f, 420)
+	t.textWide = em(f, 600)
 	t.dialogS = em(f, 380)
 	t.dialogM = em(f, 440)
 	t.dialogL = em(f, 520)
+	t.dialogSettings = em(f, 640)
+	t.dialogWide = em(f, 760)
 
 	t.iconSmall = th.font.size_sm
 	t.iconMedium = th.font.size_sm
@@ -119,6 +130,9 @@ UiTokens_Of :: proc(th: ^skald.Theme, rowHeight: f32) -> (t: Ui_Tokens) {
 	t.toolButtonWidth = math.round(f * 2.4)
 	t.panelButtonWidth = math.round(f * 1.9)
 	t.squareButton = em(f, LINK_BUTTON_WIDTH)
+	t.iconColumn = em(f, 20)
+	t.fieldXXS = em(f, 44)
+	t.swatch = em(f, 16)
 	return
 }
 
@@ -136,7 +150,8 @@ Text_Role :: enum {
 	Title,
 	// A panel header's title, a tab's name (`panelHeader`, the tab strips)
 	Panel_Title,
-	// A section's header inside a panel, dialog or Settings page ("Colors", "Size and shape")
+	// A section's header inside a panel, dialog or Settings page ("Colors", "Size and shape"): the
+	// values' size and color, set apart by the section gap above it (`uiSection`)
 	Section,
 	// A form row's label (the inspector's, Settings')
 	Label,
@@ -153,7 +168,7 @@ TextRole_Style :: proc(th: ^skald.Theme, role: Text_Role) -> (size: f32, color: 
 	switch role {
 	case .Title:       return th.font.size_lg, th.color.fg
 	case .Panel_Title: return th.font.size_sm, th.color.fg
-	case .Section:     return th.font.size_md, th.color.fg
+	case .Section:     return th.font.size_sm, th.color.fg
 	case .Label:       return th.font.size_sm, th.color.fg_muted
 	case .Value:       return th.font.size_sm, th.color.fg
 	case .Muted:       return th.font.size_xs, th.color.fg_muted
@@ -172,6 +187,14 @@ uiText :: proc(th: ^skald.Theme, role: Text_Role, str: string, max_width: f32 = 
 	if color[3] != 0 do fg = color
 	font := role == .Code ? uiMonoFont : skald.Font(0)
 	return skald.text(str, fg, size, font, max_width = max_width, overflow = overflow, align = align)
+}
+
+/*
+A section's header: the section gap above it, then its title (`Text_Role.Section`). Every panel,
+dialog and Settings page starts its sections with it, so sections are one distance apart.
+*/
+uiSection :: proc(th: ^skald.Theme, tk: Ui_Tokens, title: string, max_width: f32 = 0) -> skald.View {
+	return skald.col(skald.spacer(tk.sectionGap), uiText(th, .Section, title, max_width = max_width))
 }
 
 /*

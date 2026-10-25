@@ -131,7 +131,7 @@ CodeDrag_Zone :: proc(ctx: ^skald.Ctx(Msg), s: ^State, child: skald.View, key: s
 CodeDrag_Handle :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: string, source: DropSource) -> skald.View {
 	if s.codeTab == 0 do return skald.View(skald.View_Spacer{size = 0})
 	th := ctx.theme
-	grip := CodeDrag_Zone(ctx, s, skald.text(ICON_GRIP, th.color.fg_muted, th.font.size_sm), key, source)
+	grip := CodeDrag_Zone(ctx, s, uiText(th, .Label, ICON_GRIP), key, source)
 	return skald.tooltip(ctx, grip, fmt.tprintf("Drag %s into the code (Shift on release: choices)", DropSource_Describe(s, source)), id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 }
 

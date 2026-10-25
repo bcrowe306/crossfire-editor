@@ -187,13 +187,14 @@ The inspector's rows for a node's more scripts: each with its fields, Open and r
 Add script choice (scripts the node doesn't have yet).
 */
 moreScriptsRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	for &extra, i in node.moreScripts {
 		// The buttons follow the name, not the row's far end: a row in the inspector's scroll isn't
 		// width-limited, and a flexible gap pushed them under its scrollbar in a narrow inspector
 		append(&rows, skald.row(
-			skald.text(fmt.tprintf("%s  %s", ICON_CODE, extra.name), th.color.fg, th.font.size_sm, max_width = inspectorRowWidth(controlWidth) - 60),
+			uiText(th, .Value, fmt.tprintf("%s  %s", ICON_CODE, extra.name), max_width = inspectorRowWidth(controlWidth) - tk.fieldXS),
 			smallButton(ctx, fmt.tprintf("inspector-more-script-%d-open", i), ICON_FILE_CODE, "Open the script in your code editor", Msg(Node_Script_Open(extra.name))),
 			smallButton(ctx, fmt.tprintf("inspector-more-script-%d-remove", i), ICON_XMARK, "Remove this script from the node", Msg(Node_Script_Removed(i))),
 			spacing = th.spacing.xs,
@@ -232,15 +233,15 @@ nodeTypeRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, 
 	if node.customKind == "" do return rows[:]
 	desc := ScriptCatalog_FindNodeType(&s.scripts, node.customKind)
 	append(&rows, skald.row(
-		skald.text(fmt.tprintf("%s  %s", ICON_CODE, node.customKind), th.color.fg, th.font.size_sm),
+		uiText(th, .Value, fmt.tprintf("%s  %s", ICON_CODE, node.customKind)),
 		skald.flex(1, skald.spacer(0)),
 		smallButton(ctx, "inspector-node-type-open", ICON_FILE_CODE, "Open the node type's code in your code editor", Msg(Node_Script_Open(node.customKind))),
 		spacing = th.spacing.xs,
 		cross_align = .Center,
 	))
-	append(&rows, skald.text(fmt.tprintf("A node type of your code, built on %v: it has a %v's settings above and its own code and fields.", node.kind, node.kind), th.color.fg_muted, th.font.size_xs, max_width = controlWidth + 100))
+	append(&rows, uiText(th, .Muted, fmt.tprintf("A node type of your code, built on %v: it has a %v's settings above and its own code and fields.", node.kind, node.kind), max_width = inspectorRowWidth(controlWidth)))
 	if desc != nil && desc.base != node.kind {
-		append(&rows, skald.text(fmt.tprintf("Its code now embeds a %v, not a %v: the game builds it as a %v.", desc.base, node.kind, node.kind), th.color.warning, th.font.size_xs, max_width = controlWidth + 100))
+		append(&rows, uiText(th, .Muted, fmt.tprintf("Its code now embeds a %v, not a %v: the game builds it as a %v.", desc.base, node.kind, node.kind), max_width = inspectorRowWidth(controlWidth), color = th.color.warning))
 	}
 	append(&rows, ..fieldRows(ctx, s, node.customKind, node.customProps[:], desc, fmt.tprintf("%d-type", key), NodeCustomTarget{}, controlWidth, numberWidth))
 	return rows[:]
@@ -249,12 +250,13 @@ nodeTypeRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, 
 // A script's or node type's field rows: its fields once built, else its stored values (read only)
 @(private="file")
 fieldRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, name: string, props: []ScriptPropDef, desc: ^ScriptDesc, key: string, target: PropTarget, controlWidth, numberWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	if desc == nil {
 		message := s.scripts.status == .Building ? "Building..." : fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), name)
-		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
-		for prop in props do append(&rows, inspectorRow(ctx, prop.name, skald.text(prop.value, th.color.fg_muted, th.font.size_sm)))
+		append(&rows, uiText(th, .Muted, message, max_width = tk.textNarrow))
+		for prop in props do append(&rows, inspectorRow(ctx, prop.name, uiText(th, .Label, prop.value)))
 		return rows[:]
 	}
 	for &field in desc.fields {
@@ -267,8 +269,9 @@ fieldRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, name: string, props: []Script
 
 @(private="file")
 smallButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	button := skald.button(ctx, icon, msg, id = skald.hash_id(key),
-		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 }

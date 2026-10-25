@@ -94,7 +94,7 @@ cameraToolInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef,
 		return numberField(ctx, s, fmt.tprintf("inspector-%v-%d", field, key), field, f64(value), 16, 0, width, 1, 100000)
 	}
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
+		return uiText(ctx.theme, .Muted, text, max_width = width)
 	}
 	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
 	#partial switch node.kind {

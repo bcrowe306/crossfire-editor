@@ -31,7 +31,7 @@ ldtkLevelRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, project: ^e.LDtkProject, 
 		return skald.text(t, c, ctx.theme.font.size_xs, max_width = width)
 	}
 	heading :: proc(ctx: ^skald.Ctx(Msg), t: string) -> skald.View {
-		return skald.text(t, ctx.theme.color.fg, ctx.theme.font.size_sm)
+		return uiSection(ctx.theme, uiTokens(ctx), t)
 	}
 	placed, _ := e.LDtk_PlacedLevels(project, settings^, context.temp_allocator)
 	if len(placed) == 0 do return rows[:]
@@ -76,7 +76,7 @@ ldtkBuildRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, project: ^e.LDtkProject, 
 	placed, _ := e.LDtk_PlacedLevels(project, settings^, context.temp_allocator)
 	if len(placed) == 0 do return rows[:]
 	level := placed[0].level
-	append(&rows, skald.text(fmt.tprintf("%s  How it's built%s", ICON_LIST, settings.allLevels ? fmt.tprintf(" (as %s; every level alike)", level.identifier) : ""), th.color.fg, th.font.size_sm))
+	append(&rows, uiText(th, .Value, fmt.tprintf("%s  How it's built%s", ICON_LIST, settings.allLevels ? fmt.tprintf(" (as %s; every level alike)", level.identifier) : "")))
 	append(&rows, text(ctx, "Its layers, bottom first (LDtk lists them top first):", width))
 	#reverse for &layer in level.layers {
 		what: string
@@ -198,6 +198,7 @@ LDtkEdit_EntityPlan :: proc(s: ^State, settings: ^e.LDtkLevelSettings, identifie
 // The level's entities: each with its position (in the node) and fields; a click frames it
 @(private="package")
 ldtkInstanceRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: int, project: ^e.LDtkProject, settings: ^e.LDtkLevelSettings, width: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	placed, _ := e.LDtk_PlacedLevels(project, settings^, context.temp_allocator)
@@ -208,8 +209,8 @@ ldtkInstanceRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: int, project: ^e
 	// pushed it under the scrollbar in a narrow window, where it can't be clicked
 	append(&rows, skald.row(
 		skald.button(ctx, s.ldtkInstancesOpen ? "Hide" : "Show", Msg(LDtk_Instances_Toggled{}), id = skald.hash_id("inspector-ldtk-instances-toggle"),
-			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 1}, font_size = th.font.size_xs, radius = th.radius.sm),
-		skald.text(fmt.tprintf("%s  In the level: %d entities", ICON_LOCATION, total), th.color.fg, th.font.size_sm, max_width = width - 60),
+			bg = th.color.surface, fg = th.color.fg, padding = {tk.s, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm),
+		uiText(th, .Value, fmt.tprintf("%s  In the level: %d entities", ICON_LOCATION, total), max_width = width - tk.fieldXS),
 		spacing = th.spacing.sm,
 		cross_align = .Center,
 	))
@@ -229,7 +230,7 @@ ldtkInstanceRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: int, project: ^e
 		id := skald.hash_id(fmt.tprintf("inspector-ldtk-entity-%d", i))
 		hovered := skald.widget_hovered(ctx, id)
 		append(&rows, skald.clickable(ctx,
-			skald.col(skald.text(label, hovered ? th.color.primary : th.color.fg_muted, th.font.size_xs, max_width = width), padding = 1),
+			skald.col(skald.text(label, hovered ? th.color.primary : th.color.fg_muted, th.font.size_xs, max_width = width), padding = tk.hair),
 			Msg(LDtk_Entity_Framed(e.Transform2D_Apply(world, at))), id = id, focusable = false))
 		i += 1
 	}

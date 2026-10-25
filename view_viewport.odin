@@ -58,11 +58,12 @@ NodeShape :: struct {
 // A panel button that shows whether its setting is on
 @(private="file")
 toggleButton :: proc(s: ^State, ctx: ^skald.Ctx(Msg), key, icon, tip: string, action: Action, on: bool) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	button := skald.button(ctx, icon, Msg(action),
 		id = skald.hash_id(fmt.tprintf("panel-%s", key)),
 		bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg_muted,
-		width = math.round(th.font.size_md * 1.9), padding = {0, 3}, font_size = th.font.size_sm)
+		width = math.round(th.font.size_md * 1.9), padding = {0, tk.xs}, font_size = th.font.size_sm)
 	return skald.tooltip(ctx, button, actionTip(s, tip, action), id = skald.hash_id(fmt.tprintf("panel-tip-%s", key)))
 }
 
@@ -78,6 +79,7 @@ Viewport_LastRender :: proc() -> ([]u8, [2]int) {
 }
 
 viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	skald.prof_scope("viewportView")
 	th := ctx.theme
 	canvasId := skald.hash_id("viewport-canvas")
@@ -169,7 +171,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		panelButton(ctx, "viewport-fit", ICON_SCALE, actionTip(s, "Fit game area", .View_Fit), Action.View_Fit),
 		skald.button(ctx, fmt.tprintf("%.0f%%", s.viewport.zoom * 100), Msg(Action.Zoom_100),
 			id = skald.hash_id("viewport-zoom"), bg = th.color.surface, fg = th.color.fg_muted,
-			font_size = th.font.size_sm, width = 64, padding = {0, 3}),
+			font_size = th.font.size_sm, width = tk.fieldXS, padding = {0, tk.xs}),
 		spacing = th.spacing.xs,
 		cross_align = .Center,
 	)
@@ -1004,13 +1006,14 @@ drawOutline :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, s
 // The Align and Distribute button (two or more nodes selected): its menu opens under it
 @(private="file")
 alignButton :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	if len(Selection_Roots(s)) < 2 do return skald.spacer(0)
 	th := ctx.theme
 	id := skald.hash_id("panel-viewport-align")
 	r := lastRect(ctx, id)
 	at := [2]f32{r.x, r.y + r.h}
 	button := skald.button(ctx, ICON_ALIGN, Msg(Context_Menu_Opened{at = at, target = Ctx_Align{}}), id = id,
-		bg = th.color.surface, fg = th.color.fg_muted, width = math.round(th.font.size_md * 1.9), padding = {0, 3}, font_size = th.font.size_sm)
+		bg = th.color.surface, fg = th.color.fg_muted, width = math.round(th.font.size_md * 1.9), padding = {0, tk.xs}, font_size = th.font.size_sm)
 	return skald.tooltip(ctx, button, "Align or distribute the selected nodes", id = skald.hash_id("panel-tip-viewport-align"))
 }
 

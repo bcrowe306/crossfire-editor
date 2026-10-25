@@ -185,10 +185,10 @@ Shapes. Keys `inspector-trace-sprite-<node>`, `inspector-trace-Threshold-<node>`
 traceInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, scene: ^SceneDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows, skald.text("Collision from sprite", th.color.fg, th.font.size_sm))
+	append(&rows, uiText(th, .Value, "Collision from sprite"))
 	sprites := Trace_Sprites(scene, key)
 	if len(sprites) == 0 {
-		append(&rows, skald.text("Put a Sprite with an image under this body to make shapes that fit it.", th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+		append(&rows, uiText(th, .Muted, "Put a Sprite with an image under this body to make shapes that fit it.", max_width = inspectorRowWidth(controlWidth)))
 		return rows[:]
 	}
 	settings := s.trace
@@ -210,8 +210,7 @@ traceInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, scene: ^SceneDef, ke
 		inspectorRow(ctx, "Detail", numberField(ctx, s, fmt.tprintf("inspector-trace-Detail-%d", key), TraceNumber(.Detail), f64(settings.detail), 0.5, 1, numberWidth, 0, 32)),
 		inspectorRow(ctx, "", skald.button(ctx, "Make Shapes", Msg(Collision_Traced{}),
 			id = skald.hash_id(fmt.tprintf("inspector-trace-make-%d", key)), bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm)),
-		skald.text("Traces the sprite's opaque pixels into polygon shapes under the body (replacing earlier traced ones). Detail: how far the outline may stray from the pixels; larger makes fewer, simpler shapes.",
-			th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)),
+		uiText(th, .Muted, "Traces the sprite's opaque pixels into polygon shapes under the body (replacing earlier traced ones). Detail: how far the outline may stray from the pixels; larger makes fewer, simpler shapes.", max_width = inspectorRowWidth(controlWidth)),
 	)
 	return rows[:]
 }

@@ -137,7 +137,7 @@ cameraInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 		return numberField(ctx, s, fmt.tprintf("inspector-camera-%v-%d", field, key), CameraNumber(field), f64(value), step, decimals, width, lo, hi)
 	}
 	header :: proc(ctx: ^skald.Ctx(Msg), rows: ^[dynamic]skald.View, text: string) {
-		append(rows, skald.spacer(ctx.theme.spacing.xs), skald.text(text, ctx.theme.color.fg, ctx.theme.font.size_xs))
+		append(rows, uiSection(ctx.theme, uiTokens(ctx), text))
 	}
 	select :: proc(ctx: ^skald.Ctx(Msg), key: int, field: CameraField, value: string, choices: []string, width: f32) -> skald.View {
 		Payload :: struct { field: CameraField }
@@ -154,7 +154,7 @@ cameraInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 	for _, i in scene.nodes do if i != key do append(&targets, Scene_NodePath(scene, key, i, context.temp_allocator))
 	append(&rows, inspectorRow(ctx, "Target", select(ctx, key, .Target, node.cameraTarget == "" ? CAMERA_TARGET_NONE : node.cameraTarget, targets[:], controlWidth)))
 	if node.cameraTarget != "" && Scene_ResolvePath(scene, key, node.cameraTarget) < 0 {
-		append(&rows, skald.text(fmt.tprintf("No node at %s yet: one the game makes is found once it's there.", node.cameraTarget), th.color.warning, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+		append(&rows, uiText(th, .Muted, fmt.tprintf("No node at %s yet: one the game makes is found once it's there.", node.cameraTarget), max_width = inspectorRowWidth(controlWidth), color = th.color.warning))
 	}
 	modes := make([]string, len(e.CameraFollowMode), context.temp_allocator)
 	for m, i in e.CameraFollowMode do modes[i] = fmt.tprintf("%v", m)
@@ -185,12 +185,13 @@ cameraInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 	stacked := limitWidth < NumberField_MinWidth(th)
 	if stacked do limitWidth = numberWidth
 	limit :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, c: e.CameraSettings, side: e.CameraSide, on, field: CameraField, value: f32, width: f32, stacked: bool) -> skald.View {
+		tk := uiTokens(ctx)
 		Payload :: struct { field: CameraField }
 		check := skald.checkbox(ctx, side in c.limits, "", Payload{on}, proc(p: Payload, v: bool) -> Msg { return Camera_Changed{field = p.field, flag = v} },
 			id = skald.hash_id(fmt.tprintf("inspector-camera-%v-%d", on, key)))
 		if side not_in c.limits do return check
 		number := numberField(ctx, s, fmt.tprintf("inspector-camera-%v-%d", field, key), CameraNumber(field), f64(value), 16, 0, width, -1000000, 1000000)
-		if stacked do return skald.col(check, number, spacing = 2)
+		if stacked do return skald.col(check, number, spacing = tk.xxs)
 		return skald.row(check, number, spacing = ctx.theme.spacing.xs, cross_align = .Center)
 	}
 	append(&rows,

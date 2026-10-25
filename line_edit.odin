@@ -113,7 +113,7 @@ lineInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 		}, id = skald.hash_id(id(field, key)))
 	}
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
+		return uiText(ctx.theme, .Muted, text, max_width = width)
 	}
 
 	if !trail {

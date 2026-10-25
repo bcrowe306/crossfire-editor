@@ -99,11 +99,11 @@ FieldControl :: proc(ctx: ^skald.Ctx(Msg), s: ^State, values: []ScriptPropDef, f
 		case DraftGlobalTarget, DataTarget:
 		}
 		if !onNode || s.selectedNode < 0 || s.selectedNode >= len(scene.nodes) {
-			return skald.text(fmt.tprintf("%s (node fields work on node scripts)", value == "" ? "none" : value), th.color.fg_muted, th.font.size_sm, max_width = controlWidth)
+			return uiText(th, .Label, fmt.tprintf("%s (node fields work on node scripts)", value == "" ? "none" : value), max_width = controlWidth)
 		}
 		return choices(ctx, value, NodeField_Choices(&s.project, scene, s.selectedNode, field.hint), payload, id(field, key), controlWidth)
 	}
-	return skald.text(value, th.color.fg_muted, th.font.size_sm)
+	return uiText(th, .Label, value)
 }
 
 /*
@@ -174,16 +174,16 @@ instead, with a Reset that removes it (undoable). None when it fits or nothing i
 Widget keys: `inspector-mismatch-<field>-<key>`, its Reset `inspector-mismatch-reset-<field>-<key>`.
 */
 FieldMismatchRows :: proc(ctx: ^skald.Ctx(Msg), values: []ScriptPropDef, field: ^ScriptFieldDesc, key: string, target: PropTarget, width: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	stored, set := "", false
 	for p in values do if p.name == field.name { stored, set = p.value, true }
 	if !set || ScriptProp_Fits(field, stored) do return nil
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	note := skald.text(fmt.tprintf("Stored %q isn't a %v: the game uses the default (%s).", stored, field.type, field.defaultValue == "" ? "\"\"" : field.defaultValue),
-		th.color.warning, th.font.size_xs, max_width = width)
+	note := uiText(th, .Muted, fmt.tprintf("Stored %q isn't a %v: the game uses the default (%s).", stored, field.type, field.defaultValue == "" ? "\"\"" : field.defaultValue), max_width = width, color = th.color.warning)
 	reset := skald.button(ctx, "Reset", Msg(Script_Prop_Changed{field.name, field.defaultValue, field.defaultValue, target}),
 		id = skald.hash_id(fmt.tprintf("inspector-mismatch-reset-%s-%s", field.name, key)),
-		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, skald.row(skald.tooltip(ctx, note, "The code changed the field's type: Reset removes the stored value", id = skald.hash_id(fmt.tprintf("inspector-mismatch-%s-%s", field.name, key))), reset, spacing = th.spacing.xs, cross_align = .Center))
 	return rows[:]
 }
@@ -196,6 +196,7 @@ removes one (an undoable edit). None when every value has its field.
 Widget keys: `inspector-orphan-<name>-<key>`, its × `inspector-orphan-remove-<name>-<key>`.
 */
 OrphanedValueRows :: proc(ctx: ^skald.Ctx(Msg), values: []ScriptPropDef, desc: ^ScriptDesc, key: string, target: PropTarget, width: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	if desc == nil do return nil
 	rows := make([dynamic]skald.View, context.temp_allocator)
@@ -204,13 +205,12 @@ OrphanedValueRows :: proc(ctx: ^skald.Ctx(Msg), values: []ScriptPropDef, desc: ^
 		for f in desc.fields do if f.name == p.name do known = true
 		if known do continue
 		if len(rows) == 0 {
-			append(&rows, skald.text(fmt.tprintf("Stored values %s has no field for (kept until removed; renamed or removed in the code?):", desc.name),
-				th.color.warning, th.font.size_xs, max_width = width))
+			append(&rows, uiText(th, .Muted, fmt.tprintf("Stored values %s has no field for (kept until removed; renamed or removed in the code?):", desc.name), max_width = width, color = th.color.warning))
 		}
 		remove := skald.button(ctx, ICON_XMARK, Msg(Script_Prop_Changed{p.name, "", "", target}),
 			id = skald.hash_id(fmt.tprintf("inspector-orphan-remove-%s-%s", p.name, key)),
-			bg = th.color.surface, fg = th.color.fg_muted, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
-		value := skald.text(p.value, th.color.fg_muted, th.font.size_sm, max_width = max(width - 120, 60))
+			bg = th.color.surface, fg = th.color.fg_muted, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
+		value := uiText(th, .Label, p.value, max_width = max(width - tk.fieldS, tk.fieldXS))
 		append(&rows, inspectorRow(ctx, p.name, skald.row(skald.tooltip(ctx, value, fmt.tprintf("%s = %s, kept", p.name, p.value), id = skald.hash_id(fmt.tprintf("inspector-orphan-%s-%s", p.name, key))), remove, spacing = th.spacing.xs, cross_align = .Center),
 			"Kept from a field the script no longer has: the game ignores it. × removes it"))
 	}

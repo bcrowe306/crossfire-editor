@@ -54,7 +54,8 @@ physicsInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, ke
 			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", flag, key)))
 	}
 	hint :: proc(ctx: ^skald.Ctx(Msg), text: string, warning := false) -> skald.View {
-		return skald.text(text, warning ? ctx.theme.color.warning : ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = 260)
+		tk := uiTokens(ctx)
+		return skald.text(text, warning ? ctx.theme.color.warning : ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = tk.textNarrow)
 	}
 	scene := &s.project.scenes[s.currentScene]
 	index := s.selectedNode
@@ -179,6 +180,7 @@ which set they edit.
 */
 @(private="file")
 layerGrid :: proc(ctx: ^skald.Ctx(Msg), key: int, mask: bool, bits: u64, width: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	PER_ROW :: INSPECTOR_LAYER_COUNT / 2
 	gap: f32 = 2
@@ -193,7 +195,7 @@ layerGrid :: proc(ctx: ^skald.Ctx(Msg), key: int, mask: bool, bits: u64, width: 
 				id = skald.hash_id(fmt.tprintf("inspector-%s-%d-%d", mask ? "mask" : "layer", layer, key)),
 				bg = on ? th.color.primary : th.color.surface,
 				fg = on ? th.color.on_primary : th.color.fg_muted,
-				width = size, padding = {0, 1}, font_size = th.font.size_xs, radius = th.radius.sm))
+				width = size, padding = {0, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm))
 		}
 		rows[r] = skald.row(..buttons[:], spacing = gap)
 	}
@@ -268,6 +270,7 @@ The inspector for a data resource chosen in the browser: its type and fields, ed
 */
 @(private="package")
 dataInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	index := s.dataSelection
 	data := &s.project.data[index]
@@ -276,25 +279,24 @@ dataInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	numberWidth := min(controlWidth, INSPECTOR_MAX_NUMBER_WIDTH)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows,
-		skald.text(fmt.tprintf("%s  %s", ICON_DATABASE, DataName(data.path)), th.color.fg, th.font.size_md),
-		skald.text(fmt.tprintf("%s  ·  %s", data.type == "" ? "unknown type" : data.type, data.path), th.color.fg_muted, th.font.size_xs, max_width = 260),
+		uiText(th, .Section, fmt.tprintf("%s  %s", ICON_DATABASE, DataName(data.path))),
+		uiText(th, .Muted, fmt.tprintf("%s  ·  %s", data.type == "" ? "unknown type" : data.type, data.path), max_width = tk.textNarrow),
 		skald.divider(ctx),
 	)
 	desc := ScriptCatalog_FindData(&s.scripts, data.type)
 	if desc == nil {
 		message := s.scripts.status == .Ready ? fmt.tprintf("No data type named %s in the scripts.", data.type) : fmt.tprintf("Build the scripts%s to edit the fields.", keyParen(s, .Build_Scripts))
-		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = 260))
-		for v in data.values do append(&rows, inspectorRow(ctx, v.name, skald.text(v.value, th.color.fg_muted, th.font.size_sm)))
+		append(&rows, uiText(th, .Muted, message, max_width = tk.textNarrow))
+		for v in data.values do append(&rows, inspectorRow(ctx, v.name, uiText(th, .Label, v.value)))
 	} else {
 		for &field in desc.fields {
 			append(&rows, inspectorRow(ctx, field.name, FieldControl(ctx, s, data.values[:], &field, fmt.tprintf("data%d", index), DataTarget(index), controlWidth, numberWidth)))
 			append(&rows, ..FieldMismatchRows(ctx, data.values[:], &field, fmt.tprintf("data%d", index), DataTarget(index), 260))
 		}
 		append(&rows, ..OrphanedValueRows(ctx, data.values[:], desc, fmt.tprintf("data%d", index), DataTarget(index), 260))
-		if len(desc.fields) == 0 do append(&rows, skald.text("No exported fields (tag a field with export:\"\").", th.color.fg_muted, th.font.size_xs))
+		if len(desc.fields) == 0 do append(&rows, uiText(th, .Muted, "No exported fields (tag a field with export:\"\")."))
 	}
-	append(&rows, skald.spacer(th.spacing.sm), skald.text(fmt.tprintf("In code: e.Data(%s, DATA_%s)", data.type, strings.to_upper(sanitize(DataName(data.path)), context.temp_allocator)),
-		th.color.fg_muted, th.font.size_xs, max_width = 260))
+	append(&rows, skald.spacer(th.spacing.sm), uiText(th, .Muted, fmt.tprintf("In code: e.Data(%s, DATA_%s)", data.type, strings.to_upper(sanitize(DataName(data.path)), context.temp_allocator)), max_width = tk.textNarrow))
 	return skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.md, cross_align = .Stretch)
 }
 
@@ -308,7 +310,8 @@ shapeRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, con
 		return numberField(ctx, s, fmt.tprintf("inspector-%v-%d", field, key), field, f64(value), step, decimals, width, minValue, maxValue)
 	}
 	hint :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = 260)
+		tk := uiTokens(ctx)
+		return uiText(ctx.theme, .Muted, text, max_width = tk.textNarrow)
 	}
 	shapes := make([]string, len(e.CollisionShapeKind), context.temp_allocator)
 	for kind in e.CollisionShapeKind do shapes[kind] = fmt.tprintf("%v", kind)

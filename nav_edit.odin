@@ -77,7 +77,7 @@ navInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: i
 			id = skald.hash_id(fmt.tprintf("inspector-nav-%v-%d", field, key)))
 	}
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
+		return uiText(ctx.theme, .Muted, text, max_width = width)
 	}
 	if node.kind == .NavRegion {
 		shape :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: int, field: NodeField, value: f32, width: f32) -> skald.View {

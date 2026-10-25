@@ -187,6 +187,7 @@ uiActionChoice :: proc(action: string) -> string {
 The inspector's rows for a UI control: its size and place, then its kind's settings.
 */
 uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	u := &node.ui
@@ -209,7 +210,7 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 			id = skald.hash_id(fmt.tprintf("inspector-ui-%v-%d", field, key)))
 	}
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width)
+		return uiText(ctx.theme, .Muted, text, max_width = width)
 	}
 	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
 	width := inspectorRowWidth(controlWidth)
@@ -305,8 +306,8 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 			id = skald.hash_id(fmt.tprintf("inspector-texture-%d", key)), width = controlWidth, placeholder = "The theme's fill")))
 		if node.texture != "" {
 			m := u.patchMargins
-			append(&rows, inspectorRow(ctx, "Edges L / T", skald.row(number(ctx, s, key, .Patch_Left, m[0], 1, 0, numberWidth * 0.5, 0), number(ctx, s, key, .Patch_Top, m[1], 1, 0, numberWidth * 0.5, 0), spacing = 4)))
-			append(&rows, inspectorRow(ctx, "Edges R / B", skald.row(number(ctx, s, key, .Patch_Right, m[2], 1, 0, numberWidth * 0.5, 0), number(ctx, s, key, .Patch_Bottom, m[3], 1, 0, numberWidth * 0.5, 0), spacing = 4)))
+			append(&rows, inspectorRow(ctx, "Edges L / T", skald.row(number(ctx, s, key, .Patch_Left, m[0], 1, 0, numberWidth * 0.5, 0), number(ctx, s, key, .Patch_Top, m[1], 1, 0, numberWidth * 0.5, 0), spacing = tk.xs)))
+			append(&rows, inspectorRow(ctx, "Edges R / B", skald.row(number(ctx, s, key, .Patch_Right, m[2], 1, 0, numberWidth * 0.5, 0), number(ctx, s, key, .Patch_Bottom, m[3], 1, 0, numberWidth * 0.5, 0), spacing = tk.xs)))
 			append(&rows, note(ctx, "Edges: pixels of the image that don't stretch (a 9-patch); all 0 stretches it whole.", width))
 		}
 	}
@@ -318,6 +319,6 @@ uiInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 	// A theme of its own, made and chosen at once (select it in the browser's Themes to edit it)
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  New Theme for %s", ICON_PALETTE, node.name), Msg(Theme_Created{forSelected = true}),
 		id = skald.hash_id(fmt.tprintf("inspector-ui-new-theme-%d", key)), bg = th.color.surface, fg = th.color.fg,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+		padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 	return rows[:]
 }

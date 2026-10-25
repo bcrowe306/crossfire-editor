@@ -206,6 +206,7 @@ The image filtering choice: the project's default (for an image) or Default mean
 project's own setting), Smooth, Pixels.
 */
 textureFilterSelect :: proc(ctx: ^skald.Ctx(Msg), value: e.TextureFilter, key: string, project: bool, on: proc(f: e.TextureFilter) -> Msg) -> skald.View {
+	tk := uiTokens(ctx)
 	labels := make([]string, len(e.TextureFilter), context.temp_allocator)
 	for f, i in e.TextureFilter do labels[i] = textureFilterLabel(f, project)
 	Payload :: struct { on: proc(f: e.TextureFilter) -> Msg, project: bool }
@@ -214,7 +215,7 @@ textureFilterSelect :: proc(ctx: ^skald.Ctx(Msg), value: e.TextureFilter, key: s
 			for f in e.TextureFilter do if textureFilterLabel(f, p.project) == label do return p.on(f)
 			return p.on(.Default)
 		},
-		id = skald.hash_id(key), width = 220)
+		id = skald.hash_id(key), width = tk.fieldL)
 }
 
 @(private="file")
@@ -229,6 +230,7 @@ textureFilterLabel :: proc(f: e.TextureFilter, project: bool) -> string {
 
 // The image preview's import rows: its filtering
 imageImportRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, index: int) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	asset := s.project.assets[index]
 	on :: proc(f: e.TextureFilter) -> Msg { return Asset_Filter_Changed{index = previewAsset, filter = f} }
@@ -237,16 +239,16 @@ imageImportRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, index: int) -> skald.Vi
 	if effective == .Default do effective = e.Aseprite_IsFile(asset.path) ? .Pixel : .Smooth
 	// The sprite sheet slicer, on this image (slicer_edit.odin)
 	slice := skald.button(ctx, fmt.tprintf("%s  Slice Sprite Sheet…", ICON_SCISSORS), Msg(Slicer_Opened(strings.clone(asset.path, context.temp_allocator))),
-		id = skald.hash_id("browser-slice"), bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		id = skald.hash_id("browser-slice"), bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	// Beside the Filtering label, not on a line of its own: a short browser keeps room for the picture
 	return skald.col(
 		skald.row(
-			skald.text("Filtering", th.color.fg, th.font.size_xs),
+			uiText(th, .Section, "Filtering"),
 			skald.flex(1, skald.spacer(0)),
 			skald.tooltip(ctx, slice, "Cut it into frames (by a grid, or by finding its sprites) and name animations from them", id = skald.hash_id("browser-slice-tip")),
 			spacing = th.spacing.xs, cross_align = .Center, width = previewTextWidth),
 		textureFilterSelect(ctx, asset.filter, "asset-filter", false, on),
-		skald.text(effective == .Pixel ? "Drawn with hard square pixels when scaled or turned." : "Drawn smoothly when scaled or turned.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+		uiText(th, .Muted, effective == .Pixel ? "Drawn with hard square pixels when scaled or turned." : "Drawn smoothly when scaled or turned.", max_width = previewTextWidth),
 		spacing = th.spacing.xs,
 	)
 }
@@ -257,27 +259,28 @@ previewAsset: int
 
 // A font's preview: what it is, and its MSDF setting (TrueType) or its glyphs (bitmap)
 fontPreview :: proc(ctx: ^skald.Ctx(Msg), s: ^State, index: int) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	asset := s.project.assets[index]
 	path := AssetFilePath(&s.project, asset)
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows, skald.text(filepath.base(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+	append(&rows, uiText(th, .Value, filepath.base(asset.path), max_width = previewTextWidth))
 	if e.Font_IsBitmap(asset.path) {
 		data, err := os.read_entire_file(path, context.temp_allocator)
 		font, ok := e.ParseBMFont(string(data), context.temp_allocator)
 		if err != nil || !ok {
-			append(&rows, skald.text("Not a BMFont file this engine reads (export text or XML .fnt files).", th.color.danger, th.font.size_xs, max_width = previewTextWidth))
+			append(&rows, uiText(th, .Muted, "Not a BMFont file this engine reads (export text or XML .fnt files).", max_width = previewTextWidth, color = th.color.danger))
 		} else {
 			missing := 0
 			dir := filepath.dir(path)
 			for page in font.pages do if !os.exists(joinPath(dir, page, allocator = context.temp_allocator)) do missing += 1
 			append(&rows, skald.text(fmt.tprintf("A bitmap font: %.0f px, %d glyphs on %d page%s%s.", font.size, len(font.chars), len(font.pages), len(font.pages) == 1 ? "" : "s",
 				missing > 0 ? fmt.tprintf(" %d page image%s missing beside it", missing, missing == 1 ? " is" : "s are") : ""), missing > 0 ? th.color.danger : th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
-			append(&rows, skald.text("Each letter is a picture: crisp at its own size and whole multiples of it, for pixel-art text.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+			append(&rows, uiText(th, .Muted, "Each letter is a picture: crisp at its own size and whole multiples of it, for pixel-art text.", max_width = previewTextWidth))
 		}
 		return skald.col(..rows[:], spacing = th.spacing.xs)
 	}
-	append(&rows, skald.text(fileInfo(path, ""), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+	append(&rows, uiText(th, .Muted, fileInfo(path, ""), max_width = previewTextWidth))
 	Payload :: struct { index: int }
 	append(&rows, skald.checkbox(ctx, asset.msdf, "Sharp at any size (MSDF)", Payload{index},
 		proc(p: Payload, on: bool) -> Msg { return Asset_MSDF_Changed{p.index, on} },
@@ -295,24 +298,25 @@ fontPreview :: proc(ctx: ^skald.Ctx(Msg), s: ^State, index: int) -> skald.View {
 			status = fmt.tprintf("Atlas made (%s); made again when the font changes.", e.MSDF_IMAGE_SUFFIX[1:])
 		}
 		append(&rows, skald.button(ctx, "Make Atlas", Msg(Font_MSDF_Make_Requested(index)), id = skald.hash_id("asset-msdf-make"),
-			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+			bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 	}
-	append(&rows, skald.text(status, th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+	append(&rows, uiText(th, .Muted, status, max_width = previewTextWidth))
 	return skald.col(..rows[:], spacing = th.spacing.xs)
 }
 
 // A sound's Convert to Ogg Vorbis (not for Ogg files)
 audioImportRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, index: int) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	asset := s.project.assets[index]
 	if strings.to_lower(filepath.ext(asset.path), context.temp_allocator) == ".ogg" do return skald.View(skald.View_Spacer{size = 0})
 	button := skald.button(ctx, "Convert to Ogg Vorbis", Msg(Audio_Convert_Requested(index)), id = skald.hash_id("asset-convert"),
-		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm,
+		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm,
 		disabled = Toolchain_FFmpeg() == "")
 	note := Toolchain_FFmpeg() == "" ? "Needs ffmpeg (Settings > Toolchain)." : "A smaller file beside it (quality about 160 kb/s); the project uses it from then on."
 	return skald.col(
 		skald.tooltip(ctx, button, "Make an Ogg Vorbis copy with ffmpeg and use it instead of this file", id = skald.hash_id("asset-convert-tip")),
-		skald.text(note, th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+		uiText(th, .Muted, note, max_width = previewTextWidth),
 		spacing = th.spacing.xs,
 	)
 }

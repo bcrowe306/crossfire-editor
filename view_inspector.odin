@@ -293,6 +293,7 @@ pointIn :: proc(r: skald.Rect, p: [2]f32) -> bool {
 
 @(private="file")
 inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	skald.prof_scope("inspectorView")
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
@@ -350,7 +351,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			header,
 			skald.divider(ctx),
 			skald.col(
-				skald.text("Select a node in the scene tree or the viewport.", th.color.fg_muted, th.font.size_sm),
+				uiText(th, .Label, "Select a node in the scene tree or the viewport."),
 				padding = th.spacing.md,
 			),
 			cross_align = .Stretch,
@@ -367,8 +368,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// Several selected: the inspector edits the primary one
 	multiNote: skald.View = skald.View_Spacer{size = 0}
 	if len(s.selection) > 1 {
-		multiNote = skald.text(fmt.tprintf("%d nodes selected. Editing %s; moving, nudging, copying and deleting act on all.", len(s.selection), node.name),
-			th.color.fg_muted, th.font.size_xs, max_width = 260)
+		multiNote = uiText(th, .Muted, fmt.tprintf("%d nodes selected. Editing %s; moving, nudging, copying and deleting act on all.", len(s.selection), node.name), max_width = tk.textNarrow)
 	}
 
 	// Content inside a scroll view isn't width-limited, so size controls from the sidebar width
@@ -389,7 +389,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			proc(v: string) -> Msg { return Node_Renamed(v) },
 			id = skald.hash_id(fmt.tprintf("inspector-name-%d", key)),
 			width = controlWidth, padding = InspectorFieldPadding(ctx))),
-		inspectorRow(ctx, "Type", skald.text(fmt.tprintf("%s  %v", NodeKindIcon(node.kind), node.kind), th.color.fg_muted, th.font.size_sm)),
+		inspectorRow(ctx, "Type", uiText(th, .Label, fmt.tprintf("%s  %v", NodeKindIcon(node.kind), node.kind))),
 		// X/Y pairs: the chain button links them, so changing one changes the other in proportion
 		inspectorRow(ctx, "Position X", linked(ctx, s, .Position, number(ctx, s, key, .Position_X, node.position.x, 1, 0, numberWidth))),
 		inspectorRow(ctx, "Position Y", linkSpace(ctx, number(ctx, s, key, .Position_Y, node.position.y, 1, 0, numberWidth))),
@@ -419,7 +419,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		for part in strings.split_iterator(&rest, ",") {
 			g := strings.trim_space(part)
 			if g == "" do continue
-			chip := skald.col(skald.text(fmt.tprintf("%s %s", ICON_GRIP, g), th.color.fg_muted, th.font.size_xs), padding = 2, bg = th.color.surface, radius = th.radius.sm)
+			chip := skald.col(uiText(th, .Muted, fmt.tprintf("%s %s", ICON_GRIP, g)), padding = tk.xxs, bg = th.color.surface, radius = th.radius.sm)
 			append(&chips, CodeDrag_Zone(ctx, s, chip, fmt.tprintf("inspector-group-%s-%d", g, key), DropSource{kind = .Group, name = g, node = key, index = -1}))
 		}
 		append(&rows, inspectorLabelled(ctx, skald.spacer(0), skald.wrap_row(..chips[:], spacing = th.spacing.xs, line_spacing = 2, width = controlWidth)))
@@ -463,7 +463,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, ..eventsSection(ctx, s, node, controlWidth))
 
 	if node.kind != .Node2D {
-		append(&rows, skald.divider(ctx), skald.text(fmt.tprintf("%v", node.kind), th.color.fg, th.font.size_sm))
+		append(&rows, skald.divider(ctx), uiText(th, .Value, fmt.tprintf("%v", node.kind)))
 	}
 	switch node.kind {
 	case .Node2D:
@@ -495,7 +495,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			} else if set := AsepriteEdit_AnimationSet(s.project.rootPath, node.animationSet); set != nil {
 				animations = set.animations[:]
 			} else {
-				append(&rows, skald.text(fmt.tprintf("%s can't be read.", node.animationSet), th.color.warning, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+				append(&rows, uiText(th, .Muted, fmt.tprintf("%s can't be read.", node.animationSet), max_width = inspectorRowWidth(controlWidth), color = th.color.warning))
 			}
 		}
 		choices := make([dynamic]string, context.temp_allocator)
@@ -503,7 +503,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		for a in animations do append(&choices, a.name)
 		editButton := skald.button(ctx, fmt.tprintf("%s  Edit Animations", ICON_FILM), Msg(Bottom_Tab_Changed(int(BottomTab.Animation))),
 			id = skald.hash_id(fmt.tprintf("inspector-edit-animations-%d", key)),
-			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 		// Each animation has its own sheet (edited in the Animation panel): the ones they use
 		sheets := make([dynamic]string, context.temp_allocator)
 		for a in animations {
@@ -513,7 +513,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			if !known do append(&sheets, name)
 		}
 		sheetText := len(sheets) == 0 ? "none yet" : strings.join(sheets[:], ", ", context.temp_allocator)
-		append(&rows, inspectorRow(ctx, "Sheets", skald.text(sheetText, th.color.fg_muted, th.font.size_xs, max_width = controlWidth)))
+		append(&rows, inspectorRow(ctx, "Sheets", uiText(th, .Muted, sheetText, max_width = controlWidth)))
 		append(&rows,
 			inspectorRow(ctx, "Starts with", skald.select(ctx, node.autoplay == "" ? ANIMATION_FIRST : node.autoplay, choices[:], NodeTextField.Autoplay, onText,
 				id = skald.hash_id(fmt.tprintf("inspector-autoplay-%d", key)), width = controlWidth)),
@@ -525,7 +525,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		if node.animationSet == "" {
 			append(&rows, skald.button(ctx, fmt.tprintf("%s  Save as Animation Asset", ICON_FILM), Msg(Anim_Set_From_Node{}),
 				id = skald.hash_id(fmt.tprintf("inspector-save-animations-%d", key)),
-				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 		}
 	case .Label:
 		append(&rows,
@@ -580,25 +580,24 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		if i := Project_FindComponent(&s.project, node.component); i >= 0 {
 			open := skald.button(ctx, fmt.tprintf("%s  Edit %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
 				id = skald.hash_id(fmt.tprintf("inspector-open-component-%d", key)),
-				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 			unique := skald.button(ctx, fmt.tprintf("%s  Make Unique", ICON_COPY), Msg(Component_Made_Unique{}),
 				id = skald.hash_id(fmt.tprintf("inspector-make-unique-%d", key)),
-				bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 			append(&rows, inspectorRow(ctx, "", open),
 				inspectorRow(ctx, "", skald.tooltip(ctx, unique, "Give this instance its own copy of the component, to change it without changing the others",
 					id = skald.hash_id(fmt.tprintf("inspector-make-unique-tip-%d", key)))),
-				skald.text("Its name, position, rotation, scale, layer and visibility are this instance's; the rest is the component's: open it to change every instance.",
-					th.color.fg_muted, th.font.size_xs, max_width = 260))
+				uiText(th, .Muted, "Its name, position, rotation, scale, layer and visibility are this instance's; the rest is the component's: open it to change every instance.", max_width = tk.textNarrow))
 		} else if node.component != "" {
-			append(&rows, skald.text(fmt.tprintf("%s isn't in the project.", node.component), th.color.warning, th.font.size_xs, max_width = 260))
+			append(&rows, uiText(th, .Muted, fmt.tprintf("%s isn't in the project.", node.component), max_width = tk.textNarrow, color = th.color.warning))
 		}
 	case .Menu:
 		// Editing buttons comes later; show what the menu does
 		for item in node.items {
-			append(&rows, inspectorRow(ctx, item.label, skald.text(item.action, th.color.fg_muted, th.font.size_sm)))
+			append(&rows, inspectorRow(ctx, item.label, uiText(th, .Label, item.action)))
 		}
 		if len(node.items) == 0 {
-			append(&rows, skald.text("No buttons", th.color.fg_muted, th.font.size_sm))
+			append(&rows, uiText(th, .Label, "No buttons"))
 		}
 	}
 	// Its shader (shader_edit.odin; a ScreenEffect's are its own rows above)
@@ -625,7 +624,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 @(private="package")
 inspectorRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View, tip := "") -> skald.View {
 	// Hovering the label explains the setting (tooltips.odin; `tip` adds to it)
-	view := tipLabel(ctx, label, skald.text(label, ctx.theme.color.fg_muted, ctx.theme.font.size_sm), tip)
+	view := tipLabel(ctx, label, uiText(ctx.theme, .Label, label), tip)
 	// A node's property or script field drags into code (code_drag.odin): key
 	// inspector-label-<label>-<node>, spaces as underscores (inspector-label-Position_X-2)
 	// A script field's label also goes to its declaration: Ctrl+click, or its right-click menu
@@ -676,8 +675,9 @@ label in its column of INSPECTOR_LABEL_WIDTH, or in a narrow inspector (`inspect
 label over the control, which then has the row's whole width.
 */
 inspectorLabelled :: proc(ctx: ^skald.Ctx(Msg), label, control: skald.View) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
-	if inspectorStacked do return skald.col(label, control, spacing = 2)
+	if inspectorStacked do return skald.col(label, control, spacing = tk.xxs)
 	return skald.row(
 		skald.col(label, width = INSPECTOR_LABEL_WIDTH),
 		control,
@@ -777,12 +777,13 @@ InspectorFieldPadding :: proc(ctx: ^skald.Ctx(Msg)) -> [2]f32 {
 // A field followed by its pair's link toggle
 @(private="file")
 linked :: proc(ctx: ^skald.Ctx(Msg), s: ^State, pair: LinkedPair, field: skald.View) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	on := s.inspectorLinks[pair]
 	button := skald.button(ctx, on ? ICON_LINK : ICON_LINK_SLASH, Msg(Inspector_Link_Toggled(pair)),
 		id = skald.hash_id(fmt.tprintf("inspector-link-%v", pair)),
 		bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg_muted,
-		width = LINK_BUTTON_WIDTH, padding = {0, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
+		width = LINK_BUTTON_WIDTH, padding = {0, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
 	tip := on ? "Unlink: change X and Y separately" : "Link X and Y: changing one changes the other in proportion"
 	return skald.row(field, skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("inspector-link-tip-%v", pair))),
 		spacing = th.spacing.xs, cross_align = .Center)
@@ -815,7 +816,7 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 	case .Ready:
 	}
 	append(&rows, skald.row(
-		skald.text(fmt.tprintf("%s  Script", ICON_CODE), th.color.fg, th.font.size_sm),
+		uiText(th, .Value, fmt.tprintf("%s  Script", ICON_CODE)),
 		skald.flex(1, skald.spacer(0)),
 		skald.text(status, s.scripts.status == .Failed ? th.color.danger : th.color.fg_muted, th.font.size_xs),
 		cross_align = .Center,
@@ -832,9 +833,10 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 	// The buttons get their own row, under the dropdown: next to it they ran into the scrollbar
 	// strip in a narrow inspector, which covered them (clicks did nothing)
 	textButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, label, tip: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		button := skald.button(ctx, fmt.tprintf("%s  %s", icon, label), msg, id = skald.hash_id(key),
-			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 		return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 	}
 	buttons := make([dynamic]skald.View, context.temp_allocator)
@@ -848,8 +850,8 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 	desc := ScriptCatalog_Find(&s.scripts, node.script)
 	if desc == nil {
 		message := s.scripts.status == .Building ? "Building..." : fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), node.script)
-		append(&rows, skald.text(message, th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
-		for prop in node.props do append(&rows, inspectorRowView(ctx, prop.name, skald.text(prop.value, th.color.fg_muted, th.font.size_sm)))
+		append(&rows, uiText(th, .Muted, message, max_width = inspectorRowWidth(controlWidth)))
+		for prop in node.props do append(&rows, inspectorRowView(ctx, prop.name, uiText(th, .Label, prop.value)))
 		return rows[:]
 	}
 	// Where the fields come from: read from the source by the script index (the file changed
@@ -860,9 +862,9 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 	source := desc.fromIndex ? fmt.tprintf("From the source: not built yet%s", keyParen(s, .Build_Scripts)) : "From the last build"
 	// As wide as the rows (a wider text widened the inspector's content in a narrow window, and
 	// pushed the Events' Listen... buttons under its scrollbar)
-	append(&rows, skald.text(source, th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+	append(&rows, uiText(th, .Muted, source, max_width = inspectorRowWidth(controlWidth)))
 	if len(desc.fields) == 0 {
-		append(&rows, skald.text("No exported fields (tag a field with export:\"\" to edit it here).", th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+		append(&rows, uiText(th, .Muted, "No exported fields (tag a field with export:\"\" to edit it here).", max_width = inspectorRowWidth(controlWidth)))
 	}
 	// Their labels drag into code as the script's fields
 	inspectorDrag.script = node.script

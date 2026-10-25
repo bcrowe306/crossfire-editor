@@ -588,6 +588,7 @@ The inspector's rows for a StateMachine: its start state, the sprite it animates
 the States tab.
 */
 stateMachineInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	sm := &node.stateMachine
@@ -604,11 +605,11 @@ stateMachineInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDe
 	append(&rows, inspectorRow(ctx, "Animates", skald.select(ctx, sm.target == "" ? TARGET_PARENT : sm.target, targets[:], proc(v: string) -> Msg { return SM_Changed{op = .Target_Set, text = v} },
 		id = skald.hash_id(fmt.tprintf("inspector-sm-target-%d", key)), width = controlWidth)))
 	if States_Target(scene, key) < 0 {
-		append(&rows, skald.text("It animates no AnimatedSprite: states' animations do nothing (scripts still read its state).", th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+		append(&rows, uiText(th, .Muted, "It animates no AnimatedSprite: states' animations do nothing (scripts still read its state).", max_width = inspectorRowWidth(controlWidth)))
 	}
-	append(&rows, skald.text(fmt.tprintf("%d states, %d transitions, %d parameters", len(sm.states), len(sm.transitions), len(sm.params)), th.color.fg_muted, th.font.size_xs))
+	append(&rows, uiText(th, .Muted, fmt.tprintf("%d states, %d transitions, %d parameters", len(sm.states), len(sm.transitions), len(sm.params))))
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  Edit in the States tab", ICON_SITEMAP), Msg(Bottom_Tab_Changed(int(BottomTab.States))),
-		id = skald.hash_id(fmt.tprintf("inspector-sm-edit-%d", key)), padding = {th.spacing.sm, 2}, font_size = th.font.size_sm))
+		id = skald.hash_id(fmt.tprintf("inspector-sm-edit-%d", key)), padding = tk.fieldPadding, font_size = th.font.size_sm))
 	_ = numberWidth
 	return rows[:]
 }

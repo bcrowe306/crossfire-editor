@@ -121,9 +121,10 @@ A MusicPlayer's Layers rows: each layer's name, music and volume with a remove b
 Layer. Keys `inspector-layer-<i>-name` / `-sound` / `-volume` / `-remove`, `inspector-layer-add`.
 */
 musicLayerRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows, skald.divider(ctx), skald.text("Layers", th.color.fg, th.font.size_sm))
+	append(&rows, skald.divider(ctx), uiText(th, .Value, "Layers"))
 	choices := make([dynamic]string, context.temp_allocator)
 	append(&choices, TEXTURE_NONE)
 	for asset in s.project.assets do if asset.kind == .Music do append(&choices, asset.path)
@@ -133,9 +134,9 @@ musicLayerRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlW
 	onVolume :: proc(i: int, v: f32) -> Msg { return Music_Layer_Changed{index = i, field = .Volume, value = v} }
 	for l, i in node.musicLayers {
 		remove := skald.button(ctx, ICON_TRASH, Msg(Music_Layer_Removed(i)), id = key(i, "remove"),
-			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {th.spacing.xs, 1})
+			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
 		append(&rows,
-			skald.row(skald.text(fmt.tprintf("Layer %d", i + 1), th.color.fg_muted, th.font.size_xs), skald.flex(1, skald.spacer(0)), remove,
+			skald.row(uiText(th, .Muted, fmt.tprintf("Layer %d", i + 1)), skald.flex(1, skald.spacer(0)), remove,
 				cross_align = .Center, width = inspectorRowWidth(controlWidth)),
 			inspectorRow(ctx, "Layer name", skald.text_input(ctx, l.name, i, onName, id = key(i, "name"), width = controlWidth,
 				placeholder = "drums", padding = InspectorFieldPadding(ctx))),
@@ -144,17 +145,16 @@ musicLayerRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlW
 			inspectorRow(ctx, "Layer volume", valueSlider(ctx, fmt.tprintf("inspector-layer-%d-volume", i), l.volume, i, onVolume, 0, 2,
 				step = 0.01, decimals = 2, defaultValue = 1, width = controlWidth)),
 		)
-		if l.name == "" do append(&rows, skald.text("A layer needs a name: scripts fade it by name.", th.color.warning, th.font.size_xs))
+		if l.name == "" do append(&rows, uiText(th, .Muted, "A layer needs a name: scripts fade it by name.", color = th.color.warning))
 		for other, j in node.musicLayers do if j < i && other.name == l.name && l.name != "" {
-			append(&rows, skald.text(fmt.tprintf("Another layer is called %s: the game keeps the last one.", l.name), th.color.warning, th.font.size_xs))
+			append(&rows, uiText(th, .Muted, fmt.tprintf("Another layer is called %s: the game keeps the last one.", l.name), color = th.color.warning))
 			break
 		}
 	}
 	add := skald.button(ctx, fmt.tprintf("%s  Add Layer", ICON_PLUS), Msg(Music_Layer_Added{}), id = skald.hash_id("inspector-layer-add"),
-		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, inspectorRow(ctx, "", skald.tooltip(ctx, add, "A music file that plays in step with this one (a stem: drums, strings); fade it from a script",
 		id = skald.hash_id("inspector-layer-add-tip"))))
-	append(&rows, skald.text("Layers play in step with the music in the game, at their volume times the player's. Scripts fade them: e.MusicPlayer_SetLayerVolume(music, \"drums\", 1, seconds = 2).",
-		th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+	append(&rows, uiText(th, .Muted, "Layers play in step with the music in the game, at their volume times the player's. Scripts fade them: e.MusicPlayer_SetLayerVolume(music, \"drums\", 1, seconds = 2).", max_width = inspectorRowWidth(controlWidth)))
 	return rows[:]
 }

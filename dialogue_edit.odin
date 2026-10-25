@@ -395,6 +395,7 @@ The inspector's rows for a DialogueBox: its dialogue and start node, size, typin
 colors, autostart and hiding, and Edit in the Dialogue tab.
 */
 dialogueBoxRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	b := node.dialogueBox
@@ -446,8 +447,8 @@ dialogueBoxRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 	for asset in s.project.assets do if asset.kind == .Font do append(&fonts, asset.path)
 	append(&rows, inspectorRow(ctx, "Box font", choice(ctx, .Font, key, b.font == "" ? TEXTURE_NONE : b.font, fonts[:], controlWidth)))
 	append(&rows, inspectorRow(ctx, "", skald.button(ctx, fmt.tprintf("%s  Edit in the Dialogue tab", ICON_COMMENTS), Msg(Dialogue_View{op = .Show, path = node.dialogue}), id = skald.hash_id(fmt.tprintf("inspector-dialogue-edit-%d", key)),
-		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)))
-	append(&rows, skald.text("The player continues with ui_accept (Space, Enter, a click) and picks options with ui_up / ui_down. Scripts: e.DialogueBox_Start(box, \"Node\"); its onCommand runs your commands.", th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)))
+	append(&rows, uiText(th, .Muted, "The player continues with ui_accept (Space, Enter, a click) and picks options with ui_up / ui_down. Scripts: e.DialogueBox_Start(box, \"Node\"); its onCommand runs your commands.", max_width = inspectorRowWidth(controlWidth)))
 	return rows[:]
 }
 

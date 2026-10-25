@@ -80,7 +80,7 @@ browserTree :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	items := BrowserRows(s)
 	if len(items) == 0 {
 		return skald.col(
-			skald.text(fmt.tprintf("Nothing matches '%s'", s.browserSearch), th.color.fg_muted, th.font.size_sm),
+			uiText(th, .Label, fmt.tprintf("Nothing matches '%s'", s.browserSearch)),
 			padding = th.spacing.md,
 		)
 	}
@@ -209,6 +209,7 @@ keeps the name (if it's valid), Escape cancels.
 */
 @(private="file")
 browserRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	none := skald.View(skald.View_Spacer{size = 0})
 	if !s.rename.active || s.rename.target == .Node do return none
@@ -250,7 +251,7 @@ browserRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> 
 	return skald.overlay({x, y, 0, 0},
 		skald.text_input(ctx, s.rename.text,
 			proc(v: string) -> Msg { return Rename_Text_Changed(v) },
-			id = id, width = max(tree.x + tree.w - x - th.spacing.xs, 80), height = rowHeight, font_size = th.font.size_sm,
+			id = id, width = max(tree.x + tree.w - x - th.spacing.xs, tk.fieldXS), height = rowHeight, font_size = th.font.size_sm,
 			invalid = problem != "", error = problem),
 		no_shadow = true, pin = true)
 }
@@ -337,8 +338,8 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 	skald.cursor_request_top(ctx, takes ? .Move : .Not_Allowed)
 	return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
 		skald.col(
-			skald.text(label, th.color.fg, th.font.size_sm),
-			skald.text(hint, th.color.fg_muted, th.font.size_xs),
+			uiText(th, .Value, label),
+			uiText(th, .Muted, hint),
 			padding = th.spacing.sm,
 			bg = th.color.elevated,
 			radius = th.radius.sm,
@@ -372,6 +373,7 @@ previewImageArea: [2]f32
 // The selected asset: an image fitted to the panel, or a player for a sound
 @(private="file")
 previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	previewImageArea = {}
 	content: skald.View
@@ -380,7 +382,7 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	} else if s.browserSelection.kind == .Scene && s.browserSelection.index >= 0 && s.browserSelection.index < len(s.project.scenes) {
 		content = scenePreview(s, ctx, s.browserSelection.index)
 	} else if s.browserSelection.kind != .Asset || s.browserSelection.index >= len(s.project.assets) {
-		content = skald.text("Select a scene, image, sound or script to preview it.", th.color.fg_muted, th.font.size_sm, max_width = previewTextWidth)
+		content = uiText(th, .Label, "Select a scene, image, sound or script to preview it.", max_width = previewTextWidth)
 	} else {
 		asset := s.project.assets[s.browserSelection.index]
 		path := AssetFilePath(&s.project, asset)
@@ -401,8 +403,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		case .Theme:
 			isProject := s.project.uiTheme == asset.path
 			content = skald.col(
-				skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
-				skald.text(isProject ? "The project's UI theme; edit it in the inspector" : "A UI theme; edit it in the inspector", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+				uiText(th, .Value, Asset_DisplayName(asset.path), max_width = previewTextWidth),
+				uiText(th, .Muted, isProject ? "The project's UI theme; edit it in the inspector" : "A UI theme; edit it in the inspector", max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
 		case .Shader:
@@ -413,10 +415,10 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			i := Project_FindDialogue(&s.project, asset.path)
 			nodes := i >= 0 ? len(s.project.dialogues[i].data.nodes) : 0
 			content = skald.col(
-				skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
-				skald.text(fmt.tprintf("A dialogue of %d node%s: edit it in the bottom panel's Dialogue tab; a DialogueBox node plays it.", nodes, nodes == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+				uiText(th, .Value, Asset_DisplayName(asset.path), max_width = previewTextWidth),
+				uiText(th, .Muted, fmt.tprintf("A dialogue of %d node%s: edit it in the bottom panel's Dialogue tab; a DialogueBox node plays it.", nodes, nodes == 1 ? "" : "s"), max_width = previewTextWidth),
 				skald.button(ctx, fmt.tprintf("%s  Edit in the Dialogue tab", ICON_COMMENTS), Msg(Bottom_Tab_Changed(int(BottomTab.Dialogue))), id = skald.hash_id("dialogue-preview-edit"),
-					bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+					bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm),
 				spacing = th.spacing.xs,
 			)
 		case .PhysicsMaterial:
@@ -427,8 +429,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				text = fmt.tprintf("Friction %.2f, bounce %.2f, density %.2f. Used by %d bod%s; edit it in the inspector.", m.friction, m.restitution, m.density, users, users == 1 ? "y" : "ies")
 			}
 			content = skald.col(
-				skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
-				skald.text(text, th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+				uiText(th, .Value, Asset_DisplayName(asset.path), max_width = previewTextWidth),
+				uiText(th, .Muted, text, max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
 		case .LDtk:
@@ -439,8 +441,8 @@ previewPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			i := Project_FindData(&s.project, asset.path)
 			type := i >= 0 ? s.project.data[i].type : "?"
 			content = skald.col(
-				skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
-				skald.text(fmt.tprintf("%s data resource; edit it in the inspector", type), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+				uiText(th, .Value, Asset_DisplayName(asset.path), max_width = previewTextWidth),
+				uiText(th, .Muted, fmt.tprintf("%s data resource; edit it in the inspector", type), max_width = previewTextWidth),
 				spacing = th.spacing.xs,
 			)
 		}
@@ -478,8 +480,8 @@ imagePreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 	})
 	return skald.col(
 		skald.flex(1, image),
-		skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
-		skald.text(fileInfo(path, dimensions), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+		uiText(th, .Value, Asset_DisplayName(asset.path), max_width = previewTextWidth),
+		uiText(th, .Muted, fileInfo(path, dimensions), max_width = previewTextWidth),
 		spacing = th.spacing.xs,
 		cross_align = .Stretch,
 	)
@@ -521,15 +523,16 @@ componentPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> sk
 	instances := Component_InstanceCount(&s.project, asset.path)
 	root := len(component.nodes) > 0 ? fmt.tprintf("%v", component.nodes[0].kind) : "empty"
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
 	return skald.col(
 		skald.flex(1, picture),
-		skald.text(fmt.tprintf("%s  %s", ICON_CUBES, component.name), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
-		skald.text(fmt.tprintf("%d node%s (%s root) · %d instance%s", len(component.nodes), len(component.nodes) == 1 ? "" : "s", root,
-			instances, instances == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+		uiText(th, .Value, fmt.tprintf("%s  %s", ICON_CUBES, component.name), max_width = previewTextWidth),
+		uiText(th, .Muted, fmt.tprintf("%d node%s (%s root) · %d instance%s", len(component.nodes), len(component.nodes) == 1 ? "" : "s", root,
+			instances, instances == 1 ? "" : "s"), max_width = previewTextWidth),
 		skald.row(
 			button(ctx, "component-open", fmt.tprintf("%s  Edit", ICON_CUBES), Msg(Component_Opened(index))),
 			button(ctx, "component-add", fmt.tprintf("%s  Add to Scene", ICON_PLUS), Msg(Component_Instance_Added(s.browserSelection.index))),
@@ -542,6 +545,7 @@ componentPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> sk
 
 @(private="file")
 audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	playing := AudioPreview_IsPlaying()
 	position, duration := AudioPreview_Progress()
@@ -550,8 +554,8 @@ audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 
 	if !AudioPreview_IsLoaded(path) {
 		return skald.col(
-			skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
-			skald.text("Couldn't load this sound (see the Console).", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+			uiText(th, .Value, Asset_DisplayName(asset.path), max_width = previewTextWidth),
+			uiText(th, .Muted, "Couldn't load this sound (see the Console).", max_width = previewTextWidth),
 			spacing = th.spacing.xs,
 		)
 	}
@@ -560,20 +564,20 @@ audioPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: str
 	Bar :: struct { fraction: f32, color, track: skald.Color }
 	bar := Bar{fraction, th.color.primary, th.color.surface}
 	return skald.col(
-		skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth),
+		uiText(th, .Value, Asset_DisplayName(asset.path), max_width = previewTextWidth),
 		skald.row(
 			skald.button(ctx, playing ? fmt.tprintf("%s  Stop", ICON_STOP) : fmt.tprintf("%s  Play", ICON_PLAY),
 				Msg(playing ? Action.Stop_Audio_Preview : Action.Play_Audio_Preview),
-				id = skald.hash_id("preview-play"), width = 90),
-			skald.text(fmt.tprintf("%s / %s", FormatDuration(position), FormatDuration(duration)), th.color.fg_muted, th.font.size_sm, max_width = previewTextWidth),
+				id = skald.hash_id("preview-play"), width = tk.fieldXS),
+			uiText(th, .Label, fmt.tprintf("%s / %s", FormatDuration(position), FormatDuration(duration)), max_width = previewTextWidth),
 			spacing = th.spacing.sm,
 			cross_align = .Center,
 		),
 		skald.canvas(ctx, new_clone(bar, context.temp_allocator), proc(bar: ^Bar, p: skald.Canvas_Painter) {
 			skald.draw_rect(p.r, p.bounds, bar.track, 3)
 			skald.draw_rect(p.r, {p.bounds.x, p.bounds.y, p.bounds.w * clamp(bar.fraction, 0, 1), p.bounds.h}, bar.color, 3)
-		}, height = 6),
-		skald.text(fileInfo(path, ""), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth),
+		}, height = tk.s),
+		uiText(th, .Muted, fileInfo(path, ""), max_width = previewTextWidth),
 		spacing = th.spacing.sm,
 		cross_align = .Stretch,
 	)
@@ -620,7 +624,7 @@ assetIcon :: proc(kind: AssetKind) -> string {
 translationPreview :: proc(ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) -> skald.View {
 	th := ctx.theme
 	lines := make([dynamic]skald.View, context.temp_allocator)
-	append(&lines, skald.text(Asset_DisplayName(asset.path), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+	append(&lines, uiText(th, .Value, Asset_DisplayName(asset.path), max_width = previewTextWidth))
 	data, err := os.read_entire_file(path, context.temp_allocator)
 	// Parsed by the engine, as the game will (a scratch game's tables, freed below)
 	game: e.Game
@@ -631,16 +635,16 @@ translationPreview :: proc(ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) 
 		ok = e.Locale_LoadCSV(&game, string(data), asset.path)
 	}
 	if !ok {
-		append(&lines, skald.text("Not a translation table: the first row must be key,<language>,<language>...", th.color.danger, th.font.size_xs, max_width = previewTextWidth))
+		append(&lines, uiText(th, .Muted, "Not a translation table: the first row must be key,<language>,<language>...", max_width = previewTextWidth, color = th.color.danger))
 	} else {
 		locales := e.Locale_List(&game)
-		append(&lines, skald.text(fmt.tprintf("%d keys in %s", len(game.localization.texts), strings.join(locales, ", ", context.temp_allocator)), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
-		append(&lines, skald.text("Labels and menu items show a key's text when theirs is @key; scripts call e.Tr(key).", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		append(&lines, uiText(th, .Muted, fmt.tprintf("%d keys in %s", len(game.localization.texts), strings.join(locales, ", ", context.temp_allocator)), max_width = previewTextWidth))
+		append(&lines, uiText(th, .Muted, "Labels and menu items show a key's text when theirs is @key; scripts call e.Tr(key).", max_width = previewTextWidth))
 		shown := 0
 		for key, values in game.localization.texts {
 			if shown == 12 do break
 			first := len(values) > 0 ? values[0] : ""
-			append(&lines, skald.text(fmt.tprintf("%s: %s", key, first), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+			append(&lines, uiText(th, .Muted, fmt.tprintf("%s: %s", key, first), max_width = previewTextWidth))
 			shown += 1
 		}
 	}

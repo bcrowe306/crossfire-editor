@@ -418,6 +418,7 @@ LDtk_RememberLevel :: proc(settings, file: string, levelUid: int) -> string {
 
 // The inspector's LDtkLevel rows
 ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	settings := &node.ldtk
@@ -427,7 +428,8 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 		return skald.checkbox(ctx, value, "", field, onFlag, id = skald.hash_id(fmt.tprintf("inspector-ldtk-%s-%d", name, key)))
 	}
 	small :: proc(ctx: ^skald.Ctx(Msg), text: string, color: skald.Color) -> skald.View {
-		return skald.text(text, color, ctx.theme.font.size_xs, max_width = 260)
+		tk := uiTokens(ctx)
+		return skald.text(text, color, ctx.theme.font.size_xs, max_width = tk.textNarrow)
 	}
 
 	files := make([dynamic]string, context.temp_allocator)
@@ -441,7 +443,7 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 	project := LDtkEdit_Project(s.project.rootPath, settings.file)
 	open := skald.button(ctx, fmt.tprintf("%s  Open in LDtk", ICON_MAP), Msg(LDtk_Open_Requested{}),
 		id = skald.hash_id(fmt.tprintf("inspector-ldtk-open-%d", key)),
-		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, inspectorRow(ctx, "", open))
 	if project == nil {
 		append(&rows, small(ctx, fmt.tprintf("%s can't be read as an LDtk project.", settings.file), th.color.warning))
@@ -512,7 +514,7 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 			counts[entity.identifier] += 1
 			if entity.identifier not_in samples do samples[entity.identifier] = &entity
 		}
-		append(&rows, skald.text(fmt.tprintf("%s  Entities", ICON_CUBES), th.color.fg, th.font.size_sm))
+		append(&rows, uiText(th, .Value, fmt.tprintf("%s  Entities", ICON_CUBES)))
 		for def in project.entities {
 			rule := e.LDtk_EntityRule(settings, def.identifier)
 			becomes := rule.component != "" && (rule.make == .Auto || rule.make == .Component) ? rule.component : LDTK_MAKE_LABELS[rule.make == .Component ? .Auto : rule.make]
@@ -526,7 +528,7 @@ ldtkInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: 
 				choices = more[:]
 			}
 			entity := strings.clone(def.identifier, context.temp_allocator)
-			append(&rows, skald.text(fmt.tprintf("%s ×%d", def.identifier, counts[def.identifier]), th.color.fg, th.font.size_sm))
+			append(&rows, uiText(th, .Value, fmt.tprintf("%s ×%d", def.identifier, counts[def.identifier])))
 			append(&rows, inspectorRow(ctx, "Becomes", labeledSelect(ctx, becomes, Asset_DisplayNames(makes[:]), makes[:], entity,
 				proc(entity: string, value: string) -> Msg { return LDtk_Setting_Changed{field = .Entity_Make, text = value, name = entity} },
 				id = skald.hash_id(fmt.tprintf("inspector-ldtk-component-%s-%d", def.identifier, key)), width = controlWidth)))
@@ -626,36 +628,37 @@ The browser's preview of an LDtk asset: its worlds' levels (size, layers, entiti
 LDtk.
 */
 ldtkPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef, path: string) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	project := LDtkEdit_Project(s.project.rootPath, asset.path)
 	// The whole world, as the game draws it
 	picture: skald.View = skald.spacer(0)
 	if project != nil do picture = ldtkThumbnailView(ctx, s, .Browser, asset.path, "", true, 0, 0)
-	append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_MAP, filepath.base(asset.path)), th.color.fg, th.font.size_sm, max_width = previewTextWidth))
+	append(&rows, uiText(th, .Value, fmt.tprintf("%s  %s", ICON_MAP, filepath.base(asset.path)), max_width = previewTextWidth))
 	if project == nil {
-		append(&rows, skald.text("This file can't be read as an LDtk project.", th.color.danger, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, "This file can't be read as an LDtk project.", max_width = previewTextWidth, color = th.color.danger))
 	} else {
 		levels := 0
 		for world in project.worlds do levels += len(world.levels)
-		append(&rows, skald.text(fmt.tprintf("LDtk %s · %d level%s · %d tileset%s", project.jsonVersion, levels, levels == 1 ? "" : "s",
-			len(project.tilesets), len(project.tilesets) == 1 ? "" : "s"), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, fmt.tprintf("LDtk %s · %d level%s · %d tileset%s", project.jsonVersion, levels, levels == 1 ? "" : "s",
+			len(project.tilesets), len(project.tilesets) == 1 ? "" : "s"), max_width = previewTextWidth))
 		for world in project.worlds {
 			if len(project.worlds) > 1 do append(&rows, skald.text(fmt.tprintf("%s (%v)", world.identifier, world.layout), th.color.fg, th.font.size_xs, max_width = previewTextWidth))
 			for level in world.levels {
 				entities := 0
 				for l in level.layers do entities += len(l.entities)
-				append(&rows, skald.text(fmt.tprintf("%s  %.0f x %.0f · %d layers · %d entities", level.identifier, level.size.x, level.size.y,
-					len(level.layers), entities), th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+				append(&rows, uiText(th, .Muted, fmt.tprintf("%s  %.0f x %.0f · %d layers · %d entities", level.identifier, level.size.x, level.size.y,
+					len(level.layers), entities), max_width = previewTextWidth))
 			}
 		}
-		append(&rows, skald.text("Drag it into the viewport to add a level, or add an LDtkLevel node.", th.color.fg_muted, th.font.size_xs, max_width = previewTextWidth))
+		append(&rows, uiText(th, .Muted, "Drag it into the viewport to add a level, or add an LDtkLevel node.", max_width = previewTextWidth))
 	}
 	index := -1
 	for a, i in s.project.assets do if a.path == asset.path do index = i
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  Open in LDtk", ICON_MAP), Msg(LDtk_Asset_Open_Requested(index)),
 		id = skald.hash_id("browser-ldtk-open"), bg = th.color.surface, fg = th.color.fg,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+		padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 	return skald.col(
 		skald.flex(3, picture),
 		skald.flex(2, skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.sm), id = skald.hash_id("browser-ldtk-preview"))),

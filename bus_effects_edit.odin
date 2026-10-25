@@ -119,6 +119,7 @@ settings, move and remove; Add Effect. Keys `bus-effect-add`, `bus-effect-<i>-<f
 `bus-effect-<i>-remove`, `bus-effect-<i>-up`, `bus-effect-<i>-down`.
 */
 busEffectsInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	index := s.busSelection
 	b := &s.project.buses[index]
@@ -126,9 +127,8 @@ busEffectsInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	controlWidth := min(inspectorControlWidth(th, sidebarWidth), INSPECTOR_MAX_TEXT_WIDTH)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows,
-		skald.text(fmt.tprintf("%s  %s", ICON_VOLUME, b.name), th.color.fg, th.font.size_md),
-		skald.text(index == 0 ? "Master bus: its effects change everything the game plays." : "Mix bus: its effects change the sounds that play on it.",
-			th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)),
+		uiText(th, .Section, fmt.tprintf("%s  %s", ICON_VOLUME, b.name)),
+		uiText(th, .Muted, index == 0 ? "Master bus: its effects change everything the game plays." : "Mix bus: its effects change the sounds that play on it.", max_width = inspectorRowWidth(controlWidth)),
 	)
 	Payload :: struct { bus, index: int, field: BusEffectField }
 	slide :: proc(p: Payload, v: f32) -> Msg { return Bus_Effect_Changed{p.bus, p.index, p.field, v, false} }
@@ -137,11 +137,11 @@ busEffectsInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	for fx, i in BusDef_Effects(b) {
 		append(&rows, skald.divider(ctx))
 		up := skald.button(ctx, ICON_ARROW_UP, Msg(Bus_Effect_Moved{index, i, -1}), id = skald.hash_id(key(i, "up")),
-			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {th.spacing.xs, 1})
+			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
 		down := skald.button(ctx, ICON_ARROW_DOWN, Msg(Bus_Effect_Moved{index, i, 1}), id = skald.hash_id(key(i, "down")),
-			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {th.spacing.xs, 1})
+			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
 		remove := skald.button(ctx, ICON_TRASH, Msg(Bus_Effect_Removed{index, i}), id = skald.hash_id(key(i, "remove")),
-			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {th.spacing.xs, 1})
+			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
 		append(&rows, skald.row(skald.text(fmt.tprintf("%d. %s", i + 1, BUS_EFFECT_LABELS[fx.kind]), fx.bypass ? th.color.fg_muted : th.color.fg, th.font.size_sm),
 			skald.flex(1, skald.spacer(0)), up, down, remove, spacing = th.spacing.xs, cross_align = .Center, width = inspectorRowWidth(controlWidth)))
 		CheckPayload :: struct { bus, index: int }
@@ -172,7 +172,7 @@ busEffectsInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	append(&rows, skald.divider(ctx))
 	if b.effectCount >= e.AUDIO_MAX_EFFECTS {
-		append(&rows, skald.text(fmt.tprintf("A bus takes %d effects at most.", e.AUDIO_MAX_EFFECTS), th.color.fg_muted, th.font.size_xs))
+		append(&rows, uiText(th, .Muted, fmt.tprintf("A bus takes %d effects at most.", e.AUDIO_MAX_EFFECTS)))
 	} else {
 		choices := make([dynamic]string, context.temp_allocator)
 		for label in BUS_EFFECT_LABELS do append(&choices, label)
@@ -183,10 +183,9 @@ busEffectsInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				return Bus_Effect_Added{p.bus, .LowPass}
 			}, id = skald.hash_id("bus-effect-add"), width = controlWidth, placeholder = "Choose an effect")))
 	}
-	append(&rows, skald.text("Effects run in order on everything mixed on the bus. Preview a sound on it (its inspector's Preview) to hear them; Bypass compares with and without.",
-		th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+	append(&rows, uiText(th, .Muted, "Effects run in order on everything mixed on the bus. Preview a sound on it (its inspector's Preview) to hear them; Bypass compares with and without.", max_width = inspectorRowWidth(controlWidth)))
 	manual := skald.button(ctx, fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("audio_effects_and_music")), id = skald.hash_id("bus-effect-manual"),
-		bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, manual)
 	return skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.md)
 }
