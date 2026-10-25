@@ -771,7 +771,7 @@ sceneTreeRename :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skal
 
 // Inspector text boxes are a little tighter than Skald's default (spacing.md x spacing.sm)
 InspectorFieldPadding :: proc(ctx: ^skald.Ctx(Msg)) -> [2]f32 {
-	return {ctx.theme.spacing.sm, 2}
+	return uiTokens(ctx).fieldPadding
 }
 
 // A field followed by its pair's link toggle

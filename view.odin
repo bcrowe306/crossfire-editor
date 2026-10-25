@@ -13,6 +13,9 @@ Draws the whole editor window from the state. Called every frame.
 view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	FrameStats_Begin()
 	rowTipCount = 0
+	// The design tokens' row height and the text hierarchy's fonts (ui_tokens.odin)
+	uiRowHeight = s.settings.rowHeight
+	uiLoadFonts(ctx)
 	ensureIconFont(ctx)
 	// The viewport and code tabs draw on Skald's GPU device (gpu_share.odin)
 	SharedGPU_SetSkald(ctx.renderer)
@@ -362,17 +365,19 @@ physicsDebugTip :: proc(s: ^State) -> string {
 @(private="file")
 toolButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, active := false, disabled := false, prefix := "toolbar-") -> skald.View {
 	th := ctx.theme
+	t := uiTokens(ctx)
 	bg := active ? th.color.primary : th.color.surface
 	fg := active ? th.color.on_primary : th.color.fg
 	button := skald.button(ctx, icon, msg,
 		id = skald.hash_id(fmt.tprintf("%s%s", prefix, key)),
-		bg = bg, fg = fg, width = math.round(th.font.size_md * 2.4), padding = {0, th.spacing.xs + 2}, disabled = disabled)
+		bg = bg, fg = fg, width = t.toolButtonWidth, padding = {0, t.xs + t.xxs}, font_size = t.iconLarge, disabled = disabled)
 	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%stip-%s", prefix == "" ? "toolbar-" : prefix, key)))
 }
 
 @(private="file")
 toolbarSeparator :: proc(ctx: ^skald.Ctx(Msg)) -> skald.View {
-	return skald.row(skald.divider(ctx, vertical = true), height = math.round(ctx.theme.font.size_md * 1.6), padding = ctx.theme.spacing.xs)
+	t := uiTokens(ctx)
+	return skald.row(skald.divider(ctx, vertical = true), height = math.round(ctx.theme.font.size_md * 1.6), padding = t.xs)
 }
 
 /*
@@ -492,13 +497,14 @@ Header strip at the top of a panel: an icon and title, plus optional action butt
 */
 panelHeader :: proc(ctx: ^skald.Ctx(Msg), icon, title: string, actions: ..skald.View) -> skald.View {
 	th := ctx.theme
+	t := uiTokens(ctx)
 	children := make([dynamic]skald.View, context.temp_allocator)
-	append(&children, skald.text(fmt.tprintf("%s  %s", icon, title), th.color.fg, th.font.size_sm))
+	append(&children, uiText(th, .Panel_Title, fmt.tprintf("%s  %s", icon, title)))
 	append(&children, skald.flex(1, skald.spacer(0)))
 	append(&children, ..actions)
 	return skald.row(..children[:],
-		spacing = th.spacing.xs,
-		padding = th.spacing.sm,
+		spacing = t.buttonGap,
+		padding = t.panelPadding,
 		cross_align = .Center,
 		bg = th.color.surface,
 	)
@@ -528,11 +534,12 @@ buttons kept their older keys (`ldtk-layers-add-IntGrid`). `on` shows it pressed
 */
 panelToolButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, label := "", disabled := false, on := false) -> skald.View {
 	th := ctx.theme
+	t := uiTokens(ctx)
 	text := label == "" ? icon : icon == "" ? label : fmt.tprintf("%s %s", icon, label)
 	button := skald.button(ctx, text, msg,
 		id = skald.hash_id(key),
 		bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg_muted,
-		width = label == "" ? math.round(th.font.size_md * 1.9) : 0, padding = {label == "" ? 0 : th.spacing.sm, 3}, font_size = th.font.size_sm, disabled = disabled)
+		width = label == "" ? t.panelButtonWidth : 0, padding = {label == "" ? 0 : t.s, t.xs}, font_size = t.iconMedium, disabled = disabled)
 	tipKey := strings.has_prefix(key, "panel-") ? fmt.tprintf("panel-tip-%s", key[len("panel-"):]) : fmt.tprintf("%s-tip", key)
 	return skald.tooltip(ctx, button, tip, id = skald.hash_id(tipKey))
 }

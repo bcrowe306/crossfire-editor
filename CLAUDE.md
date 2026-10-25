@@ -339,6 +339,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard, Toolchain tabs |
 | `settings.default.ini` | Default settings, built into the editor |
+| `ui_tokens.odin` | **The design tokens** ("Design tokens" below): `Ui_Tokens` / `UiTokens_Of` / `uiTokens(ctx)` (the spacing scale, control and row heights, panel padding, section and button gaps, label columns, field and dialog widths, icon sizes, all from the look shown and the Row height setting), the text hierarchy (`Text_Role`, `TextRole_Style`, `uiText`; `uiMonoFont`) |
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); `Tree_RowView` (one row's look: every list's), `rowList` (a list of keyed rows that look and act as the tree's: the Level mode's sidebars and bottom lists); type colors (`AssetKind_Color`); `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings; `NumberField_MinWidth` (never drawn narrower) |
@@ -3041,6 +3042,32 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   `guides`, `guide`, `local_axes`. Tests: `viewport_tool_drags`, `zoom_tool_clicks_and_boxes`,
   `align_and_distribute`, `alt_drag_moves_a_copy`, `tests/ui/viewport_tools.script`. User guide:
   `docs/manual/scenes_and_nodes.md`.
+
+## Design tokens (implemented, `ui_tokens.odin`)
+
+TODO.md's "UI and UX" round 3 (2026-10-25): one set of sizes for every view, so spacing stays even
+and everything scales together with Settings > Appearance's Text size, Spacing and Row height.
+- **The tokens** (`uiTokens(ctx)`: `UiTokens_Of(ctx.theme, uiRowHeight)`): the spacing scale
+  `hair` (1) / `xxs` (half of xs) / `xs` / `s` / `m` / `l` / `xl` (Skald's theme spacing: a 4 px
+  grid at 100% Spacing, 3 / 6 / 9 / 12 / 18 at the default 75%); `panelPadding`, `sectionGap`,
+  `rowGap`, `buttonGap`, `fieldPadding` / `buttonPadding` (dense fields and small buttons);
+  `controlHeight`, `rowHeight` (the Row height setting: `view` sets `uiRowHeight`),
+  `headerHeight`; `labelWidth` (the inspector's 82 px column) / `labelWidthWide`, field widths
+  `fieldXS`...`fieldXL`, dialog widths `dialogS` / `dialogM` / `dialogL`; icons `iconSmall`
+  (rows, tabs), `iconMedium` (panel header buttons), `iconLarge` (the toolbar);
+  `toolButtonWidth`, `panelButtonWidth`, `squareButton`. Lengths in text units are measured at
+  13 px (`TOKENS_BASE_FONT`), so at the default look they're the sizes the views always had.
+- **Rules for new UI:** lay out with the tokens, never a pixel number in a layout call's
+  `padding`, `spacing`, `width`, `height` or a `spacer` (`view_layout_uses_design_tokens` scans
+  the view files; its allow-list holds drawing math with a reason). Label columns in a panel use
+  one token (`labelWidth`, or `labelWidthWide` for Settings' pages); a group of buttons one gap
+  (`buttonGap`); sections one gap (`sectionGap`); panel headers are `panelHeader` (one height
+  and padding). Text goes through `uiText(th, role, str)`: `.Title` (dialogs), `.Panel_Title`
+  (panel headers, tabs), `.Section`, `.Label`, `.Value`, `.Muted` (help, captions), `.Code`
+  (the code editor's monospace font); a status color (warning, danger) overrides a role's
+  color, never its size.
+- Test: `design_tokens_scale_with_the_look` (the default look's sizes, the 4 px grid, text
+  scaling, the hierarchy's order).
 
 ## The editor's look (implemented, `editor_theme.odin`, Settings > Appearance)
 
