@@ -3,6 +3,7 @@ package crossfire_editor
 import "core:os"
 import "core:strings"
 import "core:testing"
+import "gui:skald"
 
 // Steps the State through a pointer (see CLAUDE.md's conventions)
 @(private="file")
@@ -155,4 +156,43 @@ level_fields_show_on_the_canvas_as_ldtk_shows_them :: proc(t: ^testing.T) {
 	friend := Json_Path(main, "levels.identifier=Start.layerInstances.__identifier=Entities.entityInstances.iid=player1.fieldInstances.__identifier=friend.__value")
 	testing.expect_value(t, Json_String(main, Json_Get(main, friend, "entityIid")), "coin2")
 	testing.expect_value(t, Json_String(main, Json_Get(main, friend, "levelIid")), "lvl-cave")
+}
+
+/*
+LDtk's keys in the Level mode: P, L, E, U, T, C show a panel (again: the panel closes), the number
+keys pick a layer (1 the first, 0 the tenth).
+*/
+@(test)
+level_keys_show_panels_and_pick_layers :: proc(t: ^testing.T) {
+	settings := Settings_Default()
+	testing.expect_value(t, settings.keymap[.Level_Layer_1][0], skald.Shortcut{.N1, {}})
+	testing.expect_value(t, settings.keymap[.Level_Layer_10][0], skald.Shortcut{.N0, {}})
+	testing.expect_value(t, settings.keymap[.Level_Panel_Entities][0], skald.Shortcut{.E, {}})
+	dir := joinPath(testTempBase(), "crossfire_level_keys", allocator = context.temp_allocator)
+	removeAll(dir)
+	os.make_directory_all(dir)
+	defer removeAll(dir)
+	defer LDtkDoc_DestroyAll()
+	state := State{project = Project_CreateEmpty(joinPath(dir, "Game", allocator = context.temp_allocator), "Keys"), browserSelection = {kind = .None},
+		selectedNode = -1, busSelection = -1, layout = {bottomOpen = true}, settings = Settings_Default()}
+	state.settings.builtInCodeEditor = false
+	defer State_Destroy(&state)
+	if !testing.expect_value(t, Project_Save(&state.project), "") do return
+	index, problem := Project_ImportAsset(&state.project, "tests/fixtures/ldtk_world/world.ldtk")
+	if !testing.expect_value(t, problem, "") || index < 0 do return
+	lfSend(&state, Mode_Changed(.Level))
+	lfSend(&state, Level_File_Chosen(state.project.assets[index].path))
+	lfSend(&state, Action.Level_Panel_Entities)
+	testing.expect_value(t, state.level.bottomTab, BottomTab.Entities)
+	testing.expect(t, Mode_Layout(&state).bottomOpen, "the panel shows")
+	lfSend(&state, Action.Level_Panel_Entities)
+	testing.expect(t, !Mode_Layout(&state).bottomOpen, "again: it closes")
+	lfSend(&state, Action.Level_Panel_Project)
+	testing.expect(t, state.level.bottomTab == .LDtk_Project && Mode_Layout(&state).bottomOpen, "the Project tab")
+	lfSend(&state, Action.Level_Layer_2)
+	testing.expect_value(t, state.level.layerDef, 2)
+	lfSend(&state, Action.Level_Layer_3)
+	testing.expect_value(t, state.level.layerDef, 3)
+	lfSend(&state, Action.Level_Layer_9)
+	testing.expect_value(t, state.level.layerDef, 3)
 }

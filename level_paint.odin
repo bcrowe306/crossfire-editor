@@ -1216,6 +1216,20 @@ LevelPaint_Update :: proc(state: ^State, m: Msg) -> bool {
 			if state.level.problem == "" do setOwned(&state.level.entity, "")
 		case .Level_Duplicate:
 			levelDuplicateSelected(state)
+		case .Level_Panel_Project: levelPanelKey(state, .LDtk_Project)
+		case .Level_Panel_Layers: levelPanelKey(state, .Layers)
+		case .Level_Panel_Entities: levelPanelKey(state, .Entities)
+		case .Level_Panel_Enums: levelPanelKey(state, .Enums)
+		case .Level_Panel_Tilesets: levelPanelKey(state, .Tilesets)
+		case .Level_Panel_Level: levelPanelKey(state, .Level)
+		case .Level_Layer_1, .Level_Layer_2, .Level_Layer_3, .Level_Layer_4, .Level_Layer_5, .Level_Layer_6, .Level_Layer_7, .Level_Layer_8, .Level_Layer_9, .Level_Layer_10:
+			// Editor.onKeyPress: the n-th layer (the definitions' order, as LDtk's number keys)
+			doc := LDtkDoc_Get(state.project.rootPath, LevelMode_File(state))
+			if doc == nil || doc.problem != "" do return true
+			main := LDtkDoc_Main(doc)
+			layers := Json_Items(main, LDtkDoc_Defs(doc, "layers"))
+			n := int(v) - int(Action.Level_Layer_1)
+			if n < len(layers) do LevelMode_Update(state, Level_Layer_Picked(Json_Int(main, Json_Get(main, layers[n], "uid"), -1)))
 		case .Level_Save_Tile_Selection:
 			// TileTool.saveSelection: the picked tiles of the selected Tiles layer's tileset
 			if uid, ids := levelPickedTiles(state); len(ids) > 0 {
@@ -1309,6 +1323,17 @@ LevelPaint_Classify :: proc(s: ^State, m: Msg) -> (EditInfo, bool) {
 		}
 	}
 	return {}, false
+}
+
+// LDtk's panel keys: the tab shown (the bottom panel opened), or the panel closed when it shows it
+@(private="file")
+levelPanelKey :: proc(state: ^State, tab: BottomTab) {
+	layout := Mode_Layout(state)
+	if state.level.bottomTab == tab && layout.bottomOpen {
+		layout.bottomOpen = false
+		return
+	}
+	Mode_ShowBottomTab(state, tab)
 }
 
 // The selected Tiles layer's tileset and its picked tiles (none: no Tiles layer, nothing picked)

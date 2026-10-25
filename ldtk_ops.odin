@@ -1127,7 +1127,9 @@ make) what LDtk keeps in step: neighbours, entities' world positions, the table 
 ldtkCommit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches, refresh: LDtkRefresh) -> string {
 	texts := LDtkDoc_Texts(doc)
 	if problem := LDtkDoc_Apply(doc, texts, patches); problem != "" do return problem
-	if refresh != {} {
+	// A painted IntGrid layer's legacy array follows it (the ExportPreCsvIntGridFormat flag)
+	legacy := LDtkDoc_HasFlag(doc, "ExportPreCsvIntGridFormat")
+	if refresh != {} || legacy {
 		after := LDtkDoc_FromTexts(doc, texts)
 		defer LDtkDoc_Free(&after)
 		if after.problem == "" {
@@ -1135,6 +1137,7 @@ ldtkCommit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches, refresh: LDtkRefresh) -
 			if refresh.neighbours do refreshNeighbours(&more, &after)
 			if refresh.worldPositions do refreshWorldPositions(&more, &after)
 			if refresh.toc do refreshToc(&more, &after)
+			if legacy do tidyLegacyIntGrid(&more, &after)
 			// The second pass's spans are the first pass's results'
 			second := LDtkDoc_Texts(&after)
 			if problem := LDtkDoc_Apply(&after, second, &more); problem != "" do return problem

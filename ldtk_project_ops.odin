@@ -271,3 +271,40 @@ ldtkAllFieldDefsOf :: proc(doc: ^LDtkDoc) -> []int {
 	append(&out, ..Json_Items(main, LDtkDoc_Defs(doc, "levelFields")))
 	return out[:]
 }
+
+/*
+LDtk's legacy IntGrid data (LayerInstance.toJson with the ExportPreCsvIntGridFormat flag): every
+layer instance gets an `intGrid` array last, `{ "coordId": i, "v": value - 1 }` for each cell with a
+value, in coordinate order; without the flag the array isn't written (a file that has one loses it,
+as LDtk's next save drops it).
+*/
+@(private)
+tidyLegacyIntGrid :: proc(p: ^LDtkPatches, doc: ^LDtkDoc) {
+	flag := LDtkDoc_HasFlag(doc, "ExportPreCsvIntGridFormat")
+	for _, l in doc.levels {
+		file, array := LDtkDoc_LayerInstances(doc, l)
+		json := LDtkDoc_Json(doc, file)
+		for li in Json_Items(json, array) {
+			member := Json_Get(json, li, "intGrid")
+			if !flag {
+				if member >= 0 do LDtkPatches_Add(p, file, Json_RemovePatch(json, member))
+				continue
+			}
+			cells := make([dynamic]LDtkJV, context.temp_allocator)
+			for v, i in Json_Items(json, Json_Get(json, li, "intGridCsv")) {
+				value := Json_Int(json, v)
+				if value != 0 do append(&cells, jobject(jpair("coordId", i64(i)), jpair("v", i64(value - 1))))
+			}
+			want := LDtkJArray(cells[:])
+			if member >= 0 {
+				tidySet(p, doc, file, li, "intGrid", want)
+				continue
+			}
+			// Added last, at its members' indentation
+			n := json.nodes[li]
+			if n.count == 0 do continue
+			indent := LDtk_IndentAt(json.text, int(json.nodes[n.last].keyStart))
+			LDtkPatches_Add(p, file, Json_AddMemberPatch(json, li, "intGrid", LDtk_PrettyJson(want, Json_Minified(json), indent)))
+		}
+	}
+}

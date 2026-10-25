@@ -1514,7 +1514,8 @@ handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 		// Modes_Update switches (editor_modes.odin)
 	case .Level_Flip_X, .Level_Flip_Y, .Level_Random_Mode, .Level_Toggle_Grid, .Level_Single_Layer, .Level_Tile_Stacking,
 	     .Level_Auto_Layers, .Level_Delete, .Level_Duplicate, .Level_Cancel, .Level_World_Mode,
-	     .Level_Depth_Further, .Level_Depth_Closer, .Level_Move_Further, .Level_Move_Closer, .Level_Select_All, .Level_Empty_Space, .Level_Save_Tile_Selection:
+	     .Level_Depth_Further, .Level_Depth_Closer, .Level_Move_Further, .Level_Move_Closer, .Level_Select_All, .Level_Empty_Space, .Level_Save_Tile_Selection,
+	     .Level_Panel_Project, .Level_Panel_Layers, .Level_Panel_Entities, .Level_Panel_Enums, .Level_Panel_Tilesets, .Level_Panel_Level, .Level_Layer_1, .Level_Layer_2, .Level_Layer_3, .Level_Layer_4, .Level_Layer_5, .Level_Layer_6, .Level_Layer_7, .Level_Layer_8, .Level_Layer_9, .Level_Layer_10:
 		// LevelMode_Update handles them (level_paint.odin)
 	case .Open_Settings:
 		SettingsDialog_Open(out)

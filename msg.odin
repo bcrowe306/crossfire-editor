@@ -125,6 +125,23 @@ Action :: enum {
 	Level_Select_All,
 	Level_Empty_Space,
 	Level_Save_Tile_Selection,
+	// LDtk's panel keys (the bottom tabs; again: the panel closes) and layers by number
+	Level_Panel_Project,
+	Level_Panel_Layers,
+	Level_Panel_Entities,
+	Level_Panel_Enums,
+	Level_Panel_Tilesets,
+	Level_Panel_Level,
+	Level_Layer_1,
+	Level_Layer_2,
+	Level_Layer_3,
+	Level_Layer_4,
+	Level_Layer_5,
+	Level_Layer_6,
+	Level_Layer_7,
+	Level_Layer_8,
+	Level_Layer_9,
+	Level_Layer_10,
 }
 
 // Panel resizing. Each carries the new size of a split's first pane

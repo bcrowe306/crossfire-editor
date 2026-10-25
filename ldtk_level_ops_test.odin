@@ -792,3 +792,39 @@ ldtk_tile_selections_are_saved_as_ldtk_saves_them :: proc(t: ^testing.T) {
 	testing.expect(t, !strings.contains(lvValue(SAMPLES, file, saved), "[41,40]"), "the one it overlapped went")
 	testing.expect(t, lvApply(SAMPLES, file, {op = .Tileset_Selection_Saved, def = 1, ids = {40, 999999}}) != "", "no such tile")
 }
+
+/*
+LDtk's legacy IntGrid arrays (ExportPreCsvIntGridFormat): on, every layer instance gets `intGrid`
+last (a cell with a value: its coordinate and value - 1); off again, LDtk's file comes back byte for
+byte.
+*/
+@(test)
+ldtk_legacy_intgrid_arrays_are_written_as_ldtk_writes_them :: proc(t: ^testing.T) {
+	if !haveSamples() do return
+	defer LDtkDoc_DestroyAll()
+	file := "Typical_2D_platformer_example.ldtk"
+	original := lvTexts(SAMPLES, file)
+	lvMust(t, SAMPLES, file, {op = .Project_Flag, key = "ExportPreCsvIntGridFormat", flag = true})
+	doc := LDtkDoc_Get(SAMPLES, file)
+	checked := 0
+	for _, l in doc.levels {
+		f, array := LDtkDoc_LayerInstances(doc, l)
+		json := LDtkDoc_Json(doc, f)
+		for li in Json_Items(json, array) {
+			n := json.nodes[li]
+			testing.expect_value(t, Json_Key(json, int(n.last)), "intGrid")
+			values := 0
+			for v in Json_Items(json, Json_Get(json, li, "intGridCsv")) do if Json_Int(json, v) != 0 do values += 1
+			grid := Json_Get(json, li, "intGrid")
+			testing.expect_value(t, Json_Count(json, grid), values)
+			if values > 0 && checked == 0 {
+				first := Json_At(json, grid, 0)
+				testing.expect(t, strings.has_prefix(Json_Text(json, first), "{ \"coordId\": "), "LDtk's small objects")
+				checked += 1
+			}
+		}
+	}
+	testing.expect(t, checked > 0, "an IntGrid layer with values")
+	lvMust(t, SAMPLES, file, {op = .Project_Flag, key = "ExportPreCsvIntGridFormat", flag = false})
+	lvSameAs(t, SAMPLES, file, original, "the flag off again")
+}

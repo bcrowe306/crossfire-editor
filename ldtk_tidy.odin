@@ -68,6 +68,10 @@ LDtkTidy_Run :: proc(s: ^Stages, scope: LDtkTidyScope = {}) -> string {
 	p = {}
 	tidyValues(&p, s.cur, scope)
 	if problem := stagesApply(s, &p); problem != "" do return problem
+	// LDtk's legacy IntGrid arrays (the ExportPreCsvIntGridFormat flag: ldtk_project_ops.odin)
+	p = {}
+	tidyLegacyIntGrid(&p, s.cur)
+	if problem := stagesApply(s, &p); problem != "" do return problem
 	p = {}
 	ldtkTocPatches(&p, s.cur)
 	if problem := stagesApply(s, &p); problem != "" do return problem
