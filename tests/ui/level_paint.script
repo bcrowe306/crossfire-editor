@@ -100,7 +100,7 @@ click_at level-palette-tiles 0.0625 0.125
 expect level tiles [0]
 level_paint 12 1 12 1
 wait_until ldtk_tiles Room Decor 12 1 0
-# R: random (the tool row's Random), a rectangle of random picks
+# R: random (the toolbar's Random), a rectangle of random picks
 key r
 expect level random on
 expect level tool Random

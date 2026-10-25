@@ -27,9 +27,17 @@ What each shows (today's sections of the old LDtk tab, moved into LDtk's panels)
 - **Auto-layer Rules:** LDtk's rule panel, rule editor, Rule Assistant and Duplicate and Remap
   (view_ldtk_rules.odin). **Project:** the file's settings, read only. The helpers (`tabRow`, `tabTextField`...) are shared with view_ldtk_defs.odin.
 
-Widget keys: the rows' scroll `ldtk-tab-scroll`, an item choice `ldtk-item-<Tab>` (Layers,
-Entities, Enums); World: `ldtk-world-choice`, `ldtk-world-layout`, `ldtk-world-grid-w`, `-grid-h`,
-`ldtk-world-x-<i>`, `ldtk-world-y-<i>`; Level: `level-open-scene-<i>`, `level-new-scene`,
+Every tab is in the bottom tabs' shared layout (view_list_tab.odin): its toolbar row (the list's
+Add, Duplicate, Delete, Up and Down; the tab's actions), its list in a sidebar (World: the worlds;
+Level: the world's levels; Layers, Entities, Enums, Tilesets: the definitions; Auto-layer Rules:
+the layers with rules; the Project tab has none) or a narrow panel's dropdown, and the selected
+item's settings as the inspector's rows (`tabRow`: `inspectorLabelled`).
+
+Widget keys: the rows' scroll `ldtk-tab-scroll`, the list `ldtk-list-<Tab>` (its rows
+`ldtk-list-<Tab>-<i>`, its divider `-split`), a narrow panel's dropdown `ldtk-item-<Tab>`; World:
+`ldtk-world-layout`, `ldtk-world-grid-w`, `-grid-h`, `ldtk-world-x-<i>`, `ldtk-world-y-<i>`;
+Level: the toolbar row's `ldtk-level-new`, `-duplicate`, `-delete`, `-up`, `-down`, `-focus`,
+`level-open-scene-<i>`, `level-new-scene`,
 `level-manual`, `ldtk-level-field-<uid>`, `ldtk-level-field-name-<uid>`; Layers:
 `ldtk-layer-name`, `-opacity`, `-parallax-x`, `-parallax-y`, `-parallax-scaling`, `-grid`,
 `-visible`, `-up`, `-down`, `ldtk-intgrid-name-<value>`, `-color-<value>`,
@@ -41,9 +49,9 @@ references `ldtk-ref-<i>-<uid>` (the i-th entity's field); Enums: `ldtk-enum-nam
 `ldtk-enum-new`, `ldtk-enum-add`; Project: `ldtk-project-save`.
 */
 
-// The labels' column
+// The labels' column: the inspector's (the tabs' rows are the inspector's rows)
 @(private)
-LDTK_LABEL_WIDTH :: 96
+LDTK_LABEL_WIDTH :: INSPECTOR_LABEL_WIDTH
 
 // What a tab builds with: the document, the edit every control starts from, widths
 @(private)
@@ -63,11 +71,16 @@ LDtkTabCtx :: struct {
 	// Rows stack their labels over their controls (a narrow panel)
 	stacked: bool,
 	rows: ^[dynamic]skald.View,
+	// The tab's list (its sidebar), its toolbar row's buttons and text (view_list_tab.odin)
+	list: ^ListTab,
 }
 
 /*
 One of the bottom panel's LDtk tabs (`tab`: World, Level, Layers, Entities, Enums, Tilesets,
-Auto_Layer_Rules, LDtk_Project) for the Level mode's file (view_bottom.odin builds it).
+Auto_Layer_Rules, LDtk_Project) for the Level mode's file (view_bottom.odin builds it), in the
+bottom tabs' shared layout (view_list_tab.odin's `listTabView`): the toolbar row (the list's
+actions), the list in a sidebar (or a dropdown in a narrow panel), the selected item's settings as
+the inspector's rows. Every tab has a list but the Project tab.
 */
 LevelMode_LDtkTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg), tab: BottomTab) -> skald.View {
 	th := ctx.theme
@@ -76,22 +89,26 @@ LevelMode_LDtkTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg), tab: BottomTab) -> sk
 	if doc == nil do return skald.col(skald.text("The LDtk tabs edit the world's LDtk project: import an .ldtk file first (the Levels sidebar's Import...).", th.color.fg_muted, th.font.size_sm, max_width = max(Mode_LayoutOf(s, .Level).workspace.x - 500, 200)), padding = th.spacing.md)
 	if doc.problem != "" do return placeholder(ctx, fmt.tprintf("%s can't be read as an LDtk project: %s", filepath.base(file), doc.problem))
 
-	// The panel's width: the Level mode's center column
+	// The panel's width: the Level mode's center column (its sidebars fitted as the Scene mode's)
 	layout := Mode_LayoutOf(s, .Level)
-	left, right, _ := LevelMode_Sidebars(layout)
-	panel := max(layout.workspace.x - left - right - DIVIDER * 2, LEVEL_MIN_CANVAS)
-	content := max(panel - th.spacing.sm * 2 - 16, 120)
-	stacked := content < LDTK_LABEL_WIDTH + 140
-	control := stacked ? min(content, 260) : min(content - LDTK_LABEL_WIDTH - th.spacing.sm, 260)
+	left, right := FittedSidebarWidths(layout)
+	panel := max(layout.workspace.x - left - right - DIVIDER * 2, MIN_CENTER_WIDTH)
+	hasList := tab != .LDtk_Project
+	l := ListTab_Layout(th, panel, hasList, s.level.listWidths[tab])
+	list := ListTab_Make(fmt.tprintf("ldtk-list-%v", tab), fmt.tprintf("ldtk-item-%v", tab), "ldtk-tab-scroll", hasList)
+	// The inspector's rows stack their labels over their controls in a narrow content column
+	saved := inspectorStacked
+	inspectorStacked = l.stacked
+	defer inspectorStacked = saved
 
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	level := s.level.level != "" ? LDtkDoc_FindLevel(doc, s.level.level) : -1
 	levelIid := ""
 	if level >= 0 do _, levelIid = LDtkDoc_LevelNames(doc, level)
 	c := LDtkTabCtx{s = s, ctx = ctx, doc = doc, main = LDtkDoc_Main(doc), file = strings.clone(file, context.temp_allocator), world = LevelMode_World(s, doc), level = level,
-		levelIid = strings.clone(levelIid, context.temp_allocator), controlWidth = control, rowWidth = content, stacked = stacked, rows = &rows}
-	if s.level.problem != "" do append(&rows, skald.text(fmt.tprintf("Not changed: %s", s.level.problem), th.color.warning, th.font.size_xs, max_width = content))
-	if old := LDtkOps_TooOld(doc); old != "" do append(&rows, skald.text(fmt.tprintf("Read only: %s", old), th.color.warning, th.font.size_xs, max_width = content))
+		levelIid = strings.clone(levelIid, context.temp_allocator), controlWidth = l.controlWidth, rowWidth = l.rowWidth, stacked = l.stacked, rows = &rows, list = &list}
+	if s.level.problem != "" do append(&rows, skald.text(fmt.tprintf("Not changed: %s", s.level.problem), th.color.warning, th.font.size_xs, max_width = l.rowWidth))
+	if old := LDtkOps_TooOld(doc); old != "" do append(&rows, skald.text(fmt.tprintf("Read only: %s", old), th.color.warning, th.font.size_xs, max_width = l.rowWidth))
 	#partial switch tab {
 	case .World:            ldtkWorldSection(&c)
 	case .Level:            ldtkLevelSection(&c)
@@ -102,7 +119,25 @@ LevelMode_LDtkTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg), tab: BottomTab) -> sk
 	case .Auto_Layer_Rules: ldtkRulesSection(&c)
 	case .LDtk_Project:     ldtkProjectSection(&c)
 	}
-	return skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.sm), id = skald.hash_id("ldtk-tab-scroll"))
+	return listTabView(ctx, s, &list, l, rows[:], panel)
+}
+
+// An item of the tab's list (its sidebar's row, the narrow panel's dropdown's choice)
+@(private)
+tabListItem :: proc(c: ^LDtkTabCtx, row: ColoredTreeRow, pick: Msg) {
+	append(&c.list.items, ListTabItem{row, pick})
+}
+
+// A button of the tab's toolbar row (`panelToolButton`: its key kept, a short label beside the icon)
+@(private)
+tabTool :: proc(c: ^LDtkTabCtx, key, icon, tip: string, msg: Msg, label := "", disabled := false, on := false) {
+	append(&c.list.tools, panelToolButton(c.ctx, key, icon, tip, msg, label = label, disabled = disabled, on = on))
+}
+
+// Anything else on the tab's toolbar row (a dropdown, a checkbox)
+@(private)
+tabToolView :: proc(c: ^LDtkTabCtx, view: skald.View) {
+	append(&c.list.tools, view)
 }
 
 // The base edit of the tab's controls (the file; temp strings)
@@ -111,19 +146,16 @@ tabBase :: proc(c: ^LDtkTabCtx, op: LDtkEditOp) -> LDtk_Edit {
 	return {op = op, file = c.file, level = c.levelIid}
 }
 
-// A row: a label (with its tooltip) beside its control, or over it in a narrow panel
+// A row: a label (with its tooltip) beside its control, or over it in a narrow panel: the
+// inspector's row (`inspectorLabelled`; a long label wraps in its column)
 @(private)
 tabRow :: proc(c: ^LDtkTabCtx, label: string, control: skald.View, tip: string) {
 	ctx := c.ctx
 	th := ctx.theme
-	text := skald.text(label, th.color.fg_muted, th.font.size_sm)
+	text := skald.text(label, th.color.fg_muted, th.font.size_sm, max_width = c.stacked ? c.rowWidth : LDTK_LABEL_WIDTH)
 	rowTipCount += 1
 	labelView := skald.tooltip(ctx, text, tip, id = skald.hash_id(fmt.tprintf("row-tip-%d", rowTipCount)))
-	if c.stacked {
-		append(c.rows, skald.col(labelView, control, spacing = 2))
-		return
-	}
-	append(c.rows, skald.row(skald.col(labelView, width = LDTK_LABEL_WIDTH), control, spacing = th.spacing.sm, cross_align = .Center))
+	append(c.rows, inspectorLabelled(ctx, labelView, control))
 }
 
 // A heading inside a section
@@ -197,40 +229,38 @@ tabChoiceField :: proc(c: ^LDtkTabCtx, key, shown: string, labels, values: []str
 	}, id = skald.hash_id(key), width = c.controlWidth)
 }
 
-// The section's item choice: definitions by name, the selected one's uid (the first when it's gone)
+/*
+The tab's list of definitions (its sidebar, or a narrow panel's dropdown): by name, a layer's type
+as its icon, an entity type's color; a pick sends `LDtk_Item_Picked`. Returns the selected one's
+node (the first when it's gone; -1 none).
+*/
 @(private)
-tabItemChoice :: proc(c: ^LDtkTabCtx, tab: BottomTab, list: int, selected: int, label: string, filter: proc(json: ^JsonDoc, node: int) -> bool = nil) -> int {
+tabItemChoice :: proc(c: ^LDtkTabCtx, tab: BottomTab, list: int, selected: int, filter: proc(json: ^JsonDoc, node: int) -> bool = nil) -> int {
 	main := c.main
-	names := make([dynamic]string, context.temp_allocator)
-	uids := make([dynamic]string, context.temp_allocator)
+	th := c.ctx.theme
 	// The selected one, else the first
 	chosen := -1
-	shown := ""
 	for d in Json_Items(main, list) {
 		if filter != nil && !filter(main, d) do continue
 		uid := Json_Int(main, Json_Get(main, d, "uid"), -1)
-		name := Json_String(main, Json_Get(main, d, "identifier"))
-		if t := Json_String(main, Json_Get(main, d, "__type")); t != "" do name = fmt.tprintf("%s (%s)", name, t)
-		append(&names, name)
-		append(&uids, fmt.tprint(uid))
-		if chosen < 0 || uid == selected do chosen, shown = d, name
+		if chosen < 0 || uid == selected do chosen = d
 		if uid == selected do break
 	}
-	// The rest of the list, after the selected one
-	if chosen >= 0 do for d in Json_Items(main, list)[len(names):] {
+	for d in Json_Items(main, list) {
 		if filter != nil && !filter(main, d) do continue
-		name := Json_String(main, Json_Get(main, d, "identifier"))
-		if t := Json_String(main, Json_Get(main, d, "__type")); t != "" do name = fmt.tprintf("%s (%s)", name, t)
-		append(&names, name)
-		append(&uids, fmt.tprint(Json_Int(main, Json_Get(main, d, "uid"), -1)))
+		uid := Json_Int(main, Json_Get(main, d, "uid"), -1)
+		row := ColoredTreeRow{label = strings.clone(Json_String(main, Json_Get(main, d, "identifier")), context.temp_allocator), selected = d == chosen}
+		#partial switch tab {
+		case .Layers:
+			row.icon = LevelLayer_Icon(Json_String(main, Json_Get(main, d, "__type")))
+			if color, ok := LDtk_ParseColor(Json_String(main, Json_Get(main, d, "uiColor"))); ok do row.iconColor = skald.rgb(u32(color))
+		case .Entities:
+			row.icon = ICON_SQUARE_FULL
+			if color, ok := LDtk_ParseColor(Json_String(main, Json_Get(main, d, "color"))); ok do row.iconColor = skald.rgb(u32(color))
+			row.labelColor = th.color.fg
+		}
+		tabListItem(c, row, Msg(LDtk_Item_Picked{tab, uid}))
 	}
-	if len(names) == 0 do return -1
-	Pick :: struct { tab: BottomTab }
-	picker := labeledSelect(c.ctx, shown, names[:], uids[:], Pick{tab}, proc(p: Pick, v: string) -> Msg {
-		uid, _ := tabParseInt(v)
-		return LDtk_Item_Picked{p.tab, uid}
-	}, id = skald.hash_id(fmt.tprintf("ldtk-item-%v", tab)), width = c.controlWidth)
-	tabRow(c, label, picker, "Which one the section shows")
 	return chosen
 }
 
@@ -725,8 +755,48 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
 			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
+	// The list: the world's levels (the Levels sidebar's); the toolbar row: a new one, the selected
+	// one's copy, removal, place in the world's order and focus
+	levels := LevelMode_WorldLevels(s, doc)
+	at := -1
+	for index, i in levels {
+		identifier, _ := LDtkDoc_LevelNames(doc, index)
+		name := strings.clone(identifier, context.temp_allocator)
+		color := AssetKind_Color(.LDtk)
+		row := ColoredTreeRow{label = name, icon = ICON_FILE_LINES, iconColor = color, labelColor = TintLabel(th, color), selected = index == c.level}
+		if identifier == s.level.focus do row.badge = ICON_CROSSHAIRS
+		if index == c.level do at = i
+		tabListItem(c, row, Msg(Level_Row_Clicked{level = name}))
+	}
+	c.list.empty = "This world has no levels: + adds one."
+	tabTool(c, "ldtk-level-new", s.level.spot ? ICON_CROSSHAIRS : ICON_PLUS, s.level.spot ? "Picking the new level's spot on the canvas (Esc cancels)" : "New Level: pick its spot on the canvas",
+		Msg(Level_Spot_Started{cancel = s.level.spot}), on = s.level.spot)
+	if c.level >= 0 {
+		_, iid := LDtkDoc_LevelNames(doc, c.level)
+		l := strings.clone(iid, context.temp_allocator)
+		dup := tabBase(c, .Level_Duplicated)
+		dup.level, dup.flag, dup.text = l, true, LDtk_NewIid()
+		rem := tabBase(c, .Level_Removed)
+		rem.level = l
+		up := tabBase(c, .Level_Sorted)
+		up.level, up.number = l, f64(at - 1)
+		down := up
+		down.number = f64(at + 1)
+		identifier, _ := LDtkDoc_LevelNames(doc, c.level)
+		focused := identifier == s.level.focus
+		tabTool(c, "ldtk-level-duplicate", ICON_COPY, "Duplicate the level (LDtk's copy: beside it, its references remapped)", Msg(dup))
+		tabTool(c, "ldtk-level-delete", ICON_TRASH, "Delete the level (a world keeps one)", Msg(rem), disabled = len(levels) <= 1)
+		tabTool(c, "ldtk-level-up", ICON_ARROW_UP, "Earlier in the world's order (a linear world places levels by it)", Msg(up), disabled = at <= 0)
+		tabTool(c, "ldtk-level-down", ICON_ARROW_DOWN, "Later in the world's order", Msg(down), disabled = at < 0 || at >= len(levels) - 1)
+		tabTool(c, "ldtk-level-focus", focused ? ICON_GLOBE : ICON_CROSSHAIRS, focused ? "Back to the world view" : "Focus on the level (the canvas fits it, as LDtk's level view)",
+			Msg(Level_Focus_Changed(focused ? "" : strings.clone(identifier, context.temp_allocator))), on = focused)
+		rect := LDtkDoc_LevelRect(doc, c.level)
+		c.list.text = fmt.tprintf("%s: %.0f x %.0f px", identifier, rect[2], rect[3])
+	} else {
+		c.list.text = fmt.tprintf("%d level%s: select one", len(levels), len(levels) == 1 ? "" : "s")
+	}
 	if c.level < 0 {
-		count := len(LevelMode_WorldLevels(s, doc))
+		count := len(levels)
 		tabHeading(c, fmt.tprintf("%d level%s in this world", count, count == 1 ? "" : "s"))
 		tabNote(c, "Select a level (the Levels sidebar or the canvas) to see it here: its size and place, the scenes showing it, its fields and neighbours. Double-click one to focus it.")
 		ldtkLevelFieldsSection(c)

@@ -13,6 +13,10 @@ import sdl "vendor:sdl3"
 DIVIDER :: 6
 
 MIN_SIDEBAR_WIDTH  :: 180
+// The sidebars' widths the first time a mode shows (every mode's: the Scene mode's browser and
+// inspector, the Level mode's Levels and Layers)
+DEFAULT_LEFT_WIDTH  :: 240
+DEFAULT_RIGHT_WIDTH :: 300
 MIN_CENTER_WIDTH   :: 200
 MIN_VIEWPORT_HEIGHT :: 160
 MIN_BOTTOM_HEIGHT  :: 90
@@ -443,8 +447,8 @@ init :: proc() -> State {
 		busSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},
 		layout = {
-			leftWidth = 240,
-			rightWidth = 300,
+			leftWidth = DEFAULT_LEFT_WIDTH,
+			rightWidth = DEFAULT_RIGHT_WIDTH,
 			bottomHeight = 200,
 			sceneTreeHeight = 280,
 			bottomOpen = true,

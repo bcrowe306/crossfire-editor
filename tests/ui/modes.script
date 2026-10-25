@@ -1,6 +1,6 @@
 # Editor modes (editor_modes.odin) and the Level mode (level_mode.odin): switching by the mode bar,
-# the keys and the View menu's actions; the Level mode's own chrome (its tool row instead of the
-# toolbar, the Levels sidebar instead of the browser); the Level mode showing an LDtk project's
+# the keys and the View menu's actions; the Level mode's own chrome (its layer tools on the toolbar
+# in the viewport tools' place, the Levels sidebar instead of the browser); the Level mode showing an LDtk project's
 # world, a level selected, a scene made for it (the Level tab) and opened in the Scene mode, undone
 # back into the Level mode; each mode keeping its state when the other shows; Scene-only keys
 # doing nothing in the Level mode; the mode remembered when the project opens again.
@@ -41,13 +41,15 @@ expect selected Camera
 expect nodes 11
 expect tool Select
 
-# No LDtk file yet: the Level mode says so; its tool row replaces the toolbar, its Levels sidebar
-# the browser (the play controls are the toolbar's)
+# No LDtk file yet: the Level mode says so; the toolbar is the editor's (its file, play and Export
+# buttons), the Level tools in the viewport tools' place, its Levels sidebar where the browser is
 key ctrl+alt+2
 wait_until widget_visible level-import true
 wait_until widget_visible level-tool-Select true
 expect widget_visible toolbar-play true
-expect widget_visible toolbar-new false
+expect widget_visible toolbar-export true
+expect widget_visible toolbar-new true
+expect widget_visible toolbar-select false
 expect widget_visible browser-tree false
 
 # An LDtk project: its world, with its one level

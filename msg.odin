@@ -1482,6 +1482,8 @@ Msg :: union {
 	Level_Layer_Picked,
 	Level_Tool_Picked,
 	LDtk_Disk_Chosen,
+	// The bottom tabs' shared layout (view_list_tab.odin)
+	List_Tab_Resized,
 	// Painting (level_paint.odin)
 	Level_Value_Picked,
 	Level_Tiles_Picked,

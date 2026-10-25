@@ -10,27 +10,31 @@ import "gui:skald"
 import sdl "vendor:sdl3"
 
 /*
-The Level mode (editor_modes.odin): the editor of LDtk projects, LDtk's own layout (the user's
-design, `LDtk_interface.html`: phase 1 of TODO.md's "LDtk level editor"). Its window:
+The Level mode (editor_modes.odin): the editor of LDtk projects, LDtk's layout (the user's design,
+`LDtk_interface.html`: phase 1 of TODO.md's "LDtk level editor") built from the editor's own
+widgets and sizes (the user's correction of 2026-10-25: "The Level editor looks like a different
+app"): the toolbar, panels, list rows and bottom tabs are the Scene mode's. Its window:
 
 	+--------------------------------------------------------------------+
 	| menu bar  [Scene | Level]                                         |
-	|          [select] [pencil] [rect] [fill] [eraser] [picker]   play  | the tool row
+	| new open save | undo redo | select pencil rect ... |  play ... | Export | the toolbar
 	+-----------+--------------------------------------+-----------------+
-	| Levels    | World > Level_0   Fit  Open in LDtk  | Layers          |
-	| (worlds)  |                                      | = Entities  (o) |
-	| Level_0   |   the canvas: the world, or the      | = Tiles     (o) |
-	| Level_1   |   focused level larger               | = Walls     (o) |
-	|           +--------------------------------------+                 |
+	| Levels  + | World > Level_0   Fit  Open in LDtk  | Layers          |
+	| (worlds)  |                                      | # Walls     (o) |
+	| Level_0   |   the canvas: the world, or the      | # Tiles     (o) |
+	| Level_1   |   focused level larger               | # Entities  (o) |
+	|           +--------------------------------------+ Palette         |
 	|           | World Level Layers Entities Enums ...|                 |
-	|           | the tab's settings                   |                 |
+	|           | [+] [copy] [trash] [up] [down]  text |                 |
+	|           | list  | the item's settings          |                 |
 	+-----------+--------------------------------------+-----------------+
 
-- **The tool row** (view_level_tools.odin) replaces the toolbar: LDtk's tools for the selected
-  layer's type, the play controls at its end.
+- **The toolbar** (view.odin's `toolbarView`): the editor's, in every mode; here LDtk's tools for
+  the selected layer's type (view_level_tools.odin) take the viewport tools' place, with the same
+  buttons, overflow and play controls.
 - **The Levels sidebar** (view_level_sidebars.odin) replaces the project browser: the LDtk file and
   world choices, a row per level of the world (click selects, double-click focuses, right-click:
-  `Ctx_Level`).
+  `Ctx_Level`), rows as the scene tree's (`rowList`).
 - **The canvas** (level_canvas.odin): the world's levels where it puts them, each drawn with its
   layers by the engine, its entities outlined, entity references and level neighbours drawn as
   links. Pan (middle or right drag, Space + drag, a drag on empty space, the wheel with Shift /
@@ -44,9 +48,14 @@ design, `LDtk_interface.html`: phase 1 of TODO.md's "LDtk level editor"). Its wi
 - **The Layers sidebar** (view_level_sidebars.odin): the selected level's layers, top first; the
   selected one (`layerDef`) is what the tools and the Layers tab work on; the eye shows or hides
   the layer in that level (its layer instance's `visible`, saved in the file as LDtk's eye does);
-  the grip drags a layer to another place (`Layer_Move`, in every level).
+  a row dragged moves the layer to another place (`Layer_Move`, in every level).
 - **The bottom tabs** (view_ldtk_tab.odin): LDtk's panels (World, Level, Layers, Entities, Enums,
-  Tilesets, Auto-layer Rules, Project), then the Console and Output.
+  Tilesets, Auto-layer Rules, Project), then the Console and Output; the list tabs in the bottom
+  tabs' shared layout (view_list_tab.odin: a toolbar row, the list beside the item's settings).
+- **Sizes:** the Scene mode's: its sidebars' default widths (`DEFAULT_LEFT_WIDTH`,
+  `DEFAULT_RIGHT_WIDTH`), minimums and fitting (`FittedSidebarWidths`), `settings.rowHeight` rows,
+  the panel headers (`panelHeader`) and buttons (`panelButton`); each mode keeps its own sizes
+  (`LevelMode.layout`).
 - **Saving:** edits change the LDtk document in memory (ldtk_doc.odin); Save (Ctrl+S), Play,
   exports and Open in LDtk write it. A file LDtk saved meanwhile is merged with the unsaved edits
   when the two don't touch, else the canvas's bar asks: reload it, or keep the edits
@@ -56,10 +65,11 @@ design, `LDtk_interface.html`: phase 1 of TODO.md's "LDtk level editor"). Its wi
 State (`State.level`): its panel sizes (`layout`, `Mode_Layout`), its bottom tab, the world shown
 (`file`, an LDtk asset: "" the project's first; `world`, a world's iid: "" its first; remembered
 in `.editor/modes.ini`), the selected level, entity and layer, the focused level, the tool, the
-canvas's view and drag, the tabs' choices. Its widgets: `level-split-left`,
-`level-split-center-right`, `level-split-map-bottom`, `level-file`, `level-world`,
-`level-row-<i>`, `level-list-scroll`, `level-layer-row-<i>`, `level-layer-grip-<i>`,
-`level-layer-eye-<i>`, `level-layers-scroll`, `level-tool-<Tool>`, `level-tool-more`,
+canvas's view and drag, the tabs' choices and their lists' widths. Its widgets: `level-split-left`,
+`level-split-center-right`, `level-split-map-bottom`, `level-file`, `level-world`, `level-new`,
+`level-list`, `level-row-<i>`, `level-list-scroll`, `level-layers`, `level-layer-row-<i>`,
+`level-layer-eye-<i>`, `level-layers-scroll`, `level-tool-<Tool>` (the toolbar's: its overflow
+is `toolbar-more`),
 the canvas header's `panel-level-fit`, `panel-level-world-view`, `panel-level-focus`,
 `panel-level-open-ldtk` (panelButton's keys), `ldtk-map-Level` (the canvas), `ldtk-disk-reload` / `ldtk-disk-keep`, `level-import`, `level-bottom-tabs`, the tabs'
 (view_ldtk_tab.odin), the conflict dialog's `ldtk-conflict-overwrite` / `-keep` / `-cancel`.
@@ -88,7 +98,7 @@ LevelMode :: struct {
 	view: LevelView,
 	drag: LevelDrag,
 	// The selected layer, entity type and enum (definitions' uids; -1: the first): the Layers,
-	// Entities and Enums tabs show them, the tool row's tools follow the layer's type
+	// Entities and Enums tabs show them, the toolbar's Level tools follow the layer's type
 	layerDef, entityDef, enumDef: int,
 	// The definitions editors' other picks (uids; -1 the first): the entity type's field, the
 	// level field, the tileset; the tileset's tile data mode (an enum value tagging tiles, ""
@@ -121,6 +131,8 @@ LevelMode :: struct {
 	// The Level tab's new size for a level (its iid, owned; the size typed), until Resize
 	sizeLevel: string,
 	sizeDraft: [2]int,
+	// The bottom tabs' lists' widths (view_list_tab.odin; 0: LIST_TAB_WIDTH), per tab
+	listWidths: [BottomTab]f32,
 }
 
 // The world canvas's view: the world point at its center and the zoom (screen pixels per world
@@ -168,67 +180,9 @@ LevelDrag :: struct {
 	at: [2]f32,
 }
 
-// The Level mode's panels the first time it shows (the design's 300 px sidebars)
-LEVEL_LAYOUT_DEFAULT :: Layout{leftWidth = 300, rightWidth = 300, bottomHeight = 374, bottomOpen = true}
-
-// Under this workspace width the Level mode is compact: the tool row the toolbar's size, shorter
-// rows, sidebars at most LEVEL_COMPACT_SIDEBAR wide
-LEVEL_COMPACT_WIDTH :: 1100
-LEVEL_COMPACT_SIDEBAR :: 220
-// Under this workspace width there's one sidebar: the levels over the layers
-LEVEL_ONE_SIDEBAR_WIDTH :: 760
-// The sidebars' smallest width, and the canvas's
-LEVEL_MIN_SIDEBAR :: 160
-LEVEL_MIN_CANVAS :: 240
-
-/*
-The Level mode's sidebars at its layout's workspace: the Levels sidebar's and the Layers sidebar's
-widths, or (narrower than LEVEL_ONE_SIDEBAR_WIDTH) one sidebar with the levels over the layers.
-`view` and `update` both use it, so a divider maps back to the same widths.
-
-Returns:
-- The widths, and whether there's one sidebar (`right` 0 then)
-*/
-LevelMode_Sidebars :: proc(layout: ^Layout) -> (left, right: f32, one: bool) {
-	w := layout.workspace.x
-	left, right = layout.leftWidth, layout.rightWidth
-	if w > 0 && w < LEVEL_COMPACT_WIDTH {
-		left = min(left, LEVEL_COMPACT_SIDEBAR)
-		right = min(right, LEVEL_COMPACT_SIDEBAR)
-	}
-	if w > 0 && w < LEVEL_ONE_SIDEBAR_WIDTH {
-		return clamp(left, LEVEL_MIN_SIDEBAR, max(w - DIVIDER - LEVEL_MIN_CANVAS, LEVEL_MIN_SIDEBAR)), 0, true
-	}
-	available := w - DIVIDER * 2 - LEVEL_MIN_CANVAS
-	if w > 0 && left + right > available {
-		factor := max(available, 0) / (left + right)
-		left = max(left * factor, LEVEL_MIN_SIDEBAR)
-		right = max(right * factor, LEVEL_MIN_SIDEBAR)
-	}
-	return
-}
-
-// The Level mode's sizes: the design's at full size, smaller in a narrow window
-LevelSizes :: struct {
-	// The tool row's height (0: its natural height) and its buttons' size and corner radius
-	toolRow, toolButton, toolRadius: f32,
-	// The sidebars' headers, their rows, the bottom panel's tab row (0: natural)
-	header, row, tabRow: f32,
-	compact: bool,
-}
-
-/*
-The Level mode's sizes for the shown window: the design's (a 75 px tool row of 45 px buttons, 32 px
-headers, 60 px rows, a 40 px tab row) from LEVEL_COMPACT_WIDTH up, else the toolbar's sizes and
-shorter rows.
-*/
-LevelMode_Sizes :: proc(s: ^State, th: ^skald.Theme) -> LevelSizes {
-	w := Mode_LayoutOf(s, .Level).workspace.x
-	if w > 0 && w < LEVEL_COMPACT_WIDTH {
-		return {toolButton = math.round(th.font.size_md * 2.4), toolRadius = th.radius.md, header = 28, row = max(f32(s.settings.rowHeight) + 8, 34), compact = true}
-	}
-	return {toolRow = 75, toolButton = 45, toolRadius = 10, header = 32, row = 60, tabRow = 40}
-}
+// The Level mode's panels the first time it shows: the Scene mode's sidebars (each mode keeps its
+// own sizes, but they start the same: editor.odin's `init`), a taller bottom panel for LDtk's tabs
+LEVEL_LAYOUT_DEFAULT :: Layout{leftWidth = DEFAULT_LEFT_WIDTH, rightWidth = DEFAULT_RIGHT_WIDTH, bottomHeight = 374, bottomOpen = true}
 
 // A world picked in the Levels sidebar (an LDtk asset's path; the frame's string)
 Level_File_Chosen :: distinct string
@@ -392,8 +346,8 @@ LevelMode_Destroy :: proc(level: ^LevelMode) {
 	delete(level.selection)
 	LevelPaint_Destroy(&level.paint)
 	LevelRules_Destroy(&level.rules)
-	layout, tab := level.layout, level.bottomTab
-	level^ = {layout = layout, bottomTab = tab, layerDef = -1, entityDef = -1, enumDef = -1, fieldDef = -1, levelField = -1, tilesetDef = -1, dataTile = -1, paint = {entityDef = -1}, rules = LEVEL_RULES_DEFAULT}
+	layout, tab, widths := level.layout, level.bottomTab, level.listWidths
+	level^ = {layout = layout, bottomTab = tab, listWidths = widths, layerDef = -1, entityDef = -1, enumDef = -1, fieldDef = -1, levelField = -1, tilesetDef = -1, dataTile = -1, paint = {entityDef = -1}, rules = LEVEL_RULES_DEFAULT}
 }
 
 /*
@@ -506,6 +460,9 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		levelFocus(state, string(v))
 	case Level_Open_Showing:
 		levelOpenShowing(state, LevelMode_File(state), string(v))
+	case List_Tab_Resized:
+		// The list's width, kept per bottom tab (view_list_tab.odin)
+		state.level.listWidths[state.level.bottomTab] = max(f32(v), LIST_TAB_MIN_WIDTH)
 	case Level_Layer_Picked:
 		state.level.layerDef = int(v)
 		// A tool the layer's type doesn't have goes back to Select
@@ -994,14 +951,16 @@ levelOpen :: proc(state: ^State, scene, node: int) {
 
 /*
 The Level mode's workspace: the Levels sidebar, the canvas over the bottom panel, the Layers
-sidebar; narrower than LEVEL_ONE_SIDEBAR_WIDTH, one sidebar (the levels over the layers) beside
-the canvas. Its panels' sizes are its own (`State.level.layout`); the dividers send the messages
-the Scene mode's do, which change the shown mode's layout.
+sidebar, laid out as the Scene mode's (`sceneModeView`): the same splits, minimums and fitting
+(`FittedSidebarWidths`, `MIN_SIDEBAR_WIDTH`, `MIN_CENTER_WIDTH`), so a narrow window squeezes
+both as it squeezes the browser and the inspector. Its panels' sizes are its own
+(`State.level.layout`); the dividers send the messages the Scene mode's do, which change the shown
+mode's layout.
 */
 levelModeView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
 	layout := Mode_LayoutOf(s, .Level)^
 	layout.workspace = size
-	left, right, one := LevelMode_Sidebars(&layout)
+	left, right := FittedSidebarWidths(&layout)
 	center: skald.View
 	if !layout.bottomOpen {
 		center = skald.col(skald.flex(1, levelMapView(s, ctx)), bottomPanelView(s, ctx), cross_align = .Stretch)
@@ -1017,27 +976,15 @@ levelModeView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.Vi
 			min_second = MIN_BOTTOM_HEIGHT,
 		)
 	}
-	if one {
-		// The levels over the layers, in one sidebar
-		return skald.split(ctx,
-			first = levelSidebarsStackedView(s, ctx),
-			second = center,
-			first_size = left,
-			on_resize = proc(v: f32) -> Msg { return Left_Resized(v) },
-			id = skald.hash_id("level-split-left"),
-			min_first = LEVEL_MIN_SIDEBAR,
-			min_second = LEVEL_MIN_CANVAS,
-		)
-	}
-	centerWidth := max(size.x - left - right - DIVIDER * 2, LEVEL_MIN_CANVAS)
+	centerWidth := max(size.x - left - right - DIVIDER * 2, MIN_CENTER_WIDTH)
 	centerAndRight := skald.split(ctx,
 		first = center,
 		second = levelLayersSidebarView(s, ctx),
 		first_size = centerWidth,
 		on_resize = proc(v: f32) -> Msg { return Center_Resized(v) },
 		id = skald.hash_id("level-split-center-right"),
-		min_first = LEVEL_MIN_CANVAS,
-		min_second = LEVEL_MIN_SIDEBAR,
+		min_first = MIN_CENTER_WIDTH,
+		min_second = MIN_SIDEBAR_WIDTH,
 	)
 	return skald.split(ctx,
 		first = levelLevelsSidebarView(s, ctx),
@@ -1045,8 +992,8 @@ levelModeView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.Vi
 		first_size = left,
 		on_resize = proc(v: f32) -> Msg { return Left_Resized(v) },
 		id = skald.hash_id("level-split-left"),
-		min_first = LEVEL_MIN_SIDEBAR,
-		min_second = LEVEL_MIN_CANVAS + LEVEL_MIN_SIDEBAR + DIVIDER,
+		min_first = MIN_SIDEBAR_WIDTH,
+		min_second = MIN_CENTER_WIDTH + MIN_SIDEBAR_WIDTH + DIVIDER,
 	)
 }
 

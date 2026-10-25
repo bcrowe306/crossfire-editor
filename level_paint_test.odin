@@ -518,7 +518,7 @@ level_mode_paints_tiles_and_entities :: proc(t: ^testing.T) {
 	testing.expect_value(t, Json_Text(LDtkDoc_Main(doc), Json_Path(LDtkDoc_Main(doc), "levels.identifier=Room.layerInstances.__identifier=Decor.gridTiles.0.t")), "9")
 	testing.expect_value(t, Json_Text(LDtkDoc_Main(doc), Json_Path(LDtkDoc_Main(doc), "levels.identifier=Room.layerInstances.__identifier=Decor.gridTiles.0.f")), "1")
 	testing.expect_value(t, len(state.history.undo), 1)
-	// R: random mode (the tool row follows)
+	// R: random mode (the toolbar's tools follow)
 	paintSend(state, Msg(Action.Level_Random_Mode))
 	testing.expect(t, state.level.paint.random && state.level.tool == .Random, "random")
 

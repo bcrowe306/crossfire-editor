@@ -301,7 +301,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	     Level_Canvas_Measured, Level_Canvas_Pressed, Level_Canvas_Moved, Level_Canvas_Released, Level_Canvas_Zoomed, Level_Canvas_Panned,
 	     Level_Canvas_Fit, Level_Entity_Picked, Level_Collision_Kind_Changed, LDtk_Item_Picked, LDtk_Text_Typed,
 	     LDtk_New_Name_Typed, LDtk_Def_Picked, LDtk_Edit, LDtk_Conflict_Chosen, Level_World_Chosen, Level_Row_Clicked, Level_Focus_Changed,
-	     Level_Open_Showing, Level_Layer_Picked, Level_Tool_Picked, LDtk_Disk_Chosen,
+	     Level_Open_Showing, Level_Layer_Picked, Level_Tool_Picked, LDtk_Disk_Chosen, List_Tab_Resized,
 	     Level_Value_Picked, Level_Tiles_Picked, Level_Entity_Type_Picked, Level_Pick_Started, Rules_View,
 	     Level_Spot_Started, Level_Depth_Shown, Level_Rename_Started, Level_Field_Focused, Level_Size_Typed:
 		// Handled by Modes_Update and LevelMode_Update above
@@ -805,9 +805,8 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	case Left_Resized:
 		layout.leftWidth = max(f32(v), MIN_SIDEBAR_WIDTH)
 	case Center_Resized:
+		// Every mode's sidebars fit the same way (the Level mode's too: level_mode.odin)
 		left, _ := FittedSidebarWidths(layout)
-		// The Level mode's sidebars have their own rules (level_mode.odin)
-		if out.mode == .Level do left, _, _ = LevelMode_Sidebars(layout)
 		rest := layout.workspace.x - left - DIVIDER
 		layout.rightWidth = max(rest - f32(v) - DIVIDER, MIN_SIDEBAR_WIDTH)
 	case Viewport_Resized:

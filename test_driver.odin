@@ -136,9 +136,11 @@ copy: `open_project {project}`).
 	                                 then release (the code tab must have the keyboard: code_click)
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
-	scroll_into_view <scroll key> <widget key>
+	scroll_into_view <scroll key> <widget key> [top]
 	                                 Scroll so the widget is in view, e.g.
-	                                 scroll_into_view inspector-scroll inspector-new-script
+	                                 scroll_into_view inspector-scroll inspector-new-script; `top`
+	                                 puts it at the view's top (what's below it in view too: a
+	                                 drag's target); a widget drawn outside the scroll passes
 	right_click_row <tree key> <row> Right-click a row (opens the scene tree's context menu)
 	click_context_item <label>[/<label>]  Choose an item of the open context menu (context_menus.odin)
 	                                 by its label, or the start of it ("Open Script" for "Open
@@ -302,7 +304,8 @@ Checks:
 	level <world | focus | tool | layer | layer_type | unsaved | disk_conflict | sidebars> <value>
 	                             The shown world's name, the focused level (none), the tool, the
 	                             selected layer and its type, whether the document has unsaved edits
-	                             or a clash with LDtk's change on disk (yes | no), one or two sidebars
+	                             or a clash with LDtk's change on disk (yes | no), the Levels and
+	                             Layers sidebars' widths ("240 300": fitted as the Scene mode's)
 	ldtk [<file>:]<json path> <value>  A value of the Level mode's LDtk project as the editor has it
 	                             (unsaved edits included; Json_Path: `levels.identifier=Start.worldX`;
 	                             <file>: one beside it, a .ldtkl), as JSON without spaces (strings
@@ -1708,7 +1711,21 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// At the end of the content (paging no longer moves it), visible is as good as it gets
 		atEnd := driver.scrollAttempts > 1 && scroll.scroll_y == driver.lastScrollY
 		driver.lastScrollY = scroll.scroll_y
-		if _, visible := widgetRect(ctx, args[1]); visible && (atEnd || clearOfEdges(ctx.widgets.states[skald.hash_id(args[1])].last_rect, area, scroll.scroll_y <= 0)) {
+		// A widget drawn outside the scroll (a bottom tab's toolbar row, over its content) is in view
+		if r, visible := widgetRect(ctx, args[1]); visible && (r.y + r.h <= area.y || r.y >= area.y + area.h || r.x + r.w <= area.x || r.x >= area.x + area.w) {
+			driver.scrollAttempts = 0
+			report(true, line)
+			return true
+		}
+		// `top`: the widget near the view's top (what's under it in view too: a drag's target below it)
+		top := len(args) > 2 && args[2] == "top"
+		TOP_MARGIN :: f32(8)
+		placed := clearOfEdges(ctx.widgets.states[skald.hash_id(args[1])].last_rect, area, scroll.scroll_y <= 0)
+		if top {
+			y := ctx.widgets.states[skald.hash_id(args[1])].last_rect.y
+			placed = y >= area.y && y <= area.y + TOP_MARGIN * 3
+		}
+		if _, visible := widgetRect(ctx, args[1]); visible && (atEnd || placed) {
 			driver.scrollAttempts = 0
 			report(true, line)
 			return true
@@ -1716,9 +1733,10 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		widget := ctx.widgets.states[skald.hash_id(args[1])]
 		if driver.scrollAttempts == 0 {
 			scroll.scroll_y = 0
-		} else if widget.last_frame + 2 >= ctx.widgets.frame && widget.last_rect.h > 0 {
-			// Laid out (so its rect is current): center it
-			scroll.scroll_y = max(scroll.scroll_y + (widget.last_rect.y + widget.last_rect.h * 0.5) - (area.y + area.h * 0.5), 0)
+		} else if (top || widget.last_frame + 2 >= ctx.widgets.frame) && widget.last_rect.h > 0 {
+			// Laid out (so its rect is current; a zone's always is): center it (or put it at the top)
+			at := top ? area.y + TOP_MARGIN + widget.last_rect.h * 0.5 : area.y + area.h * 0.5
+			scroll.scroll_y = max(scroll.scroll_y + (widget.last_rect.y + widget.last_rect.h * 0.5) - at, 0)
 		} else {
 			scroll.scroll_y += max(area.h * 0.6, 40)
 		}
@@ -3726,8 +3744,9 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			_, clash := LDtkDoc_DiskConflict(s.project.rootPath, LevelMode_File(s))
 			found = clash ? "yes" : "no"
 		case "sidebars":
-			_, _, one := LevelMode_Sidebars(Mode_LayoutOf(s, .Level))
-			found = one ? "one" : "two"
+			// The Levels and Layers sidebars' widths, as the Scene mode's fit (FittedSidebarWidths)
+			left, right := FittedSidebarWidths(Mode_LayoutOf(s, .Level))
+			found = fmt.tprintf("%.0f %.0f", left, right)
 		case "problem":  found = s.level.problem == "" ? "none" : s.level.problem
 		// Phase 5: the selection's elements, a new level's spot being picked, the depth shown
 		case "selection": found = fmt.tprint(len(s.level.selection))

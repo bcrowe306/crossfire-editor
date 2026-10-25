@@ -165,8 +165,7 @@ click_widget ldtk-rule-close
 wait_until rules page List
 
 # The rule dragged by its grip onto Surface's header: Surface's first rule
-scroll_into_view ldtk-tab-scroll ldtk-group-row-50
-scroll_into_view ldtk-tab-scroll ldtk-rule-grip-201
+scroll_into_view ldtk-tab-scroll ldtk-rule-row-201 top
 drag_to ldtk-rule-grip-201 ldtk-group-row-50 0.9
 wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=50.rules.0.uid 201
 expect ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules []

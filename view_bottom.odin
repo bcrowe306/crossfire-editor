@@ -48,7 +48,6 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// past its edge took clicks meant for the inspector beside it (a dropdown's choice there
 	// switched the tab)
 	left, right := FittedSidebarWidths(layout)
-	if s.mode == .Level do left, right, _ = LevelMode_Sidebars(layout)
 	panelWidth := layout.workspace.x - left - right - DIVIDER * 2
 	tabsWidth, tabsHeight := f32(200), f32(30)
 	if ctx.renderer != nil {
@@ -56,16 +55,12 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		tabsHeight = skald.view_size(ctx.renderer, tabs).y
 	}
 	hScroll_Reveal(ctx, scrollKey, skald.widget_make_sub_id(skald.hash_id(tabsKey), u64(active + 1)))
-	// The Level mode's tab row is the design's 40 px at full size (level_mode.odin's LevelMode_Sizes)
-	rowHeight: f32 = 0
-	if s.mode == .Level do rowHeight = LevelMode_Sizes(s, th).tabRow
 	header := skald.row(
 		hScroll(ctx, scrollKey, tabs, tabsWidth, tabsHeight, thin = true),
 		skald.flex(1, skald.spacer(0)),
 		buttons,
 		spacing = th.spacing.xs,
 		padding = th.spacing.xs,
-		height = rowHeight,
 		cross_align = .Center,
 		bg = th.color.surface,
 	)

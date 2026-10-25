@@ -79,8 +79,8 @@ wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=2.visible fal
 expect ldtk levels.identifier=Cave.layerInstances.layerDefUid=2.visible true
 action Undo
 wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=2.visible true
-# Dragged by its grip two places down: every level's layers follow; undo puts it back
-drag_widget_to level-layer-grip-0 level-layer-row-2
+# Its row dragged two places down (as the scene tree drags nodes): every level's layers follow; undo puts it back
+drag_widget_to level-layer-row-0 level-layer-row-2
 wait_until ldtk defs.layers.2.uid 1
 expect ldtk levels.identifier=Tower.layerInstances.2.layerDefUid 1
 action Undo

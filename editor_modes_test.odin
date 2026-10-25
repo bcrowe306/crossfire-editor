@@ -132,10 +132,13 @@ modes_scope_the_keys :: proc(t: ^testing.T) {
 	testing.expect(t, .Mode_Scene in CODE_EDITOR_PASSTHROUGH && .Mode_Level in CODE_EDITOR_PASSTHROUGH, "passed through the code editor")
 	testing.expect(t, ACTION_LABELS[.Mode_Level] != "", "labelled")
 
-	// The toolbar has no tools in the Level mode: they don't overflow there
-	testing.expect_value(t, Toolbar_Overflow(560, 31, 4, 6, tools = false), ToolbarOverflow.None)
+	// The toolbar is every mode's: the Level mode's tools (by the layer's type) overflow as the
+	// viewport's do, a mode without tools only its file buttons
+	testing.expect_value(t, Toolbar_Overflow(560, 31, 4, 6, tools = 0), ToolbarOverflow.None)
 	testing.expect_value(t, Toolbar_Overflow(560, 31, 4, 6), ToolbarOverflow.Tools)
-	testing.expect_value(t, Toolbar_Overflow(300, 31, 4, 6, tools = false), ToolbarOverflow.Files)
+	testing.expect_value(t, Toolbar_Overflow(560, 31, 4, 6, tools = 1), ToolbarOverflow.None)
+	testing.expect_value(t, Toolbar_Overflow(560, 31, 4, 6, tools = len(LevelTools_For("Tiles"))), ToolbarOverflow.Tools)
+	testing.expect_value(t, Toolbar_Overflow(300, 31, 4, 6, tools = 0), ToolbarOverflow.Files)
 }
 
 @(test)
@@ -240,23 +243,25 @@ level_mode_opens_and_makes_scenes_for_levels :: proc(t: ^testing.T) {
 
 /*
 The Level mode's layout (phase 1 of the LDtk level editor): its sidebars at each window width, the
-tool row's tools per layer type (Select only works yet), the Levels sidebar's rows (a click
+toolbar's Level tools per layer type (Select only works yet), the Levels sidebar's rows (a click
 selects, a double-click focuses), the canvas's focus and the world view, several worlds, the
 Layers sidebar's selection and a layer dragged several places (one undo step).
 */
 @(test)
 level_mode_layout_tools_worlds_and_layers :: proc(t: ^testing.T) {
-	// The sidebars: the design's 300 px wide, narrower under LEVEL_COMPACT_WIDTH, one under
-	// LEVEL_ONE_SIDEBAR_WIDTH; the canvas keeps LEVEL_MIN_CANVAS
-	for c in ([]struct { width: f32, one: bool }{{1920, false}, {1280, false}, {900, false}, {640, true}}) {
-		layout := LEVEL_LAYOUT_DEFAULT
-		layout.workspace = {c.width, 600}
-		left, right, one := LevelMode_Sidebars(&layout)
-		testing.expectf(t, one == c.one, "%v: one sidebar %v", c.width, one)
-		canvas := c.width - left - right - DIVIDER * (one ? 1 : 2)
-		testing.expectf(t, canvas >= LEVEL_MIN_CANVAS, "%v: the canvas is %v wide", c.width, canvas)
-		if c.width >= LEVEL_COMPACT_WIDTH do testing.expectf(t, left == 300 && right == 300, "%v: the design's sidebars", c.width)
-		else do testing.expectf(t, left <= LEVEL_COMPACT_SIDEBAR && right <= LEVEL_COMPACT_SIDEBAR, "%v: narrower sidebars", c.width)
+	// The sidebars start as the Scene mode's and fit the window as they do (FittedSidebarWidths,
+	// the user's correction of 2026-10-25: the Level mode is the editor's, not another app)
+	{
+		testing.expect(t, LEVEL_LAYOUT_DEFAULT.leftWidth == DEFAULT_LEFT_WIDTH && LEVEL_LAYOUT_DEFAULT.rightWidth == DEFAULT_RIGHT_WIDTH, "the Scene mode's widths")
+		for width in ([]f32{1920, 1280, 900, 640}) {
+			layout := LEVEL_LAYOUT_DEFAULT
+			layout.workspace = {width, 600}
+			sceneLayout := Layout{leftWidth = DEFAULT_LEFT_WIDTH, rightWidth = DEFAULT_RIGHT_WIDTH, workspace = {width, 600}}
+			left, right := FittedSidebarWidths(&layout)
+			sceneLeft, sceneRight := FittedSidebarWidths(&sceneLayout)
+			testing.expectf(t, left == sceneLeft && right == sceneRight, "%v: the Scene mode's sidebars (%v, %v against %v, %v)", width, left, right, sceneLeft, sceneRight)
+			testing.expectf(t, width - left - right - DIVIDER * 2 >= MIN_CENTER_WIDTH, "%v: the canvas keeps the center's minimum", width)
+		}
 	}
 	// LDtk's tools per layer type; every one works since phase 2 (painting the focused level)
 	testing.expect_value(t, len(LevelTools_For("IntGrid")), 6)
@@ -376,4 +381,31 @@ level_mode_layout_tools_worlds_and_layers :: proc(t: ^testing.T) {
 	world := strings.clone(state.level.world, context.temp_allocator)
 	Mode_Load(&state)
 	testing.expect_value(t, state.level.world, world)
+}
+
+/*
+The bottom tabs' shared layout (view_list_tab.odin, the user's sketch of 2026-10-25): a list
+beside the settings from LIST_TAB_COMPACT_WIDTH, a dropdown narrower (a tiled window's panel is
+about 200 px), the Project tab without a list; the sidebar's kept width clamped to leave the
+settings their minimum; the settings' rows laid out as the inspector's at the content's width.
+*/
+@(test)
+list_tabs_share_one_layout :: proc(t: ^testing.T) {
+	settings := Settings_Default()
+	th := Settings_Theme(&settings)
+	// A tiled window's panel: a dropdown, the rows stacked as a narrow inspector's
+	tiled := ListTab_Layout(&th, 200, true, 0)
+	testing.expect(t, tiled.compact && tiled.sidebar == 0, "a narrow panel's list is a dropdown")
+	width, stacked := Inspector_Layout(&th, 200)
+	testing.expect(t, tiled.stacked == stacked && tiled.controlWidth == min(width, LIST_TAB_MAX_CONTROL), "the inspector's rows at that width")
+	// A wide one: the list at its default width, then the width the user left, kept within bounds
+	wide := ListTab_Layout(&th, 728, true, 0)
+	testing.expect(t, !wide.compact && wide.sidebar == LIST_TAB_WIDTH, "the list beside the settings")
+	testing.expect_value(t, wide.content, 728 - LIST_TAB_WIDTH - DIVIDER)
+	testing.expect_value(t, ListTab_Layout(&th, 728, true, 300).sidebar, 300)
+	testing.expect_value(t, ListTab_Layout(&th, 728, true, 60).sidebar, f32(LIST_TAB_MIN_WIDTH))
+	testing.expect_value(t, ListTab_Layout(&th, 728, true, 700).sidebar, 728 - DIVIDER - LIST_TAB_MIN_CONTENT)
+	// The Project tab: no list at any width
+	project := ListTab_Layout(&th, 1368, false, 0)
+	testing.expect(t, project.compact && project.sidebar == 0 && project.content == 1368, "no list")
 }

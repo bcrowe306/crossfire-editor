@@ -11,13 +11,14 @@ world panel (WorldPanel.hx, worldPanel.html), level form (LevelInstanceForm.hx,
 levelInstanceForm.html) and project panel (EditProject.hx, editProject.html) as the tabs' rows.
 Every control sends an `LDtk_Edit` (ldtk_level_ops.odin, ldtk_project_ops.odin): one undo step.
 
-Widget keys: World: `ldtk-world-add`, `ldtk-world-delete`, `ldtk-world-name`, `ldtk-world-iid-copy`,
-`ldtk-world-default-w` / `-h`, `ldtk-world-depth-prev` / `-next`, `ldtk-world-new-level`,
-`ldtk-world-up-<i>` / `-down-<i>`; Level: `ldtk-level-identifier`, `ldtk-level-auto`,
+The World tab's list is the worlds (its toolbar row: Add a World, Delete, New Level), the Project
+tab has none (its toolbar row: Save). Widget keys: World: `ldtk-world-add`, `ldtk-world-delete`,
+`ldtk-world-new-level`, `ldtk-world-name`, `ldtk-world-iid-copy`,
+`ldtk-world-default-w` / `-h`, `ldtk-world-depth-prev` / `-next`, `ldtk-world-up-<i>` / `-down-<i>`; Level: `ldtk-level-identifier`, `ldtk-level-auto`,
 `ldtk-level-iid-copy`, `ldtk-level-depth`, `ldtk-level-further` / `-closer`, `ldtk-level-x` /
 `-y`, `ldtk-level-w` / `-h`, `ldtk-level-resize`, `ldtk-level-bg`, `ldtk-level-bg-default`,
-`ldtk-level-bg-image`, `ldtk-level-bg-pos`, `ldtk-level-pivot-<x>-<y>`, `ldtk-level-duplicate`,
-`ldtk-level-delete`; Project: `ldtk-project-<key>` (its settings by LDtk's JSON key),
+`ldtk-level-bg-image`, `ldtk-level-bg-pos`, `ldtk-level-pivot-<x>-<y>` (Duplicate and Delete:
+the toolbar row's `ldtk-level-duplicate`, `-delete`); Project: `ldtk-project-<key>` (its settings by LDtk's JSON key),
 `ldtk-project-flag-<Flag>`, `ldtk-project-command-<i>` / `-when-<i>` / `-up-<i>` /
 `-remove-<i>`, `ldtk-project-command-add`, `ldtk-project-save`.
 */
@@ -31,24 +32,23 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 	wi := c.world
 	multi := LDtkDoc_MultiWorlds(doc)
 	worldName, worldIid := LDtkDoc_WorldNames(doc, wi)
-	if multi && len(doc.worlds) > 1 {
-		names := make([dynamic]string, context.temp_allocator)
-		iids := make([dynamic]string, context.temp_allocator)
-		for _, w in doc.worlds {
-			name, iid := LDtkDoc_WorldNames(doc, w)
-			append(&names, name)
-			append(&iids, iid)
-		}
-		tabRow(c, "World", labeledSelect(c.ctx, worldIid, names[:], iids[:], 0, proc(_: int, iid: string) -> Msg { return Level_World_Chosen(iid) },
-			id = skald.hash_id("ldtk-world-choice"), width = c.controlWidth), "Which of the project's worlds shows (LDtk's Multi-worlds): the canvas and the Levels sidebar show its levels")
+	// The list: the worlds (one without LDtk's Multi-worlds); a pick shows it on the canvas and in
+	// the Levels sidebar
+	for _, w in doc.worlds {
+		name, iid := LDtkDoc_WorldNames(doc, w)
+		row := ColoredTreeRow{label = strings.clone(name, context.temp_allocator), icon = ICON_GLOBE, iconColor = AssetKind_Color(.LDtk), selected = w == wi}
+		tabListItem(c, row, Msg(Level_World_Chosen(strings.clone(iid, context.temp_allocator))))
 	}
 	add := tabBase(c, .World_Added)
 	add.entity = LDtk_NewIid()
 	del := tabBase(c, .World_Removed)
 	del.world = wi
-	buttonRow(c,
-		smallButton(c, "ldtk-world-add", fmt.tprintf("%s  Add a World", ICON_PLUS), Msg(add)),
-		smallButton(c, "ldtk-world-delete", fmt.tprintf("%s  Delete This World", ICON_TRASH), Msg(del), disabled = len(doc.worlds) <= 1))
+	tabTool(c, "ldtk-world-add", ICON_PLUS, "Add a world (LDtk's Multi-worlds: turns it on, the project's levels becoming its first world's)", Msg(add), label = "World")
+	tabTool(c, "ldtk-world-delete", ICON_TRASH, "Delete this world and its levels", Msg(del), disabled = len(doc.worlds) <= 1)
+	tabTool(c, "ldtk-world-new-level", s.level.spot ? ICON_CROSSHAIRS : ICON_PLUS, s.level.spot ? "Picking the new level's spot on the canvas (Esc cancels)" : "New Level: pick its spot on the canvas",
+		Msg(Level_Spot_Started{cancel = s.level.spot}), label = "Level", on = s.level.spot)
+	worldLevelCount := len(LevelMode_WorldLevels(s, doc))
+	c.list.text = fmt.tprintf("%s: %d level%s", worldName, worldLevelCount, worldLevelCount == 1 ? "" : "s")
 	if !multi do tabNote(c, "One world (LDtk's Multi-worlds is off): Add a World turns it on, the project's levels becoming its first world's.")
 	name := tabBase(c, .World_Set)
 	name.world, name.key = wi, "identifier"
@@ -88,7 +88,6 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 			spacing = 6, cross_align = .Center), "The world depth the canvas shows (PgUp / PgDn); the other depths' levels are faded and can't be picked")
 	}
 	tabHeading(c, "Levels")
-	buttonRow(c, smallButton(c, "ldtk-world-new-level", fmt.tprintf("%s  New Level (pick a spot)", ICON_PLUS), Msg(Level_Spot_Started{cancel = s.level.spot})))
 	if s.level.spot do tabNote(c, "Click the canvas where the new level goes (Esc cancels).")
 	linear := layout == "LinearHorizontal" || layout == "LinearVertical"
 	levels := LevelMode_WorldLevels(s, doc)
@@ -119,7 +118,7 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 
 /*
 The selected level's settings (LDtk's level form): its name and automatic naming, iid, depth, world
-place, size, background color and image, and Duplicate / Delete.
+place, size, background color and image (Duplicate / Delete are on the tab's toolbar row).
 */
 LDtkProject_LevelSettings :: proc(c: ^LDtkTabCtx) {
 	s := c.s
@@ -212,14 +211,7 @@ LDtkProject_LevelSettings :: proc(c: ^LDtkTabCtx) {
 		px, py := Json_Float(main, Json_Get(main, entry, "bgPivotX"), 0.5), Json_Float(main, Json_Get(main, entry, "bgPivotY"), 0.5)
 		tabRow(c, "Pivot", pivotPicker(c, "ldtk-level-pivot", set(c, l, "bgPivot"), px, py), "Which part of the picture shows when it's cropped, and where it sits")
 	}
-	dup := tabBase(c, .Level_Duplicated)
-	dup.level, dup.flag, dup.text = l, true, LDtk_NewIid()
-	rem := tabBase(c, .Level_Removed)
-	rem.level = l
-	tabHeading(c, "This level")
-	buttonRow(c,
-		smallButton(c, "ldtk-level-duplicate", fmt.tprintf("%s  Duplicate", ICON_COPY), Msg(dup)),
-		smallButton(c, "ldtk-level-delete", fmt.tprintf("%s  Delete", ICON_TRASH), Msg(rem), disabled = len(worldLevels(doc, doc.levels[level].world)) <= 1))
+	// Duplicate and Delete are the tab's toolbar row's (view_ldtk_tab.odin's Level tab)
 }
 
 // Whether a list holds a string
@@ -271,13 +263,12 @@ LDtkProject_ProjectTab :: proc(c: ^LDtkTabCtx) {
 	flagOf :: proc(main: ^JsonDoc, key: string) -> bool {
 		return Json_Bool(main, Json_Get(main, Json_Root(main), key))
 	}
+	// The toolbar row (the tab has no list): Save, and whether there's anything to save
+	tabTool(c, "ldtk-project-save", ICON_SAVE, actionTip(c.s, "Save the project (the Level mode's edits stay in memory until you save, play or export)", .Save_Project), Msg(Action.Save_Project), label = "Save", disabled = !unsaved)
+	c.list.text = fmt.tprintf("%s: %s", filepath.base(c.file), unsaved ? "unsaved edits" : "saved")
 	tabRow(c, "File", text(c, c.file), "The LDtk project's file, in the project's assets")
-	status := skald.row(
-		skald.text(unsaved ? "Unsaved edits" : "Saved", unsaved ? th.color.warning : th.color.fg_muted, th.font.size_sm),
-		skald.button(c.ctx, fmt.tprintf("%s  Save", ICON_SAVE), Msg(Action.Save_Project), id = skald.hash_id("ldtk-project-save"), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = !unsaved),
-		spacing = th.spacing.sm, cross_align = .Center)
-	tabRow(c, "Saved", status, "The Level mode's edits stay in memory until you save (Ctrl+S), play or export")
+	tabRow(c, "Saved", skald.text(unsaved ? "Unsaved edits (Save is above)" : "Saved", unsaved ? th.color.warning : th.color.fg_muted, th.font.size_sm),
+		"The Level mode's edits stay in memory until you save (Ctrl+S), play or export")
 	tabRow(c, "LDtk version", text(c, Json_String(main, Json_Get(main, root, "jsonVersion"))), "The LDtk version the file is written for")
 	tabRow(c, "Worlds", text(c, fmt.tprintf("%d (%d level%s)", len(doc.worlds), len(doc.levels), len(doc.levels) == 1 ? "" : "s")), "The project's worlds and levels")
 

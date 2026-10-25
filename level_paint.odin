@@ -21,7 +21,7 @@ focused level, as LDtk behaves (its Tool.hx, the tool/lt folder, SelectionTool, 
 - **Buttons and keys** (LDtk's): left adds, right removes (erases); Shift + drag a rectangle,
   Shift + a quick click (0.22 s) fills; Alt + click picks what's under the pointer in any layer
   (its value, its tile with its flips, an entity: selected; Ctrl + Alt + drag copies it); the
-  tool row's Rectangle, Fill, Eraser and Picker do the same without keys. X / Y flip the tile
+  toolbar's Rectangle, Fill, Eraser and Picker do the same without keys. X / Y flip the tile
   brush, R random tiles, G the grid (lines and snapping), Shift+A fades the other layers, Shift+T
   tile stacking, Shift+R auto-layer tiles shown, Del / Ctrl+D the selected entity, Esc cancels.
 - **Entities:** Place puts the picked type at the pointer (its pivot on a cell's: LDtk's

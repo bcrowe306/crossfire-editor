@@ -1,15 +1,16 @@
 package crossfire_editor
 
 import "core:fmt"
-import "core:math"
 import "core:strings"
 import "gui:skald"
 
 /*
-The Level mode's tool row (level_mode.odin): it replaces the toolbar there. LDtk's tools for the
-selected layer's type, centered in the window, and the play controls at its end. LDtk has no tool
+The Level mode's tools (level_mode.odin), on the editor's toolbar (view.odin's `toolbarView`): in
+the Level mode they take the place of the viewport's tools, with the toolbar's own buttons, sizes,
+grouping and overflow (`Toolbar_Overflow`); the file, undo, play and Export buttons are the
+toolbar's. LDtk's tools for the selected layer's type. LDtk has no tool
 buttons (a left drag paints, a right drag erases, Shift a rectangle, Shift + click fills, Alt
-picks: ldtk/src/electron.renderer/Tool.hx and its tool/lt folder), so the row is these, as buttons, per
+picks: ldtk/src/electron.renderer/Tool.hx and its tool/lt folder), so the toolbar has these, as buttons, per
 layer type (LDtk's IntGridTool, TileTool with its Stamp and Random modes, EntityTool):
 
 	IntGrid:   Select, Pencil, Rectangle, Fill, Eraser, Picker
@@ -22,10 +23,9 @@ paint the focused level's selected layer (level_paint.odin: phase 2 of TODO.md's
 editor"); LDtk's modifiers work with any of them (Shift a rectangle, Shift + a quick click a fill,
 Alt picks, the right button erases).
 
-At full size (the design's: LevelMode_Sizes) the row is 75 px with 45 px buttons; narrower, the
-toolbar's sizes. When even those don't fit, the tools go into an overflow button's menu
-(`level-tool-more`, `Ctx_Level_Tools`), like the toolbar's. The play controls are the toolbar's
-(`toolbar-play`, `toolbar-pause`...). Keys: `level-tool-<Tool>`.
+When the window is too narrow for them, they go into the toolbar's overflow menu (`toolbar-more`,
+`LevelTools_MenuItems`), as the viewport's tools do in the Scene mode. Keys: `level-tool-<Tool>`
+(the toolbar's own are `toolbar-play`, `toolbar-export`...).
 */
 
 // The Level mode's tools
@@ -60,7 +60,7 @@ LEVEL_TOOLS := [LevelTool]LevelToolInfo{
 	.Picker    = {ICON_EYEDROPPER, "Picker", "Pick what's under the pointer (LDtk: Alt + click)", true},
 }
 
-// The tool picked in the tool row (or its overflow menu)
+// The tool picked on the toolbar (or its overflow menu)
 Level_Tool_Picked :: distinct LevelTool
 
 /*
@@ -127,85 +127,8 @@ LevelTool_Tip :: proc(tool: LevelTool, layerType: string) -> string {
 	return fmt.tprintf("%s: %s. On the focused level (double-click a level)", name, about)
 }
 
-/*
-The tool row: the selected layer's tools centered in the window, the play controls at the end.
-It's the Level mode's toolbar (view.odin builds it instead of the toolbar there).
-*/
-LevelTools_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
-	th := ctx.theme
-	sizes := LevelMode_Sizes(s, th)
-	layerType := LevelMode_LayerType(s)
-	tools := LevelTools_For(layerType)
-	button := sizes.toolButton
-	spacing := sizes.compact ? th.spacing.xs : f32(10)
-	padding := sizes.compact ? th.spacing.sm : f32(15)
-	iconSize := sizes.compact ? th.font.size_md : math.round(th.font.size_md * 1.45)
-
-	// A square button (the design's: 45 px, 10 px corners), its tooltip
-	square :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, size, radius, iconSize: f32, active, disabled: bool) -> skald.View {
-		th := ctx.theme
-		lineHeight := iconSize * 1.25
-		if ctx.renderer != nil do lineHeight = skald.view_size(ctx.renderer, skald.text(icon, th.color.fg, iconSize)).y
-		b := skald.button(ctx, icon, msg, id = skald.hash_id(key),
-			bg = active ? th.color.primary : th.color.elevated, fg = active ? th.color.on_primary : th.color.fg,
-			radius = radius, padding = {0, max((size - lineHeight) * 0.5, 1)}, font_size = iconSize, width = size, disabled = disabled)
-		return skald.tooltip(ctx, b, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
-	}
-
-	// The play controls: the toolbar's (their keys too)
-	running := s.playState == .Playing || s.playState == .Building
-	playTip := actionTip(s, "Play", .Play)
-	switch s.playState {
-	case .Building: playTip = "Building the player..."
-	case .Paused:   playTip = actionTip(s, "Resume", .Play)
-	case .Playing, .Stopped:
-	}
-	play := []skald.View{
-		square(ctx, "toolbar-play", ICON_PLAY, playTip, Action.Play, button, sizes.toolRadius, iconSize, running, false),
-		square(ctx, "toolbar-play-scene", ICON_PLAY_SCENE, actionTip(s, fmt.tprintf("Play %s (the scene open in the Scene mode)", s.project.scenes[s.currentScene].name), .Play_Scene), Action.Play_Scene, button, sizes.toolRadius, iconSize, false, running),
-		square(ctx, "toolbar-pause", ICON_PAUSE, actionTip(s, "Pause", .Pause), Action.Pause, button, sizes.toolRadius, iconSize, s.playState == .Paused, s.playState != .Playing),
-		square(ctx, "toolbar-stop", ICON_STOP, actionTip(s, "Stop", .Stop), Action.Stop, button, sizes.toolRadius, iconSize, false, s.playState == .Stopped),
-		square(ctx, "toolbar-restart", ICON_RESTART, actionTip(s, "Restart: stop the game and play it again", .Restart), Action.Restart, button, sizes.toolRadius, iconSize, false, !Play_CanRestart(s)),
-	}
-	playWidth := f32(len(play)) * button + f32(len(play) - 1) * spacing
-
-	// What fits: the tools centered in the window (a spacer as wide as the play controls before
-	// them), else beside the play controls, else in a menu
-	width := Mode_LayoutOf(s, .Level).workspace.x
-	toolsWidth := f32(len(tools)) * button + f32(len(tools) - 1) * spacing
-	centered := width <= 0 || padding * 2 + playWidth * 2 + toolsWidth + spacing * 4 <= width
-	overflow := width > 0 && padding * 2 + playWidth + toolsWidth + spacing * 3 > width
-
-	items := make([dynamic]skald.View, context.temp_allocator)
-	if centered do append(&items, skald.spacer(playWidth))
-	append(&items, skald.flex(1, skald.spacer(0)))
-	if overflow {
-		r := lastRect(ctx, skald.hash_id("level-tool-more"))
-		append(&items, square(ctx, "level-tool-more", ICON_ELLIPSIS, "The layer's tools", Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Level_Tools{}}),
-			button, sizes.toolRadius, iconSize, false, false))
-	} else {
-		for tool in tools {
-			icon, _, _ := LevelTool_Look(tool, layerType)
-			works := LEVEL_TOOLS[tool].works
-			append(&items, square(ctx, fmt.tprintf("level-tool-%v", tool), icon, LevelTool_Tip(tool, layerType), Msg(Level_Tool_Picked(tool)),
-				button, sizes.toolRadius, iconSize, works && s.level.tool == tool, !works))
-		}
-	}
-	append(&items, skald.flex(1, skald.spacer(0)))
-	append(&items, ..play)
-	return skald.row(..items[:],
-		spacing = spacing,
-		padding = sizes.toolRow > 0 ? (sizes.toolRow - button) * 0.5 : padding,
-		height = sizes.toolRow,
-		cross_align = .Center,
-		bg = th.color.surface,
-	)
-}
-
-// The tool row's overflow menu (a narrow window): the layer's tools, the shown one checked
-Ctx_Level_Tools :: struct {}
-
-// The overflow menu's items
+// The toolbar's overflow menu (a narrow window) in the Level mode lists the layer's tools
+// (context_menus.odin's `Ctx_Toolbar_More` with `level`), the shown one checked
 LevelTools_MenuItems :: proc(s: ^State, items: ^[dynamic]skald.Menu_Item(Msg)) {
 	layerType := LevelMode_LayerType(s)
 	for tool in LevelTools_For(layerType) {

@@ -15,9 +15,11 @@ Duplicate and Remap (RuleGroupRemap) as the tab's pages (level_rules.odin's `Lev
 the canvas stays in view: every edit applies at once and the level shows it (the rules applied
 again: ldtk_rule_ops.odin).
 
-**The list** (LDtk's panel): the layer (an IntGrid layer or an AutoLayer), + Group (a menu: the
-Assistant or an empty group), Paste group, Randomize (the selected level's layer seed), Render (the
-auto-layers' tiles shown: Shift+R), the level's tileset (one of the same size). Each group: its
+**The list** (LDtk's panel), in the bottom tabs' shared layout (view_list_tab.odin): the sidebar
+lists the layers with rules (IntGrid layers and AutoLayers, their groups counted: a pick selects
+the layer), the toolbar row has + Group (a menu: the Assistant or an empty group), Paste group,
+Randomize (the selected level's layer seed), Render (the auto-layers' tiles shown: Shift+R); the
+rows start with the level's tileset (one of the same size). Each group: its
 grip (drag to reorder), its toggle (on / off; an optional group's eye: on or off in the selected
 level), its icon, its name (a click opens or closes it; hovering it outlines its rules' cells on
 the canvas), its biomes, + (a rule first) or the Assistant's Edit, its menu (⋯ or a right click:
@@ -36,8 +38,8 @@ then the options of LDtk's dialogs: chance, opacity, break on match, mirrors, mo
 offsets, checker and preview, tile offsets and random offsets (linked), Perlin (seed, scale,
 octaves, its noise shown on the level).
 
-Widget keys: `ldtk-rules-layer`, `-add-group`, `-paste-group`, `-randomize`, `-render`,
-`-tileset`, `-settings`; a group's `ldtk-group-row-<uid>`, `-grip-`, `-toggle-`, `-name-`,
+Widget keys: the list `ldtk-list-Auto_Layer_Rules` (its dropdown `ldtk-item-Auto_Layer_Rules`),
+`ldtk-rules-add-group`, `-paste-group`, `-randomize`, `-render`, `-tileset`, `-settings`; a group's `ldtk-group-row-<uid>`, `-grip-`, `-toggle-`, `-name-`,
 `-rename-`, `-add-`, `-edit-`, `-menu-`, `-advanced-`; a rule's `ldtk-rule-row-<uid>`, `-grip-`,
 `-toggle-`, `-preview-`, `-chance-`, `-alpha-`, `-break-`, `-flipx-`, `-flipy-`, `-offset-`,
 `-modulo-`, `-perlin-`, `-before-`, `-after-`; the editor's `ldtk-rule-close`, `-help`,
@@ -54,27 +56,24 @@ LDtkRules_Tab :: proc(c: ^LDtkTabCtx) {
 	s := c.s
 	main := c.main
 	layerUid, layer := LevelRules_Layer(s, c.doc)
+	c.list.empty = "No IntGrid layer or auto-layer: add one in the Layers tab."
 	if layer < 0 {
 		tabNote(c, "Auto-layer rules paint tiles from an IntGrid layer's values: this project has no IntGrid layer or auto-layer yet (add one in the Layers tab).")
 		LevelRules_SetHovered(-1, -1, -1)
 		return
 	}
-	// The layer: IntGrid layers and AutoLayers
-	labels := make([dynamic]string, context.temp_allocator)
-	values := make([dynamic]string, context.temp_allocator)
+	// The list: IntGrid layers and AutoLayers, each with its groups' count; a pick selects the layer
 	for d in Json_Items(main, LDtkDoc_Defs(c.doc, "layers")) {
 		t := Json_String(main, Json_Get(main, d, "type"))
 		if t != "IntGrid" && t != "AutoLayer" do continue
 		n := Json_Count(main, Json_Get(main, d, "autoRuleGroups"))
-		append(&labels, fmt.tprintf("%s (%s, %d group%s)", Json_String(main, Json_Get(main, d, "identifier")), t, n, n == 1 ? "" : "s"))
-		append(&values, fmt.tprint(Json_Int(main, Json_Get(main, d, "uid"))))
+		uid := Json_Int(main, Json_Get(main, d, "uid"))
+		row := ColoredTreeRow{label = fmt.tprintf("%s (%d)", Json_String(main, Json_Get(main, d, "identifier")), n), icon = LevelLayer_Icon(t), selected = uid == layerUid}
+		if color, ok := LDtk_ParseColor(Json_String(main, Json_Get(main, d, "uiColor"))); ok do row.iconColor = skald.rgb(u32(color))
+		tabListItem(c, row, Msg(Rules_View{op = .Layer, uid = uid}))
 	}
-	pick := labeledSelect(c.ctx, fmt.tprint(layerUid), labels[:], values[:], 0, proc(_: int, v: string) -> Msg {
-		uid, _ := tabParseInt(v)
-		return Rules_View{op = .Layer, uid = uid}
-	}, id = skald.hash_id("ldtk-rules-layer"), width = c.controlWidth)
-	tabRow(c, "Layer", pick, "The layer whose rules the tab edits: the selected layer (picking one here selects it)")
-
+	groups := Json_Count(main, Json_Get(main, layer, "autoRuleGroups"))
+	c.list.text = fmt.tprintf("%s: %d group%s of rules", Json_String(main, Json_Get(main, layer, "identifier")), groups, groups == 1 ? "" : "s")
 	switch s.level.rules.page {
 	case .List: rulesList(c, layerUid, layer)
 	case .Editor: rulesEditor(c, layerUid, layer)
@@ -529,11 +528,10 @@ rulesList :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	tsUid := rLayerTileset(c, layerUid, layer)
 	ts := rTileset(c, tsUid)
 
-	// The header: + Group, Paste, Randomize, Render, the level's tileset
-	header := make([dynamic]skald.View, context.temp_allocator)
+	// The toolbar row: + Group, Paste, Randomize, Render
 	addKey := "ldtk-rules-add-group"
 	addId := skald.hash_id(addKey)
-	append(&header, skald.tooltip(ctx, rButton(c, addKey, fmt.tprintf("%s  Group", ICON_PLUS), Msg(Frame_Requested{})), "A new group of rules: with the Assistant, or empty", id = skald.hash_id("ldtk-rules-add-group-tip")))
+	tabTool(c, addKey, ICON_PLUS, "A new group of rules: with the Assistant, or empty", Msg(Frame_Requested{}), label = "Group")
 	if rHovered(ctx, addId) && ctx.input.mouse_released[.Left] {
 		r := lastRect(ctx, addId)
 		skald.send(ctx, Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Rules_New{layer = layerUid}}))
@@ -541,14 +539,13 @@ rulesList :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	if s.level.rules.clipKind == .Group {
 		paste := rEdit(c, .Rule_Pasted, layerUid)
 		paste.key, paste.text = "group", strings.clone(s.level.rules.clip, context.temp_allocator)
-		append(&header, rTipButton(c, "ldtk-rules-paste-group", "Paste group", "The group copied (LDtk's clipboard), at the end", Msg(paste)))
+		tabTool(c, "ldtk-rules-paste-group", ICON_COPY, "Paste the group copied (LDtk's clipboard), at the end", Msg(paste), label = "Paste group")
 	}
 	seed := rEdit(c, .Rule_Seed, layerUid)
 	seed.number = -1
-	append(&header, rTipButton(c, "ldtk-rules-randomize", fmt.tprintf("%s  Randomize", ICON_DICE), "A new random seed for this layer in the selected level: rules with a chance or a Perlin filter change", Msg(seed), disabled = c.level < 0))
-	render := skald.checkbox(ctx, !s.level.paint.hideAutoLayers, "Render", 0, proc(_: int, _: bool) -> Msg { return Msg(Action.Level_Auto_Layers) }, id = skald.hash_id("ldtk-rules-render"))
-	append(&header, skald.tooltip(ctx, render, fmt.tprintf("Show the auto-layers' tiles (else their IntGrid values) %s", keyParen(s, .Level_Auto_Layers)), id = skald.hash_id("ldtk-rules-render-tip")))
-	rButtons(c, ..header[:])
+	tabTool(c, "ldtk-rules-randomize", ICON_DICE, "A new random seed for this layer in the selected level: rules with a chance or a Perlin filter change", Msg(seed), label = "Randomize", disabled = c.level < 0)
+	tabTool(c, "ldtk-rules-render", s.level.paint.hideAutoLayers ? ICON_EYE_SLASH : ICON_EYE, fmt.tprintf("Show the auto-layers' tiles (else their IntGrid values) %s", keyParen(s, .Level_Auto_Layers)),
+		Msg(Action.Level_Auto_Layers), label = "Render", on = !s.level.paint.hideAutoLayers)
 	// The level's tileset: one of the same size (LDtk's per-instance override)
 	if c.level >= 0 && ts.uid >= 0 {
 		labels := make([dynamic]string, context.temp_allocator)
@@ -1196,7 +1193,9 @@ rPatternGrid :: proc(c: ^LDtkTabCtx, layerUid: int, r: ^LDtkRule, values: []Rule
 	for cy in 0 ..< r.size do for cx in 0 ..< r.size do grid[cx + pad + (cy + pad) * N] = r.pattern[cx + cy * r.size]
 	drag := &patternDrag
 	if drag.active && drag.rule == r.uid do grid = drag.grid
-	cellPx := clamp((min(c.rowWidth, 360) - 4) / N, 14, 34)
+	// It's indented as a control under its label: what's left of the row beside the label column
+	available := c.stacked ? c.rowWidth : c.rowWidth - LDTK_LABEL_WIDTH
+	cellPx := clamp((min(available, 360) - 4) / N, 14, 34)
 	key := "ldtk-rule-pattern"
 	id := skald.hash_id(key)
 	cellAt :: proc(ctx: ^skald.Ctx(Msg), id: skald.Widget_ID, cellPx: f32) -> ([2]int, bool) {

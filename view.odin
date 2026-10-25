@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:time"
 import "core:math"
 import "core:path/filepath"
+import "core:strings"
 import "gui:skald"
 
 /*
@@ -63,8 +64,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.flex(1, skald.spacer(0)),
 			cross_align = .Center,
 		),
-		// The Level mode's tool row replaces the toolbar there (view_level_tools.odin)
-		state.mode == .Level ? LevelTools_View(&state, ctx) : toolbarView(&state, ctx),
+		// One toolbar for every mode: the Level mode's tools take the viewport's place (view_level_tools.odin)
+		toolbarView(&state, ctx),
 		skald.divider(ctx),
 		// The mode's workspace needs its own size to place the panels, so it's built once layout
 		// knows it (editor_modes.odin)
@@ -220,11 +221,12 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 }
 
 /*
-The toolbar: file buttons, undo / redo and the tools on the left, the play controls in the middle,
-Export on the right. When the window is too narrow for all of it (a tiled window is about 650 px
-wide), the tools go into an overflow button's menu (`toolbar-more`, `Ctx_Toolbar_More`), and
-narrower still the file and undo buttons too (`Toolbar_Overflow`): the play controls and Export
-always show.
+The toolbar, in every mode: file buttons, undo / redo and the mode's tools on the left (the Scene
+mode's viewport tools; the Level mode's LDtk tools for the selected layer, view_level_tools.odin),
+the play controls in the middle, Export on the right. When the window is too narrow for all of it
+(a tiled window is about 650 px wide), the tools go into an overflow button's menu
+(`toolbar-more`, `Ctx_Toolbar_More`), and narrower still the file and undo buttons too
+(`Toolbar_Overflow`): the play controls and Export always show.
 */
 @(private="file")
 toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
@@ -236,8 +238,11 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Paused:   playTip = actionTip(s, "Resume", .Play)
 	case .Playing, .Stopped:
 	}
-	// The viewport's tools are the Scene mode's (editor_modes.odin)
-	tools := s.mode == .Scene
+	// The mode's tools (editor_modes.odin): the viewport's seven, or the selected layer's
+	level := s.mode == .Level
+	layerType := level ? LevelMode_LayerType(s) : ""
+	levelTools := level ? LevelTools_For(layerType) : nil
+	tools := level ? len(levelTools) : len(Tool)
 	overflow := Toolbar_Overflow(s.layout.workspace.x, math.round(th.font.size_md * 2.4), th.spacing.xs, th.spacing.sm, tools)
 	items := make([dynamic]skald.View, context.temp_allocator)
 	if overflow < .Files {
@@ -250,7 +255,15 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			toolButton(ctx, "redo", ICON_REDO, actionTip(s, "Redo", .Redo), Action.Redo),
 			toolbarSeparator(ctx))
 	}
-	if overflow == .None && tools {
+	if overflow == .None && level {
+		// LDtk's tools for the layer's type, keyed `level-tool-<Tool>` (view_level_tools.odin)
+		for tool in levelTools {
+			icon, _, _ := LevelTool_Look(tool, layerType)
+			works := LEVEL_TOOLS[tool].works
+			append(&items, toolButton(ctx, fmt.tprintf("level-tool-%v", tool), icon, LevelTool_Tip(tool, layerType), Msg(Level_Tool_Picked(tool)),
+				active = works && s.level.tool == tool, disabled = !works, prefix = ""))
+		}
+	} else if overflow == .None && tools > 0 {
 		append(&items,
 			toolButton(ctx, "select", ICON_POINTER, actionTip(s, "Select", .Tool_Select), Action.Tool_Select, active = s.tool == .Select),
 			toolButton(ctx, "move", ICON_MOVE, actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
@@ -262,15 +275,18 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	} else if overflow != .None {
 		// The menu opens under the button
 		r := lastRect(ctx, skald.hash_id("toolbar-more"))
+		what := level ? "the layer's tools" : "the viewport's tools"
 		append(&items, toolButton(ctx, "more", ICON_ELLIPSIS,
-			!tools ? "File and undo" : overflow == .Files ? "File, undo and the viewport's tools" : "The viewport's tools",
-			Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Toolbar_More{files = overflow == .Files, noTools = !tools}})))
+			tools == 0 ? "File and undo" : overflow == .Files ? fmt.tprintf("File, undo and %s", what) : level ? "The layer's tools" : "The viewport's tools",
+			Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Toolbar_More{files = overflow == .Files, noTools = tools == 0, level = level}})))
 	}
+	playScene := fmt.tprintf("Play %s (this scene)", s.project.scenes[s.currentScene].name)
+	if level do playScene = fmt.tprintf("Play %s (the scene open in the Scene mode)", s.project.scenes[s.currentScene].name)
 	append(&items,
 		// Play controls sit in the middle of the toolbar
 		skald.flex(1, skald.spacer(0)),
 		toolButton(ctx, "play", ICON_PLAY, playTip, Action.Play, active = running),
-		toolButton(ctx, "play-scene", ICON_PLAY_SCENE, actionTip(s, fmt.tprintf("Play %s (this scene)", s.project.scenes[s.currentScene].name), .Play_Scene), Action.Play_Scene, disabled = running),
+		toolButton(ctx, "play-scene", ICON_PLAY_SCENE, actionTip(s, playScene, .Play_Scene), Action.Play_Scene, disabled = running),
 		toolButton(ctx, "pause", ICON_PAUSE, actionTip(s, "Pause", .Pause), Action.Pause, active = s.playState == .Paused, disabled = s.playState != .Playing),
 		toolButton(ctx, "stop", ICON_STOP, actionTip(s, "Stop", .Stop), Action.Stop, disabled = s.playState == .Stopped),
 		toolButton(ctx, "restart", ICON_RESTART, actionTip(s, "Restart: stop the game and play it again", .Restart), Action.Restart, disabled = !Play_CanRestart(s)),
@@ -290,7 +306,7 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 ToolbarOverflow :: enum {
 	// Everything fits
 	None,
-	// The viewport's seven tools
+	// The mode's tools (the viewport's seven, the Level mode's layer tools)
 	Tools,
 	// The tools, and the file and undo / redo buttons
 	Files,
@@ -298,19 +314,21 @@ ToolbarOverflow :: enum {
 
 /*
 How much of the toolbar goes into its overflow menu at a window width: the toolbar's buttons all
-have one width, so its width is known without laying it out.
+have one width, so its width is known without laying it out. Every mode's toolbar is this one
+(the Level mode's tools take the place of the viewport's).
 
 Inputs:
 - width: The window's width (0: not measured yet, everything shows)
 - button: A tool button's width
 - spacing: Between items
 - padding: At each end
-- tools: The viewport's tools are on it (the Scene mode; other modes have none)
+- tools: How many tool buttons the mode has (the Scene mode's 7; the Level mode's 1 to 7, by
+  the selected layer's type; 0 none)
 
 Returns:
-- What overflows (without the tools: None or Files)
+- What overflows (without tools: None or Files)
 */
-Toolbar_Overflow :: proc(width, button, spacing, padding: f32, tools := true) -> ToolbarOverflow {
+Toolbar_Overflow :: proc(width, button, spacing, padding: f32, tools := 7) -> ToolbarOverflow {
 	if width <= 0 do return .None
 	separator := 1 + spacing * 2
 	// items: buttons and separators, and the two spacers around the play controls
@@ -318,9 +336,9 @@ Toolbar_Overflow :: proc(width, button, spacing, padding: f32, tools := true) ->
 		items := buttons + separators + 2
 		return padding * 2 + f32(buttons) * button + f32(separators) * separator + f32(items - 1) * spacing
 	}
-	// File 3, undo 2, tools 7, play controls 6, Export 1; the overflow button replaces what it holds
-	if !tools do return needed(12, 2, button, separator, spacing, padding) <= width ? .None : .Files
-	if needed(19, 2, button, separator, spacing, padding) <= width do return .None
+	// File 3, undo 2, the tools, play controls 6, Export 1; the overflow button replaces what it holds
+	if tools <= 0 do return needed(12, 2, button, separator, spacing, padding) <= width ? .None : .Files
+	if needed(12 + tools, 2, button, separator, spacing, padding) <= width do return .None
 	if needed(13, 2, button, separator, spacing, padding) <= width do return .Tools
 	return .Files
 }
@@ -335,18 +353,19 @@ physicsDebugTip :: proc(s: ^State) -> string {
 	return shown ? "The game shows its collision shapes: click to hide them (development only, not in exports)" : "Show collision shapes in the game (development only, not in exports)"
 }
 
-// Icon button with a tooltip. Its widget id is hash_id("toolbar-<key>"): buttons made by a
-// shared helper all have the same call site, which would otherwise make them share widget
-// state. The key is also how test scripts click it (`click_widget toolbar-play`)
+// Icon button with a tooltip. Its widget id is hash_id("<prefix><key>") ("toolbar-<key>"; the
+// Level mode's tools "level-tool-<Tool>"): buttons made by a shared helper all have the same call
+// site, which would otherwise make them share widget state. The key is also how test scripts
+// click it (`click_widget toolbar-play`)
 @(private="file")
-toolButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, active := false, disabled := false) -> skald.View {
+toolButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, active := false, disabled := false, prefix := "toolbar-") -> skald.View {
 	th := ctx.theme
 	bg := active ? th.color.primary : th.color.surface
 	fg := active ? th.color.on_primary : th.color.fg
 	button := skald.button(ctx, icon, msg,
-		id = skald.hash_id(fmt.tprintf("toolbar-%s", key)),
+		id = skald.hash_id(fmt.tprintf("%s%s", prefix, key)),
 		bg = bg, fg = fg, width = math.round(th.font.size_md * 2.4), padding = {0, th.spacing.xs + 2}, disabled = disabled)
-	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("toolbar-tip-%s", key)))
+	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%stip-%s", prefix == "" ? "toolbar-" : prefix, key)))
 }
 
 @(private="file")
@@ -495,12 +514,23 @@ actionTip :: proc(s: ^State, label: string, action: Action) -> string {
 Small icon button for panel headers. `key` must be unique among panel buttons.
 */
 panelButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, disabled := false) -> skald.View {
+	return panelToolButton(ctx, fmt.tprintf("panel-%s", key), icon, tip, msg, disabled = disabled)
+}
+
+/*
+A panel button (`panelButton`'s look: an icon, or an icon and a short `label`) under its own widget
+key, not `panel-<key>`: the Level mode's bottom tabs' toolbar rows (view_list_tab.odin), whose
+buttons kept their older keys (`ldtk-layers-add-IntGrid`). `on` shows it pressed (a toggle).
+*/
+panelToolButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, label := "", disabled := false, on := false) -> skald.View {
 	th := ctx.theme
-	button := skald.button(ctx, icon, msg,
-		id = skald.hash_id(fmt.tprintf("panel-%s", key)),
-		bg = th.color.surface, fg = th.color.fg_muted,
-		width = math.round(th.font.size_md * 1.9), padding = {0, 3}, font_size = th.font.size_sm, disabled = disabled)
-	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("panel-tip-%s", key)))
+	text := label == "" ? icon : icon == "" ? label : fmt.tprintf("%s %s", icon, label)
+	button := skald.button(ctx, text, msg,
+		id = skald.hash_id(key),
+		bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg_muted,
+		width = label == "" ? math.round(th.font.size_md * 1.9) : 0, padding = {label == "" ? 0 : th.spacing.sm, 3}, font_size = th.font.size_sm, disabled = disabled)
+	tipKey := strings.has_prefix(key, "panel-") ? fmt.tprintf("panel-tip-%s", key[len("panel-"):]) : fmt.tprintf("%s-tip", key)
+	return skald.tooltip(ctx, button, tip, id = skald.hash_id(tipKey))
 }
 
 // Confirmation before removing an asset: remove it from the project, or also delete its file

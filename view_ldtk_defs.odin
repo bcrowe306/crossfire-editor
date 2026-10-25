@@ -19,8 +19,10 @@ FieldDefsForm), **Enums** (EditEnumDefs: values, icons, external enum files), **
 level fields (EditLevelFieldDefs, which LDtk opens from its level panel). Every control sends an
 `LDtk_Edit` (ldtk_defs.odin): one undo step, in memory until Save.
 
-Each list has its buttons in a row under its choice: Add (a layer by type, a field by type and
-array, an entity preset), Duplicate, Delete, Up, Down. A tileset picker (`tilesetPicker`) picks
+The tabs' lists (layers, entity types, enums, tilesets) are their sidebars (view_list_tab.odin), their
+buttons on the toolbar row (`listTools`: Add a layer by type, an entity preset, a tileset of an
+image; Duplicate, Delete, Up, Down); a sub-list (an entity type's fields, IntGrid values) has its
+choice and buttons in the rows (`listButtons`). A tileset picker (`tilesetPicker`) picks
 tile rectangles (an entity's tile, an enum value's icon, an IntGrid value's tile, a Tile field's
 default) and tags tiles.
 
@@ -78,7 +80,22 @@ buttonRow :: proc(c: ^LDtkTabCtx, buttons: ..skald.View) {
 	append(c.rows, skald.wrap_row(..views, spacing = th.spacing.xs, line_spacing = th.spacing.xs, width = c.rowWidth))
 }
 
-// A list's Duplicate, Delete, Up and Down (`prefix`: the keys' list)
+/*
+The tab's main list's Duplicate, Delete, Up and Down on its toolbar row (`prefix`: the keys' list,
+`what`: its items' name in the tooltips), after its Add buttons.
+*/
+@(private)
+listTools :: proc(c: ^LDtkTabCtx, prefix, what: string, edit: LDtk_Edit, at, count: int) {
+	dup, del, up, down := edit, edit, edit, edit
+	dup.op, del.op, up.op, down.op = .Def_Duplicated, .Def_Removed, .Def_Moved, .Def_Moved
+	up.number, down.number = -1, 1
+	tabTool(c, fmt.tprintf("ldtk-%s-duplicate", prefix), ICON_COPY, fmt.tprintf("Duplicate the %s", what), Msg(dup))
+	tabTool(c, fmt.tprintf("ldtk-%s-delete", prefix), ICON_TRASH, fmt.tprintf("Delete the %s", what), Msg(del))
+	tabTool(c, fmt.tprintf("ldtk-%s-up", prefix), ICON_ARROW_UP, fmt.tprintf("Move the %s up", what), Msg(up), disabled = at <= 0)
+	tabTool(c, fmt.tprintf("ldtk-%s-down", prefix), ICON_ARROW_DOWN, fmt.tprintf("Move the %s down", what), Msg(down), disabled = at >= count - 1)
+}
+
+// A list's Duplicate, Delete, Up and Down in a row of the content (a sub-list: fields)
 @(private="file")
 listButtons :: proc(c: ^LDtkTabCtx, prefix: string, edit: LDtk_Edit, at, count: int, extra: ..skald.View) {
 	dup, del, up, down := edit, edit, edit, edit
@@ -251,16 +268,20 @@ settings by its type.
 LDtkDefs_Layers :: proc(c: ^LDtkTabCtx) {
 	main := c.main
 	th := c.ctx.theme
-	tabNote(c, "The layer selected in the Layers sidebar (or here). Changes apply to every level.")
-	add :: proc(c: ^LDtkTabCtx, type: string) -> skald.View {
+	// The toolbar row: a new layer of each type, then the list's buttons
+	add :: proc(c: ^LDtkTabCtx, type: string) {
 		e := tabBase(c, .Def_Added)
 		e.kind, e.text = .Layer, type
-		return smallButton(c, fmt.tprintf("ldtk-layers-add-%s", type), fmt.tprintf("%s  %s", ICON_PLUS, type), Msg(e))
+		tabTool(c, fmt.tprintf("ldtk-layers-add-%s", type), ICON_PLUS, fmt.tprintf("A new %s layer, on top", type), Msg(e), label = type)
 	}
-	buttonRow(c, add(c, "IntGrid"), add(c, "Entities"), add(c, "Tiles"), add(c, "AutoLayer"))
-	def := tabItemChoice(c, .Layers, LDtkDoc_Defs(c.doc, "layers"), c.s.level.layerDef, "Layer")
+	add(c, "IntGrid")
+	add(c, "Entities")
+	add(c, "Tiles")
+	add(c, "AutoLayer")
+	c.list.empty = "No layers: + adds one."
+	def := tabItemChoice(c, .Layers, LDtkDoc_Defs(c.doc, "layers"), c.s.level.layerDef)
 	if def < 0 {
-		tabNote(c, "This project has no layers: add one above.")
+		tabNote(c, "This project has no layers: add one (the buttons above).")
 		return
 	}
 	uid := Json_Int(main, Json_Get(main, def, "uid"))
@@ -269,7 +290,8 @@ LDtkDefs_Layers :: proc(c: ^LDtkTabCtx) {
 	at, _ := slice.linear_search(items, def)
 	e := tabBase(c, .Def_Removed)
 	e.kind, e.def = .Layer, uid
-	listButtons(c, "layers", e, at, len(items))
+	listTools(c, "layers", "layer", e, at, len(items))
+	c.list.text = fmt.tprintf("%s: %d of %d, top first (changes apply to every level)", Json_String(main, Json_Get(main, def, "identifier")), at + 1, len(items))
 	if Json_Int(main, Json_Get(main, def, "uid")) >= 0 && type == "IntGrid" {
 		for d in items do if Json_Int(main, Json_Get(main, d, "autoSourceLayerDefUid"), -1) == uid {
 			tabNote(c, fmt.tprintf("%s builds its tiles from this layer: deleting it leaves that auto-layer without a source.", Json_String(main, Json_Get(main, d, "identifier"))), true)
@@ -352,7 +374,7 @@ LDtkDefs_Layers :: proc(c: ^LDtkTabCtx) {
 	}
 	upDown := tabBase(c, .Layer_Move)
 	upDown.def = uid
-	tabNote(c, fmt.tprintf("%d of %d, top first: higher draws over lower (Up and Down above, or drag it by its grip in the Layers sidebar).", at + 1, len(items)))
+	tabNote(c, fmt.tprintf("%d of %d, top first: higher draws over lower (Up and Down above, or drag its row in the Layers sidebar).", at + 1, len(items)))
 }
 
 // An auto-layer's other settings: what removes its tiles, its biome field
@@ -553,7 +575,7 @@ tilesetPicker :: proc(c: ^LDtkTabCtx, key: string, tileset: int, selected: Maybe
 	padding := f32(Json_Int(main, Json_Get(main, td, "padding")))
 	cWid := max(Json_Int(main, Json_Get(main, td, "__cWid")), 1)
 	cHei := max(Json_Int(main, Json_Get(main, td, "__cHei")), 1)
-	widest := small ? min(c.rowWidth, 160) : c.rowWidth
+	widest := small ? min(c.rowWidth - (c.stacked ? 0 : LDTK_LABEL_WIDTH + th.spacing.sm), 160) : c.rowWidth
 	zoom := min(widest / max(size.x, 1), small ? 4 : 3)
 	if size.y * zoom > 360 do zoom = 360 / max(size.y, 1)
 	zoom = max(zoom, 0.25)
@@ -675,12 +697,14 @@ LDtkDefs_Entities :: proc(c: ^LDtkTabCtx) -> int {
 	add.kind = .Entity
 	rect, circle := add, add
 	rect.text, circle.text = "RectRegion", "CircleRegion"
-	buttonRow(c, smallButton(c, "ldtk-entities-add", fmt.tprintf("%s  Entity", ICON_PLUS), Msg(add)),
-		smallButton(c, "ldtk-entities-add-rect", fmt.tprintf("%s  Rectangle region", ICON_PLUS), Msg(rect)),
-		smallButton(c, "ldtk-entities-add-circle", fmt.tprintf("%s  Circle region", ICON_PLUS), Msg(circle)))
-	def := tabItemChoice(c, .Entities, LDtkDoc_Defs(c.doc, "entities"), c.s.level.entityDef, "Entity type")
+	// The toolbar row: a new type (LDtk's presets), then the list's buttons
+	tabTool(c, "ldtk-entities-add", ICON_PLUS, "A new entity type", Msg(add), label = "Entity")
+	tabTool(c, "ldtk-entities-add-rect", ICON_PLUS, "A new rectangle region (LDtk's preset: a resizable, hollow rectangle)", Msg(rect), label = "Rectangle")
+	tabTool(c, "ldtk-entities-add-circle", ICON_PLUS, "A new circle region (LDtk's preset)", Msg(circle), label = "Circle")
+	c.list.empty = "No entity types: + adds one."
+	def := tabItemChoice(c, .Entities, LDtkDoc_Defs(c.doc, "entities"), c.s.level.entityDef)
 	if def < 0 {
-		tabNote(c, "This project has no entity types: add one above.")
+		tabNote(c, "This project has no entity types: add one (the buttons above).")
 		return -1
 	}
 	uid := Json_Int(main, Json_Get(main, def, "uid"))
@@ -688,7 +712,8 @@ LDtkDefs_Entities :: proc(c: ^LDtkTabCtx) -> int {
 	at, _ := slice.linear_search(items, def)
 	e := tabBase(c, .Def_Removed)
 	e.kind, e.def = .Entity, uid
-	listButtons(c, "entities", e, at, len(items))
+	listTools(c, "entities", "entity type", e, at, len(items))
+	c.list.text = fmt.tprintf("%s: %d of %d", Json_String(main, Json_Get(main, def, "identifier")), at + 1, len(items))
 	placed := len(ldtkEntitiesOf(c.doc, uid))
 	if placed > 0 do tabNote(c, fmt.tprintf("%d placed: deleting the type removes them from every level (and references to them).", placed))
 	edit :: proc(c: ^LDtkTabCtx, op: LDtkEditOp, uid: int) -> LDtk_Edit { x := tabBase(c, op); x.def = uid; return x }
@@ -1090,30 +1115,28 @@ LDtkDefs_Enums :: proc(c: ^LDtkTabCtx) {
 	th := c.ctx.theme
 	add := tabBase(c, .Def_Added)
 	add.kind = .Enum
-	buttonRow(c, smallButton(c, "ldtk-enums-add", fmt.tprintf("%s  Enum", ICON_PLUS), Msg(add)))
-	// Local enums, then external ones (the choice lists both)
+	tabTool(c, "ldtk-enums-add", ICON_PLUS, "A new enum", Msg(add), label = "Enum")
+	// Local enums, then external ones (the list has both: an external one's file after its name)
 	all := make([dynamic]int, context.temp_allocator)
 	append(&all, ..Json_Items(main, LDtkDoc_Defs(c.doc, "enums")))
 	append(&all, ..Json_Items(main, LDtkDoc_Defs(c.doc, "externalEnums")))
 	def := -1
-	names := make([dynamic]string, context.temp_allocator)
-	uids := make([dynamic]string, context.temp_allocator)
+	for d in all {
+		uid := Json_Int(main, Json_Get(main, d, "uid"))
+		if def < 0 || uid == c.s.level.enumDef do def = d
+	}
 	for d in all {
 		uid := Json_Int(main, Json_Get(main, d, "uid"))
 		label := Json_String(main, Json_Get(main, d, "identifier"))
-		if rel := Json_String(main, Json_Get(main, d, "externalRelPath")); rel != "" do label = fmt.tprintf("%s (%s)", label, rel)
-		append(&names, label)
-		append(&uids, fmt.tprint(uid))
-		if def < 0 || uid == c.s.level.enumDef do def = d
+		rel := Json_String(main, Json_Get(main, d, "externalRelPath"))
+		row := ColoredTreeRow{label = strings.clone(label, context.temp_allocator), icon = rel != "" ? ICON_LINK : ICON_LIST, selected = d == def}
+		if rel != "" do row.label = fmt.tprintf("%s (%s)", label, filepath.base(rel))
+		tabListItem(c, row, Msg(LDtk_Item_Picked{.Enums, uid}))
 	}
+	c.list.empty = "No enums: + adds one."
 	if def >= 0 {
 		uid := Json_Int(main, Json_Get(main, def, "uid"))
-		Pick :: struct {}
-		choice := labeledSelect(c.ctx, fmt.tprint(uid), names[:], uids[:], Pick{}, proc(_: Pick, v: string) -> Msg {
-			n, _ := strconv.parse_int(v)
-			return LDtk_Item_Picked{.Enums, n}
-		}, id = skald.hash_id("ldtk-item-Enums"), width = c.controlWidth)
-		tabRow(c, "Enum", choice, "Which enum the rows below edit")
+		c.list.text = fmt.tprintf("%s: %d value%s", Json_String(main, Json_Get(main, def, "identifier")), Json_Count(main, Json_Get(main, def, "values")), Json_Count(main, Json_Get(main, def, "values")) == 1 ? "" : "s")
 		external := Json_Kind(main, Json_Get(main, def, "externalRelPath")) == .String
 		cdb := external && strings.has_suffix(strings.to_lower(Json_String(main, Json_Get(main, def, "externalRelPath")), context.temp_allocator), ".cdb")
 		used := ldtkEnumUsers(c, uid)
@@ -1122,7 +1145,7 @@ LDtkDefs_Enums :: proc(c: ^LDtkTabCtx) {
 			at, _ := slice.linear_search(locals, def)
 			e := tabBase(c, .Def_Removed)
 			e.kind, e.def = .Enum, uid
-			listButtons(c, "enums", e, at, len(locals))
+			listTools(c, "enums", "enum", e, at, len(locals))
 			if used > 0 do tabNote(c, fmt.tprintf("%d field%s use it: deleting it deletes them too.", used, used == 1 ? "" : "s"), true)
 			name := tabBase(c, .Enum_Name)
 			name.def = uid
@@ -1316,35 +1339,38 @@ LDtkDefs_Tilesets :: proc(c: ^LDtkTabCtx) {
 	icons.text = "LdtkIcons"
 	hasIcons := false
 	for td in Json_Items(main, LDtkDoc_Defs(c.doc, "tilesets")) do if Json_String(main, Json_Get(main, td, "embedAtlas")) == "LdtkIcons" do hasIcons = true
-	tabRow(c, "New tileset", tabChoiceField(c, "ldtk-tilesets-add", "From an image...", imageLabels[:], imageValues[:], add), "A tileset of one of the project's images (LDtk takes a file beside the project)")
-	buttonRow(c, smallButton(c, "ldtk-tilesets-add-empty", fmt.tprintf("%s  Without an image", ICON_PLUS), Msg(empty)),
-		smallButton(c, "ldtk-tilesets-add-icons", fmt.tprintf("%s  LDtk's internal icons", ICON_PLUS), Msg(icons), disabled = hasIcons))
+	// The toolbar row: a new tileset (of an image, without one, LDtk's icons), then the list's buttons
+	newTileset := labeledSelect(c.ctx, "", imageLabels[:], imageValues[:], add, proc(edit: LDtk_Edit, v: string) -> Msg {
+		e := edit
+		e.text = v
+		return e
+	}, id = skald.hash_id("ldtk-tilesets-add"), width = 150, placeholder = fmt.tprintf("%s From an image...", ICON_PLUS))
+	tabToolView(c, skald.tooltip(c.ctx, newTileset, "A tileset of one of the project's images (LDtk takes a file beside the project)", id = skald.hash_id("ldtk-tilesets-add-tip")))
+	tabTool(c, "ldtk-tilesets-add-empty", ICON_PLUS, "A tileset without an image (pick one later)", Msg(empty), label = "Empty")
+	tabTool(c, "ldtk-tilesets-add-icons", ICON_PLUS, "LDtk's internal icons as a tileset (one per project)", Msg(icons), label = "LDtk icons", disabled = hasIcons)
+	c.list.empty = "No tilesets: add one from an image."
 	sets := LDtkDoc_Defs(c.doc, "tilesets")
 	if Json_Count(main, sets) == 0 {
 		tabNote(c, "No tilesets yet.")
 		return
 	}
 	def := -1
-	names := make([dynamic]string, context.temp_allocator)
-	uids := make([dynamic]string, context.temp_allocator)
 	for d in Json_Items(main, sets) {
 		uid := Json_Int(main, Json_Get(main, d, "uid"))
-		append(&names, Json_String(main, Json_Get(main, d, "identifier")))
-		append(&uids, fmt.tprint(uid))
 		if def < 0 || uid == c.s.level.tilesetDef do def = d
 	}
+	for d in Json_Items(main, sets) {
+		row := ColoredTreeRow{label = strings.clone(Json_String(main, Json_Get(main, d, "identifier")), context.temp_allocator), icon = ICON_IMAGE, iconColor = AssetKind_Color(.Image), selected = d == def}
+		tabListItem(c, row, Msg(LDtk_Def_Picked{what = .Tileset, uid = Json_Int(main, Json_Get(main, d, "uid"))}))
+	}
 	uid := Json_Int(main, Json_Get(main, def, "uid"))
-	Pick :: struct {}
-	tabRow(c, "Tileset", labeledSelect(c.ctx, fmt.tprint(uid), names[:], uids[:], Pick{}, proc(_: Pick, v: string) -> Msg {
-		n, _ := strconv.parse_int(v)
-		return LDtk_Def_Picked{what = .Tileset, uid = n}
-	}, id = skald.hash_id("ldtk-item-Tilesets"), width = c.controlWidth), "Which tileset the rows below edit")
 	items := Json_Items(main, sets)
 	at, _ := slice.linear_search(items, def)
 	e := tabBase(c, .Def_Removed)
 	e.kind, e.def = .Tileset, uid
 	embed := Json_String(main, Json_Get(main, def, "embedAtlas")) == "LdtkIcons"
-	listButtons(c, "tilesets", e, at, len(items))
+	listTools(c, "tilesets", "tileset", e, at, len(items))
+	c.list.text = fmt.tprintf("%s: %d of %d", Json_String(main, Json_Get(main, def, "identifier")), at + 1, len(items))
 	if embed {
 		tabNote(c, "LDtk's internal icons (by FinalBossBlues, finalbossblues.itch.io/icons): for the editor only. A game shows them when the project has its own copy of finalbossblues-icons_full_16.png beside the .ldtk file (they're licensed from their author).")
 	} else {

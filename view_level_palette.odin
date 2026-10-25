@@ -50,12 +50,9 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 	uid := Json_Int(main, Json_Get(main, def, "uid"), -1)
 	layerType := Json_String(main, Json_Get(main, def, "__type"))
 	rows := make([dynamic]skald.View, context.temp_allocator)
-	header := skald.row(
-		skald.text("Palette", th.color.fg, th.font.size_sm),
-		skald.flex(1, skald.spacer(0)),
-		skald.text(s.level.focus == "" ? "double-click a level to paint" : Json_String(main, Json_Get(main, def, "identifier")), th.color.fg_muted, th.font.size_xs),
-		spacing = th.spacing.xs, padding = th.spacing.sm, cross_align = .Center, bg = th.color.surface,
-	)
+	// The editor's panel header (`panelHeader`), what it paints with in its title
+	header := skald.col(panelHeader(ctx, ICON_PALETTE, s.level.focus == "" ? "Palette (double-click a level to paint)" : fmt.tprintf("Palette: %s", Json_String(main, Json_Get(main, def, "identifier")))),
+		skald.divider(ctx), cross_align = .Stretch)
 	switch layerType {
 	case "IntGrid":
 		picked := -1
@@ -66,16 +63,10 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 			value := Json_Int(main, Json_Get(main, v, "value"))
 			name := Json_String(main, Json_Get(main, v, "identifier"))
 			c, _ := LDtk_ParseColor(Json_String(main, Json_Get(main, v, "color")))
-			selected := value == picked
-			fg := selected ? th.color.on_primary : th.color.fg
 			label := name != "" ? fmt.tprintf("%s (%d)", name, value) : fmt.tprintf("%d", value)
-			content := skald.row(
-				skald.col(skald.spacer(0), width = 16, height = 16, bg = skald.rgb(u32(c)), radius = 3),
-				skald.text(label, fg, th.font.size_sm, max_width = textWidth),
-				spacing = th.spacing.sm, cross_align = .Center,
-			)
-			key := fmt.tprintf("level-value-%d", value)
-			append(&rows, paletteRow(ctx, key, content, selected, Msg(Level_Value_Picked{uid, value})))
+			// A tree row (the scene tree's look), the value's color as its icon
+			row := ColoredTreeRow{label = label, icon = ICON_SQUARE_FULL, iconColor = skald.rgb(u32(c)), selected = value == picked}
+			append(&rows, paletteRow(ctx, s, fmt.tprintf("level-value-%d", value), row, Msg(Level_Value_Picked{uid, value})))
 		}
 		if len(values) == 0 do append(&rows, skald.col(skald.text("No values: add them in the Layers tab.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
 		list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], cross_align = .Stretch), id = skald.hash_id("level-palette-scroll"))
@@ -96,10 +87,8 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 		}
 		paint := &s.level.paint
 		toggle :: proc(ctx: ^skald.Ctx(Msg), key, label, tip: string, on: bool, msg: Msg) -> skald.View {
-			th := ctx.theme
-			b := skald.button(ctx, label, msg, id = skald.hash_id(key), bg = on ? th.color.primary : th.color.elevated, fg = on ? th.color.on_primary : th.color.fg,
-				padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
-			return skald.tooltip(ctx, b, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
+			// The editor's panel buttons (`panelToolButton`), pressed while on
+			return panelToolButton(ctx, key, "", tip, msg, label = label, on = on)
 		}
 		options := skald.wrap_row(
 			toggle(ctx, "level-palette-random", paint.random ? "Random" : "Stamp", actionTip(s, "Stamp (the picked tiles as they are) or random (one of them per cell)", .Level_Random_Mode), paint.random, Msg(Action.Level_Random_Mode)),
@@ -107,7 +96,7 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 			toggle(ctx, "level-palette-flip-y", "Flip Y", actionTip(s, "Flip the tiles on Y", .Level_Flip_Y), paint.flipY, Msg(Action.Level_Flip_Y)),
 			toggle(ctx, "level-palette-stacking", "Stack", actionTip(s, "Tile stacking: a tile with transparent pixels goes over the cell's", .Level_Tile_Stacking), !paint.noStacking, Msg(Action.Level_Tile_Stacking)),
 			toggle(ctx, "level-palette-save", "Save", actionTip(s, "Memorize the picked tiles: a click on one of them picks them all again (Ctrl + click: just that tile)", .Level_Save_Tile_Selection), false, Msg(Action.Level_Save_Tile_Selection)),
-			spacing = th.spacing.xs,
+			spacing = th.spacing.xs, line_spacing = th.spacing.xs,
 		)
 		Data :: struct {
 			s: ^State,
@@ -126,16 +115,9 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 			if !LevelPaint_LayerTakes(main, def, ed) do continue
 			edUid := Json_Int(main, Json_Get(main, ed, "uid"), -1)
 			c, _ := LDtk_ParseColor(Json_String(main, Json_Get(main, ed, "color")))
-			selected := edUid == picked
-			fg := selected ? th.color.on_primary : th.color.fg
-			muted := selected ? th.color.on_primary : th.color.fg_muted
-			content := skald.row(
-				skald.col(skald.spacer(0), width = 16, height = 16, bg = skald.rgb(u32(c)), radius = 3),
-				skald.text(Json_String(main, Json_Get(main, ed, "identifier")), fg, th.font.size_sm, max_width = textWidth * 0.7),
-				skald.text(fmt.tprintf("%dx%d", Json_Int(main, Json_Get(main, ed, "width")), Json_Int(main, Json_Get(main, ed, "height"))), muted, th.font.size_xs),
-				spacing = th.spacing.sm, cross_align = .Center,
-			)
-			append(&rows, paletteRow(ctx, fmt.tprintf("level-entity-type-%d", edUid), content, selected, Msg(Level_Entity_Type_Picked(edUid))))
+			row := ColoredTreeRow{label = fmt.tprintf("%s  %dx%d", Json_String(main, Json_Get(main, ed, "identifier")), Json_Int(main, Json_Get(main, ed, "width")), Json_Int(main, Json_Get(main, ed, "height"))),
+				icon = ICON_SQUARE_FULL, iconColor = skald.rgb(u32(c)), selected = edUid == picked}
+			append(&rows, paletteRow(ctx, s, fmt.tprintf("level-entity-type-%d", edUid), row, Msg(Level_Entity_Type_Picked(edUid))))
 		}
 		if len(rows) == 0 do append(&rows, skald.col(skald.text("No entity type this layer takes: add one in the Entities tab.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
 		list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], cross_align = .Stretch), id = skald.hash_id("level-palette-scroll"))
@@ -152,16 +134,13 @@ jsonUidOr :: proc(json: ^JsonDoc, node: int) -> int {
 	return Json_Kind(json, node) == .Number ? Json_Int(json, node) : -1
 }
 
-// A palette row: a click picks it
+// A palette row, a tree row (`Tree_RowView`: the editor's lists' look): a click picks it
 @(private="file")
-paletteRow :: proc(ctx: ^skald.Ctx(Msg), key: string, content: skald.View, selected: bool, msg: Msg) -> skald.View {
-	th := ctx.theme
+paletteRow :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: string, row: ColoredTreeRow, msg: Msg) -> skald.View {
 	id := skald.hash_id(key)
-	hovered := skald.widget_hovered(ctx, id)
-	if hovered && ctx.input.mouse_pressed[.Left] do skald.send(ctx, msg)
-	bg := selected ? th.color.primary : hovered ? th.color.elevated : skald.Color{}
+	if skald.widget_hovered(ctx, id) && ctx.input.mouse_pressed[.Left] && !skald.mouse_over_overlay(ctx) do skald.send(ctx, msg)
 	child := new(skald.View, context.temp_allocator)
-	child^ = skald.row(content, padding = th.spacing.xs, cross_align = .Center, bg = bg)
+	child^ = Tree_RowView(ctx.theme, row, s.settings.rowHeight, true, false)
 	return skald.View_Zone{id = id, child = child}
 }
 
