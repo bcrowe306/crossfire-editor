@@ -13,7 +13,9 @@ The Level mode's sidebars (level_mode.odin), from the user's design:
   of the world (a document icon and the name, the selected one highlighted). A click selects the
   level (and the canvas shows it selected), a double-click focuses it (the canvas fits it, as
   LDtk's level view), a right-click opens its menu (`Ctx_Level`). Without an LDtk file: Import...
-- **Layers** (right): the selected level's layers, top first (LDtk's order), a row each: a grip
+- **Layers** (right): the selected level's layers, top first (LDtk's order), then the palette of
+  the selected layer (view_level_palette.odin: its IntGrid values, its tileset, its entity
+  types); a row each: a grip
   to drag it to another place (`Layer_Move`: the definitions' order, every level's with it), its
   name and type, and the eye (LDtk's: the layer instance's `visible`, saved in the file; the engine
   skips hidden layers), dimmed. A click selects the layer: the tools and the Layers tab follow it.
@@ -323,8 +325,28 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 	}
 	if level < 0 && len(layers) > 0 do append(&rows, skald.col(skald.text("Select a level to show or hide its layers.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
 	if len(layers) == 0 do append(&rows, skald.col(skald.text("This project has no layers: add them in LDtk.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
-	list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], cross_align = .Stretch), id = skald.hash_id("level-layers-scroll"))
-	append(&parts, skald.flex(1, list))
+	content := skald.col(..rows[:], cross_align = .Stretch)
+	// What the selected layer paints with (view_level_palette.odin): LDtk's palette under its
+	// layers, which take what their rows need (at most half the sidebar; 40% beside a tileset)
+	palette, shown := LevelPalette_View(s, ctx, doc, textWidth)
+	if !shown {
+		append(&parts, skald.flex(1, skald.scroll(ctx, {0, 0}, content, id = skald.hash_id("level-layers-scroll"))))
+		return parts[:]
+	}
+	Split :: struct {
+		content, palette: skald.View,
+		need, share: f32,
+	}
+	split := new_clone(Split{content, palette, f32(len(rows)) * sizes.row + 4, LevelMode_LayerType(s) == "Tiles" ? 0.4 : 0.5}, context.temp_allocator)
+	append(&parts, skald.flex(1, skald.sized(ctx, split, proc(ctx: ^skald.Ctx(Msg), d: ^Split, size: [2]f32) -> skald.View {
+		listHeight := clamp(d.need, 40, max(size.y * d.share, 40))
+		return skald.col(
+			skald.scroll(ctx, {0, listHeight}, d.content, id = skald.hash_id("level-layers-scroll")),
+			skald.divider(ctx),
+			skald.flex(1, d.palette),
+			cross_align = .Stretch,
+		)
+	})))
 	return parts[:]
 }
 

@@ -101,6 +101,21 @@ Action :: enum {
 	// Editor modes (editor_modes.odin): show the Scene mode, the Level mode
 	Mode_Scene,
 	Mode_Level,
+
+	// The Level mode's painting (level_paint.odin), LDtk's keys: flip the tile brush, random tiles,
+	// the grid (lines and snapping), the other layers faded, tile stacking, auto-layer tiles shown,
+	// delete or duplicate the selected entity, cancel (a pick, the selection), the world view
+	Level_Flip_X,
+	Level_Flip_Y,
+	Level_Random_Mode,
+	Level_Toggle_Grid,
+	Level_Single_Layer,
+	Level_Tile_Stacking,
+	Level_Auto_Layers,
+	Level_Delete,
+	Level_Duplicate,
+	Level_Cancel,
+	Level_World_Mode,
 }
 
 // Panel resizing. Each carries the new size of a split's first pane
@@ -1439,4 +1454,9 @@ Msg :: union {
 	Level_Layer_Picked,
 	Level_Tool_Picked,
 	LDtk_Disk_Chosen,
+	// Painting (level_paint.odin)
+	Level_Value_Picked,
+	Level_Tiles_Picked,
+	Level_Entity_Type_Picked,
+	Level_Pick_Started,
 }

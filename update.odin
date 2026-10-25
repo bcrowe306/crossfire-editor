@@ -297,7 +297,8 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	     Level_Canvas_Measured, Level_Canvas_Pressed, Level_Canvas_Moved, Level_Canvas_Released, Level_Canvas_Zoomed, Level_Canvas_Panned,
 	     Level_Canvas_Fit, Level_Entity_Picked, Level_Collision_Kind_Changed, LDtk_Item_Picked, LDtk_Text_Typed,
 	     LDtk_New_Name_Typed, LDtk_Edit, LDtk_Conflict_Chosen, Level_World_Chosen, Level_Row_Clicked, Level_Focus_Changed,
-	     Level_Open_Showing, Level_Layer_Picked, Level_Tool_Picked, LDtk_Disk_Chosen:
+	     Level_Open_Showing, Level_Layer_Picked, Level_Tool_Picked, LDtk_Disk_Chosen,
+	     Level_Value_Picked, Level_Tiles_Picked, Level_Entity_Type_Picked, Level_Pick_Started:
 		// Handled by Modes_Update and LevelMode_Update above
 	case Log_Follow_Toggled, Log_Follow_Set, Log_Level_Toggled, Log_Category_Toggled,
 	     Log_Categories_Shown, Log_Search_Changed, Log_Filters_Cleared, Log_Test_Lines:
@@ -1506,6 +1507,9 @@ handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 		if out.slicer.shown > 0 do Slicer_Close(out, out.slicer.shown - 1)
 	case .Mode_Scene, .Mode_Level:
 		// Modes_Update switches (editor_modes.odin)
+	case .Level_Flip_X, .Level_Flip_Y, .Level_Random_Mode, .Level_Toggle_Grid, .Level_Single_Layer, .Level_Tile_Stacking,
+	     .Level_Auto_Layers, .Level_Delete, .Level_Duplicate, .Level_Cancel, .Level_World_Mode:
+		// LevelMode_Update handles them (level_paint.odin)
 	case .Open_Settings:
 		SettingsDialog_Open(out)
 	case .Export:

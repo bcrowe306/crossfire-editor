@@ -412,6 +412,11 @@ fieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, fi: in
 	value := Json_Get(json, fi, "__value")
 	label := info.identifier
 	tip := fmt.tprintf("The %s field %s (LDtk's type %s)", info.isArray ? "array" : "value", info.identifier, Json_String(json, Json_Get(json, fi, "__type")))
+	// Points and references picked on the canvas (level_paint.odin's LevelPick), arrays too
+	if edit.op != .Level_Field && (info.type == .Point || (info.type == .EntityRef && (info.isArray || info.symmetrical))) {
+		pickedFieldControl(c, info, json, fi, owner, edit, key, label, tip)
+		return
+	}
 	why := LDtkOps_FieldLocked(info)
 	if why == "" && edit.op == .Level_Field && info.type == .EntityRef do why = "a level's entity references aren't editable here yet (LDtk edits them)"
 	if why != "" {
@@ -444,9 +449,78 @@ fieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, fi: in
 		target := valueText(json, value)
 		for v, i in vals do if v == target && target != "" do shown = labels[i]
 		row(c, label, choiceField(c, key, shown, labels, vals, edit), tip)
+		if edit.op == .Entity_Ref do append(c.rows, pickButton(c, fmt.tprintf("%s-pick", key), "Pick on the canvas", Level_Pick_Started{.Ref, edit.entity, edit.field, 0}))
 	case:
 		row(c, label, textField(c, key, valueText(json, value), edit), tip)
 	}
+}
+
+// A button starting a pick on the canvas (the Entities tab's: a reference's target, a point's cell)
+@(private="file")
+pickButton :: proc(c: ^LDtkTabCtx, key, label: string, pick: Level_Pick_Started) -> skald.View {
+	th := c.ctx.theme
+	waiting := c.s.level.paint.pick.kind == pick.kind && c.s.level.paint.pick.entity == pick.entity && c.s.level.paint.pick.field == pick.field && c.s.level.paint.pick.index == pick.index
+	p := pick
+	p.entity = strings.clone(pick.entity, context.temp_allocator)
+	msg := Msg(p)
+	if waiting do msg = Msg(Level_Pick_Started{})
+	b := skald.button(c.ctx, waiting ? fmt.tprintf("%s  Picking... (Esc)", ICON_CROSSHAIRS) : fmt.tprintf("%s  %s", ICON_CROSSHAIRS, label), msg, id = skald.hash_id(key),
+		bg = waiting ? th.color.primary : th.color.surface, fg = waiting ? th.color.on_primary : th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+	return skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), b, spacing = th.spacing.sm)
+}
+
+/*
+A point field (a cell of the entity's layer) or an array / symmetrical entity reference field:
+its values, each removable, and a Pick button: the next click on the canvas sets it (an array's
+picks add, LDtk's point picker keeps adding until Esc).
+*/
+@(private="file")
+pickedFieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, fi: int, owner: LDtkDocEntity, edit: LDtk_Edit, key, label, tip: string) {
+	th := c.ctx.theme
+	value := Json_Get(json, fi, "__value")
+	items := info.isArray ? Json_Items(json, value) : []int{value}
+	kind := info.type == .Point ? LevelPickKind.Point : LevelPickKind.Ref
+	describe :: proc(c: ^LDtkTabCtx, json: ^JsonDoc, item: int, point: bool) -> string {
+		if Json_Kind(json, item) != .Object do return "(none)"
+		if point do return fmt.tprintf("cell %d, %d", Json_Int(json, Json_Get(json, item, "cx")), Json_Int(json, Json_Get(json, item, "cy")))
+		iid := Json_String(json, Json_Get(json, item, "entityIid"))
+		if target, found := LDtkDoc_FindEntity(c.doc, iid); found {
+			tj := LDtkDoc_Json(c.doc, target.file)
+			level, _ := LDtkDoc_LevelNames(c.doc, target.level)
+			return fmt.tprintf("%s in %s", Json_String(tj, Json_Get(tj, target.node, "__identifier")), level)
+		}
+		return iid
+	}
+	row(c, label, skald.text(info.isArray ? fmt.tprintf("%d item(s)", len(items)) : describe(c, json, value, kind == .Point), th.color.fg, th.font.size_xs, max_width = c.controlWidth), tip)
+	for item, i in items {
+		if !info.isArray do break
+		remove := edit
+		remove.entity = strings.clone(edit.entity, context.temp_allocator)
+		remove.index = i
+		if kind == .Point {
+			remove.op = .Entity_Point
+			remove.flag = true
+		} else {
+			remove.op = .Entity_Ref
+			remove.text = ""
+		}
+		x := skald.button(c.ctx, ICON_XMARK, Msg(remove), id = skald.hash_id(fmt.tprintf("%s-remove-%d", key, i)), bg = th.color.surface, fg = th.color.fg_muted, padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
+		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), skald.text(fmt.tprintf("%d. %s", i + 1, describe(c, json, item, kind == .Point)), th.color.fg_muted, th.font.size_xs), x, spacing = th.spacing.sm, cross_align = .Center))
+	}
+	if !info.isArray && Json_Kind(json, value) == .Object {
+		clear := edit
+		clear.entity = strings.clone(edit.entity, context.temp_allocator)
+		if kind == .Point {
+			clear.op = .Entity_Point
+			clear.flag = true
+		} else {
+			clear.op = .Entity_Ref
+			clear.text = ""
+		}
+		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), skald.button(c.ctx, "Clear", Msg(clear), id = skald.hash_id(fmt.tprintf("%s-clear", key)), bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)))
+	}
+	append(c.rows, pickButton(c, fmt.tprintf("%s-pick", key), info.isArray ? (kind == .Point ? "Add points on the canvas" : "Add a reference on the canvas") : "Pick on the canvas",
+		Level_Pick_Started{kind, edit.entity, edit.field, info.isArray ? -1 : 0}))
 }
 
 // The entities a reference field of `owner` may point at: labels and iids, "(none)" first

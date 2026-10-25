@@ -89,6 +89,18 @@ ACTION_KEY_RULES := #partial [Action]ActionKeyRule{
 	.Nudge_Down_Large = {viewportOnly = true, onlyIn = {.Scene}},
 	.Open_Script = {onlyIn = {.Scene}},
 	.Close_Code_Tab = {onlyIn = {.Scene}},
+	// The Level mode's (level_paint.odin)
+	.Level_Flip_X = {onlyIn = {.Level}},
+	.Level_Flip_Y = {onlyIn = {.Level}},
+	.Level_Random_Mode = {onlyIn = {.Level}},
+	.Level_Toggle_Grid = {onlyIn = {.Level}},
+	.Level_Single_Layer = {onlyIn = {.Level}},
+	.Level_Tile_Stacking = {onlyIn = {.Level}},
+	.Level_Auto_Layers = {onlyIn = {.Level}},
+	.Level_Delete = {onlyIn = {.Level}},
+	.Level_Duplicate = {textChord = true, onlyIn = {.Level}},
+	.Level_Cancel = {onlyIn = {.Level}},
+	.Level_World_Mode = {onlyIn = {.Level}},
 }
 
 /*
@@ -129,6 +141,12 @@ ACTION_LABELS := [Action]string{
 	.Open_Settings = "Settings", .Play_Scene = "Play the open scene", .Open_Project_Settings = "Project settings", .Build_Scripts = "Build scripts", .Open_Script = "Open script in code editor",
 	.Close_Code_Tab = "Close code tab",
 	.Mode_Scene = "Scene mode", .Mode_Level = "Level mode",
+	.Level_Flip_X = "Level: flip the tiles on X", .Level_Flip_Y = "Level: flip the tiles on Y",
+	.Level_Random_Mode = "Level: random tiles or a stamp", .Level_Toggle_Grid = "Level: show the grid and snap to it",
+	.Level_Single_Layer = "Level: fade the other layers", .Level_Tile_Stacking = "Level: stack tiles",
+	.Level_Auto_Layers = "Level: show auto-layer tiles", .Level_Delete = "Level: delete the selected entity",
+	.Level_Duplicate = "Level: duplicate the selected entity", .Level_Cancel = "Level: cancel a pick, deselect",
+	.Level_World_Mode = "Level: the world or the level",
 }
 
 /*
@@ -196,15 +214,20 @@ keyParen :: proc(s: ^State, action: Action) -> string {
 
 /*
 The action using a chord, other than `except`. The Settings dialog warns about such conflicts;
-at runtime the first action in `Action` order wins.
+at runtime the first action in `Action` order wins. Actions of modes that never show together
+(`ActionKeyRule.onlyIn`) don't conflict: the Scene mode's G and the Level mode's are both G.
 
 Returns:
 - The action, and whether there is one
 */
 Keymap_FindChord :: proc(keymap: ^Keymap, chord: skald.Shortcut, except: Action) -> (Action, bool) {
 	if chord == {} do return {}, false
+	mine := ACTION_KEY_RULES[except].onlyIn
 	for chords, action in keymap {
 		if action == except do continue
+		// Actions of different modes may share a key (G is the Scene mode's grid and the Level mode's)
+		theirs := ACTION_KEY_RULES[action].onlyIn
+		if mine != {} && theirs != {} && mine & theirs == {} do continue
 		for c in chords do if c == chord do return action, true
 	}
 	return {}, false

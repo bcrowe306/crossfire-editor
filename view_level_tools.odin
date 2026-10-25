@@ -17,9 +17,10 @@ layer type (LDtk's IntGridTool, TileTool with its Stamp and Random modes, Entity
 	Entities:  Select, Place, Eraser, Picker
 	AutoLayer: Select (its tiles come from rules: TODO.md's phase 4)
 
-**Phase 1:** Select (and move) is the canvas as it is: click to select, drag levels and entities.
-The painting tools show for the layer's type, greyed out, their tooltips saying painting comes in
-phase 2 (`LevelToolInfo.works`).
+Select (and move) is the canvas as it was: click to select, drag levels and entities. The others
+paint the focused level's selected layer (level_paint.odin: phase 2 of TODO.md's "LDtk level
+editor"); LDtk's modifiers work with any of them (Shift a rectangle, Shift + a quick click a fill,
+Alt picks, the right button erases).
 
 At full size (the design's: LevelMode_Sizes) the row is 75 px with 45 px buttons; narrower, the
 toolbar's sizes. When even those don't fit, the tools go into an overflow button's menu
@@ -45,18 +46,18 @@ LevelTool :: enum {
 // A tool's look and whether it's built yet
 LevelToolInfo :: struct {
 	icon, name, about: string,
-	// It does something (phase 1: Select only; the others come with painting)
+	// It does something (every tool since phase 2)
 	works: bool,
 }
 
 LEVEL_TOOLS := [LevelTool]LevelToolInfo{
 	.Select    = {ICON_POINTER, "Select", "Select and move: click a level or an entity to select it, drag it to move it", true},
-	.Pencil    = {ICON_PENCIL, "Pencil", "Paint the layer's cells with a value", false},
-	.Random    = {ICON_DICE, "Random", "Paint a random tile of the picked ones in each cell", false},
-	.Rectangle = {ICON_SQUARE, "Rectangle", "Paint a rectangle (LDtk: Shift + drag)", false},
-	.Fill      = {ICON_FILL, "Fill", "Fill the area of the same cells (LDtk: Shift + click)", false},
-	.Eraser    = {ICON_ERASER, "Eraser", "Erase (LDtk: the right button)", false},
-	.Picker    = {ICON_EYEDROPPER, "Picker", "Pick what's under the pointer (LDtk: Alt + click)", false},
+	.Pencil    = {ICON_PENCIL, "Pencil", "Paint the layer's cells with a value (the right button erases)", true},
+	.Random    = {ICON_DICE, "Random", "Paint a random tile of the picked ones in each cell (LDtk: R)", true},
+	.Rectangle = {ICON_SQUARE, "Rectangle", "Paint a rectangle (LDtk: Shift + drag)", true},
+	.Fill      = {ICON_FILL, "Fill", "Fill the area of the same cells (LDtk: Shift + a quick click)", true},
+	.Eraser    = {ICON_ERASER, "Eraser", "Erase (LDtk: the right button)", true},
+	.Picker    = {ICON_EYEDROPPER, "Picker", "Pick what's under the pointer (LDtk: Alt + click)", true},
 }
 
 // The tool picked in the tool row (or its overflow menu)
@@ -114,15 +115,16 @@ LevelTool_Look :: proc(tool: LevelTool, layerType: string) -> (icon, name, about
 	case "Entities": icon, name, about = ICON_LOCATION, "Place", "Place an entity of the picked type"
 	case "IntGrid":  about = "Paint the layer's cells with the picked IntGrid value"
 	}
-	if tool == .Eraser && layerType == "Entities" do about = "Remove entities (LDtk: the right button)"
+	if tool == .Eraser && layerType == "Entities" do about = "Remove entities and points (LDtk: the right button)"
+	if tool == .Picker && layerType == "Entities" do about = "Pick an entity's type, and select it (LDtk: Alt + click)"
 	return
 }
 
-// The tooltip of a tool: what it does, and (not built yet) that painting is the next phase
+// The tooltip of a tool: what it does (painting tools work on the focused level)
 LevelTool_Tip :: proc(tool: LevelTool, layerType: string) -> string {
 	_, name, about := LevelTool_Look(tool, layerType)
-	if LEVEL_TOOLS[tool].works do return fmt.tprintf("%s: %s", name, about)
-	return fmt.tprintf("%s: %s. Not yet: painting comes in phase 2 of the Level editor (until then, paint in LDtk)", name, about)
+	if tool == .Select do return fmt.tprintf("%s: %s", name, about)
+	return fmt.tprintf("%s: %s. On the focused level (double-click a level)", name, about)
 }
 
 /*
@@ -209,7 +211,7 @@ LevelTools_MenuItems :: proc(s: ^State, items: ^[dynamic]skald.Menu_Item(Msg)) {
 	for tool in LevelTools_For(layerType) {
 		_, name, _ := LevelTool_Look(tool, layerType)
 		works := LEVEL_TOOLS[tool].works
-		label := works ? name : fmt.tprintf("%s (phase 2)", name)
+		label := works ? name : fmt.tprintf("%s (not yet)", name)
 		append(items, skald.Menu_Item(Msg){label = strings.clone(label, context.temp_allocator), msg = Msg(Level_Tool_Picked(tool)), disabled = !works, checked = works && s.level.tool == tool})
 	}
 }

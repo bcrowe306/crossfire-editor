@@ -89,6 +89,8 @@ LevelMode :: struct {
 	layerDef, entityDef, enumDef: int,
 	// The tool the canvas uses (view_level_tools.odin)
 	tool: LevelTool,
+	// Painting: the palette's picks, the brush's options, the stroke (level_paint.odin)
+	paint: LevelPaint,
 	// Why the last LDtk edit wasn't made ("" when it was; owned)
 	problem: string,
 	// Names typed for a new enum value and a new enum (owned)
@@ -130,6 +132,8 @@ LevelDrag :: struct {
 	moved: bool,
 	// Shift: entities by the pixel, not their grid
 	free: bool,
+	// Ctrl + Alt: the release copies the entity there (LDtk's SelectionTool isCopy)
+	copy: bool,
 }
 
 // The Level mode's panels the first time it shows (the design's 300 px sidebars)
@@ -243,7 +247,10 @@ Level_Canvas_Pressed :: struct {
 	world: [2]f32,
 	// The level's identifier and the entity's iid under it ("" none)
 	level, entity: string,
+	// A double-click, a pan (middle, Space), Shift (free)
 	double, pan, free: bool,
+	// The right button (LDtk's erase), Alt (LDtk's pick and select), Ctrl (with Alt: copy)
+	right, alt, ctrl: bool,
 }
 
 // The pointer moved during a canvas drag: the world point under it, how far it moved on screen
@@ -319,8 +326,9 @@ LevelMode_Destroy :: proc(level: ^LevelMode) {
 	delete(level.problem)
 	delete(level.newValue)
 	delete(level.newEnum)
+	LevelPaint_Destroy(&level.paint)
 	layout, tab := level.layout, level.bottomTab
-	level^ = {layout = layout, bottomTab = tab, layerDef = -1, entityDef = -1, enumDef = -1}
+	level^ = {layout = layout, bottomTab = tab, layerDef = -1, entityDef = -1, enumDef = -1, paint = {entityDef = -1}}
 }
 
 /*
@@ -404,6 +412,8 @@ Returns:
 - A command, and whether `m` was one
 */
 LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
+	// Painting's own messages and keys (level_paint.odin)
+	if LevelPaint_Update(state, m) do return {}, true
 	#partial switch v in m {
 	case Level_File_Chosen:
 		if string(v) == state.level.file do return {}, true
@@ -473,8 +483,10 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	case Level_Canvas_Panned:
 		if state.level.view.zoom > 0 do state.level.view.center -= ([2]f32)(v) / state.level.view.zoom
 	case Level_Canvas_Pressed:
-		levelCanvasPressed(state, v)
+		// The tools on the focused level first (level_paint.odin), else select, move, pan
+		if !LevelPaint_Press(state, v) do levelCanvasPressed(state, v)
 	case Level_Canvas_Moved:
+		if LevelPaint_Moved(state, v) do return {}, true
 		drag := &state.level.drag
 		drag.free = v.free
 		switch drag.mode {
@@ -486,7 +498,7 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 			if !drag.moved && linalg_length(drag.offset * state.level.view.zoom) >= LEVEL_DRAG_SLOP do drag.moved = true
 		}
 	case Level_Canvas_Released:
-		levelCanvasReleased(state)
+		if !LevelPaint_Released(state) do levelCanvasReleased(state)
 	case Level_Entity_Picked:
 		levelSelectEntity(state, string(v), center = true)
 
@@ -526,7 +538,7 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 }
 
 // Replaces an owned string with a copy of another
-@(private="file")
+@(private)
 setOwned :: proc(field: ^string, value: string) {
 	if field^ == value do return
 	delete(field^)
@@ -550,7 +562,7 @@ show. A rename of a layer or an entity type is followed by the scenes' and compo
 nodes naming it (their collision layer, their entity rules), in the same undo step (components
 through `FileChange.components`: the project's snapshot holds scenes only).
 */
-@(private="file")
+@(private)
 levelApplyEdit :: proc(state: ^State, edit: LDtk_Edit) {
 	problem, rename := LDtkOps_Apply(state.project.rootPath, edit)
 	setOwned(&state.level.problem, problem)
@@ -584,7 +596,8 @@ levelCanvasPressed :: proc(state: ^State, v: Level_Canvas_Pressed) {
 	drag^ = {}
 	file := LevelMode_File(state)
 	doc := LDtkDoc_Get(state.project.rootPath, file)
-	if v.pan || doc == nil || doc.problem != "" {
+	// The right button pans where it doesn't erase (level_paint.odin took it otherwise)
+	if v.pan || v.right || doc == nil || doc.problem != "" {
 		drag.mode = .Pan
 		return
 	}
@@ -632,7 +645,7 @@ levelCanvasPressed :: proc(state: ^State, v: Level_Canvas_Pressed) {
 }
 
 // Focuses the canvas on a level (its identifier: the view fits it) or the world ("")
-@(private="file")
+@(private)
 levelFocus :: proc(state: ^State, level: string) {
 	setOwned(&state.level.focus, level)
 	LevelCanvas_Fit(state)
@@ -683,6 +696,11 @@ levelCanvasReleased :: proc(state: ^State) {
 	to := LevelDrag_Target(state, doc)
 	if drag.mode == .Level {
 		levelApplyEdit(state, {op = .Level_Moved, file = file, level = drag.target, number = f64(to.x), number2 = f64(to.y)})
+	} else if drag.copy {
+		// Ctrl + Alt: a copy goes there, selected (LDtk's SelectionTool isCopy)
+		copyIid := LDtk_NewIid()
+		levelApplyEdit(state, {op = .Entity_Duplicated, file = file, entity = drag.target, text = copyIid, number = f64(to.x), number2 = f64(to.y)})
+		if state.level.problem == "" do levelSelectEntity(state, copyIid, center = false)
 	} else {
 		levelApplyEdit(state, {op = .Entity_Moved, file = file, entity = drag.target, number = f64(to.x), number2 = f64(to.y)})
 	}
@@ -693,7 +711,7 @@ levelCanvasReleased :: proc(state: ^State) {
 Selects an entity (and its level), and the Entities tab shows its type and it (unless the
 bottom panel shows the Console or Output); maybe centered on the canvas.
 */
-@(private="file")
+@(private)
 levelSelectEntity :: proc(state: ^State, iid: string, center: bool) {
 	file := LevelMode_File(state)
 	doc := LDtkDoc_Get(state.project.rootPath, file)
@@ -731,7 +749,7 @@ levelOpenShowing :: proc(state: ^State, file, level: string) {
 Selects a level (and its file: the browser's map may show another one; and its world). Nothing
 selected leaves the world view.
 */
-@(private="file")
+@(private)
 levelSelect :: proc(state: ^State, file, level: string) {
 	if file != state.level.file && file != "" {
 		setOwned(&state.level.file, file)

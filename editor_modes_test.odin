@@ -258,13 +258,13 @@ level_mode_layout_tools_worlds_and_layers :: proc(t: ^testing.T) {
 		if c.width >= LEVEL_COMPACT_WIDTH do testing.expectf(t, left == 300 && right == 300, "%v: the design's sidebars", c.width)
 		else do testing.expectf(t, left <= LEVEL_COMPACT_SIDEBAR && right <= LEVEL_COMPACT_SIDEBAR, "%v: narrower sidebars", c.width)
 	}
-	// LDtk's tools per layer type; only Select works in phase 1
+	// LDtk's tools per layer type; every one works since phase 2 (painting the focused level)
 	testing.expect_value(t, len(LevelTools_For("IntGrid")), 6)
 	testing.expect_value(t, len(LevelTools_For("Tiles")), 7)
 	testing.expect_value(t, len(LevelTools_For("Entities")), 4)
 	testing.expect_value(t, len(LevelTools_For("AutoLayer")), 1)
-	for info, tool in LEVEL_TOOLS do testing.expectf(t, info.works == (tool == .Select), "%v works: %v", tool, info.works)
-	testing.expect(t, strings.contains(LevelTool_Tip(.Fill, "IntGrid"), "phase 2"), "an honest tooltip")
+	for info, tool in LEVEL_TOOLS do testing.expectf(t, info.works, "%v works", tool)
+	testing.expect(t, strings.contains(LevelTool_Tip(.Fill, "IntGrid"), "focused level"), "the tooltip says where it paints")
 	icon, name, _ := LevelTool_Look(.Pencil, "Tiles")
 	testing.expect(t, icon == ICON_STAMP && name == "Stamp", "tiles paint with a stamp")
 
@@ -339,6 +339,9 @@ level_mode_layout_tools_worlds_and_layers :: proc(t: ^testing.T) {
 	testing.expect_value(t, LevelMode_LayerType(&state), "IntGrid")
 	testing.expect(t, LevelTool_Available(&state, .Fill), "IntGrid fills")
 	modeSend(&state, Level_Tool_Picked(.Fill))
+	testing.expect_value(t, state.level.tool, LevelTool.Fill)
+	// A layer without the tool goes back to Select (an Entities layer has no Fill)
+	modeSend(&state, Level_Layer_Picked(1))
 	testing.expect_value(t, state.level.tool, LevelTool.Select)
 
 	// A layer dragged two places down (Entities 1, Tiles 2, Walls 3): every level follows; one step

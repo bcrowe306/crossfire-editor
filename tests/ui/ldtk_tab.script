@@ -61,16 +61,16 @@ click_widget panel-level-world-view
 expect level focus none
 
 # The Layers sidebar: the selected level's layers; a layer selected, the tools follow its type
-# (Select works; painting comes in phase 2: disabled)
+# (painting itself: level_paint.script)
 click_widget level-row-0
 expect level layer Entities
 click_widget level-layer-row-2
 expect level layer Walls
 expect level layer_type IntGrid
 if_drawn level-tool-Fill expect widget_visible level-tool-Fill true
-if_drawn level-tool-Fill click_widget level-tool-Fill
-expect level tool Select
-click_widget level-tool-Select
+send Level_Tool_Picked Fill
+expect level tool Fill
+send Level_Tool_Picked Select
 expect level tool Select
 # The eye: the layer hidden in Start (the layer instance's visible), shown again by undo
 click_widget level-layer-eye-1

@@ -98,9 +98,233 @@ ComponentNodes :: struct {
 	before, after: [dynamic]NodeDef,
 }
 
-// A file's text before and after a step (all owned)
+/*
+A file's text before and after a step (all owned). A big file keeps only what changed, as hunks
+(`FileHunk`: the bytes before and after, where each is in its text), found by a diff over the
+texts' values (`textHunks`): a stroke on a 256 x 256 level changes some cells and the auto-layer
+tiles around them in a 6.5 MB file, and two whole texts a step were 13 MB (200 steps: 2.6 GB).
+Files under `FILE_STEP_WHOLE_MAX` keep their whole texts (`whole`: `before`, `after`).
+`fileStepMake` makes one, `fileStepTarget` the text a document gets back from one.
+*/
 FileText :: struct {
-	path, before, after: string,
+	path: string,
+	// Whole texts (a small file)
+	before, after: string,
+	whole: bool,
+	// A big file's hunks, in order, and its texts' lengths
+	hunks: [dynamic]FileHunk,
+	beforeLen, afterLen: int,
+}
+
+// What changed in one place of a big file: its bytes before and after (owned), where they are in
+// the text before and in the text after
+FileHunk :: struct {
+	beforeAt, afterAt: int,
+	before, after: string,
+}
+
+// Files bigger than this keep only their steps' hunks (FileText)
+FILE_STEP_WHOLE_MAX :: 256 * 1024
+
+// Frees a file step
+@(private="file")
+fileStepDestroy :: proc(f: ^FileText) {
+	delete(f.path)
+	delete(f.before)
+	delete(f.after)
+	for h in f.hunks {
+		delete(h.before)
+		delete(h.after)
+	}
+	delete(f.hunks)
+	f^ = {}
+}
+
+// The bytes a file step keeps
+FileText_Size :: proc(f: FileText) -> int {
+	n := len(f.before) + len(f.after)
+	for h in f.hunks do n += len(h.before) + len(h.after)
+	return n
+}
+
+// A file step from whole texts (cloned, or their hunks)
+@(private="file")
+fileStepMake :: proc(path, before, after: string) -> FileText {
+	if max(len(before), len(after)) < FILE_STEP_WHOLE_MAX do return {path = strings.clone(path), before = strings.clone(before), after = strings.clone(after), whole = true}
+	return {path = strings.clone(path), hunks = textHunks(before, after), beforeLen = len(before), afterLen = len(after)}
+}
+
+// A piece of text a diff compares: a value up to its comma or line break
+@(private="file")
+Segment :: struct {
+	start, end: int,
+	hash: u64,
+}
+
+// A text's segments (temp allocated): split after each ',' and '\n'
+@(private="file")
+segmentsOf :: proc(text: string) -> []Segment {
+	out := make([dynamic]Segment, 0, len(text) / 8 + 1, context.temp_allocator)
+	start := 0
+	for i in 0 ..< len(text) {
+		c := text[i]
+		if c == ',' || c == '\n' || i == len(text) - 1 {
+			append(&out, Segment{start, i + 1, hash.fnv64a(transmute([]u8)text[start:i + 1])})
+			start = i + 1
+		}
+	}
+	return out[:]
+}
+
+/*
+The hunks turning one text into another (owned): their common start and end left out, then the
+segments between compared (`segmentsOf`); where they differ, the next place they agree again is
+looked for within `DIFF_WINDOW` segments of both (`DIFF_ANCHOR` segments in a row equal, the
+fewest skipped),
+and what's between is a hunk. Any place two equal segments meet is a right answer: the hunks
+always make the new text, only not always the fewest bytes.
+*/
+@(private="file")
+textHunks :: proc(before, after: string) -> [dynamic]FileHunk {
+	DIFF_WINDOW :: 4096
+	DIFF_ANCHOR :: 6
+	hunks := make([dynamic]FileHunk)
+	n := min(len(before), len(after))
+	p := 0
+	for p < n && before[p] == after[p] do p += 1
+	q := 0
+	for q < n - p && before[len(before) - 1 - q] == after[len(after) - 1 - q] do q += 1
+	// Whole segments: the start backs up to one's beginning, the end to one's end
+	for p > 0 && before[p - 1] != ',' && before[p - 1] != '\n' do p -= 1
+	for q > 0 && before[len(before) - q - 1] != ',' && before[len(before) - q - 1] != '\n' do q -= 1
+	a, b := before[p:len(before) - q], after[p:len(after) - q]
+	if len(a) == 0 && len(b) == 0 do return hunks
+	sa, sb := segmentsOf(a), segmentsOf(b)
+	same :: #force_inline proc(a, b: string, x, y: Segment) -> bool {
+		return x.hash == y.hash && x.end - x.start == y.end - y.start && a[x.start:x.end] == b[y.start:y.end]
+	}
+	add :: proc(hunks: ^[dynamic]FileHunk, a, b: string, sa, sb: []Segment, i0, i1, j0, j1, p: int) {
+		as := i0 < len(sa) ? sa[i0].start : len(a)
+		ae := i1 > i0 ? sa[i1 - 1].end : as
+		bs := j0 < len(sb) ? sb[j0].start : len(b)
+		be := j1 > j0 ? sb[j1 - 1].end : bs
+		// Next to the last hunk: one hunk
+		if n := len(hunks); n > 0 && hunks[n - 1].beforeAt + len(hunks[n - 1].before) == p + as && hunks[n - 1].afterAt + len(hunks[n - 1].after) == p + bs {
+			last := &hunks[n - 1]
+			grownBefore := strings.concatenate({last.before, a[as:ae]})
+			grownAfter := strings.concatenate({last.after, b[bs:be]})
+			delete(last.before)
+			delete(last.after)
+			last.before, last.after = grownBefore, grownAfter
+			return
+		}
+		append(hunks, FileHunk{beforeAt = p + as, afterAt = p + bs, before = strings.clone(a[as:ae]), after = strings.clone(b[bs:be])})
+	}
+	// A run of DIFF_ANCHOR segments from each one, as one hash: where two runs agree, they agree
+	// again (one equal segment in a run of "2," cells is no place to start agreeing)
+	grams :: proc(segs: []Segment) -> []u64 {
+		out := make([]u64, len(segs), context.temp_allocator)
+		for l in 0 ..< len(segs) {
+			h := u64(14695981039346656037)
+			for m in l ..< min(l + DIFF_ANCHOR, len(segs)) do h = (h ~ segs[m].hash) * 1099511628211
+			out[l] = h
+		}
+		return out
+	}
+	runSame :: proc(a, b: string, sa, sb: []Segment, i, j: int) -> bool {
+		if len(sa) - i < DIFF_ANCHOR || len(sb) - j < DIFF_ANCHOR {
+			if len(sa) - i != len(sb) - j do return false
+		}
+		for m in 0 ..< min(DIFF_ANCHOR, len(sa) - i, len(sb) - j) {
+			x, y := sa[i + m], sb[j + m]
+			if x.hash != y.hash || x.end - x.start != y.end - y.start || a[x.start:x.end] != b[y.start:y.end] do return false
+		}
+		return true
+	}
+	ga, gb := grams(sa), grams(sb)
+	window := make(map[u64]int, DIFF_WINDOW, context.temp_allocator)
+	i, j := 0, 0
+	for i < len(sa) || j < len(sb) {
+		if i < len(sa) && j < len(sb) && same(a, b, sa[i], sb[j]) {
+			i += 1
+			j += 1
+			continue
+		}
+		// Where they agree again: a run of old segments found among the next new ones, the
+		// nearest (fewest segments skipped on both sides); most are near, so a small window first
+		di, dj := len(sa) - i, len(sb) - j
+		for size in ([]int{64, DIFF_WINDOW}) {
+			clear(&window)
+			for l := min(j + size, len(sb)) - 1; l >= j; l -= 1 do window[gb[l]] = l
+			best := max(int)
+			for k in 0 ..< min(size, len(sa) - i) {
+				if k >= best do break
+				l, found := window[ga[i + k]]
+				if !found || k + l - j >= best || !runSame(a, b, sa, sb, i + k, l) do continue
+				di, dj = k, l - j
+				best = k + l - j
+			}
+			if best < max(int) do break
+		}
+		add(&hunks, a, b, sa, sb, i, i + di, j, j + dj, p)
+		i += di
+		j += dj
+	}
+	return hunks
+}
+
+/*
+A big file step applied to a text that's one of its sides (undo: from "after" to "before"; redo
+the other way), false when the text isn't that side.
+*/
+@(private="file")
+fileStepApply :: proc(f: FileText, current: string, undo: bool) -> (string, bool) {
+	if len(current) != (undo ? f.afterLen : f.beforeLen) do return "", false
+	b := strings.builder_make(0, undo ? f.beforeLen : f.afterLen, context.temp_allocator)
+	at := 0
+	for h in f.hunks {
+		from, have := undo ? h.afterAt : h.beforeAt, undo ? h.after : h.before
+		put := undo ? h.before : h.after
+		if from < at || from + len(have) > len(current) || current[from:][:len(have)] != have do return "", false
+		strings.write_string(&b, current[at:from])
+		strings.write_string(&b, put)
+		at = from + len(have)
+	}
+	strings.write_string(&b, current[at:])
+	return strings.to_string(b), true
+}
+
+/*
+The text a document gets back from a file step (undo: its "before", redo: its "after"), given the
+text it has now. When the document is as the step left it, that's the step's text; when it changed
+elsewhere (LDtk saved the file meanwhile), a small file's step is applied to it where the two don't
+touch (`History_MergeText`) and `force` overwrites it (the conflict dialog's Overwrite). A big
+file's step needs the document as the step left it (its hunks are all it kept).
+
+Returns:
+- The text (temp allocated or the step's), false when it can't be made
+*/
+@(private="file")
+fileStepTarget :: proc(f: FileText, current: string, undo, force: bool) -> (string, bool) {
+	if f.whole {
+		want := undo ? f.before : f.after
+		expected := undo ? f.after : f.before
+		switch {
+		case current == expected || current == want || force: return want, true
+		}
+		return History_MergeText(expected, want, current)
+	}
+	if text, ok := fileStepApply(f, current, undo); ok do return text, true
+	// Already there (the step's other side)
+	if _, other := fileStepApply(f, current, !undo); other do return current, true
+	return "", false
+}
+
+// A file step's text before, from its text after (the document's now: the step was just made)
+@(private="file")
+fileStepWhole :: proc(f: FileText, after: string) -> (before: string, ok: bool) {
+	if f.whole do return f.before, f.after == after
+	return fileStepApply(f, after, true)
 }
 
 // The project's scene list and settings: adding, removing, renaming scenes, Project Settings.
@@ -250,6 +474,10 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		case .Aseprite, .None:
 			return {}
 		}
+	}
+	// The Level mode's painting: a stroke's release, a placement, Delete and Duplicate (level_paint.odin)
+	if s.mode == .Level {
+		if info, painted := LevelPaint_Classify(s, m); painted do return info
 	}
 	#partial switch v in m {
 	case Anim_Set_From_Node:
@@ -863,7 +1091,9 @@ History_Commit :: proc(s: ^State, snap: ^EditSnapshot, now: time.Tick) {
 				delete(f.before)
 				continue
 			}
-			append(&change.files, FileText{f.path, f.before, strings.clone(now)})
+			append(&change.files, fileStepMake(f.path, f.before, now))
+			delete(f.path)
+			delete(f.before)
 		}
 		delete(snap.files)
 		snap.files = nil
@@ -935,11 +1165,28 @@ History_Push :: proc(h: ^History, command: ^UndoCommand, settings: ^Settings, no
 			for &f in new.files {
 				merged := false
 				for &old in change.files do if old.path == f.path {
-					delete(old.after)
-					old.after = f.after
-					delete(f.path)
-					delete(f.before)
 					merged = true
+					if old.whole && f.whole {
+						delete(old.after)
+						old.after = f.after
+						delete(f.path)
+						delete(f.before)
+						continue
+					}
+					// Middles: the whole texts from the document's text now (the new step's "after"),
+					// then the step again from the first "before" to it
+					now, found := LDtkDoc_CachedText(f.path)
+					newBefore, okNew := fileStepWhole(f, now)
+					firstBefore, okOld := fileStepWhole(old, newBefore)
+					if !found || !okNew || !okOld {
+						// Not as the steps left it: kept apart
+						merged = false
+						continue
+					}
+					step := fileStepMake(f.path, firstBefore, now)
+					fileStepDestroy(&old)
+					old = step
+					fileStepDestroy(&f)
 				}
 				if !merged do append(&change.files, f)
 			}
@@ -1194,11 +1441,7 @@ destroyCommand :: proc(command: ^UndoCommand) {
 		destroyProjectSnapshot(change.before)
 		destroyProjectSnapshot(change.after)
 	case FileChange:
-		for f in change.files {
-			delete(f.path)
-			delete(f.before)
-			delete(f.after)
-		}
+		for &f in change.files do fileStepDestroy(&f)
 		delete(change.files)
 		delete(change.ldtkFile)
 		if change.hasProject {
@@ -1526,18 +1769,18 @@ History_RestoreFiles :: proc(s: ^State, change: ^FileChange, undo, force: bool) 
 	targets := make([]string, len(change.files), context.temp_allocator)
 	doc := LDtkDoc_Get(s.project.rootPath, change.ldtkFile)
 	for f, i in change.files {
-		want := undo ? f.before : f.after
-		expected := undo ? f.after : f.before
-		current := expected
-		if doc != nil do if text, found := LDtkDoc_TextOf(doc, f.path); found do current = text
-		switch {
-		case current == expected || current == want || force:
-			targets[i] = want
-		case:
-			merged, ok := History_MergeText(expected, want, current)
-			if !ok do return false
-			targets[i] = merged
+		current := ""
+		found := false
+		if doc != nil do current, found = LDtkDoc_TextOf(doc, f.path)
+		if !found {
+			// The document isn't there (only whole steps can be put back without it)
+			if !f.whole do return false
+			targets[i] = undo ? f.before : f.after
+			continue
 		}
+		target, ok := fileStepTarget(f, current, undo, force)
+		if !ok do return false
+		targets[i] = target
 	}
 	if doc != nil {
 		texts := LDtkDoc_Texts(doc)
@@ -1620,7 +1863,8 @@ History_MergeText :: proc(base, ours, theirs: string) -> (string, bool) {
 /*
 Answers a file step that waited (its files changed outside the editor): overwrite them with the
 step's texts, or keep the files as they are (the step is dropped, and the history before it: it
-can't be undone over the outside change).
+can't be undone over the outside change). A big file's step can't overwrite a file changed where
+its hunks are (`FileText`): the file is kept then.
 */
 History_ResolveConflict :: proc(s: ^State, overwrite: bool) -> string {
 	undo := s.level.conflict.undo
@@ -1635,13 +1879,15 @@ History_ResolveConflict :: proc(s: ^State, overwrite: bool) -> string {
 	}
 	s.history.version += 1
 	if !FileChange_TouchesProject(change) do s.history.fileVersion += 1
-	if overwrite {
-		History_RestoreFiles(s, change, undo, force = true)
+	// A big file's step keeps only its hunks: over a file changed where they are, it can't
+	// overwrite, and the file is kept as it is
+	if overwrite && History_RestoreFiles(s, change, undo, force = true) {
 		command.mergeKey = 0
 		append(to, command)
 		return fmt.tprintf("%s: %s", undo ? "Undo" : "Redo", command.label)
 	}
 	label := fmt.tprintf("Kept %s as it is: \"%s\" and the steps before it can't be undone over its change", filepath.base(change.ldtkFile), command.label)
+	if overwrite do label = fmt.tprintf("Couldn't overwrite %s (a big file's step keeps only what it changed, and the file changed there): kept it as it is, and \"%s\" and the steps before it can't be undone", filepath.base(change.ldtkFile), command.label)
 	destroyCommand(&command)
 	// The older steps of that file would undo over it too
 	if undo do clearCommands(from)
@@ -1658,6 +1904,8 @@ LDTK_EDIT_LABELS := [LDtkEditOp]string{
 	.Field_Name = "Rename a field", .Field_Default = "Change a field's default",
 	.Entity_X = "Move an entity", .Entity_Y = "Move an entity", .Entity_Moved = "Move an entity", .Entity_Field = "Change an entity's field",
 	.Entity_Ref = "Change an entity reference", .Level_Field = "Change a level's field",
+	.Entity_Added = "Place an entity", .Entity_Removed = "Remove an entity", .Entity_Resized = "Resize an entity",
+	.Entity_Duplicated = "Duplicate an entity", .Entity_Point = "Change an entity's point",
 	.Level_X = "Move a level in the world", .Level_Y = "Move a level in the world", .Level_Moved = "Move a level in the world",
 	.IntGrid_Name = "Rename an IntGrid value", .IntGrid_Color = "Change an IntGrid value's color",
 	.Enum_Name = "Rename an enum", .Enum_Value_Name = "Rename an enum value", .Enum_Value_Color = "Change an enum value's color",
@@ -1673,7 +1921,8 @@ project (the scenes' LDtkLevel nodes follow them).
 LDtkEdit_Info :: proc(edit: LDtk_Edit) -> EditInfo {
 	info := EditInfo{scope = .Files, ldtkFile = edit.file, label = fmt.tprintf("%s in %s", LDTK_EDIT_LABELS[edit.op], filepath.base(edit.file))}
 	#partial switch edit.op {
-	case .Layer_Move, .Layer_Visible, .Layer_Parallax_Scaling, .Entity_Moved, .Level_Moved, .Entity_Ref, .Enum_Value_Added, .Enum_Added, .World_Layout:
+	case .Layer_Move, .Layer_Visible, .Layer_Parallax_Scaling, .Entity_Moved, .Level_Moved, .Entity_Ref, .Enum_Value_Added, .Enum_Added, .World_Layout,
+	     .Entity_Added, .Entity_Removed, .Entity_Resized, .Entity_Duplicated, .Entity_Point:
 	case:
 		info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.world, edit.def, edit.field, edit.index, edit.level, edit.entity))
 	}

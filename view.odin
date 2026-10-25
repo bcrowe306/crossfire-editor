@@ -47,7 +47,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// The viewport is the Scene mode's (its last rect stays in Skald's store while another mode, or
 	// the slicer's tab, shows)
 	KeymapDispatch(ctx, &state.settings.keymap, state.mode == .Scene && state.slicer.shown == 0 && ViewportHovered(ctx), dialogOpen = keysTaken,
-		mode = state.mode, browserFocused = state.browserFocused)
+		mode = state.mode, browserFocused = state.browserFocused && state.mode == .Scene)
 
 	// The right-click menu, built first so it takes its clicks before the widgets under it
 	contextMenu := contextMenuView(&state, ctx)
@@ -106,7 +106,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 @(private="file")
 menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.View {
 	Keys :: struct { keymap: ^Keymap, typing, taken: bool, mode: EditorMode, browserFocused: bool }
-	keys := Keys{&s.settings.keymap, IsTyping(ctx), keysTaken, s.mode, s.browserFocused}
+	keys := Keys{&s.settings.keymap, IsTyping(ctx), keysTaken, s.mode, s.browserFocused && s.mode == .Scene}
 	// An item for another mode is disabled: the menu bar registers no shortcut for it then
 	item :: proc(label: string, action: Action, keys: Keys, checked := false) -> skald.Menu_Item(Msg) {
 		disabled := !Action_InMode(action, keys.mode, keys.browserFocused)
