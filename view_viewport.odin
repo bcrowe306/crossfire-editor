@@ -97,7 +97,18 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 
 	shapes := Viewport_NodeShapes(s, scene)
-	if viewRect.w > 0 do handleViewportInput(s, ctx, canvasId, viewRect, shapes)
+	if viewRect.w > 0 {
+		// The pointer before the press: what a press there would do (read before the input moves
+		// the state on)
+		pointer := Viewport_Cursor(s, ctx, canvasId, viewRect, shapes)
+		handleViewportInput(s, ctx, canvasId, viewRect, shapes)
+		// A drag owns the pointer wherever it goes (the header's buttons built after don't take it)
+		if s.viewport.drag.mode != .None || guideDrag.active || s.tilePainter.stroking {
+			skald.cursor_request_top(ctx, pointer)
+		} else if pointer != .Default {
+			skald.cursor_request(ctx, pointer)
+		}
+	}
 
 	// Render the scene with the engine: straight into Skald's image (the shared GPU renderer), or
 	// read back and uploaded
@@ -179,7 +190,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	return skald.col(
 		header,
-		skald.flex(1, skald.canvas(ctx, data, drawViewport, id = canvasId, cursor = .Crosshair)),
+		skald.flex(1, skald.canvas(ctx, data, drawViewport, id = canvasId)),
 		cross_align = .Stretch,
 		bg = th.color.bg,
 	)
@@ -632,6 +643,59 @@ gizmoHit :: proc(s: ^State, shapes: []NodeShape, mouseView, mouseWorld: [2]f32) 
 	// Grabbing the selected node itself uses the tool's normal drag
 	if hitsShape(v, shape, mouseView, mouseWorld) do return toolDragMode(s.tool)
 	return .None
+}
+
+/*
+The pointer over the viewport: what a press there does, or the drag going on. Painting tiles and
+the Zoom tool a crosshair; panning an open hand (Space, the Pan tool), closed while it pans; the
+selected node's move arrows and a node a tool moves the move arrows; scale handles resize arrows
+along their axis; a guide or a ruler a resize arrow across it; otherwise the arrow (a box select).
+*/
+Viewport_Cursor :: proc(s: ^State, ctx: ^skald.Ctx(Msg), canvasId: skald.Widget_ID, viewRect: skald.Rect, shapes: []NodeShape) -> skald.Cursor_Shape {
+	input := ctx.input
+	v := &s.viewport
+	mouseView := input.mouse_pos - {viewRect.x, viewRect.y}
+	mouseWorld := Viewport_ViewToWorld(v, mouseView)
+	painting, _ := TilePaint_Node(s)
+	if painting != nil && s.tilePainter.stroking do return .Crosshair
+	if guideDrag.active do return guideDrag.vertical ? .EW_Resize : .NS_Resize
+	if v.drag.mode != .None do return dragCursor(s, shapes, v.drag.mode, mouseView)
+	if !skald.widget_hovered(ctx, canvasId) || skald.mouse_over_overlay(ctx) do return .Default
+	p := input.mouse_pos
+	if p.y < viewRect.y && p.x >= viewRect.x do return .NS_Resize // the top ruler: a guide comes out
+	if p.x < viewRect.x && p.y >= viewRect.y do return .EW_Resize
+	if mouseView.x < 0 || mouseView.y < 0 || mouseView.x >= viewRect.w || mouseView.y >= viewRect.h do return .Default
+	spaceHeld := .Space in input.keys_down && !IsTyping(ctx)
+	if spaceHeld || s.tool == .Pan do return .Grab
+	if painting != nil do return .Crosshair
+	if s.tool == .Zoom do return .Crosshair
+	if mode := gizmoHit(s, shapes, mouseView, mouseWorld); mode != .None do return dragCursor(s, shapes, mode, mouseView)
+	if g := guideAt(s, mouseView); g >= 0 do return s.project.scenes[s.currentScene].guides[g].vertical ? .EW_Resize : .NS_Resize
+	if pickNode(s, shapes, mouseView, mouseWorld) >= 0 do return dragCursor(s, shapes, toolDragMode(s.tool), mouseView)
+	return .Default
+}
+
+// The pointer for a drag of the viewport (or a press that would start one)
+@(private="file")
+dragCursor :: proc(s: ^State, shapes: []NodeShape, mode: DragMode, mouseView: [2]f32) -> skald.Cursor_Shape {
+	switch mode {
+	case .None:                    return .Default
+	case .Move, .Move_X, .Move_Y:  return .Move
+	case .Pan:                     return .Grabbing
+	case .Rotate, .Box, .Zoom_Box: return .Crosshair
+	case .Scale_X:                 return .EW_Resize
+	case .Scale_Y:                 return .NS_Resize
+	case .Scale, .Scale_Axes:
+		// The diagonal of the corner nearest the pointer, from the node's middle
+		if s.selectedNode >= 0 && s.selectedNode < len(shapes) && shapes[s.selectedNode].hasBounds {
+			c := shapes[s.selectedNode].corners
+			mid := Viewport_WorldToView(&s.viewport, (c[0] + c[2]) * 0.5)
+			d := mouseView - mid
+			return d.x * d.y >= 0 ? .NWSE_Resize : .NESW_Resize
+		}
+		return .NWSE_Resize
+	}
+	return .Default
 }
 
 // The topmost visible node under the point (higher layers first, then later in the tree), or -1

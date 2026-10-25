@@ -138,6 +138,10 @@ coloredTree :: proc(
 	// tree selected the hidden row "behind" it)
 	visible := st.clip_rect.w > 0 ? st.clip_rect : rect
 	inside :: proc(r: skald.Rect, p: [2]f32) -> bool { return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h }
+	// A hand over the rows (soft: a rename field over a row keeps its I-beam)
+	if !blocked && rect.w > 0 && inside(rect, mouse) && inside(visible, mouse) && int((mouse.y - rect.y) / rh) < len(rows) {
+		skald.cursor_request_soft(ctx, .Pointer)
+	}
 	if ctx.input.mouse_pressed[.Left] && !blocked && rect.w > 0 && inside(rect, mouse) && inside(visible, mouse) {
 		i := int((mouse.y - rect.y) / rh)
 		if i >= 0 && i < len(rows) {
@@ -245,6 +249,8 @@ rowList :: proc(ctx: ^skald.Ctx(Msg), key: string, rows: []ListRow, rowHeight: f
 		rowId := skald.hash_id(r.key)
 		hovered := !blocked && skald.widget_hovered(ctx, rowId)
 		for other in r.exclude do if skald.widget_hovered(ctx, other) do hovered = false
+		// A hand over the row (soft: its trailing buttons were built first and keep theirs)
+		if hovered do skald.cursor_request_soft(ctx, .Pointer)
 		if hovered && ctx.input.mouse_pressed[.Left] {
 			press = {row = i, double = ctx.input.mouse_click_count[.Left] >= 2}
 			if r.pick != nil do skald.send(ctx, r.pick)

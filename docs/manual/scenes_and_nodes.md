@@ -213,6 +213,13 @@ the pointer is over the viewport.
 
 With a touchpad, **Settings > Editor > Wheel pans** makes scrolling pan and Ctrl + scroll zoom.
 
+**The pointer says what a press does:** four arrows over a node the tool moves (and the move
+arrows), double arrows over scale handles, an open hand with the Pan tool or Space (closed while
+it pans), a crosshair for the Zoom tool and tile painting, the plain arrow over empty space (a
+drag there selects a box). Everywhere in the editor a hand marks what can be clicked, an I-beam
+where you can type, double arrows the panels' borders you can drag, and a crossed circle what
+can't be used now (or where a dragged thing can't be dropped).
+
 **The rulers** along the top and left edge are in world pixels, and follow the pointer. The
 corner shows the zoom and the pointer's position in the world.
 

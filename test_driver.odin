@@ -66,6 +66,9 @@ copy: `open_project {project}`).
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
 	hover_at <key> <fx> <fy>         Move the pointer there (no button): a rule's pattern, a cell of
 	                                 the Level mode's canvas
+	hover_beside <key> <left | right | top | bottom> [px]  Move the pointer px (default 3) outside
+	                                 that edge of a widget, at the edge's middle: a split's divider
+	                                 beside its pane (`hover_beside split-center-right left`)
 	drag_to <from key> <to key> [fy] Press at a widget's center, move to another's (fy: how far
 	                                 down it, 0 to 1), release: a rule's or group's grip to a row
 	scroll_by <scroll key> <dy>      Scroll a scroll container by dy pixels (0 or less: to the top)
@@ -171,6 +174,7 @@ copy: `open_project {project}`).
 	                                 Drag a row onto another row (top quarter, middle, bottom
 	                                 quarter); a `to` past the last row drops below the rows
 	click_node <name> [ctrl | shift] Click a node in the viewport (current scene)
+	hover_node <name>                Move the pointer over a node in the viewport (no button)
 	select_node <name>               Select a node of the current scene by name (as a click on its row)
 	box_select <x0> <y0> <x1> <y1>   Drag a selection box in the viewport, in world coordinates
 	drag_to_viewport <browser row> <dx> <dy>
@@ -276,6 +280,9 @@ Checks:
 	local_axes <on | off>        The move arrows follow the node's own axes
 	live_theme <applied | draft> The look the editor shows is the applied settings' (or the dialog's draft)
 	theme_color <key> <#RRGGBB>  A theme color the editor shows now (bg, primary...: editor.ini's keys)
+	cursor <shape>               The pointer's shape after the last frame (Skald's Cursor_Shape names,
+	                             any case: Default, Pointer, Text, Crosshair, Move, EW_Resize,
+	                             NS_Resize, NWSE_Resize, NESW_Resize, Not_Allowed, Grab, Grabbing)
 	guides <n>                   The open scene's guides
 	guide <i> <x | y> <at>       Guide i: vertical (x) or horizontal (y), where (rounded)
 	context_item <label> <enabled | disabled | checked | missing>  An item of the open menu
@@ -1428,6 +1435,32 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "hover_beside":
+		if len(args) < 2 {
+			fail(fmt.tprintf("%s: expected a widget key and an edge", line))
+			return true
+		}
+		rect, ok := widgetRect(ctx, args[0])
+		if !ok {
+			fail(fmt.tprintf("%s: no widget with key '%s' was drawn last frame", line, args[0]))
+			return true
+		}
+		px: f32 = 3
+		if len(args) > 2 do px, _ = strconv.parse_f32(args[2])
+		at := [2]f32{rect.x + rect.w * 0.5, rect.y + rect.h * 0.5}
+		switch args[1] {
+		case "left":   at.x = rect.x - px
+		case "right":  at.x = rect.x + rect.w + px
+		case "top":    at.y = rect.y - px
+		case "bottom": at.y = rect.y + rect.h + px
+		case:
+			fail(fmt.tprintf("%s: the edge is left, right, top or bottom", line))
+			return true
+		}
+		pushMouse(.MOUSE_MOTION, at)
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
 	case "hover_at":
 		if len(args) < 3 {
 			fail(fmt.tprintf("%s: expected a widget key and two fractions", line))
@@ -1719,6 +1752,21 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			return true
 		}
 		click(position, mods)
+		report(true, line)
+		return false
+
+	case "hover_node":
+		scene := &s.project.scenes[s.currentScene]
+		index := -1
+		name := len(args) > 0 ? args[0] : ""
+		for node, i in scene.nodes do if node.name == name do index = i
+		position, ok := ViewportNodePosition(s, ctx, index)
+		if !ok || !inViewportView(ctx, position) {
+			fail(fmt.tprintf("%s: no visible node '%s' in the viewport (outside its view: a short window?)", line, name))
+			return true
+		}
+		pushMouse(.MOUSE_MOTION, position)
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 
@@ -2915,6 +2963,10 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		draft := Settings_Theme(&s.settingsDialog.draft).color == ctx.theme.color
 		found = applied && draft ? "applied, draft" : applied ? "applied" : draft ? "draft" : "neither"
 		return strings.contains(found, value), found
+	case "cursor":
+		// cursor <shape>: what the pointer shows (the last frame's requests: Skald's cursor_shown)
+		found = fmt.tprint(skald.cursor_shown(ctx))
+		return strings.equal_fold(found, strings.trim_space(value)), found
 	case "theme_color":
 		// theme_color <key> <#RRGGBB>: a color the editor shows now
 		key, _, expected := strings.partition(value, " ")

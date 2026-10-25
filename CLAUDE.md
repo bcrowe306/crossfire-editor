@@ -3055,6 +3055,34 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   `theme_color <key> <#RRGGBB>`. Tests: `editor_theme_settings`, `tests/ui/theme_editor.script`.
   User guide: `docs/manual/settings_and_toolchain.md#appearance`.
 
+## Pointers (implemented: Skald's widgets, `Viewport_Cursor`, the canvases)
+
+TODO.md's "UI and UX" round 1 (2026-10-25): the pointer says what a press does.
+- **Skald's widgets set it** (Skald 475de93, 889ba99): a hand over buttons (so `panelButton`,
+  `panelToolButton`, `toolButton`, `editorTab`, the mode bar), links, checkboxes, selects,
+  `clickable`, trees, menus; an I-beam over text and number fields; resize arrows over every
+  `skald.split` (all the editor's dividers are splits); not-allowed over disabled controls.
+  `Cursor_Shape` has `Grab` / `Grabbing` (drawn by Skald: SDL has no hand cursors for them).
+- **Ordering:** the last request in a frame wins, and the workspace is built last (inside
+  `skald.sized`, during layout). Containers built after their children use
+  `skald.cursor_request_soft` (`coloredTree`'s and `rowList`'s rows: a row's eye or rename field
+  keeps its own); things built early but drawn on top use `skald.cursor_request_top` (popup and
+  menu-bar menus, the viewport's drags, the asset / tree / code / layer row drags).
+- **Canvases:** the viewport's `Viewport_Cursor` (view_viewport.odin: what a press would do,
+  read before the input moves the state on: Move over a node and the move arrows, resize arrows
+  over scale handles by axis or diagonal, Grab for the Pan tool or Space, Grabbing while panning,
+  Crosshair for the Zoom tool, tile painting and rotating, resize arrows over guides and rulers,
+  the arrow over empty space); the Level canvas (`levelCanvasView`: Move over levels in the world
+  view and over entities, Pointer over another level, Grab over the focused level, Grabbing
+  while panning, the paint tools' crosshair, `LevelHandle_Cursor` over the selected entity's
+  handles via `LevelPaint_HandleHovered`); the slicer (Grab / Grabbing); the code view takes the
+  code editor's (I-beam, scrub arrows).
+- **Drags:** Move while a drop would be taken, Not_Allowed where it wouldn't (the asset drag's
+  release cases, the scene tree's `valid` spot or a code tab, a code drag over the code).
+- Driver: check `cursor <shape>` (Skald's `cursor_shown`: the last frame's), commands
+  `hover_beside <key> <edge> [px]` (a split's divider beside its pane), `hover_node <name>`.
+  Tests: Skald's `cursor_test.odin`; `tests/ui/pointers.script`.
+
 ## Editor plugins (implemented, `plugin_host.odin`, `view_plugins.odin`, `plugin_api/`)
 
 - **Odin calling convention across the boundary:** the editor and its plugins are built by the

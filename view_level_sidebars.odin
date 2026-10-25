@@ -276,7 +276,7 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 			}
 			drag^ = {}
 		} else if drag.active {
-			skald.cursor_request(ctx, .Move)
+			skald.cursor_request_top(ctx, .Move)
 			skald.send(ctx, Msg(Frame_Requested{}))
 			// Where it goes: a line before (moving up) or after (down) the row under the pointer
 			if drag.to != drag.from {

@@ -138,7 +138,10 @@ jsonUidOr :: proc(json: ^JsonDoc, node: int) -> int {
 @(private="file")
 paletteRow :: proc(ctx: ^skald.Ctx(Msg), s: ^State, key: string, row: ColoredTreeRow, msg: Msg) -> skald.View {
 	id := skald.hash_id(key)
-	if skald.widget_hovered(ctx, id) && ctx.input.mouse_pressed[.Left] && !skald.mouse_over_overlay(ctx) do skald.send(ctx, msg)
+	if skald.widget_hovered(ctx, id) && !skald.mouse_over_overlay(ctx) {
+		skald.cursor_request(ctx, .Pointer)
+		if ctx.input.mouse_pressed[.Left] do skald.send(ctx, msg)
+	}
 	child := new(skald.View, context.temp_allocator)
 	child^ = Tree_RowView(ctx.theme, row, s.settings.rowHeight, true, false)
 	return skald.View_Zone{id = id, child = child}

@@ -466,7 +466,9 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				if input.mouse_delta != {} do skald.send(ctx, Msg(Level_Canvas_Moved{world = world, delta = input.mouse_delta, free = shift}))
 				if input.mouse_released[.Left] || input.mouse_released[.Middle] || input.mouse_released[.Right] do skald.send(ctx, Msg(Level_Canvas_Released{}))
 				cursor = stroking ? LevelPaint_Cursor(s) : .Move
+				if s.level.drag.mode == .Pan do cursor = .Grabbing
 				if s.level.drag.mode == .Resize do cursor = LevelResize_Cursor(s.level.drag.handle)
+				if stroking && s.level.paint.stroke.kind == .Resize do cursor = LevelHandle_Cursor(s.level.paint.stroke.handle)
 			} else if hovered {
 				if input.scroll != {} {
 					wheelZoom, pan := wheelAction(input.scroll, input.modifiers, s.settings.wheelPans)
@@ -485,10 +487,17 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 					if hoveredLevel >= 0 do press.level = strings.clone(levels[hoveredLevel].identifier, context.temp_allocator)
 					skald.send(ctx, Msg(press))
 				}
-				if hoveredEntity >= 0 || hoveredLevel >= 0 do cursor = .Pointer
+				// The pointer says what a press does: levels move in the world view, another level
+				// is focused by a click, the focused level pans, entities move; then the world
+				// tools, the selected entity's handles and the painting tools over all of that
+				onFocused := s.level.focus != "" && hoveredLevel >= 0 && levels[hoveredLevel].identifier == s.level.focus
+				if hoveredLevel >= 0 do cursor = s.level.focus == "" ? .Move : onFocused ? .Grab : .Pointer
+				if hoveredEntity >= 0 do cursor = .Move
+				if spaceHeld do cursor = .Grab
 				if s.level.spot do cursor = .Crosshair
 				if h := LevelResize_HandleAt(s, doc, world); h != .None do cursor = LevelResize_Cursor(h)
-				if s.level.focus != "" && hoveredLevel >= 0 && levels[hoveredLevel].identifier == s.level.focus && LevelPaint_Cursor(s) != .Default do cursor = LevelPaint_Cursor(s)
+				if onFocused && LevelPaint_Cursor(s) != .Default && !spaceHeld do cursor = LevelPaint_Cursor(s)
+				if h, found := LevelPaint_HandleHovered(s, doc, world); found && !spaceHeld do cursor = LevelHandle_Cursor(h)
 			}
 		}
 

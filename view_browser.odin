@@ -332,6 +332,9 @@ browserDrag :: proc(s: ^State, ctx: ^skald.Ctx(Msg), items: []BrowserItem) -> sk
 	case kind == .Image && slicerTakesDrop(s, ctx, mouse): hint = "drop to slice it in the sprite sheet slicer"
 	case kind != .Image && kind != .Component && kind != .LDtk && kind != .Animation: hint = "drag into a script's code tab"
 	}
+	// The pointer says whether a release here takes it (the release's cases above)
+	takes := (s.codeTab > 0 && pointIn(codeArea, mouse)) || overViewport || (kind == .Image && (AnimationPanel_TakesDrop(s, ctx, mouse) || slicerTakesDrop(s, ctx, mouse)))
+	skald.cursor_request_top(ctx, takes ? .Move : .Not_Allowed)
 	return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
 		skald.col(
 			skald.text(label, th.color.fg, th.font.size_sm),

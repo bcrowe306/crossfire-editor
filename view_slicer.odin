@@ -144,7 +144,7 @@ slicerCanvas :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, size: [2]
 		if slicerPanning {
 			if input.mouse_delta != {} do skald.send(ctx, Msg(Slicer_Changed{op = .Pan, point = input.mouse_delta}))
 			if input.mouse_released[.Left] || input.mouse_released[.Middle] || input.mouse_released[.Right] do slicerPanning = false
-			cursor = .Move
+			cursor = .Grabbing
 		} else if inside && free {
 			hovered = Slicer_CellAt(settings, sheet, point)
 			if input.scroll != {} {
@@ -160,6 +160,7 @@ slicerCanvas :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, size: [2]
 				skald.send(ctx, Msg(Slicer_Changed{op = .Cell_Clicked, index = hovered, flag = .Shift in input.modifiers, number = ctrl ? 1 : 0}))
 			}
 			if hovered >= 0 do cursor = .Pointer
+			if spaceHeld do cursor = .Grab
 		}
 	}
 

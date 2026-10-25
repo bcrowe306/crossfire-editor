@@ -163,6 +163,7 @@ CodeDrag_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	label := fmt.tprintf("%s  %s", ICON_FILE_CODE, DropSource_Describe(s, s.codeDrag.source))
 	hint := overCode ? "drop into the code (Shift: choices)" : "drag into a script's code tab"
+	skald.cursor_request_top(ctx, overCode ? .Move : .Not_Allowed)
 	return skald.overlay({mouse.x + 14, mouse.y + 10, 0, 0},
 		skald.col(
 			skald.text(label, overCode ? th.color.on_primary : th.color.fg, th.font.size_sm),

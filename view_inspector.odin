@@ -187,6 +187,8 @@ sceneTreeMouse :: proc(s: ^State, ctx: ^skald.Ctx(Msg), visible: []int) -> skald
 		}
 		return none
 	}
+	// The pointer says whether a release here takes the node (a place in the tree, a code tab)
+	skald.cursor_request_top(ctx, valid || overCode ? .Move : .Not_Allowed)
 	// Near the top or bottom edge, scroll so rows out of view can be reached. Frames keep coming
 	// while the mouse is held there
 	edge := rowHeight

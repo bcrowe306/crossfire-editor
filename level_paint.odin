@@ -447,6 +447,30 @@ handleUnder :: proc(state: ^State, doc: ^LDtkDoc, level: int, p: [2]f32, radius:
 	return {}, {}, false
 }
 
+/*
+The selected entity's resize handle under the world point `world` on the focused level, for the
+canvas's pointer (a press there resizes: `LevelPaint_PlanPress`); false when none.
+*/
+LevelPaint_HandleHovered :: proc(state: ^State, doc: ^LDtkDoc, world: [2]f32) -> (LevelHandle, bool) {
+	if state.level.focus == "" || state.level.entity == "" || doc == nil do return {}, false
+	level := LDtkDoc_FindLevel(doc, state.level.focus)
+	if level < 0 do return {}, false
+	zoom := max(state.level.view.zoom, 0.01)
+	_, h, found := handleUnder(state, doc, level, levelPixel(state, world), max(5, 6 / zoom))
+	return h, found
+}
+
+// The pointer over an entity's resize handle
+LevelHandle_Cursor :: proc(h: LevelHandle) -> skald.Cursor_Shape {
+	switch h {
+	case .Top, .Bottom: return .NS_Resize
+	case .Left, .Right: return .EW_Resize
+	case .Top_Left, .Bottom_Right: return .NWSE_Resize
+	case .Top_Right, .Bottom_Left: return .NESW_Resize
+	}
+	return .Default
+}
+
 // A point of an entity's point fields (level pixels at its cell's center)
 LevelPoint :: struct {
 	field, index: int,

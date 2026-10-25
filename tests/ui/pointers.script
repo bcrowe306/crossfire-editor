@@ -1,0 +1,42 @@
+# The pointer follows what's under it (Skald's widgets and the editor's own): a hand over buttons,
+# tabs and rows, not-allowed over a disabled button, an I-beam over text fields, resize arrows over
+# the dividers, and the viewport's: move arrows over a node, an open hand for the Pan tool, a
+# crosshair for the Zoom tool, the arrow over empty space.
+# Run with: task test:ui SCRIPT=tests/ui/pointers.script
+
+wait 5
+# Buttons and a disabled one (Stop: nothing plays)
+hover_at toolbar-play 0.5 0.5
+wait_until cursor Pointer
+hover_at toolbar-stop 0.5 0.5
+wait_until cursor Not_Allowed
+# A text field, a tree's rows
+hover_at browser-search 0.5 0.5
+wait_until cursor Text
+click_row browser-tree 2
+expect scene PlayScene
+hover_at browser-tree 0.5 0.02
+wait_until cursor Pointer
+# A scene tab
+hover_at scene-tab-1 0.5 0.5
+wait_until cursor Pointer
+# The dividers: the left sidebar's (sideways), the bottom panel's (up and down)
+hover_beside split-center-right left
+wait_until cursor EW_Resize
+hover_beside viewport-canvas bottom
+wait_until cursor NS_Resize
+
+# The viewport: a node the tool moves, empty space, the Pan and Zoom tools
+hover_node Spaceship
+wait_until cursor Move
+hover_at viewport-canvas 0.97 0.97
+wait_until cursor Default
+key h
+hover_at viewport-canvas 0.6 0.6
+wait_until cursor Grab
+key z
+hover_at viewport-canvas 0.5 0.6
+wait_until cursor Crosshair
+key q
+hover_node Spaceship
+wait_until cursor Move

@@ -154,6 +154,11 @@ To move around:
 | **Middle** or **right drag**, **Space + drag**, a drag on empty space | Pan |
 | **Fit** (the header's button) | The whole world (or the focused level) in view |
 
+The pointer shows what a press does: four arrows over a level you can move (the world view) or an
+entity, a hand over another level (a click focuses it), an open hand over the focused level (a
+drag pans; closed while it does), double arrows over resize handles, a crosshair for the painting
+tools.
+
 To work on the world (the **Select** tool):
 
 | Do | What happens |
