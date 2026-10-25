@@ -344,7 +344,7 @@ ldtkEntitiesSection :: proc(c: ^LDtkTabCtx) {
 			tabNumberRow(c, "Height", "ldtk-instance-h", "The entity's height in pixels", size, f64(Json_Int(json, Json_Get(json, en.node, "height"), 16)), 1, 0, 1, 100000)
 		}
 		tabRow(c, "IID", skald.row(uiText(th, .Muted, iid, max_width = max(c.controlWidth - tk.fieldXS, tk.fieldXS)),
-			smallButton(c, "ldtk-instance-iid-copy", ICON_COPY, Msg(Text_Copied(strings.clone(iid, context.temp_allocator)))), spacing = tk.xs, cross_align = .Center),
+			smallButton(c, "ldtk-instance-iid-copy", ACTION_ICONS[.Copy], Msg(Text_Copied(strings.clone(iid, context.temp_allocator)))), spacing = tk.xs, cross_align = .Center),
 			"The entity's unique id (references name it); the button copies it")
 		referrers := 0
 		for other in LDtkDoc_Entities(c.doc) {
@@ -472,7 +472,7 @@ fieldValueControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, f
 	add.key, clr.key = "add", "clear"
 	count := fmt.tprintf("%d item%s%s", len(raws), len(raws) == 1 ? "" : "s", minLength > 0 && len(raws) < minLength ? fmt.tprintf(" (at least %d)", minLength) : "")
 	tabRow(c, label, skald.row(skald.text(count, minLength > 0 && len(raws) < minLength ? th.color.warning : th.color.fg_muted, th.font.size_xs),
-		smallButton(c, fmt.tprintf("%s-add", key), fmt.tprintf("%s Add", ICON_PLUS), Msg(add), disabled = maxLength >= 0 && len(raws) >= maxLength),
+		smallButton(c, fmt.tprintf("%s-add", key), fmt.tprintf("%s Add", ACTION_ICONS[.Add]), Msg(add), disabled = maxLength >= 0 && len(raws) >= maxLength),
 		smallButton(c, fmt.tprintf("%s-clear", key), "Clear", Msg(clr), disabled = len(raws) == 0), spacing = tk.xs, cross_align = .Center), tip)
 	items := Json_Items(json, value)
 	for i in 0 ..< len(raws) {
@@ -484,8 +484,8 @@ fieldValueControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, f
 		up.key, up.index, up.number = "move", i, f64(i - 1)
 		rm.key, rm.index = "remove", i
 		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH),
-			smallButton(c, fmt.tprintf("%s-up-%d", key, i), ICON_ARROW_UP, Msg(up), disabled = i == 0),
-			smallButton(c, fmt.tprintf("%s-remove-%d", key, i), ICON_XMARK, Msg(rm)), spacing = tk.xs))
+			smallButton(c, fmt.tprintf("%s-up-%d", key, i), ACTION_ICONS[.Move_Up], Msg(up), disabled = i == 0),
+			smallButton(c, fmt.tprintf("%s-remove-%d", key, i), ACTION_ICONS[.Remove], Msg(rm)), spacing = tk.xs))
 	}
 }
 
@@ -620,7 +620,7 @@ pickedFieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, 
 			remove.op = .Entity_Ref
 			remove.text = ""
 		}
-		x := skald.button(c.ctx, ICON_XMARK, Msg(remove), id = skald.hash_id(fmt.tprintf("%s-remove-%d", key, i)), bg = th.color.surface, fg = th.color.fg_muted, padding = {tk.xs, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
+		x := skald.button(c.ctx, ACTION_ICONS[.Remove], Msg(remove), id = skald.hash_id(fmt.tprintf("%s-remove-%d", key, i)), bg = th.color.surface, fg = th.color.fg_muted, padding = {tk.xs, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
 		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), uiText(th, .Muted, fmt.tprintf("%d. %s", i + 1, describe(c, json, item, kind == .Point))), x, spacing = th.spacing.sm, cross_align = .Center))
 	}
 	if !info.isArray && Json_Kind(json, value) == .Object {
@@ -778,7 +778,7 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 		tabListItem(c, row, Msg(Level_Row_Clicked{level = name}))
 	}
 	c.list.empty = "This world has no levels: + adds one."
-	tabTool(c, "ldtk-level-new", s.level.spot ? ICON_CROSSHAIRS : ICON_PLUS, s.level.spot ? "Picking the new level's spot on the canvas (Esc cancels)" : "New Level: pick its spot on the canvas",
+	tabTool(c, "ldtk-level-new", s.level.spot ? ICON_CROSSHAIRS : ACTION_ICONS[.Add], s.level.spot ? "Picking the new level's spot on the canvas (Esc cancels)" : "New Level: pick its spot on the canvas",
 		Msg(Level_Spot_Started{cancel = s.level.spot}), on = s.level.spot)
 	if c.level >= 0 {
 		_, iid := LDtkDoc_LevelNames(doc, c.level)
@@ -793,10 +793,10 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 		down.number = f64(at + 1)
 		identifier, _ := LDtkDoc_LevelNames(doc, c.level)
 		focused := identifier == s.level.focus
-		tabTool(c, "ldtk-level-duplicate", ICON_COPY, "Duplicate the level (LDtk's copy: beside it, its references remapped)", Msg(dup))
-		tabTool(c, "ldtk-level-delete", ICON_TRASH, "Delete the level (a world keeps one)", Msg(rem), disabled = len(levels) <= 1)
-		tabTool(c, "ldtk-level-up", ICON_ARROW_UP, "Earlier in the world's order (a linear world places levels by it)", Msg(up), disabled = at <= 0)
-		tabTool(c, "ldtk-level-down", ICON_ARROW_DOWN, "Later in the world's order", Msg(down), disabled = at < 0 || at >= len(levels) - 1)
+		tabTool(c, "ldtk-level-duplicate", ACTION_ICONS[.Duplicate], "Duplicate the level (LDtk's copy: beside it, its references remapped)", Msg(dup))
+		tabTool(c, "ldtk-level-delete", ACTION_ICONS[.Delete], "Delete the level (a world keeps one)", Msg(rem), disabled = len(levels) <= 1)
+		tabTool(c, "ldtk-level-up", ACTION_ICONS[.Move_Up], "Earlier in the world's order (a linear world places levels by it)", Msg(up), disabled = at <= 0)
+		tabTool(c, "ldtk-level-down", ACTION_ICONS[.Move_Down], "Later in the world's order", Msg(down), disabled = at < 0 || at >= len(levels) - 1)
 		tabTool(c, "ldtk-level-focus", focused ? ICON_GLOBE : ICON_CROSSHAIRS, focused ? "Back to the world view" : "Focus on the level (the canvas fits it, as LDtk's level view)",
 			Msg(Level_Focus_Changed(focused ? "" : strings.clone(identifier, context.temp_allocator))), on = focused)
 		rect := LDtkDoc_LevelRect(doc, c.level)
@@ -809,7 +809,7 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 		tabHeading(c, fmt.tprintf("%d level%s in this world", count, count == 1 ? "" : "s"))
 		tabNote(c, "Select a level (the Levels sidebar or the canvas) to see it here: its size and place, the scenes showing it, its fields and neighbours. Double-click one to focus it.")
 		ldtkLevelFieldsSection(c)
-		append(c.rows, button(ctx, "level-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("level_mode"))))
+		append(c.rows, button(ctx, "level-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), Msg(Manual_Opened("level_mode"))))
 		return
 	}
 	main := c.main
@@ -836,7 +836,7 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 	shown := LevelMode_ScenesShowing(s, c.file, identifier)
 	if len(shown) == 0 {
 		tabNote(c, "No scene shows this level.")
-		append(c.rows, button(ctx, "level-new-scene", fmt.tprintf("%s  New Scene with This Level", ICON_PLUS), Msg(Level_Scene_Created{})))
+		append(c.rows, button(ctx, "level-new-scene", fmt.tprintf("%s  New Scene with This Level", ACTION_ICONS[.Add]), Msg(Level_Scene_Created{})))
 	} else {
 		for at, i in shown {
 			scene := &s.project.scenes[at.scene]
@@ -846,7 +846,7 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 	}
 	ldtkLevelFieldsSection(c)
 	ldtkNeighbours(c)
-	append(c.rows, skald.spacer(th.spacing.xs), button(ctx, "level-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("level_mode"))))
+	append(c.rows, skald.spacer(th.spacing.xs), button(ctx, "level-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), Msg(Manual_Opened("level_mode"))))
 }
 
 // The level fields: the selected level's values, then their definitions (LDtk's level panel opens

@@ -133,7 +133,7 @@ musicLayerRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlW
 	onSound :: proc(i: int, v: string) -> Msg { return Music_Layer_Changed{index = i, field = .Sound, text = v} }
 	onVolume :: proc(i: int, v: f32) -> Msg { return Music_Layer_Changed{index = i, field = .Volume, value = v} }
 	for l, i in node.musicLayers {
-		remove := skald.button(ctx, ICON_TRASH, Msg(Music_Layer_Removed(i)), id = key(i, "remove"),
+		remove := skald.button(ctx, ACTION_ICONS[.Delete], Msg(Music_Layer_Removed(i)), id = key(i, "remove"),
 			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
 		append(&rows,
 			skald.row(uiText(th, .Muted, fmt.tprintf("Layer %d", i + 1)), skald.flex(1, skald.spacer(0)), remove,
@@ -151,7 +151,7 @@ musicLayerRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, controlW
 			break
 		}
 	}
-	add := skald.button(ctx, fmt.tprintf("%s  Add Layer", ICON_PLUS), Msg(Music_Layer_Added{}), id = skald.hash_id("inspector-layer-add"),
+	add := skald.button(ctx, fmt.tprintf("%s  Add Layer", ACTION_ICONS[.Add]), Msg(Music_Layer_Added{}), id = skald.hash_id("inspector-layer-add"),
 		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, inspectorRow(ctx, "", skald.tooltip(ctx, add, "A music file that plays in step with this one (a stem: drums, strings); fade it from a script",
 		id = skald.hash_id("inspector-layer-add-tip"))))

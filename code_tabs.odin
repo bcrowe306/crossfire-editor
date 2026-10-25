@@ -351,7 +351,7 @@ editorTab :: proc(ctx: ^skald.Ctx(Msg), label, tip: string, active: bool, select
 	append(&parts, tab)
 	if closable {
 		closeKey := tabCloseKey(key)
-		append(&parts, skald.button(ctx, ICON_XMARK, closeMsg, id = skald.hash_id(closeKey),
+		append(&parts, skald.button(ctx, ACTION_ICONS[.Close], closeMsg, id = skald.hash_id(closeKey),
 			bg = bg, fg = th.color.fg_muted, radius = th.radius.sm, padding = {th.spacing.sm, th.spacing.sm}, font_size = th.font.size_xs))
 	}
 	underline := active ? skald.rect({0, 2}, th.color.primary) : skald.rect({0, 1}, th.color.border)

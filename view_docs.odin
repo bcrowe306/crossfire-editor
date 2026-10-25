@@ -113,8 +113,8 @@ docsWindowContent :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width, height: f32) -
 		iconButton(ctx, "docs-forward", ICON_ARROW_RIGHT, "", Msg(Docs_Forward{}), disabled = s.docs.at + 1 >= len(s.docs.history)),
 		iconButton(ctx, "docs-contents", ICON_HOUSE, wide ? "Contents" : "", Msg(Docs_Hit_Chosen{address = "/manual/", clear = !wide})),
 		skald.flex(1, uiText(th, .Title, title, max_width = width - (wide ? 470 : 230), overflow = .Ellipsis)),
-		iconButton(ctx, "docs-web", ICON_EXTERNAL, wide ? "Open on crossfireengine.io" : "Web", Msg(Docs_Open_On_Web{}), disabled = current == ""),
-		iconButton(ctx, "docs-close", ICON_XMARK, "", Msg(Docs_Closed{})),
+		iconButton(ctx, "docs-web", ACTION_ICONS[.Open_Externally], wide ? "Open on crossfireengine.io" : "Web", Msg(Docs_Open_On_Web{}), disabled = current == ""),
+		iconButton(ctx, "docs-close", ACTION_ICONS[.Close], "", Msg(Docs_Closed{})),
 		spacing = th.spacing.xs,
 		cross_align = .Center,
 	)

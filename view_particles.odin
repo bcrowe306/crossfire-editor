@@ -127,7 +127,7 @@ ParticlesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	node, index := Particles_Emitter(s)
 	if node == nil {
 		text := "Select a ParticleEmitter node to edit its settings here, a category at a time, with presets (fire, smoke, sparks, dust, rain). Sparks, smoke, rain, explosions: an emitter sends out small dots, shapes or pictures that move and fade."
-		add := skald.button(ctx, fmt.tprintf("%s  Add ParticleEmitter", ICON_PLUS), Msg(Add_Node_Kind_Chosen(NodeKind.ParticleEmitter)),
+		add := skald.button(ctx, fmt.tprintf("%s  Add ParticleEmitter", ACTION_ICONS[.Add]), Msg(Add_Node_Kind_Chosen(NodeKind.ParticleEmitter)),
 			id = skald.hash_id("particles-tab-add"), padding = tk.fieldPadding, font_size = th.font.size_sm)
 		return skald.col(
 			uiText(th, .Label, text, max_width = tk.textWide),
@@ -231,7 +231,7 @@ particlesHeader :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: 
 	append(&items, skald.tooltip(ctx, choice, strings.to_string(tip), id = skald.hash_id("particles-tab-preset-tip")))
 	append(&items,
 		button(ctx, "particles-tab-reset", fmt.tprintf("%s  Reset", ICON_UNDO), "Put every particle setting back to its default (undoable)", Msg(Particles_Reset{})),
-		button(ctx, "particles-tab-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), "The Particles page of the manual", Msg(Manual_Opened("particles#the-particles-tab"))),
+		button(ctx, "particles-tab-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), "The Particles page of the manual", Msg(Manual_Opened("particles#the-particles-tab"))),
 	)
 	return skald.wrap_row(..items[:], spacing = th.spacing.sm, line_spacing = th.spacing.xs, width = width)
 }

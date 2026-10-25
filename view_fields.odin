@@ -207,7 +207,7 @@ OrphanedValueRows :: proc(ctx: ^skald.Ctx(Msg), values: []ScriptPropDef, desc: ^
 		if len(rows) == 0 {
 			append(&rows, uiText(th, .Muted, fmt.tprintf("Stored values %s has no field for (kept until removed; renamed or removed in the code?):", desc.name), max_width = width, color = th.color.warning))
 		}
-		remove := skald.button(ctx, ICON_XMARK, Msg(Script_Prop_Changed{p.name, "", "", target}),
+		remove := skald.button(ctx, ACTION_ICONS[.Remove], Msg(Script_Prop_Changed{p.name, "", "", target}),
 			id = skald.hash_id(fmt.tprintf("inspector-orphan-remove-%s-%s", p.name, key)),
 			bg = th.color.surface, fg = th.color.fg_muted, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 		value := uiText(th, .Label, p.value, max_width = max(width - tk.fieldS, tk.fieldXS))

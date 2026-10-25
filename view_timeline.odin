@@ -78,7 +78,7 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		// The clip drags into code by its grip (code_drag.odin)
 		append(&toolbar, CodeDrag_Handle(ctx, s, "timeline-clip-drag", DropSource{kind = .Clip, name = clip.name, node = index, index = -1}))
 	}
-	append(&toolbar, button(ctx, "timeline-add-clip", fmt.tprintf("%s  Clip", ICON_PLUS), Msg(Timeline_Changed{op = .Clip_Added})))
+	append(&toolbar, button(ctx, "timeline-add-clip", fmt.tprintf("%s  Clip", ACTION_ICONS[.Add]), Msg(Timeline_Changed{op = .Clip_Added})))
 	if clip != nil {
 		name := t.nameEdit != "" ? t.nameEdit : clip.name
 		nameRow := labeled(ctx, "Name", skald.text_input(ctx, strings.clone(name, context.temp_allocator), proc(v: string) -> Msg { return Timeline_View{op = .Name_Typed, text = v} },
@@ -91,9 +91,9 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&toolbar, skald.checkbox(ctx, clip.loop, "Loop", proc(v: bool) -> Msg { return Timeline_Changed{op = .Clip_Loop, flag = v} }, id = skald.hash_id("timeline-loop")))
 		autoplay := node.animator.autoplay == clip.name
 		append(&toolbar, button(ctx, "timeline-autoplay", "Starts with this", Msg(Timeline_Changed{op = .Clip_Autoplay, flag = !autoplay}), autoplay))
-		append(&toolbar, button(ctx, "timeline-remove-clip", fmt.tprintf("%s  Remove Clip", ICON_TRASH), Msg(Timeline_Changed{op = .Clip_Removed})))
+		append(&toolbar, button(ctx, "timeline-remove-clip", fmt.tprintf("%s  Remove Clip", ACTION_ICONS[.Delete]), Msg(Timeline_Changed{op = .Clip_Removed})))
 	}
-	append(&toolbar, button(ctx, "timeline-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("animation"))))
+	append(&toolbar, button(ctx, "timeline-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), Msg(Manual_Opened("animation"))))
 
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows, skald.wrap_row(..toolbar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width, bg = th.color.surface))
@@ -139,12 +139,12 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			}, id = skald.hash_id("timeline-track-property"), width = tk.fieldS))
 			// Adding takes what's shown
 			if len(properties) > 0 {
-				append(&transport, button(ctx, "timeline-add-track", fmt.tprintf("%s  Track", ICON_PLUS),
+				append(&transport, button(ctx, "timeline-add-track", fmt.tprintf("%s  Track", ACTION_ICONS[.Add]),
 					Msg(Timeline_Changed{op = .Track_Added, path = strings.clone(newNode, context.temp_allocator), text = strings.clone(property, context.temp_allocator)})))
 			}
 		}
 	}
-	append(&transport, button(ctx, "timeline-add-event-track", fmt.tprintf("%s  Event Track", ICON_PLUS), Msg(Timeline_Changed{op = .Track_Added, text = e.ANIMATOR_EVENT_PROPERTY})))
+	append(&transport, button(ctx, "timeline-add-event-track", fmt.tprintf("%s  Event Track", ACTION_ICONS[.Add]), Msg(Timeline_Changed{op = .Track_Added, text = e.ANIMATOR_EVENT_PROPERTY})))
 	append(&rows, skald.wrap_row(..transport[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width))
 	append(&rows, skald.divider(ctx))
 	append(&rows, tracksCanvas(ctx, s, node, index, clip, max(width - th.spacing.sm * 2, 160)))
@@ -155,17 +155,17 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		edit := make([dynamic]skald.View, context.temp_allocator)
 		append(&edit, small(ctx, fmt.tprintf("Track: %s", trackName(track))))
 		if track.property != e.ANIMATOR_EVENT_PROPERTY {
-			append(&edit, button(ctx, "timeline-key", fmt.tprintf("%s  Key", ICON_PLUS), Msg(Timeline_Changed{op = .Key_Added})))
+			append(&edit, button(ctx, "timeline-key", fmt.tprintf("%s  Key", ACTION_ICONS[.Add]), Msg(Timeline_Changed{op = .Key_Added})))
 			kind, _ := e.Animator_PropertyKind(track.property)
 			if kind != .Bool && kind != .Text {
 				append(&edit, skald.checkbox(ctx, track.step, "Steps", proc(v: bool) -> Msg { return Timeline_Changed{op = .Track_Step, flag = v} }, id = skald.hash_id("timeline-track-step")))
 			}
 			if Timeline_ResolvePath(scene, index, track.node) < 0 do append(&edit, uiText(th, .Muted, fmt.tprintf("No node at %q", track.node), color = th.color.warning))
 		} else {
-			append(&edit, button(ctx, "timeline-key", fmt.tprintf("%s  Event", ICON_PLUS), Msg(Timeline_Changed{op = .Key_Added})))
+			append(&edit, button(ctx, "timeline-key", fmt.tprintf("%s  Event", ACTION_ICONS[.Add]), Msg(Timeline_Changed{op = .Key_Added})))
 		}
 		append(&edit, button(ctx, "timeline-key-all", "Key All Tracks", Msg(Timeline_Changed{op = .Keys_Recorded})))
-		append(&edit, button(ctx, "timeline-remove-track", fmt.tprintf("%s  Remove Track", ICON_TRASH), Msg(Timeline_Changed{op = .Track_Removed})))
+		append(&edit, button(ctx, "timeline-remove-track", fmt.tprintf("%s  Remove Track", ACTION_ICONS[.Delete]), Msg(Timeline_Changed{op = .Track_Removed})))
 		append(&rows, skald.wrap_row(..edit[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width))
 		if t.key >= 0 && t.key < len(track.keys) {
 			key := track.keys[t.key]
@@ -180,7 +180,7 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				append(&keyRow, labeled(ctx, "Curve to the next", skald.select(ctx, fmt.tprint(key.ease), eases, proc(v: string) -> Msg { return Timeline_Changed{op = .Key_Ease, text = v} },
 					id = skald.hash_id("timeline-key-ease"), width = tk.fieldS)))
 			}
-			append(&keyRow, button(ctx, "timeline-remove-key", fmt.tprintf("%s  Remove Key", ICON_TRASH), Msg(Timeline_Changed{op = .Key_Removed})))
+			append(&keyRow, button(ctx, "timeline-remove-key", fmt.tprintf("%s  Remove Key", ACTION_ICONS[.Delete]), Msg(Timeline_Changed{op = .Key_Removed})))
 			append(&rows, skald.wrap_row(..keyRow[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width))
 		}
 	}

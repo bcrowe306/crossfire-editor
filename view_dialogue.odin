@@ -60,9 +60,9 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&bar, skald.select(ctx, def != nil ? strings.clone(def.path, context.temp_allocator) : "", paths[:],
 			proc(v: string) -> Msg { return Dialogue_View{op = .Show, path = v} }, id = skald.hash_id("dialogue-choose"), width = tk.fieldL, placeholder = "Choose a dialogue"))
 	}
-	append(&bar, button(ctx, "dialogue-new", fmt.tprintf("%s  New Dialogue", ICON_PLUS), Msg(Dialogue_Created{})))
+	append(&bar, button(ctx, "dialogue-new", fmt.tprintf("%s  New Dialogue", ACTION_ICONS[.Add]), Msg(Dialogue_Created{})))
 	if def == nil {
-		append(&bar, button(ctx, "dialogue-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("dialogue"))))
+		append(&bar, button(ctx, "dialogue-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), Msg(Manual_Opened("dialogue"))))
 		append(&rows, skald.wrap_row(..bar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width, bg = th.color.surface))
 		append(&rows, uiText(th, .Label, "Conversations: who says what, and the choices the player makes. Make one with New Dialogue (or import a Yarn Spinner .yarn file), then show it in the game with a DialogueBox node.", max_width = tk.textWide))
 		return skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.sm)
@@ -71,13 +71,13 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	ed := &s.dialogue
 	free := [2]f32{20, 20}
 	for n in data.nodes do free.x = max(free.x, n.position.x + DIALOGUE_BOX.x + 30)
-	append(&bar, button(ctx, "dialogue-add-node", fmt.tprintf("%s  Node", ICON_PLUS), Msg(Dialogue_Changed{op = .Node_Added, position = {free.x, 20}})))
+	append(&bar, button(ctx, "dialogue-add-node", fmt.tprintf("%s  Node", ACTION_ICONS[.Add]), Msg(Dialogue_Changed{op = .Node_Added, position = {free.x, 20}})))
 	names := make([dynamic]string, context.temp_allocator)
 	for n in data.nodes do append(&names, strings.clone(n.name, context.temp_allocator))
 	append(&bar, labeled(ctx, "Starts in", skald.select(ctx, strings.clone(data.start, context.temp_allocator), names[:],
 		proc(v: string) -> Msg { return Dialogue_Changed{op = .Start_Set, text = v} }, id = skald.hash_id("dialogue-start"), width = tk.fieldS)))
 	append(&bar, small(ctx, fmt.tprintf("%d nodes", len(data.nodes))))
-	append(&bar, button(ctx, "dialogue-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("dialogue"))))
+	append(&bar, button(ctx, "dialogue-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), Msg(Manual_Opened("dialogue"))))
 	append(&rows, skald.wrap_row(..bar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width, bg = th.color.surface))
 	append(&rows, dialogueGraph(ctx, s, data, max(width - th.spacing.sm * 2, 200)))
 
@@ -91,7 +91,7 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&head, uiText(th, .Value, fmt.tprintf("Node %s", node.name)))
 	append(&head, labeled(ctx, "Name", skald.text_input(ctx, strings.clone(node.name, context.temp_allocator), proc(v: string) -> Msg { return Dialogue_Changed{op = .Node_Renamed, text = v} },
 		id = skald.hash_id("dialogue-node-name"), width = tk.fieldS)))
-	append(&head, button(ctx, "dialogue-node-remove", fmt.tprintf("%s  Remove Node", ICON_TRASH), Msg(Dialogue_Changed{op = .Node_Removed})))
+	append(&head, button(ctx, "dialogue-node-remove", fmt.tprintf("%s  Remove Node", ACTION_ICONS[.Delete]), Msg(Dialogue_Changed{op = .Node_Removed})))
 	append(&rows, skald.wrap_row(..head[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width))
 
 	targets := make([dynamic]string, context.temp_allocator)
@@ -133,11 +133,11 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 					small(ctx, "→"),
 					target(ctx, {i, k, .Target}, o.target, targets[:]),
 					input(ctx, {i, k, .Condition}, o.condition, "shown if...", 100),
-					button(ctx, fmt.tprintf("dialogue-step-%d-option-%d-remove", i, k), ICON_XMARK, Msg(Dialogue_Changed{op = .Option_Removed, step = i, option = k})),
+					button(ctx, fmt.tprintf("dialogue-step-%d-option-%d-remove", i, k), ACTION_ICONS[.Remove], Msg(Dialogue_Changed{op = .Option_Removed, step = i, option = k})),
 					spacing = th.spacing.xs, cross_align = .Center,
 				))
 			}
-			append(&line, button(ctx, fmt.tprintf("dialogue-step-%d-option-add", i), fmt.tprintf("%s  Option", ICON_PLUS), Msg(Dialogue_Changed{op = .Option_Added, step = i})))
+			append(&line, button(ctx, fmt.tprintf("dialogue-step-%d-option-add", i), fmt.tprintf("%s  Option", ACTION_ICONS[.Add]), Msg(Dialogue_Changed{op = .Option_Added, step = i})))
 		case .Jump:
 			append(&line, labeled(ctx, "Go to", target(ctx, {i, -1, .Target}, st.target, targets[:])))
 		case .Set:
@@ -152,7 +152,7 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&line, labeled(ctx, "If", input(ctx, {i, -1, .Condition}, st.condition, "always", 110)))
 		append(&line, button(ctx, fmt.tprintf("dialogue-step-%d-up", i), "↑", Msg(Dialogue_Changed{op = .Step_Moved, step = i, delta = -1})))
 		append(&line, button(ctx, fmt.tprintf("dialogue-step-%d-down", i), "↓", Msg(Dialogue_Changed{op = .Step_Moved, step = i, delta = 1})))
-		append(&line, button(ctx, fmt.tprintf("dialogue-step-%d-remove", i), ICON_TRASH, Msg(Dialogue_Changed{op = .Step_Removed, step = i})))
+		append(&line, button(ctx, fmt.tprintf("dialogue-step-%d-remove", i), ACTION_ICONS[.Delete], Msg(Dialogue_Changed{op = .Step_Removed, step = i})))
 		append(&rows, skald.wrap_row(..line[:], spacing = th.spacing.sm, line_spacing = th.spacing.xs, padding = th.spacing.xs, width = width))
 		// Its condition's mistakes
 		if st.condition != "" {

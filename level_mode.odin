@@ -1035,8 +1035,8 @@ levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	} else if s.level.level != "" {
 		append(&actions, panelButton(ctx, "level-focus", ICON_CROSSHAIRS, fmt.tprintf("Focus on %s (or double-click it)", s.level.level), Msg(Level_Focus_Changed(strings.clone(s.level.level, context.temp_allocator)))))
 	}
-	append(&actions, panelButton(ctx, "level-fit", ICON_ZOOM, s.level.focus != "" ? "Fit the level in view" : "Fit the world in view", Msg(Level_Canvas_Fit{})))
-	append(&actions, panelButton(ctx, "level-open-ldtk", ICON_EXTERNAL, s.level.level != "" ? fmt.tprintf("Open in LDtk at %s (unsaved edits are saved first)", s.level.level) : "Open in LDtk (unsaved edits are saved first)", Msg(LDtk_Asset_Open_Requested(index))))
+	append(&actions, panelButton(ctx, "level-fit", ACTION_ICONS[.Fit_View], s.level.focus != "" ? "Fit the level in view" : "Fit the world in view", Msg(Level_Canvas_Fit{})))
+	append(&actions, panelButton(ctx, "level-open-ldtk", ACTION_ICONS[.Open_Externally], s.level.level != "" ? fmt.tprintf("Open in LDtk at %s (unsaved edits are saved first)", s.level.level) : "Open in LDtk (unsaved edits are saved first)", Msg(LDtk_Asset_Open_Requested(index))))
 	body: skald.View
 	switch {
 	case doc == nil:

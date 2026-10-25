@@ -53,7 +53,7 @@ LevelToolInfo :: struct {
 LEVEL_TOOLS := [LevelTool]LevelToolInfo{
 	.Select    = {ICON_POINTER, "Select", "Select and move: click a level or an entity to select it, drag it to move it", true},
 	.Pencil    = {ICON_PENCIL, "Pencil", "Paint the layer's cells with a value (the right button erases)", true},
-	.Random    = {ICON_DICE, "Random", "Paint a random tile of the picked ones in each cell (LDtk: R)", true},
+	.Random    = {ACTION_ICONS[.Randomize], "Random", "Paint a random tile of the picked ones in each cell (LDtk: R)", true},
 	.Rectangle = {ICON_SQUARE, "Rectangle", "Paint a rectangle (LDtk: Shift + drag)", true},
 	.Fill      = {ICON_FILL, "Fill", "Fill the area of the same cells (LDtk: Shift + a quick click)", true},
 	.Eraser    = {ICON_ERASER, "Eraser", "Erase (LDtk: the right button)", true},

@@ -38,7 +38,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		proc(index: int) -> Msg { return Bottom_Tab_Picked(index) },
 		id = skald.hash_id(tabsKey)), s.mode == .Scene ? BOTTOM_TABS_TIP : LEVEL_BOTTOM_TABS_TIP, id = skald.hash_id(fmt.tprintf("%s-tip", tabsKey)))
 	buttons := skald.row(
-		panelButton(ctx, "clear-log", ICON_TRASH, "Clear", Action.Clear_Console,
+		panelButton(ctx, "clear-log", ACTION_ICONS[.Clear], "Clear", Action.Clear_Console,
 			disabled = !clearable(s)),
 		panelButton(ctx, "toggle-bottom", open ? ICON_CHEVRON_DOWN : ICON_CHEVRON_UP,
 			actionTip(s, open ? "Collapse panel" : "Expand panel", .Toggle_Bottom_Panel), Action.Toggle_Bottom_Panel),

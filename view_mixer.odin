@@ -57,7 +57,7 @@ mixerBody :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
 		level := b.name == previewBus ? busLevel : [2]f32{}
 		append(&strips, channelStrip(ctx, s, b, i, level, stripHeight))
 	}
-	add := skald.tooltip(ctx, skald.button(ctx, ICON_PLUS, Msg(Bus_Added{}), id = skald.hash_id("mixer-add"),
+	add := skald.tooltip(ctx, skald.button(ctx, ACTION_ICONS[.Add], Msg(Bus_Added{}), id = skald.hash_id("mixer-add"),
 		bg = th.color.surface, fg = th.color.fg, width = ADD_WIDTH, padding = {0, th.spacing.md}, radius = th.radius.sm),
 		"Add a bus", id = skald.hash_id("mixer-add-tip"))
 	if len(strips) == 0 do append(&strips, uiText(th, .Muted, "No buses yet: + adds one"))
@@ -100,7 +100,7 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 	// The bus drags into code by its grip (code_drag.odin)
 	grip := CodeDrag_Handle(ctx, s, fmt.tprintf("mixer-drag-%d", i), DropSource{kind = .Bus, name = i == 0 ? e.MASTER_BUS : b.name, node = -1, index = -1})
 	if i > 0 {
-		remove := skald.button(ctx, ICON_TRASH, Msg(Bus_Removed(i)), id = skald.hash_id(fmt.tprintf("mixer-remove-%d", i)),
+		remove := skald.button(ctx, ACTION_ICONS[.Delete], Msg(Bus_Removed(i)), id = skald.hash_id(fmt.tprintf("mixer-remove-%d", i)),
 			bg = th.color.surface, fg = th.color.fg_muted, padding = {tk.xs, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
 		append(&rows, skald.row(used, skald.flex(1, skald.spacer(0)), grip,
 			skald.tooltip(ctx, remove, "Remove the bus (its sounds go to Master)", id = skald.hash_id(fmt.tprintf("mixer-remove-tip-%d", i))),

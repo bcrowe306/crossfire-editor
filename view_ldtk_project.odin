@@ -44,9 +44,9 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 	add.entity = LDtk_NewIid()
 	del := tabBase(c, .World_Removed)
 	del.world = wi
-	tabTool(c, "ldtk-world-add", ICON_PLUS, "Add a world (LDtk's Multi-worlds: turns it on, the project's levels becoming its first world's)", Msg(add), label = "World")
-	tabTool(c, "ldtk-world-delete", ICON_TRASH, "Delete this world and its levels", Msg(del), disabled = len(doc.worlds) <= 1)
-	tabTool(c, "ldtk-world-new-level", s.level.spot ? ICON_CROSSHAIRS : ICON_PLUS, s.level.spot ? "Picking the new level's spot on the canvas (Esc cancels)" : "New Level: pick its spot on the canvas",
+	tabTool(c, "ldtk-world-add", ACTION_ICONS[.Add], "Add a world (LDtk's Multi-worlds: turns it on, the project's levels becoming its first world's)", Msg(add), label = "World")
+	tabTool(c, "ldtk-world-delete", ACTION_ICONS[.Delete], "Delete this world and its levels", Msg(del), disabled = len(doc.worlds) <= 1)
+	tabTool(c, "ldtk-world-new-level", s.level.spot ? ICON_CROSSHAIRS : ACTION_ICONS[.Add], s.level.spot ? "Picking the new level's spot on the canvas (Esc cancels)" : "New Level: pick its spot on the canvas",
 		Msg(Level_Spot_Started{cancel = s.level.spot}), label = "Level", on = s.level.spot)
 	worldLevelCount := len(LevelMode_WorldLevels(s, doc))
 	c.list.text = fmt.tprintf("%s: %d level%s", worldName, worldLevelCount, worldLevelCount == 1 ? "" : "s")
@@ -57,7 +57,7 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 		tabRow(c, "Name", tabTextField(c, "ldtk-world-name", worldName, name), "The world's identifier (unique among the project's worlds)")
 	}
 	tabRow(c, "IID", skald.row(uiText(c.ctx.theme, .Muted, worldIid, max_width = max(c.controlWidth - tk.fieldXS, tk.fieldXS)),
-		smallButton(c, "ldtk-world-iid-copy", ICON_COPY, Msg(Text_Copied(strings.clone(worldIid, context.temp_allocator)))), spacing = tk.xs, cross_align = .Center),
+		smallButton(c, "ldtk-world-iid-copy", ACTION_ICONS[.Copy], Msg(Text_Copied(strings.clone(worldIid, context.temp_allocator)))), spacing = tk.xs, cross_align = .Center),
 		"The world's unique id (entity references and the table of contents name it); the button copies it")
 	layout := LDtkDoc_WorldLayout(doc, wi)
 	e := tabBase(c, .World_Layout)
@@ -101,8 +101,8 @@ LDtkProject_WorldTab :: proc(c: ^LDtkTabCtx) {
 		down := up
 		down.number = f64(at + 1)
 		order := skald.row(
-			smallButton(c, fmt.tprintf("ldtk-world-up-%d", at), ICON_ARROW_UP, Msg(up), disabled = at == 0),
-			smallButton(c, fmt.tprintf("ldtk-world-down-%d", at), ICON_ARROW_DOWN, Msg(down), disabled = at == len(levels) - 1),
+			smallButton(c, fmt.tprintf("ldtk-world-up-%d", at), ACTION_ICONS[.Move_Up], Msg(up), disabled = at == 0),
+			smallButton(c, fmt.tprintf("ldtk-world-down-%d", at), ACTION_ICONS[.Move_Down], Msg(down), disabled = at == len(levels) - 1),
 			uiText(c.ctx.theme, .Muted, fmt.tprintf("%.0f x %.0f px%s", rect[2], rect[3], LDtkDoc_LevelDepth(doc, i) != 0 ? fmt.tprintf(", depth %d", LDtkDoc_LevelDepth(doc, i)) : "")),
 			spacing = tk.xs, cross_align = .Center)
 		tabRow(c, lname, order, linear ? "The level's place in the world's order (a linear world places them by it)" : "The level's place in the world's order (automatic names count it)")
@@ -150,7 +150,7 @@ LDtkProject_LevelSettings :: proc(c: ^LDtkTabCtx) {
 	}
 	tabFlagRow(c, "Automatic name", "ldtk-level-auto", "Named by the project's level name pattern (the Project tab), as LDtk names new levels", set(c, l, "useAutoIdentifier"), auto)
 	tabRow(c, "IID", skald.row(uiText(th, .Muted, iid, max_width = max(c.controlWidth - tk.fieldXS, tk.fieldXS)),
-		smallButton(c, "ldtk-level-iid-copy", ICON_COPY, Msg(Text_Copied(l))), spacing = tk.xs, cross_align = .Center), "The level's unique id; the button copies it")
+		smallButton(c, "ldtk-level-iid-copy", ACTION_ICONS[.Copy], Msg(Text_Copied(l))), spacing = tk.xs, cross_align = .Center), "The level's unique id; the button copies it")
 	depth := LDtkDoc_LevelDepth(doc, level)
 	further, closer := LDtkDoc_LevelDepthMoves(doc, level)
 	fe, ce := tabBase(c, .Level_Depth), tabBase(c, .Level_Depth)
@@ -373,13 +373,13 @@ LDtkProject_ProjectTab :: proc(c: ^LDtkTabCtx) {
 		rm.key = "remove"
 		tabRow(c, "Runs", skald.row(
 			tabChoiceField(c, fmt.tprintf("ldtk-project-when-%d", i), labelOf(triggerLabels, triggers, Json_String(main, Json_Get(main, cmd, "when"))), triggerLabels, triggers, w),
-			smallButton(c, fmt.tprintf("ldtk-project-up-%d", i), ICON_ARROW_UP, Msg(up), disabled = i == 0),
-			smallButton(c, fmt.tprintf("ldtk-project-remove-%d", i), ICON_TRASH, Msg(rm)),
+			smallButton(c, fmt.tprintf("ldtk-project-up-%d", i), ACTION_ICONS[.Move_Up], Msg(up), disabled = i == 0),
+			smallButton(c, fmt.tprintf("ldtk-project-remove-%d", i), ACTION_ICONS[.Delete], Msg(rm)),
 			spacing = tk.xs, cross_align = .Center), "When LDtk runs it")
 	}
 	add := tabBase(c, .Project_Command)
 	add.key = "add"
-	buttonRow(c, smallButton(c, "ldtk-project-command-add", fmt.tprintf("%s  Add a Command", ICON_PLUS), Msg(add)))
+	buttonRow(c, smallButton(c, "ldtk-project-command-add", fmt.tprintf("%s  Add a Command", ACTION_ICONS[.Add]), Msg(add)))
 
 	tabHeading(c, "Description")
 	tabRow(c, "Sample text", tabTextField(c, "ldtk-project-tutorialDesc", Json_String(main, Json_Get(main, root, "tutorialDesc")), set(c, "tutorialDesc")),

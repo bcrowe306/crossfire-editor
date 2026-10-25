@@ -95,8 +95,8 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	return skald.col(
 		panelHeader(ctx, ICON_SITEMAP, scene.name,
-			panelButton(ctx, "add-node", ICON_PLUS, actionTip(s, "Add node", .Add_Node), Action.Add_Node),
-			panelButton(ctx, "delete-node", ICON_TRASH, actionTip(s, "Delete node", .Delete_Node), Action.Delete_Node, disabled = s.selectedNode < 0),
+			panelButton(ctx, "add-node", ACTION_ICONS[.Add], actionTip(s, "Add node", .Add_Node), Action.Add_Node),
+			panelButton(ctx, "delete-node", ACTION_ICONS[.Delete], actionTip(s, "Delete node", .Delete_Node), Action.Delete_Node, disabled = s.selectedNode < 0),
 		),
 		skald.divider(ctx),
 		skald.flex(1, menu),
@@ -581,7 +581,7 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			open := skald.button(ctx, fmt.tprintf("%s  Edit %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
 				id = skald.hash_id(fmt.tprintf("inspector-open-component-%d", key)),
 				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
-			unique := skald.button(ctx, fmt.tprintf("%s  Make Unique", ICON_COPY), Msg(Component_Made_Unique{}),
+			unique := skald.button(ctx, fmt.tprintf("%s  Make Unique", ACTION_ICONS[.Copy]), Msg(Component_Made_Unique{}),
 				id = skald.hash_id(fmt.tprintf("inspector-make-unique-%d", key)),
 				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 			append(&rows, inspectorRow(ctx, "", open),
@@ -840,7 +840,7 @@ scriptSection :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int,
 		return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 	}
 	buttons := make([dynamic]skald.View, context.temp_allocator)
-	append(&buttons, textButton(ctx, "inspector-new-script", ICON_PLUS, "New...", "Write a new script and attach it to this node", Msg(New_Script_Opened{})))
+	append(&buttons, textButton(ctx, "inspector-new-script", ACTION_ICONS[.Add], "New...", "Write a new script and attach it to this node", Msg(New_Script_Opened{})))
 	if node.script != "" {
 		append(&buttons, textButton(ctx, "inspector-open-script", ICON_FILE_CODE, "Open in Editor", actionTip(s, "Open the script in your code editor", .Open_Script), Msg(Action.Open_Script)))
 	}

@@ -303,7 +303,7 @@ shaderInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key
 	append(&rows, inspectorRow(ctx, screen ? "Effect" : "Shader", skald.select(ctx, shaderLabel(node.shader), labels, Choice{paths, labels}, onChoice,
 		id = skald.hash_id(fmt.tprintf("inspector-shader-%d", key)), width = controlWidth)))
 	buttons := make([dynamic]skald.View, context.temp_allocator)
-	append(&buttons, small(ctx, fmt.tprintf("inspector-shader-new-%d", key), fmt.tprintf("%s  New Shader", ICON_PLUS), Msg(Shader_New_Requested{forSelected = true})))
+	append(&buttons, small(ctx, fmt.tprintf("inspector-shader-new-%d", key), fmt.tprintf("%s  New Shader", ACTION_ICONS[.Add]), Msg(Shader_New_Requested{forSelected = true})))
 	if node.shader != "" && !strings.has_prefix(node.shader, e.SHADER_BUILTIN_PREFIX) {
 		append(&buttons, small(ctx, fmt.tprintf("inspector-shader-edit-%d", key), fmt.tprintf("%s  Edit", ICON_CODE),
 			Msg(Script_Open_File{file = absolutePath(joinPath(s.project.rootPath, node.shader, allocator = context.temp_allocator)), line = 1})))

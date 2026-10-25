@@ -170,7 +170,7 @@ SteamTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if len(d.achievements) == 0 do append(&rows, note(ctx, "None yet. Their names must match the API names set up on Steamworks."))
 	key :: proc(i: int, field: string) -> skald.Widget_ID { return skald.hash_id(fmt.tprintf("steam-achievement-%d-%s", i, field)) }
 	for a, i in d.achievements {
-		remove := skald.button(ctx, ICON_TRASH, Msg(Steam_Achievement_Removed(i)), id = key(i, "remove"),
+		remove := skald.button(ctx, ACTION_ICONS[.Delete], Msg(Steam_Achievement_Removed(i)), id = key(i, "remove"),
 			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
 		hidden := skald.checkbox(ctx, a.hidden, "Hidden", Payload{.Hidden, i}, onFlag, id = key(i, "hidden"))
 		// Two lines, so a narrow dialog (a tiled window) keeps every control in view
@@ -188,7 +188,7 @@ SteamTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		if problem := AchievementNameProblem(d.achievements[:], i); problem != "" do append(&rows, note(ctx, problem, warning = true))
 	}
 	append(&rows,
-		skald.button(ctx, fmt.tprintf("%s  Add Achievement", ICON_PLUS), Msg(Steam_Achievement_Added{}), id = skald.hash_id("steam-achievement-add"),
+		skald.button(ctx, fmt.tprintf("%s  Add Achievement", ACTION_ICONS[.Add]), Msg(Steam_Achievement_Added{}), id = skald.hash_id("steam-achievement-add"),
 			bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm),
 		note(ctx, "Scripts unlock them by name: e.Steam_UnlockAchievement(ACHIEVEMENT_FIRST_BLOOD) (constants in scripts/assets.odin). Stats need no list: e.Steam_AddStat(\"ENEMIES\", 1), then e.Steam_StoreStats()."),
 	)

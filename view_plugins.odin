@@ -33,9 +33,9 @@ PluginsPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	small :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View { return uiText(ctx.theme, .Muted, text, max_width = width) }
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows, skald.wrap_row(
-		button(ctx, "plugins-new", fmt.tprintf("%s  New Plugin", ICON_PLUS), Msg(Plugin_New_Requested{})),
+		button(ctx, "plugins-new", fmt.tprintf("%s  New Plugin", ACTION_ICONS[.Add]), Msg(Plugin_New_Requested{})),
 		button(ctx, "plugins-rebuild", "Rebuild All", Msg(Plugins_Rebuild_Requested{})),
-		button(ctx, "plugins-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("plugins"))),
+		button(ctx, "plugins-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), Msg(Manual_Opened("plugins"))),
 		spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width, bg = th.color.surface))
 	list := Plugins_List()
 	if len(list) == 0 {

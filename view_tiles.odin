@@ -62,7 +62,7 @@ TilesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				return {}
 			}, id = skald.hash_id("tiles-tileset"), width = tk.fieldS), spacing = th.spacing.xs, cross_align = .Center))
 	}
-	append(&toolbar, button(ctx, "tiles-add-layer", fmt.tprintf("%s  Layer", ICON_PLUS), Msg(Tile_Layer_Added{})))
+	append(&toolbar, button(ctx, "tiles-add-layer", fmt.tprintf("%s  Layer", ACTION_ICONS[.Add]), Msg(Tile_Layer_Added{})))
 	isFileLayer := false
 	if i := e.Aseprite_FindLayer(ase, layer); i >= 0 && ase.layers[i].type == .Tilemap do isFileLayer = true
 	painted := false
@@ -91,7 +91,7 @@ TilesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		button(ctx, "tiles-flip-y", "Flip Y", Msg(Tile_Brush_Turned(1)), flips & e.ASEPRITE_TILE_FLIP_Y != 0),
 		button(ctx, "tiles-rotate", "Rotate", Msg(Tile_Brush_Turned(2)), flips & e.ASEPRITE_TILE_FLIP_D != 0))
 	append(&toolbar, small(ctx, brushText(p.tile)))
-	append(&toolbar, button(ctx, "tiles-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("tilemaps"))))
+	append(&toolbar, button(ctx, "tiles-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), Msg(Manual_Opened("tilemaps"))))
 
 	left, right := FittedSidebarWidths(&s.layout)
 	width := s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.sm * 2 - INSPECTOR_SCROLLBAR_WIDTH

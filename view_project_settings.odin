@@ -278,7 +278,7 @@ globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				font_size = th.font.size_sm, padding = tk.fieldPadding, width = tk.fieldM),
 			small(ctx, fmt.tprintf("global-up-%d", i), ICON_CHEVRON_UP, Msg(Global_Moved{i, -1}), i == 0),
 			small(ctx, fmt.tprintf("global-down-%d", i), ICON_CHEVRON_DOWN, Msg(Global_Moved{i, 1}), i == len(d.globals) - 1),
-			small(ctx, fmt.tprintf("global-remove-%d", i), ICON_TRASH, Msg(Global_Removed(i))),
+			small(ctx, fmt.tprintf("global-remove-%d", i), ACTION_ICONS[.Delete], Msg(Global_Removed(i))),
 			spacing = th.spacing.xs,
 			cross_align = .Center,
 		))
@@ -367,7 +367,7 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				font_size = th.font.size_sm, padding = tk.fieldPadding, width = tk.fieldM, text_align = .Start),
 			small(ctx, fmt.tprintf("input-up-%d", i), ICON_CHEVRON_UP, Msg(Input_Action_Moved{i, -1}), i == 0),
 			small(ctx, fmt.tprintf("input-down-%d", i), ICON_CHEVRON_DOWN, Msg(Input_Action_Moved{i, 1}), i == len(d.actions) - 1),
-			small(ctx, fmt.tprintf("input-remove-%d", i), ICON_TRASH, Msg(Input_Action_Removed(i))),
+			small(ctx, fmt.tprintf("input-remove-%d", i), ACTION_ICONS[.Delete], Msg(Input_Action_Removed(i))),
 			spacing = th.spacing.xs,
 			cross_align = .Center,
 		))
@@ -380,7 +380,7 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		skald.row(
 			skald.text_input(ctx, strings.clone(d.newActionName, context.temp_allocator), proc(v: string) -> Msg { return Input_New_Name_Changed(v) },
 				id = skald.hash_id("input-new-name"), width = tk.fieldM, placeholder = "jump", invalid = newProblem != ""),
-			skald.button(ctx, fmt.tprintf("%s Add", ICON_PLUS), Msg(Input_Action_Added{}), id = skald.hash_id("input-add"),
+			skald.button(ctx, fmt.tprintf("%s Add", ACTION_ICONS[.Add]), Msg(Input_Action_Added{}), id = skald.hash_id("input-add"),
 				font_size = th.font.size_sm, padding = tk.fieldPadding, disabled = d.newActionName == "" || newProblem != ""),
 			spacing = th.spacing.xs, cross_align = .Center,
 		),
@@ -411,13 +411,13 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		for binding, i in a.bindings {
 			append(&fields, skald.row(
 				skald.col(uiText(th, .Value, e.InputBinding_Describe(binding)), width = tk.fieldL),
-				small(ctx, fmt.tprintf("input-binding-remove-%d", i), ICON_TRASH, Msg(Input_Binding_Removed(i))),
+				small(ctx, fmt.tprintf("input-binding-remove-%d", i), ACTION_ICONS[.Delete], Msg(Input_Binding_Removed(i))),
 				spacing = th.spacing.sm, cross_align = .Center,
 			))
 		}
 		if len(a.bindings) == 0 do append(&fields, uiText(th, .Muted, "Nothing yet: add a key or button below."))
 
-		capture := d.capturing ? "Press a key, mouse button or wheel... (Escape cancels)" : fmt.tprintf("%s  Press a key or button", ICON_PLUS)
+		capture := d.capturing ? "Press a key, mouse button or wheel... (Escape cancels)" : fmt.tprintf("%s  Press a key or button", ACTION_ICONS[.Add])
 		modifiers := ctx.input.modifiers
 		append(&fields,
 			skald.spacer(th.spacing.xs),

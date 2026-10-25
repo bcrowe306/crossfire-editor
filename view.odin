@@ -252,12 +252,12 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	items := make([dynamic]skald.View, context.temp_allocator)
 	if overflow < .Files {
 		append(&items,
-			toolButton(ctx, "new", ICON_FILE, actionTip(s, "New project", .New_Project), Action.New_Project),
-			toolButton(ctx, "open", ICON_FOLDER_OPEN, actionTip(s, "Open project", .Open_Project), Action.Open_Project),
-			toolButton(ctx, "save", ICON_SAVE, actionTip(s, "Save", .Save_Project), Action.Save_Project),
+			toolButton(ctx, "new", Action_Icon(.New_Project), actionTip(s, "New project", .New_Project), Action.New_Project),
+			toolButton(ctx, "open", Action_Icon(.Open_Project), actionTip(s, "Open project", .Open_Project), Action.Open_Project),
+			toolButton(ctx, "save", Action_Icon(.Save_Project), actionTip(s, "Save", .Save_Project), Action.Save_Project),
 			toolbarSeparator(ctx),
-			toolButton(ctx, "undo", ICON_UNDO, actionTip(s, "Undo", .Undo), Action.Undo),
-			toolButton(ctx, "redo", ICON_REDO, actionTip(s, "Redo", .Redo), Action.Redo),
+			toolButton(ctx, "undo", Action_Icon(.Undo), actionTip(s, "Undo", .Undo), Action.Undo),
+			toolButton(ctx, "redo", Action_Icon(.Redo), actionTip(s, "Redo", .Redo), Action.Redo),
 			toolbarSeparator(ctx))
 	}
 	if overflow == .None && level {
@@ -270,18 +270,18 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	} else if overflow == .None && tools > 0 {
 		append(&items,
-			toolButton(ctx, "select", ICON_POINTER, actionTip(s, "Select", .Tool_Select), Action.Tool_Select, active = s.tool == .Select),
-			toolButton(ctx, "move", ICON_MOVE, actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
-			toolButton(ctx, "rotate", ICON_ROTATE, actionTip(s, "Rotate", .Tool_Rotate), Action.Tool_Rotate, active = s.tool == .Rotate),
-			toolButton(ctx, "scale", ICON_SCALE, actionTip(s, "Scale", .Tool_Scale), Action.Tool_Scale, active = s.tool == .Scale),
-			toolButton(ctx, "transform", ICON_VECTOR_SQUARE, actionTip(s, "Transform: move, rotate and scale handles at once", .Tool_Transform), Action.Tool_Transform, active = s.tool == .Transform),
-			toolButton(ctx, "zoom", ICON_ZOOM, actionTip(s, "Zoom: click to zoom in (Alt: out), drag a box to zoom to it", .Tool_Zoom), Action.Tool_Zoom, active = s.tool == .Zoom),
-			toolButton(ctx, "pan", ICON_HAND, actionTip(s, "Pan the view", .Tool_Pan), Action.Tool_Pan, active = s.tool == .Pan))
+			toolButton(ctx, "select", Action_Icon(.Tool_Select), actionTip(s, "Select", .Tool_Select), Action.Tool_Select, active = s.tool == .Select),
+			toolButton(ctx, "move", Action_Icon(.Tool_Move), actionTip(s, "Move", .Tool_Move), Action.Tool_Move, active = s.tool == .Move),
+			toolButton(ctx, "rotate", Action_Icon(.Tool_Rotate), actionTip(s, "Rotate", .Tool_Rotate), Action.Tool_Rotate, active = s.tool == .Rotate),
+			toolButton(ctx, "scale", Action_Icon(.Tool_Scale), actionTip(s, "Scale", .Tool_Scale), Action.Tool_Scale, active = s.tool == .Scale),
+			toolButton(ctx, "transform", Action_Icon(.Tool_Transform), actionTip(s, "Transform: move, rotate and scale handles at once", .Tool_Transform), Action.Tool_Transform, active = s.tool == .Transform),
+			toolButton(ctx, "zoom", Action_Icon(.Tool_Zoom), actionTip(s, "Zoom: click to zoom in (Alt: out), drag a box to zoom to it", .Tool_Zoom), Action.Tool_Zoom, active = s.tool == .Zoom),
+			toolButton(ctx, "pan", Action_Icon(.Tool_Pan), actionTip(s, "Pan the view", .Tool_Pan), Action.Tool_Pan, active = s.tool == .Pan))
 	} else if overflow != .None {
 		// The menu opens under the button
 		r := lastRect(ctx, skald.hash_id("toolbar-more"))
 		what := level ? "the layer's tools" : "the viewport's tools"
-		append(&items, toolButton(ctx, "more", ICON_ELLIPSIS,
+		append(&items, toolButton(ctx, "more", ACTION_ICONS[.More],
 			tools == 0 ? "File and undo" : overflow == .Files ? fmt.tprintf("File, undo and %s", what) : level ? "The layer's tools" : "The viewport's tools",
 			Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Toolbar_More{files = overflow == .Files, noTools = tools == 0, level = level}})))
 	}
@@ -290,15 +290,15 @@ toolbarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&items,
 		// Play controls sit in the middle of the toolbar
 		skald.flex(1, skald.spacer(0)),
-		toolButton(ctx, "play", ICON_PLAY, playTip, Action.Play, active = running),
-		toolButton(ctx, "play-scene", ICON_PLAY_SCENE, actionTip(s, playScene, .Play_Scene), Action.Play_Scene, disabled = running),
-		toolButton(ctx, "pause", ICON_PAUSE, actionTip(s, "Pause", .Pause), Action.Pause, active = s.playState == .Paused, disabled = s.playState != .Playing),
-		toolButton(ctx, "stop", ICON_STOP, actionTip(s, "Stop", .Stop), Action.Stop, disabled = s.playState == .Stopped),
-		toolButton(ctx, "restart", ICON_RESTART, actionTip(s, "Restart: stop the game and play it again", .Restart), Action.Restart, disabled = !Play_CanRestart(s)),
+		toolButton(ctx, "play", Action_Icon(.Play), playTip, Action.Play, active = running),
+		toolButton(ctx, "play-scene", Action_Icon(.Play_Scene), actionTip(s, playScene, .Play_Scene), Action.Play_Scene, disabled = running),
+		toolButton(ctx, "pause", Action_Icon(.Pause), actionTip(s, "Pause", .Pause), Action.Pause, active = s.playState == .Paused, disabled = s.playState != .Playing),
+		toolButton(ctx, "stop", Action_Icon(.Stop), actionTip(s, "Stop", .Stop), Action.Stop, disabled = s.playState == .Stopped),
+		toolButton(ctx, "restart", Action_Icon(.Restart), actionTip(s, "Restart: stop the game and play it again", .Restart), Action.Restart, disabled = !Play_CanRestart(s)),
 		// The game's collision shapes (project.physics.debugDraw; a running game's at once, over the live link)
-		toolButton(ctx, "physics-debug", ICON_POLYGON, actionTip(s, physicsDebugTip(s), .Toggle_Physics_Debug), Action.Toggle_Physics_Debug, active = PhysicsDebug_Shown(s)),
+		toolButton(ctx, "physics-debug", Action_Icon(.Toggle_Physics_Debug), actionTip(s, physicsDebugTip(s), .Toggle_Physics_Debug), Action.Toggle_Physics_Debug, active = PhysicsDebug_Shown(s)),
 		skald.flex(1, skald.spacer(0)),
-		toolButton(ctx, "export", ICON_EXPORT, actionTip(s, "Export", .Export), Action.Export))
+		toolButton(ctx, "export", Action_Icon(.Export), actionTip(s, "Export", .Export), Action.Export))
 	return skald.row(..items[:],
 		spacing = th.spacing.xs,
 		padding = th.spacing.sm,
@@ -370,7 +370,7 @@ toolButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, activ
 	fg := active ? th.color.on_primary : th.color.fg
 	button := skald.button(ctx, icon, msg,
 		id = skald.hash_id(fmt.tprintf("%s%s", prefix, key)),
-		bg = bg, fg = fg, width = t.toolButtonWidth, padding = {0, t.xs + t.xxs}, font_size = t.iconLarge, disabled = disabled)
+		bg = bg, fg = fg, width = t.toolButtonWidth, padding = {0, t.xs + t.xxs}, font_size = t.iconMedium, disabled = disabled)
 	return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%stip-%s", prefix == "" ? "toolbar-" : prefix, key)))
 }
 

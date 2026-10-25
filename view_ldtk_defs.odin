@@ -90,10 +90,10 @@ listTools :: proc(c: ^LDtkTabCtx, prefix, what: string, edit: LDtk_Edit, at, cou
 	dup, del, up, down := edit, edit, edit, edit
 	dup.op, del.op, up.op, down.op = .Def_Duplicated, .Def_Removed, .Def_Moved, .Def_Moved
 	up.number, down.number = -1, 1
-	tabTool(c, fmt.tprintf("ldtk-%s-duplicate", prefix), ICON_COPY, fmt.tprintf("Duplicate the %s", what), Msg(dup))
-	tabTool(c, fmt.tprintf("ldtk-%s-delete", prefix), ICON_TRASH, fmt.tprintf("Delete the %s", what), Msg(del))
-	tabTool(c, fmt.tprintf("ldtk-%s-up", prefix), ICON_ARROW_UP, fmt.tprintf("Move the %s up", what), Msg(up), disabled = at <= 0)
-	tabTool(c, fmt.tprintf("ldtk-%s-down", prefix), ICON_ARROW_DOWN, fmt.tprintf("Move the %s down", what), Msg(down), disabled = at >= count - 1)
+	tabTool(c, fmt.tprintf("ldtk-%s-duplicate", prefix), ACTION_ICONS[.Duplicate], fmt.tprintf("Duplicate the %s", what), Msg(dup))
+	tabTool(c, fmt.tprintf("ldtk-%s-delete", prefix), ACTION_ICONS[.Delete], fmt.tprintf("Delete the %s", what), Msg(del))
+	tabTool(c, fmt.tprintf("ldtk-%s-up", prefix), ACTION_ICONS[.Move_Up], fmt.tprintf("Move the %s up", what), Msg(up), disabled = at <= 0)
+	tabTool(c, fmt.tprintf("ldtk-%s-down", prefix), ACTION_ICONS[.Move_Down], fmt.tprintf("Move the %s down", what), Msg(down), disabled = at >= count - 1)
 }
 
 // A list's Duplicate, Delete, Up and Down in a row of the content (a sub-list: fields)
@@ -105,10 +105,10 @@ listButtons :: proc(c: ^LDtkTabCtx, prefix: string, edit: LDtk_Edit, at, count: 
 	buttons := make([dynamic]skald.View, context.temp_allocator)
 	append(&buttons, ..extra)
 	append(&buttons,
-		smallButton(c, fmt.tprintf("ldtk-%s-duplicate", prefix), fmt.tprintf("%s  Duplicate", ICON_COPY), Msg(dup)),
-		smallButton(c, fmt.tprintf("ldtk-%s-delete", prefix), fmt.tprintf("%s  Delete", ICON_TRASH), Msg(del)),
-		smallButton(c, fmt.tprintf("ldtk-%s-up", prefix), ICON_ARROW_UP, Msg(up), disabled = at <= 0),
-		smallButton(c, fmt.tprintf("ldtk-%s-down", prefix), ICON_ARROW_DOWN, Msg(down), disabled = at >= count - 1),
+		smallButton(c, fmt.tprintf("ldtk-%s-duplicate", prefix), fmt.tprintf("%s  Duplicate", ACTION_ICONS[.Duplicate]), Msg(dup)),
+		smallButton(c, fmt.tprintf("ldtk-%s-delete", prefix), fmt.tprintf("%s  Delete", ACTION_ICONS[.Delete]), Msg(del)),
+		smallButton(c, fmt.tprintf("ldtk-%s-up", prefix), ACTION_ICONS[.Move_Up], Msg(up), disabled = at <= 0),
+		smallButton(c, fmt.tprintf("ldtk-%s-down", prefix), ACTION_ICONS[.Move_Down], Msg(down), disabled = at >= count - 1),
 	)
 	buttonRow(c, ..buttons[:])
 }
@@ -273,7 +273,7 @@ LDtkDefs_Layers :: proc(c: ^LDtkTabCtx) {
 	add :: proc(c: ^LDtkTabCtx, type: string) {
 		e := tabBase(c, .Def_Added)
 		e.kind, e.text = .Layer, type
-		tabTool(c, fmt.tprintf("ldtk-layers-add-%s", type), ICON_PLUS, fmt.tprintf("A new %s layer, on top", type), Msg(e), label = type)
+		tabTool(c, fmt.tprintf("ldtk-layers-add-%s", type), ACTION_ICONS[.Add], fmt.tprintf("A new %s layer, on top", type), Msg(e), label = type)
 	}
 	add(c, "IntGrid")
 	add(c, "Entities")
@@ -426,7 +426,7 @@ defsIntGridValues :: proc(c: ^LDtkTabCtx, def: int) {
 	edit :: proc(c: ^LDtkTabCtx, op: LDtkEditOp, uid, index: int) -> LDtk_Edit { x := tabBase(c, op); x.def, x.index = uid, index; return x }
 	addValue := edit(c, .IntGrid_Value_Added, uid, 0)
 	addGroup := edit(c, .IntGrid_Group_Added, uid, 0)
-	buttonRow(c, smallButton(c, "ldtk-intgrid-add", fmt.tprintf("%s  Value", ICON_PLUS), Msg(addValue)), smallButton(c, "ldtk-groups-add", fmt.tprintf("%s  Group", ICON_PLUS), Msg(addGroup)))
+	buttonRow(c, smallButton(c, "ldtk-intgrid-add", fmt.tprintf("%s  Value", ACTION_ICONS[.Add]), Msg(addValue)), smallButton(c, "ldtk-groups-add", fmt.tprintf("%s  Group", ACTION_ICONS[.Add]), Msg(addGroup)))
 	if len(values) == 0 do tabNote(c, "No values yet.")
 	// Groups: no group first, then each in order
 	order := make([dynamic]int, context.temp_allocator)
@@ -447,9 +447,9 @@ defsIntGridValues :: proc(c: ^LDtkTabCtx, def: int) {
 				tabRow(c, "   Color", tabColorField(c, fmt.tprintf("ldtk-group-color-%d", gid), strings.to_upper(Json_String(main, Json_Get(main, g, "color")), context.temp_allocator), e), "The group's color, #RRGGBB (empty: none)")
 				up, down := edit(c, .IntGrid_Group_Moved, uid, gid), edit(c, .IntGrid_Group_Moved, uid, gid)
 				up.number, down.number = -1, 1
-				buttonRow(c, smallButton(c, fmt.tprintf("ldtk-group-up-%d", gid), ICON_ARROW_UP, Msg(up), disabled = gi <= 1),
-					smallButton(c, fmt.tprintf("ldtk-group-down-%d", gid), ICON_ARROW_DOWN, Msg(down), disabled = gi >= len(order) - 1),
-					smallButton(c, fmt.tprintf("ldtk-group-remove-%d", gid), fmt.tprintf("%s  Remove group", ICON_TRASH), Msg(edit(c, .IntGrid_Group_Removed, uid, gid))))
+				buttonRow(c, smallButton(c, fmt.tprintf("ldtk-group-up-%d", gid), ACTION_ICONS[.Move_Up], Msg(up), disabled = gi <= 1),
+					smallButton(c, fmt.tprintf("ldtk-group-down-%d", gid), ACTION_ICONS[.Move_Down], Msg(down), disabled = gi >= len(order) - 1),
+					smallButton(c, fmt.tprintf("ldtk-group-remove-%d", gid), fmt.tprintf("%s  Remove group", ACTION_ICONS[.Delete]), Msg(edit(c, .IntGrid_Group_Removed, uid, gid))))
 			}
 		}
 		for v, vi in inGroup {
@@ -475,9 +475,9 @@ defsIntGridValues :: proc(c: ^LDtkTabCtx, def: int) {
 			down.number, down.number2 = f64(gid), f64(vi + 1)
 			buttons := make([dynamic]skald.View, context.temp_allocator)
 			append(&buttons,
-				smallButton(c, fmt.tprintf("ldtk-intgrid-up-%d", value), ICON_ARROW_UP, Msg(up), disabled = vi == 0),
-				smallButton(c, fmt.tprintf("ldtk-intgrid-down-%d", value), ICON_ARROW_DOWN, Msg(down), disabled = vi >= len(inGroup) - 1),
-				smallButton(c, fmt.tprintf("ldtk-intgrid-remove-%d", value), fmt.tprintf("%s  Remove", ICON_TRASH), Msg(edit(c, .IntGrid_Value_Removed, uid, value))))
+				smallButton(c, fmt.tprintf("ldtk-intgrid-up-%d", value), ACTION_ICONS[.Move_Up], Msg(up), disabled = vi == 0),
+				smallButton(c, fmt.tprintf("ldtk-intgrid-down-%d", value), ACTION_ICONS[.Move_Down], Msg(down), disabled = vi >= len(inGroup) - 1),
+				smallButton(c, fmt.tprintf("ldtk-intgrid-remove-%d", value), fmt.tprintf("%s  Remove", ACTION_ICONS[.Delete]), Msg(edit(c, .IntGrid_Value_Removed, uid, value))))
 			if icons >= 0 {
 				tile := edit(c, .IntGrid_Value_Tile, uid, value)
 				tile.number = f64(icons)
@@ -699,9 +699,9 @@ LDtkDefs_Entities :: proc(c: ^LDtkTabCtx) -> int {
 	rect, circle := add, add
 	rect.text, circle.text = "RectRegion", "CircleRegion"
 	// The toolbar row: a new type (LDtk's presets), then the list's buttons
-	tabTool(c, "ldtk-entities-add", ICON_PLUS, "A new entity type", Msg(add), label = "Entity")
-	tabTool(c, "ldtk-entities-add-rect", ICON_PLUS, "A new rectangle region (LDtk's preset: a resizable, hollow rectangle)", Msg(rect), label = "Rectangle")
-	tabTool(c, "ldtk-entities-add-circle", ICON_PLUS, "A new circle region (LDtk's preset)", Msg(circle), label = "Circle")
+	tabTool(c, "ldtk-entities-add", ACTION_ICONS[.Add], "A new entity type", Msg(add), label = "Entity")
+	tabTool(c, "ldtk-entities-add-rect", ACTION_ICONS[.Add], "A new rectangle region (LDtk's preset: a resizable, hollow rectangle)", Msg(rect), label = "Rectangle")
+	tabTool(c, "ldtk-entities-add-circle", ACTION_ICONS[.Add], "A new circle region (LDtk's preset)", Msg(circle), label = "Circle")
 	c.list.empty = "No entity types: + adds one."
 	def := tabItemChoice(c, .Entities, LDtkDoc_Defs(c.doc, "entities"), c.s.level.entityDef)
 	if def < 0 {
@@ -1118,7 +1118,7 @@ LDtkDefs_Enums :: proc(c: ^LDtkTabCtx) {
 	th := c.ctx.theme
 	add := tabBase(c, .Def_Added)
 	add.kind = .Enum
-	tabTool(c, "ldtk-enums-add", ICON_PLUS, "A new enum", Msg(add), label = "Enum")
+	tabTool(c, "ldtk-enums-add", ACTION_ICONS[.Add], "A new enum", Msg(add), label = "Enum")
 	// Local enums, then external ones (the list has both: an external one's file after its name)
 	all := make([dynamic]int, context.temp_allocator)
 	append(&all, ..Json_Items(main, LDtkDoc_Defs(c.doc, "enums")))
@@ -1182,9 +1182,9 @@ LDtkDefs_Enums :: proc(c: ^LDtkTabCtx) {
 				up, down, remove := e, e, e
 				up.op, down.op, remove.op = .Enum_Value_Moved, .Enum_Value_Moved, .Enum_Value_Removed
 				up.number, down.number = -1, 1
-				append(&buttons, smallButton(c, fmt.tprintf("ldtk-enum-up-%d", i), ICON_ARROW_UP, Msg(up), disabled = i == 0),
-					smallButton(c, fmt.tprintf("ldtk-enum-down-%d", i), ICON_ARROW_DOWN, Msg(down), disabled = i == len(values) - 1),
-					smallButton(c, fmt.tprintf("ldtk-enum-remove-%d", i), fmt.tprintf("%s  Remove", ICON_TRASH), Msg(remove)))
+				append(&buttons, smallButton(c, fmt.tprintf("ldtk-enum-up-%d", i), ACTION_ICONS[.Move_Up], Msg(up), disabled = i == 0),
+					smallButton(c, fmt.tprintf("ldtk-enum-down-%d", i), ACTION_ICONS[.Move_Down], Msg(down), disabled = i == len(values) - 1),
+					smallButton(c, fmt.tprintf("ldtk-enum-remove-%d", i), fmt.tprintf("%s  Remove", ACTION_ICONS[.Delete]), Msg(remove)))
 			}
 			if icons >= 0 && !cdb {
 				tile := tabBase(c, .Enum_Value_Tile)
@@ -1257,7 +1257,7 @@ defsExternalEnums :: proc(c: ^LDtkTabCtx) {
 			if preview.problem == "" do label = fmt.tprintf("Sync (+%d, -%d%s)", preview.added, preview.removed, preview.removedUsed > 0 ? fmt.tprintf(", %d used", preview.removedUsed) : "")
 		}
 		buttonRow(c, smallButton(c, fmt.tprintf("ldtk-enums-sync-%d", i), fmt.tprintf("%s  %s", ICON_REFRESH, label), Msg(sync), disabled = !ok),
-			smallButton(c, fmt.tprintf("ldtk-enums-unlink-%d", i), fmt.tprintf("%s  Remove its enums", ICON_TRASH), Msg(unlink)))
+			smallButton(c, fmt.tprintf("ldtk-enums-unlink-%d", i), fmt.tprintf("%s  Remove its enums", ACTION_ICONS[.Delete]), Msg(unlink)))
 	}
 	// Importable files: the project's text, JSON, Haxe and CastleDB files beside the LDtk project
 	labels := make([dynamic]string, context.temp_allocator)
@@ -1348,10 +1348,10 @@ LDtkDefs_Tilesets :: proc(c: ^LDtkTabCtx) {
 		e := edit
 		e.text = v
 		return e
-	}, id = skald.hash_id("ldtk-tilesets-add"), width = tk.fieldM, placeholder = fmt.tprintf("%s From an image...", ICON_PLUS))
+	}, id = skald.hash_id("ldtk-tilesets-add"), width = tk.fieldM, placeholder = fmt.tprintf("%s From an image...", ACTION_ICONS[.Add]))
 	tabToolView(c, skald.tooltip(c.ctx, newTileset, "A tileset of one of the project's images (LDtk takes a file beside the project)", id = skald.hash_id("ldtk-tilesets-add-tip")))
-	tabTool(c, "ldtk-tilesets-add-empty", ICON_PLUS, "A tileset without an image (pick one later)", Msg(empty), label = "Empty")
-	tabTool(c, "ldtk-tilesets-add-icons", ICON_PLUS, "LDtk's internal icons as a tileset (one per project)", Msg(icons), label = "LDtk icons", disabled = hasIcons)
+	tabTool(c, "ldtk-tilesets-add-empty", ACTION_ICONS[.Add], "A tileset without an image (pick one later)", Msg(empty), label = "Empty")
+	tabTool(c, "ldtk-tilesets-add-icons", ACTION_ICONS[.Add], "LDtk's internal icons as a tileset (one per project)", Msg(icons), label = "LDtk icons", disabled = hasIcons)
 	c.list.empty = "No tilesets: add one from an image."
 	sets := LDtkDoc_Defs(c.doc, "tilesets")
 	if Json_Count(main, sets) == 0 {

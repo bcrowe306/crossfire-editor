@@ -168,7 +168,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		toggleButton(s, ctx, "viewport-lighting", ICON_LIGHTBULB, "Show lit scenes lit", .Toggle_Lighting, !s.viewport.unlit),
 		toggleButton(s, ctx, "viewport-local-axes", ICON_COMPASS, "Move along the selected node's own axes (turned with it)", .Toggle_Local_Axes, s.viewport.localAxes),
 		alignButton(s, ctx),
-		panelButton(ctx, "viewport-fit", ICON_SCALE, actionTip(s, "Fit game area", .View_Fit), Action.View_Fit),
+		panelButton(ctx, "viewport-fit", ACTION_ICONS[.Fit_View], actionTip(s, "Fit game area", .View_Fit), Action.View_Fit),
 		skald.button(ctx, fmt.tprintf("%.0f%%", s.viewport.zoom * 100), Msg(Action.Zoom_100),
 			id = skald.hash_id("viewport-zoom"), bg = th.color.surface, fg = th.color.fg_muted,
 			font_size = th.font.size_sm, width = tk.fieldXS, padding = {0, tk.xs}),

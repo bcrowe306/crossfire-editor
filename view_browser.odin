@@ -25,8 +25,8 @@ browserView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	selectedAsset := s.browserSelection.kind == .Asset
 
 	header := panelHeader(ctx, ICON_FOLDER, fmt.tprintf("Project: %s", s.project.name),
-		panelButton(ctx, "import-asset", ICON_PLUS, actionTip(s, "Import asset", .Import_Asset), Action.Import_Asset),
-		panelButton(ctx, "remove-asset", ICON_TRASH, "Remove asset", Action.Remove_Asset, disabled = !selectedAsset),
+		panelButton(ctx, "import-asset", ACTION_ICONS[.Add], actionTip(s, "Import asset", .Import_Asset), Action.Import_Asset),
+		panelButton(ctx, "remove-asset", ACTION_ICONS[.Delete], "Remove asset", Action.Remove_Asset, disabled = !selectedAsset),
 	)
 	// flex: a text input in a row has no width of its own
 	search := skald.row(
@@ -535,7 +535,7 @@ componentPreview :: proc(s: ^State, ctx: ^skald.Ctx(Msg), asset: AssetDef) -> sk
 			instances, instances == 1 ? "" : "s"), max_width = previewTextWidth),
 		skald.row(
 			button(ctx, "component-open", fmt.tprintf("%s  Edit", ICON_CUBES), Msg(Component_Opened(index))),
-			button(ctx, "component-add", fmt.tprintf("%s  Add to Scene", ICON_PLUS), Msg(Component_Instance_Added(s.browserSelection.index))),
+			button(ctx, "component-add", fmt.tprintf("%s  Add to Scene", ACTION_ICONS[.Add]), Msg(Component_Instance_Added(s.browserSelection.index))),
 			spacing = th.spacing.xs,
 		),
 		spacing = th.spacing.xs,

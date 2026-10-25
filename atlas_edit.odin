@@ -252,7 +252,7 @@ atlasInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, inspectorRow(ctx, "Add image", skald.select(ctx, ATLAS_ADD_PROMPT, choices[:],
 		proc(v: string) -> Msg { return Atlas_Image_Added(v) }, id = skald.hash_id("atlas-add"), width = controlWidth)))
 	for r, i in def.data.regions {
-		remove := skald.button(ctx, ICON_XMARK, Msg(Atlas_Image_Removed(i)), id = skald.hash_id(fmt.tprintf("atlas-remove-%d", i)),
+		remove := skald.button(ctx, ACTION_ICONS[.Remove], Msg(Atlas_Image_Removed(i)), id = skald.hash_id(fmt.tprintf("atlas-remove-%d", i)),
 			bg = th.color.surface, fg = th.color.fg_muted, padding = {tk.s, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
 		append(&rows, skald.row(
 			skald.text(fmt.tprintf("%s  %d x %d", r.name, r.rect[2], r.rect[3]), th.color.fg, th.font.size_xs, max_width = inspectorRowWidth(controlWidth) - tk.fieldXXS),

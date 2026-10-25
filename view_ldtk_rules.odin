@@ -533,7 +533,7 @@ rulesList :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	// The toolbar row: + Group, Paste, Randomize, Render
 	addKey := "ldtk-rules-add-group"
 	addId := skald.hash_id(addKey)
-	tabTool(c, addKey, ICON_PLUS, "A new group of rules: with the Assistant, or empty", Msg(Frame_Requested{}), label = "Group")
+	tabTool(c, addKey, ACTION_ICONS[.Add], "A new group of rules: with the Assistant, or empty", Msg(Frame_Requested{}), label = "Group")
 	if rHovered(ctx, addId) && ctx.input.mouse_released[.Left] {
 		r := lastRect(ctx, addId)
 		skald.send(ctx, Msg(Context_Menu_Opened{at = {r.x, r.y + r.h}, target = Ctx_Rules_New{layer = layerUid}}))
@@ -541,11 +541,11 @@ rulesList :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	if s.level.rules.clipKind == .Group {
 		paste := rEdit(c, .Rule_Pasted, layerUid)
 		paste.key, paste.text = "group", strings.clone(s.level.rules.clip, context.temp_allocator)
-		tabTool(c, "ldtk-rules-paste-group", ICON_COPY, "Paste the group copied (LDtk's clipboard), at the end", Msg(paste), label = "Paste group")
+		tabTool(c, "ldtk-rules-paste-group", ACTION_ICONS[.Copy], "Paste the group copied (LDtk's clipboard), at the end", Msg(paste), label = "Paste group")
 	}
 	seed := rEdit(c, .Rule_Seed, layerUid)
 	seed.number = -1
-	tabTool(c, "ldtk-rules-randomize", ICON_DICE, "A new random seed for this layer in the selected level: rules with a chance or a Perlin filter change", Msg(seed), label = "Randomize", disabled = c.level < 0)
+	tabTool(c, "ldtk-rules-randomize", ACTION_ICONS[.Randomize], "A new random seed for this layer in the selected level: rules with a chance or a Perlin filter change", Msg(seed), label = "Randomize", disabled = c.level < 0)
 	tabTool(c, "ldtk-rules-render", s.level.paint.hideAutoLayers ? ICON_EYE_SLASH : ICON_EYE, fmt.tprintf("Show the auto-layers' tiles (else their IntGrid values) %s", keyParen(s, .Level_Auto_Layers)),
 		Msg(Action.Level_Auto_Layers), label = "Render", on = !s.level.paint.hideAutoLayers)
 	// The level's tileset: one of the same size (LDtk's per-instance override)
@@ -748,7 +748,7 @@ rGroupHeader :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, 
 	if enabled && !applied do append(&items, uiText(th, .Muted, "not in this level's biomes", color = th.color.warning))
 	if !g.usesWizard {
 		add := rEdit(c, .Rule_Added, layerUid, group = uid)
-		append(&items, rTipButton(c, fmt.tprintf("ldtk-group-add-%d", uid), ICON_PLUS, "A new rule, first in the group", Msg(add)))
+		append(&items, rTipButton(c, fmt.tprintf("ldtk-group-add-%d", uid), ACTION_ICONS[.Add], "A new rule, first in the group", Msg(add)))
 	} else {
 		append(&items, rTipButton(c, fmt.tprintf("ldtk-group-edit-%d", uid), "EDIT", "Edit the group's rules with the Assistant", Msg(Rules_View{op = .Assistant, uid = uid})))
 	}
@@ -851,8 +851,8 @@ rRuleRow :: proc(c: ^LDtkTabCtx, layerUid: int, g: ^LDtkGroupEdit, gi: int, r: ^
 		after := before
 		after.number = f64(ri + 1)
 		append(&items,
-			rTipButton(c, fmt.tprintf("ldtk-rule-before-%d", uid), fmt.tprintf("%s%s", ICON_PLUS, ICON_ARROW_UP), "Create a new rule before", Msg(before)),
-			rTipButton(c, fmt.tprintf("ldtk-rule-after-%d", uid), fmt.tprintf("%s%s", ICON_PLUS, ICON_ARROW_DOWN), "Create a new rule after", Msg(after)))
+			rTipButton(c, fmt.tprintf("ldtk-rule-before-%d", uid), fmt.tprintf("%s%s", ACTION_ICONS[.Add], ICON_ARROW_UP), "Create a new rule before", Msg(before)),
+			rTipButton(c, fmt.tprintf("ldtk-rule-after-%d", uid), fmt.tprintf("%s%s", ACTION_ICONS[.Add], ICON_ARROW_DOWN), "Create a new rule after", Msg(after)))
 	}
 	rowKey := fmt.tprintf("ldtk-rule-row-%d", uid)
 	rowId := skald.hash_id(rowKey)
@@ -994,7 +994,7 @@ rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 			if stamp == i do v = skald.col(v, padding = tk.xxs, bg = th.color.primary, radius = th.radius.sm)
 			append(&row, skald.tooltip(ctx, rZone(key, v), "Click: the tileset replaces it; right click: remove it", id = skald.hash_id(fmt.tprintf("%s-tip", key))))
 		}
-		append(&row, rButton(c, "ldtk-rule-stamp-add", fmt.tprintf("%s  Stamp", ICON_PLUS), Msg(Rules_View{op = .Stamp, number = -1}), on = stamp < 0 || stamp >= len(r.tileRectsIds)))
+		append(&row, rButton(c, "ldtk-rule-stamp-add", fmt.tprintf("%s  Stamp", ACTION_ICONS[.Add]), Msg(Rules_View{op = .Stamp, number = -1}), on = stamp < 0 || stamp >= len(r.tileRectsIds)))
 		rButtons(c, ..row[:])
 		tabNote(c, stamp >= 0 && stamp < len(r.tileRectsIds) ? fmt.tprintf("A rectangle dragged on the tileset replaces stamp %d.", stamp + 1) : "A rectangle dragged on the tileset adds a stamp (one is picked at random in each matching cell).")
 		selected := stamp >= 0 && stamp < len(r.tileRectsIds) ? r.tileRectsIds[stamp][:] : nil
@@ -1114,7 +1114,7 @@ rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	if !s.level.rules.unlinkX && r.tileRandomXMin != -r.tileRandomXMax do skald.send(ctx, Msg(Rules_View{op = .Unlink_X, flag = true}))
 	randomAxis(c, layerUid, uid, "Y", r.tileRandomYMin, r.tileRandomYMax, s.level.rules.unlinkY)
 	if !s.level.rules.unlinkY && r.tileRandomYMin != -r.tileRandomYMax do skald.send(ctx, Msg(Rules_View{op = .Unlink_Y, flag = true}))
-	rButtons(c, rButton(c, "ldtk-rule-offsets-reset", fmt.tprintf("%s  Reset all offsets", ICON_TRASH), Msg(rSet(c, layerUid, uid, "offsetsReset")), disabled = !LDtkRule_HasOffset(&r)))
+	rButtons(c, rButton(c, "ldtk-rule-offsets-reset", fmt.tprintf("%s  Reset all offsets", ACTION_ICONS[.Reset]), Msg(rSet(c, layerUid, uid, "offsetsReset")), disabled = !LDtkRule_HasOffset(&r)))
 
 	// Perlin (RulePerlinSettings)
 	tabHeading(c, "Perlin filter")
@@ -1125,15 +1125,15 @@ rulesEditor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 		num(c, layerUid, uid, "Scale (%)", "perlinScale", "The noise's scale: smaller makes bigger areas", r.perlinScale, 1, 0, 1, 99, percent = true)
 		num(c, layerUid, uid, "Octaves", "perlinOctaves", "The noise's detail (1 to 4)", f64(r.perlinOctaves), 1, 0, 1, 4)
 		preview := skald.checkbox(ctx, s.level.rules.perlinPreview, "Show the noise on the level", 0, proc(_: int, v: bool) -> Msg { return Msg(Rules_View{op = .Perlin_Preview, flag = v}) }, id = skald.hash_id("ldtk-rule-perlin-preview"))
-		rButtons(c, rTipButton(c, "ldtk-rule-perlin-random", fmt.tprintf("%s  Random seed", ICON_DICE), "A new random seed for the noise", Msg(random)), preview)
+		rButtons(c, rTipButton(c, "ldtk-rule-perlin-random", fmt.tprintf("%s  Random seed", ACTION_ICONS[.Randomize]), "A new random seed for the noise", Msg(random)), preview)
 	}
 	// Its menu's commands
 	dup := rEdit(c, .Rule_Duplicated, layerUid, rule = uid)
 	del := rEdit(c, .Rule_Removed, layerUid, rule = uid)
 	tabHeading(c, "Rule")
-	rButtons(c, rButton(c, "ldtk-rule-copy", fmt.tprintf("%s  Copy", ICON_COPY), Msg(Rules_View{op = .Copy, uid = g.uid, number = uid})),
+	rButtons(c, rButton(c, "ldtk-rule-copy", fmt.tprintf("%s  Copy", ACTION_ICONS[.Copy]), Msg(Rules_View{op = .Copy, uid = g.uid, number = uid})),
 		rButton(c, "ldtk-rule-duplicate", "Duplicate", Msg(dup)),
-		rButton(c, "ldtk-rule-delete", fmt.tprintf("%s  Delete", ICON_TRASH), Msg(del)))
+		rButton(c, "ldtk-rule-delete", fmt.tprintf("%s  Delete", ACTION_ICONS[.Delete]), Msg(del)))
 }
 
 // The palette of the rule editor's values (RuleEditor.updateValuePalette)

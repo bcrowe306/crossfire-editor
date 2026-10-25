@@ -196,7 +196,7 @@ moreScriptsRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: in
 		append(&rows, skald.row(
 			uiText(th, .Value, fmt.tprintf("%s  %s", ICON_CODE, extra.name), max_width = inspectorRowWidth(controlWidth) - tk.fieldXS),
 			smallButton(ctx, fmt.tprintf("inspector-more-script-%d-open", i), ICON_FILE_CODE, "Open the script in your code editor", Msg(Node_Script_Open(extra.name))),
-			smallButton(ctx, fmt.tprintf("inspector-more-script-%d-remove", i), ICON_XMARK, "Remove this script from the node", Msg(Node_Script_Removed(i))),
+			smallButton(ctx, fmt.tprintf("inspector-more-script-%d-remove", i), ACTION_ICONS[.Remove], "Remove this script from the node", Msg(Node_Script_Removed(i))),
 			spacing = th.spacing.xs,
 			cross_align = .Center,
 		))

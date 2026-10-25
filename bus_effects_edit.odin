@@ -136,11 +136,11 @@ busEffectsInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	key :: proc(i: int, field: string) -> string { return fmt.tprintf("bus-effect-%d-%s", i, field) }
 	for fx, i in BusDef_Effects(b) {
 		append(&rows, skald.divider(ctx))
-		up := skald.button(ctx, ICON_ARROW_UP, Msg(Bus_Effect_Moved{index, i, -1}), id = skald.hash_id(key(i, "up")),
+		up := skald.button(ctx, ACTION_ICONS[.Move_Up], Msg(Bus_Effect_Moved{index, i, -1}), id = skald.hash_id(key(i, "up")),
 			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
-		down := skald.button(ctx, ICON_ARROW_DOWN, Msg(Bus_Effect_Moved{index, i, 1}), id = skald.hash_id(key(i, "down")),
+		down := skald.button(ctx, ACTION_ICONS[.Move_Down], Msg(Bus_Effect_Moved{index, i, 1}), id = skald.hash_id(key(i, "down")),
 			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
-		remove := skald.button(ctx, ICON_TRASH, Msg(Bus_Effect_Removed{index, i}), id = skald.hash_id(key(i, "remove")),
+		remove := skald.button(ctx, ACTION_ICONS[.Delete], Msg(Bus_Effect_Removed{index, i}), id = skald.hash_id(key(i, "remove")),
 			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
 		append(&rows, skald.row(skald.text(fmt.tprintf("%d. %s", i + 1, BUS_EFFECT_LABELS[fx.kind]), fx.bypass ? th.color.fg_muted : th.color.fg, th.font.size_sm),
 			skald.flex(1, skald.spacer(0)), up, down, remove, spacing = th.spacing.xs, cross_align = .Center, width = inspectorRowWidth(controlWidth)))
@@ -184,7 +184,7 @@ busEffectsInspector :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			}, id = skald.hash_id("bus-effect-add"), width = controlWidth, placeholder = "Choose an effect")))
 	}
 	append(&rows, uiText(th, .Muted, "Effects run in order on everything mixed on the bus. Preview a sound on it (its inspector's Preview) to hear them; Bypass compares with and without.", max_width = inspectorRowWidth(controlWidth)))
-	manual := skald.button(ctx, fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("audio_effects_and_music")), id = skald.hash_id("bus-effect-manual"),
+	manual := skald.button(ctx, fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), Msg(Manual_Opened("audio_effects_and_music")), id = skald.hash_id("bus-effect-manual"),
 		bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, manual)
 	return skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.md)

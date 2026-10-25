@@ -326,7 +326,7 @@ Tree_RowView :: proc(th: ^skald.Theme, r: ColoredTreeRow, rowHeight: f32, focuse
 		skald.spacer(padX + f32(r.depth) * TREE_INDENT(th)),
 		skald.col(skald.text(chevron, chevronColor, fs), width = TREE_CHEVRON_WIDTH, height = rowHeight, main_align = .Center, cross_align = .Center),
 	)
-	if r.icon != "" do append(&children, skald.spacer(iconGap), skald.text(r.icon, iconColor, fs))
+	if r.icon != "" do append(&children, skald.spacer(iconGap), skald.text(r.icon, iconColor, UiTokens_Of(th, uiRowHeight).iconMedium))
 	append(&children, skald.spacer(iconGap), skald.text(r.label, labelColor, fs))
 	if r.badge != "" {
 		badgeColor := r.selected ? th.color.on_primary : (r.badgeColor[3] > 0 ? r.badgeColor : th.color.fg_muted)

@@ -58,7 +58,8 @@ Ui_Tokens :: struct {
 	// and Project Settings' pages, and theirs with a list beside the form
 	dialogS, dialogM, dialogL, dialogSettings, dialogWide: f32,
 
-	// Icons per context: small (rows, tabs, inline), medium (panel header buttons), large (toolbar)
+	// Icons per context: small (panel header buttons, small inline buttons), medium (the toolbar,
+	// list rows, tabs: beside their labels), large (an empty panel's or a dialog's big icon)
 	iconSmall, iconMedium, iconLarge: f32,
 	// The toolbar's buttons' width and a panel header button's width
 	toolButtonWidth, panelButtonWidth: f32,
@@ -125,8 +126,8 @@ UiTokens_Of :: proc(th: ^skald.Theme, rowHeight: f32) -> (t: Ui_Tokens) {
 	t.dialogWide = em(f, 760)
 
 	t.iconSmall = th.font.size_sm
-	t.iconMedium = th.font.size_sm
-	t.iconLarge = th.font.size_md
+	t.iconMedium = th.font.size_md
+	t.iconLarge = th.font.size_lg
 	t.toolButtonWidth = math.round(f * 2.4)
 	t.panelButtonWidth = math.round(f * 1.9)
 	t.squareButton = em(f, LINK_BUTTON_WIDTH)

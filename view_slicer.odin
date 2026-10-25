@@ -58,9 +58,9 @@ slicerCenterView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), tab: ^SlicerTab) -> sk
 		return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 	}
 	buttons := skald.row(
-		small(ctx, "slicer-fit", ICON_SCALE, "Fit the sheet to the view", Msg(Slicer_Changed{op = .Fit, point = tab.canvas})),
+		small(ctx, "slicer-fit", ACTION_ICONS[.Fit_View], "Fit the sheet to the view", Msg(Slicer_Changed{op = .Fit, point = tab.canvas})),
 		small(ctx, "slicer-zoom", fmt.tprintf("%.0f%%", tab.zoom * 100), "The zoom: click for 100%", Msg(Slicer_Changed{op = .Zoom, number = f64(1 / max(tab.zoom, 0.01)), point = tab.center})),
-		small(ctx, "slicer-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), "The sprite sheet slicer's page of the manual", Msg(Manual_Opened("sprite_slicer"))),
+		small(ctx, "slicer-manual", fmt.tprintf("%s  Manual", ACTION_ICONS[.Manual]), "The sprite sheet slicer's page of the manual", Msg(Manual_Opened("sprite_slicer"))),
 		spacing = th.spacing.xs,
 		cross_align = .Center,
 	)
@@ -400,7 +400,7 @@ slicerControls :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, width, 
 	// The animations
 	append(&rows, heading(ctx, "Animations"))
 	append(&rows, skald.wrap_row(
-		button(ctx, "slicer-add", fmt.tprintf("%s  New from Picked", ICON_PLUS), Msg(Slicer_Changed{op = .Animation_Added}), disabled = len(tab.selection) == 0, primary = true),
+		button(ctx, "slicer-add", fmt.tprintf("%s  New from Picked", ACTION_ICONS[.Add]), Msg(Slicer_Changed{op = .Animation_Added}), disabled = len(tab.selection) == 0, primary = true),
 		button(ctx, "slicer-rows", "One per Row", Msg(Slicer_Changed{op = .Rows_To_Animations}), disabled = count == 0),
 		button(ctx, "slicer-set-frames", "Set Frames to Picked", Msg(Slicer_Changed{op = .Frames_Set}), disabled = len(tab.selection) == 0 || tab.animation < 0),
 		spacing = th.spacing.xs, line_spacing = th.spacing.xs, width = inner))
@@ -416,9 +416,9 @@ slicerControls :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, width, 
 	}
 	if a := Slicer_Animation(tab); a != nil {
 		append(&rows, skald.wrap_row(
-			button(ctx, "slicer-anim-up", ICON_ARROW_UP, Msg(Slicer_Changed{op = .Animation_Moved, number = -1}), disabled = tab.animation <= 0),
-			button(ctx, "slicer-anim-down", ICON_ARROW_DOWN, Msg(Slicer_Changed{op = .Animation_Moved, number = 1}), disabled = tab.animation >= len(settings.animations) - 1),
-			button(ctx, "slicer-anim-remove", fmt.tprintf("%s  Remove", ICON_TRASH), Msg(Slicer_Changed{op = .Animation_Removed})),
+			button(ctx, "slicer-anim-up", ACTION_ICONS[.Move_Up], Msg(Slicer_Changed{op = .Animation_Moved, number = -1}), disabled = tab.animation <= 0),
+			button(ctx, "slicer-anim-down", ACTION_ICONS[.Move_Down], Msg(Slicer_Changed{op = .Animation_Moved, number = 1}), disabled = tab.animation >= len(settings.animations) - 1),
+			button(ctx, "slicer-anim-remove", fmt.tprintf("%s  Remove", ACTION_ICONS[.Delete]), Msg(Slicer_Changed{op = .Animation_Removed})),
 			spacing = th.spacing.xs, line_spacing = th.spacing.xs, width = inner))
 		append(&rows, ..slicerAnimationRows(ctx, s, tab, a, controlWidth, numberWidth, selectWidth, inner))
 	}
@@ -588,7 +588,7 @@ slicerAnimationRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, a:
 	append(&rows, skald.wrap_row(
 		button(ctx, "slicer-frame-earlier", fmt.tprintf("%s  Earlier", ICON_ARROW_LEFT), Msg(Slicer_Changed{op = .Frame_Moved, number = -1}), disabled = !picked || tab.frame == 0),
 		button(ctx, "slicer-frame-later", fmt.tprintf("Later  %s", ICON_ARROW_RIGHT), Msg(Slicer_Changed{op = .Frame_Moved, number = 1}), disabled = !picked || tab.frame >= len(a.frames) - 1),
-		button(ctx, "slicer-frame-remove", fmt.tprintf("%s  Take Out", ICON_XMARK), Msg(Slicer_Changed{op = .Frame_Removed}), disabled = !picked),
+		button(ctx, "slicer-frame-remove", fmt.tprintf("%s  Take Out", ACTION_ICONS[.Remove]), Msg(Slicer_Changed{op = .Frame_Removed}), disabled = !picked),
 		spacing = th.spacing.xs, line_spacing = th.spacing.xs, width = inner))
 	if picked do append(&rows, uiText(th, .Muted, fmt.tprintf("Frame %d: cell %d", tab.frame + 1, a.frames[tab.frame])))
 	return rows[:]

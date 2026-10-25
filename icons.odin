@@ -193,3 +193,97 @@ NodeKindIcon :: proc(kind: NodeKind) -> string {
 	}
 	return ICON_CUBE
 }
+
+// A triangle with an exclamation mark: a warning (Settings' contrast check)
+ICON_WARNING     :: ""
+// Two sheets, one over the other: Duplicate (Copy is ICON_COPY's clipboard)
+ICON_CLONE       :: ""
+// Arrows out to the corners: fit to the view (ICON_SCALE is the Scale tool's)
+ICON_FIT         :: ""
+
+/*
+An action a button or menu item can stand for, with one icon wherever it shows (`ACTION_ICONS`): the
+toolbar, panel headers, the list tabs' toolbars, rows' small buttons. A button for one of these
+takes its icon from the table, never a glyph of its own, so the same action looks the same
+everywhere (TODO.md's "UI and UX" round 3). The keymap's actions on the toolbar map onto it
+(`Action_Icon`). Menus are text only.
+*/
+Icon_Action :: enum {
+	Add,
+	// The item goes (a node, an asset, a level, a rule): a trash can
+	Delete,
+	// Out of a list, the thing itself stays (a value, a binding, a listener): ×
+	Remove,
+	// Empty a list (the Console)
+	Clear,
+	Duplicate,
+	Copy,
+	Move_Up,
+	Move_Down,
+	Close,
+	Back,
+	Forward,
+	Reset,
+	Fit_View,
+	Focus,
+	Manual,
+	Open_Externally,
+	Refresh,
+	Randomize,
+	Warning,
+	More,
+}
+
+// The one icon of each action
+ACTION_ICONS := [Icon_Action]string {
+	.Add             = ICON_PLUS,
+	.Delete          = ICON_TRASH,
+	.Remove          = ICON_XMARK,
+	.Clear           = ICON_TRASH,
+	.Duplicate       = ICON_CLONE,
+	.Copy            = ICON_COPY,
+	.Move_Up         = ICON_ARROW_UP,
+	.Move_Down       = ICON_ARROW_DOWN,
+	.Close           = ICON_XMARK,
+	.Back            = ICON_ARROW_LEFT,
+	.Forward         = ICON_ARROW_RIGHT,
+	.Reset           = ICON_UNDO,
+	.Fit_View        = ICON_FIT,
+	.Focus           = ICON_CROSSHAIRS,
+	.Manual          = ICON_CIRCLE_INFO,
+	.Open_Externally = ICON_EXTERNAL,
+	.Refresh         = ICON_REFRESH,
+	.Randomize       = ICON_DICE,
+	.Warning         = ICON_WARNING,
+	.More            = ICON_ELLIPSIS,
+}
+
+// The icon of a keymap action shown as a button (the toolbar's; "" for one without)
+Action_Icon :: proc(action: Action) -> string {
+	#partial switch action {
+	case .New_Project:          return ICON_FILE
+	case .Open_Project:         return ICON_FOLDER_OPEN
+	case .Save_Project:         return ICON_SAVE
+	case .Undo:                 return ICON_UNDO
+	case .Redo:                 return ICON_REDO
+	case .Tool_Select:          return ICON_POINTER
+	case .Tool_Move:            return ICON_MOVE
+	case .Tool_Rotate:          return ICON_ROTATE
+	case .Tool_Scale:           return ICON_SCALE
+	case .Tool_Transform:       return ICON_VECTOR_SQUARE
+	case .Tool_Zoom:            return ICON_ZOOM
+	case .Tool_Pan:             return ICON_HAND
+	case .Play:                 return ICON_PLAY
+	case .Play_Scene:           return ICON_PLAY_SCENE
+	case .Pause:                return ICON_PAUSE
+	case .Stop:                 return ICON_STOP
+	case .Restart:              return ICON_RESTART
+	case .Toggle_Physics_Debug: return ICON_POLYGON
+	case .Export:               return ICON_EXPORT
+	case .View_Fit:             return ACTION_ICONS[.Fit_View]
+	case .Delete_Node, .Remove_Asset: return ACTION_ICONS[.Delete]
+	case .Clear_Console:        return ACTION_ICONS[.Clear]
+	case .User_Manual:          return ACTION_ICONS[.Manual]
+	}
+	return ""
+}

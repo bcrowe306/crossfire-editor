@@ -78,7 +78,7 @@ levelLevelsPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 	// LDtk's world panel's New level: a spot picked on the canvas (level_world_tools.odin)
 	actions := make([dynamic]skald.View, context.temp_allocator)
 	if readable {
-		append(&actions, panelToolButton(ctx, "level-new", s.level.spot ? ICON_CROSSHAIRS : ICON_PLUS,
+		append(&actions, panelToolButton(ctx, "level-new", s.level.spot ? ICON_CROSSHAIRS : ACTION_ICONS[.Add],
 			s.level.spot ? "Picking a spot for the new level on the canvas (Esc cancels)" : "New Level: pick its spot on the canvas",
 			Msg(Level_Spot_Started{cancel = s.level.spot}), on = s.level.spot))
 	}
@@ -88,7 +88,7 @@ levelLevelsPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 	if file == "" {
 		append(&parts, skald.divider(ctx), skald.col(
 			uiText(th, .Muted, "No LDtk project yet: import an .ldtk file (LDtk, ldtk.io) and its levels show here.", max_width = textWidth + tk.fieldXS),
-			skald.button(ctx, fmt.tprintf("%s  Import...", ICON_PLUS), Msg(Action.Import_Asset), id = skald.hash_id("level-import"),
+			skald.button(ctx, fmt.tprintf("%s  Import...", ACTION_ICONS[.Add]), Msg(Action.Import_Asset), id = skald.hash_id("level-import"),
 				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_sm),
 			spacing = th.spacing.sm,
 			padding = th.spacing.sm,

@@ -465,9 +465,9 @@ colorRampEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, ramp: e.ColorRamp, key:
 	removed := ramp
 	removedOk := e.ColorRamp_RemoveStop(&removed, selected)
 	append(&rows, particleRow(ctx, fmt.tprintf("Stop %d / %d", selected + 1, ramp.count), skald.row(
-		small(ctx, fmt.tprintf("%s-ramp-add-%d", prefix, key), fmt.tprintf("%s  Add", ICON_PLUS), "Add a stop next to this one (or click the bar)",
+		small(ctx, fmt.tprintf("%s-ramp-add-%d", prefix, key), fmt.tprintf("%s  Add", ACTION_ICONS[.Add]), "Add a stop next to this one (or click the bar)",
 			Msg(Ramp_Edited{FormatRampText(added), addedIndex}), disabled = addedIndex < 0),
-		small(ctx, fmt.tprintf("%s-ramp-remove-%d", prefix, key), fmt.tprintf("%s  Remove", ICON_TRASH), "Remove this stop (a ramp keeps two)",
+		small(ctx, fmt.tprintf("%s-ramp-remove-%d", prefix, key), fmt.tprintf("%s  Remove", ACTION_ICONS[.Delete]), "Remove this stop (a ramp keeps two)",
 			Msg(Ramp_Edited{FormatRampText(removed), min(selected, removed.count - 1)}), disabled = !removedOk),
 		spacing = th.spacing.xs, cross_align = .Center,
 	)))
