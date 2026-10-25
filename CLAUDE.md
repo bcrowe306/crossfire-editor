@@ -74,7 +74,7 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   and the panels' Manual buttons (see "Docs in the editor" below).
 - **Editor modes** (`editor_modes.odin`, `level_mode.odin`): the mode bar beside the menus
   switches the workspace between the **Scene** mode (everything above) and the **Level** mode,
-  the LDtk level editor laid out as LDtk (phases 1 to 3 of five, 2026-10-24/25: the user's design): a
+  the LDtk level editor laid out as LDtk (phases 1 to 4 of five, 2026-10-24/25: the user's design): a
   tool row (LDtk's tools per layer type; the play controls), the Levels sidebar (worlds, levels:
   select, focus), the canvas (the world, or a focused level; levels and entities picked and
   moved, links drawn; **painting** as LDtk: IntGrid values with the auto-layers worked out by
@@ -85,7 +85,11 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   Auto-layer Rules, Project) editing the world, fields' values, references and **every
   definition as LDtk's panels do** (layers, IntGrid values and groups, entity types, every field
   type, enums and external enum files, tilesets and their tiles' tags and data, level fields;
-  every level kept in step by LDtk's tidy, ported); edits in memory, saved into the `.ldtk` file with the project (Ctrl+S, Play, exports),
+  every level kept in step by LDtk's tidy, ported) and **the auto-layer rules as LDtk's rule panel
+  does** (groups: optional per level, biomes, colors, icons, the Assistant's; rules and their
+  editor: tiles, the 9 x 9 pattern with LDtk's buttons, every option; the Rule Assistant;
+  duplicate and remap; LDtk's clipboard; written as LDtk's toJson writes them and applied again in
+  every level, the canvas outlining a rule's cells); edits in memory, saved into the `.ldtk` file with the project (Ctrl+S, Play, exports),
   undoable, LDtk's own saves merged; the scenes showing each level, a scene made for a level, Open
   in LDtk at a level); see "Editor modes" and "Editing LDtk projects" below.
 - **The website** [crossfireengine.io](https://crossfireengine.io) (`../crossfire_astro`,
@@ -213,7 +217,11 @@ Skald is not immediate-mode and not a retained widget tree:
 | `ldtk_json_pretty.odin` | **LDtk's JSON writer, ported** (its JsonPretty): `LDtkJV` values, `LDtk_PrettyJson` (Compact / Minified: lines up to 85 columns, number grids 35 a row, rules on one line), `LDtk_JsNumber` (JavaScript's `String(n)`) |
 | `view_level_tools.odin` | **The Level mode's tool row** (`LevelTools_View`, instead of the toolbar): `LevelTool`, `LEVEL_TOOLS` (icons, names, what each does: all work since phase 2), `LevelTools_For` (LDtk's tools per layer type), `LevelMode_LayerDef` / `_LayerType` (the selected layer), `LevelTool_Available` / `_Look` / `_Tip`, the play controls, the overflow menu (`Ctx_Level_Tools`) |
 | `view_level_sidebars.odin` | **The Level mode's sidebars**: Levels (the file and world choices, a row per level: select, double-click focus, its menu `Ctx_Level` / `LevelMode_MenuItems`), Layers (the selected level's layers: select, the eye, a grip's drag to reorder: file state `layerRowDrag`; the palette under them), one sidebar of both in a narrow window (`levelSidebarsStackedView`), `sidebarRow` (a zone row with its own presses) |
-| `view_ldtk_tab.odin` | **The Level mode's LDtk tabs** (`LevelMode_LDtkTab(s, ctx, tab)`: World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules, Project), each tab's rows (the world and its choice, the level with its scenes, fields and neighbours, a layer with its IntGrid values and the scenes' collision kinds, entity types with their fields, instances and references, enums, tilesets, a summary of the rules, the file's settings), text fields keeping what's typed in `State.numberEdit`, number fields (`LDtkNumberTarget`) |
+| `view_ldtk_tab.odin` | **The Level mode's LDtk tabs** (`LevelMode_LDtkTab(s, ctx, tab)`: World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules, Project), each tab's rows (the world and its choice, the level with its scenes, fields and neighbours, a layer with its IntGrid values and the scenes' collision kinds, entity types with their fields, instances and references, enums, tilesets, the rules (view_ldtk_rules.odin), the file's settings), text fields keeping what's typed in `State.numberEdit`, number fields (`LDtkNumberTarget`) |
+| `ldtk_rule_ops.odin` | **The Auto-layer Rules tab's edits** (`LDtkOps_RuleEdit`, the `Rule_*` ops): a layer's groups read as LDtk's fromJson reads them (`LDtkRules_ReadGroups`, `LDtkGroupEdit`), changed, written as its toJson writes them (`ldtkGroupJV`, `ldtkRuleJV`) after its rule tidy (`LDtkRule_Tidy`: trim, mirrors, checkers, out-of-bounds), then LDtk's tidy and the rules applied again (`rerunRules`); `LDTK_RULE_MEMBERS` (the options and LDtk's bounds), groups, rules, patterns, tiles, LDtk's clipboard (`LDtkRules_CopyText`, `Rule_Pasted`), duplicate and remap, the level's optional groups, seed and tileset; `LDtkRules_At` (the rules of a cell), `LDtkRules_BiomeValues` |
+| `ldtk_rule_assistant.odin` | **LDtk's Rule Assistant, ported** (RulesWizard): `LDtkWallFragment` (its parts in LDtk's order, their grid places, patterns and mirrors), `LDtkAssistant` (the choices; `_Encode` / `_Decode` for the edit, `_Import` reads a group back), `ruleAssistant` (the group made or made again) |
+| `level_rules.odin` | **The rules tab's state** (`LevelRules`, `State.level.rules`: the page (list, rule editor, Assistant, remap, icon, color), the groups opened, the edited and last rules, the editor's value (`LevelRules_SmartValue`: RuleEditor's pick), the Assistant's and remap's choices, LDtk's clipboard), `Rules_View` / `LevelRules_Update` (none of it undone), `LevelRules_BeforeEdit` / `_AfterEdit` (a cut copies; a new rule opens its editor, a new group its name), what the pointer is over (`LevelRules_SetHovered`, `_SetCanvasCell`, `_AtPointer`) |
+| `view_ldtk_rules.odin` | **The Auto-layer Rules tab** (`LDtkRules_Tab`): the list (header: + Group's menu, Paste, Randomize, Render, the level's tileset; groups' headers with grip, toggle or eye, icon, name, biomes, + / EDIT, menu; rules' rows with grip, toggle, pattern preview, chance, opacity, flags, insert), grips' drags (file state `rulesDrag`), the rule editor (tiles and stamps on a tile picker `rTilePicker`, pivot, the value palette, the 9 x 9 pattern grid with LDtk's buttons `rPatternGrid`, out-of-bounds, every option, the modulo preview), the Assistant's page (its parts' grid), Duplicate and Remap, icon and color pages, the menus (`Ctx_Rules_New`, `Ctx_Rule_Group`, `Ctx_Rule`: `LevelRules_MenuItems`) |
 | `ldtk_json.odin` | **JSON that keeps its text**: `Json_Parse` (a flat tree of nodes with their spans), lookups (`Json_Get`, `Json_At`, `Json_Items`, `Json_String`, `Json_Path`), patches (`Json_SetPatch`, `Json_AppendPatch`, `Json_InsertPatch`, `Json_AddMemberPatch`, `Json_RemovePatch`, `Json_Apply`), values written like their neighbours (`Json_Quote`, `Json_FormatNumber`, `Json_Object`, `Json_Array`, minified files kept minified) |
 | `ldtk_doc.odin` | **An LDtk project's files as the Level mode edits them, in memory**: `LDtkDoc` (the .ldtk file and its levels' .ldtkl files: each one's text, what's on disk and whether it's unsaved; worlds, levels), the cache (`LDtkDoc_Get`: read again when a file changes, LDtk's change merged into unsaved edits or waiting: `LDtkDoc_DiskConflict` / `_ResolveDisk`; `LDtkDoc_Outside`), lookups (levels' rects as LDtk lays them out, definitions by uid, layer instances, entities by iid), `LDtkPatches`, `LDtkDoc_Commit` / `_SetTexts` (in memory), saving (`LDtkDoc_Save`, `LDtkDocs_SaveProject`, `LDtk_WriteFile`: atomic, the modification time always moved on), what the engine reads of it (`LDtkDoc_Stamp`, `LDtkDoc_GameText`, `LDtkDoc_ProvideToGame`) |
 | `ldtk_ops.odin` | **The LDtk edits**: `LDtk_Edit` (`LDtkEditOp`: layers, entity types, fields, instances, references, levels' places and fields, IntGrid values, enums, the world), `LDtkOps_Apply` (each op's patches and the mirrors LDtk keeps: `__identifier`s, `__type`s, enum values everywhere, `__grid`, `__opacity`, layer instance order, neighbours, world positions, the table of contents), LDtk's rules ported (`LDtk_CleanIdentifier`, `LDtkDoc_Neighbours`, layout changes, `LDtk_SnapToGrid`, field values and defaults), `LDtkOps_GridSizeLocked`, `LDtkOps_FieldLocked`, `LDtkOps_RefAllowed` |
@@ -2488,7 +2496,7 @@ the user's file) with the editor's theme colors; level_mode.odin's doc block has
   moved: Layers + Collisions (an IntGrid layer's values and kinds) into Layers; Entities + Links'
   references into Entities; Level fields + the old level panel (size, place, the scenes showing
   it, New Scene with This Level) + Links' neighbours into Level; World (the shown world, its
-  choice), Enums and Tilesets as they were; Auto-layer Rules a summary (phase 4); Project the
+  choice), Enums and Tilesets as they were; Auto-layer Rules LDtk's rule panel (since phase 4); Project the
   file's settings read only, Unsaved / Save. Selecting an entity shows the Entities tab unless
   the Console or Output shows. Each tab has its manual section (`DOCS_BOTTOM_TAB_PAGES`).
 - **The canvas header** (`levelMapView`): where it is (World, or World → Level), "unsaved", the
@@ -2632,6 +2640,73 @@ data/Definitions.hx, data/def/, misc/FieldTypeConverter, importer/) as the botto
   field and its default, an enum, a tileset's tags dragged on its picture and a tile's data, a
   level field, saved; driver: `send LDtk_Item_Picked`, `send LDtk_Def_Picked`); fixtures
   `tests/fixtures/ldtk_enums/`.
+
+### The Auto-layer Rules tab (phase 4 of TODO.md's "LDtk level editor", 2026-10-25)
+
+LDtk's rule panel and rule editor (its source in the workspace's `../ldtk`, 1.5.3: ui/modal/panel/
+EditAllAutoLayerRules, ui/modal/dialog/RuleEditor, RuleModuloEditor, RuleRandomOffsets,
+RulePerlinSettings, RulesWizard, RuleGroupRemap, ui/RulePatternEditor, data/def/AutoLayerRuleDef,
+AutoLayerRuleGroupDef, LayerDef's rule functions) as the tab's pages (view_ldtk_rules.odin), so the
+canvas stays in view; the manual's `level_rules.md` is the user's guide.
+- **One way for every edit** (ldtk_rule_ops.odin's doc block): the layer's groups read as LDtk's
+  fromJson reads them, changed, every rule tidied as LDtk's toJson tidies it (trimmed patterns,
+  mirrors of symmetric patterns and checkers without a modulo off, a lost out-of-bounds value
+  cleared) and written as toJson writes them (the whole `autoRuleGroups` array: LDtk's key order,
+  `invalidated` false), then LDtk's tidy (an optional group's levels' states go with it) and the
+  layer's rules applied again in every level (`rerunRules`; one level for its seed, tileset or an
+  optional group there; not for names, colors, icons, advanced mode): one `LDtkDoc_Commit`, one
+  `.Files` undo step. Typed and stepped values merge (`LDtkEdit_Info`); toggles don't.
+- **The check against LDtk**: every group of LDtk's 18 samples (86 groups, 368 rules) read and
+  written back is its text byte for byte, and LDtk's rule tidy changes nothing in them
+  (`ldtk_rule_groups_write_back_as_ldtk_wrote_them`); edits undone by their opposite (a chance, a
+  rule and a group off and on, a pattern changed and put back, a group moved, a rule copied and
+  removed, an optional group off and on in a level, biomes) give LDtk's own sample files back byte
+  for byte, the auto-layer tiles made again by the ported evaluation included; the Assistant's
+  sample group read back and made again gives LDtk's 19 rules (patterns, tiles, mirrors,
+  policies, order). Every edit in the tests is schema-checked, read by the engine, left tidy, and
+  its levels' tiles are what the rules make (`rulesCheck`).
+- **LDtk's behaviour kept**: new rules are LDtk's (3 x 3, chance 1, break on match, a random Perlin
+  seed; written trimmed), new empty groups go first ("New group"), copies and pastes get new uids
+  after the original, a moved rule lands where LDtk's sortable puts it, the editor's 9 x 9 grid with
+  RulePatternEditor's buttons (left: the value, or clears a "not"; right: "not" the value, or
+  clears; middle: clears; the cell pressed first decides), RuleEditor's smart value, tiles picked
+  as ui.Tileset picks them (a drag column by column, Shift adds in tile order, the right button
+  removes, one stays), chance and Perlin scale in percent, alpha to 2 decimals, the X offset kept
+  within its modulo (only X, as LDtk), random offsets linked while min is -max, a level's own
+  tileset for the layer only of the same size, flips refused on symmetric patterns, checker modes only
+  with their modulo, a group of the Assistant's refusing other edits until Advanced mode. Rule
+  groups' `collapsed` is the tab's (LDtk doesn't save it): closed, but a layer's only group.
+- **Deviations, on purpose:** a new rule left empty stays (LDtk's editor removes it when it
+  closes: here there's nothing to close); the Assistant reads back every tile of a part (LDtk
+  keeps the first only, losing the others when a group is edited again); LDtk 1.5.3's group menu
+  offers "Turn into an OPTIONAL group" to optional groups and "Disable OPTIONAL state" to the others
+  (inverted): here each to the group it applies to; colors from LDtk's palette or typed (no color
+  wheel); the remap's and icon's pickers and the modulo, offsets and Perlin dialogs are the tab's
+  pages and sections.
+- **Measured** (2026-10-25, `ldtk_rule_edits_timing`, best of runs): a rule's chance changed on
+  LDtk's biggest sample (WorldMap_GridVania_layout: 2.4 MB, 21 levels, 30 rules) takes 62 ms
+  optimized, 231 ms in a debug build (every level of the layer evaluated again).
+- **The canvas** (level_canvas_paint.odin's `levelRulesOverlay`, while the tab shows): the hovered
+  rule's or group's tiles outlined (magenta over purple, LDtk's showAffectedCells; not while
+  auto-layers are hidden), the edited rule's Perlin noise (RulePerlinSettings' preview), and the
+  cell under the pointer reported to the tab, which highlights the rules putting tiles there
+  (onEditorMouseMove: `LDtkRules_At`). The hover is view state kept a frame behind
+  (`LevelRules_SetHovered`).
+- Tests: `ldtk_rule_ops_test.odin` (LDtk's samples written back, edited and given back, optional
+  groups, biomes, every group and rule edit with LDtk's bounds and refusals, the Assistant against
+  LDtk's sample, duplicate and remap, undo through the editor, the tab's state),
+  `tests/ui/ldtk_rules.script` (at 640x660, 1280x720 and 900x500: a group opened, a rule hovered
+  and its 36 cells outlined, a canvas cell highlighting its rule, a group off with undo and redo,
+  an optional group per level, a group made and named, a rule made in its editor (tiles dragged,
+  added and removed, the pattern painted with the three buttons, the chance typed, a mirror, a
+  modulo and checker, linked offsets, Perlin and its preview, the out-of-bounds policy), a rule
+  dragged into another group, copied and pasted with undo, the Assistant, duplicate and remap, a
+  color, an icon, a group deleted, Randomize, saved; driver: `send Rules_View <op> [uid] [number]
+  [flag]`, `hover_at`, `drag_to`, `level_hover`, check `rules <field>`). The paint fixture's
+  one-cell rules are 1 x 1 now (make_paint.py: LDtk writes them trimmed). Looked at in PNGs at
+  640x660, 900x500 and 1280x720 (the tab's rows and the canvas rendered through Skald's offscreen
+  renderer, made public in the submodule's working tree for a scratch driver command, then put
+  back).
 
 ## Editing LDtk projects (implemented, `ldtk_json.odin`, `ldtk_doc.odin`, `ldtk_ops.odin`)
 
@@ -3844,7 +3919,11 @@ Highlights:
     `level_entities`; commands `level_paint`, `level_drag_world`, `level_palette_tiles`;
     tests/ui/modes.script, ldtk_tab.script, level_paint.script); the definitions editors'
     (view_ldtk_defs.odin's doc block: `ldtk-layers-add-<Type>`, `ldtk-<kind>-<member>`,
-    `ldtk-picker-<what>`...; tests/ui/ldtk_defs.script)
+    `ldtk-picker-<what>`...; tests/ui/ldtk_defs.script); the Auto-layer Rules tab's
+    (view_ldtk_rules.odin's doc block: `ldtk-rules-add-group`, `ldtk-group-<part>-<uid>`,
+    `ldtk-rule-<part>-<uid>`, the editor's `ldtk-rule-pattern`, `ldtk-rule-tiles`,
+    `ldtk-rule-<member>`, the Assistant's `ldtk-assistant-*`...; driver `send Rules_View`,
+    `hover_at`, `drag_to`, `level_hover`, check `rules`; tests/ui/ldtk_rules.script)
   - the sprite sheet slicer's tab (slicer_edit.odin's doc block: `slicer-tab-<i>`, `slicer-canvas`,
     `slicer-scroll`, `slicer-<SlicerNumber>`, `slicer-add`, `slicer-create`, `slicer-apply`...),
     the browser preview's `browser-slice`, the Animation panel's `animation-slice` (driver:

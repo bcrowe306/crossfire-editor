@@ -14,13 +14,14 @@ around and edit, laid out like LDtk itself. Your edits are saved into the `.ldtk
 save the project, so LDtk, the viewport and a running game all read the same file
 ([LDtk levels](levels.md)).
 
-It's being built in phases. **Today** (phases 1 to 3) it edits where levels and entities are,
+It's being built in phases. **Today** (phases 1 to 4) it edits where levels and entities are,
 which layers each level shows, every field's value and the world's layout; it **paints** as LDtk
 does: IntGrid cells (with the auto-layer tiles their rules make, the tiles LDtk would make),
-tiles, and entities placed, moved, resized, copied and removed ([Painting](#painting)); and it
+tiles, and entities placed, moved, resized, copied and removed ([Painting](#painting)); it
 edits the project's **definitions** as LDtk's panels do: layers, entity types and their fields,
-enums, tilesets and level fields ([Level definitions](level_definitions.md)). Next come
-auto-layer rules, and the rest of what LDtk does.
+enums, tilesets and level fields ([Level definitions](level_definitions.md)); and the
+**auto-layer rules** as LDtk's rule panel does ([Auto-layer rules](level_rules.md)). Next comes
+the rest of what LDtk does (several worlds' layouts, the project's settings).
 
 - [Opening it](#opening-it)
 - [The window in the Level mode](#the-window-in-the-level-mode)
@@ -349,8 +350,11 @@ tiles' enum tags and custom data on their picture
 
 ### The Auto-layer Rules tab
 
-A summary of each layer's auto-layer rule groups (how many rules, how many active). The rules are
-edited in LDtk for now: phase 4 edits them here.
+The selected layer's auto-layer rules, as LDtk's rule panel edits them: groups (on, off, optional
+per level, biomes, colors, icons), rules and their editor (tiles, the pattern, chance, mirrors,
+modulos, offsets, Perlin), the Rule Assistant, Duplicate and Remap. Hovering a rule outlines its
+cells on the focused level, and the canvas's cell under the pointer highlights its rules
+([Auto-layer rules](level_rules.md)).
 
 ### The Project tab
 
@@ -366,7 +370,7 @@ entity rules), in the same undo step. Scripts named like an entity type aren't r
 
 Not editable here yet (LDtk edits them, and the tabs say so): array fields' values other than
 points and references, tile fields' values, levels' sizes and names, new or deleted levels, the
-order of a linear world's levels, auto-layer rules, the project's settings.
+order of a linear world's levels, the project's settings.
 
 ## Saving, undo and LDtk
 

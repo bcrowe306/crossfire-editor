@@ -1,7 +1,7 @@
 ---
 title: Exporting your game
 description: Turn your project into a game other people can run, on Linux, Windows, macOS or in a web browser, from Project Settings > Export, File > Export, or the command line.
-order: 38
+order: 39
 ---
 
 # Exporting your game

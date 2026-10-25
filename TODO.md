@@ -135,16 +135,39 @@ undo step each. CLAUDE.md's "The definitions editors" describes it, the manual's
 level_definitions.md is the guide. Not built here: copy / paste of definitions between projects
 (LDtk's clipboard), LDtk's "bake" of an auto-layer into a Tiles layer, moving entities between
 layers (MoveEntitiesBetweenLayers), confirmations before deleting used definitions (undo instead),
-the IntGrid values' drag between groups (a group choice and Up / Down instead). Next: phase 4
-(auto-layer rules).
+the IntGrid values' drag between groups (a group choice and Up / Down instead).
 
-**Left for phase 5's parity audit** (from phases 2 and 3): LDtk's grid-cell selection tool
+**Phase 4 done (2026-10-25):** the auto-layer rules, LDtk's rule panel and rule editor as the
+Auto-layer Rules tab's pages: groups (added empty or by the Rule Assistant, renamed, deleted,
+copied, cut and pasted, duplicated, duplicated and remapped, dragged into place, on and off,
+opened and closed, colors, icons, every rule's out-of-bounds policy, biomes with AND / OR,
+optional and turned on per level: the phase 2 leftover), rules (added before or after, deleted,
+copied, cut and pasted across groups and layers, duplicated, dragged into another group, on and
+off) and their editor (tiles one by one or as stamps with a pivot, picked on the tileset; the 9 x 9
+pattern with LDtk's three buttons and drags, values, groups, any / none; the out-of-bounds policy;
+chance, opacity, break on match, mirrors, modulos with offsets and the checker, tile offsets and
+linked random offsets, Perlin with its preview on the level), the Rule Assistant (LDtk's 47 wall
+parts, mirrored parts, stacking; editing its groups again, Advanced mode), Randomize, Render, the
+level's own tileset. Every edit written as LDtk's toJson writes it (its rule tidy ported), then its
+tidy and the rules applied again in every level; the canvas outlines a hovered rule's or group's
+cells and the tab highlights the rules of the cell under the pointer; one undo step each. Checked
+against LDtk: every sample group written back byte for byte, edits undone by their opposite give
+LDtk's sample files back byte for byte (tiles included), the Assistant remakes LDtk's sample
+group. CLAUDE.md's "The Auto-layer Rules tab" describes it, the manual's level_rules.md is the
+guide. Not built: LDtk's color wheel (its palette or a typed color instead), the value palette's
+column layouts, the editor's per-control help tips (one help text instead), the system clipboard
+(the editor's own, like LDtk's), an empty new rule removed when its editor closes.
+
+**Left for phase 5's parity audit** (from phases 2 to 4): LDtk's grid-cell selection tool
 (select, move and copy rectangles of cells); saved tile selections (TilesetDef.savedSelections:
-kept and remapped, not made); toggling rule groups from the canvas; picking references in another
+kept and remapped, not made); picking references in another
 level; field values drawn on the canvas (LDtk's display modes: they're set, not drawn); NineSlice
 and Repeat tile render modes drawn exactly; the release hitch on huge levels (the document parsed
 again, about 120 ms at 6.5 MB); definitions copied, pasted and baked as above; the project's
-settings (identifier style, default sizes, flags, separate level files) in the Project tab.
+settings (identifier style, default sizes, flags, separate level files) in the Project tab; from
+phase 4: a color wheel for groups, the rule palette's column layouts, per-control help tips, rule
+edits applied in the focused level first and the others in the background (every level of the
+layer is evaluated again per edit today), the rules' tile picker's saved selections.
 
 The Level mode becomes a better interface for editing LDtk projects, with full parity with LDtk
 itself (its source: the workspace's `ldtk/`). The layout comes from the user's design,

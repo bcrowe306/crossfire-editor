@@ -58,7 +58,8 @@ By its type:
   grid) and **Tileset**.
 - Auto-layers both: **Tiles removed by** (a Tiles layer whose tiles hide the rules' tiles) and a
   **Biome field** (a level field of an enum). When what their tiles depend on changes, the rules
-  run again in every level.
+  run again in every level. Their rules are edited in the Auto-layer Rules tab
+  ([Auto-layer rules](level_rules.md)).
 - **Tiles**: its **Tileset** (the layer takes the tileset's grid) and **Tile pivot**.
 - **Entities**: **Required tags** and **Excluded tags**: which entity types it takes.
 

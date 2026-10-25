@@ -1,7 +1,7 @@
 ---
 title: Version control with Git
 description: Keep every version of your project with Git from the bottom panel's Git tab, with commits, branches, pushing to and pulling from a remote, diffs, merges and Git LFS for big assets.
-order: 37
+order: 38
 ---
 
 # Version control with Git

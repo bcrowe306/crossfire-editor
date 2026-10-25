@@ -130,9 +130,12 @@ entities placed, moved, resized, copied and removed; a stroke is one undo step),
 Enums, Tilesets, Auto-layer Rules, Project) editing the world, fields' values and the project's
 **definitions** as LDtk's panels do (layers and their IntGrid values, entity types and every kind
 of field, enums with external enum files, tilesets with their tiles' tags and data, level fields;
-every level kept in step); edits are saved into the `.ldtk` file with the project, and the scenes
-showing each level are a click away ([docs/manual/level_mode.md](docs/manual/level_mode.md),
-[docs/manual/level_definitions.md](docs/manual/level_definitions.md)).
+every level kept in step) and its **auto-layer rules** as LDtk's rule panel does (groups, rules,
+the rule editor's pattern, tiles and options, the Rule Assistant, the level showing each change);
+edits are saved into the `.ldtk` file with the project, and the scenes showing each level are a
+click away ([docs/manual/level_mode.md](docs/manual/level_mode.md),
+[docs/manual/level_definitions.md](docs/manual/level_definitions.md),
+[docs/manual/level_rules.md](docs/manual/level_rules.md)).
 Each mode has its own layout and panel sizes; the menus, the play controls, the Console and
 Output, the settings and one undo history are shared. The mode is remembered per project
 (`.editor/modes.ini`).
@@ -622,9 +625,10 @@ Levels made in [LDtk](https://ldtk.io), the level editor, play in your game:
    name.
 
 The editor's **Level mode** edits the LDtk project too, saving into the `.ldtk` file as you go
-(undoable): levels and entities dragged into place, and in its LDtk tab the layers, entity types
-and their fields, field values, entity references, IntGrid values, enums and the world's layout
-(only the values changed are rewritten, so LDtk opens the file as before).
+(undoable): levels and entities dragged into place, levels painted, and in its LDtk tabs the
+layers, entity types and their fields, field values, entity references, IntGrid values, enums,
+tilesets, auto-layer rules and the world's layout (only the values changed are rewritten, so LDtk
+opens the file as before).
 
 While the game runs from Play, saving in LDtk updates it: tiles, collision, backgrounds, layers
 added or removed, and entities placed or deleted (the others keep running where they are). Parallax layers follow the camera, entities draw their tiles as
