@@ -3788,7 +3788,16 @@ TODO.md's "Performance" work (asked 2026-10-24): every speed-up is measured befo
     the thread was descheduled but not a hyperthread or cache shared with that work. So each
     run first waits (`--wait-quiet`, up to 300 s) for the machine's CPU use to drop under
     `--quiet-busy` (20%), and says when it gave up waiting. A change smaller than about 10% is
-    only believable from a quiet machine. It warns when the load average is
+    only believable from a quiet machine.
+  - **The verdict is the median pair:** each ABBA pair gives this build's mean frame over the
+    baseline's; the median of those ratios gates (`Pairs ...; median 0.979`), since one disturbed
+    run in a pooled mean moved a scenario by 16% (pairs 0.69, 2.14, 0.98, 1.08: no change). The
+    pooled comparison still prints where time moved.
+- **SPALL_AUTO inflates small procedures:** every call pays the hooks, so a tiny procedure called
+  thousands of times a frame looks expensive (the map hashers looked like the next target; a
+  microbenchmark put a different key at 2-4% of 31 ns a lookup, about 3 us a frame, so that
+  change was dropped). Use SPALL_AUTO to find where time goes, then confirm a candidate in a
+  normal SPALL build or a microbenchmark before changing it. It warns when the load average is
   over a quarter of the CPUs: other work on the machine moves the numbers.
 - **Reading results:** `build/profile/results/<scenario>.txt` (frames: median, mean, p95, p99,
   max of a frame's work, and start to start; spans by self time per frame), `.json` (what

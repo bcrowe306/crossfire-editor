@@ -44,6 +44,16 @@ frames (`draw_text` 3.2 -> 1.2 us a call). Mean frame against the first baseline
 11.3 -> 7.2. **Measured and dropped:** pre-sizing the frame arena (frames fit its first 4 MB block
 once the text caches were in; it grew only at startup).
 
+**The whole day, measured on a quiet machine** (2026-10-24 evening: the first profiled build,
+editor ae9c1c6 / Skald e316589 / engine 5f65b22, against today's, ABBA, four runs each, wall
+time): mean frame browser 15.5 -> 10.4 ms, code 12.6 -> 5.4, console 20.6 -> 10.5, at rest
+20.6 -> 11.6, inspector 22.2 -> 10.0, Level mode 5.6 -> 2.0, viewport 12.3 -> 5.9 (33-65% less;
+p95 31-58% less). With the engine's lighting (GPU renderers add lights straight into the light
+map) and font path fix (no lowercase copy per string) besides Skald's caches.
+
+**Measured and dropped:** float-free cache keys (a SPALL_AUTO trace made the map hashers look big;
+a microbenchmark put it at 2-4% of a 31 ns lookup).
+
 Left:
 1. **Don't build or lay out what's off-screen:** scrolling panels (the inspector, the browser
    tree, long lists) skip rows outside the visible area, as `virtual_list` already does.

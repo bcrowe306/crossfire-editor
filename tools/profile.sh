@@ -173,6 +173,12 @@ runOne() {
 	grep -o '"p50_ms": *[0-9.e+-]*' "$dir/report.json" | head -1 | sed 's/.*: *//' | xargs printf '%.3f'
 }
 
+# A report's mean frame (ms), empty when it has none
+meanOf() {
+	[[ -f $1 ]] || return 0
+	grep -o '"mean_ms": *[0-9.e+-]*' "$1" | head -1 | sed 's/.*: *//'
+}
+
 # The report over a build's runs (pooled), into results/<scenario><suffix>.json and .txt
 pooledReport() {
 	local scenario=$1 tag=$2 suffix=$3
@@ -188,7 +194,8 @@ for scenario in "${SCENARIOS[@]}"; do
 	size=$(sed -n 's/^# window: *//p' "$script" | head -1)
 	size=${size:-$SIZE}
 	project=$(projectOf "$scenario")
-	rm -rf "$OUT/runs/$scenario"
+	# A failed run must not leave the last results looking like this one's
+	rm -rf "$OUT/runs/$scenario" "$OUT/results/$scenario".*
 	medians=()
 	runBase() {
 		waitQuiet
@@ -238,7 +245,33 @@ for scenario in "${SCENARIOS[@]}"; do
 			echo "[$scenario] no baseline to compare with (--save-baseline)"
 			continue
 		fi
-		"$REPORT" compare "$before" "$OUT/results/$scenario.json" -threshold="$THRESHOLD" || status=1
+		if [[ $interleave -eq 0 ]]; then
+			"$REPORT" compare "$before" "$OUT/results/$scenario.json" -threshold="$THRESHOLD" || status=1
+			continue
+		fi
+		# The pooled comparison shows where time moved; the verdict is the pairs': each ABBA pair's
+		# mean frame, this build over the baseline, and the median of those ratios, which one run
+		# disturbed by other work can't sway (a pooled mean can: one run at twice the others moved
+		# a scenario by 16%)
+		"$REPORT" compare "$before" "$OUT/results/$scenario.json" -threshold=1000 | sed '$d'
+		ratios=()
+		for n in $(seq 1 "$RUNS"); do
+			bm=$(meanOf "$OUT/runs/$scenario/base-$n/report.json")
+			nm=$(meanOf "$OUT/runs/$scenario/new-$n/report.json")
+			[[ -n $bm && -n $nm ]] || continue
+			ratios+=("$(awk -v a="$nm" -v b="$bm" 'BEGIN { printf "%.4f", a / b }')")
+		done
+		if [[ ${#ratios[@]} -eq 0 ]]; then
+			echo "[$scenario] no complete pair to compare"; status=1; continue
+		fi
+		med=$(printf '%s\n' "${ratios[@]}" | sort -g | awk '{ v[NR] = $1 } END { print (NR % 2) ? v[(NR + 1) / 2] : (v[NR / 2] + v[NR / 2 + 1]) / 2 }')
+		echo "Pairs (this build's mean frame over the baseline's, ABBA): ${ratios[*]}; median $med"
+		if awk -v m="$med" -v t="$THRESHOLD" 'BEGIN { exit !(m > 1 + t / 100) }'; then
+			echo "Slower: the median pair's mean frame grew by more than $THRESHOLD%"
+			status=1
+		else
+			echo "Not slower than $THRESHOLD% (the median pair)"
+		fi
 	fi
 done
 # The build the results came from is the next comparisons' baseline
