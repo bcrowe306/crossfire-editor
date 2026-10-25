@@ -131,11 +131,16 @@ Enums, Tilesets, Auto-layer Rules, Project) editing the world, fields' values an
 **definitions** as LDtk's panels do (layers and their IntGrid values, entity types and every kind
 of field, enums with external enum files, tilesets with their tiles' tags and data, level fields;
 every level kept in step) and its **auto-layer rules** as LDtk's rule panel does (groups, rules,
-the rule editor's pattern, tiles and options, the Rule Assistant, the level showing each change);
-edits are saved into the `.ldtk` file with the project, and the scenes showing each level are a
-click away ([docs/manual/level_mode.md](docs/manual/level_mode.md),
+the rule editor's pattern, tiles and options, the Rule Assistant, the level showing each change),
+and its **levels, worlds and settings** as LDtk does (levels made, copied, resized and deleted,
+worlds and their layouts, LDtk's selection, field values drawn on the canvas, every project
+option, backups and image exports on save); edits are saved into the `.ldtk` file with the project,
+and the scenes showing each level are a click away
+([docs/manual/level_mode.md](docs/manual/level_mode.md),
 [docs/manual/level_definitions.md](docs/manual/level_definitions.md),
-[docs/manual/level_rules.md](docs/manual/level_rules.md)).
+[docs/manual/level_rules.md](docs/manual/level_rules.md),
+[docs/manual/level_worlds.md](docs/manual/level_worlds.md); every LDtk feature checked in
+[docs/manual/level_parity.md](docs/manual/level_parity.md)).
 Each mode has its own layout and panel sizes; the menus, the play controls, the Console and
 Output, the settings and one undo history are shared. The mode is remembered per project
 (`.editor/modes.ini`).

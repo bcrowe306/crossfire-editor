@@ -74,7 +74,7 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   and the panels' Manual buttons (see "Docs in the editor" below).
 - **Editor modes** (`editor_modes.odin`, `level_mode.odin`): the mode bar beside the menus
   switches the workspace between the **Scene** mode (everything above) and the **Level** mode,
-  the LDtk level editor laid out as LDtk (phases 1 to 4 of five, 2026-10-24/25: the user's design): a
+  the LDtk level editor laid out as LDtk (all five phases, 2026-10-24/25: the user's design; parity with LDtk checked feature by feature in the manual's level_parity.md): a
   tool row (LDtk's tools per layer type; the play controls), the Levels sidebar (worlds, levels:
   select, focus), the canvas (the world, or a focused level; levels and entities picked and
   moved, links drawn; **painting** as LDtk: IntGrid values with the auto-layers worked out by
@@ -89,7 +89,12 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   does** (groups: optional per level, biomes, colors, icons, the Assistant's; rules and their
   editor: tiles, the 9 x 9 pattern with LDtk's buttons, every option; the Rule Assistant;
   duplicate and remap; LDtk's clipboard; written as LDtk's toJson writes them and applied again in
-  every level, the canvas outlining a rule's cells); edits in memory, saved into the `.ldtk` file with the project (Ctrl+S, Play, exports),
+  every level, the canvas outlining a rule's cells) and **levels, worlds and the project as LDtk
+  does** (levels made on a picked spot, renamed, copied, resized from any side, deleted, their
+  backgrounds and depths; worlds added and removed (Multi-worlds), their layouts; LDtk's selection
+  of cells, entities and points moved, copied, deleted; field values drawn as LDtk's display modes
+  draw them; saved tile selections; every project panel option, LDtk's extra save outputs:
+  backups, PNG images, the simple export); edits in memory, saved into the `.ldtk` file with the project (Ctrl+S, Play, exports),
   undoable, LDtk's own saves merged; the scenes showing each level, a scene made for a level, Open
   in LDtk at a level); see "Editor modes" and "Editing LDtk projects" below.
 - **The website** [crossfireengine.io](https://crossfireengine.io) (`../crossfire_astro`,
@@ -229,6 +234,15 @@ Skald is not immediate-mode and not a retained widget tree:
 | `ldtk_defs.odin` | **The definitions editors' edits** (`LDtkOps_DefEdit`): `LDTK_MEMBERS` (every member the panels set, its kind and bounds: `LDtkMember`, `LDtkMemberKind`), `memberValue`, `ldtkUniqueId` (Project.fixUniqueIdStr), uids from `nextUid`, `LDtk_ParseTags`, `rerunRules` (auto-layers applied again in every level) |
 | `ldtk_defs_ops.odin` | `Def_Set` (`defConsequences`: LDtk's handlers; `defSpecial`: grids, render modes, ranges, defaults by type, regexes, file types, reference rules), `layerGrid` (LayerInstance.remapToGridSize), new definitions in LDtk's key order (`newLayerJV`, `newEntityDefJV`, `newFieldJV`, `newEnumJV`), removal, copies, moves, field type conversions (`LDTK_CONVERSIONS`), `LDtk_DisplayModeAllowed` |
 | `ldtk_defs_more.odin` | IntGrid values and groups, enum values, external enums (`LDtk_ParseExternalEnums`: text, JSON, Haxe, CastleDB; `LDtk_Checksum`, `LDtkEnums_SyncPreview`), tilesets (`newTilesetJV`, LDtk's icons, `tilesetImage`, `tilesetGrid`, `remapTileIds`, `LDtk_PixelData`: LDtk's opaque tiles and average colors), tiles' tags and custom data |
+| `ldtk_level_ops.odin` | **Levels and worlds as LDtk edits them** (`LDtkOps_LevelEdit`: `Level_Added` / `_Removed` / `_Duplicated` / `_Set` / `_Depth` / `_Resized` / `_Sorted` / `_World_Moved`, `World_Added` / `_Removed` / `_Set`), `LDtkOps_LevelsFinish` (tidy, neighbours, world positions, table of contents), LDtk's rules ported (automatic names, `LDtk_LevelSpot` / LevelSpotPicker, linear insert points, `__bgPos`: `LDtk_BgTileInfos`, external file names, Multi-worlds conversion), `tidyLevels` / `tidyLevelFiles` |
+| `ldtk_project_ops.odin` | **The Project tab's edits** (`LDtkOps_ProjectEdit`: `Project_Set` every option, `Project_Flag`, `Project_Command`), the identifier style applied everywhere, `LDTK_IMAGE_EXPORT_MODES` / `_IDENTIFIER_STYLES` / `_COMMAND_TRIGGERS` / `_ADVANCED_FLAGS`, `tidyLegacyIntGrid` (ExportPreCsvIntGridFormat's `intGrid` arrays, in the tidy and every commit) |
+| `ldtk_field_ops.odin` | **Field values** (`LDtkOps_FieldValue`: set, add, remove, move, clear an item, FieldInstance.parseValue's rules), `LDtk_ApplyRegex` (a small regex engine: LDtk keeps the matched parts) |
+| `ldtk_save_extras.odin` | **What LDtk's save writes besides the files**: backups (`LDtkSave_Backup`, `LDtk_PruneBackups`), PNG images (`LDtk_PngFileName`), the simple export (`data.json`, CSVs), removed when turned off (`LDtkSave_Exports`) |
+| `ldtk_selection_ops.odin` | **LDtk's selection moved, copied, deleted** (`Selection_Edit`, `LDtk_SelectionText` / `_Parse`: cells, entities, points, empty-space rectangles; GenericLevelElementGroup's rules) |
+| `level_world_tools.odin` | **The world tools on the canvas** (WorldTool, LevelSpotPicker, Rulers): a new level's spot, the right-click menu (`LevelWorld_MenuItems`), level drags (snapping, linear order, Ctrl + Alt copies), the focused level's resize handles, world depths; `LevelWorldOverlay` |
+| `level_select.odin` | **The selection on the canvas** (`LevelMode.selection`): rectangles (Shift + Alt, the Select tool), moved and copied by drags, Ctrl+A, Delete, empty spaces (Shift+E), `LevelSelectOverlay`, `LevelSelect_Summary` (the header) |
+| `level_fields_render.odin` | **Field values on the canvas** (FieldInstanceRender): `LevelFields_Make` (rows above / at the center / beneath, radii, points, reference links by display mode), `LevelFields_DrawRows`, `LevelFields_DrawMark`, `LevelFields_DrawLink` (LDtk's link styles) |
+| `view_ldtk_project.odin` | **The World, Level and Project tabs' rows** (LDtk's world panel, level form and project panel): `LDtkProject_WorldTab`, `LDtkProject_LevelSettings`, `LDtkProject_ProjectTab`, `pivotPicker` |
 | `view_ldtk_defs.odin` | **The definitions editors' UI** in the Layers, Entities, Enums, Tilesets and Level tabs (`LDtkDefs_Layers`, `_Entities`, `_Enums`, `_Tilesets`, `_LevelFields`): lists' buttons, members' rows, the field form (`defsFieldForm`), `tilesetPicker` (tile rectangles, tags, a tile), `LevelMode_SelectMade` |
 | `update.odin` | `update`, the only place State changes |
 | `keymap.odin` | `DEFAULT_KEYMAP`, shortcut dispatch, typing guard, the platform's keys (`Chord_OnPlatform` / `Chord_FromPlatform` / `Chord_Format`: the keymap's Ctrl is Cmd on macOS), `keyParen` (an action's keys for text) |
@@ -2470,8 +2484,8 @@ the user's file) with the editor's theme colors; level_mode.odin's doc block has
   world (`level-row-<i>`: zones with their own press handling, `sidebarRow`: a click
   `Level_Row_Clicked`, a double-click focuses, a right-click selects it and opens `Ctx_Level{level:
   its index}`: the target holds no string, it outlives the frame). Its menu: Focus, Open in the
-  Scene Mode, New Scene with This Level, Open in LDtk at This Level, and Rename / Duplicate /
-  Delete / New Level disabled ("a later phase": today's ops don't do them).
+  Scene Mode, New Scene with This Level, Open in LDtk at This Level, Rename, Duplicate, Delete,
+  depths, Move to another world, New Level... (phase 5: "Levels, worlds and the project").
 - **Several worlds** (`LevelMode.world`, a world's iid; `LevelMode_World`, `LevelMode_WorldLevels`):
   the canvas (`LevelCanvas_Content` filters to the world), the fit, the sidebar and the World tab
   show one world; a level of another world selected shows its world (`levelSelect`). Fixture:
@@ -2707,6 +2721,45 @@ canvas stays in view; the manual's `level_rules.md` is the user's guide.
   640x660, 900x500 and 1280x720 (the tab's rows and the canvas rendered through Skald's offscreen
   renderer, made public in the submodule's working tree for a scratch driver command, then put
   back).
+
+### Levels, worlds and the project (phase 5 of TODO.md's "LDtk level editor", 2026-10-25)
+
+LDtk's world view and World panel (WorldTool, WorldPanel, LevelSpotPicker, Rulers), level form
+(LevelInstanceForm), project panel (EditProject), its save's extra outputs (ProjectSaver), its
+selection (SelectionTool, GenericLevelElementGroup), its field display (FieldInstanceRender) and
+saved tile selections; the manual's `level_worlds.md` is the guide, `level_parity.md` the
+checklist of every LDtk feature (429: 305 done, 60 differently, 41 not done, 23 not applicable).
+- **The document's file set can change** (ldtk_doc.odin): texts are by path
+  (`LDtkDoc_FromPaths`, `_TextsByPath`, `_SetTextsByPath`); a file with `saved == ""` isn't on
+  disk yet; `Stages.added` carries new files through an edit's passes; undo steps record files
+  made and dropped (a side of `""`, always whole); Save makes folders, writes a backup first, then
+  the files, then removes `.ldtkl` files no level uses (`ldtkCleanLevelFiles`) and writes LDtk's
+  extra outputs (`LDtkSave_Exports`). Separate level files, minified JSON and Multi-worlds rewrite
+  whole files: `LDtk_PrettyJson` writes LDtk's 1.5 files byte for byte, whole
+  (`ldtk_writer_remakes_ldtks_files_whole`).
+- **LDtk's rules, ported and checked** (ldtk_level_ops_test.odin): automatic names
+  (`applyAutoLevelIdentifiers`), new levels' spots and linear insert points, duplicates' remapped
+  references, resizes (`applyNewBounds`: cells and entities kept where they are, cropped),
+  `__bgPos`, external file names (the index prefix), Multi-worlds on and off, the identifier
+  style everywhere, field values' parsing and regexes, PNG names, backups' names and pruning; PNG
+  export compared with LDtk's `levelBgs` output, every edit schema-checked, read by the engine and
+  left tidy.
+- **Decided:** custom commands are kept and edited but never run (a project file could run any
+  program); the Tiled export isn't written (LDtk's covers the first world only: its own HACK note),
+  its setting kept; PNG images are drawn by the editor's renderer (a pixel can differ where tiles
+  blend); turning Multi-worlds off keeps LDtk's `dummyWorldIid` (references follow on LDtk's next
+  load, as LDtk does).
+- **The canvas:** a press goes to the world tools (`LevelWorld_Press`: a spot, a resize handle),
+  then the selection (`LevelSelect_Press`, inside the focused level only), then painting. Fields
+  are drawn from `LevelCanvasEntity.fields` / `LevelCanvasLevel.fields` (marks under entities,
+  rows over them); entity references are field marks now (the old arrows are gone).
+- **Keys** (settings.default.ini): P / L / E / U / T / C the tabs, 1 to 0 the layers, PgUp / PgDn
+  depths (Ctrl: the level's), Ctrl+A, Shift+E, Shift+S, Delete.
+- Tests: `ldtk_level_ops_test.odin`, `level_fields_render_test.odin` (field display, references
+  picked across levels, typed entity sizes, the panel and layer keys), `tests/ui/levels.script`
+  (driver: `level_world_click`, `level selection | spot | depth`). Looked at in PNGs at 640x660,
+  900x500 and 1280x720 (Skald's offscreen renderer made public in the submodule's working tree for
+  a scratch driver command, then put back).
 
 ## Editing LDtk projects (implemented, `ldtk_json.odin`, `ldtk_doc.odin`, `ldtk_ops.odin`)
 
@@ -3923,7 +3976,10 @@ Highlights:
     (view_ldtk_rules.odin's doc block: `ldtk-rules-add-group`, `ldtk-group-<part>-<uid>`,
     `ldtk-rule-<part>-<uid>`, the editor's `ldtk-rule-pattern`, `ldtk-rule-tiles`,
     `ldtk-rule-<member>`, the Assistant's `ldtk-assistant-*`...; driver `send Rules_View`,
-    `hover_at`, `drag_to`, `level_hover`, check `rules`; tests/ui/ldtk_rules.script)
+    `hover_at`, `drag_to`, `level_hover`, check `rules`; tests/ui/ldtk_rules.script); the World,
+    Level and Project tabs' (view_ldtk_project.odin's doc block: `ldtk-world-*`, `ldtk-level-*`,
+    `ldtk-project-<key>`; driver `level_world_click`, check `level selection | spot | depth`;
+    tests/ui/levels.script)
   - the sprite sheet slicer's tab (slicer_edit.odin's doc block: `slicer-tab-<i>`, `slicer-canvas`,
     `slicer-scroll`, `slicer-<SlicerNumber>`, `slicer-add`, `slicer-create`, `slicer-apply`...),
     the browser preview's `browser-slice`, the Animation panel's `animation-slice` (driver:

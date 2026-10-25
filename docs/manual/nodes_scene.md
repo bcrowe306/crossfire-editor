@@ -1,7 +1,7 @@
 ---
 title: "Node guides: scene structure"
 description: "Guides for the nodes that shape a scene: Node2D, Camera, Component, LDtkLevel, CameraZone, NavRegion and NavAgent."
-order: 44
+order: 46
 ---
 
 # Node guides: scene structure

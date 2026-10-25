@@ -1,7 +1,7 @@
 ---
 title: The UI system
 description: Panels, buttons, progress bars, text fields, scroll boxes, rich text, sliders and check boxes for menus, HUDs and options screens, with layouts and themes.
-order: 25
+order: 27
 ---
 
 # The UI system: menus, HUDs and dialogs

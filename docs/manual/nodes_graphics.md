@@ -1,7 +1,7 @@
 ---
 title: "Node guides: graphics"
 description: "Guides to the nodes that draw: sprites, tilemaps, parallax, camera views, lights, screen effects, lines, trails and particles."
-order: 45
+order: 47
 ---
 
 # Node guides: graphics

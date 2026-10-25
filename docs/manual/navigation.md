@@ -1,7 +1,7 @@
 ---
 title: Pathfinding and navigation
 description: "Navigation regions and agents: characters finding their way around walls with A* paths."
-order: 30
+order: 32
 ---
 
 # Pathfinding and navigation
