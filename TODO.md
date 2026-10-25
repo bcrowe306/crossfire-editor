@@ -68,7 +68,9 @@ Left:
 2. **The remaining text calls:** about 900 `measure_text` and 500 `draw_text` calls a frame at
    rest, each now a hash and a lookup (0.7-1.2 us); fewer calls (the item above) is what's
    left there. `wrap_text` keeps its lines across frames now (2026-10-25: the inspector's
-   0.65 -> 0.19 ms a frame, its median frame 4.6% less).
+   0.65 -> 0.19 ms a frame, its median frame 4.6% less). Stacks lay their children out from
+   the sizes measuring them found (each label measured about once a frame, not three times:
+   `measure_text` a third fewer calls, the frame 11-18% less in every scenario).
 3. Offer Skald's general fixes to its upstream (Lee Fry's Skald) when they're done.
 
 ### 4. The editor and the engine (found by the same profile)
