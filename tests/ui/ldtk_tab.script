@@ -51,10 +51,11 @@ expect level focus Start
 click_widget panel-level-world-view
 expect level focus none
 expect level level Start
-# A level's menu: Focus; what isn't built yet is there, greyed out
+# A level's menu: Focus, and the level's edits (levels.script uses them)
 right_click_widget level-row-1
 expect context_menu open
-expect context_item Duplicate (a later phase: LDtk) disabled
+expect context_item Duplicate enabled
+expect context_item Delete enabled
 click_context_item Focus
 expect level focus Cave
 click_widget panel-level-world-view

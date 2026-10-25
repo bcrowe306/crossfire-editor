@@ -430,6 +430,32 @@ Returns:
 - Whether anything was drawn
 */
 LevelPictures_Draw :: proc(s: ^State, doc: ^LDtkDoc, m: ^LDtkLevelModel, kind: PlaneKind, layer: int, rect: [4]int, scale: f32, out: []u8) -> bool {
+	return levelDraw(doc, m, kind, layer, rect, scale, out, s.level.paint.hideAutoLayers)
+}
+
+/*
+A level drawn whole into an RGBA8 picture of its size (`out`: width * height * 4, cleared), as the
+canvas draws it: its background image (`background`), a layer (`layer` >= 0: at full opacity) or
+every visible layer at its opacity (`layer` -1). PNG exports draw with it (ldtk_save_extras.odin).
+
+Returns:
+- Whether anything was drawn
+*/
+LevelPictures_Render :: proc(doc: ^LDtkDoc, m: ^LDtkLevelModel, layer: int, background: bool, out: []u8) -> bool {
+	rect := [4]int{0, 0, m.pxWid, m.pxHei}
+	if background do return levelDraw(doc, m, .Background, -1, rect, 1, out, false)
+	if layer >= 0 do return levelDraw(doc, m, .Layer, layer, rect, 1, out, false)
+	drawn := false
+	#reverse for &l in m.layers {
+		if !l.visible do continue
+		if drawLayer(false, m, &l, rect, 1, out, LDtkDoc_Folder(doc), {0, 0, f32(m.pxWid), f32(m.pxHei)}, f32(m.defs[l.def].displayOpacity)) do drawn = true
+	}
+	return drawn
+}
+
+// A plane drawn into a piece (LevelPictures_Draw's, with auto-layer tiles hidden or not)
+@(private="file")
+levelDraw :: proc(doc: ^LDtkDoc, m: ^LDtkLevelModel, kind: PlaneKind, layer: int, rect: [4]int, scale: f32, out: []u8, hideAuto: bool) -> bool {
 	folder := LDtkDoc_Folder(doc)
 	// The piece in level pixels (a margin of a cell: tiles reaching into it)
 	view := [4]f32{f32(rect[0]) / scale, f32(rect[1]) / scale, f32(rect[0] + rect[2]) / scale, f32(rect[1] + rect[3]) / scale}
@@ -438,12 +464,12 @@ LevelPictures_Draw :: proc(s: ^State, doc: ^LDtkDoc, m: ^LDtkLevelModel, kind: P
 	case .Background:
 		drawn = drawBackground(doc, m, rect, scale, out, folder)
 	case .Layer:
-		if layer < len(m.layers) do drawn = drawLayer(s, m, &m.layers[layer], rect, scale, out, folder, view, 1)
+		if layer < len(m.layers) do drawn = drawLayer(hideAuto, m, &m.layers[layer], rect, scale, out, folder, view, 1)
 	case .Composite:
 		drawn = drawBackground(doc, m, rect, scale, out, folder)
 		#reverse for &l in m.layers {
 			if !l.visible do continue
-			if drawLayer(s, m, &l, rect, scale, out, folder, view, f32(m.defs[l.def].displayOpacity)) do drawn = true
+			if drawLayer(hideAuto, m, &l, rect, scale, out, folder, view, f32(m.defs[l.def].displayOpacity)) do drawn = true
 		}
 	}
 	return drawn
@@ -493,7 +519,7 @@ drawBackground :: proc(doc: ^LDtkDoc, m: ^LDtkLevelModel, rect: [4]int, scale: f
 
 // One layer into a piece, at an opacity (LayerRender.render)
 @(private="file")
-drawLayer :: proc(s: ^State, m: ^LDtkLevelModel, l: ^LDtkLayerData, rect: [4]int, scale: f32, out: []u8, folder: string, view: [4]f32, alpha: f32) -> bool {
+drawLayer :: proc(hideAuto: bool, m: ^LDtkLevelModel, l: ^LDtkLayerData, rect: [4]int, scale: f32, out: []u8, folder: string, view: [4]f32, alpha: f32) -> bool {
 	d := &m.defs[l.def]
 	grid := d.gridSize
 	off := LDtkLayer_Offset(m, l)
@@ -511,7 +537,7 @@ drawLayer :: proc(s: ^State, m: ^LDtkLevelModel, l: ^LDtkLayerData, rect: [4]int
 	hasImg := false
 	if td != nil do img, hasImg = loadImage(joinPath(folder, td.relPath, allocator = context.temp_allocator))
 	drawn := false
-	showAuto := LDtkLayerInfo_IsAuto(d) && !s.level.paint.hideAutoLayers && hasImg
+	showAuto := LDtkLayerInfo_IsAuto(d) && !hideAuto && hasImg
 	switch d.kind {
 	case .IntGrid, .AutoLayer:
 		if showAuto {

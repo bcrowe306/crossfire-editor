@@ -62,7 +62,7 @@ defEdit :: proc(c: ^LDtkTabCtx, kind: LDtkDefKind, uid: int, key: string) -> LDt
 }
 
 // A small button (a list's actions)
-@(private="file")
+@(private)
 smallButton :: proc(c: ^LDtkTabCtx, key, label: string, msg: Msg, disabled := false) -> skald.View {
 	th := c.ctx.theme
 	return skald.button(c.ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
@@ -70,7 +70,7 @@ smallButton :: proc(c: ^LDtkTabCtx, key, label: string, msg: Msg, disabled := fa
 }
 
 // A row of buttons (wrapped in a narrow panel)
-@(private="file")
+@(private)
 buttonRow :: proc(c: ^LDtkTabCtx, buttons: ..skald.View) {
 	th := c.ctx.theme
 	views := make([]skald.View, len(buttons), context.temp_allocator)
@@ -168,7 +168,7 @@ defChoices :: proc(c: ^LDtkTabCtx, list: int, none := "", filter: proc(json: ^Js
 }
 
 // The label of a choice's value (the value itself when it's none of them)
-@(private="file")
+@(private)
 labelOf :: proc(labels, values: []string, value: string) -> string {
 	for v, i in values do if v == value do return labels[i]
 	return value
@@ -474,7 +474,7 @@ defsIntGridValues :: proc(c: ^LDtkTabCtx, def: int) {
 }
 
 // A tile rectangle's {x, y, w, h} (nil: none)
-@(private="file")
+@(private)
 rectOf :: proc(json: ^JsonDoc, node: int) -> Maybe([4]int) {
 	if Json_Kind(json, node) != .Object do return nil
 	return [4]int{Json_Int(json, Json_Get(json, node, "x")), Json_Int(json, Json_Get(json, node, "y")), Json_Int(json, Json_Get(json, node, "w")), Json_Int(json, Json_Get(json, node, "h"))}
@@ -500,7 +500,7 @@ LDtkDefs_Destroy :: proc() {
 }
 
 // What a tileset picker does with a selection
-@(private="file")
+@(private)
 PickerMode :: enum {
 	// A tile rectangle: the edit with `text` "x,y,w,h"
 	Rect,
@@ -522,7 +522,7 @@ Inputs:
 - edit: The edit a selection sends
 - tagged: Tiles shown tagged (Tags mode), and their color
 */
-@(private="file")
+@(private)
 tilesetPicker :: proc(c: ^LDtkTabCtx, key: string, tileset: int, selected: Maybe([4]int), edit: LDtk_Edit, mode := PickerMode.Rect, tagged: []int = nil, tagColor: u32 = 0, marked: []int = nil, small := false) -> skald.View {
 	ctx := c.ctx
 	th := ctx.theme

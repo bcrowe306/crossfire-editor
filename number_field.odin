@@ -53,6 +53,8 @@ NumberTarget :: union {
 	AtlasPaddingTarget,
 	// A number of an LDtk project (the Level mode's LDtk tab: ldtk_ops.odin)
 	LDtkNumberTarget,
+	// The Level tab's new size for the selected level (a draft until Resize: view_ldtk_project.odin)
+	LevelSizeTarget,
 	// The sprite sheet slicer's numbers and frame times (slicer_edit.odin)
 	SlicerNumber,
 	SlicerDurationTarget,
@@ -62,6 +64,9 @@ NumberTarget :: union {
 LDtkNumberTarget :: struct {
 	edit: LDtk_Edit,
 }
+
+// The Level tab's size draft: 0 the width, 1 the height
+LevelSizeTarget :: distinct int
 
 GameSizeTarget :: distinct int
 
@@ -225,6 +230,7 @@ NumberTarget_Msg :: proc(target: NumberTarget, value: f64) -> Msg {
 	case AtlasPaddingTarget: return Atlas_Padding_Changed(int(value))
 	case SlicerNumber: return Slicer_Number_Changed{t, value}
 	case SlicerDurationTarget: return Slicer_Duration_Changed{int(t), value}
+	case LevelSizeTarget: return Level_Size_Typed{axis = int(t), value = value}
 	case LDtkNumberTarget:
 		edit := t.edit
 		edit.number = value

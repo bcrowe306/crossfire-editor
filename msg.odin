@@ -116,6 +116,11 @@ Action :: enum {
 	Level_Duplicate,
 	Level_Cancel,
 	Level_World_Mode,
+	// The world depth shown further or closer (LDtk's PgUp / PgDn), the selected level moved there
+	Level_Depth_Further,
+	Level_Depth_Closer,
+	Level_Move_Further,
+	Level_Move_Closer,
 }
 
 // Panel resizing. Each carries the new size of a split's first pane
@@ -1461,4 +1466,10 @@ Msg :: union {
 	Level_Tiles_Picked,
 	Level_Entity_Type_Picked,
 	Level_Pick_Started,
+	// Levels and worlds on the canvas (level_world_tools.odin)
+	Level_Spot_Started,
+	Level_Depth_Shown,
+	Level_Rename_Started,
+	Level_Field_Focused,
+	Level_Size_Typed,
 }

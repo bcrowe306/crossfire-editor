@@ -81,6 +81,9 @@ LevelMode :: struct {
 	entity: string,
 	// The level the canvas is focused on (its identifier; "" the world view; owned)
 	focus: string,
+	// The selected and focused levels' iids (owned): they're followed by iid when a level is
+	// named again (by the Level tab, its automatic name, an undo: `LevelMode_Follow`)
+	levelIid, focusIid: string,
 	// The world canvas's view and the drag on it (level_canvas.odin)
 	view: LevelView,
 	drag: LevelDrag,
@@ -107,6 +110,15 @@ LevelMode :: struct {
 	},
 	// The Auto-layer Rules tab's own state (level_rules.odin)
 	rules: LevelRules,
+	// Picking a spot for a new level on the canvas (level_world_tools.odin)
+	spot: bool,
+	// The world depth shown (LDtk's world layers: levels of other depths are faded)
+	depth: int,
+	// A tab field to focus next frame (its widget key; owned): the Level tab's name for Rename
+	focusField: string,
+	// The Level tab's new size for a level (its iid, owned; the size typed), until Resize
+	sizeLevel: string,
+	sizeDraft: [2]int,
 }
 
 // The world canvas's view: the world point at its center and the zoom (screen pixels per world
@@ -127,6 +139,8 @@ LevelDragMode :: enum {
 	Level,
 	// Moving the entity `target` (its iid)
 	Entity,
+	// Resizing the focused level `target` (its iid) by a handle (level_world_tools.odin)
+	Resize,
 }
 
 // A drag on the world canvas, press to release
@@ -140,8 +154,13 @@ LevelDrag :: struct {
 	moved: bool,
 	// Shift: entities by the pixel, not their grid
 	free: bool,
-	// Ctrl + Alt: the release copies the entity there (LDtk's SelectionTool isCopy)
+	// Ctrl + Alt: the release copies the entity (or the level) there (LDtk's SelectionTool isCopy)
 	copy: bool,
+	// A resize's handle
+	handle: LevelResizeHandle,
+	// A right press: a click (no move) opens the canvas's menu at `at` (window pixels)
+	menu: bool,
+	at: [2]f32,
 }
 
 // The Level mode's panels the first time it shows (the design's 300 px sidebars)
@@ -230,6 +249,15 @@ Level_Focus_Changed :: distinct string
 // Open the first scene showing a level (its identifier) in the Scene mode
 Level_Open_Showing :: distinct string
 
+// A field the Level mode asked to focus has it (`LevelMode.focusField` is cleared)
+Level_Field_Focused :: struct {}
+
+// The Level tab's size typed for the selected level (`axis` 0 width, 1 height)
+Level_Size_Typed :: struct {
+	axis: int,
+	value: f64,
+}
+
 // A layer selected in the Layers sidebar (its definition's uid)
 Level_Layer_Picked :: distinct int
 
@@ -259,6 +287,8 @@ Level_Canvas_Pressed :: struct {
 	double, pan, free: bool,
 	// The right button (LDtk's erase), Alt (LDtk's pick and select), Ctrl (with Alt: copy)
 	right, alt, ctrl: bool,
+	// Where it was in the window (the canvas's menu opens there)
+	at: [2]f32,
 }
 
 // The pointer moved during a canvas drag: the world point under it, how far it moved on screen
@@ -343,12 +373,16 @@ LevelMode_Destroy :: proc(level: ^LevelMode) {
 	delete(level.level)
 	delete(level.entity)
 	delete(level.focus)
+	delete(level.levelIid)
+	delete(level.focusIid)
 	delete(level.view.fitted)
 	delete(level.drag.target)
 	delete(level.problem)
 	delete(level.newValue)
 	delete(level.newEnum)
 	delete(level.tileTag)
+	delete(level.focusField)
+	delete(level.sizeLevel)
 	LevelPaint_Destroy(&level.paint)
 	LevelRules_Destroy(&level.rules)
 	layout, tab := level.layout, level.bottomTab
@@ -436,8 +470,9 @@ Returns:
 - A command, and whether `m` was one
 */
 LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
-	// Painting's own messages and keys (level_paint.odin)
+	// Painting's own messages and keys (level_paint.odin), the world tools' (level_world_tools.odin)
 	if LevelPaint_Update(state, m) do return {}, true
+	if LevelWorld_Update(state, m) do return {}, true
 	#partial switch v in m {
 	case Level_File_Chosen:
 		if string(v) == state.level.file do return {}, true
@@ -507,7 +542,9 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	case Level_Canvas_Panned:
 		if state.level.view.zoom > 0 do state.level.view.center -= ([2]f32)(v) / state.level.view.zoom
 	case Level_Canvas_Pressed:
-		// The tools on the focused level first (level_paint.odin), else select, move, pan
+		// A new level's spot and the resize handles first, then the tools on the focused level
+		// (level_paint.odin), else select, move, pan
+		if LevelWorld_Press(state, v) do return {}, true
 		if !LevelPaint_Press(state, v) do levelCanvasPressed(state, v)
 	case Level_Canvas_Moved:
 		if LevelPaint_Moved(state, v) do return {}, true
@@ -517,11 +554,12 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		case .None:
 		case .Pan:
 			if state.level.view.zoom > 0 do state.level.view.center -= v.delta / state.level.view.zoom
-		case .Level, .Entity:
+		case .Level, .Entity, .Resize:
 			drag.offset = v.world - drag.start
 			if !drag.moved && linalg_length(drag.offset * state.level.view.zoom) >= LEVEL_DRAG_SLOP do drag.moved = true
 		}
 	case Level_Canvas_Released:
+		if LevelWorld_Released(state) do return {}, true
 		if !LevelPaint_Released(state) do levelCanvasReleased(state)
 	case Level_Entity_Picked:
 		levelSelectEntity(state, string(v), center = true)
@@ -546,6 +584,41 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		case .Tile_Tag: setOwned(&state.level.tileTag, v.text)
 		case .Data_Tile: state.level.dataTile = v.uid
 		}
+	case Level_Rename_Started:
+		doc := LDtkDoc_Get(state.project.rootPath, LevelMode_File(state))
+		if doc == nil || doc.problem != "" do return {}, true
+		at := LDtkDoc_FindLevel(doc, string(v))
+		if at < 0 do return {}, true
+		id, _ := LDtkDoc_LevelNames(doc, at)
+		levelSelect(state, LevelMode_File(state), strings.clone(id, context.temp_allocator))
+		state.level.bottomTab = .Level
+		// LDtk's name input is off while the name is automatic
+		main := LDtkDoc_Main(doc)
+		if Json_Bool(main, Json_Get(main, doc.levels[at].entry, "useAutoIdentifier")) {
+			setOwned(&state.level.problem, "the level is named by the project's pattern: untick Automatic name to type one")
+		}
+		setOwned(&state.level.focusField, "ldtk-level-identifier")
+	case Level_Field_Focused:
+		setOwned(&state.level.focusField, "")
+	case Level_Size_Typed:
+		doc := LDtkDoc_Get(state.project.rootPath, LevelMode_File(state))
+		if doc == nil || doc.problem != "" || state.level.level == "" do return {}, true
+		at := LDtkDoc_FindLevel(doc, state.level.level)
+		if at < 0 do return {}, true
+		_, iid := LDtkDoc_LevelNames(doc, at)
+		if state.level.sizeLevel != iid {
+			r := LDtkDoc_LevelRect(doc, at)
+			setOwned(&state.level.sizeLevel, iid)
+			state.level.sizeDraft = {int(r[2]), int(r[3])}
+		}
+		// LevelInstanceForm's bounds: the project's grid to 4096, on a GridVania grid (above zero)
+		n := clamp(int(math.round(v.value)), LDtkDoc_DefaultGrid(doc), 4096)
+		world := doc.levels[at].world
+		if LDtkDoc_WorldLayout(doc, world) == "GridVania" {
+			g := LDtkDoc_WorldGrid(doc, world)[clamp(v.axis, 0, 1)]
+			n = max(int(ldtkRound(f64(n) / f64(g))), 1) * g
+		}
+		state.level.sizeDraft[clamp(v.axis, 0, 1)] = n
 	case LDtk_Edit:
 		levelApplyEdit(state, v)
 	case Rules_View:
@@ -572,6 +645,53 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		return {}, false
 	}
 	return {}, true
+}
+
+/*
+Scenes' LDtkLevel nodes naming a level that an edit named again (asked, its automatic name, the
+project's identifier style) follow it, and so do the Level mode's selection and focus.
+*/
+@(private="file")
+levelRenamesFollow :: proc(state: ^State, file: string, before: map[string]string) {
+	doc := LDtkDoc_Get(state.project.rootPath, file)
+	if doc == nil || doc.problem != "" do return
+	for _, i in doc.levels {
+		id, iid := LDtkDoc_LevelNames(doc, i)
+		old, had := before[iid]
+		if !had || old == id do continue
+		for &scene in state.project.scenes do for &node in scene.nodes {
+			if node.kind == .LDtkLevel && node.ldtk.file == file && node.ldtk.level == old do setOwned(&node.ldtk.level, id)
+		}
+	}
+	LevelMode_Follow(state)
+}
+
+/*
+Keeps the Level mode's selected and focused levels when they're named again (an edit, an undo):
+found by iid when their identifier is gone, cleared when the level is.
+*/
+LevelMode_Follow :: proc(state: ^State) {
+	if state.level.level == "" && state.level.focus == "" do return
+	doc := LDtkDoc_Get(state.project.rootPath, LevelMode_File(state))
+	if doc == nil || doc.problem != "" do return
+	follow :: proc(doc: ^LDtkDoc, name, iid: ^string) {
+		if name^ == "" do return
+		if at := LDtkDoc_FindLevel(doc, name^); at >= 0 {
+			_, now := LDtkDoc_LevelNames(doc, at)
+			setOwned(iid, now)
+			return
+		}
+		if iid^ != "" do if at := LDtkDoc_FindLevel(doc, iid^); at >= 0 {
+			id, _ := LDtkDoc_LevelNames(doc, at)
+			setOwned(name, id)
+			return
+		}
+		setOwned(name, "")
+		setOwned(iid, "")
+	}
+	follow(doc, &state.level.level, &state.level.levelIid)
+	follow(doc, &state.level.focus, &state.level.focusIid)
+	if state.level.level == "" do setOwned(&state.level.entity, "")
 }
 
 // Replaces an owned string with a copy of another
@@ -604,11 +724,18 @@ levelApplyEdit :: proc(state: ^State, edit: LDtk_Edit) {
 	// The rules tab's: a cut copies first, the first uid an edit takes opens what it made
 	LevelRules_BeforeEdit(state, edit)
 	nextUid := -1
+	// The levels' names before (a rename, automatic or asked, is followed by the scenes)
+	names := make(map[string]string, context.temp_allocator)
 	if doc := LDtkDoc_Get(state.project.rootPath, edit.file); doc != nil && doc.problem == "" {
 		main := LDtkDoc_Main(doc)
 		nextUid = Json_Int(main, Json_Get(main, Json_Root(main), "nextUid"), -1)
+		for _, i in doc.levels {
+			id, iid := LDtkDoc_LevelNames(doc, i)
+			names[strings.clone(iid, context.temp_allocator)] = strings.clone(id, context.temp_allocator)
+		}
 	}
 	problem, rename := LDtkOps_Apply(state.project.rootPath, edit)
+	if problem == "" do levelRenamesFollow(state, edit.file, names)
 	setOwned(&state.level.problem, problem)
 	if problem == "" do LevelRules_AfterEdit(state, edit, nextUid)
 	// A name added: its field is ready for the next
@@ -643,9 +770,19 @@ levelCanvasPressed :: proc(state: ^State, v: Level_Canvas_Pressed) {
 	drag^ = {}
 	file := LevelMode_File(state)
 	doc := LDtkDoc_Get(state.project.rootPath, file)
-	// The right button pans where it doesn't erase (level_paint.odin took it otherwise)
+	// The right button pans where it doesn't erase (level_paint.odin took it otherwise); a right
+	// click that doesn't move opens LDtk's world menu (level_world_tools.odin)
 	if v.pan || v.right || doc == nil || doc.problem != "" {
 		drag.mode = .Pan
+		if v.right && !v.pan && doc != nil && doc.problem == "" {
+			drag.menu = true
+			drag.at = v.at
+			drag.start = v.world
+			if v.level != "" do if at := LDtkDoc_FindLevel(doc, v.level); at >= 0 {
+				_, iid := LDtkDoc_LevelNames(doc, at)
+				drag.target = strings.clone(iid)
+			}
+		}
 		return
 	}
 	focused := state.level.focus
@@ -678,7 +815,7 @@ levelCanvasPressed :: proc(state: ^State, v: Level_Canvas_Pressed) {
 		if level < 0 do return
 		_, iid := LDtkDoc_LevelNames(doc, level)
 		rect := LDtkDoc_LevelRect(doc, level)
-		drag^ = {mode = .Level, target = strings.clone(iid), start = v.world, origin = {f32(rect[0]), f32(rect[1])}}
+		drag^ = {mode = .Level, target = strings.clone(iid), start = v.world, origin = {f32(rect[0]), f32(rect[1])}, free = v.free || v.ctrl, copy = v.alt && v.ctrl}
 	case:
 		// Empty space: nothing selected (a double-click there goes back to the world), the drag pans
 		if v.double && focused != "" {
@@ -695,6 +832,13 @@ levelCanvasPressed :: proc(state: ^State, v: Level_Canvas_Pressed) {
 @(private)
 levelFocus :: proc(state: ^State, level: string) {
 	setOwned(&state.level.focus, level)
+	setOwned(&state.level.focusIid, "")
+	if doc := LDtkDoc_Get(state.project.rootPath, LevelMode_File(state)); doc != nil && doc.problem == "" && level != "" {
+		if at := LDtkDoc_FindLevel(doc, level); at >= 0 {
+			_, iid := LDtkDoc_LevelNames(doc, at)
+			setOwned(&state.level.focusIid, iid)
+		}
+	}
 	LevelCanvas_Fit(state)
 }
 
@@ -707,12 +851,10 @@ LevelDrag_Target :: proc(state: ^State, doc: ^LDtkDoc) -> [2]int {
 	p := drag.origin + drag.offset
 	switch drag.mode {
 	case .None, .Pan:
+	case .Resize:
 	case .Level:
-		level := LDtkDoc_FindLevel(doc, drag.target)
-		if level >= 0 && LDtkDoc_WorldLayout(doc, doc.levels[level].world) == "GridVania" {
-			grid := LDtkDoc_WorldGrid(doc, doc.levels[level].world)
-			return {LDtk_SnapToGrid(int(math.round(p.x)), grid.x), LDtk_SnapToGrid(int(math.round(p.y)), grid.y)}
-		}
+		// LDtk's WorldTool: grids, other levels' edges (level_world_tools.odin)
+		return LevelDrag_LevelTarget(state, doc)
 	case .Entity:
 		e, found := LDtkDoc_FindEntity(doc, drag.target)
 		if !found || drag.free do break
@@ -804,10 +946,20 @@ levelSelect :: proc(state: ^State, file, level: string) {
 		Mode_Save(state)
 	}
 	setOwned(&state.level.level, level)
+	setOwned(&state.level.levelIid, "")
 	if level == "" {
 		setOwned(&state.level.entity, "")
 		setOwned(&state.level.focus, "")
+		setOwned(&state.level.focusIid, "")
 		return
+	}
+	if doc := LDtkDoc_Get(state.project.rootPath, LevelMode_File(state)); doc != nil && doc.problem == "" {
+		if at := LDtkDoc_FindLevel(doc, level); at >= 0 {
+			_, iid := LDtkDoc_LevelNames(doc, at)
+			setOwned(&state.level.levelIid, iid)
+			// Its depth shows (LDtk's selectLevel)
+			state.level.depth = LDtkDoc_LevelDepth(doc, at)
+		}
 	}
 	// A level of another world shows that world
 	if doc := LDtkDoc_Get(state.project.rootPath, LevelMode_File(state)); doc != nil && doc.problem == "" {

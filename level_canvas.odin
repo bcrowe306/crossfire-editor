@@ -110,8 +110,11 @@ LevelCanvasLevel :: struct {
 	image: string,
 	imageSize: [2]f32,
 	background: skald.Color,
-	// Not the focused level (while one is): drawn dimmed
-	dim: bool,
+	// Not the focused level (while one is), or of another world depth: drawn dimmed (and another
+	// depth's isn't picked)
+	dim, otherDepth: bool,
+	// A copy being dragged (Ctrl + Alt): drawn where it'll go, not hit
+	ghost: bool,
 }
 
 // How an entity is drawn (its definition's `renderMode`)
@@ -164,15 +167,27 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 	ls := make([dynamic]LevelCanvasLevel, context.temp_allocator)
 	drag := state.level.drag
 	moved := drag.moved ? LevelDrag_Target(state, doc) : {}
+	depth := LevelMode_Depth(state, doc)
+	ghosts := make([dynamic]LevelCanvasLevel, context.temp_allocator)
 	for _, i in doc.levels {
 		identifier, iid := LDtkDoc_LevelNames(doc, i)
 		r := LDtkDoc_LevelRect(doc, i)
 		at := [4]f32{f32(r[0]), f32(r[1]), f32(r[2]), f32(r[3])}
-		if drag.moved && drag.mode == .Level && drag.target == iid do at.xy = {f32(moved.x), f32(moved.y)}
+		dragged := drag.moved && drag.mode == .Level && drag.target == iid
+		if dragged && !drag.copy do at.xy = {f32(moved.x), f32(moved.y)}
 		bg := skald.rgb(0x202838)
 		if c, ok := LDtk_ParseColor(Json_String(main, Json_Get(main, doc.levels[i].entry, "__bgColor"))); ok do bg = skald.rgb(u32(c))
-		append(&ls, LevelCanvasLevel{identifier = identifier, iid = iid, world = at, image = levelImageName(LevelMode_File(state), iid), background = bg,
-			dim = state.level.focus != "" && identifier != state.level.focus})
+		otherDepth := state.level.focus == "" && LDtkDoc_LevelDepth(doc, i) != depth
+		l := LevelCanvasLevel{identifier = identifier, iid = iid, world = at, image = levelImageName(LevelMode_File(state), iid), background = bg,
+			dim = (state.level.focus != "" && identifier != state.level.focus) || otherDepth, otherDepth = otherDepth}
+		append(&ls, l)
+		// A copy dragged with Ctrl + Alt: where it'll go
+		if dragged && drag.copy && doc.levels[i].world == world {
+			ghost := l
+			ghost.ghost = true
+			ghost.world.xy = {f32(moved.x), f32(moved.y)}
+			append(&ghosts, ghost)
+		}
 	}
 	es := make([dynamic]LevelCanvasEntity, context.temp_allocator)
 	// Entities shown per document entity (a removed one in a stroke, a hidden layer's: none)
@@ -276,9 +291,13 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 	// Only the shown world (the lists above are by the document's levels: filtered last)
 	shownLevels := make([dynamic]LevelCanvasLevel, context.temp_allocator)
 	for l, i in ls do if doc.levels[i].world == world do append(&shownLevels, l)
+	append(&shownLevels, ..ghosts[:])
 	shownEntities := make([dynamic]LevelCanvasEntity, context.temp_allocator)
 	for en in es do for l, i in ls do if l.identifier == en.level && doc.levels[i].world == world do append(&shownEntities, en)
-	if len(doc.worlds) <= 1 do return ls[:], es[:], lk[:]
+	if len(doc.worlds) <= 1 {
+		append(&ls, ..ghosts[:])
+		return ls[:], es[:], lk[:]
+	}
 	shownLinks := make([dynamic]LevelCanvasLink, context.temp_allocator)
 	for link in lk {
 		if !link.entity {
@@ -392,6 +411,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				}
 			}
 			#reverse for l, i in levels {
+				if l.ghost || l.otherDepth do continue
 				r := l.world
 				if world.x >= r[0] && world.y >= r[1] && world.x < r[0] + r[2] && world.y < r[1] + r[3] {
 					hoveredLevel = i
@@ -408,6 +428,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				if input.mouse_delta != {} do skald.send(ctx, Msg(Level_Canvas_Moved{world = world, delta = input.mouse_delta, free = shift}))
 				if input.mouse_released[.Left] || input.mouse_released[.Middle] || input.mouse_released[.Right] do skald.send(ctx, Msg(Level_Canvas_Released{}))
 				cursor = stroking ? LevelPaint_Cursor(s) : .Move
+				if s.level.drag.mode == .Resize do cursor = LevelResize_Cursor(s.level.drag.handle)
 			} else if hovered {
 				if input.scroll != {} {
 					wheelZoom, pan := wheelAction(input.scroll, input.modifiers, s.settings.wheelPans)
@@ -421,12 +442,14 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				} else if input.mouse_pressed[.Left] || input.mouse_pressed[.Right] {
 					// The right button: LDtk's eraser on the focused level, else a pan (levelCanvasPressed)
 					right := !input.mouse_pressed[.Left]
-					press := Level_Canvas_Pressed{world = world, double = !right && input.mouse_click_count[.Left] >= 2, free = shift, right = right, alt = alt, ctrl = ctrl}
+					press := Level_Canvas_Pressed{world = world, double = !right && input.mouse_click_count[.Left] >= 2, free = shift, right = right, alt = alt, ctrl = ctrl, at = input.mouse_pos}
 					if hoveredEntity >= 0 && !press.double do press.entity = strings.clone(entities[hoveredEntity].iid, context.temp_allocator)
 					if hoveredLevel >= 0 do press.level = strings.clone(levels[hoveredLevel].identifier, context.temp_allocator)
 					skald.send(ctx, Msg(press))
 				}
 				if hoveredEntity >= 0 || hoveredLevel >= 0 do cursor = .Pointer
+				if s.level.spot do cursor = .Crosshair
+				if h := LevelResize_HandleAt(s, doc, world); h != .None do cursor = LevelResize_Cursor(h)
 				if s.level.focus != "" && hoveredLevel >= 0 && levels[hoveredLevel].identifier == s.level.focus && LevelPaint_Cursor(s) != .Default do cursor = LevelPaint_Cursor(s)
 			}
 		}
@@ -443,7 +466,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			pieces: []PaintPiece,
 			background: skald.Color,
 			label: string,
-			selected, hovered, dim: bool,
+			selected, hovered, dim, ghost: bool,
 		}
 		PaintEntity :: struct {
 			rect: [4]f32,
@@ -463,6 +486,9 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			showEntities: bool,
 			// The focused level's tool overlay (level_canvas_paint.odin)
 			overlay: ^LevelOverlay,
+			// The world tools' (level_world_tools.odin): handles, a resize, a new level's spot, a
+			// linear world's insertion
+			world: ^LevelWorldOverlay,
 		}
 		paint := new(Paint, context.temp_allocator)
 		pl := make([]PaintLevel, len(levels), context.temp_allocator)
@@ -496,7 +522,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				append(&pieces, PaintPiece{rect = {sp.x, sp.y, r[2] * zoom, r[3] * zoom}, image = piece.image, src = piece.size, alpha = alpha})
 			}
 			pl[i] = {rect = {p.x, p.y, l.world[2] * zoom, l.world[3] * zoom}, pieces = pieces[:],
-				background = l.background, label = l.identifier, selected = l.identifier == s.level.level, hovered = i == hoveredLevel, dim = l.dim}
+				background = l.background, label = l.identifier, selected = l.identifier == s.level.level && !l.ghost, hovered = i == hoveredLevel, dim = l.dim, ghost = l.ghost}
 		}
 		pe := make([]PaintEntity, len(entities), context.temp_allocator)
 		for en, i in entities {
@@ -512,8 +538,9 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 		}
 		paint^ = {levels = pl, entities = pe, links = pk[:], bg = th.color.bg, line = th.color.border, accent = th.color.primary, fg = th.color.fg,
 			muted = th.color.fg_muted, link = skald.rgb(0x7FD1FF), neighbour = th.color.fg_muted, fontSize = th.font.size_xs, zoom = zoom, showEntities = zoom >= 0.15}
-		if len(doc.worlds) > 0 && LDtkDoc_WorldLayout(doc, 0) == "GridVania" {
-			grid := LDtkDoc_WorldGrid(doc, 0)
+		shownWorld := LevelMode_World(s, doc)
+		if len(doc.worlds) > 0 && LDtkDoc_WorldLayout(doc, shownWorld) == "GridVania" {
+			grid := LDtkDoc_WorldGrid(doc, shownWorld)
 			step := [2]f32{f32(grid.x), f32(grid.y)} * zoom
 			if step.x >= 8 && step.y >= 8 {
 				origin := toScreen({0, 0}, center, zoom, size)
@@ -531,6 +558,15 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				}
 				paint.overlay = LevelOverlay_Build(ctx, s, doc, l.world, hover, center, zoom, size)
 			}
+		}
+		{
+			hover: Maybe([2]f32)
+			if state, drawn := ctx.widgets.states[id]; drawn && skald.widget_hovered(ctx, id) {
+				local := ctx.input.mouse_pos - {state.last_rect.x, state.last_rect.y}
+				hover = center + (local - size * 0.5) / zoom
+			}
+			paint.world = LevelWorldOverlay_Build(s, doc, hover, center, zoom, size)
+			if s.level.spot do cursor = .Crosshair
 		}
 		return skald.canvas(ctx, paint, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 			r := painter.r
@@ -554,6 +590,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				skald.pop_clip(r)
 				// Not the focused level: faded into the background, as LDtk's level view shows its neighbours
 				if l.dim do skald.draw_rect(r, rect, {p.bg.r, p.bg.g, p.bg.b, 0.7})
+				// A copy being dragged: translucent over what's there
+				if l.ghost do skald.draw_rect(r, rect, {p.accent.r, p.accent.g, p.accent.b, 0.25})
 			}
 			// The selected layer's grid under the entities
 			if p.overlay != nil do LevelOverlay_DrawGrid(r, b, p.overlay)
@@ -608,6 +646,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				}
 			}
 			if p.overlay != nil do LevelOverlay_DrawHint(r, b, p.overlay)
+			if p.world != nil do LevelWorldOverlay_Draw(r, b, p.world, p.fg, p.accent, p.bg, p.fontSize)
 		}, id = id, width = size.x, height = size.y, cursor = cursor)
 	}
 }

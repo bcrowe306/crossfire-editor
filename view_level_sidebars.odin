@@ -158,6 +158,13 @@ levelLevelsPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 			return Level_World_Chosen(iid)
 		}, id = skald.hash_id("level-world"), width = choiceWidth))
 	}
+	if readable {
+		// LDtk's world panel's New level: a spot picked on the canvas (level_world_tools.odin)
+		append(&choices, skald.button(ctx, s.level.spot ? fmt.tprintf("%s  Picking a spot... (Esc)", ICON_CROSSHAIRS) : fmt.tprintf("%s  New Level", ICON_PLUS),
+			Msg(Level_Spot_Started{cancel = s.level.spot}), id = skald.hash_id("level-new"),
+			bg = s.level.spot ? th.color.primary : th.color.surface, fg = s.level.spot ? th.color.on_primary : th.color.fg,
+			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+	}
 	if len(choices) > 0 do append(&parts, skald.col(..choices[:], spacing = th.spacing.xs, padding = th.spacing.xs))
 	switch {
 	case doc == nil:
@@ -193,7 +200,7 @@ levelLevelsPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 		}
 		append(&rows, row)
 	}
-	if len(rows) == 0 do append(&rows, skald.col(skald.text("This world has no levels: add them in LDtk.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
+	if len(rows) == 0 do append(&rows, skald.col(skald.text("This world has no levels: New Level adds one.", th.color.fg_muted, th.font.size_xs, max_width = textWidth + 60), padding = th.spacing.sm))
 	list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], cross_align = .Stretch), id = skald.hash_id("level-list-scroll"))
 	append(&parts, skald.flex(1, list))
 	return parts[:]
@@ -354,6 +361,9 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 // string, the menu's target outlives the frame)
 Ctx_Level :: struct {
 	level: int,
+	// The canvas's menu (level_world_tools.odin): the world point clicked
+	world: [2]f32,
+	canvas: bool,
 }
 
 /*
@@ -370,6 +380,10 @@ LevelMode_MenuItems :: proc(s: ^State, items: ^[dynamic]skald.Menu_Item(Msg), t:
 	shown := LevelMode_ScenesShowing(s, file, level)
 	index := -1
 	for asset, i in s.project.assets do if asset.kind == .LDtk && asset.path == file do index = i
+	if t.canvas {
+		LevelWorld_MenuItems(s, items, t)
+		return
+	}
 	focused := s.level.focus == level
 	append(items,
 		skald.Menu_Item(Msg){label = focused ? "Back to the World" : "Focus", msg = Msg(Level_Focus_Changed(focused ? "" : level))},
@@ -377,9 +391,7 @@ LevelMode_MenuItems :: proc(s: ^State, items: ^[dynamic]skald.Menu_Item(Msg), t:
 		skald.Menu_Item(Msg){label = "New Scene with This Level", msg = Msg(Level_Scene_Created{})},
 		skald.Menu_Item(Msg){label = "Open in LDtk at This Level", msg = Msg(LDtk_Asset_Open_Requested(index)), disabled = index < 0},
 		MENU_SEPARATOR,
-		skald.Menu_Item(Msg){label = "Rename (a later phase: LDtk)", disabled = true},
-		skald.Menu_Item(Msg){label = "Duplicate (a later phase: LDtk)", disabled = true},
-		skald.Menu_Item(Msg){label = "Delete (a later phase: LDtk)", disabled = true},
-		skald.Menu_Item(Msg){label = "New Level (a later phase: LDtk)", disabled = true},
 	)
+	levelMenuEdits(s, items, doc, t.level)
+	append(items, MENU_SEPARATOR, skald.Menu_Item(Msg){label = "New Level...", msg = Msg(Level_Spot_Started{})})
 }

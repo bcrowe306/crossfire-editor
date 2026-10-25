@@ -1176,7 +1176,9 @@ LevelPaint_Update :: proc(state: ^State, m: Msg) -> bool {
 		case .Level_Tile_Stacking: paint.noStacking = !paint.noStacking
 		case .Level_Auto_Layers:   paint.hideAutoLayers = !paint.hideAutoLayers
 		case .Level_Cancel:
-			if paint.pick.kind != .None {
+			if state.level.spot {
+				state.level.spot = false
+			} else if paint.pick.kind != .None {
 				levelPickCancel(state)
 			} else {
 				setOwned(&state.level.entity, "")
