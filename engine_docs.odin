@@ -433,7 +433,7 @@ ENGINE_API_AREAS := [?]EngineAPIArea{
 	{"assets-and-import", "Assets and import", "The resource manager, typed asset handles and import settings.", {"resource_manager.odin", "assets.odin", "asset_import.odin"}},
 	{"platform-player-web", "Platform, player and web", "The player program, the platform layer (desktop and browser), the browser player, data packs and static SDL linking.", {"player.odin", "platform_native.odin", "platform_web.odin", "player_web.odin", "pack.odin", "sdl_static.odin"}},
 	{"steam-touch-multiplayer", "Steam, touch and local multiplayer", "Steam achievements, stats and cloud files; touch input and on-screen controls; local multiplayer players and split screen.", {"steam.odin", "touch.odin", "players.odin"}},
-	{"debug-and-live", "Debug, logging and live", "Debug drawing and the debug overlay, logging (levels, categories, SDL's messages), the live link with the editor, and Spall profiling traces.", {"debug.odin", "logging.odin", "logging_windows.odin", "logging_darwin.odin", "live.odin", "live_native.odin", "live_web.odin", "trace.odin", "trace_native.odin", "trace_web.odin", "trace_clock_posix.odin", "trace_clock_other.odin"}},
+	{"debug-and-live", "Debug, logging and live", "Debug drawing and the debug overlay, logging (levels, categories, SDL's messages), the live link with the editor, and Spall profiling traces.", {"debug.odin", "logging.odin", "logging_windows.odin", "logging_darwin.odin", "live.odin", "live_native.odin", "live_web.odin", "trace.odin", "trace_native.odin", "trace_web.odin", "trace_clock_posix.odin", "trace_clock_windows.odin", "trace_clock_other.odin"}},
 	{"utilities", "Utilities", "Paths, running other programs, and the package overview.", {"paths.odin", "process_exec.odin", "doc.odin"}},
 }
 
