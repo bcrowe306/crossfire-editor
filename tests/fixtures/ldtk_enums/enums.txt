@@ -1,0 +1,4 @@
+Fruit : apple, banana, cherry
+Tool: hammer;saw
+
+Not an enum line

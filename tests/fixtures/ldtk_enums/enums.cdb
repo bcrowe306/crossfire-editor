@@ -1,0 +1,23 @@
+{
+	"sheets": [
+		{
+			"name": "monsters",
+			"columns": [
+				{ "typeStr": "0", "name": "id" },
+				{ "typeStr": "11", "name": "tint" }
+			],
+			"lines": [
+				{ "id": "Slime", "tint": 65280 },
+				{ "id": "Bat", "tint": 255 },
+				{ "id": "Slime", "tint": 0 }
+			],
+			"props": { "hasGroup": false, "displayIcon": null }
+		},
+		{
+			"name": "nothing",
+			"columns": [ { "typeStr": "1", "name": "text" } ],
+			"lines": [],
+			"props": { "hasGroup": false }
+		}
+	]
+}

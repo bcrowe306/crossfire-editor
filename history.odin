@@ -1911,6 +1911,14 @@ LDTK_EDIT_LABELS := [LDtkEditOp]string{
 	.Enum_Name = "Rename an enum", .Enum_Value_Name = "Rename an enum value", .Enum_Value_Color = "Change an enum value's color",
 	.Enum_Value_Added = "Add an enum value", .Enum_Added = "Add an enum",
 	.World_Layout = "Change the world's layout", .World_Grid_Width = "Change the world's grid", .World_Grid_Height = "Change the world's grid",
+	.Def_Set = "Change a definition", .Def_Added = "Add a definition", .Def_Removed = "Remove a definition",
+	.Def_Duplicated = "Duplicate a definition", .Def_Moved = "Move a definition", .Field_Converted = "Convert a field's type",
+	.IntGrid_Value_Added = "Add an IntGrid value", .IntGrid_Value_Removed = "Remove an IntGrid value", .IntGrid_Value_Moved = "Move an IntGrid value",
+	.IntGrid_Value_Tile = "Change an IntGrid value's tile", .IntGrid_Group_Added = "Add an IntGrid group", .IntGrid_Group_Removed = "Remove an IntGrid group",
+	.IntGrid_Group_Set = "Change an IntGrid group", .IntGrid_Group_Moved = "Move an IntGrid group",
+	.Enum_Value_Removed = "Remove an enum value", .Enum_Value_Moved = "Move an enum value", .Enum_Value_Tile = "Change an enum value's icon",
+	.Enum_Import = "Import external enums", .Enum_Sync = "Sync external enums", .Enum_External_Removed = "Remove external enums",
+	.Tileset_Tag = "Tag tiles", .Tileset_Custom_Data = "Change tiles' custom data",
 }
 
 /*
@@ -1922,10 +1930,15 @@ LDtkEdit_Info :: proc(edit: LDtk_Edit) -> EditInfo {
 	info := EditInfo{scope = .Files, ldtkFile = edit.file, label = fmt.tprintf("%s in %s", LDTK_EDIT_LABELS[edit.op], filepath.base(edit.file))}
 	#partial switch edit.op {
 	case .Layer_Move, .Layer_Visible, .Layer_Parallax_Scaling, .Entity_Moved, .Level_Moved, .Entity_Ref, .Enum_Value_Added, .Enum_Added, .World_Layout,
-	     .Entity_Added, .Entity_Removed, .Entity_Resized, .Entity_Duplicated, .Entity_Point:
+	     .Entity_Added, .Entity_Removed, .Entity_Resized, .Entity_Duplicated, .Entity_Point,
+	     .Def_Added, .Def_Removed, .Def_Duplicated, .Def_Moved, .Field_Converted, .IntGrid_Value_Added, .IntGrid_Value_Removed, .IntGrid_Value_Moved,
+	     .IntGrid_Group_Added, .IntGrid_Group_Removed, .IntGrid_Group_Moved, .Enum_Value_Removed, .Enum_Value_Moved, .Enum_Import, .Enum_Sync,
+	     .Enum_External_Removed, .Tileset_Tag:
 	case:
-		info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.world, edit.def, edit.field, edit.index, edit.level, edit.entity))
+		info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.world, edit.def, edit.field, edit.index, edit.level, edit.entity, edit.kind, edit.key))
 	}
+	if edit.op == .Def_Set do info.label = fmt.tprintf("%s in %s", LDtkDefs_SetLabel(edit), filepath.base(edit.file))
+	// Renames scenes follow (their LDtkLevel nodes name layers and entity types)
 	info.withProject = edit.op == .Layer_Name || edit.op == .Entity_Name
 	return info
 }

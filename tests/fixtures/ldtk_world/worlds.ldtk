@@ -955,7 +955,7 @@
 					"bgPos": null,
 					"bgPivotX": 0.5,
 					"bgPivotY": 0.5,
-					"__smartColor": "#ADADB5",
+					"__smartColor": "#848992",
 					"__bgPos": null,
 					"externalRelPath": null,
 					"fieldInstances": [
@@ -1137,7 +1137,7 @@
 												"entityIid": "coin1",
 												"layerIid": "lvl-meadow-entities",
 												"levelIid": "lvl-meadow",
-												"worldIid": "world-proj-worlds"
+												"worldIid": "world-over"
 											},
 											"__tile": null,
 											"defUid": 46,
@@ -1164,8 +1164,16 @@
 										0.5,
 										1
 									],
-									"__tags": [],
-									"__tile": null,
+									"__tags": [
+										"pickup"
+									],
+									"__tile": {
+										"tilesetUid": 5,
+										"x": 16,
+										"y": 16,
+										"w": 16,
+										"h": 16
+									},
 									"__smartColor": "#FFCC00",
 									"iid": "coin1",
 									"width": 16,
@@ -1644,7 +1652,7 @@
 					"bgPos": null,
 					"bgPivotX": 0.5,
 					"bgPivotY": 0.5,
-					"__smartColor": "#ADADB5",
+					"__smartColor": "#848992",
 					"__bgPos": null,
 					"externalRelPath": null,
 					"fieldInstances": [
@@ -1714,8 +1722,16 @@
 										0.5,
 										1
 									],
-									"__tags": [],
-									"__tile": null,
+									"__tags": [
+										"pickup"
+									],
+									"__tile": {
+										"tilesetUid": 5,
+										"x": 16,
+										"y": 16,
+										"w": 16,
+										"h": 16
+									},
 									"__smartColor": "#FFCC00",
 									"iid": "coin2",
 									"width": 16,
@@ -2212,7 +2228,7 @@
 					"bgPos": null,
 					"bgPivotX": 0.5,
 					"bgPivotY": 0.5,
-					"__smartColor": "#ADADB5",
+					"__smartColor": "#848992",
 					"__bgPos": null,
 					"externalRelPath": null,
 					"fieldInstances": [
@@ -2277,8 +2293,16 @@
 										0.5,
 										1
 									],
-									"__tags": [],
-									"__tile": null,
+									"__tags": [
+										"pickup"
+									],
+									"__tile": {
+										"tilesetUid": 5,
+										"x": 16,
+										"y": 16,
+										"w": 16,
+										"h": 16
+									},
 									"__smartColor": "#FFCC00",
 									"iid": "coin3",
 									"width": 16,

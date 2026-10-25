@@ -87,6 +87,12 @@ LevelMode :: struct {
 	// The selected layer, entity type and enum (definitions' uids; -1: the first): the Layers,
 	// Entities and Enums tabs show them, the tool row's tools follow the layer's type
 	layerDef, entityDef, enumDef: int,
+	// The definitions editors' other picks (uids; -1 the first): the entity type's field, the
+	// level field, the tileset; the tileset's tile data mode (an enum value tagging tiles, ""
+	// custom data; owned) and the tile whose custom data shows (-1 none)
+	fieldDef, levelField, tilesetDef: int,
+	tileTag: string,
+	dataTile: int,
 	// The tool the canvas uses (view_level_tools.odin)
 	tool: LevelTool,
 	// Painting: the palette's picks, the brush's options, the stroke (level_paint.odin)
@@ -290,6 +296,20 @@ LDtk_Text_Typed :: struct {
 	edit: LDtk_Edit,
 }
 
+// A pick in the definitions editors (view_ldtk_defs.odin): a field, a level field, a tileset (its
+// uid), the tile data mode (`text`: an enum value, "" custom data), the tile whose data shows
+LDtk_Def_Picked :: struct {
+	what: enum {
+		Field,
+		Level_Field,
+		Tileset,
+		Tile_Tag,
+		Data_Tile,
+	},
+	uid: int,
+	text: string,
+}
+
 // The name typed for a new enum value or enum (the frame's string)
 LDtk_New_Name_Typed :: struct {
 	enumValue: bool,
@@ -326,9 +346,10 @@ LevelMode_Destroy :: proc(level: ^LevelMode) {
 	delete(level.problem)
 	delete(level.newValue)
 	delete(level.newEnum)
+	delete(level.tileTag)
 	LevelPaint_Destroy(&level.paint)
 	layout, tab := level.layout, level.bottomTab
-	level^ = {layout = layout, bottomTab = tab, layerDef = -1, entityDef = -1, enumDef = -1, paint = {entityDef = -1}}
+	level^ = {layout = layout, bottomTab = tab, layerDef = -1, entityDef = -1, enumDef = -1, fieldDef = -1, levelField = -1, tilesetDef = -1, dataTile = -1, paint = {entityDef = -1}}
 }
 
 /*
@@ -511,6 +532,17 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		case .Enums: state.level.enumDef = v.uid
 		}
 		if !LevelTool_Available(state, state.level.tool) do state.level.tool = .Select
+	case LDtk_Def_Picked:
+		setOwned(&state.level.problem, "")
+		switch v.what {
+		case .Field: state.level.fieldDef = v.uid
+		case .Level_Field: state.level.levelField = v.uid
+		case .Tileset:
+			state.level.tilesetDef = v.uid
+			state.level.dataTile = -1
+		case .Tile_Tag: setOwned(&state.level.tileTag, v.text)
+		case .Data_Tile: state.level.dataTile = v.uid
+		}
 	case LDtk_Edit:
 		levelApplyEdit(state, v)
 	case LDtk_Text_Typed:
@@ -569,6 +601,8 @@ levelApplyEdit :: proc(state: ^State, edit: LDtk_Edit) {
 	// A name added: its field is ready for the next
 	if problem == "" && edit.op == .Enum_Value_Added do setOwned(&state.level.newValue, "")
 	if problem == "" && edit.op == .Enum_Added do setOwned(&state.level.newEnum, "")
+	// A definition made or copied is the one the tab shows next (LDtk selects it)
+	if problem == "" do LevelMode_SelectMade(state, edit)
 	if problem != "" || rename.kind == .None do return
 	for &scene in state.project.scenes {
 		for &node in scene.nodes {

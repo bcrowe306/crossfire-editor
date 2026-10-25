@@ -135,8 +135,8 @@ oneProblem :: proc(text: string) -> []string {
 }
 
 // Every file of an LDtk project against the schema: the .ldtk file and its .ldtkl files
-@(private="file")
-expectValid :: proc(t: ^testing.T, path: string, loc := #caller_location) {
+@(private)
+expectValidFile :: proc(t: ^testing.T, path: string, loc := #caller_location) {
 	text, err := os.read_entire_file(path, context.temp_allocator)
 	testing.expectf(t, err == nil, "%s reads", path, loc = loc)
 	for p in LDtk_SchemaProblems(string(text)) do testing.expectf(t, false, "%s: %s", filepath.base(path), p, loc = loc)
@@ -158,7 +158,7 @@ expectValid :: proc(t: ^testing.T, path: string, loc := #caller_location) {
 
 // A value at a JSON path of a file as the editor has it (an edited document's unsaved text, else
 // the file on disk; "" when it's missing)
-@(private="file")
+@(private)
 valueAt :: proc(path, at: string) -> string {
 	text, found := LDtkDoc_CachedText(path)
 	if !found {
@@ -174,7 +174,7 @@ valueAt :: proc(path, at: string) -> string {
 }
 
 // JSON without the spaces between its tokens (strings kept as they are)
-@(private="file")
+@(private)
 compact :: proc(text: string) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	inString := false
@@ -199,7 +199,7 @@ compact :: proc(text: string) -> string {
 
 // A copy of the LDtk tab's fixture in a fresh folder (the folder; a failed copy stops the test:
 // its paths would be relative to the working folder)
-@(private="file")
+@(private)
 worldCopy :: proc(name: string) -> string {
 	dir := tempDir(name)
 	// Folder_Copy makes the folder itself
@@ -280,7 +280,7 @@ ldtk_fixtures_match_the_schema :: proc(t: ^testing.T) {
 	broken := LDtk_SchemaProblems(`{"iid": 5}`)
 	testing.expect(t, len(broken) > 0, "a broken project has problems")
 	for path in ([]string{"tests/fixtures/ldtk_world/world.ldtk", "tests/fixtures/ldtk_world/external.ldtk", "tests/fixtures/ldtk_world/worlds.ldtk", "examples/demo_project/assets/levels/legacy.ldtk"}) {
-		expectValid(t, path)
+		expectValidFile(t, path)
 	}
 }
 
@@ -303,7 +303,7 @@ ldtk_edits_write_valid_files :: proc(t: ^testing.T) {
 		testing.expectf(t, problem == "", "%v: %s", edit.op, problem, loc = loc)
 		testing.expect_value(t, LDtkDoc_Save(dir, "world.ldtk"), "", loc = loc)
 		testing.expect(t, !LDtkDoc_IsUnsaved(dir, "world.ldtk"), "saved", loc = loc)
-		expectValid(t, path, loc)
+		expectValidFile(t, path, loc)
 	}
 	// Layers (Walls is uid 3, Tiles 2, Entities 1)
 	ok(t, dir, path, {op = .Layer_Opacity, def = 3, number = 0.75})
@@ -327,11 +327,15 @@ ldtk_edits_write_valid_files :: proc(t: ^testing.T) {
 	ok(t, dir, path, {op = .Layer_Move, def = 3, number = -1})
 	testing.expect_value(t, valueAt(path, "defs.layers.1.uid"), "3")
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.layerInstances.1.layerDefUid"), "3")
-	// Grid size: refused where cells are drawn, allowed on the entities' layer (their cells follow)
-	testing.expect(t, apply(t, dir, {op = .Layer_Grid_Size, def = 3, number = 8}) != "", "painted cells: refused")
+	// Grid size: painted cells keep their cell (LDtk's remapToGridSize), entities move by the ratio
+	ok(t, dir, path, {op = .Layer_Grid_Size, def = 3, number = 8})
+	testing.expect_value(t, valueAt(path, "levels.identifier=Start.layerInstances.layerDefUid=3.__cWid"), "32")
+	testing.expect_value(t, valueAt(path, "levels.identifier=Start.layerInstances.layerDefUid=3.intGridCsv.224"), "1") // the bottom row of 16 px cells (row 7), now row 7 of 32 cells
+	ok(t, dir, path, {op = .Layer_Grid_Size, def = 3, number = 16})
 	ok(t, dir, path, {op = .Layer_Grid_Size, def = 1, number = 8})
 	testing.expect_value(t, valueAt(path, "levels.identifier=Start.layerInstances.layerDefUid=1.__cWid"), "32")
-	testing.expect_value(t, valueAt(path, "levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=coin1.__grid"), "[13,8]") // the pivot's at its bottom
+	testing.expect_value(t, valueAt(path, "levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=coin1.px"), "[52,36]") // half of (104, 72)
+	testing.expect_value(t, valueAt(path, "levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=coin1.__grid"), "[6,4]") // the pivot's at its bottom
 
 	// Entity definitions (Player 10, Coin 11, Door 12)
 	ok(t, dir, path, {op = .Entity_Name, def = 11, text = "gem"})
@@ -402,8 +406,9 @@ ldtk_edits_write_valid_files :: proc(t: ^testing.T) {
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldX"), "512")
 	testing.expect_value(t, valueAt(path, "levels.identifier=Start.__neighbours"), `[{"levelIid":"lvl-cave","dir":"e"}]`)
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.__neighbours.0.dir"), "w")
-	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.layerInstances.layerDefUid=1.entityInstances.iid=coin3.__worldX"), "568")
-	testing.expect_value(t, valueAt(path, "toc.0.instancesData.2.worldX"), "568")
+	// coin3 at x 28 since the entities' grid was halved (56 before)
+	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.layerInstances.layerDefUid=1.entityInstances.iid=coin3.__worldX"), "540")
+	testing.expect_value(t, valueAt(path, "toc.0.instancesData.2.worldX"), "540")
 	ok(t, dir, path, {op = .World_Layout, text = "GridVania"})
 	ok(t, dir, path, {op = .Level_Moved, level = "lvl-tower", number = 700, number2 = 10})
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldX"), "768")
@@ -468,7 +473,7 @@ ldtk_external_levels_are_written_where_they_are :: proc(t: ^testing.T) {
 	testing.expect_value(t, LDtkDoc_Save(dir, "external.ldtk"), "")
 	disk, _ = os.read_entire_file(south, context.temp_allocator)
 	testing.expect(t, strings.contains(string(disk), `"__opacity": 0.25`), "saved")
-	expectValid(t, path)
+	expectValidFile(t, path)
 }
 
 @(test)
@@ -523,7 +528,7 @@ ldtk_edits_undo_and_redo :: proc(t: ^testing.T) {
 	send(&state, Action.Save_Project)
 	testing.expect(t, !LDtkDoc_IsUnsaved(dir, "world.ldtk") && !Project_IsModified(&state), "saved")
 	testing.expect(t, strings.contains(disk(path), `"displayOpacity": 0.2`), "written")
-	expectValid(t, path)
+	expectValidFile(t, path)
 
 	// Saved in LDtk since: the document is read again; an undo of a change elsewhere in it keeps LDtk's
 	text := disk(path)
@@ -547,7 +552,7 @@ ldtk_edits_undo_and_redo :: proc(t: ^testing.T) {
 	send(&state, LDtk_Conflict_Chosen(.Keep_File))
 	testing.expect(t, !state.level.conflict.open, "answered")
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.9")
-	expectValid(t, path)
+	expectValidFile(t, path)
 }
 
 /*
@@ -611,7 +616,7 @@ ldtk_unsaved_edits_and_outside_changes :: proc(t: ^testing.T) {
 	testing.expect_value(t, valueAt(path, "defs.layers.uid=3.displayOpacity"), "0.4")
 	send(&state, Action.Save_Project)
 	testing.expect(t, strings.contains(disk(path), `"displayOpacity": 0.4`), "written over LDtk's")
-	expectValid(t, path)
+	expectValidFile(t, path)
 
 	// Again, then Reload It: the file as LDtk saved it, the edit dropped
 	send(&state, LDtk_Edit{op = .Layer_Opacity, file = "world.ldtk", def = 3, number = 0.6})
@@ -833,5 +838,5 @@ level_canvas_drags_levels_and_entities :: proc(t: ^testing.T) {
 	send(&state, Msg(Action.Undo))
 	testing.expect_value(t, valueAt(path, "defs.entities.uid=10.identifier"), "Player")
 	testing.expect_value(t, LDtkDoc_Save(dir, "world.ldtk"), "")
-	expectValid(t, path)
+	expectValidFile(t, path)
 }

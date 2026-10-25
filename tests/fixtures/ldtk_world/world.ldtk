@@ -943,7 +943,7 @@
 			"bgPos": null,
 			"bgPivotX": 0.5,
 			"bgPivotY": 0.5,
-			"__smartColor": "#ADADB5",
+			"__smartColor": "#848992",
 			"__bgPos": null,
 			"externalRelPath": null,
 			"fieldInstances": [
@@ -1170,8 +1170,16 @@
 								0.5,
 								1
 							],
-							"__tags": [],
-							"__tile": null,
+							"__tags": [
+								"pickup"
+							],
+							"__tile": {
+								"tilesetUid": 5,
+								"x": 16,
+								"y": 16,
+								"w": 16,
+								"h": 16
+							},
 							"__smartColor": "#FFCC00",
 							"iid": "coin1",
 							"width": 16,
@@ -1204,8 +1212,16 @@
 								0.5,
 								1
 							],
-							"__tags": [],
-							"__tile": null,
+							"__tags": [
+								"pickup"
+							],
+							"__tile": {
+								"tilesetUid": 5,
+								"x": 16,
+								"y": 16,
+								"w": 16,
+								"h": 16
+							},
 							"__smartColor": "#B05030",
 							"iid": "door1",
 							"width": 16,
@@ -1704,7 +1720,7 @@
 			"bgPos": null,
 			"bgPivotX": 0.5,
 			"bgPivotY": 0.5,
-			"__smartColor": "#ADADB5",
+			"__smartColor": "#848992",
 			"__bgPos": null,
 			"externalRelPath": null,
 			"fieldInstances": [
@@ -1788,8 +1804,16 @@
 								0.5,
 								1
 							],
-							"__tags": [],
-							"__tile": null,
+							"__tags": [
+								"pickup"
+							],
+							"__tile": {
+								"tilesetUid": 5,
+								"x": 16,
+								"y": 16,
+								"w": 16,
+								"h": 16
+							},
 							"__smartColor": "#FFCC00",
 							"iid": "coin2",
 							"width": 16,
@@ -1829,8 +1853,16 @@
 								0.5,
 								1
 							],
-							"__tags": [],
-							"__tile": null,
+							"__tags": [
+								"pickup"
+							],
+							"__tile": {
+								"tilesetUid": 5,
+								"x": 16,
+								"y": 16,
+								"w": 16,
+								"h": 16
+							},
 							"__smartColor": "#B05030",
 							"iid": "door2",
 							"width": 16,
@@ -2336,7 +2368,7 @@
 			"bgPos": null,
 			"bgPivotX": 0.5,
 			"bgPivotY": 0.5,
-			"__smartColor": "#ADADB5",
+			"__smartColor": "#848992",
 			"__bgPos": null,
 			"externalRelPath": null,
 			"fieldInstances": [
@@ -2406,8 +2438,16 @@
 								0.5,
 								1
 							],
-							"__tags": [],
-							"__tile": null,
+							"__tags": [
+								"pickup"
+							],
+							"__tile": {
+								"tilesetUid": 5,
+								"x": 16,
+								"y": 16,
+								"w": 16,
+								"h": 16
+							},
 							"__smartColor": "#FFCC00",
 							"iid": "coin3",
 							"width": 16,

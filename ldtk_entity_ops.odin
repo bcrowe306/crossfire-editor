@@ -70,7 +70,7 @@ ldtkJV :: proc(json: ^JsonDoc, node: int) -> LDtkJV {
 }
 
 // A JSON text as a value to write (temp; null when it doesn't parse)
-@(private="file")
+@(private)
 textJV :: proc(text: string) -> LDtkJV {
 	doc, problem := Json_Parse(text, context.temp_allocator)
 	if problem != "" do return LDtkJNull{}
@@ -78,19 +78,19 @@ textJV :: proc(text: string) -> LDtkJV {
 }
 
 // The text of a value as LDtk writes it at a node's place (its line's indentation)
-@(private="file")
+@(private)
 writeAt :: proc(json: ^JsonDoc, node: int, v: LDtkJV, minified: bool) -> string {
 	return LDtk_PrettyJson(v, minified, LDtk_IndentAt(json.text, int(json.nodes[node].start)))
 }
 
 // An object member as a pair
-@(private="file")
+@(private)
 jpair :: #force_inline proc(key: string, value: LDtkJV) -> LDtkJPair {
 	return {key, value}
 }
 
 // A list of values as an array (temp)
-@(private="file")
+@(private)
 jarray :: proc(items: ..LDtkJV) -> LDtkJV {
 	out := make([]LDtkJV, len(items), context.temp_allocator)
 	copy(out, items)
@@ -98,7 +98,7 @@ jarray :: proc(items: ..LDtkJV) -> LDtkJV {
 }
 
 // A list of pairs as an object (temp)
-@(private="file")
+@(private)
 jobject :: proc(pairs: ..LDtkJPair) -> LDtkJV {
 	out := make([]LDtkJPair, len(pairs), context.temp_allocator)
 	copy(out, pairs)
@@ -110,7 +110,7 @@ Edits applied in stages: each stage's patches are made on the document as the st
 it (a removal and an addition in one array can't be one set of patches), then the document gets
 the last texts once.
 */
-@(private="file")
+@(private)
 Stages :: struct {
 	base: ^LDtkDoc,
 	texts: []string,
@@ -119,13 +119,13 @@ Stages :: struct {
 	made: [dynamic]^LDtkDoc,
 }
 
-@(private="file")
+@(private)
 stagesMake :: proc(doc: ^LDtkDoc) -> Stages {
 	return {base = doc, texts = LDtkDoc_Texts(doc), cur = doc, made = make([dynamic]^LDtkDoc, context.temp_allocator)}
 }
 
 // Applies a stage's patches; the next stage's are made on what they made
-@(private="file")
+@(private)
 stagesApply :: proc(s: ^Stages, patches: ^LDtkPatches) -> string {
 	if LDtkPatches_Empty(patches) do return ""
 	if problem := LDtkDoc_Apply(s.cur, s.texts, patches); problem != "" do return problem
@@ -142,7 +142,7 @@ stagesApply :: proc(s: ^Stages, patches: ^LDtkPatches) -> string {
 }
 
 // Gives the document the stages' texts (and frees them)
-@(private="file")
+@(private)
 stagesFinish :: proc(s: ^Stages, problem: string) -> string {
 	defer for d in s.made do LDtkDoc_Free(d)
 	if problem != "" do return problem
@@ -151,7 +151,7 @@ stagesFinish :: proc(s: ^Stages, problem: string) -> string {
 }
 
 // An item added at the end of an array, at the items' indentation (an empty array gets a line of its own)
-@(private="file")
+@(private)
 appendItem :: proc(p: ^LDtkPatches, doc: ^LDtkDoc, file, array: int, item: LDtkJV, minified: bool) {
 	json := LDtkDoc_Json(doc, file)
 	n := json.nodes[array]
@@ -186,7 +186,7 @@ fieldDefault :: proc(doc: ^LDtkDoc, fieldDef: int) -> LDtkJV {
 }
 
 // An enum value's node (-1 none)
-@(private="file")
+@(private)
 enumValue :: proc(doc: ^LDtkDoc, enumUid: int, id: string) -> (def, value: int) {
 	main := LDtkDoc_Main(doc)
 	def = LDtkDoc_DefByUid(doc, "enums", enumUid)
@@ -289,14 +289,14 @@ newEntityJson :: proc(doc: ^LDtkDoc, def: int, iid: string, x, y, grid: int, wor
 }
 
 // Whether a level's world stores entities' world positions (Free and GridVania worlds)
-@(private="file")
+@(private)
 storesWorldPositions :: proc(doc: ^LDtkDoc, level: int) -> bool {
 	layout := LDtkDoc_WorldLayout(doc, doc.levels[level].world)
 	return layout == "Free" || layout == "GridVania" || layout == ""
 }
 
 // The patches removing every entity reference to an iid (Project.removeAnyFieldRefsTo)
-@(private="file")
+@(private)
 removeRefsTo :: proc(p: ^LDtkPatches, doc: ^LDtkDoc, iid: string, minified: bool) {
 	for e in LDtkDoc_Entities(doc) {
 		json := LDtkDoc_Json(doc, e.file)

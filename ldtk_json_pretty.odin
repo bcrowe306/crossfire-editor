@@ -17,10 +17,11 @@ The Compact rules (`APPROXIMATE_MAX_LINE_LENGTH` is 85):
 - anything else has an item per line, a tab deeper.
 
 Numbers are written as JavaScript writes them (LDtk runs in Electron: a whole float is an Int to
-Haxe's `Type.typeof`, so `1.0` is written `1`). Strings are written as JsonPretty writes them: line
-breaks and tabs become spaces, quotes are escaped, backslashes aren't (LDtk's quirk), and a string
-like `5f` becomes the number `5.0` (another). `ldtkPrettyString` keeps backslashes valid JSON
-instead: they're escaped (a value with a backslash would otherwise not parse).
+Haxe's `Type.typeof`, so `1.0` is written `1`). Strings are written as JsonPretty writes them: tabs
+become spaces, quotes are escaped, backslashes aren't (LDtk's quirk), and a string like `5f` becomes
+the number `5.0` (another). LDtk escapes the strings it writes first (JsonTools.escapeString:
+backslashes doubled, line breaks `\n`), so `ldtkPrettyString` writes backslashes as `\\` and line
+breaks as `\n`: the same text, and valid JSON.
 */
 
 // A JSON value to write (temp allocated trees)
@@ -145,7 +146,9 @@ ldtkPrettyString :: proc(s: string) -> string {
 	for i in 0 ..< len(s) {
 		c := s[i]
 		switch c {
-		case '\n', '\t': strings.write_byte(&b, ' ')
+		// LDtk escapes line breaks before writing (JsonTools.escapeString): they stay `\n`
+		case '\n': strings.write_string(&b, `\n`)
+		case '\t': strings.write_byte(&b, ' ')
 		case '\r':
 		case '"':  strings.write_string(&b, `\"`)
 		case '\\': strings.write_string(&b, `\\`)
@@ -343,7 +346,8 @@ ldtkPrettyLength :: proc(v: LDtkJV, depth: int) -> int {
 	case i64:       return 4
 	case f64:       return isJsInt(x) ? 4 : 5
 	case bool:      return x ? 4 : 5
-	case string:    return len(x) + 2
+	// Escaped first (line breaks and backslashes take two characters), as LDtk measures them
+	case string:    return len(x) + 2 + strings.count(x, "\n") + strings.count(x, "\\")
 	case LDtkJObject:
 		if depth <= 0 && len(x) <= 5 {
 			n := 0

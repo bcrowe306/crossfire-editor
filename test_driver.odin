@@ -183,6 +183,9 @@ copy: `open_project {project}`).
 	                                 Particles_Category_Picked <i> (the Particles tab's category),
 	                                 Particles_Preset_Applied <name> (a preset, by name),
 	                                 Level_World_Chosen <iid> (the Level mode's world),
+	                                 LDtk_Item_Picked <Tab> <uid> (a definitions tab's item),
+	                                 LDtk_Def_Picked <Field | Level_Field | Tileset> <uid> or
+	                                 LDtk_Def_Picked Tile_Tag [value] (the tilesets' tile data mode),
 	                                 Bottom_Tab <Tab> (the shown mode's bottom tab: one scrolled
 	                                 out of the strip's view), Level_Tool_Picked <Tool> (the tool
 	                                 row's, in its overflow menu in a narrow window),
@@ -2052,6 +2055,21 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// The LDtk tab's section (level_mode.odin), as its sidebar or (narrow) its choice would pick it
 		case "Level_World_Chosen":
 			msg = Level_World_Chosen(value)
+		// The definitions editors' picks (view_ldtk_defs.odin): a tab's item by uid
+		// ("<Tab> <uid>"), a field, level field or tileset by uid, the tile data mode ("" custom data)
+		case "LDtk_Item_Picked":
+			tabName, _, uidText := strings.partition(value, " ")
+			tab, ok := reflect.enum_from_name(BottomTab, tabName)
+			uid, uidOk := strconv.parse_int(uidText)
+			if ok && uidOk do msg = LDtk_Item_Picked{tab, uid}
+		case "LDtk_Def_Picked":
+			whatText, _, arg := strings.partition(value, " ")
+			switch whatText {
+			case "Field": if uid, ok := strconv.parse_int(arg); ok do msg = LDtk_Def_Picked{what = .Field, uid = uid}
+			case "Level_Field": if uid, ok := strconv.parse_int(arg); ok do msg = LDtk_Def_Picked{what = .Level_Field, uid = uid}
+			case "Tileset": if uid, ok := strconv.parse_int(arg); ok do msg = LDtk_Def_Picked{what = .Tileset, uid = uid}
+			case "Tile_Tag": msg = LDtk_Def_Picked{what = .Tile_Tag, text = strings.clone(arg, context.temp_allocator)}
+			}
 		// Painting (level_paint.odin): a tool by name (the row's overflow in a narrow window), a
 		// layer by its definition's uid, an IntGrid value of a layer ("<layer uid> <value>"), the
 		// entity type Place puts

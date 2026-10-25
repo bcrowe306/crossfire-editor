@@ -2,7 +2,6 @@ package crossfire_editor
 
 import "core:fmt"
 import "core:path/filepath"
-import "core:slice"
 import "core:strings"
 import "gui:skald"
 import e "engine:."
@@ -20,12 +19,13 @@ What each shows (today's sections of the old LDtk tab, moved into LDtk's panels)
 - **World:** the world (with several, a choice), its layout, grid, each level's place.
 - **Level:** the selected level (size, place, counts), the scenes showing it (open them, New Scene
   with This Level), its custom fields, its neighbours.
-- **Layers:** a layer's settings (the Layers sidebar's selection), its order; an IntGrid layer's
-  values (names, colors) and what scenes' LDtkLevel nodes make of them (the old Collisions).
-- **Entities:** an entity type's settings and fields' definitions, its entities in the level (one
-  selected: its place and fields), the level's entity references (the old Links).
-- **Enums**, **Tilesets:** as they were. **Auto-layer Rules:** a summary (phase 4 edits them).
-  **Project:** the file's settings, read only.
+- **Layers**, **Entities** (with their fields), **Enums**, **Tilesets**, and the **Level** tab's
+  level fields: the definitions editors (view_ldtk_defs.odin); the Layers tab adds what scenes'
+  LDtkLevel nodes make of an IntGrid layer's values (`ldtkIntGridKinds`), the Entities tab the
+  type's entities in the level (one selected: its place and fields) and the level's entity
+  references (the old Links).
+- **Auto-layer Rules:** a summary (phase 4 edits them). **Project:** the file's settings, read
+  only. The helpers (`tabRow`, `tabTextField`...) are shared with view_ldtk_defs.odin.
 
 Widget keys: the rows' scroll `ldtk-tab-scroll`, an item choice `ldtk-item-<Tab>` (Layers,
 Entities, Enums); World: `ldtk-world-choice`, `ldtk-world-layout`, `ldtk-world-grid-w`, `-grid-h`,
@@ -42,11 +42,11 @@ references `ldtk-ref-<i>-<uid>` (the i-th entity's field); Enums: `ldtk-enum-nam
 */
 
 // The labels' column
-@(private="file")
+@(private)
 LDTK_LABEL_WIDTH :: 96
 
 // What a tab builds with: the document, the edit every control starts from, widths
-@(private="file")
+@(private)
 LDtkTabCtx :: struct {
 	s: ^State,
 	ctx: ^skald.Ctx(Msg),
@@ -106,14 +106,14 @@ LevelMode_LDtkTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg), tab: BottomTab) -> sk
 }
 
 // The base edit of the tab's controls (the file; temp strings)
-@(private="file")
-base :: proc(c: ^LDtkTabCtx, op: LDtkEditOp) -> LDtk_Edit {
+@(private)
+tabBase :: proc(c: ^LDtkTabCtx, op: LDtkEditOp) -> LDtk_Edit {
 	return {op = op, file = c.file, level = c.levelIid}
 }
 
 // A row: a label (with its tooltip) beside its control, or over it in a narrow panel
-@(private="file")
-row :: proc(c: ^LDtkTabCtx, label: string, control: skald.View, tip: string) {
+@(private)
+tabRow :: proc(c: ^LDtkTabCtx, label: string, control: skald.View, tip: string) {
 	ctx := c.ctx
 	th := ctx.theme
 	text := skald.text(label, th.color.fg_muted, th.font.size_sm)
@@ -127,22 +127,22 @@ row :: proc(c: ^LDtkTabCtx, label: string, control: skald.View, tip: string) {
 }
 
 // A heading inside a section
-@(private="file")
-heading :: proc(c: ^LDtkTabCtx, text: string) {
+@(private)
+tabHeading :: proc(c: ^LDtkTabCtx, text: string) {
 	th := c.ctx.theme
 	append(c.rows, skald.spacer(th.spacing.xs), skald.text(text, th.color.fg, th.font.size_sm, max_width = c.rowWidth))
 }
 
-// A note (`warning`: something not editable here, or a problem)
-@(private="file")
-note :: proc(c: ^LDtkTabCtx, text: string, warning := false) {
+// A tabNote (`warning`: something not editable here, or a problem)
+@(private)
+tabNote :: proc(c: ^LDtkTabCtx, text: string, warning := false) {
 	th := c.ctx.theme
 	append(c.rows, skald.text(text, warning ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = c.rowWidth))
 }
 
 // A text field: what's typed is kept while it has focus, sent with the edit (`edit.text`)
-@(private="file")
-textField :: proc(c: ^LDtkTabCtx, key, value: string, edit: LDtk_Edit, width: f32 = 0) -> skald.View {
+@(private)
+tabTextField :: proc(c: ^LDtkTabCtx, key, value: string, edit: LDtk_Edit, width: f32 = 0) -> skald.View {
 	ctx := c.ctx
 	s := c.s
 	id := skald.hash_id(key)
@@ -162,34 +162,34 @@ textField :: proc(c: ^LDtkTabCtx, key, value: string, edit: LDtk_Edit, width: f3
 }
 
 // A number field (−/+ step it)
-@(private="file")
-numberRow :: proc(c: ^LDtkTabCtx, label, key, tip: string, edit: LDtk_Edit, value, step: f64, decimals: int, lo, hi: f64) {
-	row(c, label, numberField(c.ctx, c.s, key, LDtkNumberTarget{edit}, value, step, decimals, min(c.controlWidth, 160), lo, hi), tip)
+@(private)
+tabNumberRow :: proc(c: ^LDtkTabCtx, label, key, tip: string, edit: LDtk_Edit, value, step: f64, decimals: int, lo, hi: f64) {
+	tabRow(c, label, numberField(c.ctx, c.s, key, LDtkNumberTarget{edit}, value, step, decimals, min(c.controlWidth, 160), lo, hi), tip)
 }
 
 // A checkbox sending the edit with `flag`
-@(private="file")
-flagRow :: proc(c: ^LDtkTabCtx, label, key, tip: string, edit: LDtk_Edit, value: bool) {
+@(private)
+tabFlagRow :: proc(c: ^LDtkTabCtx, label, key, tip: string, edit: LDtk_Edit, value: bool) {
 	box := skald.checkbox(c.ctx, value, "", edit, proc(edit: LDtk_Edit, v: bool) -> Msg {
 		e := edit
 		e.flag = v
 		return e
 	}, id = skald.hash_id(key))
-	row(c, label, box, tip)
+	tabRow(c, label, box, tip)
 }
 
 // A color: its swatch and its #RRGGBB text field
-@(private="file")
-colorField :: proc(c: ^LDtkTabCtx, key, value: string, edit: LDtk_Edit) -> skald.View {
+@(private)
+tabColorField :: proc(c: ^LDtkTabCtx, key, value: string, edit: LDtk_Edit) -> skald.View {
 	color := skald.rgb(0x000000)
 	if v, ok := LDtk_ParseColor(value); ok do color = skald.rgb(u32(v))
 	swatch := skald.col(skald.spacer(0), width = 16, height = 16, bg = color, radius = 2)
-	return skald.row(swatch, textField(c, key, value, edit, max(c.controlWidth - 22, 60)), spacing = 6, cross_align = .Center)
+	return skald.row(swatch, tabTextField(c, key, value, edit, max(c.controlWidth - 22, 60)), spacing = 6, cross_align = .Center)
 }
 
 // A select of labels sending `values[i]` as the edit's text
-@(private="file")
-choiceField :: proc(c: ^LDtkTabCtx, key, shown: string, labels, values: []string, edit: LDtk_Edit) -> skald.View {
+@(private)
+tabChoiceField :: proc(c: ^LDtkTabCtx, key, shown: string, labels, values: []string, edit: LDtk_Edit) -> skald.View {
 	return labeledSelect(c.ctx, shown, labels, values, edit, proc(edit: LDtk_Edit, v: string) -> Msg {
 		e := edit
 		e.text = v
@@ -198,8 +198,8 @@ choiceField :: proc(c: ^LDtkTabCtx, key, shown: string, labels, values: []string
 }
 
 // The section's item choice: definitions by name, the selected one's uid (the first when it's gone)
-@(private="file")
-itemChoice :: proc(c: ^LDtkTabCtx, tab: BottomTab, list: int, selected: int, label: string, filter: proc(json: ^JsonDoc, node: int) -> bool = nil) -> int {
+@(private)
+tabItemChoice :: proc(c: ^LDtkTabCtx, tab: BottomTab, list: int, selected: int, label: string, filter: proc(json: ^JsonDoc, node: int) -> bool = nil) -> int {
 	main := c.main
 	names := make([dynamic]string, context.temp_allocator)
 	uids := make([dynamic]string, context.temp_allocator)
@@ -227,15 +227,15 @@ itemChoice :: proc(c: ^LDtkTabCtx, tab: BottomTab, list: int, selected: int, lab
 	if len(names) == 0 do return -1
 	Pick :: struct { tab: BottomTab }
 	picker := labeledSelect(c.ctx, shown, names[:], uids[:], Pick{tab}, proc(p: Pick, v: string) -> Msg {
-		uid, _ := strconvParseInt(v)
+		uid, _ := tabParseInt(v)
 		return LDtk_Item_Picked{p.tab, uid}
 	}, id = skald.hash_id(fmt.tprintf("ldtk-item-%v", tab)), width = c.controlWidth)
-	row(c, label, picker, "Which one the section shows")
+	tabRow(c, label, picker, "Which one the section shows")
 	return chosen
 }
 
-@(private="file")
-strconvParseInt :: proc(text: string) -> (int, bool) {
+@(private)
+tabParseInt :: proc(text: string) -> (int, bool) {
 	n := 0
 	neg := strings.has_prefix(text, "-")
 	t := strings.trim_prefix(text, "-")
@@ -248,8 +248,8 @@ strconvParseInt :: proc(text: string) -> (int, bool) {
 }
 
 // A JSON value as a field's text: strings unquoted, null empty
-@(private="file")
-valueText :: proc(json: ^JsonDoc, node: int) -> string {
+@(private)
+tabValueText :: proc(json: ^JsonDoc, node: int) -> string {
 	#partial switch Json_Kind(json, node) {
 	case .String: return Json_String(json, node)
 	case .Null: return ""
@@ -261,60 +261,10 @@ valueText :: proc(json: ^JsonDoc, node: int) -> string {
 	return Json_Text(json, node)
 }
 
-// Layers: the selected layer's settings, the selected level's visibility, the order; an IntGrid
-// layer's values and what scenes make of them
+// Layers: the layer definitions' editor (view_ldtk_defs.odin)
 @(private="file")
 ldtkLayersSection :: proc(c: ^LDtkTabCtx) {
-	main := c.main
-	note(c, "The layer selected in the Layers sidebar (or here). Changes apply to every level.")
-	def := itemChoice(c, .Layers, LDtkDoc_Defs(c.doc, "layers"), c.s.level.layerDef, "Layer")
-	if def < 0 {
-		note(c, "This project has no layers.")
-		return
-	}
-	uid := Json_Int(main, Json_Get(main, def, "uid"))
-	edit :: proc(c: ^LDtkTabCtx, op: LDtkEditOp, uid: int) -> LDtk_Edit { e := base(c, op); e.def = uid; return e }
-	row(c, "Name", textField(c, "ldtk-layer-name", Json_String(main, Json_Get(main, def, "identifier")), edit(c, .Layer_Name, uid)), "The layer's identifier: games and LDtkLevel nodes find it by name (scenes naming it follow a rename)")
-	kind := Json_String(main, Json_Get(main, def, "__type"))
-	if Json_Count(main, Json_Get(main, def, "autoRuleGroups")) > 0 do kind = fmt.tprintf("%s with auto-layer rules", kind)
-	row(c, "Type", skald.text(kind, c.ctx.theme.color.fg, c.ctx.theme.font.size_sm), "What the layer holds (not editable: LDtk converts layers)")
-	if c.level >= 0 {
-		file, array := LDtkDoc_LayerInstances(c.doc, c.level)
-		json := LDtkDoc_Json(c.doc, file)
-		for li in Json_Items(json, array) do if Json_Int(json, Json_Get(json, li, "layerDefUid"), -1) == uid {
-			flagRow(c, fmt.tprintf("Shown in %s", c.s.level.level), "ldtk-layer-visible", "Whether this level shows the layer (LDtk's eye; the engine skips hidden layers)", edit(c, .Layer_Visible, uid), Json_Bool(json, Json_Get(json, li, "visible"), true))
-		}
-	} else {
-		note(c, "Select a level on the canvas to show or hide the layer in it.")
-	}
-	numberRow(c, "Opacity", "ldtk-layer-opacity", "How opaque the layer draws, 0 to 1", edit(c, .Layer_Opacity, uid), Json_Float(main, Json_Get(main, def, "displayOpacity"), 1), 0.05, 2, 0, 1)
-	numberRow(c, "Parallax X", "ldtk-layer-parallax-x", "How much slower (positive) or faster (negative) the layer scrolls sideways, -1 to 1", edit(c, .Layer_Parallax_X, uid), Json_Float(main, Json_Get(main, def, "parallaxFactorX")), 0.05, 2, -1, 1)
-	numberRow(c, "Parallax Y", "ldtk-layer-parallax-y", "The same up and down, -1 to 1", edit(c, .Layer_Parallax_Y, uid), Json_Float(main, Json_Get(main, def, "parallaxFactorY")), 0.05, 2, -1, 1)
-	flagRow(c, "Parallax scaling", "ldtk-layer-parallax-scaling", "Whether a parallax layer also scales with its factor", edit(c, .Layer_Parallax_Scaling, uid), Json_Bool(main, Json_Get(main, def, "parallaxScaling"), true))
-	grid := Json_Int(main, Json_Get(main, def, "gridSize"), 16)
-	if why := LDtkOps_GridSizeLocked(c.doc, uid); why != "" {
-		row(c, "Grid size", skald.text(fmt.tprintf("%d px", grid), c.ctx.theme.color.fg, c.ctx.theme.font.size_sm), "The layer's cell size in pixels")
-		note(c, fmt.tprintf("Not editable here: %s.", why), true)
-	} else {
-		numberRow(c, "Grid size", "ldtk-layer-grid", "The layer's cell size in pixels", edit(c, .Layer_Grid_Size, uid), f64(grid), 1, 0, 1, 1024)
-	}
-	items := Json_Items(main, LDtkDoc_Defs(c.doc, "layers"))
-	at, _ := slice.linear_search(items, def)
-	th := c.ctx.theme
-	up := edit(c, .Layer_Move, uid)
-	up.number = -1
-	down := up
-	down.number = 1
-	buttons := skald.row(
-		skald.button(c.ctx, fmt.tprintf("%s  Up", ICON_ARROW_UP), Msg(up), id = skald.hash_id("ldtk-layer-up"), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = at <= 0),
-		skald.button(c.ctx, fmt.tprintf("%s  Down", ICON_ARROW_DOWN), Msg(down), id = skald.hash_id("ldtk-layer-down"), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = at >= len(items) - 1),
-		skald.text(fmt.tprintf("%d of %d, top first", at + 1, len(items)), th.color.fg_muted, th.font.size_xs),
-		spacing = th.spacing.xs, cross_align = .Center,
-	)
-	row(c, "Order", buttons, "Where the layer is in the list: higher draws over lower (or drag it by its grip in the Layers sidebar)")
-	if Json_String(main, Json_Get(main, def, "__type")) == "IntGrid" do ldtkIntGridValues(c, def)
+	LDtkDefs_Layers(c)
 }
 
 // Entities: the type's settings, its fields' definitions, its instances in the selected level
@@ -322,43 +272,11 @@ ldtkLayersSection :: proc(c: ^LDtkTabCtx) {
 ldtkEntitiesSection :: proc(c: ^LDtkTabCtx) {
 	main := c.main
 	th := c.ctx.theme
-	def := itemChoice(c, .Entities, LDtkDoc_Defs(c.doc, "entities"), c.s.level.entityDef, "Entity type")
-	if def < 0 {
-		note(c, "This project has no entity types: add them in LDtk.")
-		return
-	}
+	def := LDtkDefs_Entities(c)
+	if def < 0 do return
 	uid := Json_Int(main, Json_Get(main, def, "uid"))
-	edit :: proc(c: ^LDtkTabCtx, op: LDtkEditOp, uid: int) -> LDtk_Edit { e := base(c, op); e.def = uid; return e }
-	row(c, "Name", textField(c, "ldtk-entity-name", Json_String(main, Json_Get(main, def, "identifier")), edit(c, .Entity_Name, uid)), "The entity type's identifier: scripts named like it run on its entities (scenes' rules follow a rename; code doesn't)")
-	numberRow(c, "Width", "ldtk-entity-width", "The type's width in pixels (entities not resized in LDtk follow it)", edit(c, .Entity_Width, uid), Json_Float(main, Json_Get(main, def, "width"), 16), 1, 0, 1, 4096)
-	numberRow(c, "Height", "ldtk-entity-height", "The type's height in pixels", edit(c, .Entity_Height, uid), Json_Float(main, Json_Get(main, def, "height"), 16), 1, 0, 1, 4096)
-	row(c, "Color", colorField(c, "ldtk-entity-color", Json_String(main, Json_Get(main, def, "color")), edit(c, .Entity_Color, uid)), "The type's color, #RRGGBB (its outline in LDtk and here)")
-	numberRow(c, "Pivot X", "ldtk-entity-pivot-x", "Where the entity's position is across it: 0 left, 0.5 middle, 1 right", edit(c, .Entity_Pivot_X, uid), Json_Float(main, Json_Get(main, def, "pivotX"), 0.5), 0.5, 1, 0, 1)
-	numberRow(c, "Pivot Y", "ldtk-entity-pivot-y", "Where it is up and down: 0 top, 0.5 middle, 1 bottom", edit(c, .Entity_Pivot_Y, uid), Json_Float(main, Json_Get(main, def, "pivotY"), 0.5), 0.5, 1, 0, 1)
 
-	heading(c, "Fields")
-	fields := Json_Items(main, Json_Get(main, def, "fieldDefs"))
-	if len(fields) == 0 do note(c, "No fields: add them in LDtk.")
-	for f in fields {
-		info := LDtkDoc_FieldInfo(c.doc, f)
-		e := base(c, .Field_Name)
-		e.field = info.uid
-		typeName, _ := strings.replace_all(Json_String(main, Json_Get(main, f, "__type")), "LocalEnum.", "", context.temp_allocator)
-		row(c, fmt.tprintf("%s field", typeName), textField(c, fmt.tprintf("ldtk-field-name-%d", info.uid), info.identifier, e), "The field's identifier (its type is LDtk's: not editable here)")
-		#partial switch info.type {
-		case .Int, .Float, .Bool, .String, .Text:
-			if !info.isArray {
-				d := base(c, .Field_Default)
-				d.field = info.uid
-				row(c, "   Default", textField(c, fmt.tprintf("ldtk-field-default-%d", info.uid), ldtkDefaultShown(info), d), "The field's value when an entity has none of its own (empty: none)")
-				continue
-			}
-		}
-		shown := ldtkDefaultShown(info)
-		note(c, fmt.tprintf("   Default: %s (edited in LDtk)", shown == "" ? "none" : shown))
-	}
-
-	heading(c, c.level >= 0 ? fmt.tprintf("In %s", c.s.level.level) : "Placed (every level)")
+	tabHeading(c, c.level >= 0 ? fmt.tprintf("In %s", c.s.level.level) : "Placed (every level)")
 	shown := 0
 	for en, i in LDtkDoc_Entities(c.doc) {
 		json := LDtkDoc_Json(c.doc, en.file)
@@ -373,24 +291,24 @@ ldtkEntitiesSection :: proc(c: ^LDtkTabCtx) {
 			bg = selected ? th.color.primary : th.color.surface, fg = selected ? th.color.on_primary : th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
 		shown += 1
 		if !selected do continue
-		move := base(c, .Entity_X)
+		move := tabBase(c, .Entity_X)
 		move.entity = strings.clone(iid, context.temp_allocator)
-		numberRow(c, "X", "ldtk-instance-x", "Where the entity's pivot is in its level, pixels from the left", move, f64(x), 1, 0, -100000, 100000)
+		tabNumberRow(c, "X", "ldtk-instance-x", "Where the entity's pivot is in its level, pixels from the left", move, f64(x), 1, 0, -100000, 100000)
 		move.op = .Entity_Y
-		numberRow(c, "Y", "ldtk-instance-y", "Pixels from the top", move, f64(y), 1, 0, -100000, 100000)
+		tabNumberRow(c, "Y", "ldtk-instance-y", "Pixels from the top", move, f64(y), 1, 0, -100000, 100000)
 		for fi in Json_Items(json, Json_Get(json, en.node, "fieldInstances")) {
 			fieldUid := Json_Int(json, Json_Get(json, fi, "defUid"), -1)
 			_, fieldDef := LDtkDoc_FieldDef(c.doc, fieldUid)
 			if fieldDef < 0 do continue
 			info := LDtkDoc_FieldInfo(c.doc, fieldDef)
-			e := base(c, info.type == .EntityRef ? .Entity_Ref : .Entity_Field)
+			e := tabBase(c, info.type == .EntityRef ? .Entity_Ref : .Entity_Field)
 			e.entity = move.entity
 			e.field = fieldUid
 			fieldControl(c, info, json, fi, en, e, fmt.tprintf("ldtk-instance-field-%d", fieldUid))
 		}
 	}
-	if shown == 0 do note(c, c.level >= 0 ? "None in this level." : "None placed.")
-	note(c, "Click one to select it (on the canvas too, where a drag moves it).")
+	if shown == 0 do tabNote(c, c.level >= 0 ? "None in this level." : "None placed.")
+	tabNote(c, "Click one to select it (on the canvas too, where a drag moves it).")
 	ldtkReferences(c)
 }
 
@@ -400,7 +318,7 @@ ldtkDefaultShown :: proc(info: LDtkFieldInfo) -> string {
 	if info.defaultText == "null" do return ""
 	doc, problem := Json_Parse(info.defaultText, context.temp_allocator)
 	if problem != "" do return info.defaultText
-	return strings.clone(valueText(&doc, 0), context.temp_allocator)
+	return strings.clone(tabValueText(&doc, 0), context.temp_allocator)
 }
 
 /*
@@ -420,8 +338,8 @@ fieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, fi: in
 	why := LDtkOps_FieldLocked(info)
 	if why == "" && edit.op == .Level_Field && info.type == .EntityRef do why = "a level's entity references aren't editable here yet (LDtk edits them)"
 	if why != "" {
-		row(c, label, skald.text(Json_Text(json, value), c.ctx.theme.color.fg, c.ctx.theme.font.size_xs, max_width = c.controlWidth), tip)
-		note(c, fmt.tprintf("   %s", why), true)
+		tabRow(c, label, skald.text(Json_Text(json, value), c.ctx.theme.color.fg, c.ctx.theme.font.size_xs, max_width = c.controlWidth), tip)
+		tabNote(c, fmt.tprintf("   %s", why), true)
 		return
 	}
 	#partial switch info.type {
@@ -432,7 +350,7 @@ fieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, fi: in
 			x.text = v ? "true" : "false"
 			return x
 		}, id = skald.hash_id(key))
-		row(c, label, box, tip)
+		tabRow(c, label, box, tip)
 	case .Enum:
 		values := LDtkDoc_EnumValues(c.doc, info.enumUid)
 		labels := make([dynamic]string, context.temp_allocator)
@@ -441,23 +359,23 @@ fieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, fi: in
 		append(&vals, "")
 		append(&labels, ..values)
 		append(&vals, ..values)
-		shown := valueText(json, value)
-		row(c, label, choiceField(c, key, shown == "" ? "(default)" : shown, labels[:], vals[:], edit), tip)
+		shown := tabValueText(json, value)
+		tabRow(c, label, tabChoiceField(c, key, shown == "" ? "(default)" : shown, labels[:], vals[:], edit), tip)
 	case .EntityRef:
 		labels, vals := refChoices(c, info, owner)
 		shown := "(none)"
-		target := valueText(json, value)
+		target := tabValueText(json, value)
 		for v, i in vals do if v == target && target != "" do shown = labels[i]
-		row(c, label, choiceField(c, key, shown, labels, vals, edit), tip)
-		if edit.op == .Entity_Ref do append(c.rows, pickButton(c, fmt.tprintf("%s-pick", key), "Pick on the canvas", Level_Pick_Started{.Ref, edit.entity, edit.field, 0}))
+		tabRow(c, label, tabChoiceField(c, key, shown, labels, vals, edit), tip)
+		if edit.op == .Entity_Ref do append(c.rows, tabPickButton(c, fmt.tprintf("%s-pick", key), "Pick on the canvas", Level_Pick_Started{.Ref, edit.entity, edit.field, 0}))
 	case:
-		row(c, label, textField(c, key, valueText(json, value), edit), tip)
+		tabRow(c, label, tabTextField(c, key, tabValueText(json, value), edit), tip)
 	}
 }
 
 // A button starting a pick on the canvas (the Entities tab's: a reference's target, a point's cell)
-@(private="file")
-pickButton :: proc(c: ^LDtkTabCtx, key, label: string, pick: Level_Pick_Started) -> skald.View {
+@(private)
+tabPickButton :: proc(c: ^LDtkTabCtx, key, label: string, pick: Level_Pick_Started) -> skald.View {
 	th := c.ctx.theme
 	waiting := c.s.level.paint.pick.kind == pick.kind && c.s.level.paint.pick.entity == pick.entity && c.s.level.paint.pick.field == pick.field && c.s.level.paint.pick.index == pick.index
 	p := pick
@@ -491,7 +409,7 @@ pickedFieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, 
 		}
 		return iid
 	}
-	row(c, label, skald.text(info.isArray ? fmt.tprintf("%d item(s)", len(items)) : describe(c, json, value, kind == .Point), th.color.fg, th.font.size_xs, max_width = c.controlWidth), tip)
+	tabRow(c, label, skald.text(info.isArray ? fmt.tprintf("%d item(s)", len(items)) : describe(c, json, value, kind == .Point), th.color.fg, th.font.size_xs, max_width = c.controlWidth), tip)
 	for item, i in items {
 		if !info.isArray do break
 		remove := edit
@@ -519,7 +437,7 @@ pickedFieldControl :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, json: ^JsonDoc, 
 		}
 		append(c.rows, skald.row(skald.spacer(c.stacked ? 0 : LDTK_LABEL_WIDTH), skald.button(c.ctx, "Clear", Msg(clear), id = skald.hash_id(fmt.tprintf("%s-clear", key)), bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)))
 	}
-	append(c.rows, pickButton(c, fmt.tprintf("%s-pick", key), info.isArray ? (kind == .Point ? "Add points on the canvas" : "Add a reference on the canvas") : "Pick on the canvas",
+	append(c.rows, tabPickButton(c, fmt.tprintf("%s-pick", key), info.isArray ? (kind == .Point ? "Add points on the canvas" : "Add a reference on the canvas") : "Pick on the canvas",
 		Level_Pick_Started{kind, edit.entity, edit.field, info.isArray ? -1 : 0}))
 }
 
@@ -541,23 +459,14 @@ refChoices :: proc(c: ^LDtkTabCtx, info: LDtkFieldInfo, owner: LDtkDocEntity) ->
 	return ls[:], vs[:]
 }
 
-// An IntGrid layer's values (names, colors: the file's) and what LDtkLevel nodes make of them (the scenes')
-@(private="file")
-ldtkIntGridValues :: proc(c: ^LDtkTabCtx, def: int) {
+// What scenes' LDtkLevel nodes make of an IntGrid layer's values (the old Collisions)
+@(private)
+ldtkIntGridKinds :: proc(c: ^LDtkTabCtx, def: int) {
 	main := c.main
-	heading(c, "IntGrid values")
-	note(c, "Their names and colors are LDtk's (in the file); what each becomes in a game (solid, one-way, an area) is the scene's LDtkLevel node's.")
-	uid := Json_Int(main, Json_Get(main, def, "uid"))
 	identifier := Json_String(main, Json_Get(main, def, "identifier"))
 	values := Json_Items(main, Json_Get(main, def, "intGridValues"))
-	for v in values {
-		value := Json_Int(main, Json_Get(main, v, "value"))
-		e := base(c, .IntGrid_Name)
-		e.def, e.index = uid, value
-		row(c, fmt.tprintf("Value %d", value), textField(c, fmt.tprintf("ldtk-intgrid-name-%d", value), Json_String(main, Json_Get(main, v, "identifier")), e), "The value's name (empty: none): games and Area nodes made from it use it")
-		e.op = .IntGrid_Color
-		row(c, "   Color", colorField(c, fmt.tprintf("ldtk-intgrid-color-%d", value), Json_String(main, Json_Get(main, v, "color")), e), "The value's color, #RRGGBB")
-	}
+	tabHeading(c, "In the scenes")
+	tabNote(c, "What each value becomes in a game (solid, one-way, an area) is the scene's LDtkLevel node's.")
 	// The engine's collision kinds, per LDtkLevel node using this layer for collision
 	found := false
 	kinds := make([dynamic]string, context.temp_allocator)
@@ -567,7 +476,7 @@ ldtkIntGridValues :: proc(c: ^LDtkTabCtx, def: int) {
 		for &node, ni in scene.nodes {
 			if node.kind != .LDtkLevel || node.ldtk.file != c.file || node.ldtk.collisionLayer != identifier do continue
 			found = true
-			heading(c, fmt.tprintf("In %s, %s makes them:", scene.name, node.name))
+			tabHeading(c, fmt.tprintf("In %s, %s makes them:", scene.name, node.name))
 			Kind :: struct { scene, node, value: int }
 			for v in values {
 				value := Json_Int(main, Json_Get(main, v, "value"))
@@ -577,17 +486,17 @@ ldtkIntGridValues :: proc(c: ^LDtkTabCtx, def: int) {
 					for l, kd in LDTK_KIND_LABELS do if l == label do kind = kd
 					return Level_Collision_Kind_Changed{k.scene, k.node, k.value, kind}
 				}, id = skald.hash_id(fmt.tprintf("ldtk-kind-%d-%d-%d", value, si, ni)), width = c.controlWidth)
-				row(c, name != "" ? fmt.tprintf("%d %s", value, name) : fmt.tprintf("Value %d", value), choice, "What the LDtkLevel node makes of the value's cells")
+				tabRow(c, name != "" ? fmt.tprintf("%d %s", value, name) : fmt.tprintf("Value %d", value), choice, "What the LDtkLevel node makes of the value's cells")
 			}
 		}
 	}
-	if !found do note(c, fmt.tprintf("No scene's LDtkLevel node uses %s for collision yet: pick it in the node's inspector (Collision).", identifier))
+	if !found do tabNote(c, fmt.tprintf("No scene's LDtkLevel node uses %s for collision yet: pick it in the node's inspector (Collision).", identifier))
 }
 
 // The entity reference fields of the selected level's entities (every level's without one), retargeted here
 @(private="file")
 ldtkReferences :: proc(c: ^LDtkTabCtx) {
-	heading(c, c.level >= 0 ? fmt.tprintf("References in %s", c.s.level.level) : "References (every level)")
+	tabHeading(c, c.level >= 0 ? fmt.tprintf("References in %s", c.s.level.level) : "References (every level)")
 	any := false
 	for en, i in LDtkDoc_Entities(c.doc) {
 		if c.level >= 0 && en.level != c.level do continue
@@ -600,22 +509,22 @@ ldtkReferences :: proc(c: ^LDtkTabCtx) {
 			if fieldDef < 0 do continue
 			info := LDtkDoc_FieldInfo(c.doc, fieldDef)
 			any = true
-			e := base(c, .Entity_Ref)
+			e := tabBase(c, .Entity_Ref)
 			e.entity = strings.clone(iid, context.temp_allocator)
 			e.field = info.uid
 			info.identifier = fmt.tprintf("%s.%s", Json_String(json, Json_Get(json, en.node, "__identifier")), info.identifier)
 			fieldControl(c, info, json, fi, en, e, fmt.tprintf("ldtk-ref-%d-%d", i, info.uid))
 		}
 	}
-	if !any do note(c, "No entity reference fields here.")
+	if !any do tabNote(c, "No entity reference fields here.")
 }
 
 // The selected level's neighbours (LDtk works them out from where levels are)
 @(private="file")
 ldtkNeighbours :: proc(c: ^LDtkTabCtx) {
-	heading(c, "Neighbours")
+	tabHeading(c, "Neighbours")
 	neighbours := LDtkDoc_Neighbours(c.doc, c.level)
-	if len(neighbours) == 0 do note(c, "None: no level touches or overlaps this one.")
+	if len(neighbours) == 0 do tabNote(c, "None: no level touches or overlaps this one.")
 	dirName :: proc(dir: string) -> string {
 		switch dir {
 		case "n": return "north"
@@ -635,9 +544,9 @@ ldtkNeighbours :: proc(c: ^LDtkTabCtx) {
 	for n in neighbours {
 		name := n.iid
 		for _, i in c.doc.levels do if identifier, iid := LDtkDoc_LevelNames(c.doc, i); iid == n.iid do name = identifier
-		note(c, fmt.tprintf("%s: %s", dirName(n.dir), name))
+		tabNote(c, fmt.tprintf("%s: %s", dirName(n.dir), name))
 	}
-	note(c, "LDtk works neighbours out from where the levels are: drag levels on the canvas (or set their places in the World tab) to change them.")
+	tabNote(c, "LDtk works neighbours out from where the levels are: drag levels on the canvas (or set their places in the World tab) to change them.")
 }
 
 /*
@@ -658,8 +567,8 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 	}
 	if c.level < 0 {
 		count := len(LevelMode_WorldLevels(s, doc))
-		heading(c, fmt.tprintf("%d level%s in this world", count, count == 1 ? "" : "s"))
-		note(c, "Select a level (the Levels sidebar or the canvas) to see it here: its size and place, the scenes showing it, its fields and neighbours. Double-click one to focus it.")
+		tabHeading(c, fmt.tprintf("%d level%s in this world", count, count == 1 ? "" : "s"))
+		tabNote(c, "Select a level (the Levels sidebar or the canvas) to see it here: its size and place, the scenes showing it, its fields and neighbours. Double-click one to focus it.")
 		ldtkLevelFieldsSection(c)
 		append(c.rows, button(ctx, "level-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("level_mode"))))
 		return
@@ -674,19 +583,19 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 	fields := Json_Count(main, Json_Get(main, doc.levels[c.level].entry, "fieldInstances"))
 	neighbours := len(LDtkDoc_Neighbours(doc, c.level))
 	append(c.rows, skald.text(fmt.tprintf("%s  %s", ICON_FILE_LINES, identifier), th.color.fg, th.font.size_sm, max_width = c.rowWidth))
-	note(c, fmt.tprintf("%.0f x %.0f px, at %.0f, %.0f in the world", rect[2], rect[3], rect[0], rect[1]))
-	note(c, fmt.tprintf("%d layer%s, %d entit%s, %d field%s, %d neighbour%s", layerCount, layerCount == 1 ? "" : "s",
+	tabNote(c, fmt.tprintf("%.0f x %.0f px, at %.0f, %.0f in the world", rect[2], rect[3], rect[0], rect[1]))
+	tabNote(c, fmt.tprintf("%d layer%s, %d entit%s, %d field%s, %d neighbour%s", layerCount, layerCount == 1 ? "" : "s",
 		entities, entities == 1 ? "y" : "ies", fields, fields == 1 ? "" : "s", neighbours, neighbours == 1 ? "" : "s"))
 	if e, found := LDtkDoc_FindEntity(doc, s.level.entity); found && s.level.entity != "" && e.level == c.level {
 		json := LDtkDoc_Json(doc, e.file)
 		px := Json_Get(json, e.node, "px")
-		note(c, fmt.tprintf("Selected: %s at %d, %d (the Entities tab edits it)", Json_String(json, Json_Get(json, e.node, "__identifier")),
+		tabNote(c, fmt.tprintf("Selected: %s at %d, %d (the Entities tab edits it)", Json_String(json, Json_Get(json, e.node, "__identifier")),
 			Json_Int(json, Json_At(json, px, 0)), Json_Int(json, Json_At(json, px, 1))))
 	}
-	heading(c, "Scenes showing it")
+	tabHeading(c, "Scenes showing it")
 	shown := LevelMode_ScenesShowing(s, c.file, identifier)
 	if len(shown) == 0 {
-		note(c, "No scene shows this level.")
+		tabNote(c, "No scene shows this level.")
 		append(c.rows, button(ctx, "level-new-scene", fmt.tprintf("%s  New Scene with This Level", ICON_PLUS), Msg(Level_Scene_Created{})))
 	} else {
 		for at, i in shown {
@@ -700,83 +609,33 @@ ldtkLevelSection :: proc(c: ^LDtkTabCtx) {
 	append(c.rows, skald.spacer(th.spacing.xs), button(ctx, "level-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("level_mode"))))
 }
 
-// The level fields: the selected level's values (without one, the fields' names)
+// The level fields: the selected level's values, then their definitions (LDtk's level panel opens
+// EditLevelFieldDefs: view_ldtk_defs.odin)
 @(private="file")
 ldtkLevelFieldsSection :: proc(c: ^LDtkTabCtx) {
 	main := c.main
 	defs := Json_Items(main, LDtkDoc_Defs(c.doc, "levelFields"))
-	if len(defs) == 0 {
-		heading(c, "Fields")
-		note(c, "This project's levels have no custom fields: add them in LDtk (Project settings > Level fields).")
-		return
-	}
-	if c.level < 0 {
-		heading(c, "Level fields")
-		for f in defs {
-			info := LDtkDoc_FieldInfo(c.doc, f)
-			e := base(c, .Field_Name)
-			e.field = info.uid
-			row(c, Json_String(main, Json_Get(main, f, "__type")), textField(c, fmt.tprintf("ldtk-level-field-name-%d", info.uid), info.identifier, e), "The level field's identifier")
+	if c.level >= 0 && len(defs) > 0 {
+		tabHeading(c, fmt.tprintf("%s's fields", c.s.level.level))
+		entry := c.doc.levels[c.level].entry
+		for fi in Json_Items(main, Json_Get(main, entry, "fieldInstances")) {
+			uid := Json_Int(main, Json_Get(main, fi, "defUid"), -1)
+			_, fieldDef := LDtkDoc_FieldDef(c.doc, uid)
+			if fieldDef < 0 do continue
+			info := LDtkDoc_FieldInfo(c.doc, fieldDef)
+			e := tabBase(c, .Level_Field)
+			e.field = uid
+			fieldControl(c, info, main, fi, {level = c.level}, e, fmt.tprintf("ldtk-level-field-%d", uid))
 		}
-		return
+		tabNote(c, "Empty: the field's default. Games read them with e.LDtk_FieldValue.")
 	}
-	heading(c, fmt.tprintf("%s's fields", c.s.level.level))
-	entry := c.doc.levels[c.level].entry
-	for fi in Json_Items(main, Json_Get(main, entry, "fieldInstances")) {
-		uid := Json_Int(main, Json_Get(main, fi, "defUid"), -1)
-		_, fieldDef := LDtkDoc_FieldDef(c.doc, uid)
-		if fieldDef < 0 do continue
-		info := LDtkDoc_FieldInfo(c.doc, fieldDef)
-		e := base(c, .Level_Field)
-		e.field = uid
-		fieldControl(c, info, main, fi, {level = c.level}, e, fmt.tprintf("ldtk-level-field-%d", uid))
-	}
-	note(c, "Empty: the field's default. Games read them with e.LDtk_FieldValue.")
+	LDtkDefs_LevelFields(c)
 }
 
-// Enums: their names, values and colors; new values and enums
+// Enums: the enums' editor (view_ldtk_defs.odin)
 @(private="file")
 ldtkEnumsSection :: proc(c: ^LDtkTabCtx) {
-	main := c.main
-	th := c.ctx.theme
-	def := itemChoice(c, .Enums, LDtkDoc_Defs(c.doc, "enums"), c.s.level.enumDef, "Enum")
-	if def >= 0 {
-		uid := Json_Int(main, Json_Get(main, def, "uid"))
-		if Json_Kind(main, Json_Get(main, def, "externalRelPath")) == .String {
-			note(c, fmt.tprintf("From the external file %s: edit it there (LDtk reads it again).", Json_String(main, Json_Get(main, def, "externalRelPath"))), true)
-		} else {
-			e := base(c, .Enum_Name)
-			e.def = uid
-			row(c, "Name", textField(c, "ldtk-enum-name", Json_String(main, Json_Get(main, def, "identifier")), e), "The enum's identifier (fields of it follow a rename)")
-			for v, i in Json_Items(main, Json_Get(main, def, "values")) {
-				e.op, e.index = .Enum_Value_Name, i
-				row(c, fmt.tprintf("Value %d", i + 1), textField(c, fmt.tprintf("ldtk-enum-value-%d", i), Json_String(main, Json_Get(main, v, "id")), e), "The value's name: fields set to it follow a rename")
-				e.op = .Enum_Value_Color
-				row(c, "   Color", colorField(c, fmt.tprintf("ldtk-enum-color-%d", i), LDtk_FormatColor(Json_Int(main, Json_Get(main, v, "color"))), e), "The value's color, #RRGGBB")
-			}
-			add := base(c, .Enum_Value_Added)
-			add.def = uid
-			add.text = strings.clone(c.s.level.newValue, context.temp_allocator)
-			row(c, "New value", skald.row(
-				skald.text_input(c.ctx, strings.clone(c.s.level.newValue, context.temp_allocator), proc(v: string) -> Msg { return LDtk_New_Name_Typed{true, v} },
-					id = skald.hash_id("ldtk-enum-new-value"), width = max(c.controlWidth - 60, 60), padding = {th.spacing.sm, 2}),
-				skald.button(c.ctx, "Add", Msg(add), id = skald.hash_id("ldtk-enum-add-value"), bg = th.color.surface, fg = th.color.fg,
-					padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = strings.trim_space(c.s.level.newValue) == ""),
-				spacing = th.spacing.xs, cross_align = .Center), "A value to add to the enum")
-		}
-	} else {
-		note(c, "This project has no enums yet.")
-	}
-	for d in Json_Items(main, LDtkDoc_Defs(c.doc, "externalEnums")) do note(c, fmt.tprintf("%s: an external enum (%s), edited in its file", Json_String(main, Json_Get(main, d, "identifier")), Json_String(main, Json_Get(main, d, "externalRelPath"))))
-	heading(c, "New enum")
-	add := base(c, .Enum_Added)
-	add.text = strings.clone(c.s.level.newEnum, context.temp_allocator)
-	row(c, "Name", skald.row(
-		skald.text_input(c.ctx, strings.clone(c.s.level.newEnum, context.temp_allocator), proc(v: string) -> Msg { return LDtk_New_Name_Typed{false, v} },
-			id = skald.hash_id("ldtk-enum-new"), width = max(c.controlWidth - 60, 60), padding = {th.spacing.sm, 2}),
-		skald.button(c.ctx, "Add", Msg(add), id = skald.hash_id("ldtk-enum-add"), bg = th.color.surface, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = strings.trim_space(c.s.level.newEnum) == ""),
-		spacing = th.spacing.xs, cross_align = .Center), "An enum to add to the project (its values added here after)")
+	LDtkDefs_Enums(c)
 }
 
 // World: the shown world (with several, a choice), its layout and grid, each level's place
@@ -793,83 +652,72 @@ ldtkWorldSection :: proc(c: ^LDtkTabCtx) {
 			append(&iids, iid)
 		}
 		_, shown := LDtkDoc_WorldNames(c.doc, wi)
-		row(c, "World", labeledSelect(c.ctx, shown, names[:], iids[:], 0, proc(_: int, iid: string) -> Msg { return Level_World_Chosen(iid) },
+		tabRow(c, "World", labeledSelect(c.ctx, shown, names[:], iids[:], 0, proc(_: int, iid: string) -> Msg { return Level_World_Chosen(iid) },
 			id = skald.hash_id("ldtk-world-choice"), width = c.controlWidth), "Which of the project's worlds shows (LDtk's Multi-worlds): the canvas and the Levels sidebar show its levels")
 	}
 	layout := LDtkDoc_WorldLayout(c.doc, wi)
-	e := base(c, .World_Layout)
+	e := tabBase(c, .World_Layout)
 	e.world = wi
 	layouts := []string{"Free", "GridVania", "LinearHorizontal", "LinearVertical"}
 	labels := []string{"Free", "GridVania (on a grid)", "Linear, side by side", "Linear, one above the other"}
-	row(c, "Layout", choiceField(c, "ldtk-world-layout", layout, labels, layouts, e), "How the levels are placed: anywhere, on a grid, or in a line by their order")
+	tabRow(c, "Layout", tabChoiceField(c, "ldtk-world-layout", layout, labels, layouts, e), "How the levels are placed: anywhere, on a grid, or in a line by their order")
 	grid := LDtkDoc_WorldGrid(c.doc, wi)
 	if layout == "GridVania" {
 		e.op = .World_Grid_Width
-		numberRow(c, "Grid width", "ldtk-world-grid-w", "The world grid's cells, in pixels (levels move with it)", e, f64(grid.x), 16, 0, 1, 100000)
+		tabNumberRow(c, "Grid width", "ldtk-world-grid-w", "The world grid's cells, in pixels (levels move with it)", e, f64(grid.x), 16, 0, 1, 100000)
 		e.op = .World_Grid_Height
-		numberRow(c, "Grid height", "ldtk-world-grid-h", "The world grid's cell height", e, f64(grid.y), 16, 0, 1, 100000)
+		tabNumberRow(c, "Grid height", "ldtk-world-grid-h", "The world grid's cell height", e, f64(grid.y), 16, 0, 1, 100000)
 	} else {
-		note(c, fmt.tprintf("Grid: %d x %d (GridVania's: it applies when the layout is GridVania)", grid.x, grid.y))
+		tabNote(c, fmt.tprintf("Grid: %d x %d (GridVania's: it applies when the layout is GridVania)", grid.x, grid.y))
 	}
 	linear := layout == "LinearHorizontal" || layout == "LinearVertical"
-	heading(c, "Levels")
-	if linear do note(c, "A linear world places its levels by their order (not editable here yet: reorder them in LDtk).", true)
+	tabHeading(c, "Levels")
+	if linear do tabNote(c, "A linear world places its levels by their order (not editable here yet: reorder them in LDtk).", true)
 	for _, i in c.doc.levels {
 		if c.doc.levels[i].world != wi do continue
 		name, iid := LDtkDoc_LevelNames(c.doc, i)
 		rect := LDtkDoc_LevelRect(c.doc, i)
 		if linear {
-			note(c, fmt.tprintf("%s: %.0f x %.0f px, at %.0f, %.0f", name, rect[2], rect[3], rect[0], rect[1]))
+			tabNote(c, fmt.tprintf("%s: %.0f x %.0f px, at %.0f, %.0f", name, rect[2], rect[3], rect[0], rect[1]))
 			continue
 		}
-		move := base(c, .Level_X)
+		move := tabBase(c, .Level_X)
 		move.level = strings.clone(iid, context.temp_allocator)
 		step := layout == "GridVania" ? f64(grid.x) : 16
-		numberRow(c, fmt.tprintf("%s X", name), fmt.tprintf("ldtk-world-x-%d", i), "Where the level's left edge is in the world (GridVania: snapped to the grid)", move, rect[0], step, 0, -1000000, 1000000)
+		tabNumberRow(c, fmt.tprintf("%s X", name), fmt.tprintf("ldtk-world-x-%d", i), "Where the level's left edge is in the world (GridVania: snapped to the grid)", move, rect[0], step, 0, -1000000, 1000000)
 		move.op = .Level_Y
-		numberRow(c, fmt.tprintf("%s Y", name), fmt.tprintf("ldtk-world-y-%d", i), "Where its top edge is", move, rect[1], layout == "GridVania" ? f64(grid.y) : 16, 0, -1000000, 1000000)
+		tabNumberRow(c, fmt.tprintf("%s Y", name), fmt.tprintf("ldtk-world-y-%d", i), "Where its top edge is", move, rect[1], layout == "GridVania" ? f64(grid.y) : 16, 0, -1000000, 1000000)
 	}
-	note(c, fmt.tprintf("Levels' sizes, names and new levels are LDtk's for now. This file is LDtk %s.", Json_String(main, Json_Get(main, Json_Root(main), "jsonVersion"))))
+	tabNote(c, fmt.tprintf("Levels' sizes, names and new levels are LDtk's for now. This file is LDtk %s.", Json_String(main, Json_Get(main, Json_Root(main), "jsonVersion"))))
 }
 
-// Tilesets: what they are (LDtk edits them)
+// Tilesets: the tilesets' editor (view_ldtk_defs.odin)
 @(private="file")
 ldtkTilesetsSection :: proc(c: ^LDtkTabCtx) {
-	main := c.main
-	sets := Json_Items(main, LDtkDoc_Defs(c.doc, "tilesets"))
-	if len(sets) == 0 do note(c, "No tilesets.")
-	for t in sets {
-		heading(c, Json_String(main, Json_Get(main, t, "identifier")))
-		image := Json_String(main, Json_Get(main, t, "relPath"))
-		if image == "" do image = Json_String(main, Json_Get(main, t, "embedAtlas"))
-		note(c, fmt.tprintf("%s, %d x %d px, %d px tiles (spacing %d, padding %d)", image == "" ? "no image" : image,
-			Json_Int(main, Json_Get(main, t, "pxWid")), Json_Int(main, Json_Get(main, t, "pxHei")), Json_Int(main, Json_Get(main, t, "tileGridSize")),
-			Json_Int(main, Json_Get(main, t, "spacing")), Json_Int(main, Json_Get(main, t, "padding"))))
-	}
-	note(c, "Tilesets are edited in LDtk (not here yet).")
+	LDtkDefs_Tilesets(c)
 }
 
 // Auto-layer rules: a summary of each layer's rule groups (they're edited in LDtk until phase 4)
 @(private="file")
 ldtkRulesSection :: proc(c: ^LDtkTabCtx) {
 	main := c.main
-	note(c, "Auto-layer rules paint tiles from an IntGrid layer's values. They're edited in LDtk for now: this tab edits them in phase 4 of the Level editor.", true)
+	tabNote(c, "Auto-layer rules paint tiles from an IntGrid layer's values. They're edited in LDtk for now: this tab edits them in phase 4 of the Level editor.", true)
 	any := false
 	for d in Json_Items(main, LDtkDoc_Defs(c.doc, "layers")) {
 		groups := Json_Items(main, Json_Get(main, d, "autoRuleGroups"))
 		if len(groups) == 0 do continue
 		any = true
-		heading(c, fmt.tprintf("%s (%s)", Json_String(main, Json_Get(main, d, "identifier")), Json_String(main, Json_Get(main, d, "__type"))))
+		tabHeading(c, fmt.tprintf("%s (%s)", Json_String(main, Json_Get(main, d, "identifier")), Json_String(main, Json_Get(main, d, "__type"))))
 		for g in groups {
 			rules := Json_Items(main, Json_Get(main, g, "rules"))
 			active := 0
 			for r in rules do if Json_Bool(main, Json_Get(main, r, "active"), true) do active += 1
 			name := Json_String(main, Json_Get(main, g, "name"))
-			note(c, fmt.tprintf("%s: %d rule%s, %d active%s", name == "" ? "(no name)" : name, len(rules), len(rules) == 1 ? "" : "s", active,
+			tabNote(c, fmt.tprintf("%s: %d rule%s, %d active%s", name == "" ? "(no name)" : name, len(rules), len(rules) == 1 ? "" : "s", active,
 				Json_Bool(main, Json_Get(main, g, "active"), true) ? "" : " (the group is off)"))
 		}
 	}
-	if !any do note(c, "No layer of this project has auto-layer rules.")
+	if !any do tabNote(c, "No layer of this project has auto-layer rules.")
 }
 
 // Project: the LDtk file's own settings, read only (phase 5 edits them), and whether it's saved
@@ -882,29 +730,29 @@ ldtkProjectSection :: proc(c: ^LDtkTabCtx) {
 	text :: proc(c: ^LDtkTabCtx, value: string) -> skald.View {
 		return skald.text(value, c.ctx.theme.color.fg, c.ctx.theme.font.size_sm, max_width = c.controlWidth)
 	}
-	row(c, "File", text(c, c.file), "The LDtk project's file, in the project's assets")
+	tabRow(c, "File", text(c, c.file), "The LDtk project's file, in the project's assets")
 	files := len(c.doc.files) - 1
-	if files > 0 do note(c, fmt.tprintf("Its levels are saved apart: %d .ldtkl file%s beside it", files, files == 1 ? "" : "s"))
+	if files > 0 do tabNote(c, fmt.tprintf("Its levels are saved apart: %d .ldtkl file%s beside it", files, files == 1 ? "" : "s"))
 	status := skald.row(
 		skald.text(unsaved ? "Unsaved edits" : "Saved", unsaved ? th.color.warning : th.color.fg_muted, th.font.size_sm),
 		skald.button(c.ctx, fmt.tprintf("%s  Save", ICON_SAVE), Msg(Action.Save_Project), id = skald.hash_id("ldtk-project-save"), bg = th.color.surface, fg = th.color.fg,
 			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = !unsaved),
 		spacing = th.spacing.sm, cross_align = .Center)
-	row(c, "Saved", status, "The Level mode's edits stay in memory until you save (Ctrl+S), play or export")
-	row(c, "LDtk version", text(c, Json_String(main, Json_Get(main, root, "jsonVersion"))), "The LDtk version that last saved the file")
+	tabRow(c, "Saved", status, "The Level mode's edits stay in memory until you save (Ctrl+S), play or export")
+	tabRow(c, "LDtk version", text(c, Json_String(main, Json_Get(main, root, "jsonVersion"))), "The LDtk version that last saved the file")
 	worlds := len(c.doc.worlds)
-	row(c, "Worlds", text(c, fmt.tprintf("%d (%d level%s)", worlds, len(c.doc.levels), len(c.doc.levels) == 1 ? "" : "s")), "LDtk's Multi-worlds: a project with several worlds")
-	row(c, "Identifiers", text(c, Json_String(main, Json_Get(main, root, "identifierStyle"))), "How LDtk writes names (Capitalize, Uppercase, Lowercase, Free): renames here follow it")
-	row(c, "Default grid", text(c, fmt.tprintf("%d px", Json_Int(main, Json_Get(main, root, "defaultGridSize"), 16))), "The cell size of new layers")
-	row(c, "Level size", text(c, fmt.tprintf("%d x %d px", Json_Int(main, Json_Get(main, root, "defaultLevelWidth"), 256), Json_Int(main, Json_Get(main, root, "defaultLevelHeight"), 256))), "The size of new levels")
-	row(c, "Background", colorSwatch(c, Json_String(main, Json_Get(main, root, "defaultLevelBgColor"))), "New levels' background color")
-	row(c, "Separate files", text(c, Json_Bool(main, Json_Get(main, root, "externalLevels")) ? "Yes: each level in a .ldtkl file" : "No: levels in the project file"), "LDtk's \"Save levels to separate files\"")
-	note(c, "These are edited in LDtk for now (Project settings): phase 5 of the Level editor edits them here.")
+	tabRow(c, "Worlds", text(c, fmt.tprintf("%d (%d level%s)", worlds, len(c.doc.levels), len(c.doc.levels) == 1 ? "" : "s")), "LDtk's Multi-worlds: a project with several worlds")
+	tabRow(c, "Identifiers", text(c, Json_String(main, Json_Get(main, root, "identifierStyle"))), "How LDtk writes names (Capitalize, Uppercase, Lowercase, Free): renames here follow it")
+	tabRow(c, "Default grid", text(c, fmt.tprintf("%d px", Json_Int(main, Json_Get(main, root, "defaultGridSize"), 16))), "The cell size of new layers")
+	tabRow(c, "Level size", text(c, fmt.tprintf("%d x %d px", Json_Int(main, Json_Get(main, root, "defaultLevelWidth"), 256), Json_Int(main, Json_Get(main, root, "defaultLevelHeight"), 256))), "The size of new levels")
+	tabRow(c, "Background", tabColorSwatch(c, Json_String(main, Json_Get(main, root, "defaultLevelBgColor"))), "New levels' background color")
+	tabRow(c, "Separate files", text(c, Json_Bool(main, Json_Get(main, root, "externalLevels")) ? "Yes: each level in a .ldtkl file" : "No: levels in the project file"), "LDtk's \"Save levels to separate files\"")
+	tabNote(c, "These are edited in LDtk for now (Project settings): phase 5 of the Level editor edits them here.")
 }
 
 // A color's swatch and text (read only)
-@(private="file")
-colorSwatch :: proc(c: ^LDtkTabCtx, value: string) -> skald.View {
+@(private)
+tabColorSwatch :: proc(c: ^LDtkTabCtx, value: string) -> skald.View {
 	color := skald.rgb(0x000000)
 	if v, ok := LDtk_ParseColor(value); ok do color = skald.rgb(u32(v))
 	return skald.row(skald.col(skald.spacer(0), width = 16, height = 16, bg = color, radius = 2), skald.text(value, c.ctx.theme.color.fg, c.ctx.theme.font.size_sm), spacing = 6, cross_align = .Center)

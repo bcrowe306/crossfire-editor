@@ -163,7 +163,9 @@ def make(path, levels_spec, layout, external, worlds=None):
 		layer = level["layerInstances"][0]
 		instance = {
 			"__identifier": ident, "__grid": [px[0] // GRID, (px[1] - (1 if d["pivotY"] == 1 else 0)) // GRID],
-			"__pivot": [d["pivotX"], d["pivotY"]], "__tags": [], "__tile": None, "__smartColor": d["color"],
+			"__pivot": [d["pivotX"], d["pivotY"]], "__tags": list(d["tags"]),
+			# EntityDef.getDefaultTile: the type's own tile
+			"__tile": d["tileRect"] if d.get("tilesetId") is not None and d.get("tileRect") else None, "__smartColor": d["color"],
 			"iid": iid, "width": d["width"], "height": d["height"], "defUid": d["uid"], "px": px, "fieldInstances": fields,
 		}
 		if layout in ("Free", "GridVania"):
@@ -173,7 +175,9 @@ def make(path, levels_spec, layout, external, worlds=None):
 		return instance
 
 	def ref(target, li, lv):
-		return {"entityIid": target, "layerIid": levels[lv]["layerInstances"][0]["iid"], "levelIid": levels[lv]["iid"], "worldIid": root["dummyWorldIid"]}
+		# The target's world (Multi-worlds: the world holding its level)
+		world = next((w["iid"] for w in (worlds or []) if levels[lv]["identifier"] in w["levels"]), root["dummyWorldIid"])
+		return {"entityIid": target, "layerIid": levels[lv]["layerInstances"][0]["iid"], "levelIid": levels[lv]["iid"], "worldIid": world}
 
 	for i, spec in enumerate(levels_spec):
 		for e in spec["entities"]:

@@ -382,7 +382,7 @@ paintState :: proc(dir: string, level, layer: string) -> ^State {
 	state^ = State{project = Project_CreateEmpty(dir, "Paint"), browserSelection = {kind = .None}, selectedNode = -1, layout = {bottomOpen = true}, settings = Settings_Default()}
 	state.settings.builtInCodeEditor = false
 	state.mode = .Level
-	state.level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .World, layerDef = -1, entityDef = -1, enumDef = -1, paint = {entityDef = -1}}
+	state.level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .World, layerDef = -1, entityDef = -1, enumDef = -1, fieldDef = -1, levelField = -1, tilesetDef = -1, dataTile = -1, paint = {entityDef = -1}}
 	append(&state.project.assets, AssetDef{path = strings.clone("paint.ldtk"), kind = .LDtk})
 	paintSend(state, Level_Canvas_Measured{800, 400})
 	paintSend(state, Level_Focus_Changed(level))

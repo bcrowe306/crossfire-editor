@@ -129,8 +129,8 @@ ldtk_json_pretty_writes_as_ldtk :: proc(t: ^testing.T) {
 	one := []LDtkJV{LDtkJObject(pair)}
 	testing.expect_value(t, LDtk_PrettyJson(LDtkJArray(one), false, 0), `[{ "a": 1, "b": "x" }]`)
 	testing.expect_value(t, LDtk_PrettyJson(LDtkJArray(one), true, 0), `[{"a":1,"b":"x"}]`)
-	// Strings: no line breaks, quotes escaped; a float-hinted string becomes a number
-	testing.expect_value(t, LDtk_PrettyJson("a\nb\"c", false), `"a b\"c"`)
+	// Strings: line breaks escaped (LDtk's escapeString), tabs spaces, quotes escaped; a float-hinted string becomes a number
+	testing.expect_value(t, LDtk_PrettyJson("a\nb\"c\td", false), `"a\nb\"c d"`)
 	testing.expect_value(t, LDtk_PrettyJson("5f", false), "5.0")
 }
 

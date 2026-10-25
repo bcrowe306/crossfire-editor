@@ -1445,6 +1445,7 @@ Msg :: union {
 	LDtk_Item_Picked,
 	LDtk_Text_Typed,
 	LDtk_New_Name_Typed,
+	LDtk_Def_Picked,
 	LDtk_Edit,
 	LDtk_Conflict_Chosen,
 	Level_World_Chosen,

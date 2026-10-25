@@ -451,7 +451,7 @@ init :: proc() -> State {
 			previewOpen = true,
 			previewHeight = 220,
 		},
-		level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .World, layerDef = -1, entityDef = -1, enumDef = -1, paint = {entityDef = -1}},
+		level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .World, layerDef = -1, entityDef = -1, enumDef = -1, fieldDef = -1, levelField = -1, tilesetDef = -1, dataTile = -1, paint = {entityDef = -1}},
 	}
 	args := parseArgs()
 	settings, problems := Settings_Load(args.settings)

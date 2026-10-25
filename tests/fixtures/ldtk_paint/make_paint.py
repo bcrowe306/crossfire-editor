@@ -311,7 +311,7 @@ def main():
 		return {
 			"identifier": identifier, "iid": iid, "uid": uid, "worldX": x, "worldY": 0, "worldDepth": 0, "pxWid": w, "pxHei": h,
 			"__bgColor": "#40465B", "bgColor": None, "useAutoIdentifier": False, "bgRelPath": None, "bgPos": None,
-			"bgPivotX": 0.5, "bgPivotY": 0.5, "__smartColor": "#ADADB5", "__bgPos": None, "externalRelPath": None,
+			"bgPivotX": 0.5, "bgPivotY": 0.5, "__smartColor": "#9699A5", "__bgPos": None, "externalRelPath": None,
 			"fieldInstances": [],
 			"layerInstances": [layer_instance(iid, uid, d, cw, ch, 1000 + uid * 7 + d["uid"], optional if d["uid"] == 3 else ()) for d in layers],
 			"__neighbours": [],

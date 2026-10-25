@@ -928,7 +928,7 @@
 			"bgPos": null,
 			"bgPivotX": 0.5,
 			"bgPivotY": 0.5,
-			"__smartColor": "#ADADB5",
+			"__smartColor": "#848992",
 			"__bgPos": null,
 			"externalRelPath": "external/0000-North.ldtkl",
 			"fieldInstances": [
@@ -988,7 +988,7 @@
 			"bgPos": null,
 			"bgPivotX": 0.5,
 			"bgPivotY": 0.5,
-			"__smartColor": "#ADADB5",
+			"__smartColor": "#848992",
 			"__bgPos": null,
 			"externalRelPath": "external/0001-South.ldtkl",
 			"fieldInstances": [
