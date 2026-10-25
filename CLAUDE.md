@@ -254,7 +254,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `context_menus.odin` | **Right-click menus everywhere**: `ContextTarget` (what was clicked), `State.contextMenu`, `Context_Menu_Opened` / `_Closed`, `ContextMenu_Items` (the items per target: nodes, empty viewport, the tree, the browser's every kind, tabs, logs), `contextMenuView` (Skald's `popup_menu`, built first in the frame), `rightPressOpens`, the commands without an older message (`Node_Command`, `Add_Node_Here`, `Paste_Here`, `Tab_Command`, `File_Command`, `Log_Command`, `Asset_Add_To_Scene`) |
 | `context_menus_panels.odin` | The bottom panel's menus (`Ctx_Graph`): States, Dialogue nodes and steps, Timeline tracks and keys, Mixer strips, Git changes, Live nodes, Animation frames, plugins |
 | `viewport_tools.odin` | **Viewport tools**: Align and Distribute (`Align_Nodes`, `Align_Moves` on `Viewport_NodeShapes`' boxes), the Zoom tool's click or box (`ViewportTools_ZoomBox`), guides (`SceneDef.guides`, `Guide_*` messages, `Guides_Snap` / `Guides_SnapNode`, `.editor/guides.ini`: `Guides_Save` / `Guides_Load`) |
-| `editor_theme.odin` | **The editor's look**, edited live in Settings > Appearance: `ThemeColor` (Skald's roles), `Settings.themeColors` / `themeColorsSet` / `cornerRadius`, `EditorTheme_Apply` (in `Settings_Theme`), `THEME_PRESETS`, `ThemeColor_Format` / `_Parse` (editor.ini's `[theme]`) |
+| `editor_theme.odin` | **The editor's look**, edited live in Settings > Appearance: `ThemeColor` (Skald's roles), `Settings.themeColors` / `themeColorsSet` / `cornerRadius`, `EditorTheme_Apply` (in `Settings_Theme`), `THEME_PRESETS`, `ThemeColor_Format` / `_Parse` (editor.ini's `[theme]`); the canvases' colors (`ViewportColor`, `ViewportColors`, `ViewportColor_Default`, `ViewportBg_Bytes`) |
 | `project.odin` | Project model (`Project`, `SceneDef`, `NodeDef`, `AssetDef`), node insert/remove, world transforms, `Project_Load` (through the engine's parser), the built-in outline of the demo (`Project_CreateDemo`) |
 | `project_xml.odin` | `Project_Save`, XML writer (`ProjectToXML`, `SceneToXML`, `EscapeXML`) |
 | `assets.odin` | Importing (copy into `assets/`), removing, usage counts, asset kinds by extension |
@@ -842,7 +842,8 @@ shows up here with no editor change (it still needs inspector fields).
   camera frames.
 - **The grid is dark gray** (`GRID_LINE_COLOR`, `GRID_MAJOR_COLOR`, `GRID_AXIS_COLOR`; the user's
   choice, 2026-10-22: apart from the editor's own colors), the project's opacities applied to them
-  (the engine's defaults are 60 and 90 since).
+  (the engine's defaults are 60 and 90 since). They're the defaults: Settings > Appearance's
+  Viewport section sets its own ("The editor's look").
 
 ### Dragging images into the viewport
 
@@ -3051,8 +3052,21 @@ One right-click menu for the whole editor (the user asked for complete menus eve
 - The picker has no alpha: a picked color keeps the opacity it had; Selection opacity sets it.
 - Labels are "Window background" and "Main text" (tooltips are per label; Background and Text
   were taken).
-- Driver: `send Settings_Theme_Preset_Chosen <name>`; checks `live_theme <applied|draft>`,
-  `theme_color <key> <#RRGGBB>`. Tests: `editor_theme_settings`, `tests/ui/theme_editor.script`.
+- **The canvases' colors** (TODO.md's "UI and UX" round 2, 2026-10-25: Appearance's Viewport
+  section): `ViewportColor` (the viewport's background around the game area, grid / major / axes,
+  game frame, selection outline, gizmo X / Y / handles, guides; the Level canvas's background and
+  grid), `Settings.viewportColors` / `viewportColorsSet`, keys in `[theme]` (`VIEWPORT_COLOR_KEYS`:
+  `viewport_bg`...), in the presets (`ThemePreset.viewport`; `EditorTheme_PresetName` compares
+  them). Not Skald's: the views read `ViewportColors(s, ctx.theme)`, **the draft while the dialog
+  is open** (live without a theme command; Cancel drops the draft). Unset, `ViewportColor_Default`:
+  view_viewport.odin's constants (`GRID_*_COLOR`, `GAME_FRAME_COLOR`, `GUIDE_COLOR`, `X_COLOR`,
+  `Y_COLOR`, `VIEWPORT_BG_HEX`) or the theme color they always followed (selection outline: the
+  accent; handles: the main text; Level canvas: window background and borders). The background
+  around the game area is in the engine's render (`ViewportBg_Bytes`, in `Preview_FrameKey`).
+- Driver: `send Settings_Theme_Preset_Chosen <name>`, `send Settings_Viewport_Color_Changed <key>
+  <#RRGGBB>`; checks `live_theme <applied|draft>`, `theme_color <key> <#RRGGBB>` (canvas keys
+  too). Tests: `editor_theme_settings`, `viewport_colors_in_the_theme`,
+  `tests/ui/theme_editor.script`.
   User guide: `docs/manual/settings_and_toolchain.md#appearance`.
 
 ## Pointers (implemented: Skald's widgets, `Viewport_Cursor`, the canvases)

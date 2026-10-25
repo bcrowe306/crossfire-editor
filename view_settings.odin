@@ -133,7 +133,8 @@ The editor's look: a preset to start from, the base theme, text size, spacing, r
 and every theme color (editor_theme.odin). Changes show at once; Cancel puts the old look back.
 
 Widget keys: `settings-preset`, `settings-theme`, `settings-color-<key>` (a color's picker: bg,
-surface... as editor.ini names them) and `settings-color-reset-<key>`, `settings-<field>`.
+surface... as editor.ini names them, the Viewport section's viewport_bg, viewport_grid... too)
+and `settings-color-reset-<key>`, `settings-<field>`.
 */
 @(private="file")
 appearanceTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
@@ -180,6 +181,24 @@ appearanceTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	append(&rows,
 		settingRow(ctx, "Selection opacity", numberSetting(ctx, s, .Selection_Opacity, f64(math.round(current.color.selection[3] * 100)), 5, {0, 100}, "%")),
+		skald.divider(ctx),
+		skald.text("Viewport", th.color.fg, th.font.size_md),
+		hint(ctx, "The viewport's and the Level canvas's colors: around the game area, the grid (the project's opacities apply to it), the game frame, the selection, the gizmo and the guides. The ↶ puts the default back."),
+	)
+	viewportColors := ViewportColors_Of(draft, &current)
+	for which in ViewportColor {
+		key := VIEWPORT_COLOR_KEYS[which]
+		picker := skald.color_picker(ctx, viewportColors[which], which, proc(w: ViewportColor, c: skald.Color) -> Msg { return Settings_Viewport_Color_Changed{w, c} },
+			id = skald.hash_id(fmt.tprintf("settings-color-%s", key)), width = 150)
+		reset: skald.View = skald.spacer(0)
+		if which in draft.viewportColorsSet {
+			reset = skald.tooltip(ctx, skald.button(ctx, ICON_UNDO, Msg(Settings_Viewport_Color_Reset(which)), id = skald.hash_id(fmt.tprintf("settings-color-reset-%s", key)),
+				width = 28, font_size = th.font.size_sm, bg = th.color.surface, fg = th.color.fg_muted),
+				"Back to the default color", id = skald.hash_id(fmt.tprintf("settings-color-reset-tip-%s", key)))
+		}
+		append(&rows, settingRow(ctx, VIEWPORT_COLOR_LABELS[which], skald.row(picker, reset, spacing = th.spacing.xs, cross_align = .Center)))
+	}
+	append(&rows,
 		skald.spacer(th.spacing.sm),
 		hint(ctx, "Changes show at once. Apply or Save keeps them (in editor.ini); Cancel puts the old look back."),
 	)

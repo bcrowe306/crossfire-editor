@@ -21,6 +21,14 @@ and Save keep it.
 
 **Saved** in editor.ini's `[theme]` section: `corner_radius` (percent of Skald's) and one line per
 color set, `#RRGGBB` or `#RRGGBBAA` (`bg = #1e2130`).
+
+**The canvases' colors** (`ViewportColor`: the viewport's background around the game area, its
+grid, game frame, selection outline, gizmo and guides; the Level canvas's background and grid) are
+set the same way (`Settings.viewportColors` with `viewportColorsSet`, the same `[theme]` section:
+`viewport_bg = #101218`) but aren't Skald's: the views read them (`ViewportColors`: the Settings
+dialog's draft while it's open, so they're live too; Cancel drops the draft). Unset, each is its
+default (`ViewportColor_Default`): today's constants, or the theme's color it always followed
+(the selection outline the accent, the Level canvas the window background).
 */
 
 // One of the theme's colors (Skald's `Theme_Colors` roles)
@@ -60,6 +68,95 @@ THEME_COLOR_KEYS := [ThemeColor]string {
 	.Bg = "bg", .Surface = "surface", .Elevated = "elevated", .Border = "border",
 	.Fg = "fg", .Fg_Muted = "fg_muted", .Primary = "primary", .On_Primary = "on_primary",
 	.Selection = "selection", .Success = "success", .Warning = "warning", .Danger = "danger",
+}
+
+// One of the canvases' colors (the viewport's and the Level canvas's), set in Settings > Appearance
+ViewportColor :: enum {
+	Viewport_Bg,
+	Grid,
+	Grid_Major,
+	Grid_Axis,
+	Game_Frame,
+	Selection_Outline,
+	Gizmo_X,
+	Gizmo_Y,
+	Gizmo_Handles,
+	Guides,
+	Level_Bg,
+	Level_Grid,
+}
+
+// Each canvas color's name in Settings (each has a tooltip: tooltips.odin)
+VIEWPORT_COLOR_LABELS := [ViewportColor]string {
+	.Viewport_Bg       = "Viewport background",
+	.Grid              = "Grid lines",
+	.Grid_Major        = "Major grid lines",
+	.Grid_Axis         = "Grid axes",
+	.Game_Frame        = "Game frame",
+	.Selection_Outline = "Selection outline",
+	.Gizmo_X           = "Gizmo X arrow",
+	.Gizmo_Y           = "Gizmo Y arrow",
+	.Gizmo_Handles     = "Gizmo handles",
+	.Guides            = "Guide lines",
+	.Level_Bg          = "Level canvas background",
+	.Level_Grid        = "Level canvas grid",
+}
+
+// Each canvas color's key in editor.ini's [theme] section
+VIEWPORT_COLOR_KEYS := [ViewportColor]string {
+	.Viewport_Bg = "viewport_bg", .Grid = "viewport_grid", .Grid_Major = "viewport_grid_major",
+	.Grid_Axis = "viewport_grid_axis", .Game_Frame = "viewport_game_frame",
+	.Selection_Outline = "viewport_selection", .Gizmo_X = "viewport_gizmo_x", .Gizmo_Y = "viewport_gizmo_y",
+	.Gizmo_Handles = "viewport_gizmo_handles", .Guides = "viewport_guides",
+	.Level_Bg = "level_bg", .Level_Grid = "level_grid",
+}
+
+/*
+A canvas color's default, unset: the viewport's constants (the grid's dark grays are the user's
+choice of 2026-10-22, apart from the editor's colors), or the theme's color it follows (`theme`:
+the look shown, `ctx.theme`).
+*/
+ViewportColor_Default :: proc(which: ViewportColor, theme: ^skald.Theme) -> skald.Color {
+	switch which {
+	case .Viewport_Bg:       return skald.rgb(VIEWPORT_BG_HEX)
+	case .Grid:              return GRID_LINE_COLOR
+	case .Grid_Major:        return GRID_MAJOR_COLOR
+	case .Grid_Axis:         return GRID_AXIS_COLOR
+	case .Game_Frame:        return GAME_FRAME_COLOR
+	case .Selection_Outline: return theme.color.primary
+	case .Gizmo_X:           return X_COLOR
+	case .Gizmo_Y:           return Y_COLOR
+	case .Gizmo_Handles:     return theme.color.fg
+	case .Guides:            return GUIDE_COLOR
+	case .Level_Bg:          return theme.color.bg
+	case .Level_Grid:        return theme.color.border
+	}
+	return {}
+}
+
+// The canvases' colors of a settings value: the ones set, the rest their defaults over `theme`
+ViewportColors_Of :: proc(settings: ^Settings, theme: ^skald.Theme) -> (colors: [ViewportColor]skald.Color) {
+	for which in ViewportColor {
+		colors[which] = which in settings.viewportColorsSet ? settings.viewportColors[which] : ViewportColor_Default(which, theme)
+	}
+	return
+}
+
+/*
+The canvases' colors the editor shows now: the Settings dialog's draft while it's open (Appearance
+is live; Cancel drops the draft), else the applied settings'. `theme` is the look shown
+(`ctx.theme`), for the colors that follow it.
+*/
+ViewportColors :: proc(s: ^State, theme: ^skald.Theme) -> [ViewportColor]skald.Color {
+	return ViewportColors_Of(s.settingsDialog.open ? &s.settingsDialog.draft : &s.settings, theme)
+}
+
+// The viewport's background around the game area as SDL's bytes (sRGB), for the engine's render
+ViewportBg_Bytes :: proc(s: ^State) -> [4]u8 {
+	look := s.settingsDialog.open ? &s.settingsDialog.draft : &s.settings
+	c := .Viewport_Bg in look.viewportColorsSet ? look.viewportColors[.Viewport_Bg] : skald.rgb(VIEWPORT_BG_HEX)
+	hex, _ := strconv.parse_uint(skald.color_to_hex(c), 16)
+	return {u8(hex >> 16), u8(hex >> 8), u8(hex), 255}
 }
 
 // The roundness of corners: percent of Skald's radii
@@ -128,6 +225,8 @@ ThemePreset :: struct {
 	base: ThemeChoice,
 	// 0xRRGGBBAA; 0 leaves the base's color
 	colors: [ThemeColor]u32,
+	// The canvases' colors it sets (0: the default)
+	viewport: [ViewportColor]u32,
 }
 
 // The presets of Settings > Appearance > Preset
@@ -138,21 +237,31 @@ THEME_PRESETS := [?]ThemePreset {
 		.Bg = 0x0F1420FF, .Surface = 0x161D2CFF, .Elevated = 0x1E2739FF, .Border = 0x2B3650FF,
 		.Fg = 0xDFE6F3FF, .Fg_Muted = 0x8B97ADFF, .Primary = 0x5B8CFFFF, .On_Primary = 0xFFFFFFFF,
 		.Selection = 0x5B8CFF55, .Success = 0x4CC38AFF, .Warning = 0xE9B44CFF, .Danger = 0xF0616DFF,
+	}, viewport = #partial [ViewportColor]u32{
+		.Viewport_Bg = 0x0A0E17FF, .Grid = 0x1F2738FF, .Grid_Major = 0x2C3850FF, .Grid_Axis = 0x3E4D6CFF,
 	}},
 	{name = "Graphite", base = .Dark, colors = {
 		.Bg = 0x1B1B1BFF, .Surface = 0x242424FF, .Elevated = 0x2D2D2DFF, .Border = 0x3A3A3AFF,
 		.Fg = 0xE6E6E6FF, .Fg_Muted = 0x9A9A9AFF, .Primary = 0xE8833AFF, .On_Primary = 0x1B1B1BFF,
 		.Selection = 0xE8833A50, .Success = 0x6CC070FF, .Warning = 0xE8B83AFF, .Danger = 0xE5534BFF,
+	}, viewport = #partial [ViewportColor]u32{
+		.Viewport_Bg = 0x141414FF, .Grid = 0x2A2A2AFF, .Grid_Major = 0x383838FF, .Grid_Axis = 0x4A4A4AFF,
 	}},
 	{name = "High Contrast", base = .Dark, colors = {
 		.Bg = 0x000000FF, .Surface = 0x0A0A0AFF, .Elevated = 0x161616FF, .Border = 0xFFFFFFFF,
 		.Fg = 0xFFFFFFFF, .Fg_Muted = 0xD4D4D4FF, .Primary = 0xFFD400FF, .On_Primary = 0x000000FF,
 		.Selection = 0xFFD40066, .Success = 0x00FF66FF, .Warning = 0xFFD400FF, .Danger = 0xFF4040FF,
+	}, viewport = #partial [ViewportColor]u32{
+		.Viewport_Bg = 0x000000FF, .Grid = 0x4A4A4AFF, .Grid_Major = 0x8A8A8AFF, .Grid_Axis = 0xFFFFFFFF,
+		.Game_Frame = 0xFF4040FF, .Guides = 0x00E5FFFF,
 	}},
 	{name = "Paper", base = .Light, colors = #partial [ThemeColor]u32{
 		.Bg = 0xF4F1EAFF, .Surface = 0xFBF9F4FF, .Elevated = 0xFFFFFFFF, .Border = 0xD8D2C4FF,
 		.Fg = 0x2B2A27FF, .Fg_Muted = 0x6F6A60FF, .Primary = 0x2F6FDFFF, .On_Primary = 0xFFFFFFFF,
 		.Selection = 0x2F6FDF40,
+	}, viewport = #partial [ViewportColor]u32{
+		.Viewport_Bg = 0xD9D4C8FF, .Grid = 0xC4BEB0FF, .Grid_Major = 0xAFA898FF, .Grid_Axis = 0x8E8676FF,
+		.Game_Frame = 0xC8473EB0, .Gizmo_Y = 0x2E9E48FF, .Guides = 0x1C8FB0D9,
 	}},
 }
 
@@ -173,6 +282,13 @@ EditorTheme_ApplyPreset :: proc(settings: ^Settings, name: string) -> bool {
 				settings.themeColorsSet += {which}
 			}
 		}
+		settings.viewportColorsSet = {}
+		for which in ViewportColor {
+			if hex := preset.viewport[which]; hex != 0 {
+				settings.viewportColors[which] = skald.rgba(hex)
+				settings.viewportColorsSet += {which}
+			}
+		}
 		return true
 	}
 	return false
@@ -191,6 +307,14 @@ EditorTheme_PresetName :: proc(settings: ^Settings) -> string {
 				break
 			}
 		}
+		for which in ViewportColor {
+			hex := preset.viewport[which]
+			set := which in settings.viewportColorsSet
+			if (hex != 0) != set || (set && ThemeColor_Format(settings.viewportColors[which]) != ThemeColor_Format(skald.rgba(hex))) {
+				same = false
+				break
+			}
+		}
 		if same do return preset.name
 	}
 	return ""
@@ -205,3 +329,10 @@ Settings_Theme_Color_Changed :: struct {
 Settings_Theme_Color_Reset :: distinct ThemeColor
 // A preset chosen (its name)
 Settings_Theme_Preset_Chosen :: distinct string
+// A canvas color set in Settings > Appearance (shown at once; Apply or Save keeps it)
+Settings_Viewport_Color_Changed :: struct {
+	color: ViewportColor,
+	value: skald.Color,
+}
+// A canvas color back to its default
+Settings_Viewport_Color_Reset :: distinct ViewportColor

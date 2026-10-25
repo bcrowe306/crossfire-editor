@@ -1,5 +1,6 @@
 # The editor's look (editor_theme.odin), edited live in Settings > Appearance: a preset shows at
-# once, Cancel puts the old look back, a color set back to the theme's, Save keeps it in the file.
+# once, Cancel puts the old look back, a color set back to the theme's, Save keeps it in the file;
+# the Viewport section's canvas colors the same way.
 # Run with: task test:ui
 
 wait 5
@@ -36,6 +37,44 @@ expect theme_color bg #1B1B1B
 expect settings_file_contains bg = #1B1B1B
 expect settings_file_contains corner_radius = 100
 
+# The Viewport section (Graphite's canvas colors now): a canvas color shows at once, Cancel puts
+# the old one back
+expect theme_color viewport_bg #141414
+expect theme_color viewport_grid #2A2A2A
+key ctrl+comma
+wait_until settings_dialog open
+click_widget settings-tab-Appearance
+scroll_into_view settings-appearance-scroll settings-color-viewport_bg
+send Settings_Viewport_Color_Changed viewport_bg #203040
+wait_until theme_color viewport_bg #203040
+click_widget settings-cancel
+wait_until settings_dialog closed
+expect theme_color viewport_bg #141414
+# Set again, one back to its default with its ↶, a preset's, then saved
+key ctrl+comma
+wait_until settings_dialog open
+click_widget settings-tab-Appearance
+send Settings_Viewport_Color_Changed viewport_bg #203040
+send Settings_Viewport_Color_Changed level_bg #112233
+wait_until theme_color level_bg #112233
+scroll_into_view settings-appearance-scroll settings-color-reset-level_bg
+click_widget settings-color-reset-level_bg
+wait_until theme_color viewport_bg #203040
+expect setting theme Dark
+click_widget settings-save
+wait_until settings_dialog closed
+expect theme_color viewport_bg #203040
+expect settings_file_contains viewport_bg = #203040
+key ctrl+comma
+wait_until settings_dialog open
+click_widget settings-tab-Appearance
+send Settings_Theme_Preset_Chosen Paper
+wait_until theme_color viewport_bg #D9D4C8
+click_widget settings-apply
+expect theme_color viewport_grid #C4BEB0
+click_widget settings-cancel
+wait_until settings_dialog closed
+
 # Back to Dark for the scripts after this one
 key ctrl+comma
 wait_until settings_dialog open
@@ -44,3 +83,7 @@ send Settings_Theme_Preset_Chosen Dark
 click_widget settings-save
 wait_until settings_dialog closed
 expect live_theme applied
+# Dark sets no canvas colors: the defaults
+expect theme_color viewport_bg #101218
+expect theme_color viewport_grid #818184
+expect theme_color level_bg #0F1115

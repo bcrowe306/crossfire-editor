@@ -181,7 +181,9 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 		sdl.SetRenderViewport(r, &viewport)
 		sdl.SetRenderClipRect(r, &viewport)
 	}
-	sdl.SetRenderDrawColor(r, 16, 18, 24, 255)
+	// Around the game area: the viewport background (Settings > Appearance)
+	around := ViewportBg_Bytes(s)
+	sdl.SetRenderDrawColor(r, around.r, around.g, around.b, 255)
 	sdl.RenderClear(r)
 
 	// The game area in the scene's background color (its own, else the project's), then the scene
@@ -243,6 +245,8 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		zoom: f32,
 		animationFrame: int,
 		background: [4]u8,
+		// Around the game area (Settings > Appearance, live)
+		around: [4]u8,
 		textures: int,
 		timeline: struct { previewing: bool, clip: int, time: f32 },
 		// Generated collision shapes are drawn into the picture
@@ -267,6 +271,7 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		zoom = s.viewport.zoom,
 		animationFrame = s.viewport.animate ? s.viewport.animationFrame : -1,
 		background = transmute([4]u8)SceneSettings_Background(&s.project, scene),
+		around = ViewportBg_Bytes(s),
 		textures = preview.texturesVersion,
 		timeline = {s.timeline.previewing && s.bottomTab == .Timeline && s.layout.bottomOpen, s.timeline.clip, s.timeline.playhead},
 		showShapes = s.viewport.showShapes,

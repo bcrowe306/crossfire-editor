@@ -880,6 +880,81 @@ editor_theme_settings :: proc(t: ^testing.T) {
 	free_all(context.temp_allocator)
 }
 
+// The canvases' colors in Settings > Appearance: defaults (today's constants, the theme's where they
+// followed it), set over them, live from the draft, Cancel, Reset, presets, saved and read back
+@(test)
+viewport_colors_in_the_theme :: proc(t: ^testing.T) {
+	settings := Settings_Default()
+	testing.expect_value(t, settings.viewportColorsSet, bit_set[ViewportColor]{})
+	theme := Settings_Theme(&settings)
+	colors := ViewportColors_Of(&settings, &theme)
+	testing.expect_value(t, colors[.Grid], GRID_LINE_COLOR)
+	testing.expect_value(t, colors[.Grid_Major], GRID_MAJOR_COLOR)
+	testing.expect_value(t, colors[.Grid_Axis], GRID_AXIS_COLOR)
+	testing.expect_value(t, colors[.Game_Frame], GAME_FRAME_COLOR)
+	testing.expect_value(t, colors[.Guides], GUIDE_COLOR)
+	testing.expect_value(t, colors[.Gizmo_X], X_COLOR)
+	testing.expect_value(t, ThemeColor_Format(colors[.Viewport_Bg]), "#101218")
+	testing.expect_value(t, colors[.Selection_Outline], theme.color.primary)
+	testing.expect_value(t, colors[.Level_Bg], theme.color.bg)
+	for which in ViewportColor {
+		testing.expectf(t, fieldTip(VIEWPORT_COLOR_LABELS[which]) != "", "%v has a tooltip", which)
+		testing.expectf(t, VIEWPORT_COLOR_KEYS[which] != "", "%v has a key", which)
+	}
+
+	// Through the dialog: live (the views read the draft), alpha kept, Cancel drops it
+	state := testState()
+	defer State_Destroy(&state)
+	send(&state, Action.Open_Settings)
+	testing.expect(t, state.settingsDialog.open, "the dialog opened")
+	send(&state, Settings_Viewport_Color_Changed{.Game_Frame, skald.rgb(0x00FF00)})
+	shown := ViewportColors(&state, &theme)
+	testing.expect_value(t, ThemeColor_Format(shown[.Game_Frame]), ThemeColor_Format(skald.Color{skald.rgb(0x00FF00).r, skald.rgb(0x00FF00).g, skald.rgb(0x00FF00).b, GAME_FRAME_COLOR.a}))
+	testing.expect(t, .Game_Frame not_in state.settings.viewportColorsSet, "not applied yet")
+	send(&state, Settings_Viewport_Color_Changed{.Viewport_Bg, skald.rgb(0x203040)})
+	testing.expect_value(t, ViewportBg_Bytes(&state), [4]u8{0x20, 0x30, 0x40, 255})
+	send(&state, Settings_Cancelled{})
+	testing.expect(t, !state.settingsDialog.open, "cancelled")
+	testing.expect_value(t, ViewportColors(&state, &theme)[.Game_Frame], GAME_FRAME_COLOR)
+	testing.expect_value(t, ViewportBg_Bytes(&state), [4]u8{0x10, 0x12, 0x18, 255})
+
+	// A color back to its default, the tab's Reset
+	send(&state, Action.Open_Settings)
+	send(&state, Settings_Viewport_Color_Changed{.Grid, skald.rgb(0x445566)})
+	send(&state, Settings_Viewport_Color_Changed{.Level_Bg, skald.rgb(0x112233)})
+	send(&state, Settings_Viewport_Color_Reset(.Grid))
+	testing.expect_value(t, state.settingsDialog.draft.viewportColorsSet, bit_set[ViewportColor]{.Level_Bg})
+	send(&state, Settings_Tab_Changed(int(SettingsTab.Appearance)))
+	send(&state, Settings_Tab_Reset{})
+	testing.expect_value(t, state.settingsDialog.draft.viewportColorsSet, bit_set[ViewportColor]{})
+	send(&state, Settings_Cancelled{})
+
+	// Presets set theirs (and are told apart by them), Dark none
+	testing.expect(t, EditorTheme_ApplyPreset(&settings, "Paper"), "Paper")
+	testing.expect(t, .Viewport_Bg in settings.viewportColorsSet, "Paper sets the viewport")
+	testing.expect_value(t, EditorTheme_PresetName(&settings), "Paper")
+	settings.viewportColors[.Grid] = skald.rgb(0x000000)
+	testing.expect_value(t, EditorTheme_PresetName(&settings), "")
+	testing.expect(t, EditorTheme_ApplyPreset(&settings, "Dark") && settings.viewportColorsSet == {}, "Dark sets none")
+
+	// Saved in [theme] and read back, alpha too
+	EditorTheme_ApplyPreset(&settings, "Midnight")
+	settings.viewportColors[.Guides] = skald.rgba(0x11AA3380)
+	settings.viewportColorsSet += {.Guides}
+	path := "build/test_viewport_colors.ini"
+	defer os.remove(path)
+	testing.expect_value(t, Settings_Save(&settings, path), "")
+	text, _ := os.read_entire_file(path, context.temp_allocator)
+	testing.expect(t, strings.contains(string(text), "viewport_guides = #11AA3380"), "written to [theme]")
+	loaded, problems := Settings_Load(path)
+	testing.expect_value(t, len(problems), 0)
+	testing.expect_value(t, loaded.viewportColorsSet, settings.viewportColorsSet)
+	for which in ViewportColor do if which in settings.viewportColorsSet {
+		testing.expect_value(t, ThemeColor_Format(loaded.viewportColors[which]), ThemeColor_Format(settings.viewportColors[which]))
+	}
+	free_all(context.temp_allocator)
+}
+
 // The keymap's Ctrl is Cmd on a Mac: matched, shown and captured that way; files stay the same
 @(test)
 chords_follow_the_platform :: proc(t: ^testing.T) {

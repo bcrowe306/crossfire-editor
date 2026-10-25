@@ -68,8 +68,23 @@ values, or a hex code like `#E8833A`); the ↶ beside a color you've set puts th
 | **Selection** | Behind selected text and rows (**Selection opacity** sets how see-through) |
 | **Success**, **Warning**, **Danger** | Things that worked, warnings, errors |
 
+**Viewport:** the colors of the viewport and the Level mode's canvas, set the same way (shown at
+once, the ↶ puts the default back, Cancel the old ones, presets set some of them too):
+
+| Color | Default | Where it shows |
+|---|---|---|
+| **Viewport background** | `#101218` | The viewport around the game area (the game area shows the scene's background) |
+| **Grid lines**, **Major grid lines**, **Grid axes** | grays | The viewport's grid: its cells, the line every few cells, the lines through the origin (how opaque they are is the project's: Project Settings > Grid) |
+| **Game frame** | a soft red | The outline of the game area |
+| **Selection outline** | the accent | The outline around selected nodes and the tools' handles' edges |
+| **Gizmo X arrow**, **Gizmo Y arrow** | red, green | The move tool's arrows |
+| **Gizmo handles** | the main text | The move square, the scale squares, the rotate knob |
+| **Guide lines** | cyan | The guides pulled out of the rulers |
+| **Level canvas background** | the window background | The Level mode's canvas around the levels |
+| **Level canvas grid** | the borders | The Level mode's world grid |
+
 The colors you set are saved in `editor.ini`'s `[theme]` section, one line each (`bg = #1B1B1B`,
-`selection = #E8833A50`), with `corner_radius`. The code editor has its own colors: see
+`selection = #E8833A50`, `viewport_bg = #203040`), with `corner_radius`. The code editor has its own colors: see
 [The code editor](code_editor.md#keymaps-and-themes).
 
 ## Editor

@@ -196,7 +196,8 @@ when nothing is selected.
   dragging a number, nudging) undo as one step; a viewport drag is always one step.
 - **Settings** (Edit > Settings, Ctrl+,):
   - Appearance: the editor's look, edited live: presets, the base theme, every color, corners,
-    text size, spacing, row height
+    text size, spacing, row height, and the viewport's and Level canvas's colors (background,
+    grid, game frame, selection, gizmo, guides)
   - Editor: how undo merges edits, and how many steps it keeps; the rotate and scale snap steps
   - Keyboard: every shortcut, two per command. Click one and press the new keys
   - Toolchain: what building games needs, found or not (see above)

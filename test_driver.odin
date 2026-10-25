@@ -202,6 +202,8 @@ copy: `open_project {project}`).
 	                                 Particles_Category_Picked <i> (the Particles tab's category),
 	                                 Particles_Preset_Applied <name> (a preset, by name),
 	                                 Level_World_Chosen <iid> (the Level mode's world),
+	                                 Settings_Viewport_Color_Changed <key> <#RRGGBB> (a canvas
+	                                 color picked in Settings > Appearance: viewport_bg...),
 	                                 LDtk_Item_Picked <Tab> <uid> (a definitions tab's item),
 	                                 LDtk_Def_Picked <Field | Level_Field | Tileset> <uid> or
 	                                 LDtk_Def_Picked Tile_Tag [value] (the tilesets' tile data mode),
@@ -279,7 +281,8 @@ Checks:
 	import_folder <path end>     Where the Import dialog opens next (the last import's folder)
 	local_axes <on | off>        The move arrows follow the node's own axes
 	live_theme <applied | draft> The look the editor shows is the applied settings' (or the dialog's draft)
-	theme_color <key> <#RRGGBB>  A theme color the editor shows now (bg, primary...: editor.ini's keys)
+	theme_color <key> <#RRGGBB>  A theme color the editor shows now (bg, primary...: editor.ini's keys;
+	                             the canvases' viewport_bg, viewport_grid, level_bg... too)
 	cursor <shape>               The pointer's shape after the last frame (Skald's Cursor_Shape names,
 	                             any case: Default, Pointer, Text, Crosshair, Move, EW_Resize,
 	                             NS_Resize, NWSE_Resize, NESW_Resize, Not_Allowed, Grab, Grabbing)
@@ -2248,6 +2251,12 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		case "Node_Script_Added":     msg = Node_Script_Added(strings.clone(value, context.temp_allocator))
 		case "Atlas_Created":         msg = Atlas_Created{}
 		case "Settings_Theme_Preset_Chosen": msg = Settings_Theme_Preset_Chosen(strings.clone(value, context.temp_allocator))
+		case "Settings_Viewport_Color_Changed":
+			// <key> <#RRGGBB>: a canvas color picked (the picker's message)
+			key, _, hex := strings.partition(value, " ")
+			for which in ViewportColor do if VIEWPORT_COLOR_KEYS[which] == key {
+				if c, ok := ThemeColor_Parse(hex); ok do msg = Settings_Viewport_Color_Changed{which, c}
+			}
 		// A bottom tab by its name (the strip scrolls in a narrow window)
 		case "Particles_Category_Picked":
 			if i, ok := strconv.parse_int(value); ok do msg = Particles_Category_Picked(i)
@@ -2973,6 +2982,11 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		for which in ThemeColor do if THEME_COLOR_KEYS[which] == key {
 			colors := ctx.theme.color
 			found = ThemeColor_Format(ThemeColor_Field(&colors, which)^)
+			return found == strings.trim_space(expected), found
+		}
+		// The canvases' colors (viewport_bg, level_bg...): what the views draw now
+		for which in ViewportColor do if VIEWPORT_COLOR_KEYS[which] == key {
+			found = ThemeColor_Format(ViewportColors(s, ctx.theme)[which])
 			return found == strings.trim_space(expected), found
 		}
 		return false, "no such color"

@@ -533,7 +533,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	     Git_New_Branch_Changed, Git_Remote_URL_Changed:
 		// Handled by Git_Update above
 	case Settings_Tab_Changed, Settings_Theme_Changed, Settings_Value_Changed, Settings_Search_Changed,
-	     Settings_Theme_Color_Changed, Settings_Theme_Color_Reset, Settings_Theme_Preset_Chosen,
+	     Settings_Theme_Color_Changed, Settings_Theme_Color_Reset, Settings_Theme_Preset_Chosen, Settings_Viewport_Color_Changed, Settings_Viewport_Color_Reset,
 	     Settings_Capture_Started, Settings_Key_Captured, Settings_Capture_Cancelled, Settings_Key_Cleared,
 	     Settings_Key_Reset, Settings_Tab_Reset, Settings_Applied, Settings_Cancelled:
 		// Handled by SettingsDialog_Update above

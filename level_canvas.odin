@@ -610,7 +610,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			if !link.entity && link.level != s.level.level do continue
 			append(&pk, LevelCanvasLink{toScreen(link.from, center, zoom, size), toScreen(link.to, center, zoom, size), link.entity, link.level})
 		}
-		paint^ = {levels = pl, entities = pe, marks = pm[:], links = pk[:], bg = th.color.bg, line = th.color.border, accent = th.color.primary, fg = th.color.fg,
+		colors := ViewportColors(s, th)
+		paint^ = {levels = pl, entities = pe, marks = pm[:], links = pk[:], bg = colors[.Level_Bg], line = colors[.Level_Grid], accent = th.color.primary, fg = th.color.fg,
 			muted = th.color.fg_muted, link = skald.rgb(0x7FD1FF), neighbour = th.color.fg_muted, fontSize = th.font.size_xs, zoom = zoom, showEntities = zoom >= 0.15,
 			picking = s.level.paint.pick.kind == .Ref}
 		shownWorld := LevelMode_World(s, doc)

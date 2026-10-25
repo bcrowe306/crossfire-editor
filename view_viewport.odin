@@ -187,6 +187,7 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		imageSize = uploadedSize,
 		mouse = ctx.input.mouse_pos,
 		theme = th^,
+		colors = ViewportColors(s, th),
 	}
 	return skald.col(
 		header,
@@ -810,6 +811,8 @@ ViewportData :: struct {
 	imageSize: [2]int,
 	mouse: [2]f32,
 	theme: skald.Theme,
+	// The canvas colors shown (Settings > Appearance's Viewport section, live)
+	colors: [ViewportColor]skald.Color,
 }
 
 @(private="file")
@@ -830,16 +833,16 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 	} else if data.imageReady {
 		skald.draw_image(r, VIEWPORT_IMAGE, viewRect, .Fill)
 	} else {
-		skald.draw_rect(r, viewRect, skald.rgb(0x101218))
+		skald.draw_rect(r, viewRect, data.colors[.Viewport_Bg])
 	}
-	if v.zoom > 0 && v.gridVisible do drawGrid(r, viewRect, v, s.project.grid, th)
-	if v.zoom > 0 do drawGuides(r, viewRect, s)
+	if v.zoom > 0 && v.gridVisible do drawGrid(r, viewRect, v, s.project.grid, &data.colors)
+	if v.zoom > 0 do drawGuides(r, viewRect, s, data.colors[.Guides])
 	if v.zoom > 0 {
 		// Game frame
 		a := toWindow(p.bounds, v, {0, 0})
 		b := toWindow(p.bounds, v, s.project.gameSize)
-		skald.draw_rect_outline(r, {a.x, a.y, b.x - a.x, b.y - a.y}, 1, GAME_FRAME_COLOR)
-		drawTextTop(r, fmt.tprintf("%.0f x %.0f", s.project.gameSize.x, s.project.gameSize.y), a.x, a.y - 16, GAME_FRAME_COLOR, th.font.size_xs)
+		skald.draw_rect_outline(r, {a.x, a.y, b.x - a.x, b.y - a.y}, 1, data.colors[.Game_Frame])
+		drawTextTop(r, fmt.tprintf("%.0f x %.0f", s.project.gameSize.x, s.project.gameSize.y), a.x, a.y - 16, data.colors[.Game_Frame], th.font.size_xs)
 
 		for &node, i in scene.nodes {
 			shape := data.shapes[i]
@@ -938,11 +941,11 @@ drawViewport :: proc(data: ^ViewportData, p: skald.Canvas_Painter) {
 		// The rest of a multi-selection gets an outline; the primary node also gets the tool handles
 		for node in s.selection {
 			if node == s.selectedNode || node >= len(data.shapes) || !data.shapes[node].visible do continue
-			drawOutline(r, p.bounds, v, data.shapes[node], th.color.primary)
+			drawOutline(r, p.bounds, v, data.shapes[node], data.colors[.Selection_Outline])
 		}
 		// An Animator isn't in the world: no handles (they'd cover what it animates)
 		if s.selectedNode >= 0 && s.selectedNode < len(data.shapes) && data.shapes[s.selectedNode].visible && scene.nodes[s.selectedNode].kind != .Animator {
-			drawSelection(r, p.bounds, s, data.shapes[s.selectedNode], th)
+			drawSelection(r, p.bounds, s, data.shapes[s.selectedNode], &data.colors)
 		}
 		// Painting tiles: the cell under the mouse, a rectangle being dragged
 		if node, ase := TilePaint_Node(s); node != nil && s.tilePainter.hovering {
@@ -1011,12 +1014,14 @@ alignButton :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.tooltip(ctx, button, "Align or distribute the selected nodes", id = skald.hash_id("panel-tip-viewport-align"))
 }
 
-// The guides' color: a cyan apart from the grid's grays and the selection's
+// The canvases' default colors (Settings > Appearance's Viewport section sets its own:
+// editor_theme.odin's ViewportColor). The guides': a cyan apart from the grid's grays and the
+// selection's
 GUIDE_COLOR :: skald.Color{0.25, 0.8, 0.95, 0.85}
 
 // The open scene's guides, and one being dragged (dropped on a ruler it goes: drawn faint)
 @(private="file")
-drawGuides :: proc(r: ^skald.Renderer, view: skald.Rect, s: ^State) {
+drawGuides :: proc(r: ^skald.Renderer, view: skald.Rect, s: ^State, color: skald.Color) {
 	line :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, vertical: bool, at: f32, color: skald.Color) {
 		p := Viewport_WorldToView(v, vertical ? {at, 0} : {0, at})
 		if vertical do skald.draw_rect(r, {view.x + p.x, view.y, 1, view.h}, color)
@@ -1026,10 +1031,10 @@ drawGuides :: proc(r: ^skald.Renderer, view: skald.Rect, s: ^State) {
 	if !v.guidesHidden {
 		for g, i in s.project.scenes[s.currentScene].guides {
 			if guideDrag.active && guideDrag.index == i do continue
-			line(r, view, v, g.vertical, g.at, GUIDE_COLOR)
+			line(r, view, v, g.vertical, g.at, color)
 		}
 	}
-	if guideDrag.active do line(r, view, v, guideDrag.vertical, guideDrag.at, {GUIDE_COLOR.r, GUIDE_COLOR.g, GUIDE_COLOR.b, 1})
+	if guideDrag.active do line(r, view, v, guideDrag.vertical, guideDrag.at, {color.r, color.g, color.b, 1})
 }
 
 // The move arrows' colors: x red, y green
@@ -1045,24 +1050,27 @@ GRID_LINE_COLOR :: skald.Color{0.22, 0.22, 0.23, 1}
 GRID_MAJOR_COLOR :: skald.Color{0.31, 0.31, 0.32, 1}
 GRID_AXIS_COLOR :: skald.Color{0.42, 0.42, 0.44, 1}
 
+// Around the game area, in the viewport's picture (sRGB 0xRRGGBB)
+VIEWPORT_BG_HEX :: 0x101218
+
 /*
 Grid lines at the project's cell size, in dark gray: a major (lighter) line every `majorEvery`
 cells, the axes lighter still. Zoomed out, cells double until they're at least 8 px apart on
 screen, and the major lines with them, so blocks keep the same number of cells.
 */
 @(private="file")
-drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, grid: e.GridSettings, th: ^skald.Theme) {
+drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, grid: e.GridSettings, colors: ^[ViewportColor]skald.Color) {
 	cell := [2]f32{f32(grid.size.x), f32(grid.size.y)}
 	if cell.x <= 0 || cell.y <= 0 do return
 	for cell.x * v.zoom < 8 || cell.y * v.zoom < 8 do cell *= 2
 	every := grid.majorEvery
 	lo := Viewport_ViewToWorld(v, {0, 0})
 	hi := Viewport_ViewToWorld(v, {view.w, view.h})
-	color := GRID_LINE_COLOR
+	color := colors[.Grid]
 	color[3] = f32(grid.opacity) / 100
-	major := GRID_MAJOR_COLOR
+	major := colors[.Grid_Major]
 	major[3] = f32(grid.majorOpacity) / 100
-	axis := GRID_AXIS_COLOR
+	axis := colors[.Grid_Axis]
 	axis[3] = min(max(major[3], color[3]) + 0.15, 1)
 	// The line's color by its index: line i sits at i cells from the origin
 	lineColor :: proc(i: int, every: int, color, major, axis: skald.Color) -> skald.Color {
@@ -1082,50 +1090,50 @@ drawGrid :: proc(r: ^skald.Renderer, view: skald.Rect, v: ^ViewportState, grid: 
 
 // Selection box and the active tool's handles
 @(private="file")
-drawSelection :: proc(r: ^skald.Renderer, canvas: skald.Rect, s: ^State, shape: NodeShape, th: ^skald.Theme) {
+drawSelection :: proc(r: ^skald.Renderer, canvas: skald.Rect, s: ^State, shape: NodeShape, colors: ^[ViewportColor]skald.Color) {
 	v := &s.viewport
-	color := th.color.primary
+	color := colors[.Selection_Outline]
 	origin := viewToWindow(canvas, Viewport_WorldToView(v, shape.world.origin))
 	drawOutline(r, canvas, v, shape, color)
 	skald.draw_circle(r, origin, 3, color, aa = true)
 
 	drag := v.drag.mode
 	axisX, axisY := moveAxes(s, shape)
-	arrows :: proc(r: ^skald.Renderer, origin, axisX, axisY: [2]f32, drag: DragMode, th: ^skald.Theme) {
-		drawArrow(r, origin, axisX, drag == .Move_X ? th.color.fg : X_COLOR)
-		drawArrow(r, origin, axisY, drag == .Move_Y ? th.color.fg : Y_COLOR)
-		skald.draw_rect(r, {origin.x - 4, origin.y - 4, 8, 8}, th.color.fg)
+	arrows :: proc(r: ^skald.Renderer, origin, axisX, axisY: [2]f32, drag: DragMode, colors: ^[ViewportColor]skald.Color) {
+		drawArrow(r, origin, axisX, drag == .Move_X ? colors[.Gizmo_Handles] : colors[.Gizmo_X])
+		drawArrow(r, origin, axisY, drag == .Move_Y ? colors[.Gizmo_Handles] : colors[.Gizmo_Y])
+		skald.draw_rect(r, {origin.x - 4, origin.y - 4, 8, 8}, colors[.Gizmo_Handles])
 	}
-	ring :: proc(r: ^skald.Renderer, origin: [2]f32, shape: NodeShape, drag: DragMode, color: skald.Color, th: ^skald.Theme) {
+	ring :: proc(r: ^skald.Renderer, origin: [2]f32, shape: NodeShape, drag: DragMode, color: skald.Color, colors: ^[ViewportColor]skald.Color) {
 		skald.draw_ring(r, origin, GIZMO_ROTATE_RADIUS, drag == .Rotate ? 3 : 2, color, aa = true)
 		angle := math.to_radians(e.Transform2D_Rotation(shape.world))
 		handle := origin + [2]f32{math.cos(angle), math.sin(angle)} * GIZMO_ROTATE_RADIUS
 		skald.draw_line(r, origin, handle, 1, color, aa = true)
-		skald.draw_circle(r, handle, 5, th.color.fg, aa = true)
+		skald.draw_circle(r, handle, 5, colors[.Gizmo_Handles], aa = true)
 	}
 	// Corner handles (both axes) and side handles (one axis)
-	handles :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, shape: NodeShape, drag: DragMode, color: skald.Color, th: ^skald.Theme) {
+	handles :: proc(r: ^skald.Renderer, canvas: skald.Rect, v: ^ViewportState, shape: NodeShape, drag: DragMode, color: skald.Color, colors: ^[ViewportColor]skald.Color) {
 		if !shape.hasBounds do return
 		square :: proc(r: ^skald.Renderer, c: [2]f32, h: f32, fill, edge: skald.Color) {
 			skald.draw_rect(r, {c.x - h * 0.5, c.y - h * 0.5, h, h}, fill)
 			skald.draw_rect_outline(r, {c.x - h * 0.5, c.y - h * 0.5, h, h}, 1, edge)
 		}
-		for corner in shape.corners do square(r, viewToWindow(canvas, Viewport_WorldToView(v, corner)), GIZMO_HANDLE_SIZE, drag == .Scale_Axes ? color : th.color.fg, color)
+		for corner in shape.corners do square(r, viewToWindow(canvas, Viewport_WorldToView(v, corner)), GIZMO_HANDLE_SIZE, drag == .Scale_Axes ? color : colors[.Gizmo_Handles], color)
 		points, modes := sideHandles(v, shape)
-		for p, i in points do square(r, viewToWindow(canvas, p), GIZMO_HANDLE_SIZE - 2, drag == modes[i] ? color : th.color.fg, color)
+		for p, i in points do square(r, viewToWindow(canvas, p), GIZMO_HANDLE_SIZE - 2, drag == modes[i] ? color : colors[.Gizmo_Handles], color)
 	}
 	switch s.tool {
 	case .Move:
-		arrows(r, origin, axisX, axisY, drag, th)
+		arrows(r, origin, axisX, axisY, drag, colors)
 	case .Rotate:
-		ring(r, origin, shape, drag, color, th)
+		ring(r, origin, shape, drag, color, colors)
 	case .Scale:
-		handles(r, canvas, v, shape, drag, color, th)
+		handles(r, canvas, v, shape, drag, color, colors)
 		skald.draw_rect(r, {origin.x - 4, origin.y - 4, 8, 8}, color)
 	case .Transform:
-		ring(r, origin, shape, drag, color, th)
-		handles(r, canvas, v, shape, drag, color, th)
-		arrows(r, origin, axisX, axisY, drag, th)
+		ring(r, origin, shape, drag, color, colors)
+		handles(r, canvas, v, shape, drag, color, colors)
+		arrows(r, origin, axisX, axisY, drag, colors)
 	case .Select, .Pan, .Zoom:
 	}
 }

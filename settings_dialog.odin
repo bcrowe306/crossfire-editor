@@ -111,6 +111,15 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 	case Settings_Theme_Preset_Chosen:
 		EditorTheme_ApplyPreset(draft, string(v))
 		return liveTheme(draft), true
+	case Settings_Viewport_Color_Changed:
+		// The views read the draft while the dialog is open: shown at once. The picker has no
+		// alpha: a color keeps the opacity it had (the game frame's, the guides')
+		c := v.value
+		c[3] = viewportAlpha(draft, v.color)
+		draft.viewportColors[v.color] = c
+		draft.viewportColorsSet += {v.color}
+	case Settings_Viewport_Color_Reset:
+		draft.viewportColorsSet -= {ViewportColor(v)}
 	case Settings_Value_Changed:
 		switch v.field {
 		case .Font_Size:         draft.fontSize = clamp(f32(v.value), SETTINGS_FONT_SIZE_RANGE[0], SETTINGS_FONT_SIZE_RANGE[1])
@@ -184,6 +193,7 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		case .Appearance:
 			draft.theme, draft.fontSize, draft.spacing, draft.rowHeight = defaults.theme, defaults.fontSize, defaults.spacing, defaults.rowHeight
 			draft.themeColors, draft.themeColorsSet, draft.cornerRadius = defaults.themeColors, defaults.themeColorsSet, defaults.cornerRadius
+			draft.viewportColors, draft.viewportColorsSet = defaults.viewportColors, defaults.viewportColorsSet
 			dialog.capture = {}
 			return liveTheme(draft), true
 		case .Editor:
@@ -233,4 +243,11 @@ SettingsDialog_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), boo
 		return {}, false
 	}
 	return {}, true
+}
+
+// A canvas color's opacity as the draft shows it (its theme's, for the colors following it)
+@(private="file")
+viewportAlpha :: proc(draft: ^Settings, which: ViewportColor) -> f32 {
+	theme := Settings_Theme(draft)
+	return ViewportColors_Of(draft, &theme)[which][3]
 }

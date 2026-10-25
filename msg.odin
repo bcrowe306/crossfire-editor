@@ -1168,6 +1168,8 @@ Msg :: union {
 	Settings_Theme_Color_Changed,
 	Settings_Theme_Color_Reset,
 	Settings_Theme_Preset_Chosen,
+	Settings_Viewport_Color_Changed,
+	Settings_Viewport_Color_Reset,
 	Settings_Search_Changed,
 	Settings_Code_Editor_Path_Changed,
 	Settings_Code_Editor_Args_Changed,

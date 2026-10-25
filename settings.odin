@@ -46,6 +46,10 @@ Settings :: struct {
 	// `themeColorsSet` are used), and the corners' roundness in percent of Skald's
 	themeColors: [ThemeColor]skald.Color,
 	themeColorsSet: bit_set[ThemeColor],
+	// The canvases' colors set (editor_theme.odin's ViewportColor: only those in
+	// `viewportColorsSet` are used, the rest are their defaults)
+	viewportColors: [ViewportColor]skald.Color,
+	viewportColorsSet: bit_set[ViewportColor],
 	cornerRadius: f32,
 
 	// [editor]
@@ -190,6 +194,18 @@ Settings_Parse :: proc(settings: ^Settings, text: string) -> []string {
 					settings.themeColorsSet -= {which}
 				} else {
 					problem(&problems, it.section, key, value, "expected a color like #1E2130 (or #1E2130CC)")
+				}
+			}
+			for which in ViewportColor {
+				if VIEWPORT_COLOR_KEYS[which] != key do continue
+				known = true
+				if c, ok := ThemeColor_Parse(value); ok {
+					settings.viewportColors[which] = c
+					settings.viewportColorsSet += {which}
+				} else if strings.trim_space(value) == "" {
+					settings.viewportColorsSet -= {which}
+				} else {
+					problem(&problems, it.section, key, value, "expected a color like #101218 (or #101218CC)")
 				}
 			}
 			if !known do problem(&problems, it.section, key, value, "unknown setting")
@@ -338,6 +354,7 @@ Settings_ToINI :: proc(settings: ^Settings) -> string {
 		settings.theme == .Dark ? "dark" : "light", settings.fontSize, settings.spacing, settings.rowHeight)
 	fmt.sbprintf(&b, "[theme]\ncorner_radius = %v\n", settings.cornerRadius)
 	for which in ThemeColor do if which in settings.themeColorsSet do fmt.sbprintf(&b, "%s = %s\n", THEME_COLOR_KEYS[which], ThemeColor_Format(settings.themeColors[which]))
+	for which in ViewportColor do if which in settings.viewportColorsSet do fmt.sbprintf(&b, "%s = %s\n", VIEWPORT_COLOR_KEYS[which], ThemeColor_Format(settings.viewportColors[which]))
 	strings.write_string(&b, "\n")
 	fmt.sbprintf(&b, "[editor]\nundo_merge_ms = %d\nundo_group_max_ms = %d\nundo_limit = %d\nconsole_limit = %d\ncode_editor_builtin = %v\ncode_editor_auto_close = %v\nols_path = %s\nodin_path = %s\nldtk_path = %s\naseprite_path = %s\ncode_editor_path = %s\ncode_editor_args = %s\noptimized_play = %v\nhot_reload = %v\nviewport_wheel_pans = %v\nrotate_snap = %v\nscale_snap = %v\nimport_folder = %s\naudio_device = %s\n\n",
 		settings.undoMergeMs, settings.undoGroupMaxMs, settings.undoLimit, settings.consoleLimit,
