@@ -133,7 +133,7 @@ add it as a task and to the README's command table.
 | `task play:demo` | Run the demo project (its scripts linked into its own player: `tools/demo/player`), without the editor |
 | `task demo:playtest` | Play the demo headless (`tools/demo/playtest`: a bot pressing keys), check its mechanics and levels, save frames to `build/playtest/` (`PART=title|forest|hollow|lair|gameover`) |
 | `task profile` | **Profiling** (Spall; "Profiling" below): the scenarios `tests/profile/*.script` in a `-define:SPALL=true` optimized build, headless, `--runs` each (default 3), the report over all runs (pooled), its JSON and the median run's trace in `build/profile/results/`; arguments after `--` go to `tools/profile.sh` (scenario names, `--auto`, `--no-build`, `--runs`, `--cpus`) |
-| `task profile:baseline` / `task profile:compare` | Keep the results as the baseline (`build/profile/baseline/`) / profile and compare with it: exit 1 when a scenario's mean frame (the median jumps between frames with and without a viewport render) grew more than `--threshold` (5%) |
+| `task profile:baseline` / `task profile:compare` | Keep the results and the build as the baseline (`build/profile/baseline/`) / profile and compare with it, the baseline build's runs interleaved with the new one's: exit 1 when a scenario's mean frame (the median jumps between frames with and without a viewport render) grew more than `--threshold` (5%) |
 | `task clean` | Delete build output |
 
 - **Windows:** Task's own shell can't start a `.sh` file there, so the tasks that run the engine's
@@ -3774,8 +3774,21 @@ TODO.md's "Performance" work (asked 2026-10-24): every speed-up is measured befo
   animations), so frames with and without a scene render alternate and the median jumps
   between the two kinds; a span driven by that timer (`Preview_Render`, `lighting`) changes
   per frame when frames get faster or slower, so compare its time per call (`compare` prints
-  both). Run to run, a frame's mean moved by up to 15% on this machine with another process
-  busy: rerun a scenario (`--no-build <scenario>`) before believing a small change. It warns when the load average is
+  both).
+- **Compare interleaved, on a quiet machine:** `task profile:baseline` keeps the build too
+  (`build/profile/baseline/crossfire-editor`), and `task profile:compare` runs it and the new
+  build in turns, in **ABBA order** (baseline first in odd runs, the new build first in even
+  ones: `--runs` 4 by default). Without a kept build it falls back to the kept results and says
+  so. What was found measuring the harness itself (2026-10-24, one build compared with itself):
+  - results taken an hour apart differed by 60-90% per call in code neither build changed;
+  - with the baseline always first, the second run of each pair came out 3-11% faster (warm
+    file and shader caches, clocks already up): hence ABBA;
+  - with another program compiling (a load of 15-25 on 8 CPUs) runs varied by 10% even on the
+    CPU clock (`--clock cpu`, `SPALL_CLOCK=cpu`: each thread's CPU time), which leaves out time
+    the thread was descheduled but not a hyperthread or cache shared with that work. So each
+    run first waits (`--wait-quiet`, up to 300 s) for the machine's CPU use to drop under
+    `--quiet-busy` (20%), and says when it gave up waiting. A change smaller than about 10% is
+    only believable from a quiet machine. It warns when the load average is
   over a quarter of the CPUs: other work on the machine moves the numbers.
 - **Reading results:** `build/profile/results/<scenario>.txt` (frames: median, mean, p95, p99,
   max of a frame's work, and start to start; spans by self time per frame), `.json` (what

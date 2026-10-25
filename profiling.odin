@@ -6,9 +6,10 @@ package crossfire_editor
 import "gui:skald"
 
 // Profiling with Spall (`-define:SPALL=true`, `task profile`): one trace of the editor, Skald and
-// the engine. Skald owns it (its prof.odin): the editor starts it before `skald.run` and hands it
-// to the engine (`e.Trace_Share`), so the engine's scopes (the viewport's scene drawing) nest in
-// the same per-thread buffers. Scopes here: each message `update` handles (by its type) and the
+// the engine. Skald owns it (its prof.odin): the editor starts it before `skald.run` and hands
+// Skald's begin and end to the engine (`e.Trace_Share`), so the engine's scopes (the viewport's
+// scene drawing) nest in the same per-thread buffers, on the same clock (wall time, or each
+// thread's CPU time with SPALL_CLOCK=cpu). Scopes here: each message `update` handles (by its type) and the
 // panels' view procedures (`browserView`, `inspectorView`, `viewportView`, `Preview_Render`...).
 // Without SPALL all of it compiles to nothing.
 
@@ -18,11 +19,7 @@ and shares it with the engine. Does nothing without SPALL.
 */
 Profiling_Start :: proc() {
 	when skald.SPALL {
-		if skald.prof_start() {
-			e.Trace_Share(skald.prof_context(), proc "contextless" () -> rawptr {
-				return skald.prof_thread_buffer()
-			})
-		}
+		if skald.prof_start() do e.Trace_Share(skald.prof_begin, skald.prof_end)
 	}
 }
 

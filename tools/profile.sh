@@ -13,14 +13,23 @@
 #     timer, so frames with and without a scene render alternate, and one run's median jumps).
 #
 #   tools/profile.sh [options] [scenario...]       (default: every scenario)
-#     --runs <n>          runs per scenario (default 3; reported together)
+#     --runs <n>          runs per scenario (default 4: an even count balances --compare's ABBA
+#                         order; reported together)
 #     --cpus <list>       taskset's CPU list (default 2-5; "" for none)
+#     --clock <wall|cpu>  the trace's clock (default wall): cpu is each thread's CPU time, which
+#                         leaves out time the thread was descheduled (other programs' load), its
+#                         GPU waits and sleeps: for comparing CPU work on a busy machine
+#     --wait-quiet <s>    before each run, wait up to that long (default 300; 0: don't) for the
+#                         machine's CPU use to drop under --quiet-busy percent (default 20): a
+#                         compile or another program sharing the CPUs slows a run by 10-60%
 #     --size <w>x<h>      window size (default 1680x1000; a scenario's "# window:" line wins)
 #     --no-build          use the last build (build/profile/crossfire-editor)
 #     --auto              build with SPALL_AUTO (every procedure: slow, for finding hot spots)
-#     --save-baseline     keep the results as the baseline (build/profile/baseline/)
-#     --compare           compare the results with the baseline; exit 1 if a scenario's mean
-#                         frame got slower by more than --threshold percent (default 5)
+#     --save-baseline     keep the results and this build as the baseline (build/profile/baseline/)
+#     --compare           compare with the baseline: the kept baseline build runs right before each
+#                         of this build's runs (interleaved, so the machine's drift hits both), else
+#                         the kept results; exit 1 if a scenario's mean frame got slower by more
+#                         than --threshold percent (default 5)
 #     --threshold <pct>
 #
 # Results: build/profile/results/<scenario>.txt (the report over all runs) and .json, the median run's trace
@@ -35,8 +44,11 @@ ROOT=$(pwd)
 ENGINE_DIR=${ENGINE_DIR:-../odin_sdl_engine}
 ODIN=${ODIN:-odin}
 OUT=$ROOT/build/profile
-RUNS=3
+RUNS=4
 CPUS=2-5
+CLOCK=wall
+WAIT_QUIET=300
+QUIET_BUSY=20
 SIZE=1680x1000
 BUILD=1
 AUTO=0
@@ -49,13 +61,16 @@ while [[ $# -gt 0 ]]; do
 	case $1 in
 		--runs) RUNS=$2; shift 2 ;;
 		--cpus) CPUS=$2; shift 2 ;;
+		--clock) CLOCK=$2; shift 2 ;;
+		--wait-quiet) WAIT_QUIET=$2; shift 2 ;;
+		--quiet-busy) QUIET_BUSY=$2; shift 2 ;;
 		--size) SIZE=$2; shift 2 ;;
 		--no-build) BUILD=0; shift ;;
 		--auto) AUTO=1; shift ;;
 		--save-baseline) SAVE=1; shift ;;
 		--compare) COMPARE=1; shift ;;
 		--threshold) THRESHOLD=$2; shift 2 ;;
-		-h|--help) sed -n '2,32p' "$0"; exit 0 ;;
+		-h|--help) sed -n '2,44p' "$0"; exit 0 ;;
 		-*) echo "profile.sh: unknown option $1" >&2; exit 2 ;;
 		*) SCENARIOS+=("$1"); shift ;;
 	esac
@@ -98,46 +113,111 @@ projectOf() {
 	[[ $p == fixture ]] && echo tests/fixtures/ui_project || echo examples/demo_project
 }
 
+# The machine's CPU use (percent of all CPUs) over one second, from /proc/stat
+cpuBusy() {
+	local a b
+	read -r -a a < <(grep '^cpu ' /proc/stat)
+	sleep 1
+	read -r -a b < <(grep '^cpu ' /proc/stat)
+	local idle=$(( (b[4] + b[5]) - (a[4] + a[5]) ))
+	local total=0 i
+	for i in 1 2 3 4 5 6 7 8; do total=$(( total + b[i] - a[i] )); done
+	(( total > 0 )) || { echo 0; return; }
+	echo $(( 100 * (total - idle) / total ))
+}
+
+# Waits (at most $WAIT_QUIET seconds) until the machine's CPU use is under $QUIET_BUSY percent,
+# so a run doesn't share the CPUs with other work; says when it gave up
+waitQuiet() {
+	(( WAIT_QUIET > 0 )) || return 0
+	local waited=0 busy
+	while :; do
+		busy=$(cpuBusy)
+		(( busy < QUIET_BUSY )) && return 0
+		if (( waited >= WAIT_QUIET )); then
+			echo "  (the machine stayed busy: ${busy}% of its CPUs in use; running anyway)"
+			return 0
+		fi
+		(( waited == 0 )) && echo "  waiting for the machine to be quiet (${busy}% of its CPUs in use)..."
+		sleep 4
+		waited=$(( waited + 5 ))
+	done
+}
+
 status=0
 summary=()
+BASE_EDITOR=$OUT/baseline/crossfire-editor
+interleave=0
+[[ $COMPARE -eq 1 && -x $BASE_EDITOR ]] && interleave=1
+
+# One run of a scenario with a build: its trace and per-run report in runs/<scenario>/<tag>-<run>/;
+# prints the run's median frame (empty when it failed)
+runOne() {
+	local scenario=$1 binary=$2 tag=$3 run=$4 size=$5 project=$6
+	local dir=$OUT/runs/$scenario/$tag-$run
+	rm -rf "$dir"
+	mkdir -p "$dir/data"
+	git archive HEAD "$project" | tar -x -C "$dir"
+	cp tests/ui/settings.ini "$dir/settings.ini"
+	if ! env SDL_VIDEO_DRIVER=offscreen SDL_AUDIO_DRIVER=dummy XDG_DATA_HOME="$dir/data" \
+		SKALD_BENCH_UNCAP=1 SKALD_BENCH_FRAMES=1000000000 SPALL_TRACE="$dir/trace.spall" SPALL_CLOCK="$CLOCK" \
+		timeout 600 "${pin[@]}" "$binary" "$dir/$project" --script "$ROOT/tests/profile/$scenario.script" \
+		--settings "$dir/settings.ini" --window-size "$size" >"$dir/log.txt" 2>&1; then
+		echo "[$scenario $tag $run] the script failed: $dir/log.txt" >&2
+		grep -E "FAIL|fail" "$dir/log.txt" | head -5 >&2 || true
+		return 1
+	fi
+	if ! "$REPORT" "$dir/trace.spall" -from=start -to=end -json="$dir/report.json" >"$dir/report.txt" 2>&1; then
+		echo "[$scenario $tag $run] no report:" >&2; cat "$dir/report.txt" >&2; return 1
+	fi
+	grep -o '"p50_ms": *[0-9.e+-]*' "$dir/report.json" | head -1 | sed 's/.*: *//' | xargs printf '%.3f'
+}
+
+# The report over a build's runs (pooled), into results/<scenario><suffix>.json and .txt
+pooledReport() {
+	local scenario=$1 tag=$2 suffix=$3
+	local traces=()
+	for f in "$OUT/runs/$scenario/$tag"-*/trace.spall; do [[ -f $f ]] && traces+=("$f"); done
+	[[ ${#traces[@]} -gt 0 ]] || return 1
+	"$REPORT" "${traces[@]}" -from=start -to=end -json="$OUT/results/$scenario$suffix.json" >"$OUT/results/$scenario$suffix.txt" 2>&1
+}
+
 for scenario in "${SCENARIOS[@]}"; do
 	script=tests/profile/$scenario.script
 	[[ -f $script ]] || { echo "profile.sh: no scenario $script" >&2; status=1; continue; }
 	size=$(sed -n 's/^# window: *//p' "$script" | head -1)
 	size=${size:-$SIZE}
 	project=$(projectOf "$scenario")
+	rm -rf "$OUT/runs/$scenario"
 	medians=()
+	runBase() {
+		waitQuiet
+		echo "[$scenario $run/$RUNS] baseline build ($size)"
+		local b
+		b=$(runOne "$scenario" "$BASE_EDITOR" base "$run" "$size" "$project") || status=1
+		[[ -n $b ]] && echo "[$scenario $run/$RUNS] baseline build: median frame $b ms"
+	}
 	for run in $(seq 1 "$RUNS"); do
-		dir=$OUT/runs/$scenario/$run
-		rm -rf "$dir"
-		mkdir -p "$dir/data"
-		git archive HEAD "$project" | tar -x -C "$dir"
-		cp tests/ui/settings.ini "$dir/settings.ini"
+		# Comparing with a kept baseline build: its runs and this build's alternate, in ABBA order (the
+		# second of two runs in a row came out 3-11% faster, the same build both times: warm caches,
+		# clocks already up), so the machine's drift and the order land on both alike
+		[[ $interleave -eq 1 && $((run % 2)) -eq 1 ]] && runBase
+		waitQuiet
 		echo "[$scenario $run/$RUNS] running ($size)"
-		if ! env SDL_VIDEO_DRIVER=offscreen SDL_AUDIO_DRIVER=dummy XDG_DATA_HOME="$dir/data" \
-			SKALD_BENCH_UNCAP=1 SKALD_BENCH_FRAMES=1000000000 SPALL_TRACE="$dir/trace.spall" \
-			timeout 600 "${pin[@]}" "$EDITOR" "$dir/$project" --script "$ROOT/$script" \
-			--settings "$dir/settings.ini" --window-size "$size" >"$dir/log.txt" 2>&1; then
-			echo "[$scenario $run/$RUNS] the script failed: $dir/log.txt"
-			grep -E "FAIL|fail" "$dir/log.txt" | head -5 || true
+		if m=$(runOne "$scenario" "$EDITOR" new "$run" "$size" "$project"); then
+			medians+=("$m $run")
+			echo "[$scenario $run/$RUNS] median frame $m ms"
+		else
 			status=1
-			continue
 		fi
-		if ! "$REPORT" "$dir/trace.spall" -from=start -to=end -json="$dir/report.json" >"$dir/report.txt" 2>&1; then
-			echo "[$scenario $run/$RUNS] no report:"; cat "$dir/report.txt"; status=1; continue
-		fi
-		p50=$(grep -o '"p50_ms": *[0-9.e+-]*' "$dir/report.json" | head -1 | sed 's/.*: *//' | xargs printf '%.3f')
-		medians+=("$p50 $run")
-		echo "[$scenario $run/$RUNS] median frame $p50 ms"
+		[[ $interleave -eq 1 && $((run % 2)) -eq 0 ]] && runBase
 	done
 	[[ ${#medians[@]} -gt 0 ]] || continue
 	# The report pools every run's frames and spans (steadier than any one run); the trace kept
 	# for Spall's viewer is the run with the median frame
-	traces=()
-	for m in "${medians[@]}"; do traces+=("$OUT/runs/$scenario/${m#* }/trace.spall"); done
-	"$REPORT" "${traces[@]}" -from=start -to=end -json="$OUT/results/$scenario.json" >"$OUT/results/$scenario.txt" 2>&1 || status=1
+	pooledReport "$scenario" new "" || status=1
 	kept=$(printf '%s\n' "${medians[@]}" | sort -g | awk -v n=${#medians[@]} 'NR == int((n + 1) / 2) { print $2 }')
-	cp "$OUT/runs/$scenario/$kept/trace.spall" "$OUT/results/$scenario.spall"
+	cp "$OUT/runs/$scenario/new-$kept/trace.spall" "$OUT/results/$scenario.spall"
 	all=$(printf '%s\n' "${medians[@]}" | cut -d' ' -f1 | sort -g | tr '\n' ' ')
 	pooled=$(grep -o '"mean_ms": *[0-9.e+-]*' "$OUT/results/$scenario.json" | head -1 | sed 's/.*: *//' | xargs printf '%.3f')
 	summary+=("$(printf '%-12s mean frame %s ms over %s runs; median per run (ms): %s' "$scenario" "$pooled" "${#medians[@]}" "$all")")
@@ -146,15 +226,23 @@ for scenario in "${SCENARIOS[@]}"; do
 		cp "$OUT/results/$scenario.json" "$OUT/baseline/$scenario.json"
 	fi
 	if [[ $COMPARE -eq 1 ]]; then
-		if [[ -f $OUT/baseline/$scenario.json ]]; then
+		before=$OUT/baseline/$scenario.json
+		if [[ $interleave -eq 1 ]] && pooledReport "$scenario" base ".baseline"; then
+			before=$OUT/results/$scenario.baseline.json
 			echo
-			echo "=== $scenario: baseline -> now"
-			"$REPORT" compare "$OUT/baseline/$scenario.json" "$OUT/results/$scenario.json" -threshold="$THRESHOLD" || status=1
+			echo "=== $scenario: baseline build -> this build (interleaved runs)"
+		elif [[ -f $before ]]; then
+			echo
+			echo "=== $scenario: baseline results -> now (not interleaved: other work on the machine between them shows as a change)"
 		else
 			echo "[$scenario] no baseline to compare with (--save-baseline)"
+			continue
 		fi
+		"$REPORT" compare "$before" "$OUT/results/$scenario.json" -threshold="$THRESHOLD" || status=1
 	fi
 done
+# The build the results came from is the next comparisons' baseline
+if [[ $SAVE -eq 1 ]]; then cp "$EDITOR" "$BASE_EDITOR"; fi
 
 echo
 echo "Summary (results in build/profile/results/):"
