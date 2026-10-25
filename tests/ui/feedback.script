@@ -15,10 +15,14 @@ click_widget toast-action-0
 expect toasts 0
 expect bottom_tab Problems
 
-# Saving shows one; a click on it dismisses it
+# Saving shows one: passive (no button), it goes by itself and lets clicks through to what's under it
 key ctrl+s
 wait_until toasts 1
 expect toast 0 Saved
+wait_until toasts 0
+
+# An error with an action: a click on the card dismisses it
+send Notify_Requested Error Show_Output Export failed
 click_widget toast-0
 expect toasts 0
 

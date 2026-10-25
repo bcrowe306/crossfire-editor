@@ -15,6 +15,8 @@ Notifications: toasts in the window's bottom-right corner (TODO.md's "UI and UX"
   and success go after `TOAST_SECONDS`, warnings after `TOAST_WARNING_SECONDS`; **errors stay
   until dismissed**. A click on the card (or its ×) dismisses it; an optional action button
   (`ToastAction`: Show Output, Show Console, Show Problems, Open Folder) runs and dismisses it.
+  Info and success toasts without a button are passive (`Toast_IsPassive`): while only they show,
+  or while a dialog is open, the stack lets the pointer through to what's under it and has no ×.
   `Notifications_Expire` drops the old ones after every message; the view asks for a frame at the
   next deadline and sends `Toasts_Expired` then.
 - **Jobs** (`ToastJob`): what runs in the background shows as a toast with a progress bar while
@@ -172,6 +174,16 @@ Inputs:
 */
 Notify :: proc(state: ^State, level: ToastLevel, text: string, action := ToastAction.None, actionArg := "") {
 	Notifications_Push(&state.notifications, level, text, action, actionArg, time.tick_now())
+}
+
+/*
+Whether a toast is a passive notice: info or success without a button. While every toast shown is
+(and the jobs' are), the stack leaves the pointer to what's under it (Skald's `pass_through`): a
+"Saved" after Ctrl+S never takes the click meant for the inspector under it. They go by
+themselves and have no ×.
+*/
+Toast_IsPassive :: proc(t: Toast) -> bool {
+	return (t.level == .Info || t.level == .Success) && t.action == .None
 }
 
 /*
@@ -395,6 +407,12 @@ notificationsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&cards, toastCard(ctx, th.color.primary, skald.col(..rows[:], spacing = tk.xs, cross_align = .Stretch), width,
 			fmt.tprintf("toast-job-%v", job.job)))
 	}
+	// A stack of passive notices lets the pointer through (Toast_IsPassive)
+	// and so does every stack while a dialog is open: its buttons (an Apply, a Cancel in the corner)
+	// stay clickable; the toasts take clicks again once it closes
+	interactive := false
+	for t in n.toasts do if !Toast_IsPassive(t) do interactive = true
+	if ctx.widgets.modal_rect_prev.w > 0 do interactive = false
 	for t, i in n.toasts {
 		color := th.color.primary
 		icon := ""
@@ -406,7 +424,7 @@ notificationsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 		parts := make([dynamic]skald.View, context.temp_allocator)
 		if icon != "" do append(&parts, uiText(th, .Value, icon, color = color))
-		textWidth := width - tk.m * 2 - tk.panelButtonWidth - tk.s * 2 - (icon != "" ? tk.iconColumn : 0)
+		textWidth := width - tk.m * 2 - (interactive ? tk.panelButtonWidth + tk.s : 0) - tk.s - (icon != "" ? tk.iconColumn : 0)
 		body := make([dynamic]skald.View, context.temp_allocator)
 		append(&body, uiText(th, .Value, t.text, max_width = textWidth))
 		if t.action != .None {
@@ -416,11 +434,11 @@ notificationsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 		append(&parts, skald.col(..body[:], spacing = tk.xs))
 		append(&parts, skald.flex(1, skald.spacer(0)))
-		append(&parts, panelToolButton(ctx, fmt.tprintf("toast-close-%d", i), ACTION_ICONS[.Close], "Dismiss", Msg(Toast_Dismissed(t.id))))
+		if interactive do append(&parts, panelToolButton(ctx, fmt.tprintf("toast-close-%d", i), ACTION_ICONS[.Close], "Dismiss", Msg(Toast_Dismissed(t.id))))
 		key := fmt.tprintf("toast-%d", i)
 		card := toastCard(ctx, color, skald.row(..parts[:], spacing = tk.s, cross_align = .Start), width, key)
 		// A click anywhere on the card dismisses it (its buttons do their own first)
-		if skald.widget_clicked(ctx, skald.hash_id(key)) do skald.send(ctx, Msg(Toast_Dismissed(t.id)))
+		if interactive && skald.widget_clicked(ctx, skald.hash_id(key)) do skald.send(ctx, Msg(Toast_Dismissed(t.id)))
 		append(&cards, card)
 	}
 	// The next frame: a toast's deadline, or the jobs' clock
@@ -435,7 +453,7 @@ notificationsView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	stack := new(skald.View, context.temp_allocator)
 	stack^ = skald.zone(ctx, skald.col(..cards[:], spacing = tk.s, cross_align = .Stretch), skald.hash_id(TOASTS_KEY))
 	// Over the status bar, clear of the window's edge
-	return skald.View_Toast{visible = true, child = stack, anchor = .Bottom_Right, margin = tk.l + tk.controlHeight}
+	return skald.View_Toast{visible = true, child = stack, anchor = .Bottom_Right, margin = tk.l + tk.controlHeight, pass_through = !interactive}
 }
 
 /*

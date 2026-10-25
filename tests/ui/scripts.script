@@ -119,6 +119,9 @@ action Build_Scripts
 wait_until scripts Failed timeout=240
 expect tab Output
 expect output_contains z_broken.odin(4:7) Error
+# The failed build's toast stays over the Output tab's corner until dismissed (notifications.odin)
+expect toast 0 Building the scripts failed
+click_widget toast-close-0
 click_log_location output
 wait_until code_tab z_broken.odin timeout=5
 expect code_caret 4 7

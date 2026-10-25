@@ -34,6 +34,9 @@ A notification (a "toast") shows in the window's bottom-right corner when someth
   dismiss them**, so you don't miss one.
 - **Click** a notification (or its **×**) to dismiss it. Its button does what it says and
   dismisses it too.
+- Simple notices ("Saved") don't get in your way: while only they show, clicks go through them to
+  what's under them, and they have no ×. While a dialog is open, every notification lets clicks
+  through, so the dialog's buttons stay reachable.
 - They appear and go at once: the editor doesn't animate.
 - Everything a notification says is in the Console too, with the details.
 
