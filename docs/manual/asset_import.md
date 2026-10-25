@@ -1,7 +1,7 @@
 ---
 title: Asset import settings, atlases and fonts
 description: Choose smooth or pixel-art filtering for images, pack images into texture atlases, use bitmap fonts and fonts that stay sharp at any size, and convert sounds to Ogg Vorbis.
-order: 33
+order: 34
 ---
 
 # Asset import settings, atlases and fonts

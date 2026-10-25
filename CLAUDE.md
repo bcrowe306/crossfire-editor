@@ -74,7 +74,7 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   and the panels' Manual buttons (see "Docs in the editor" below).
 - **Editor modes** (`editor_modes.odin`, `level_mode.odin`): the mode bar beside the menus
   switches the workspace between the **Scene** mode (everything above) and the **Level** mode,
-  the LDtk level editor laid out as LDtk (phases 1 and 2 of five, 2026-10-24: the user's design): a
+  the LDtk level editor laid out as LDtk (phases 1 to 3 of five, 2026-10-24/25: the user's design): a
   tool row (LDtk's tools per layer type; the play controls), the Levels sidebar (worlds, levels:
   select, focus), the canvas (the world, or a focused level; levels and entities picked and
   moved, links drawn; **painting** as LDtk: IntGrid values with the auto-layers worked out by
@@ -82,8 +82,10 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   entities placed, moved, resized, copied, removed, their points and references picked on the
   canvas; one undo step a stroke), the Layers sidebar (select, eye, drag to reorder, the layer's
   palette), LDtk's panels as bottom tabs (World, Level, Layers, Entities, Enums, Tilesets,
-  Auto-layer Rules, Project) editing layers, entity types, fields, references, enums and the
-  world; edits in memory, saved into the `.ldtk` file with the project (Ctrl+S, Play, exports),
+  Auto-layer Rules, Project) editing the world, fields' values, references and **every
+  definition as LDtk's panels do** (layers, IntGrid values and groups, entity types, every field
+  type, enums and external enum files, tilesets and their tiles' tags and data, level fields;
+  every level kept in step by LDtk's tidy, ported); edits in memory, saved into the `.ldtk` file with the project (Ctrl+S, Play, exports),
   undoable, LDtk's own saves merged; the scenes showing each level, a scene made for a level, Open
   in LDtk at a level); see "Editor modes" and "Editing LDtk projects" below.
 - **The website** [crossfireengine.io](https://crossfireengine.io) (`../crossfire_astro`,
@@ -215,6 +217,11 @@ Skald is not immediate-mode and not a retained widget tree:
 | `ldtk_json.odin` | **JSON that keeps its text**: `Json_Parse` (a flat tree of nodes with their spans), lookups (`Json_Get`, `Json_At`, `Json_Items`, `Json_String`, `Json_Path`), patches (`Json_SetPatch`, `Json_AppendPatch`, `Json_InsertPatch`, `Json_AddMemberPatch`, `Json_RemovePatch`, `Json_Apply`), values written like their neighbours (`Json_Quote`, `Json_FormatNumber`, `Json_Object`, `Json_Array`, minified files kept minified) |
 | `ldtk_doc.odin` | **An LDtk project's files as the Level mode edits them, in memory**: `LDtkDoc` (the .ldtk file and its levels' .ldtkl files: each one's text, what's on disk and whether it's unsaved; worlds, levels), the cache (`LDtkDoc_Get`: read again when a file changes, LDtk's change merged into unsaved edits or waiting: `LDtkDoc_DiskConflict` / `_ResolveDisk`; `LDtkDoc_Outside`), lookups (levels' rects as LDtk lays them out, definitions by uid, layer instances, entities by iid), `LDtkPatches`, `LDtkDoc_Commit` / `_SetTexts` (in memory), saving (`LDtkDoc_Save`, `LDtkDocs_SaveProject`, `LDtk_WriteFile`: atomic, the modification time always moved on), what the engine reads of it (`LDtkDoc_Stamp`, `LDtkDoc_GameText`, `LDtkDoc_ProvideToGame`) |
 | `ldtk_ops.odin` | **The LDtk edits**: `LDtk_Edit` (`LDtkEditOp`: layers, entity types, fields, instances, references, levels' places and fields, IntGrid values, enums, the world), `LDtkOps_Apply` (each op's patches and the mirrors LDtk keeps: `__identifier`s, `__type`s, enum values everywhere, `__grid`, `__opacity`, layer instance order, neighbours, world positions, the table of contents), LDtk's rules ported (`LDtk_CleanIdentifier`, `LDtkDoc_Neighbours`, layout changes, `LDtk_SnapToGrid`, field values and defaults), `LDtkOps_GridSizeLocked`, `LDtkOps_FieldLocked`, `LDtkOps_RefAllowed` |
+| `ldtk_tidy.odin` | **LDtk's tidy, ported** (`LDtkTidy_Run`: Project.tidy and what toJson derives): definitions' lost references cleared, every level's layer instances and field instances as the definitions want them (added, removed, ordered), every derived value (`__identifier`, `__type`, `__cWid`, `__value` from `realEditorValues`, smart colors and tiles...) written where it differs; `LDtkTidyScope`, `jvSame`, `tidySet`, `ldtkRebuildRows`, `ldtkNewLayerInstance`, `ldtkToWhite` |
+| `ldtk_defs.odin` | **The definitions editors' edits** (`LDtkOps_DefEdit`): `LDTK_MEMBERS` (every member the panels set, its kind and bounds: `LDtkMember`, `LDtkMemberKind`), `memberValue`, `ldtkUniqueId` (Project.fixUniqueIdStr), uids from `nextUid`, `LDtk_ParseTags`, `rerunRules` (auto-layers applied again in every level) |
+| `ldtk_defs_ops.odin` | `Def_Set` (`defConsequences`: LDtk's handlers; `defSpecial`: grids, render modes, ranges, defaults by type, regexes, file types, reference rules), `layerGrid` (LayerInstance.remapToGridSize), new definitions in LDtk's key order (`newLayerJV`, `newEntityDefJV`, `newFieldJV`, `newEnumJV`), removal, copies, moves, field type conversions (`LDTK_CONVERSIONS`), `LDtk_DisplayModeAllowed` |
+| `ldtk_defs_more.odin` | IntGrid values and groups, enum values, external enums (`LDtk_ParseExternalEnums`: text, JSON, Haxe, CastleDB; `LDtk_Checksum`, `LDtkEnums_SyncPreview`), tilesets (`newTilesetJV`, LDtk's icons, `tilesetImage`, `tilesetGrid`, `remapTileIds`, `LDtk_PixelData`: LDtk's opaque tiles and average colors), tiles' tags and custom data |
+| `view_ldtk_defs.odin` | **The definitions editors' UI** in the Layers, Entities, Enums, Tilesets and Level tabs (`LDtkDefs_Layers`, `_Entities`, `_Enums`, `_Tilesets`, `_LevelFields`): lists' buttons, members' rows, the field form (`defsFieldForm`), `tilesetPicker` (tile rectangles, tags, a tile), `LevelMode_SelectMade` |
 | `update.odin` | `update`, the only place State changes |
 | `keymap.odin` | `DEFAULT_KEYMAP`, shortcut dispatch, typing guard, the platform's keys (`Chord_OnPlatform` / `Chord_FromPlatform` / `Chord_Format`: the keymap's Ctrl is Cmd on macOS), `keyParen` (an action's keys for text) |
 | `context_menus.odin` | **Right-click menus everywhere**: `ContextTarget` (what was clicked), `State.contextMenu`, `Context_Menu_Opened` / `_Closed`, `ContextMenu_Items` (the items per target: nodes, empty viewport, the tree, the browser's every kind, tabs, logs), `contextMenuView` (Skald's `popup_menu`, built first in the frame), `rightPressOpens`, the commands without an older message (`Node_Command`, `Add_Node_Here`, `Paste_Here`, `Tab_Command`, `File_Command`, `Log_Command`, `Asset_Add_To_Scene`) |
@@ -2569,6 +2576,63 @@ keys; the manual's level_mode.md "Painting" is the user's guide.
   `tests/ui/level_paint.script` (every kind painted, at 640x660, 1280x720 and 900x500); fixture
   `tests/fixtures/ldtk_paint/` (`make_paint.py`).
 
+### The definitions editors (phase 3 of TODO.md's "LDtk level editor", 2026-10-25)
+
+LDtk's definition panels (its source in the workspace's `../ldtk`, 1.5.3: ui/modal/panel/
+EditLayerDefs, EditEntityDefs, EditEnumDefs, EditTilesetDefs, EditLevelFieldDefs, ui/FieldDefsForm,
+data/Definitions.hx, data/def/, misc/FieldTypeConverter, importer/) as the bottom tabs' rows
+(view_ldtk_defs.odin); the manual's `level_definitions.md` is the user's guide.
+- **One way for every edit** (ldtk_defs.odin's doc block): the definition changes (`Def_Set` a
+  member from `LDTK_MEMBERS`, `Def_Added` / `_Removed` / `_Duplicated` / `_Moved`,
+  `Field_Converted`, IntGrid values and groups, enum values, external enums, tiles' data), LDtk's
+  handler's consequences (`defConsequences`), then **LDtk's tidy** (ldtk_tidy.odin) brings every
+  level in step, then auto-layers whose tiles depend on what changed are applied again
+  (`rerunRules`), all in `Stages` (each pass made on what the last left) and one `LDtkDoc_Commit`:
+  one `.Files` undo step. The older ops route through it where LDtk does more (`Field_Default`:
+  every type's default; `Layer_Grid_Size`: cells remapped as LDtk remaps them, no longer refused
+  when painted).
+- **The tidy is the check against LDtk**: it changes nothing in LDtk's 18 samples and its 1.5 test
+  files (`ldtk_tidy_leaves_ldtks_own_files_alone`), so whatever it writes after an edit is what
+  LDtk derives. Found doing it: a level's `__smartColor` is its background 45% toward white
+  (rounded); local enum values are looked up cleaned with the project's style ("Heavy sword"
+  finds Heavy_sword); a Multilines value's editor value is escaped once more than `__value`
+  (FieldInstance.fromJson unescapes it); our fixtures' smart colors, entity tags and tiles and
+  references' world iids weren't LDtk's (fixed in make_world.py / make_paint.py, regenerated).
+  The writer now keeps line breaks as `\n` (LDtk escapes its strings before JsonPretty).
+- **New definitions in LDtk's key order** (compared with LDtk's sample's in
+  `ldtk_new_definitions_are_written_as_ldtk_writes_them`), LDtk's defaults and names
+  (`ldtkUniqueId`), uids from `nextUid` (never reused, as in LDtk). **Pixel data** of a new or
+  changed tileset is LDtk's byte for byte (`ldtk_tileset_pixel_data_matches_ldtk`: every sample
+  tileset, an Aseprite one too; the average colors' nibbles are bytes rounded to 17ths).
+- **External enums**: imported from the project's assets (text, JSON, Haxe, CastleDB), synced with
+  LDtk's diff (values added and removed, the file's order, CastleDB's colors and icons, the MD5
+  checksum: LDtk's sample synced is byte-identical), removed per file. The tab says when a file
+  changed and what a sync would remove (`LDtkEnums_SyncPreview`).
+- **LDtk's internal icons** (`embedAtlas: LdtkIcons`): the tileset is made (512 x 1024, 16 px), but
+  the image is LDtk's (FinalBossBlues', editor only): pickers and the engine show it only from a
+  copy beside the .ldtk (LDTK_ICONS_FILE).
+- **Deviations, on purpose:** a Tiles layer given a tileset of another grid has its cells remapped
+  (LDtk keeps coordinates, scrambling them); auto-layers are applied again when their tileset,
+  source, kill layer or biome changes (LDtk waits for the next rule change); a field's conversion
+  converts level fields' values too (LDtk only entities'); IntGrid values move to a place in a
+  group (LDtk's drag moving down always went to the group's end).
+- **The UI**: each list's choice and buttons (`ldtk-<list>-add`, `-duplicate`, `-delete`, `-up`,
+  `-down`), members' rows keyed `ldtk-<kind>-<member>`, the field form for entities' and levels'
+  fields, `tilesetPicker` (`ldtk-picker-<what>`: a drag picks a rectangle, tags, or one tile; its
+  drag state is file state, freed by `LDtkDefs_Destroy`). Picks: `LDtk_Def_Picked` (field, level
+  field, tileset, tile data mode, data tile); a definition made or copied is selected
+  (`LevelMode_SelectMade`). Looked at in PNGs at 640x660, 900x500 and 1280x720 (the tabs' rows
+  rendered through Skald's offscreen renderer, made public in the working tree for a scratch driver
+  command, then put back).
+- Tests: `ldtk_defs_test.odin` (the tidy on LDtk's files, pixel data, new definitions against
+  LDtk's sample, layers, entity types and fields, enums and external enums with LDtk's sample
+  synced, tilesets, auto-layers re-applied, undo byte for byte through the editor; every edit
+  schema-checked, read by the engine and left tidy: `defsCheck`), `tests/ui/ldtk_defs.script`
+  (every tab: a layer made and removed, values, a grid, an entity type drawn with a picked tile, a
+  field and its default, an enum, a tileset's tags dragged on its picture and a tile's data, a
+  level field, saved; driver: `send LDtk_Item_Picked`, `send LDtk_Def_Picked`); fixtures
+  `tests/fixtures/ldtk_enums/`.
+
 ## Editing LDtk projects (implemented, `ldtk_json.odin`, `ldtk_doc.odin`, `ldtk_ops.odin`)
 
 TODO.md's Round 4 "Level mode and the LDtk tab" (asked 2026-10-24: "Dedicated LDtk tab for deeper
@@ -3778,7 +3842,9 @@ Highlights:
     sidebars | value | tiles | random | flip | grid | single_layer | stacking | auto_layers |
     stroke | pick | entity_type>`, `ldtk`, `ldtk_disk`, `ldtk_cell`, `ldtk_tiles`, `ldtk_count`,
     `level_entities`; commands `level_paint`, `level_drag_world`, `level_palette_tiles`;
-    tests/ui/modes.script, ldtk_tab.script, level_paint.script)
+    tests/ui/modes.script, ldtk_tab.script, level_paint.script); the definitions editors'
+    (view_ldtk_defs.odin's doc block: `ldtk-layers-add-<Type>`, `ldtk-<kind>-<member>`,
+    `ldtk-picker-<what>`...; tests/ui/ldtk_defs.script)
   - the sprite sheet slicer's tab (slicer_edit.odin's doc block: `slicer-tab-<i>`, `slicer-canvas`,
     `slicer-scroll`, `slicer-<SlicerNumber>`, `slicer-add`, `slicer-create`, `slicer-apply`...),
     the browser preview's `browser-slice`, the Animation panel's `animation-slice` (driver:

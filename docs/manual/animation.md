@@ -1,7 +1,7 @@
 ---
 title: Keyframe animation
 description: "Animate any node's properties over time with Animator nodes and the Timeline: clips, tracks, keys, curves and events."
-order: 24
+order: 25
 ---
 
 # Keyframe animation (Animator and the Timeline)

@@ -127,9 +127,12 @@ them, a focused level larger, and **painting** as LDtk does with its mouse butto
 IntGrid values with the auto-layer tiles LDtk's rules would make, tiles (stamps, random, flips),
 entities placed, moved, resized, copied and removed; a stroke is one undo step), a Layers sidebar
 (select, show or hide, drag to reorder, the layer's palette), and LDtk's panels as bottom tabs (World, Level, Layers, Entities,
-Enums, Tilesets, Auto-layer Rules, Project) editing layers, entities, fields, enums and the
-world; edits are saved into the `.ldtk` file with the project, and the scenes showing each level
-are a click away ([docs/manual/level_mode.md](docs/manual/level_mode.md)).
+Enums, Tilesets, Auto-layer Rules, Project) editing the world, fields' values and the project's
+**definitions** as LDtk's panels do (layers and their IntGrid values, entity types and every kind
+of field, enums with external enum files, tilesets with their tiles' tags and data, level fields;
+every level kept in step); edits are saved into the `.ldtk` file with the project, and the scenes
+showing each level are a click away ([docs/manual/level_mode.md](docs/manual/level_mode.md),
+[docs/manual/level_definitions.md](docs/manual/level_definitions.md)).
 Each mode has its own layout and panel sizes; the menus, the play controls, the Console and
 Output, the settings and one undo history are shared. The mode is remembered per project
 (`.editor/modes.ini`).

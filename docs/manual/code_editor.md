@@ -1,7 +1,7 @@
 ---
 title: The code editor
 description: Write your game's Odin scripts in tabs beside your scenes, with completion, error checking, go to definition, find and replace, and a command palette, or use an external editor such as Zed or VS Code instead.
-order: 35
+order: 36
 ---
 
 # The code editor

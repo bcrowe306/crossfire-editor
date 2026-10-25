@@ -1,7 +1,7 @@
 ---
 title: Dialogue
 description: Write conversations with lines, choices, conditions and variables in the Dialogue tab, import Yarn Spinner scripts, and show them in the game with a typewriter DialogueBox.
-order: 27
+order: 28
 ---
 
 # Dialogue

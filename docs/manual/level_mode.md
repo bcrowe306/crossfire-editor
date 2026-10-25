@@ -14,13 +14,13 @@ around and edit, laid out like LDtk itself. Your edits are saved into the `.ldtk
 save the project, so LDtk, the viewport and a running game all read the same file
 ([LDtk levels](levels.md)).
 
-It's being built in phases. **Today** (phases 1 and 2) it edits where levels and entities are,
-the layers' settings and order, which layers each level shows, entity types and their fields,
-every field's value, IntGrid values, enums and the world's layout, and it **paints** as LDtk
+It's being built in phases. **Today** (phases 1 to 3) it edits where levels and entities are,
+which layers each level shows, every field's value and the world's layout; it **paints** as LDtk
 does: IntGrid cells (with the auto-layer tiles their rules make, the tiles LDtk would make),
-tiles, and entities placed, moved, resized, copied and removed
-([Painting](#painting)). Next come the definitions editors, auto-layer rules, and the rest of
-what LDtk does.
+tiles, and entities placed, moved, resized, copied and removed ([Painting](#painting)); and it
+edits the project's **definitions** as LDtk's panels do: layers, entity types and their fields,
+enums, tilesets and level fields ([Level definitions](level_definitions.md)). Next come
+auto-layer rules, and the rest of what LDtk does.
 
 - [Opening it](#opening-it)
 - [The window in the Level mode](#the-window-in-the-level-mode)
@@ -306,8 +306,8 @@ side or one above the other: changing it moves the levels as LDtk would), its **
 The selected level: its size and place in the world, how many layers, entities, fields and
 neighbours it has; the **scenes showing it** (click one to open it in the Scene mode, its
 LDtkLevel node selected) or **New Scene with This Level**; its custom **fields**; its
-**neighbours**. With no level selected, how many levels the world has and the level fields'
-names.
+**neighbours**. With no level selected, how many levels the world has. Under them the **level
+fields**' definitions, edited like entities' fields ([Level definitions](level_definitions.md#fields)).
 
 A level shows in a scene through an **LDtkLevel** node naming it
 ([Putting a level in a scene](levels.md#putting-a-level-in-a-scene)). **New Scene with This Level**
@@ -318,30 +318,34 @@ level, after the ones naming it.
 
 ### The Layers tab
 
-The selected layer (the Layers sidebar's, or the choice at the top): its **name**, its type,
-whether the selected level shows it, its **opacity**, **parallax** (X, Y, scaling), its **grid
-size** (only while nothing is painted in it: LDtk moves painted cells when it changes) and its
-**order** (Up / Down, or the sidebar's grip). An **IntGrid** layer's values follow: each value's
-**name** and **color**, and, for every scene whose LDtkLevel node uses that layer for collision,
-what each value becomes there (**Solid**, **One-way platform**, **Area**, **Nothing**: the node's
-settings, not the file's).
+The selected layer (the Layers sidebar's, or the choice at the top) and the layer list: add a
+layer of each type, duplicate, delete, reorder; every setting LDtk has (name, opacity, grid,
+offsets, parallax, how LDtk shows it), an IntGrid layer's values and groups, a layer's tileset, an
+auto-layer's source, an Entities layer's tags. For every scene whose LDtkLevel node uses an
+IntGrid layer for collision, what each value becomes there (**Solid**, **One-way platform**,
+**Area**, **Nothing**: the node's settings, not the file's). See
+[Level definitions](level_definitions.md#layers).
 
 ### The Entities tab
 
-Pick an entity type: its **name**, **width**, **height**, **color**, **pivot**; its **fields**'
-names and defaults; the type's entities in the selected level (all of them with none selected).
-Click one to select it (and center the canvas on it): its position and every field's value are
-edited below it. Then the level's **references**: the entity reference fields of its entities,
-each pointing at an entity the field allows.
+The entity types (add, duplicate, delete, reorder; size, shape, look, tile, limits, tags) and
+their **fields** ([Level definitions](level_definitions.md#entity-types)); then the type's
+entities in the selected level (all of them with none selected). Click one to select it (and
+center the canvas on it): its position and every field's value are edited below it. Then the
+level's **references**: the entity reference fields of its entities, each pointing at an entity
+the field allows.
 
 ### The Enums tab
 
-Pick an enum: its **name**, each value's **name** and **color**; **add a value**, **add an
-enum**. External enums (from a file) are listed; they're edited in their file.
+The enums: their names, tags, icons and values (added, renamed, recolored, reordered, removed),
+and external enums imported from a file and synced with it
+([Level definitions](level_definitions.md#enums)).
 
 ### The Tilesets tab
 
-What each tileset is: its image, size and grid. Tilesets are edited in LDtk for now.
+The tilesets: made from the project's images, their grid, spacing and padding, tags, and their
+tiles' enum tags and custom data on their picture
+([Level definitions](level_definitions.md#tilesets)).
 
 ### The Auto-layer Rules tab
 
@@ -360,10 +364,9 @@ opacity is every level's, a moved level's entities get their new world positions
 layer or entity type is renamed in your scenes' LDtkLevel nodes too (their collision layer and
 entity rules), in the same undo step. Scripts named like an entity type aren't renamed.
 
-Not editable here yet (LDtk edits them, and the tabs say so): array fields other than points and
-references, tile fields, external enums, tilesets, levels' sizes and names, new or deleted levels,
-the order of a linear world's levels, a field's or a layer's type, auto-layer rules, the project's
-settings.
+Not editable here yet (LDtk edits them, and the tabs say so): array fields' values other than
+points and references, tile fields' values, levels' sizes and names, new or deleted levels, the
+order of a linear world's levels, auto-layer rules, the project's settings.
 
 ## Saving, undo and LDtk
 

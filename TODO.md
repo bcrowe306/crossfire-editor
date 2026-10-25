@@ -118,8 +118,33 @@ numbers), the manual's level_mode.md "Painting" is the guide. Left for later pha
 built: LDtk's grid-cell selection tool (select, move and copy rectangles of cells), saved tile
 selections, rule groups toggled from the canvas, picking references in another level, field
 values drawn on the canvas (LDtk's field display modes), NineSlice / Repeat tile render modes (drawn approximately), a release
-hitch of about 120 ms on a 6.5 MB level (the document's text parsed again). Next: phase 3 (the
-definitions editors).
+hitch of about 120 ms on a 6.5 MB level (the document's text parsed again).
+
+**Phase 3 done (2026-10-25):** the definitions editors, LDtk's panels in the bottom tabs: layers
+(made by type, copied, deleted, reordered; every setting; grids remapping every level's cells;
+IntGrid values and groups with their tiles; tilesets, auto-layer sources, kill layers, biomes;
+entity tags), entity types (presets, size, resizing limits, pivot, look, render modes and tiles,
+9-slices, limits, tags, table of contents) and their fields (every type, single or array; defaults,
+ranges, nullability, regexes, file types, languages, tilesets, reference rules, display; type
+conversions), enums (values, colors, icons, tags; external enums from text, JSON, Haxe and
+CastleDB files, synced), tilesets (from the project's images, grid, spacing, padding, tags, a tag
+enum, tiles tagged and given custom data on their picture, LDtk's internal icons), level fields
+(the Level tab). Every level kept in step by LDtk's tidy, ported (a no-op on all of LDtk's
+samples); new definitions in LDtk's key order; tilesets' pixel data byte-identical to LDtk's; one
+undo step each. CLAUDE.md's "The definitions editors" describes it, the manual's
+level_definitions.md is the guide. Not built here: copy / paste of definitions between projects
+(LDtk's clipboard), LDtk's "bake" of an auto-layer into a Tiles layer, moving entities between
+layers (MoveEntitiesBetweenLayers), confirmations before deleting used definitions (undo instead),
+the IntGrid values' drag between groups (a group choice and Up / Down instead). Next: phase 4
+(auto-layer rules).
+
+**Left for phase 5's parity audit** (from phases 2 and 3): LDtk's grid-cell selection tool
+(select, move and copy rectangles of cells); saved tile selections (TilesetDef.savedSelections:
+kept and remapped, not made); toggling rule groups from the canvas; picking references in another
+level; field values drawn on the canvas (LDtk's display modes: they're set, not drawn); NineSlice
+and Repeat tile render modes drawn exactly; the release hitch on huge levels (the document parsed
+again, about 120 ms at 6.5 MB); definitions copied, pasted and baked as above; the project's
+settings (identifier style, default sizes, flags, separate level files) in the Project tab.
 
 The Level mode becomes a better interface for editing LDtk projects, with full parity with LDtk
 itself (its source: the workspace's `ldtk/`). The layout comes from the user's design,
