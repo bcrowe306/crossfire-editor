@@ -503,10 +503,11 @@ LDtkOps_DefEdit :: proc(root: string, doc: ^LDtkDoc, edit: LDtk_Edit) -> (proble
 
 /*
 Applies every rule of the given layers again in every level (LayerInstance.applyAllRules), and
-of the AutoLayers built from them, writing their tiles as LDtk does.
+of the AutoLayers built from them, writing their tiles as LDtk does (`only`: one level's, by its
+index).
 */
 @(private)
-rerunRules :: proc(s: ^Stages, layers: map[int]bool) -> string {
+rerunRules :: proc(s: ^Stages, layers: map[int]bool, only := -1) -> string {
 	p := LDtkPatches{}
 	doc := s.cur
 	main := LDtkDoc_Main(doc)
@@ -518,6 +519,7 @@ rerunRules :: proc(s: ^Stages, layers: map[int]bool) -> string {
 		if source >= 0 && source in layers do all[Json_Int(main, Json_Get(main, d, "uid"))] = true
 	}
 	for _, level in doc.levels {
+		if only >= 0 && level != only do continue
 		m, ok := LDtkLevel_Read(doc, "", level)
 		if !ok do continue
 		defer LDtkLevel_Destroy(&m)

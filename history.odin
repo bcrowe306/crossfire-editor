@@ -1919,6 +1919,12 @@ LDTK_EDIT_LABELS := [LDtkEditOp]string{
 	.Enum_Value_Removed = "Remove an enum value", .Enum_Value_Moved = "Move an enum value", .Enum_Value_Tile = "Change an enum value's icon",
 	.Enum_Import = "Import external enums", .Enum_Sync = "Sync external enums", .Enum_External_Removed = "Remove external enums",
 	.Tileset_Tag = "Tag tiles", .Tileset_Custom_Data = "Change tiles' custom data",
+	.Rule_Group_Added = "Add a rule group", .Rule_Group_Removed = "Remove a rule group", .Rule_Group_Duplicated = "Duplicate a rule group",
+	.Rule_Group_Moved = "Move a rule group", .Rule_Group_Set = "Change a rule group", .Rule_Group_Here = "Turn an optional rule group on or off in a level",
+	.Rule_Group_Remapped = "Duplicate and remap a rule group", .Rule_Group_Assistant = "Make rules with the Assistant",
+	.Rule_Added = "Add a rule", .Rule_Removed = "Remove a rule", .Rule_Duplicated = "Duplicate a rule", .Rule_Moved = "Move a rule",
+	.Rule_Set = "Change a rule", .Rule_Pattern = "Change a rule's pattern", .Rule_Tiles = "Change a rule's tiles", .Rule_Pasted = "Paste rules",
+	.Rule_Seed = "Randomize a layer's rules", .Rule_Tileset_Here = "Change a layer's tileset in a level",
 }
 
 /*
@@ -1933,11 +1939,21 @@ LDtkEdit_Info :: proc(edit: LDtk_Edit) -> EditInfo {
 	     .Entity_Added, .Entity_Removed, .Entity_Resized, .Entity_Duplicated, .Entity_Point,
 	     .Def_Added, .Def_Removed, .Def_Duplicated, .Def_Moved, .Field_Converted, .IntGrid_Value_Added, .IntGrid_Value_Removed, .IntGrid_Value_Moved,
 	     .IntGrid_Group_Added, .IntGrid_Group_Removed, .IntGrid_Group_Moved, .Enum_Value_Removed, .Enum_Value_Moved, .Enum_Import, .Enum_Sync,
-	     .Enum_External_Removed, .Tileset_Tag:
+	     .Enum_External_Removed, .Tileset_Tag,
+	     .Rule_Group_Added, .Rule_Group_Removed, .Rule_Group_Duplicated, .Rule_Group_Moved, .Rule_Group_Here, .Rule_Group_Remapped,
+	     .Rule_Group_Assistant, .Rule_Added, .Rule_Removed, .Rule_Duplicated, .Rule_Moved, .Rule_Pattern, .Rule_Tiles, .Rule_Pasted,
+	     .Rule_Seed, .Rule_Tileset_Here:
+	case .Rule_Set, .Rule_Group_Set:
+		// Typed and stepped values merge (one step a field while typing); toggles and choices don't
+		merges := false
+		if edit.op == .Rule_Group_Set do merges = edit.key == "name" || edit.key == "color"
+		else if m := LDtkRules_Member(edit.key); m != nil do merges = m.type == .Int || m.type == .Float
+		if merges do info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.def, edit.field, edit.index, edit.key))
 	case:
 		info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.world, edit.def, edit.field, edit.index, edit.level, edit.entity, edit.kind, edit.key))
 	}
 	if edit.op == .Def_Set do info.label = fmt.tprintf("%s in %s", LDtkDefs_SetLabel(edit), filepath.base(edit.file))
+	if edit.op == .Rule_Set do info.label = fmt.tprintf("%s in %s", LDtkRules_SetLabel(edit), filepath.base(edit.file))
 	// Renames scenes follow (their LDtkLevel nodes name layers and entity types)
 	info.withProject = edit.op == .Layer_Name || edit.op == .Entity_Name
 	return info

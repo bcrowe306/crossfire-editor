@@ -32,7 +32,9 @@ LDtk older than 1.0 wrote isn't edited (LDtk updates it when it saves).
 
 Definitions (layers, entity types, fields, enums, tilesets, level fields: the `Def_*` ops and
 those after them) are ldtk_defs.odin's, with LDtk's tidy bringing every level in step
-(ldtk_tidy.odin); `Field_Default` and `Layer_Grid_Size` go through it too.
+(ldtk_tidy.odin); `Field_Default` and `Layer_Grid_Size` go through it too. Auto-layer rules (the
+`Rule_*` ops) are ldtk_rule_ops.odin's: written as LDtk's toJson writes them, then the tidy, then
+the rules applied again.
 
 What isn't editable yet (the tab says so): arrays of values, tiles and file paths in fields'
 values, linear world layouts' level order.
@@ -135,6 +137,27 @@ LDtkEditOp :: enum {
 	// (`text`)
 	Tileset_Tag,
 	Tileset_Custom_Data,
+
+	// The Auto-layer Rules tab (ldtk_rule_ops.odin): `def` the layer definition's uid, `index` a
+	// rule group's uid, `field` a rule's uid (that file's doc block says what each takes)
+	Rule_Group_Added,
+	Rule_Group_Removed,
+	Rule_Group_Duplicated,
+	Rule_Group_Moved,
+	Rule_Group_Set,
+	Rule_Group_Here,
+	Rule_Group_Remapped,
+	Rule_Group_Assistant,
+	Rule_Added,
+	Rule_Removed,
+	Rule_Duplicated,
+	Rule_Moved,
+	Rule_Set,
+	Rule_Pattern,
+	Rule_Tiles,
+	Rule_Pasted,
+	Rule_Seed,
+	Rule_Tileset_Here,
 }
 
 // Which list of definitions a `Def_*` edit is about
@@ -444,6 +467,12 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 	     .Enum_Value_Removed, .Enum_Value_Moved, .Enum_Value_Tile, .Enum_Import, .Enum_Sync, .Enum_External_Removed,
 	     .Tileset_Tag, .Tileset_Custom_Data:
 		return LDtkOps_DefEdit(root, doc, edit)
+
+	// The Auto-layer Rules tab (ldtk_rule_ops.odin)
+	case .Rule_Group_Added, .Rule_Group_Removed, .Rule_Group_Duplicated, .Rule_Group_Moved, .Rule_Group_Set, .Rule_Group_Here,
+	     .Rule_Group_Remapped, .Rule_Group_Assistant, .Rule_Added, .Rule_Removed, .Rule_Duplicated, .Rule_Moved, .Rule_Set,
+	     .Rule_Pattern, .Rule_Tiles, .Rule_Pasted, .Rule_Seed, .Rule_Tileset_Here:
+		return LDtkOps_RuleEdit(doc, edit), {}
 
 	// Levels in the world
 	case .Level_X, .Level_Y, .Level_Moved:

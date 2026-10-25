@@ -243,10 +243,11 @@ def main():
 	surface = group(50, "Surface", [
 		# Grass's top edge: random tiles at 30%, then grass, a solid value by its group
 		rule(51, [0, -1, 0, 0, 1, 0, 0, 0, 0], [[0], [1], [2]], chance=0.3),
-		rule(52, [0, 0, 0, 0, 1, 0, 0, 0, 0], [[3]], size=3),
-		rule(53, [0, 0, 0, 0, SOLID, 0, 0, 0, 0], [[4], [5]]),
+		# One-cell patterns are 1 x 1 (LDtk's toJson trims a pattern's empty borders)
+		rule(52, [1], [[3]], size=1),
+		rule(53, [SOLID], [[4], [5]], size=1),
 		# Water: 70% alpha, doesn't break on match (the next rule may add under it)
-		rule(54, [0, 0, 0, 0, 4, 0, 0, 0, 0], [[6]], alpha=0.7, break_on_match=False),
+		rule(54, [4], [[6]], size=1, alpha=0.7, break_on_match=False),
 		# A wall at the level's left edge: the outside counts as stone
 		rule(55, [0, 0, 0, 2, ANY, 0, 0, 0, 0], [[7]], oob=2),
 		# A corner, mirrored
