@@ -60,7 +60,7 @@ mixerBody :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.View {
 	add := skald.tooltip(ctx, skald.button(ctx, ICON_PLUS, Msg(Bus_Added{}), id = skald.hash_id("mixer-add"),
 		bg = th.color.surface, fg = th.color.fg, width = ADD_WIDTH, padding = {0, th.spacing.md}, radius = th.radius.sm),
 		"Add a bus", id = skald.hash_id("mixer-add-tip"))
-	if len(strips) == 0 do append(&strips, skald.text("No buses yet: + adds one", th.color.fg_muted, th.font.size_xs))
+	if len(strips) == 0 do append(&strips, uiText(th, .Muted, "No buses yet: + adds one"))
 	master := channelStrip(ctx, s, buses[0], 0, masterLevel, stripHeight)
 	// Keep frames coming while the preview plays (meters that are still falling ask too)
 	if moving do skald.send(ctx, Msg(Preview_Tick{}))
@@ -82,6 +82,7 @@ ADD_WIDTH :: f32(32)
 // One bus's strip, `height` tall: the fader and meter take what the rest leaves
 @(private="file")
 channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: [2]f32, height: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	inner := STRIP_WIDTH - th.spacing.xs * 2
 	tiny :: proc(ctx: ^skald.Ctx(Msg), text: string, color: skald.Color) -> skald.View {
@@ -100,7 +101,7 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 	grip := CodeDrag_Handle(ctx, s, fmt.tprintf("mixer-drag-%d", i), DropSource{kind = .Bus, name = i == 0 ? e.MASTER_BUS : b.name, node = -1, index = -1})
 	if i > 0 {
 		remove := skald.button(ctx, ICON_TRASH, Msg(Bus_Removed(i)), id = skald.hash_id(fmt.tprintf("mixer-remove-%d", i)),
-			bg = th.color.surface, fg = th.color.fg_muted, padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm)
+			bg = th.color.surface, fg = th.color.fg_muted, padding = {tk.xs, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm)
 		append(&rows, skald.row(used, skald.flex(1, skald.spacer(0)), grip,
 			skald.tooltip(ctx, remove, "Remove the bus (its sounds go to Master)", id = skald.hash_id(fmt.tprintf("mixer-remove-tip-%d", i))),
 			width = inner, cross_align = .Center))
@@ -110,7 +111,7 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 	// Its effects: the inspector shows them (bus_effects_edit.odin)
 	fx := skald.button(ctx, b.effectCount > 0 ? fmt.tprintf("FX %d", b.effectCount) : "FX", Msg(Bus_Effects_Opened(i)), id = skald.hash_id(fmt.tprintf("mixer-fx-%d", i)),
 		bg = s.busSelection == i ? th.color.primary : th.color.surface, fg = s.busSelection == i ? th.color.on_primary : th.color.fg_muted,
-		padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm, width = inner)
+		padding = {tk.xs, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm, width = inner)
 	append(&rows, skald.tooltip(ctx, fx, "The bus's effects (filters, echo, reverb): shown in the inspector", id = skald.hash_id(fmt.tprintf("mixer-fx-tip-%d", i))))
 
 	// Pan
@@ -129,18 +130,18 @@ channelStrip :: proc(ctx: ^skald.Ctx(Msg), s: ^State, b: BusDef, i: int, level: 
 	// Mute
 	mute := skald.button(ctx, "M", Msg(Bus_Mute_Toggled(i)), id = skald.hash_id(fmt.tprintf("mixer-mute-%d", i)),
 		bg = b.mute ? skald.rgb(0xe0a030) : th.color.bg, fg = b.mute ? skald.rgb(0x1a1a1a) : th.color.fg,
-		width = inner, padding = {0, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		width = inner, padding = {0, tk.xxs}, font_size = th.font.size_xs, radius = th.radius.sm)
 	append(&rows, skald.tooltip(ctx, mute, b.mute ? "Muted: click to hear it" : "Mute", id = skald.hash_id(fmt.tprintf("mixer-mute-tip-%d", i))))
 
 	// The name, at the bottom
 	if i == 0 {
-		append(&rows, skald.row(skald.text(e.MASTER_BUS, th.color.fg, th.font.size_sm), main_align = .Center, width = inner))
+		append(&rows, skald.row(uiText(th, .Value, e.MASTER_BUS), main_align = .Center, width = inner))
 	} else {
 		// A typed name is kept until it's a valid one, with why it isn't
 		text := b.name
 		if s.busEdit.index == i && s.busEdit.text != b.name do text = s.busEdit.text
 		name := skald.text_input(ctx, text, i, onName, id = skald.hash_id(fmt.tprintf("mixer-name-%d", i)),
-			width = inner, padding = {th.spacing.xs, 1}, font_size = th.font.size_xs)
+			width = inner, padding = {tk.xs, tk.hair}, font_size = th.font.size_xs)
 		if problem := BusNameProblem(&s.project, i, text); problem != "" && text != b.name {
 			name = skald.tooltip(ctx, name, problem, id = skald.hash_id(fmt.tprintf("mixer-name-tip-%d", i)))
 			append(&rows, name, tiny(ctx, "Can't use it", th.color.danger))

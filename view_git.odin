@@ -27,16 +27,16 @@ GitPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		return placeholder(ctx, "Reading the project's version control...")
 	case .Missing:
 		return skald.col(
-			skald.text("Git isn't installed, or isn't in PATH.", th.color.fg, th.font.size_sm),
-			skald.text("Install it from git-scm.com (or your package manager), then press Refresh.", th.color.fg_muted, th.font.size_sm),
+			uiText(th, .Value, "Git isn't installed, or isn't in PATH."),
+			uiText(th, .Label, "Install it from git-scm.com (or your package manager), then press Refresh."),
 			refreshButton(s, ctx),
 			spacing = th.spacing.sm,
 			padding = th.spacing.md,
 		)
 	case .Not_Repo:
 		return skald.col(
-			skald.text("This project isn't under version control.", th.color.fg, th.font.size_sm),
-			skald.text("Initialize makes the project folder a Git repository, with a .gitignore that leaves out exported games and build output.", th.color.fg_muted, th.font.size_sm),
+			uiText(th, .Value, "This project isn't under version control."),
+			uiText(th, .Label, "Initialize makes the project folder a Git repository, with a .gitignore that leaves out exported games and build output."),
 			skald.row(
 				skald.button(ctx, fmt.tprintf("%s  Initialize Repository", ICON_CODE_BRANCH), Msg(Git_Op_Requested{op = .Init}),
 					id = skald.hash_id("git-init"), font_size = th.font.size_sm, disabled = s.git.busy),
@@ -113,6 +113,7 @@ diffColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 // Asking before throwing a change away (it can't be undone)
 gitDiscardDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	if s.git.discardAsk == "" do return closedDialog(ctx, "git-discard-dialog")
 	th := ctx.theme
 	path := strings.clone(s.git.discardAsk, context.temp_allocator)
@@ -123,9 +124,9 @@ gitDiscardDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = true,
 		on_dismiss = proc() -> Msg { return Git_Discard_Asked("") },
 		content = skald.col(
-			skald.text(fmt.tprintf("Discard the changes to %s?", path), th.color.fg, th.font.size_lg, max_width = 400),
-			skald.text(what, th.color.fg_muted, th.font.size_sm, max_width = 400),
-			skald.text("This can't be undone.", th.color.fg_muted, th.font.size_sm),
+			uiText(th, .Title, fmt.tprintf("Discard the changes to %s?", path), max_width = tk.textDialog),
+			uiText(th, .Label, what, max_width = tk.textDialog),
+			uiText(th, .Label, "This can't be undone."),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
 				skald.button(ctx, "Cancel", Msg(Git_Discard_Asked("")), id = skald.hash_id("git-discard-cancel"),
@@ -139,7 +140,7 @@ gitDiscardDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			cross_align = .Stretch,
 		),
 		id = skald.hash_id("git-discard-dialog"),
-		width = 440,
+		width = tk.dialogM,
 	)
 }
 
@@ -151,6 +152,7 @@ refreshButton :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // The branch bar, the commit message, and the changed files
 @(private="file")
 changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	git := &s.git
 	snapshot := &git.snapshot
@@ -171,10 +173,10 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&bar, skald.text(ICON_CODE_BRANCH, th.color.fg_muted, small))
 	append(&bar, skald.select(ctx, branchText, branches[:],
 		proc(name: string) -> Msg { return Git_Op_Requested{op = .Switch_Branch, arg = name} },
-		id = skald.hash_id("git-branch"), width = 140, disabled = git.busy || len(branches) < 2))
+		id = skald.hash_id("git-branch"), width = tk.fieldM, disabled = git.busy || len(branches) < 2))
 	append(&bar, skald.text_input(ctx, strings.clone(git.newBranch, context.temp_allocator),
 		proc(v: string) -> Msg { return Git_New_Branch_Changed(v) },
-		id = skald.hash_id("git-new-branch"), placeholder = "New branch", width = 120))
+		id = skald.hash_id("git-new-branch"), placeholder = "New branch", width = tk.fieldS))
 	append(&bar, skald.button(ctx, "Create", Msg(Git_Op_Requested{op = .Create_Branch, arg = strings.clone(git.newBranch, context.temp_allocator)}),
 		id = skald.hash_id("git-create-branch"), bg = th.color.surface, fg = th.color.fg, font_size = small,
 		disabled = git.busy || strings.trim_space(git.newBranch) == ""))
@@ -184,7 +186,7 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if len(others) > 0 && !snapshot.merging {
 		append(&bar, skald.select(ctx, "Merge...", others[:],
 			proc(name: string) -> Msg { return Git_Op_Requested{op = .Merge, arg = name} },
-			id = skald.hash_id("git-merge"), width = 110, disabled = git.busy))
+			id = skald.hash_id("git-merge"), width = tk.fieldS, disabled = git.busy))
 	}
 	append(&bar, skald.flex(1, skald.spacer(0)))
 	// Git LFS, when it's installed and the repository doesn't use it yet
@@ -263,9 +265,10 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		letter, color := changeLetter(change, th)
 		path := strings.clone(change.path, context.temp_allocator)
 		smallButton :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, disabled: bool) -> skald.View {
+			tk := uiTokens(ctx)
 			th := ctx.theme
 			return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg,
-				padding = {th.spacing.xs, 1}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
+				padding = {tk.xs, tk.hair}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
 		}
 		// Conflicted: keep one side; otherwise the file can be thrown back to the last commit
 		actions: skald.View
@@ -288,20 +291,20 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.checkbox(ctx, Git_IsStaged(change), "", path,
 				proc(path: string, value: bool) -> Msg { return Git_Op_Requested{op = value ? .Stage : .Unstage, arg = path} },
 				id = skald.hash_id(fmt.tprintf("git-change-%d", i)), disabled = git.busy || Git_IsConflicted(change)),
-			skald.col(skald.text(letter, color, small), width = 16),
+			skald.col(skald.text(letter, color, small), width = tk.iconColumn),
 			// Before the path: rows in a scroll aren't width-limited, so a long path would push
 			// them out of a narrow panel
 			actions,
 			// The path shows its diff
 			skald.button(ctx, change.path, Msg(Git_Diff_Requested(shown ? "" : path)), id = skald.hash_id(fmt.tprintf("git-diff-%d", i)),
-				bg = shown ? th.color.surface : {}, fg = th.color.fg, padding = {th.spacing.xs, 1}, font_size = small, radius = th.radius.sm),
+				bg = shown ? th.color.surface : {}, fg = th.color.fg, padding = {tk.xs, tk.hair}, font_size = small, radius = th.radius.sm),
 			spacing = th.spacing.sm,
 			cross_align = .Center,
 		)
 		append(&rows, skald.View_Zone{id = rowId, child = row})
 	}
 	if snapshot.problem != "" do append(&rows, skald.text(snapshot.problem, th.color.danger, small))
-	list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = 2, padding = th.spacing.xs), id = skald.hash_id("git-changes"))
+	list := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = tk.xxs, padding = th.spacing.xs), id = skald.hash_id("git-changes"))
 
 	return skald.col(
 		skald.row(..bar[:], spacing = th.spacing.sm, cross_align = .Center),
@@ -318,6 +321,7 @@ changesColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // The last commits
 @(private="file")
 historyColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	small := th.font.size_sm
 	rows := make([dynamic]skald.View, context.temp_allocator)
@@ -327,7 +331,7 @@ historyColumn :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, skald.col(
 			skald.text(commit.subject, th.color.fg, small),
 			skald.text(fmt.tprintf("%s  %s, %s", commit.hash, commit.author, commit.date), th.color.fg_muted, small),
-			spacing = 1,
+			spacing = tk.hair,
 		))
 	}
 	return skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.sm), id = skald.hash_id("git-history"))

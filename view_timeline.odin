@@ -42,22 +42,24 @@ TIMELINE_ROW_HEIGHT :: 22
 TIMELINE_END_MARGIN :: 10
 
 TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	node, index := Timeline_Animator(s)
 	if node == nil {
 		text := "Select an Animator node to edit its clips: keyframes that move, turn, scale, color, show and hide other nodes, or change their script's fields, over time. Add Node > Animator makes one."
-		return skald.col(skald.text(text, th.color.fg_muted, th.font.size_sm, max_width = 560), padding = th.spacing.md)
+		return skald.col(uiText(th, .Label, text, max_width = tk.textWide), padding = th.spacing.md)
 	}
 	t := &s.timeline
 	scene := &s.project.scenes[s.currentScene]
-	small :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View { return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs) }
+	small :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View { return uiText(ctx.theme, .Muted, text) }
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, on := false) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = on ? th.color.primary : th.color.bg, fg = on ? th.color.on_primary : th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
 	labeled :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
-		return skald.row(skald.text(label, ctx.theme.color.fg_muted, ctx.theme.font.size_xs), control, spacing = ctx.theme.spacing.xs, cross_align = .Center)
+		return skald.row(uiText(ctx.theme, .Muted, label), control, spacing = ctx.theme.spacing.xs, cross_align = .Center)
 	}
 	left, right := FittedSidebarWidths(&s.layout)
 	width := s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.sm * 2 - INSPECTOR_SCROLLBAR_WIDTH
@@ -72,7 +74,7 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&toolbar, labeled(ctx, "Clip", skald.select(ctx, names[t.clip], names, Choices{names}, proc(c: Choices, v: string) -> Msg {
 			for n, i in c.names do if n == v do return Timeline_View{op = .Clip_Chosen, index = i}
 			return {}
-		}, id = skald.hash_id("timeline-clip"), width = 130)))
+		}, id = skald.hash_id("timeline-clip"), width = tk.fieldS)))
 		// The clip drags into code by its grip (code_drag.odin)
 		append(&toolbar, CodeDrag_Handle(ctx, s, "timeline-clip-drag", DropSource{kind = .Clip, name = clip.name, node = index, index = -1}))
 	}
@@ -80,9 +82,9 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	if clip != nil {
 		name := t.nameEdit != "" ? t.nameEdit : clip.name
 		nameRow := labeled(ctx, "Name", skald.text_input(ctx, strings.clone(name, context.temp_allocator), proc(v: string) -> Msg { return Timeline_View{op = .Name_Typed, text = v} },
-			id = skald.hash_id("timeline-clip-name"), width = 110))
+			id = skald.hash_id("timeline-clip-name"), width = tk.fieldS))
 		if t.nameEdit != "" {
-			nameRow = skald.row(nameRow, skald.text(Timeline_ClipNameProblem(node, t.clip, t.nameEdit), th.color.warning, th.font.size_xs), spacing = th.spacing.xs, cross_align = .Center)
+			nameRow = skald.row(nameRow, uiText(th, .Muted, Timeline_ClipNameProblem(node, t.clip, t.nameEdit), color = th.color.warning), spacing = th.spacing.xs, cross_align = .Center)
 		}
 		append(&toolbar, nameRow)
 		append(&toolbar, labeled(ctx, "Length", numberField(ctx, s, "timeline-length", TimelineNumber.Length, f64(clip.length), 0.1, 2, 110, 0.01, 3600)))
@@ -119,7 +121,7 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	if len(nodePaths) > 0 {
 		append(&transport, labeled(ctx, "Track", skald.select(ctx, newNode, nodePaths[:], proc(v: string) -> Msg { return Timeline_View{op = .New_Node_Chosen, text = v} },
-			id = skald.hash_id("timeline-track-node"), width = 130)))
+			id = skald.hash_id("timeline-track-node"), width = tk.fieldS)))
 		if target := Timeline_ResolvePath(scene, index, newNode); target >= 0 {
 			properties := Timeline_Properties(s, &scene.nodes[target], context.temp_allocator)
 			property := t.newProperty
@@ -134,7 +136,7 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			append(&transport, skald.select(ctx, shown, labels, Props{properties, labels}, proc(c: Props, v: string) -> Msg {
 				for l, i in c.labels do if l == v do return Timeline_View{op = .New_Property_Chosen, text = c.names[i]}
 				return {}
-			}, id = skald.hash_id("timeline-track-property"), width = 130))
+			}, id = skald.hash_id("timeline-track-property"), width = tk.fieldS))
 			// Adding takes what's shown
 			if len(properties) > 0 {
 				append(&transport, button(ctx, "timeline-add-track", fmt.tprintf("%s  Track", ICON_PLUS),
@@ -158,7 +160,7 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			if kind != .Bool && kind != .Text {
 				append(&edit, skald.checkbox(ctx, track.step, "Steps", proc(v: bool) -> Msg { return Timeline_Changed{op = .Track_Step, flag = v} }, id = skald.hash_id("timeline-track-step")))
 			}
-			if Timeline_ResolvePath(scene, index, track.node) < 0 do append(&edit, skald.text(fmt.tprintf("No node at %q", track.node), th.color.warning, th.font.size_xs))
+			if Timeline_ResolvePath(scene, index, track.node) < 0 do append(&edit, uiText(th, .Muted, fmt.tprintf("No node at %q", track.node), color = th.color.warning))
 		} else {
 			append(&edit, button(ctx, "timeline-key", fmt.tprintf("%s  Event", ICON_PLUS), Msg(Timeline_Changed{op = .Key_Added})))
 		}
@@ -171,12 +173,12 @@ TimelinePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			append(&keyRow, labeled(ctx, "Key at", numberField(ctx, s, "timeline-key-time", TimelineNumber.Key_Time, f64(key.time), 0.05, 2, 110, 0, f64(clip.length))))
 			valueLabel := track.property == e.ANIMATOR_EVENT_PROPERTY ? "Event" : "Value"
 			append(&keyRow, labeled(ctx, valueLabel, skald.text_input(ctx, strings.clone(key.value, context.temp_allocator), proc(v: string) -> Msg { return Timeline_Changed{op = .Key_Value, text = v} },
-				id = skald.hash_id("timeline-key-value"), width = 120)))
+				id = skald.hash_id("timeline-key-value"), width = tk.fieldS)))
 			if track.property != e.ANIMATOR_EVENT_PROPERTY && !track.step {
 				eases := make([]string, len(e.EaseType), context.temp_allocator)
 				for ease in e.EaseType do eases[ease] = fmt.tprint(ease)
 				append(&keyRow, labeled(ctx, "Curve to the next", skald.select(ctx, fmt.tprint(key.ease), eases, proc(v: string) -> Msg { return Timeline_Changed{op = .Key_Ease, text = v} },
-					id = skald.hash_id("timeline-key-ease"), width = 110)))
+					id = skald.hash_id("timeline-key-ease"), width = tk.fieldS)))
 			}
 			append(&keyRow, button(ctx, "timeline-remove-key", fmt.tprintf("%s  Remove Key", ICON_TRASH), Msg(Timeline_Changed{op = .Key_Removed})))
 			append(&rows, skald.wrap_row(..keyRow[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width))
@@ -387,6 +389,7 @@ The inspector's rows for an Animator: its clips, the one it starts with, its spe
 Timeline.
 */
 animatorInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, key: int, controlWidth, numberWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	a := &node.animator
@@ -401,8 +404,8 @@ animatorInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, k
 	tracks := 0
 	for c in a.clips do tracks += len(c.tracks)
 	summary := len(a.clips) == 0 ? "No clips yet" : fmt.tprintf("%d clip%s, %d track%s", len(a.clips), len(a.clips) == 1 ? "" : "s", tracks, tracks == 1 ? "" : "s")
-	append(&rows, skald.text(summary, th.color.fg_muted, th.font.size_xs, max_width = inspectorRowWidth(controlWidth)))
+	append(&rows, uiText(th, .Muted, summary, max_width = inspectorRowWidth(controlWidth)))
 	append(&rows, skald.button(ctx, fmt.tprintf("%s  Edit in the Timeline", ICON_FILM), Msg(Bottom_Tab_Changed(int(BottomTab.Timeline))),
-		id = skald.hash_id(fmt.tprintf("inspector-animator-timeline-%d", key)), padding = {th.spacing.sm, 2}, font_size = th.font.size_sm))
+		id = skald.hash_id(fmt.tprintf("inspector-animator-timeline-%d", key)), padding = tk.fieldPadding, font_size = th.font.size_sm))
 	return rows[:]
 }

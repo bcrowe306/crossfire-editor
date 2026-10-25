@@ -73,16 +73,17 @@ The States tab's content (StatesPanel puts it in its scroll, `states-scroll`): t
 graph, the sidebar and the parameters; `scrolls` false for the message shown without a machine.
 */
 StatesPanel_Content :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> (content: skald.View, scrolls: bool) {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	node, index := States_Machine(s)
 	if node == nil {
 		text := "Select a StateMachine node to edit its states: what a character is doing (idle, run, jump, attack), the conditions that move it from one to another, and the animation each plays. Add Node > StateMachine makes one (inside the AnimatedSprite it animates)."
-		return skald.col(skald.text(text, th.color.fg_muted, th.font.size_sm, max_width = 600), padding = th.spacing.md), false
+		return skald.col(uiText(th, .Label, text, max_width = tk.textWide), padding = th.spacing.md), false
 	}
 	sm := &node.stateMachine
 	left, right := FittedSidebarWidths(&s.layout)
 	width := s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.sm * 2 - INSPECTOR_SCROLLBAR_WIDTH
-	width = max(width, 160)
+	width = max(width, tk.fieldM)
 	beside := width >= STATES_SIDEBAR_SPLIT_WIDTH
 	sideWidth := beside ? clamp(width * 0.4, STATES_SIDEBAR_MIN, STATES_SIDEBAR_MAX) : width - th.spacing.sm * 2
 	graphWidth := beside ? width - sideWidth - th.spacing.md : width
@@ -94,7 +95,7 @@ StatesPanel_Content :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> (content: skald.
 	append(&bar, statesButton(ctx, "states-add", fmt.tprintf("%s  State", ICON_PLUS), Msg(SM_Changed{op = .State_Added, position = free})))
 	append(&bar, statesButton(ctx, "states-add-param", fmt.tprintf("%s  Parameter", ICON_PLUS), Msg(SM_Changed{op = .Param_Added})))
 	append(&bar, statesSmall(ctx, fmt.tprintf("%s: %d states, %d transitions", node.name, len(sm.states), len(sm.transitions))))
-	if m := States_Live(s); m != nil do append(&bar, skald.text(fmt.tprintf("%s  Playing: %s (%.1f s)", ICON_PLAY, m.state, m.time), th.color.success, th.font.size_xs))
+	if m := States_Live(s); m != nil do append(&bar, uiText(th, .Muted, fmt.tprintf("%s  Playing: %s (%.1f s)", ICON_PLAY, m.state, m.time), color = th.color.success))
 	append(&bar, statesButton(ctx, "states-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("state_machines"))))
 	append(&rows, skald.wrap_row(..bar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width, bg = th.color.surface))
 
@@ -123,41 +124,43 @@ States_Live :: proc(s: ^State) -> ^LiveMachine {
 
 @(private="file")
 statesSmall :: proc(ctx: ^skald.Ctx(Msg), text: string, maxWidth: f32 = 0) -> skald.View {
-	return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = maxWidth)
+	return uiText(ctx.theme, .Muted, text, max_width = maxWidth)
 }
 
 @(private="file")
 statesButton :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.bg, fg = th.color.fg,
-		padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+		padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 }
 
 // The parameters: name, kind, starting value
 @(private="file")
 statesParams :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSettings, index: int, width: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	params := make([dynamic]skald.View, context.temp_allocator)
-	append(&params, skald.text("Parameters", th.color.fg, th.font.size_sm))
+	append(&params, uiText(th, .Value, "Parameters"))
 	kinds := reflect.enum_field_names(e.StateMachineParamKind)
 	live := States_Live(s)
 	for p, i in sm.params {
 		Payload :: struct { index: int }
 		value := p.kind == .Trigger ? statesSmall(ctx, "(set by code)") : skald.text_input(ctx, strings.clone(p.value, context.temp_allocator), Payload{i}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Param_Value, index = pl.index, text = v} },
-			id = skald.hash_id(fmt.tprintf("states-param-value-%d", i)), width = 60)
+			id = skald.hash_id(fmt.tprintf("states-param-value-%d", i)), width = tk.fieldXS)
 		row := make([dynamic]skald.View, context.temp_allocator)
 		append(&row,
 			CodeDrag_Handle(ctx, s, fmt.tprintf("states-param-drag-%d", i), DropSource{kind = .State_Param, name = p.name, node = index, index = -1, detail = fmt.tprint(p.kind)}),
 			skald.text_input(ctx, strings.clone(p.name, context.temp_allocator), Payload{i}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Param_Renamed, index = pl.index, text = v} },
-				id = skald.hash_id(fmt.tprintf("states-param-name-%d", i)), width = 100),
+				id = skald.hash_id(fmt.tprintf("states-param-name-%d", i)), width = tk.fieldS),
 			skald.select(ctx, fmt.tprint(p.kind), kinds, Payload{i}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Param_Kind, index = pl.index, text = v} },
-				id = skald.hash_id(fmt.tprintf("states-param-kind-%d", i)), width = 80),
+				id = skald.hash_id(fmt.tprintf("states-param-kind-%d", i)), width = tk.fieldXS),
 			value,
 			statesButton(ctx, fmt.tprintf("states-param-remove-%d", i), ICON_TRASH, Msg(SM_Changed{op = .Param_Removed, index = i})))
 		// Its value in the running game
-		if live != nil do for lp in live.params do if lp.name == p.name do append(&row, skald.text(fmt.tprintf("now %s", lp.value), th.color.success, th.font.size_xs))
+		if live != nil do for lp in live.params do if lp.name == p.name do append(&row, uiText(th, .Muted, fmt.tprintf("now %s", lp.value), color = th.color.success))
 		// Wraps in a narrow panel (a tiled window's is about 200 px)
-		append(&params, skald.wrap_row(..row[:], spacing = th.spacing.xs, line_spacing = 2, width = min(width - th.spacing.sm * 2, 420)))
+		append(&params, skald.wrap_row(..row[:], spacing = th.spacing.xs, line_spacing = 2, width = min(width - th.spacing.sm * 2, tk.textMeasure)))
 	}
 	if len(sm.params) == 0 do append(&params, statesSmall(ctx, "None yet: + Parameter. Scripts set them (e.StateMachine_SetFloat, SetBool, SetTrigger); conditions read them: speed > 10 and grounded.", width - th.spacing.sm * 2))
 	return skald.wrap_row(..params[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width)
@@ -184,6 +187,7 @@ running game says about them.
 */
 @(private="file")
 statesSidebar :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: int, width: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	ed := &s.states
 	sm := &node.stateMachine
@@ -202,7 +206,7 @@ statesSidebar :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: in
 	switch {
 	case ed.state >= 0 && ed.state < len(sm.states):
 		st := sm.states[ed.state]
-		append(&rows, skald.row(skald.text(fmt.tprintf("State %s", st.name), th.color.fg, th.font.size_sm),
+		append(&rows, skald.row(uiText(th, .Value, fmt.tprintf("State %s", st.name)),
 			// It drags into code by its grip (code_drag.odin)
 			CodeDrag_Handle(ctx, s, "states-drag", DropSource{kind = .State, name = st.name, node = index, index = -1}),
 			spacing = th.spacing.xs, cross_align = .Center))
@@ -239,14 +243,14 @@ statesSidebar :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: in
 		append(&targets, "*")
 		Connect :: struct {}
 		append(&buttons, skald.row(statesSmall(ctx, "+ Transition to"), skald.select(ctx, "", targets[:], Connect{}, proc(_: Connect, v: string) -> Msg { return SM_Changed{op = .Transition_Added, text = v} },
-			id = skald.hash_id("states-connect"), width = min(110, inner), placeholder = "a state"), spacing = th.spacing.xs, cross_align = .Center))
+			id = skald.hash_id("states-connect"), width = min(tk.fieldS, inner), placeholder = "a state"), spacing = th.spacing.xs, cross_align = .Center))
 		append(&buttons, statesButton(ctx, "states-remove", fmt.tprintf("%s  Remove State", ICON_TRASH), Msg(SM_Changed{op = .State_Removed})))
 		append(&rows, skald.wrap_row(..buttons[:], spacing = th.spacing.sm, line_spacing = th.spacing.xs, width = inner))
 		append(&rows, statesSmall(ctx, "(+ Transition to *: from any state to this one)", inner))
 	case ed.transition >= 0 && ed.transition < len(sm.transitions):
 		t := sm.transitions[ed.transition]
 		from := t.from == "*" ? "any state" : t.from
-		append(&rows, skald.text(fmt.tprintf("Transition %s → %s", from, t.to), th.color.fg, th.font.size_sm, max_width = inner))
+		append(&rows, uiText(th, .Value, fmt.tprintf("Transition %s → %s", from, t.to), max_width = inner))
 		lt: ^LiveTransition
 		if live != nil && ed.transition < len(live.transitions) do lt = &live.transitions[ed.transition]
 		if lt != nil do append(&rows, line(ctx, fmt.tprintf("%s  %s", lt.status == .Ready ? ICON_CHECK : ICON_XMARK, statusText(lt.status)), lt.status == .Ready ? th.color.success : th.color.fg_muted, inner))
@@ -260,7 +264,7 @@ statesSidebar :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: in
 			id = skald.hash_id("states-interrupts")))
 		append(&rows, statesButton(ctx, "states-remove-transition", fmt.tprintf("%s  Remove Transition", ICON_TRASH), Msg(SM_Changed{op = .Transition_Removed})))
 	case:
-		append(&rows, skald.text("Properties", th.color.fg, th.font.size_sm))
+		append(&rows, uiText(th, .Value, "Properties"))
 		append(&rows, statesSmall(ctx, "Click a state or an arrow to edit it here; double-click empty space for a new state; drag states to arrange them.", inner))
 		append(&rows, statesSmall(ctx, "Transitions are tried highest priority first; the first whose condition and guard hold, and whose state can be left, is taken.", inner))
 		if guards := States_GuardNames(s); len(guards) > 0 {
@@ -277,6 +281,7 @@ in the running game (nil: no game).
 */
 @(private="file")
 conditionEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSettings, which: SMCondition, text: string, live: []bool, width, control: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	keys := [SMCondition]string{.When = "when", .Guard = "guard", .Exit = "exit"}
 	key := keys[which]
@@ -291,7 +296,7 @@ conditionEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSett
 	switch {
 	case flat && len(clauses) >= 2:
 		header = skald.select(ctx, any ? modes[1] : modes[0], modes, Payload{which, -1}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Clause_Mode, condition = pl.which, flag = v == "Any of"} },
-			id = skald.hash_id(fmt.tprintf("states-%s-mode", key)), width = min(control, 110))
+			id = skald.hash_id(fmt.tprintf("states-%s-mode", key)), width = min(control, tk.fieldS))
 	case len(clauses) == 0 && flat:
 		header = statesSmall(ctx, which == .Exit ? "always (it can be left any time)" : which == .Guard ? "none" : "always")
 	case !flat:
@@ -310,7 +315,7 @@ conditionEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSett
 		if i < len(live) do append(&parts, skald.text(live[i] ? ICON_CHECK : ICON_XMARK, live[i] ? th.color.success : th.color.danger, th.font.size_xs))
 		append(&parts, skald.button(ctx, c.negated ? "not" : "is", Msg(SM_Changed{op = .Clause_Changed, condition = which, index = i, part = .Negated, text = c.negated ? "false" : "true"}),
 			id = skald.hash_id(fmt.tprintf("states-%s-neg-%d", key, i)), bg = c.negated ? th.color.warning : th.color.bg, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 		name := c.guard ? fmt.tprintf("%s()", c.name) : c.name
 		options := names
 		if !slice.contains(names[:], name) {
@@ -319,13 +324,13 @@ conditionEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSett
 			append(&options, ..names[:])
 		}
 		append(&parts, skald.select(ctx, name, options[:], Payload{which, i}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Clause_Changed, condition = pl.which, index = pl.index, part = .Name, text = v} },
-			id = skald.hash_id(fmt.tprintf("states-%s-name-%d", key, i)), width = min(96, inner)))
+			id = skald.hash_id(fmt.tprintf("states-%s-name-%d", key, i)), width = min(tk.fieldS, inner)))
 		if !c.guard {
 			append(&parts, skald.select(ctx, c.op == "" ? CLAUSE_IS_TRUE : c.op, ops, Payload{which, i}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Clause_Changed, condition = pl.which, index = pl.index, part = .Op, text = v} },
-				id = skald.hash_id(fmt.tprintf("states-%s-op-%d", key, i)), width = 64))
+				id = skald.hash_id(fmt.tprintf("states-%s-op-%d", key, i)), width = tk.fieldXS))
 			if c.op != "" {
 				append(&parts, skald.text_input(ctx, c.value, Payload{which, i}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Clause_Changed, condition = pl.which, index = pl.index, part = .Value, text = v} },
-					id = skald.hash_id(fmt.tprintf("states-%s-value-%d", key, i)), width = 44))
+					id = skald.hash_id(fmt.tprintf("states-%s-value-%d", key, i)), width = tk.fieldXXS))
 			}
 		}
 		append(&parts, statesButton(ctx, fmt.tprintf("states-%s-remove-%d", key, i), ICON_TRASH, Msg(SM_Changed{op = .Clause_Removed, condition = which, index = i})))
@@ -338,7 +343,7 @@ conditionEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSett
 			calls := make([dynamic]string, context.temp_allocator)
 			for g in guards do append(&calls, fmt.tprintf("%s()", g))
 			append(&adds, skald.select(ctx, "", calls[:], Payload{which, -1}, proc(pl: Payload, v: string) -> Msg { return SM_Changed{op = .Clause_Added, condition = pl.which, text = v} },
-				id = skald.hash_id(fmt.tprintf("states-%s-add-guard", key)), width = min(120, inner), placeholder = "+ Code guard"))
+				id = skald.hash_id(fmt.tprintf("states-%s-add-guard", key)), width = min(tk.fieldS, inner), placeholder = "+ Code guard"))
 		}
 		if len(adds) > 0 do append(&rows, skald.wrap_row(..adds[:], spacing = th.spacing.xs, line_spacing = 2, width = inner))
 	}
@@ -351,9 +356,9 @@ conditionEditor :: proc(ctx: ^skald.Ctx(Msg), s: ^State, sm: ^e.StateMachineSett
 	append(&rows, skald.text_input(ctx, strings.clone(text, context.temp_allocator), OpPayload{textOp}, proc(pl: OpPayload, v: string) -> Msg { return SM_Changed{op = pl.op, text = v} },
 		id = skald.hash_id(textKey), width = inner, placeholder = which == .When ? "always" : "none"))
 	if problem := e.StateMachine_ConditionProblem(sm, text, guards, checkGuards = true); problem != "" {
-		append(&rows, skald.text(problem, th.color.warning, th.font.size_xs, max_width = inner))
+		append(&rows, uiText(th, .Muted, problem, max_width = inner, color = th.color.warning))
 	}
-	return skald.col(..rows[:], spacing = 3)
+	return skald.col(..rows[:], spacing = tk.xs)
 }
 
 // A state's box in the graph

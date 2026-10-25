@@ -122,14 +122,15 @@ Particles_TabLayout :: proc(th: ^skald.Theme, panel: f32) -> ParticlesTabLayout 
 }
 
 ParticlesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	node, index := Particles_Emitter(s)
 	if node == nil {
 		text := "Select a ParticleEmitter node to edit its settings here, a category at a time, with presets (fire, smoke, sparks, dust, rain). Sparks, smoke, rain, explosions: an emitter sends out small dots, shapes or pictures that move and fade."
 		add := skald.button(ctx, fmt.tprintf("%s  Add ParticleEmitter", ICON_PLUS), Msg(Add_Node_Kind_Chosen(NodeKind.ParticleEmitter)),
-			id = skald.hash_id("particles-tab-add"), padding = {th.spacing.sm, 2}, font_size = th.font.size_sm)
+			id = skald.hash_id("particles-tab-add"), padding = tk.fieldPadding, font_size = th.font.size_sm)
 		return skald.col(
-			skald.text(text, th.color.fg_muted, th.font.size_sm, max_width = 600),
+			uiText(th, .Label, text, max_width = tk.textWide),
 			skald.tooltip(ctx, add, "A new ParticleEmitter in the open scene, inside the selected node", id = skald.hash_id("particles-tab-add-tip")),
 			spacing = th.spacing.sm, padding = th.spacing.md,
 		)
@@ -152,14 +153,14 @@ ParticlesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, skald.select(ctx, category, categories, proc(name: string) -> Msg {
 			for c, i in Particles_Categories() do if c == name do return Particles_Category_Picked(i)
 			return Particles_Category_Picked(0)
-		}, id = skald.hash_id("particles-tab-select"), width = min(content, 220)))
+		}, id = skald.hash_id("particles-tab-select"), width = min(content, tk.fieldL)))
 	}
 	saved := inspectorStacked
 	inspectorStacked = stacked
 	group := category == PARTICLES_ALL ? "" : category
 	settings := particleSettingRows(ctx, s, node, index, {group = group, controlWidth = controlWidth, rampWidth = rampWidth})
 	inspectorStacked = saved
-	if len(settings) == 0 do append(&rows, skald.text("Nothing in this category.", th.color.fg_muted, th.font.size_sm))
+	if len(settings) == 0 do append(&rows, uiText(th, .Label, "Nothing in this category."))
 	append(&rows, ..settings)
 	body := skald.scroll(ctx, {0, 0}, skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.sm), id = skald.hash_id("particles-tab-scroll"))
 	if compact do return body
@@ -171,10 +172,10 @@ ParticlesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		key := fmt.tprintf("particles-tab-cat-%s", name)
 		button := skald.button(ctx, label, Msg(Particles_Category_Picked(i)), id = skald.hash_id(key),
 			bg = active ? th.color.primary : th.color.surface, fg = active ? th.color.on_primary : th.color.fg,
-			padding = {th.spacing.sm, 3}, font_size = th.font.size_xs, radius = th.radius.sm, width = sidebar - th.spacing.xs * 2 - SIDEBAR_SCROLLBAR)
+			padding = {tk.s, tk.xs}, font_size = th.font.size_xs, radius = th.radius.sm, width = sidebar - th.spacing.xs * 2 - SIDEBAR_SCROLLBAR)
 		append(&tabs, skald.tooltip(ctx, button, Particles_CategoryAbout(name), id = skald.hash_id(fmt.tprintf("%s-tip", key))))
 	}
-	side := skald.scroll(ctx, {0, 0}, skald.col(..tabs[:], spacing = 2, padding = th.spacing.xs), id = skald.hash_id("particles-tab-sidebar"))
+	side := skald.scroll(ctx, {0, 0}, skald.col(..tabs[:], spacing = tk.xxs, padding = th.spacing.xs), id = skald.hash_id("particles-tab-sidebar"))
 	return skald.col(
 		skald.row(header, padding = th.spacing.xs, bg = th.color.surface),
 		skald.flex(1, skald.row(
@@ -192,19 +193,21 @@ Reset and the manual. A `wrap_row` of `width`, so it wraps in a narrow panel.
 */
 @(private="file")
 particlesHeader :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: int, width: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	p := node.particles
 	items := make([dynamic]skald.View, context.temp_allocator)
-	append(&items, skald.text(strings.clone(node.name, context.temp_allocator), th.color.fg, th.font.size_sm))
+	append(&items, uiText(th, .Value, strings.clone(node.name, context.temp_allocator)))
 	if count, onGPU, ok := Preview_EmitterAlive(s, index); ok {
 		live := onGPU ? fmt.tprintf("on the GPU, %d a cycle", p.gpuAmount) : fmt.tprintf("%d alive", count)
-		append(&items, skald.text(live, th.color.fg_muted, th.font.size_xs))
+		append(&items, uiText(th, .Muted, live))
 	}
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label, tip: string, msg: Msg, on := false) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		b := skald.button(ctx, label, msg, id = skald.hash_id(key),
 			bg = on ? th.color.primary : th.color.bg, fg = on ? th.color.on_primary : th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 		return skald.tooltip(ctx, b, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 	}
 	append(&items,
@@ -221,7 +224,7 @@ particlesHeader :: proc(ctx: ^skald.Ctx(Msg), s: ^State, node: ^NodeDef, index: 
 	presets := make([dynamic]string, context.temp_allocator)
 	for preset in PARTICLE_PRESETS do append(&presets, preset.name)
 	choice := skald.select(ctx, "", presets[:], proc(name: string) -> Msg { return Particles_Preset_Applied(name) },
-		id = skald.hash_id("particles-tab-preset"), width = 110, placeholder = fmt.tprintf("%s Preset", ICON_WAND))
+		id = skald.hash_id("particles-tab-preset"), width = tk.fieldS, placeholder = fmt.tprintf("%s Preset", ICON_WAND))
 	tip := strings.builder_make(context.temp_allocator)
 	strings.write_string(&tip, "A starting point to tune (every setting but the GPU's; undoable):")
 	for preset in PARTICLE_PRESETS do fmt.sbprintf(&tip, " %s: %s.", preset.name, preset.about)

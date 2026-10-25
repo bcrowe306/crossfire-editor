@@ -37,17 +37,19 @@ DIALOGUE_BOX :: [2]f32{130, 38}
 dialogueGraphOrigin: [2]f32
 
 DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	left, right := FittedSidebarWidths(&s.layout)
 	width := s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.sm * 2 - INSPECTOR_SCROLLBAR_WIDTH
-	small :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View { return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs) }
+	small :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View { return uiText(ctx.theme, .Muted, text) }
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.bg, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
 	labeled :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
-		return skald.row(skald.text(label, ctx.theme.color.fg_muted, ctx.theme.font.size_xs), control, spacing = ctx.theme.spacing.xs, cross_align = .Center)
+		return skald.row(uiText(ctx.theme, .Muted, label), control, spacing = ctx.theme.spacing.xs, cross_align = .Center)
 	}
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	bar := make([dynamic]skald.View, context.temp_allocator)
@@ -56,13 +58,13 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	def := Dialogue_Shown(s)
 	if len(paths) > 0 {
 		append(&bar, skald.select(ctx, def != nil ? strings.clone(def.path, context.temp_allocator) : "", paths[:],
-			proc(v: string) -> Msg { return Dialogue_View{op = .Show, path = v} }, id = skald.hash_id("dialogue-choose"), width = 220, placeholder = "Choose a dialogue"))
+			proc(v: string) -> Msg { return Dialogue_View{op = .Show, path = v} }, id = skald.hash_id("dialogue-choose"), width = tk.fieldL, placeholder = "Choose a dialogue"))
 	}
 	append(&bar, button(ctx, "dialogue-new", fmt.tprintf("%s  New Dialogue", ICON_PLUS), Msg(Dialogue_Created{})))
 	if def == nil {
 		append(&bar, button(ctx, "dialogue-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("dialogue"))))
 		append(&rows, skald.wrap_row(..bar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width, bg = th.color.surface))
-		append(&rows, skald.text("Conversations: who says what, and the choices the player makes. Make one with New Dialogue (or import a Yarn Spinner .yarn file), then show it in the game with a DialogueBox node.", th.color.fg_muted, th.font.size_sm, max_width = 600))
+		append(&rows, uiText(th, .Label, "Conversations: who says what, and the choices the player makes. Make one with New Dialogue (or import a Yarn Spinner .yarn file), then show it in the game with a DialogueBox node.", max_width = tk.textWide))
 		return skald.col(..rows[:], spacing = th.spacing.xs, padding = th.spacing.sm)
 	}
 	data := &def.data
@@ -73,7 +75,7 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	names := make([dynamic]string, context.temp_allocator)
 	for n in data.nodes do append(&names, strings.clone(n.name, context.temp_allocator))
 	append(&bar, labeled(ctx, "Starts in", skald.select(ctx, strings.clone(data.start, context.temp_allocator), names[:],
-		proc(v: string) -> Msg { return Dialogue_Changed{op = .Start_Set, text = v} }, id = skald.hash_id("dialogue-start"), width = 120)))
+		proc(v: string) -> Msg { return Dialogue_Changed{op = .Start_Set, text = v} }, id = skald.hash_id("dialogue-start"), width = tk.fieldS)))
 	append(&bar, small(ctx, fmt.tprintf("%d nodes", len(data.nodes))))
 	append(&bar, button(ctx, "dialogue-manual", fmt.tprintf("%s  Manual", ICON_CIRCLE_INFO), Msg(Manual_Opened("dialogue"))))
 	append(&rows, skald.wrap_row(..bar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width, bg = th.color.surface))
@@ -86,9 +88,9 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	node := &data.nodes[ed.node]
 	head := make([dynamic]skald.View, context.temp_allocator)
-	append(&head, skald.text(fmt.tprintf("Node %s", node.name), th.color.fg, th.font.size_sm))
+	append(&head, uiText(th, .Value, fmt.tprintf("Node %s", node.name)))
 	append(&head, labeled(ctx, "Name", skald.text_input(ctx, strings.clone(node.name, context.temp_allocator), proc(v: string) -> Msg { return Dialogue_Changed{op = .Node_Renamed, text = v} },
-		id = skald.hash_id("dialogue-node-name"), width = 120)))
+		id = skald.hash_id("dialogue-node-name"), width = tk.fieldS)))
 	append(&head, button(ctx, "dialogue-node-remove", fmt.tprintf("%s  Remove Node", ICON_TRASH), Msg(Dialogue_Changed{op = .Node_Removed})))
 	append(&rows, skald.wrap_row(..head[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width))
 
@@ -103,10 +105,11 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}, id = skald.hash_id(key), width = width, placeholder = placeholder)
 	}
 	target :: proc(ctx: ^skald.Ctx(Msg), f: Field, value: string, names: []string) -> skald.View {
+		tk := uiTokens(ctx)
 		key := f.option >= 0 ? fmt.tprintf("dialogue-step-%d-option-%d-Target", f.step, f.option) : fmt.tprintf("dialogue-step-%d-Target", f.step)
 		return skald.select(ctx, value == "" ? TEXTURE_NONE : strings.clone(value, context.temp_allocator), names, f, proc(f: Field, v: string) -> Msg {
 			return Dialogue_Changed{op = f.option >= 0 ? .Option_Field : .Step_Field, step = f.step, option = f.option, field = .Target, text = v}
-		}, id = skald.hash_id(key), width = 110)
+		}, id = skald.hash_id(key), width = tk.fieldS)
 	}
 	for st, i in node.steps {
 		line := make([dynamic]skald.View, context.temp_allocator)
@@ -117,7 +120,7 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.send(ctx, Msg(Dialogue_View{op = .Select_Step, index = i}))
 		}
 		append(&line, skald.button(ctx, fmt.tprintf("%d %v", i + 1, st.kind), Msg(Dialogue_View{op = .Select_Step, index = i}), id = skald.hash_id(fmt.tprintf("dialogue-step-%d", i)),
-			bg = selected ? th.color.primary : th.color.surface, fg = selected ? th.color.on_primary : th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm))
+			bg = selected ? th.color.primary : th.color.surface, fg = selected ? th.color.on_primary : th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
 		switch st.kind {
 		case .Line:
 			append(&line, labeled(ctx, "Speaker", input(ctx, {i, -1, .Speaker}, st.speaker, "nobody", 90)))
@@ -153,7 +156,7 @@ DialoguePanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, skald.wrap_row(..line[:], spacing = th.spacing.sm, line_spacing = th.spacing.xs, padding = th.spacing.xs, width = width))
 		// Its condition's mistakes
 		if st.condition != "" {
-			if _, ok := e.Dialogue_Evaluate(nil, st.condition); !ok do append(&rows, skald.text(fmt.tprintf("Step %d: \"%s\" isn't an expression", i + 1, st.condition), th.color.warning, th.font.size_xs))
+			if _, ok := e.Dialogue_Evaluate(nil, st.condition); !ok do append(&rows, uiText(th, .Muted, fmt.tprintf("Step %d: \"%s\" isn't an expression", i + 1, st.condition), color = th.color.warning))
 		}
 	}
 	if len(node.steps) == 0 do append(&rows, small(ctx, "No steps yet: add a line below. A node runs its steps in order; when it runs out, the conversation ends."))

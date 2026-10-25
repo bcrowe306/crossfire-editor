@@ -21,14 +21,16 @@ rows `plugin-row-<plugin>-<inspector>-<id>`.
 
 PluginsPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
+	tk := uiTokens(ctx)
 	left, right := FittedSidebarWidths(&s.layout)
 	width := s.layout.workspace.x - left - right - DIVIDER * 2 - th.spacing.sm * 2 - INSPECTOR_SCROLLBAR_WIDTH
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.bg, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
-	small :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View { return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = width) }
+	small :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32) -> skald.View { return uiText(ctx.theme, .Muted, text, max_width = width) }
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows, skald.wrap_row(
 		button(ctx, "plugins-new", fmt.tprintf("%s  New Plugin", ICON_PLUS), Msg(Plugin_New_Requested{})),
@@ -54,10 +56,10 @@ PluginsPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		nameId := skald.hash_id(fmt.tprintf("plugin-%d", i))
 		rightPressOpens(ctx, lastRect(ctx, nameId), Ctx_Graph{graph = .Plugin, item = i, sub = -1})
 		name := new(skald.View, context.temp_allocator)
-		name^ = skald.text(fmt.tprintf("%s  %s", ICON_PLUG, p.name), th.color.fg, th.font.size_sm)
+		name^ = uiText(th, .Value, fmt.tprintf("%s  %s", ICON_PLUG, p.name))
 		append(&rows, skald.wrap_row(
 			skald.View_Zone{id = nameId, child = name},
-			skald.text(status, color, th.font.size_xs, max_width = width - 200),
+			skald.text(status, color, th.font.size_xs, max_width = width - tk.fieldL),
 			small(ctx, fmt.tprintf("plugins/%s", p.folder), 200),
 			spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.xs, width = width))
 		if p.description != "" do append(&rows, skald.row(skald.spacer(th.spacing.lg), small(ctx, p.description, width - th.spacing.lg)))
@@ -87,12 +89,13 @@ The inspector rows plugins add for the selected node (after its kind's rows): ea
 under its name.
 */
 pluginInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, controlWidth: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	out := make([dynamic]skald.View, context.temp_allocator)
 	node := s.selectedNode
 	for group in Plugins_InspectorRows(s, node) {
 		if len(group.rows) == 0 do continue
-		append(&out, skald.divider(ctx), skald.text(fmt.tprintf("%s  %s", ICON_PLUG, group.name), th.color.fg, th.font.size_sm))
+		append(&out, skald.divider(ctx), uiText(th, .Value, fmt.tprintf("%s  %s", ICON_PLUG, group.name)))
 		for row in group.rows {
 			Payload :: struct { plugin, inspector, node: int, id: string }
 			p := Payload{group.plugin, group.inspector, node, strings.clone(row.id, context.temp_allocator)}
@@ -102,7 +105,7 @@ pluginInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, controlWidth: f32) 
 			control: skald.View
 			switch row.kind {
 			case .Note:
-				control = skald.text(value, th.color.fg_muted, th.font.size_xs, max_width = controlWidth)
+				control = uiText(th, .Muted, value, max_width = controlWidth)
 			case .Text, .Number:
 				control = skald.text_input(ctx, value, p, changed, id = key, width = controlWidth, padding = InspectorFieldPadding(ctx))
 			case .Bool:
@@ -113,7 +116,7 @@ pluginInspectorRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, controlWidth: f32) 
 				control = skald.select(ctx, value, choices, p, changed, id = key, width = controlWidth)
 			case .Button:
 				control = skald.button(ctx, value != "" ? value : row.label, Msg(Plugin_Row_Changed{p.plugin, p.inspector, p.node, p.id, ""}), id = key,
-					bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+					bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 			}
 			append(&out, inspectorRow(ctx, strings.clone(row.label, context.temp_allocator), control, "Added by a plugin"))
 		}

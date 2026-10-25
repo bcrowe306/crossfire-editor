@@ -51,9 +51,10 @@ slicerCenterView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), tab: ^SlicerTab) -> sk
 	// Code tabs aren't drawn: their queued input goes (as the scene view does)
 	CodeEditor_DrainEvents()
 	small :: proc(ctx: ^skald.Ctx(Msg), key, label, tip: string, msg: Msg) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		button := skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg_muted,
-			padding = {th.spacing.sm, 3}, font_size = th.font.size_sm, radius = th.radius.sm)
+			padding = {tk.s, tk.xs}, font_size = th.font.size_sm, radius = th.radius.sm)
 		return skald.tooltip(ctx, button, tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 	}
 	buttons := skald.row(
@@ -308,6 +309,7 @@ slicerButtonColor :: proc(th: ^skald.Theme) -> skald.Color {
 // The controls' column: slicing, frames, animations, what it makes; one scroll
 @(private="file")
 slicerControls :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, width, height: f32) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	inner := width - th.spacing.md * 2 - INSPECTOR_SCROLLBAR_WIDTH
 	// Rows stack their labels in a narrow column (as the inspector's)
@@ -322,16 +324,17 @@ slicerControls :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, width, 
 	count := Slicer_CellCount(settings, sheet)
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	heading :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.col(skald.spacer(ctx.theme.spacing.sm), skald.text(text, ctx.theme.color.fg, ctx.theme.font.size_sm))
+		return uiSection(ctx.theme, uiTokens(ctx), text)
 	}
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, width: f32, color := skald.Color{}) -> skald.View {
 		c := color.a > 0 ? color : ctx.theme.color.fg_muted
 		return skald.text(text, c, ctx.theme.font.size_xs, max_width = width)
 	}
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, disabled := false, primary := false) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = primary ? th.color.primary : slicerButtonColor(th),
-			fg = primary ? th.color.on_primary : th.color.fg, padding = {th.spacing.sm, 3}, font_size = th.font.size_xs,
+			fg = primary ? th.color.on_primary : th.color.fg, padding = {tk.s, tk.xs}, font_size = th.font.size_xs,
 			radius = th.radius.sm, disabled = disabled)
 	}
 	number :: proc(ctx: ^skald.Ctx(Msg), s: ^State, field: SlicerNumber, value: f64, lo, hi: f64, width: f32) -> skald.View {
@@ -339,7 +342,7 @@ slicerControls :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, width, 
 	}
 
 	// The sheet
-	append(&rows, skald.text(fmt.tprintf("%s  %s", ICON_SCISSORS, filepath.base(tab.image)), th.color.fg, th.font.size_sm, max_width = inner))
+	append(&rows, uiText(th, .Value, fmt.tprintf("%s  %s", ICON_SCISSORS, filepath.base(tab.image)), max_width = inner))
 	append(&rows, note(ctx, fmt.tprintf("%.0f × %.0f px · %d cell%s", sheet.x, sheet.y, count, count == 1 ? "" : "s"), inner))
 
 	// How it's cut
@@ -409,7 +412,7 @@ slicerControls :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, width, 
 		label := fmt.tprintf("%s  ·  %d frame%s", a.name, len(a.frames), len(a.frames) == 1 ? "" : "s")
 		append(&rows, skald.button(ctx, label, Msg(Slicer_Changed{op = .Animation_Selected, index = i}), id = skald.hash_id(fmt.tprintf("slicer-anim-%d", i)),
 			bg = shown ? skald.color_mix(th.color.primary, th.color.surface, 0.55) : slicerButtonColor(th), fg = th.color.fg,
-			padding = {th.spacing.sm, 3}, font_size = th.font.size_xs, radius = th.radius.sm, width = inner))
+			padding = {tk.s, tk.xs}, font_size = th.font.size_xs, radius = th.radius.sm, width = inner))
 	}
 	if a := Slicer_Animation(tab); a != nil {
 		append(&rows, skald.wrap_row(
@@ -455,6 +458,7 @@ slicerControls :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, width, 
 // The shown animation's rows: name, speed, loop, play mode, frame times, the preview, its frames
 @(private="file")
 slicerAnimationRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, a: ^SliceAnimation, controlWidth, numberWidth, selectWidth, inner: f32) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	settings := &tab.settings
@@ -465,7 +469,7 @@ slicerAnimationRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, a:
 	problem := typing ? Slicer_NameProblem(settings.animations[:], tab.animation, s.slicer.nameText) : ""
 	append(&rows, inspectorRow(ctx, "Animation name", skald.text_input(ctx, name, nameId, proc(id: skald.Widget_ID, v: string) -> Msg { return Slicer_Changed{op = .Name_Typed, text = v, id = id} },
 		id = nameId, width = min(controlWidth, INSPECTOR_MAX_TEXT_WIDTH), padding = InspectorFieldPadding(ctx), invalid = problem != "")))
-	if problem != "" do append(&rows, skald.text(problem, th.color.danger, th.font.size_xs, max_width = inner))
+	if problem != "" do append(&rows, uiText(th, .Muted, problem, max_width = inner, color = th.color.danger))
 	append(&rows, inspectorRow(ctx, "FPS", numberField(ctx, s, "slicer-FPS", SlicerNumber.FPS, f64(a.fps), 1, 0, numberWidth, 0, 120)))
 	append(&rows, inspectorRow(ctx, "Loop", skald.checkbox(ctx, a.loop, "", proc(v: bool) -> Msg { return Slicer_Changed{op = .Loop, flag = v} }, id = skald.hash_id("slicer-loop"))))
 	modes := make([]string, len(e.AnimationPlayMode), context.temp_allocator)
@@ -479,9 +483,9 @@ slicerAnimationRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, a:
 		for frame in 0 ..< len(a.frames) {
 			ms := frame < len(a.durations) ? a.durations[frame] * 1000 : 100
 			append(&times, skald.row(
-				skald.text(fmt.tprintf("%d:", frame + 1), th.color.fg_muted, th.font.size_xs),
+				uiText(th, .Muted, fmt.tprintf("%d:", frame + 1)),
 				numberField(ctx, s, fmt.tprintf("slicer-duration-%d", frame), SlicerDurationTarget(frame), f64(ms), 10, 0, 96, 1, 60000),
-				skald.text("ms", th.color.fg_muted, th.font.size_xs),
+				uiText(th, .Muted, "ms"),
 				spacing = th.spacing.xs, cross_align = .Center))
 		}
 		append(&rows, skald.wrap_row(..times[:], spacing = th.spacing.sm, line_spacing = th.spacing.xs, width = inner))
@@ -522,12 +526,12 @@ slicerAnimationRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, a:
 	}, id = skald.hash_id("slicer-preview"), width = SLICER_PREVIEW_SIZE, height = SLICER_PREVIEW_SIZE)
 	playing := s.slicer.playing
 	play := skald.button(ctx, playing ? ICON_PAUSE : ICON_PLAY, Msg(Slicer_Changed{op = .Playback}), id = skald.hash_id("slicer-play"),
-		bg = th.color.surface, fg = th.color.fg, width = 28, padding = {0, 2}, font_size = th.font.size_sm, radius = th.radius.sm)
+		bg = th.color.surface, fg = th.color.fg, width = tk.panelButtonWidth, padding = {0, tk.xxs}, font_size = th.font.size_sm, radius = th.radius.sm)
 	append(&rows, skald.row(
 		canvas,
 		skald.col(
 			skald.tooltip(ctx, play, playing ? "Pause the preview" : "Play the preview", id = skald.hash_id("slicer-play-tip")),
-			skald.text(len(rects) > 0 ? fmt.tprintf("frame %d of %d", frame + 1, len(rects)) : "no frames", th.color.fg_muted, th.font.size_xs),
+			uiText(th, .Muted, len(rects) > 0 ? fmt.tprintf("frame %d of %d", frame + 1, len(rects)) : "no frames"),
 			spacing = th.spacing.xs),
 		spacing = th.spacing.sm))
 
@@ -575,9 +579,10 @@ slicerAnimationRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, a:
 		}
 	}, id = stripId, width = inner, height = f32(stripRows) * (SLICER_THUMB + SLICER_THUMB_GAP), cursor = .Pointer))
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, disabled := false) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = slicerButtonColor(th), fg = th.color.fg,
-			padding = {th.spacing.sm, 3}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
+			padding = {tk.s, tk.xs}, font_size = th.font.size_xs, radius = th.radius.sm, disabled = disabled)
 	}
 	picked := tab.frame >= 0 && tab.frame < len(a.frames)
 	append(&rows, skald.wrap_row(
@@ -585,7 +590,7 @@ slicerAnimationRows :: proc(ctx: ^skald.Ctx(Msg), s: ^State, tab: ^SlicerTab, a:
 		button(ctx, "slicer-frame-later", fmt.tprintf("Later  %s", ICON_ARROW_RIGHT), Msg(Slicer_Changed{op = .Frame_Moved, number = 1}), disabled = !picked || tab.frame >= len(a.frames) - 1),
 		button(ctx, "slicer-frame-remove", fmt.tprintf("%s  Take Out", ICON_XMARK), Msg(Slicer_Changed{op = .Frame_Removed}), disabled = !picked),
 		spacing = th.spacing.xs, line_spacing = th.spacing.xs, width = inner))
-	if picked do append(&rows, skald.text(fmt.tprintf("Frame %d: cell %d", tab.frame + 1, a.frames[tab.frame]), th.color.fg_muted, th.font.size_xs))
+	if picked do append(&rows, uiText(th, .Muted, fmt.tprintf("Frame %d: cell %d", tab.frame + 1, a.frames[tab.frame])))
 	return rows[:]
 }
 

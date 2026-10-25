@@ -30,26 +30,28 @@ TILE_THUMB :: 36
 TILE_GAP :: 4
 
 TilesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	node, ase := TilePaint_Node(s)
 	if node == nil {
 		text := "Select a TileMap node to paint its tiles: its Aseprite file's tilesets are the palette."
-		return skald.col(skald.text(text, th.color.fg_muted, th.font.size_sm, max_width = 520), padding = th.spacing.md)
+		return skald.col(uiText(th, .Label, text, max_width = tk.textWide), padding = th.spacing.md)
 	}
 	p := &s.tilePainter
 	layer := TilePaint_Layer(s, node, ase)
 	tileset, tilesetIndex := TilePaint_Tileset(node, ase, layer)
-	small :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View { return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs) }
+	small :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View { return uiText(ctx.theme, .Muted, text) }
 	button :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, on := false) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = on ? th.color.primary : th.color.bg, fg = on ? th.color.on_primary : th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
 	toolbar := make([dynamic]skald.View, context.temp_allocator)
 	// The layer painted, a new one, and back to the file's tiles
 	layers := TilePaint_Layers(node, ase)
 	append(&toolbar, skald.row(small(ctx, "Layer"), skald.select(ctx, layer, layers, proc(v: string) -> Msg { return Tile_Layer_Chosen(v) },
-		id = skald.hash_id("tiles-layer"), width = 140), spacing = th.spacing.xs, cross_align = .Center))
+		id = skald.hash_id("tiles-layer"), width = tk.fieldM), spacing = th.spacing.xs, cross_align = .Center))
 	if len(ase.tilesets) > 1 {
 		names := make([]string, len(ase.tilesets), context.temp_allocator)
 		for t, i in ase.tilesets do names[i] = t.name != "" ? fmt.tprintf("%d %s", i, t.name) : fmt.tprintf("Tileset %d", i)
@@ -58,7 +60,7 @@ TilesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			proc(c: Choices, v: string) -> Msg {
 				for n, i in c.names do if n == v do return Tile_Tileset_Chosen(i)
 				return {}
-			}, id = skald.hash_id("tiles-tileset"), width = 130), spacing = th.spacing.xs, cross_align = .Center))
+			}, id = skald.hash_id("tiles-tileset"), width = tk.fieldS), spacing = th.spacing.xs, cross_align = .Center))
 	}
 	append(&toolbar, button(ctx, "tiles-add-layer", fmt.tprintf("%s  Layer", ICON_PLUS), Msg(Tile_Layer_Added{})))
 	isFileLayer := false
@@ -80,7 +82,7 @@ TilesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		for t in terrains do if t == current do known = true
 		if !known do current = terrains[0]
 		append(&toolbar, skald.row(small(ctx, "Terrain"), skald.select(ctx, current, terrains, proc(v: string) -> Msg { return Tile_Terrain_Chosen(v) },
-			id = skald.hash_id("tiles-terrain"), width = 120), spacing = th.spacing.xs, cross_align = .Center))
+			id = skald.hash_id("tiles-terrain"), width = tk.fieldS), spacing = th.spacing.xs, cross_align = .Center))
 	}
 	// The brush's flips
 	flips := p.tile & ~e.ASEPRITE_TILE_ID
@@ -97,7 +99,7 @@ TilesPanel :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, skald.wrap_row(..toolbar[:], spacing = th.spacing.md, line_spacing = th.spacing.xs, padding = th.spacing.sm, width = width, bg = th.color.surface))
 	append(&rows, skald.divider(ctx))
 	if tileset == nil {
-		append(&rows, skald.text(fmt.tprintf("%s has no tileset.", layer), th.color.warning, th.font.size_sm))
+		append(&rows, uiText(th, .Value, fmt.tprintf("%s has no tileset.", layer), color = th.color.warning))
 	} else {
 		append(&rows, palette(ctx, s, node, tileset, tilesetIndex, max(width - th.spacing.sm * 2, TILE_THUMB)))
 		append(&rows, small(ctx, "In the viewport: left button paints with the tool, right erases, middle (or Space) pans. Tiles with terrain and mask properties in Aseprite paint as terrains."))
