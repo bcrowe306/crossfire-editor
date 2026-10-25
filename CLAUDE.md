@@ -317,7 +317,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `material_edit.odin` | **Physics materials**: `MaterialDef` (`Project.materials`), load / save / create, `Material_Field_Changed` / `Material_Created`, the material inspector (`materialInspector`) and a body's Material rows (`materialBodyRows`) |
 | `collision_trace_edit.odin` | **Collision from sprite**: `TraceSettings` (`State.trace`), `Trace_Sprites`, `Trace_Pieces`, `Trace_MakeShapes` (`Collision_Traced`), the body inspector's rows (`traceInspectorRows`) |
 | `camera_edit.odin` | **A Camera's follow target and settings**: `NodeDef.camera` (`e.CameraSettings`) and `cameraTarget`, `Camera_Changed` (`CameraNumber`), the Camera's inspector rows (`cameraInspectorRows`: Zoom; Follow, Limits, Shake groups) |
-| `node_paths_edit.odin` | **Node paths that follow renames and moves**: `NodePathRef` / `NodePathKind` (cameras' targets, CameraViews' cameras, IK tips and targets, StateMachines' targets, SkinnedMeshes' bones, Timeline tracks, listeners' targets, script node fields from the catalog), `NodePaths_Resolve` before a change, `NodePaths_Repath` after (with a move's `newIndex`), `Scene_HasNodePaths` (a rename is a `.Scene` step then); tests in `node_paths_edit_test.odin` |
+| `node_paths_edit.odin` | **Node paths that follow renames and moves**: `NodePathRef` / `NodePathKind` (cameras' targets, CameraViews' cameras, IK tips and targets, StateMachines' targets, SkinnedMeshes' bones, Timeline tracks, listeners' targets, script node fields from the catalog), `NodePaths_Resolve` before a change, `NodePaths_Repath` after, `NodePaths_Broken` (the Problems tab's) (with a move's `newIndex`), `Scene_HasNodePaths` (a rename is a `.Scene` step then); tests in `node_paths_edit_test.odin` |
 | `camera_tools_edit.odin` | **Camera tools**: `NodeDef.cameraTools` (`e.CameraToolSettings`) and `viewCamera`, `Camera_Tool_Changed` (`CameraToolNumber`), the ParallaxLayer / CameraZone / CameraView inspector rows (`cameraToolInspectorRows`) |
 | `state_machine_edit.odin` | **State machines**: `NodeDef.stateMachine` (`e.StateMachineSettings`), `StatesEditor` (the machine shown, its selection), `SM_Changed` (`SMOp`; conditions' rows: `SMCondition`, `SMClausePart`, `States_EditClause`, `States_ConditionText`) / `SM_View`, `States_Update`, `States_Follow`, `States_Target` / `States_Animations`, `States_GuardNames` (the scripts' code guards from the index), the running machine (`States_LiveTarget`, `States_LiveFrame`, `States_Live_Watch`), `Scene_ResolvePath`, the inspector's rows |
 | `view_states.odin` | The bottom panel's States tab (`StatesPanel`, `StatesPanel_Content`): the graph (`graphCanvas`: boxes, arrows with their conditions, guards and priorities, Any state, the running state lit; click, drag, double-click), the sidebar (`statesSidebar`: the selected state's or transition's properties, `conditionEditor`'s clause rows; beside the graph from `STATES_SIDEBAR_SPLIT_WIDTH`, else under it), the parameters, `States_Live` |
@@ -363,6 +363,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `command_palette.odin` | **The command palette** (Search Everywhere): `PaletteKind`, `PaletteEntry`, `PaletteState` (`State.palette`), `Palette_Entries` (actions with their keys, the menus' other items, a code tab's code editor commands, `PALETTE_SETTINGS` and the color tables, the open scene's nodes, scenes / assets / scripts, the docs' pages), `Palette_ParseQuery` (`PALETTE_PREFIXES`), `Palette_Matches` (the code editor's `ce.fuzzy_score`, then category, label), `Palette_Update` / `_RunRow` / `_Run`, `Palette_NodePath` |
 | `view_command_palette.odin` | The palette's popup (`commandPaletteView`): search, category buttons, the rows (kind, label, detail), the count; Up / Down / Page keys, Enter, Escape |
+| `notifications.odin` | **Toasts**: `Toast`, `ToastLevel`, `ToastAction`, `Notifications` (`State.notifications`), `Notify` / `Notifications_Push`, `_Expire`, `_NextDeadline`, `_Dismiss`, the jobs' progress toasts (`ToastJob`, `Notifications_RunningJobs`, `_Follow`, `_Jobs`), `Notifications_Update`, `notificationsView`, `Overlay_PopupOpen` (a popup open, the toasts aside) |
+| `problems.odin` | **The Problems tab**: `Problem`, `ProblemKind`, `ProblemsState` (`State.problems`), `Problems_Gather` (missing assets, `NodePaths_Broken`, unresolved scripts and node types, the Output's errors, the script index's problems), `Problems_Go`, `Problems_Update`, `ProblemsPanel` |
+| `undo_history.odin` | **The History tab**: `History_Jump`, `History_JumpTo` (undo / redo to a step), `UndoHistory_Update`, `UndoHistoryPanel` |
 | `breadcrumbs.odin` | **Breadcrumbs**: `Crumb`, `Breadcrumbs_Chain` (a node and its ancestors), `Breadcrumbs_Scene`, `Breadcrumbs_Fit` (crumbs dropped from the left), `breadcrumbsRow` (also the Level mode's canvas header), `breadcrumbsBar` (above the viewport) |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
 | `project_data.odin` | Global scripts (`GlobalDef`) and data resources (`DataDef`) in the project; prop editing for any owner (`PropTarget`); creating, loading and saving data files; writing the generated `scripts/assets.odin` (`Scripts_WriteAssetsFile`, `ASSETS_FILE_MARKER`; its content: script_constants.odin) |
@@ -371,7 +374,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `particles_edit.odin` | **The Particles tab's model**: `ParticlesEditor` (`State.particles`: the emitter shown, its category), `Particles_Follow`, `Particles_Emitter`, `Particles_Target` (what the particle messages edit), `Particles_Categories` / `Particles_FieldGroups` (the engine's `group` tags, then All), `PARTICLE_PRESETS` (`Particles_Preset`), `Particles_Update` (`Particles_Category_Picked`, `Particles_Restart`, `Particles_Preset_Applied`) |
 | `view_particles.odin` | The bottom panel's **Particles** tab (`ParticlesPanel`): the categories' column (names, icons, or a choice: `Particles_TabLayout`), the category's settings (`particleSettingRows`), the header (`particlesHeader`: name and live count, Restart, Emitting, One-shot, Preset, Reset, Manual) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
-| `view_bottom.odin` | Bottom panel: the shown mode's tabs (the Scene mode's Console / Output / Animation / Mixer ... / States / Particles / Dialogue / Plugins, the Level mode's World / Level / Layers / Entities / Enums / Tilesets / Auto-layer Rules / Project / Console / Output), collapsible; the log tabs' view (`logView`: header of filters, a `virtual_list` of lines, `logFollow`) |
+| `view_bottom.odin` | Bottom panel: the shown mode's tabs (the Scene mode's Console / Output / Animation / Mixer ... / States / Particles / Dialogue / Plugins, the Level mode's World / Level / Layers / Entities / Enums / Tilesets / Auto-layer Rules / Project / Console / Output), collapsible; the log tabs' view (`logView`: header of filters, a `virtual_list` of lines, `logFollow`); `emptyState` (an empty panel's line and buttons) |
 | `console.odin` | **The Console's and Output tab's lines**: `LogList` (`State.console` / `output`: lines with a level and category, the categories seen, counts, the history limit, filters, following), `LogList_Append` / `Trim` / `Clear` / `Shown`, `LOG_*_CATEGORY`, `LogLevel` (the engine's), `Console_Update` (the `Log_*` messages) |
 | `console_test.odin` | Tests: categories and the limit, filters, the game's lines parsed, the messages and menus, the setting |
 | `error_locations.odin` | **Clickable errors**: `ErrorLocation_Parse` (a line's `path(line:col)` / `path:line:col`, Windows drive letters, paths with spaces), `ErrorLocation_Resolve` (where the file is), `ErrorLocation_Open` (Go to Error: `Script_Open` at the line and column, read-only outside the project), `Path_InProject`; tests in `error_locations_test.odin` |
@@ -1788,6 +1791,7 @@ switches to that mode and scene and restores "before"; redo shows `modeAfter` an
 - Not undoable: selection, layout and other view state, the tree's expanded flags, and asset
   import/remove (they copy and delete files).
 - Undo/Redo are `textChord` actions: in a text field, Ctrl+Z is the field's own undo.
+- The History tab lists the stacks and jumps to a step (`undo_history.odin`: "Feedback").
 
 ### Settings (implemented, `settings.odin`, `settings_dialog.odin`, `view_settings.odin`)
 
@@ -3060,6 +3064,45 @@ code tab it's merged with the code editor's (one palette, listing its commands t
   `settings_highlight`, `crumbs`. Tests: `command_palette_test.odin` (matching and ranking,
   prefixes, the entries, running them, `palette_settings_cover_the_dialog`, breadcrumbs);
   `tests/ui/command_palette.script`.
+
+## Feedback: toasts, problems, history, empty states (implemented, `notifications.odin`, `problems.odin`, `undo_history.odin`)
+
+TODO.md's "UI and UX" round "Feedback" (2026-10-25). The user's decision: no motion (toasts
+appear and go at once).
+- **Toasts** (`Notify(state, level, text, action, arg)`): bottom-right (Skald's `View_Toast`, which
+  now stamps its card as an overlay rect: widgets under it don't take clicks), newest last,
+  `TOAST_MAX`; info / success `TOAST_SECONDS`, warnings `TOAST_WARNING_SECONDS`, **errors until
+  dismissed**. `update` expires them after every message and follows the jobs; the view asks for
+  a frame at the next deadline and sends `Toasts_Expired`. A card click or its × dismisses
+  (`Toast_Dismissed`), the action button (`Toast_Action_Clicked`) shows the Output / Console /
+  Problems tab or opens a folder (`sdl.OpenURL`). **Wired at:** the Save action (success, and a
+  Problems refresh), Session_Save's failure, Play's failures (no compiler, a failed build: Show
+  Problems), exports (done: Open Folder; failed: Show Output), installs, archives, Git and plugin
+  failures, imports. New reports call `Notify` beside their `logLine`.
+- **Jobs** have no queue entry: `Notifications_RunningJobs` reads them from the state (the play
+  stage, `Export_Busy`, the install flags, `Plugins_Building`, `archive.busy`); a bar from the
+  export's steps, else the time against the last run (`lastTook`), else only the seconds.
+- **Popups vs toasts:** code that asked `len(ctx.widgets.overlay_rects_prev) > 0` ("a popup is
+  open") asks `Overlay_PopupOpen(ctx)`, which leaves the toasts' stack (`TOASTS_KEY`) out;
+  otherwise a toast would freeze every canvas, list and the code editor. The driver's
+  `click_overlay_item` skips it too.
+- **Problems** (`BottomTab.Problems`, both modes; Edit > Problems): gathered when the tab shows,
+  on Save, when a build ends (`Notifications_Follow`'s `ended`) and by Refresh. A row
+  (`rowList`) goes to its file and line, or its scene (a component's tab opened) and node.
+- **History** (`BottomTab.History`, both modes; Edit > Undo History): "Opened", the undo stack,
+  then the redo stack muted; `History_Jump(i)` steps through `History_Undo` / `History_Redo` (a
+  waiting LDtk conflict stops it) and counts as an undo for `update` (`isUndoRedo`).
+- **Empty states** (`emptyState(ctx, text, ..EmptyAction, width)`): a muted line and buttons;
+  the bottom panel's wrap at the panel's width, sidebars pass `sidebarEmptyWidth`. A panel that
+  can be empty uses it, with the obvious action (`Add_Node_Kind_Chosen` for a tab's node kind).
+- Keys: `toast-<i>`, `toast-close-<i>`, `toast-action-<i>`, `toast-job-<Job>`, `problems-list`,
+  `problem-<i>`, `problems-refresh`, `problems-check`, `history-list`, `history-row-<i>`, the
+  empty states' (`inspector-add-node`, `scene-tree-add-node`, `browser-clear-search`,
+  `browser-import`, `console-play`, `output-build`, `animation-add`, `tiles-add`, `timeline-add`,
+  `states-add`, `particles-tab-add`, `live-play`). Driver: `send Notify_Requested <Level>
+  <Action> <text>`, `send Problems_Refresh`, `remove_project_file`; checks `toasts`, `toast`,
+  `problems`, `problem`, `history`. Tests: `notifications_test.odin`; tests/ui/feedback.script.
+  User guide: `docs/manual/feedback.md`.
 
 ## Viewport tools (implemented, `viewport_tools.odin`, `view_viewport.odin`, `viewport_math.odin`)
 

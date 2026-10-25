@@ -155,12 +155,20 @@ The Scene mode:
 | Left | Project browser: scenes and assets |
 | Center | Scene tabs, the selected node's path (breadcrumbs: click one to select it) and the scene view |
 | Right | Scene node tree and the inspector for the selected node |
-| Bottom | Console / Output / Animation tabs, collapsible (Ctrl+J); the Console and Output filter their lines and keep the newest (Settings > Editor > Console lines kept) |
+| Bottom | Console / Output / Animation ... / Problems / History tabs, collapsible (Ctrl+J); the Console and Output filter their lines and keep the newest (Settings > Editor > Console lines kept) |
 
 **Finding things:** the **command palette** (Ctrl+Shift+P or Ctrl+P; Edit > Command Palette, Help >
 Search Everywhere) finds any action (with its shortcut), setting, node of the open scene, scene,
 asset, script or manual page by typing a few of its letters; `>` `,` `@` `#` `?` keep actions,
 settings, nodes, assets or docs. In a code tab it lists the code editor's commands too.
+
+**Feedback:** **notifications** in the bottom-right corner for saves, exports, failed builds and
+installs (errors stay until dismissed; a button shows the Output, the Console or the problems, or
+opens the exported game's folder), with a progress bar while builds, exports and installs run; a
+**Problems** tab listing missing assets, broken node paths, unknown scripts and build errors, each
+a click away from its node or line; a **History** tab (Edit > Undo History) of undo steps, a click
+going back to one; and empty panels that say why and offer the next step (Add Node..., Play, Build
+Scripts...). See [docs/manual/feedback.md](docs/manual/feedback.md).
 
 ## Project browser
 
