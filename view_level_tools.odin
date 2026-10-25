@@ -15,7 +15,7 @@ layer type (LDtk's IntGridTool, TileTool with its Stamp and Random modes, Entity
 	IntGrid:   Select, Pencil, Rectangle, Fill, Eraser, Picker
 	Tiles:     Select, Stamp, Random, Rectangle, Fill, Eraser, Picker
 	Entities:  Select, Place, Eraser, Picker
-	AutoLayer: Select (its tiles come from rules: TODO.md's phase 4)
+	AutoLayer: Select (its tiles come from its rules: the Auto-layer Rules tab)
 
 Select (and move) is the canvas as it was: click to select, drag levels and entities. The others
 paint the focused level's selected layer (level_paint.odin: phase 2 of TODO.md's "LDtk level

@@ -412,7 +412,7 @@ DOCS_BOTTOM_TAB_PAGES := [BottomTab]string{
 	.Entities         = "level_definitions#entity-types",
 	.Enums            = "level_definitions#enums",
 	.Tilesets         = "level_definitions#tilesets",
-	.Auto_Layer_Rules = "level_mode#the-auto-layer-rules-tab",
+	.Auto_Layer_Rules = "level_rules",
 	.LDtk_Project     = "level_mode#the-project-tab",
 }
 

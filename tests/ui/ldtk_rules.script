@@ -1,0 +1,267 @@
+# The Level mode's Auto-layer Rules tab (view_ldtk_rules.odin, level_rules.odin, ldtk_rule_ops.odin):
+# LDtk's rule panel: groups opened, turned off and on, an optional group per level, a rule's cells
+# outlined on the canvas and the canvas's cell highlighting its rules; a new group named, a new
+# rule's editor (tiles picked on the tileset, the pattern painted with LDtk's three buttons, the
+# chance typed, mirrors, modulos and checker, random offsets, Perlin, the out-of-bounds policy),
+# a rule dragged into another group, copied and pasted, a group made by the Rule Assistant, a
+# group duplicated and remapped, colored, given an icon, deleted; Randomize; undo / redo; saved.
+# Each edit is one undo step, in memory until saved, its tiles made again in every level.
+# Run with: task test:ui (and :fullscreen, :short)
+#
+# The fixture tests/fixtures/ldtk_paint/paint.ldtk (make_paint.py): Room (20 x 12, empty) and Hall;
+# layer Ground (IntGrid with rules, uid 3: grass 1, stone 2, dirt 3 (group Solid, 1), water 4) with
+# the groups Surface (50: rules 51 to 56) and Flowers (60, optional, on in Room: rule 61); Shade
+# (AutoLayer of Ground, 4); tileset Tiles (10, 8 x 4 tiles of 16 px); nextUid 200.
+
+wait 5
+key ctrl+alt+2
+expect mode Level
+import tests/fixtures/ldtk_paint/paint.ldtk
+wait_until level levels 2
+wait_until widget_visible ldtk-map-Level true
+double_click_widget level-row-0
+expect level focus Room
+wait 5
+click_widget level-layer-row-2
+expect level layer Ground
+wait 3
+# Grass on row 9, stone under it (a rectangle): the rules make their tiles
+send Level_Tool_Picked Pencil
+level_paint 1 9 18 9
+wait_until ldtk_cell Room Ground 18 9 1
+send Level_Value_Picked 3 2
+level_paint 1 10 18 11 shift
+wait_until ldtk_cell Room Ground 18 11 2
+expect ldtk_count levels.identifier=Room.layerInstances.__identifier=Ground.autoLayerTiles >40
+
+# The tab shows the selected layer's groups, closed (LDtk's start with two groups)
+send Bottom_Tab Auto_Layer_Rules
+expect level tab Auto_Layer_Rules
+wait 3
+expect rules layer 3
+expect rules open 50 no
+scroll_into_view ldtk-tab-scroll ldtk-group-name-50
+click_widget ldtk-group-name-50
+wait_until rules open 50 yes
+# Hovering rule 53 (any Solid value) outlines its 36 cells on the canvas
+scroll_into_view ldtk-tab-scroll ldtk-rule-preview-53
+hover_at ldtk-rule-preview-53 0.5 0.5
+wait_until rules marks 36
+# The canvas's cell under the pointer highlights the rules putting tiles there
+level_hover 5 10
+wait_until rules highlighted 1
+level_hover 5 3
+wait_until rules highlighted 0
+
+# Surface off (its tiles go), undone, redone, on again
+scroll_into_view ldtk-tab-scroll ldtk-group-toggle-50
+click_widget ldtk-group-toggle-50
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=50.active false
+# Only Flowers' stamps are left (10 of 2 x 2 tiles)
+expect ldtk_count levels.identifier=Room.layerInstances.__identifier=Ground.autoLayerTiles 40
+key ctrl+z
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=50.active true
+expect ldtk_count levels.identifier=Room.layerInstances.__identifier=Ground.autoLayerTiles >40
+key ctrl+shift+z
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=50.active false
+scroll_into_view ldtk-tab-scroll ldtk-group-toggle-50
+click_widget ldtk-group-toggle-50
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=50.active true
+# Flowers is optional: its eye turns it off in Room only
+scroll_into_view ldtk-tab-scroll ldtk-group-toggle-60
+click_widget ldtk-group-toggle-60
+wait_until ldtk levels.identifier=Room.layerInstances.__identifier=Ground.optionalRules []
+expect ldtk defs.layers.uid=3.autoRuleGroups.uid=60.active true
+scroll_into_view ldtk-tab-scroll ldtk-group-toggle-60
+click_widget ldtk-group-toggle-60
+wait_until ldtk levels.identifier=Room.layerInstances.__identifier=Ground.optionalRules [60]
+
+# A new empty group (first in the list), named as it's typed
+scroll_into_view ldtk-tab-scroll ldtk-rules-add-group
+click_widget ldtk-rules-add-group
+click_context_item Create an empty group
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.0.name New group
+expect ldtk defs.layers.uid=3.autoRuleGroups.0.uid 200
+expect rules renaming 200
+scroll_into_view ldtk-tab-scroll ldtk-group-rename-200
+click_widget ldtk-group-rename-200
+key ctrl+a
+type Edges
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.0.name Edges
+click_widget ldtk-group-rename-done-200
+expect rules renaming -1
+
+# + adds a rule and opens its editor (LDtk's onCreateRule)
+scroll_into_view ldtk-tab-scroll ldtk-group-add-200
+click_widget ldtk-group-add-200
+wait_until rules page Editor
+expect rules rule 201
+expect ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.uid 201
+# Its tiles: tiles 0 and 1 dragged on the tileset (8 x 4 tiles)
+scroll_into_view ldtk-tab-scroll ldtk-rule-tiles
+drag_widget ldtk-rule-tiles 0.0625 0.125 0.1875 0.125
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.tileRectsIds [[0],[1]]
+# Shift adds tile 3, the right button removes tile 0
+drag_widget ldtk-rule-tiles 0.4375 0.125 0.4375 0.125 shift
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.tileRectsIds [[0],[1],[3]]
+drag_widget ldtk-rule-tiles 0.0625 0.125 0.0625 0.125 right
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.tileRectsIds [[1],[3]]
+# The pattern: stone at the center (left button), not stone above (right), cleared (middle)
+scroll_into_view ldtk-tab-scroll ldtk-rule-value-2
+click_widget ldtk-rule-value-2
+expect rules value 2
+scroll_into_view ldtk-tab-scroll ldtk-rule-pattern
+click_at ldtk-rule-pattern 0.5 0.5
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.pattern [2]
+drag_widget ldtk-rule-pattern 0.5 0.389 0.5 0.389 right
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.pattern [0,-2,0,0,2,0,0,0,0]
+drag_widget ldtk-rule-pattern 0.5 0.389 0.5 0.389 middle
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.pattern [2]
+# Not grass to the top right: the pattern isn't symmetric, the X mirror can be on
+scroll_into_view ldtk-tab-scroll ldtk-rule-value-1
+click_widget ldtk-rule-value-1
+scroll_into_view ldtk-tab-scroll ldtk-rule-pattern
+drag_widget ldtk-rule-pattern 0.611 0.389 0.611 0.389 right
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.pattern [0,0,-1,0,2,0,0,0,0]
+# The rule's tiles are on the level already (stone cells with no grass to their top right)
+expect ldtk_count levels.identifier=Room.layerInstances.__identifier=Ground.autoLayerTiles >40
+# The chance typed (a percentage), the X mirror, a modulo with a checker
+scroll_into_view ldtk-tab-scroll ldtk-rule-chance
+click_widget ldtk-rule-chance
+key ctrl+a
+type 50
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.chance 0.5
+key escape
+scroll_into_view ldtk-tab-scroll ldtk-rule-flipX
+click_widget ldtk-rule-flipX
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.flipX true
+scroll_into_view ldtk-tab-scroll ldtk-rule-xModulo-inc
+click_widget ldtk-rule-xModulo-inc
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.xModulo 2
+scroll_into_view ldtk-tab-scroll ldtk-rule-checker
+click_widget ldtk-rule-checker
+click_overlay_item 1
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.checker Horizontal
+# Random offsets, linked: -max to max
+scroll_into_view ldtk-tab-scroll ldtk-rule-tileRandomX-inc
+click_widget ldtk-rule-tileRandomX-inc
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.tileRandomXMax 1
+expect ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.tileRandomXMin -1
+# Perlin, its noise shown on the level
+scroll_into_view ldtk-tab-scroll ldtk-rule-perlinActive
+click_widget ldtk-rule-perlinActive
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.perlinActive true
+scroll_into_view ldtk-tab-scroll ldtk-rule-perlin-preview
+click_widget ldtk-rule-perlin-preview
+expect rules perlin_preview on
+# The out-of-bounds policy: empty cells
+scroll_into_view ldtk-tab-scroll ldtk-rule-oob
+click_widget ldtk-rule-oob
+click_overlay_item 1
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules.0.outOfBoundsValue 0
+# Back to the list
+scroll_into_view ldtk-tab-scroll ldtk-rule-close
+click_widget ldtk-rule-close
+wait_until rules page List
+
+# The rule dragged by its grip onto Surface's header: Surface's first rule
+scroll_into_view ldtk-tab-scroll ldtk-group-row-50
+scroll_into_view ldtk-tab-scroll ldtk-rule-grip-201
+drag_to ldtk-rule-grip-201 ldtk-group-row-50 0.9
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=50.rules.0.uid 201
+expect ldtk defs.layers.uid=3.autoRuleGroups.uid=200.rules []
+# Copied from its menu, pasted after Flowers' rule
+scroll_into_view ldtk-tab-scroll ldtk-rule-grip-201
+drag_widget ldtk-rule-grip-201 0.5 0.5 0.5 0.5 right
+click_context_item Copy rule
+expect rules clip Rule
+scroll_into_view ldtk-tab-scroll ldtk-group-name-60
+click_widget ldtk-group-name-60
+wait_until rules open 60 yes
+scroll_into_view ldtk-tab-scroll ldtk-rule-grip-61
+drag_widget ldtk-rule-grip-61 0.5 0.5 0.5 0.5 right
+click_context_item Paste rule after
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=60.rules.1.uid 202
+expect ldtk defs.layers.uid=3.autoRuleGroups.uid=60.rules.1.chance 0.5
+# Undo takes the paste back
+key ctrl+z
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=60.rules.1 missing
+
+# The Rule Assistant: a group for stone, its block and its top wall (the bottom mirrored)
+scroll_into_view ldtk-tab-scroll ldtk-rules-add-group
+click_widget ldtk-rules-add-group
+click_context_item Use the Assistant
+wait_until rules page Assistant
+send Rules_View Assistant_Main 0 2
+expect rules assistant_main 2
+expect rules name stone
+scroll_into_view ldtk-tab-scroll ldtk-assistant-grid
+click_at ldtk-assistant-grid 0.125 0.3
+expect rules assistant_part Full
+scroll_into_view ldtk-tab-scroll ldtk-assistant-tiles
+drag_widget ldtk-assistant-tiles 0.5625 0.125 0.5625 0.125
+expect rules assistant_tiles 4
+scroll_into_view ldtk-tab-scroll ldtk-assistant-grid
+click_at ldtk-assistant-grid 0.125 0.1
+expect rules assistant_part Wall_N
+scroll_into_view ldtk-tab-scroll ldtk-assistant-tiles
+drag_widget ldtk-assistant-tiles 0.0625 0.125 0.0625 0.125
+expect rules assistant_tiles 0
+scroll_into_view ldtk-tab-scroll ldtk-assistant-create
+click_widget ldtk-assistant-create
+wait_until rules page List
+expect ldtk defs.layers.uid=3.autoRuleGroups.0.name stone
+expect ldtk defs.layers.uid=3.autoRuleGroups.0.usesWizard true
+expect ldtk defs.layers.uid=3.autoRuleGroups.0.rules.0.pattern [0,-2,0,0,2,0,0,0,0]
+expect ldtk defs.layers.uid=3.autoRuleGroups.0.rules.0.flipY true
+expect ldtk defs.layers.uid=3.autoRuleGroups.0.rules.1.pattern [2]
+
+# Surface duplicated and remapped: grass becomes dirt, its tiles a row down
+scroll_into_view ldtk-tab-scroll ldtk-group-menu-50
+click_widget ldtk-group-menu-50
+click_context_item Duplicate and remap
+wait_until rules page Remap
+send Rules_View Remap_Value 3 1
+scroll_into_view ldtk-tab-scroll ldtk-remap-tiles
+click_at ldtk-remap-tiles 0.0625 0.375
+scroll_into_view ldtk-tab-scroll ldtk-remap-confirm
+click_widget ldtk-remap-confirm
+wait_until rules page List
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=205.rules.1.pattern [0,-3,0,0,3,0,0,0,0]
+expect ldtk defs.layers.uid=3.autoRuleGroups.uid=205.rules.1.tileRectsIds [[8],[9],[10]]
+expect ldtk defs.layers.uid=3.autoRuleGroups.uid=205.rules.0.pattern [0,0,-3,0,2,0,0,0,0]
+expect ldtk defs.layers.uid=3.autoRuleGroups.uid=205.name Surface copy
+expect ldtk defs.layers.uid=3.autoRuleGroups.3.uid 205
+# Its color and icon from its menu, then deleted
+scroll_into_view ldtk-tab-scroll ldtk-group-menu-50
+click_widget ldtk-group-menu-50
+click_context_item Assign group color
+wait_until rules page Color
+scroll_into_view ldtk-tab-scroll ldtk-color-13
+click_widget ldtk-color-13
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=50.color #3E8948
+expect rules page List
+scroll_into_view ldtk-tab-scroll ldtk-group-menu-50
+click_widget ldtk-group-menu-50
+click_context_item Assign group icon
+wait_until rules page Icon
+scroll_into_view ldtk-tab-scroll ldtk-icon-tiles
+click_at ldtk-icon-tiles 0.1875 0.125
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=50.icon {"tilesetUid":10,"x":16,"y":0,"w":16,"h":16}
+scroll_into_view ldtk-tab-scroll ldtk-group-menu-200
+click_widget ldtk-group-menu-200
+click_context_item Delete group
+wait_until ldtk defs.layers.uid=3.autoRuleGroups.uid=200 missing
+
+# Randomize: the layer's seed in Room
+scroll_into_view ldtk-tab-scroll ldtk-rules-randomize
+click_widget ldtk-rules-randomize
+expect level problem none
+
+# In memory until saved
+expect level unsaved yes
+expect ldtk_disk defs.layers.uid=3.autoRuleGroups.uid=50.color null
+key ctrl+s
+wait_until level unsaved no
+expect ldtk_disk defs.layers.uid=3.autoRuleGroups.uid=50.color #3E8948
+expect ldtk_disk defs.layers.uid=3.autoRuleGroups.0.name stone

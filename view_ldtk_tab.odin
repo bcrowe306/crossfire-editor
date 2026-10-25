@@ -24,8 +24,8 @@ What each shows (today's sections of the old LDtk tab, moved into LDtk's panels)
   LDtkLevel nodes make of an IntGrid layer's values (`ldtkIntGridKinds`), the Entities tab the
   type's entities in the level (one selected: its place and fields) and the level's entity
   references (the old Links).
-- **Auto-layer Rules:** a summary (phase 4 edits them). **Project:** the file's settings, read
-  only. The helpers (`tabRow`, `tabTextField`...) are shared with view_ldtk_defs.odin.
+- **Auto-layer Rules:** LDtk's rule panel, rule editor, Rule Assistant and Duplicate and Remap
+  (view_ldtk_rules.odin). **Project:** the file's settings, read only. The helpers (`tabRow`, `tabTextField`...) are shared with view_ldtk_defs.odin.
 
 Widget keys: the rows' scroll `ldtk-tab-scroll`, an item choice `ldtk-item-<Tab>` (Layers,
 Entities, Enums); World: `ldtk-world-choice`, `ldtk-world-layout`, `ldtk-world-grid-w`, `-grid-h`,
@@ -697,27 +697,10 @@ ldtkTilesetsSection :: proc(c: ^LDtkTabCtx) {
 	LDtkDefs_Tilesets(c)
 }
 
-// Auto-layer rules: a summary of each layer's rule groups (they're edited in LDtk until phase 4)
+// Auto-layer rules: LDtk's rule panel and rule editor (view_ldtk_rules.odin)
 @(private="file")
 ldtkRulesSection :: proc(c: ^LDtkTabCtx) {
-	main := c.main
-	tabNote(c, "Auto-layer rules paint tiles from an IntGrid layer's values. They're edited in LDtk for now: this tab edits them in phase 4 of the Level editor.", true)
-	any := false
-	for d in Json_Items(main, LDtkDoc_Defs(c.doc, "layers")) {
-		groups := Json_Items(main, Json_Get(main, d, "autoRuleGroups"))
-		if len(groups) == 0 do continue
-		any = true
-		tabHeading(c, fmt.tprintf("%s (%s)", Json_String(main, Json_Get(main, d, "identifier")), Json_String(main, Json_Get(main, d, "__type"))))
-		for g in groups {
-			rules := Json_Items(main, Json_Get(main, g, "rules"))
-			active := 0
-			for r in rules do if Json_Bool(main, Json_Get(main, r, "active"), true) do active += 1
-			name := Json_String(main, Json_Get(main, g, "name"))
-			tabNote(c, fmt.tprintf("%s: %d rule%s, %d active%s", name == "" ? "(no name)" : name, len(rules), len(rules) == 1 ? "" : "s", active,
-				Json_Bool(main, Json_Get(main, g, "active"), true) ? "" : " (the group is off)"))
-		}
-	}
-	if !any do tabNote(c, "No layer of this project has auto-layer rules.")
+	LDtkRules_Tab(c)
 }
 
 // Project: the LDtk file's own settings, read only (phase 5 edits them), and whether it's saved

@@ -58,6 +58,10 @@ copy: `open_project {project}`).
 	                                 starts so: Down to it, then Return
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
+	hover_at <key> <fx> <fy>         Move the pointer there (no button): a rule's pattern, a cell of
+	                                 the Level mode's canvas
+	drag_to <from key> <to key> [fy] Press at a widget's center, move to another's (fy: how far
+	                                 down it, 0 to 1), release: a rule's or group's grip to a row
 	scroll_by <scroll key> <dy>      Scroll a scroll container by dy pixels (0 or less: to the top)
 	if_drawn <key> <command>         Run the command only if the widget was drawn last frame (layouts
 	                                 that depend on the window: the toolbar's overflow, toolbar-more)
@@ -75,6 +79,8 @@ copy: `open_project {project}`).
 	                                 center by world pixels (shift: held)
 	drag_entity <iid> <dx> <dy> [shift]   The same for an entity (shift: off its grid)
 	click_entity <iid>               Click an entity on the Level mode's canvas
+	level_hover <cx> <cy>            Move the pointer over a cell of the focused level's selected
+	                                 layer (the Auto-layer Rules tab highlights the rules there)
 	level_paint c1 r1 c2 r2 [right] [shift] [alt] [ctrl]
 	                                 A stroke on the Level mode's focused level, between two cells
 	                                 of its selected layer (centers), holding the keys given (right:
@@ -305,6 +311,16 @@ Checks:
 	                             (`x-`, `xy`, `--`), the grid, the faded layers, tile stacking, the
 	                             auto-layer tiles shown (on | off), the stroke (None, Grid, Resize...),
 	                             a pick waiting (None, Ref, Point), the entity type Place puts (-1)
+	rules <page | rule | last | value | layer | clip | renaming | stamp | help | perlin_preview |
+	       assistant_main | assistant_other | assistant_part | assistant_tiles | name | marks |
+	       highlighted | open <group uid>> <value>
+	                             The Auto-layer Rules tab (level_rules.odin): its page (List,
+	                             Editor, Assistant...), the edited rule's and the last rule's uids,
+	                             the editor's value, the layer shown (uid), the clipboard (None, Rule,
+	                             Group), the group being renamed, the stamp picked, the help and the
+	                             Perlin preview (on | off), the Assistant's choices (a part's tiles:
+	                             `0,1`), the name typed, the cells outlined on the canvas, how many
+	                             rules the canvas's pointer highlights, a group open (yes | no)
 	ldtk_cell <level> <layer> <cx> <cy> <value>   An IntGrid cell of the document as the editor has it
 	ldtk_tiles <level> <layer> <cx> <cy> <ids>    A cell's tile ids, bottom first (`8,16`; none)
 	ldtk_count <json path> <n | >n>  How many items a document's array has (more than n)
@@ -1055,6 +1071,28 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "level_hover":
+		// level_hover cx cy: the pointer over a cell of the focused level's selected layer (no button)
+		m := LevelPaint_Current()
+		doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+		if m == nil || doc == nil || len(args) < 2 {
+			fail(fmt.tprintf("%s: no focused level, or not enough numbers", line))
+			return true
+		}
+		r := LDtkDoc_LevelRect(doc, m.level)
+		l, _ := LevelPaint_Layer(s, m)
+		grid, off := f32(16), [2]int{}
+		if l != nil do grid, off = f32(m.defs[l.def].gridSize), LDtkLayer_Offset(m, l)
+		p, ok := LevelCanvas_WorldToWindow(s, ctx, {f32(r[0]) + (f32(atoi(args, 0, 0)) + 0.5) * grid + f32(off.x), f32(r[1]) + (f32(atoi(args, 1, 0)) + 0.5) * grid + f32(off.y)})
+		if !ok {
+			fail(fmt.tprintf("%s: the canvas hasn't been drawn", line))
+			return true
+		}
+		pushMouse(.MOUSE_MOTION, p)
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "level_paint", "level_drag_world":
 		// level_paint c1 r1 c2 r2 [mods] / level_drag_world x1 y1 x2 y2 [mods]: a stroke on the
 		// focused level (cells of the selected layer, or level pixels)
@@ -1296,6 +1334,49 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		}
 		r := items[index]
 		click({r.x + r.w * 0.5, r.y + r.h * 0.5})
+		report(true, line)
+		return false
+
+	case "drag_to":
+		// drag_to <from key> <to key> [fy]: press at a widget's center, move to another's (fy: how
+		// far down it, 0 to 1; the middle by default), release
+		if len(args) < 2 {
+			fail(fmt.tprintf("%s: expected two widget keys", line))
+			return true
+		}
+		from, okA := widgetRect(ctx, args[0])
+		to, okB := widgetRect(ctx, args[1])
+		if !okA || !okB {
+			fail(fmt.tprintf("%s: both widgets must have been drawn last frame", line))
+			return true
+		}
+		fy := f32(0.5)
+		if len(args) > 2 do fy, _ = strconv.parse_f32(args[2])
+		a := [2]f32{from.x + from.w * 0.5, from.y + from.h * 0.5}
+		b := [2]f32{to.x + to.w * 0.5, to.y + to.h * fy}
+		pushMouse(.MOUSE_MOTION, a)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, a))
+		STEPS :: 6
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "hover_at":
+		if len(args) < 3 {
+			fail(fmt.tprintf("%s: expected a widget key and two fractions", line))
+			return true
+		}
+		rect, ok := widgetRect(ctx, args[0])
+		if !ok {
+			fail(fmt.tprintf("%s: no widget with key '%s' was drawn last frame", line, args[0]))
+			return true
+		}
+		fx, _ := strconv.parse_f32(args[1])
+		fy, _ := strconv.parse_f32(args[2])
+		pushMouse(.MOUSE_MOTION, {rect.x + rect.w * fx, rect.y + rect.h * fy})
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 
@@ -2084,6 +2165,18 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			if okL && okV do msg = Level_Value_Picked{l, n}
 		case "Level_Entity_Type_Picked":
 			if uid, ok := strconv.parse_int(value); ok do msg = Level_Entity_Type_Picked(uid)
+		// The Auto-layer Rules tab's view (level_rules.odin): "<op> [uid] [number] [flag 0 | 1]"
+		case "Rules_View":
+			parts := strings.fields(value, context.temp_allocator)
+			if len(parts) > 0 {
+				if op, ok := reflect.enum_from_name(RulesViewOp, parts[0]); ok {
+					v := Rules_View{op = op, uid = -1}
+					if len(parts) > 1 do v.uid, _ = strconv.parse_int(parts[1])
+					if len(parts) > 2 do v.number, _ = strconv.parse_int(parts[2])
+					if len(parts) > 3 do v.flag = parts[3] == "1"
+					msg = v
+				}
+			}
 		case "Dialogue_Created":      msg = Dialogue_Created{}
 		// The docs window at an address (docs_window.odin), as a way in would open it
 		case "Docs_Opened":           msg = Docs_Opened(strings.clone(value, context.temp_allocator))
@@ -3534,6 +3627,49 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = s.project.name
 	case "mode":
 		found = fmt.tprint(s.mode)
+	case "rules":
+		// The Auto-layer Rules tab: `rules <field> <value>` (`rules open <uid> <yes | no>`)
+		field, _, wanted := strings.partition(strings.trim_space(value), " ")
+		r := &s.level.rules
+		onOff :: proc(b: bool) -> string { return b ? "on" : "off" }
+		switch field {
+		case "page":     found = fmt.tprint(r.page)
+		case "rule":     found = fmt.tprint(r.rule)
+		case "last":     found = fmt.tprint(r.last)
+		case "value":    found = fmt.tprint(r.value)
+		case "layer":
+			uid, _ := LevelRules_Layer(s, LDtkDoc_Get(s.project.rootPath, LevelMode_File(s)))
+			found = fmt.tprint(uid)
+		case "clip":     found = fmt.tprint(r.clipKind)
+		case "renaming": found = fmt.tprint(r.renaming)
+		case "stamp":    found = fmt.tprint(r.stamp)
+		case "help":     found = onOff(r.help)
+		case "perlin_preview": found = onOff(r.perlinPreview)
+		case "assistant_main":  found = fmt.tprint(r.assistant.main)
+		case "assistant_other": found = fmt.tprint(r.assistant.other)
+		case "assistant_part":  found = fmt.tprint(r.part)
+		case "assistant_tiles":
+			ids := make([dynamic]string, context.temp_allocator)
+			for id in r.assistant.tiles[r.part] do append(&ids, fmt.tprint(id))
+			found = len(ids) == 0 ? "none" : strings.join(ids[:], ",", context.temp_allocator)
+		case "name":     found = r.name
+		case "marks":    found = fmt.tprint(LevelRules_Marks())
+		case "highlighted":
+			uid, _ := LevelRules_Layer(s, LDtkDoc_Get(s.project.rootPath, LevelMode_File(s)))
+			found = fmt.tprint(len(LevelRules_AtPointer(uid)))
+		case "open":
+			group, _, want := strings.partition(wanted, " ")
+			uid, _ := strconv.parse_int(group)
+			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+			_, layer := LevelRules_Layer(s, doc)
+			groups := layer >= 0 ? LDtkRules_ReadGroups(LDtkDoc_Main(doc), layer) : nil
+			found = LevelRules_GroupOpen(s, groups[:], uid) ? "yes" : "no"
+			return found == want, found
+		case:
+			return false, fmt.tprintf("unknown rules field %q", field)
+		}
+		return found == wanted, found
+
 	case "level":
 		// The Level mode: `level <field> <value>`
 		field, _, wanted := strings.partition(strings.trim_space(value), " ")

@@ -105,6 +105,8 @@ LevelMode :: struct {
 	conflict: struct {
 		open, undo: bool,
 	},
+	// The Auto-layer Rules tab's own state (level_rules.odin)
+	rules: LevelRules,
 }
 
 // The world canvas's view: the world point at its center and the zoom (screen pixels per world
@@ -348,8 +350,9 @@ LevelMode_Destroy :: proc(level: ^LevelMode) {
 	delete(level.newEnum)
 	delete(level.tileTag)
 	LevelPaint_Destroy(&level.paint)
+	LevelRules_Destroy(&level.rules)
 	layout, tab := level.layout, level.bottomTab
-	level^ = {layout = layout, bottomTab = tab, layerDef = -1, entityDef = -1, enumDef = -1, fieldDef = -1, levelField = -1, tilesetDef = -1, dataTile = -1, paint = {entityDef = -1}}
+	level^ = {layout = layout, bottomTab = tab, layerDef = -1, entityDef = -1, enumDef = -1, fieldDef = -1, levelField = -1, tilesetDef = -1, dataTile = -1, paint = {entityDef = -1}, rules = LEVEL_RULES_DEFAULT}
 }
 
 /*
@@ -545,6 +548,8 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		}
 	case LDtk_Edit:
 		levelApplyEdit(state, v)
+	case Rules_View:
+		LevelRules_Update(state, v)
 	case LDtk_Text_Typed:
 		delete(state.numberEdit.text)
 		state.numberEdit = {id = v.id, text = strings.clone(v.edit.text)}
@@ -596,8 +601,16 @@ through `FileChange.components`: the project's snapshot holds scenes only).
 */
 @(private)
 levelApplyEdit :: proc(state: ^State, edit: LDtk_Edit) {
+	// The rules tab's: a cut copies first, the first uid an edit takes opens what it made
+	LevelRules_BeforeEdit(state, edit)
+	nextUid := -1
+	if doc := LDtkDoc_Get(state.project.rootPath, edit.file); doc != nil && doc.problem == "" {
+		main := LDtkDoc_Main(doc)
+		nextUid = Json_Int(main, Json_Get(main, Json_Root(main), "nextUid"), -1)
+	}
 	problem, rename := LDtkOps_Apply(state.project.rootPath, edit)
 	setOwned(&state.level.problem, problem)
+	if problem == "" do LevelRules_AfterEdit(state, edit, nextUid)
 	// A name added: its field is ready for the next
 	if problem == "" && edit.op == .Enum_Value_Added do setOwned(&state.level.newValue, "")
 	if problem == "" && edit.op == .Enum_Added do setOwned(&state.level.newEnum, "")

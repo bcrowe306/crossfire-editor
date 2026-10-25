@@ -35,6 +35,10 @@ menu bar do the same thing), then `Context_Menu_Closed`.
 	Ctx_Script_Field  a script field's label in the inspector: go to its declaration in the code
 	Ctx_Toolbar_More  the toolbar's overflow button (a narrow window): the tools, maybe the file
 	                  and undo buttons
+	Ctx_Rules_New, Ctx_Rule_Group, Ctx_Rule
+	                  the Level mode's Auto-layer Rules tab: + Group's choices, a rule group's menu
+	                  (copy, cut, paste, duplicate, delete, rename, remap, color, icon,
+	                  out-of-bounds, the Assistant, biomes, optional), a rule's (view_ldtk_rules.odin)
 
 Widget key: `context-menu` (the driver's `click_context_item <label>[/<submenu label>]`).
 */
@@ -58,6 +62,10 @@ ContextTarget :: union {
 	// The Level mode's (view_level_sidebars.odin, view_level_tools.odin)
 	Ctx_Level,
 	Ctx_Level_Tools,
+	// The Auto-layer Rules tab's (view_ldtk_rules.odin)
+	Ctx_Rules_New,
+	Ctx_Rule_Group,
+	Ctx_Rule,
 }
 
 // A script field's label in the inspector: the selected node's script's field (its index in the
@@ -387,6 +395,7 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 	case Ctx_Script_Field: scriptFieldItems(s, &items, t)
 	case Ctx_Level:     LevelMode_MenuItems(s, &items, t)
 	case Ctx_Level_Tools: LevelTools_MenuItems(s, &items)
+	case Ctx_Rules_New, Ctx_Rule_Group, Ctx_Rule: LevelRules_MenuItems(s, &items, t)
 	case Ctx_Toolbar_More:
 		if t.files {
 			append(&items,
@@ -470,6 +479,8 @@ contextDocsAddress :: proc(s: ^State) -> string {
 		// A filter list: no docs item among its categories
 	case Ctx_Level:
 		return Docs_ManualAddress(DOCS_LEVELS_SIDEBAR_PAGE)
+	case Ctx_Rules_New, Ctx_Rule_Group, Ctx_Rule:
+		return Docs_ManualAddress(DOCS_BOTTOM_TAB_PAGES[.Auto_Layer_Rules])
 	case Ctx_Align, Ctx_Guide, Ctx_Toolbar_More, Ctx_Script_Field, Ctx_Level_Tools:
 	}
 	return ""

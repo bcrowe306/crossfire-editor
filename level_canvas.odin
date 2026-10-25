@@ -49,6 +49,7 @@ LevelCanvas_Destroy :: proc() {
 	LevelPaint_DestroyModel()
 	LevelPalette_Destroy()
 	LDtkDefs_Destroy()
+	LDtkRules_Destroy()
 	for iid in levelKeys.keys do delete(iid)
 	delete(levelKeys.keys)
 	delete(levelKeys.file)

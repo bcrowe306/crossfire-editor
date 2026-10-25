@@ -143,6 +143,10 @@ LevelOverlay_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, world
 		}
 	}
 
+	// The Auto-layer Rules tab's: its rule's or group's cells, the Perlin noise, the cell under
+	// the pointer (the tab highlights its rules)
+	if s.level.bottomTab == .Auto_Layer_Rules do levelRulesOverlay(o, s, doc, m, world, hover, center, zoom, size)
+
 	// The selected entity's handles and points
 	level := LDtkDoc_FindLevel(doc, s.level.focus)
 	if s.level.entity != "" && level >= 0 {
@@ -360,4 +364,78 @@ LevelEntity_Draw :: proc(r: ^skald.Renderer, rect: skald.Rect, e: LevelCanvasEnt
 	if e.showName && rect.h >= 6 && zoom >= 0.5 {
 		drawTextTop(r, e.identifier, rect.x, rect.y - fontSize - 2, {1, 1, 1, 0.85 * alpha}, fontSize)
 	}
+}
+
+/*
+The Auto-layer Rules tab's marks on the focused level (EditAllAutoLayerRules.showAffectedCells: a
+cell outlined in magenta over purple where the hovered rule, or each rule of the hovered group, put
+a tile; RulePerlinSettings' preview: red where the Perlin noise stops the rule, green where it
+lets it), and the cell under the pointer reported to the tab (onEditorMouseMove).
+*/
+@(private="file")
+levelRulesOverlay :: proc(o: ^LevelOverlay, s: ^State, doc: ^LDtkDoc, m: ^LDtkLevelModel, world: [4]f32, hover: Maybe([2]f32), center: [2]f32, zoom: f32, size: [2]f32) {
+	layerUid, layer := LevelRules_Layer(s, doc)
+	l := LevelPaint_LayerByDef(m, layerUid)
+	if l == nil || layer < 0 {
+		LevelRules_SetCanvasCell(-1, {}, false)
+		return
+	}
+	d := &m.defs[l.def]
+	grid := f32(d.gridSize)
+	off := LDtkLayer_Offset(m, l)
+	at :: proc(world: [4]f32, p, center: [2]f32, zoom: f32, size: [2]f32) -> [2]f32 {
+		return size * 0.5 + (world.xy + p - center) * zoom
+	}
+	// The cell under the pointer
+	cellOk := false
+	cell: [2]int
+	if p, ok := hover.?; ok {
+		lp := p - world.xy
+		if lp.x >= 0 && lp.y >= 0 && lp.x < world[2] && lp.y < world[3] {
+			cell = LDtkLayer_CellAt(m, l, lp)
+			cellOk = cell.x >= 0 && cell.y >= 0 && cell.x < l.cWid && cell.y < l.cHei
+		}
+	}
+	LevelRules_SetCanvasCell(layerUid, cell, cellOk)
+	// The hovered rule's or group's cells (not while auto-layers are hidden: LDtk's)
+	_, rule, group := LevelRules_Hovered()
+	if !s.level.paint.hideAutoLayers && (rule >= 0 || group >= 0) && len(l.auto) > 0 {
+		wanted := make(map[i32]bool, context.temp_allocator)
+		if rule >= 0 do wanted[i32(rule)] = true
+		if group >= 0 do for g in LDtkRules_ReadGroups(LDtkDoc_Main(doc), layer) do if g.uid == group do for r in g.rules do wanted[i32(r.uid)] = true
+		fill := skald.rgb(0x5A36A7)
+		fill.a = 0.6
+		line := skald.rgb(0xFF00FF)
+		for tiles in l.auto do for t in tiles {
+			if t.rule not_in wanted do continue
+			p := at(world, {f32(t.x) + f32(off.x), f32(t.y) + f32(off.y)}, center, zoom, size)
+			if p.x > size.x || p.y > size.y || p.x + grid * zoom < 0 || p.y + grid * zoom < 0 do continue
+			append(&o.rects, LevelOverlayRect{{p.x, p.y, grid * zoom, grid * zoom}, fill, line, 1})
+		}
+	}
+	// The edited rule's Perlin noise over the layer
+	if s.level.rules.page == .Editor && s.level.rules.perlinPreview {
+		r, _, ok := LevelRules_Rule(doc, layer, s.level.rules.rule)
+		if ok && r.perlinActive {
+			red, green := skald.Color{1, 0, 0, 0.5}, skald.rgb(0xB3F700)
+			green.a = 0.3
+			for cy in 0 ..< l.cHei do for cx in 0 ..< l.cWid {
+				p := at(world, {f32(cx) * grid + f32(off.x), f32(cy) * grid + f32(off.y)}, center, zoom, size)
+				if p.x > size.x || p.y > size.y || p.x + grid * zoom < 0 || p.y + grid * zoom < 0 do continue
+				v := ldtkPerlin(l.seed + r.perlinSeed, f64(cx) * r.perlinScale, f64(cy) * r.perlinScale, r.perlinOctaves)
+				append(&o.rects, LevelOverlayRect{{p.x, p.y, grid * zoom, grid * zoom}, v < 0 ? red : green, {}, 0})
+			}
+		}
+	}
+	levelRulesMarks = 0
+	for rc in o.rects do if rc.width == 1 do levelRulesMarks += 1
+}
+
+// How many cells the rules tab's hover outlined last (the UI test driver's `rules marks`)
+@(thread_local)
+levelRulesMarks: int
+
+// The cells outlined for the rules tab's hover, as last drawn
+LevelRules_Marks :: proc() -> int {
+	return levelRulesMarks
 }

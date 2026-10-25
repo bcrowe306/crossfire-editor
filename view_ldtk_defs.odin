@@ -354,7 +354,7 @@ autoSettings :: proc(c: ^LDtkTabCtx, def, uid: int) {
 	biomeLabels, biomeValues := defChoices(c, LDtkDoc_Defs(c.doc, "levelFields"), "No biome", proc(json: ^JsonDoc, d: int) -> bool { return strings.has_prefix(Json_String(json, Json_Get(json, d, "type")), "F_Enum(") })
 	memberChoice(c, "Biome field", "A level field of an enum: rule groups can need its values (LDtk's biomes)", .Layer, uid, "biomeFieldUid",
 		labelOf(biomeLabels, biomeValues, uidText(main, Json_Get(main, def, "biomeFieldUid"))), biomeLabels, biomeValues)
-	tabNote(c, "Its rules are edited in LDtk until the Auto-layer Rules tab edits them (phase 4).")
+	tabNote(c, "Its rules are edited in the Auto-layer Rules tab.")
 }
 
 /*

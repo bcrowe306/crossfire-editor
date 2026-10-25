@@ -298,7 +298,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	     Level_Canvas_Fit, Level_Entity_Picked, Level_Collision_Kind_Changed, LDtk_Item_Picked, LDtk_Text_Typed,
 	     LDtk_New_Name_Typed, LDtk_Def_Picked, LDtk_Edit, LDtk_Conflict_Chosen, Level_World_Chosen, Level_Row_Clicked, Level_Focus_Changed,
 	     Level_Open_Showing, Level_Layer_Picked, Level_Tool_Picked, LDtk_Disk_Chosen,
-	     Level_Value_Picked, Level_Tiles_Picked, Level_Entity_Type_Picked, Level_Pick_Started:
+	     Level_Value_Picked, Level_Tiles_Picked, Level_Entity_Type_Picked, Level_Pick_Started, Rules_View:
 		// Handled by Modes_Update and LevelMode_Update above
 	case Log_Follow_Toggled, Log_Follow_Set, Log_Level_Toggled, Log_Category_Toggled,
 	     Log_Categories_Shown, Log_Search_Changed, Log_Filters_Cleared, Log_Test_Lines:
