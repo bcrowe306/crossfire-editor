@@ -266,6 +266,8 @@ State :: struct {
 		asset: int,
 	},
 	addNode: AddNodeDialog,
+	// The command palette, also Search Everywhere (command_palette.odin)
+	palette: PaletteState,
 	// Help > About (view_about.odin)
 	aboutOpen: bool,
 	// The docs window (docs_window.odin)
@@ -527,6 +529,7 @@ State_Destroy :: proc(state: ^State) {
 	CodeRangeDialog_Destroy(&state.codeRange)
 	LogPoints_Destroy(&state.logPoints)
 	DocsWindow_Destroy(&state.docs)
+	Palette_Close(state)
 	LevelMode_Destroy(&state.level)
 	delete(state.lastLink)
 	CodeTabs_CloseAll(state)

@@ -52,6 +52,8 @@ ICON_FILM        :: "\uf008"
 ICON_SCISSORS    :: "\uf0c4"
 ICON_CHEVRON_DOWN :: "\uf078"
 ICON_CHEVRON_UP  :: "\uf077"
+// Between breadcrumbs (breadcrumbs.odin)
+ICON_CHEVRON_RIGHT :: "\uf054"
 ICON_CUBE        :: "\uf1b2"
 ICON_CAMERA      :: "\uf030"
 ICON_LIST        :: "\uf03a"

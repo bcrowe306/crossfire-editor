@@ -68,13 +68,16 @@ CODE_FONT_SIZE :: f32(14)
 CODE_FONT :: #load("assets/fonts/LiberationMono-Regular.ttf", []byte)
 
 // The editor's own actions that still work while the code editor has the keyboard
-CODE_EDITOR_PASSTHROUGH :: bit_set[Action]{.Save_Project, .Play, .Play_Scene, .Pause, .Stop, .Restart, .Build_Scripts, .Quit, .Toggle_Bottom_Panel, .Open_Settings, .Export, .Close_Code_Tab, .Mode_Scene, .Mode_Level}
+CODE_EDITOR_PASSTHROUGH :: bit_set[Action]{.Save_Project, .Play, .Play_Scene, .Pause, .Stop, .Restart, .Build_Scripts, .Quit, .Toggle_Bottom_Panel, .Open_Settings, .Export, .Close_Code_Tab, .Mode_Scene, .Mode_Level, .Command_Palette}
 
 // One open file
 CodeEditor :: struct {
 	// Absolute (owned)
 	path: string,
 	ed: ce.Editor,
+	// A code editor command chosen in the editor's command palette (command_palette.odin), run
+	// when the view next shows, with the providers running (`CodeEditor_RunPaletteEntry`)
+	paletteRun: Maybe(ce.Palette_Entry),
 	surface: ^sdl.Surface,
 	renderer: ^sdl.Renderer,
 	size: [2]int,
@@ -918,6 +921,41 @@ The code view for an open file: hands it this frame's input, renders it when som
 and returns the canvas showing it. Sends `Code_Open_Requested` when the file asks for another one
 (Go to Definition), and keeps `Code_Tick` coming while a language server is attached.
 */
+/*
+The code editor's own palette entries for a code tab (its commands with their keys, its windows,
+utilities and color themes): the editor's command palette lists them in a code tab, so there's one
+palette (command_palette.odin).
+
+Returns:
+- The entries (temp allocated; nil when the file isn't open)
+*/
+CodeEditor_PaletteEntries :: proc(path: string) -> []ce.Palette_Entry {
+	c := CodeEditor_Find(path)
+	if c == nil do return nil
+	return ce.editor_palette_entries(&c.ed)
+}
+
+/*
+Runs a code editor palette entry (one of `CodeEditor_PaletteEntries`'s) in a code tab: queued, it
+runs when the tab's view next draws (the providers are running then), and the tab takes the
+keyboard back.
+*/
+CodeEditor_RunPaletteEntry :: proc(path: string, entry: ce.Palette_Entry) {
+	c := CodeEditor_Find(path)
+	if c == nil do return
+	run := entry
+	// Only its kind and target are read: the label may be temp allocated
+	run.label, run.detail = "", ""
+	c.paletteRun = run
+	host.focusNext = true
+}
+
+// Whether a code editor palette entry is waiting to run (tests)
+CodeEditor_PaletteRunPending :: proc(path: string) -> bool {
+	c := CodeEditor_Find(path)
+	return c != nil && c.paletteRun != nil
+}
+
 CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.View {
 	skald.prof_scope("CodeEditor_View")
 	id := skald.hash_id(CODE_EDITOR_KEY)
@@ -1005,6 +1043,17 @@ CodeEditor_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.
 		}
 	}
 	drainEvents()
+	// A command chosen in the editor's palette; the code editor's own palette (its context menu,
+	// a key bound to it in its keymap editor) opens the editor's instead: one palette
+	if entry, ok := c.paletteRun.?; ok {
+		c.paletteRun = nil
+		ce.editor_palette_run_entry(&c.ed, entry)
+		handled += 1
+	}
+	if c.ed.palette.open {
+		ce.editor_close_palette(&c.ed)
+		skald.send(ctx, Msg(Action.Command_Palette))
+	}
 	// Settings > Editor > Auto-close
 	c.ed.auto_close_pairs = s.settings.autoClosePairs
 	// The shared language server follows the file that shows

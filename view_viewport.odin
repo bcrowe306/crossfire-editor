@@ -193,6 +193,8 @@ viewportView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	return skald.col(
 		header,
+		// The selected node's path (breadcrumbs.odin)
+		breadcrumbsBar(s, ctx),
 		skald.flex(1, skald.canvas(ctx, data, drawViewport, id = canvasId)),
 		cross_align = .Stretch,
 		bg = th.color.bg,

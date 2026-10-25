@@ -27,6 +27,9 @@ SettingsDialog :: struct {
 	draft: Settings,
 	// Keyboard tab filter (owned)
 	search: string,
+	// The row the command palette opened it at, lit (its label; not owned: the palette's tables'
+	// strings live as long as the editor). The view scrolls to it once (`settingsRevealWanted`)
+	highlight: string,
 	// Waiting for a key press to bind
 	capture: struct {
 		active: bool,

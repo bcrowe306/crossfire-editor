@@ -528,6 +528,16 @@ Checks:
 	docs_at <anchor>                 Its page is scrolled to the heading with that anchor (the
 	                                 last heading at or above the top of the view)
 	docs_hits <n>                    Its search finds at least n results
+	palette <open | closed>          The command palette (command_palette.odin)
+	palette_query <text>             What its search holds ("" written as nothing)
+	palette_row <i> <kind> <label>   Its row i (0 the first) is that kind's entry with that label
+	                                 (`palette_row 0 Action Play`)
+	palette_has <kind> <label>       One of its shown rows is that entry
+	palette_matches <n>              How many entries match (at least n)
+	palette_highlight <i>            The highlighted row
+	settings_tab <Tab>               The Settings dialog's tab (Appearance, Editor, ...)
+	settings_highlight <label>       The row the palette lit in it ("none")
+	crumbs <a > b > c>               The Scene mode's breadcrumbs (breadcrumbs.odin), " > " between
 	code_inlay <line> <text>         A line's inlay hints contain the text (1-based)
 	code_inlay_lacks <line> <text>   ... don't contain it
 	log_points <n>                   The project's log points (log_points.odin)
@@ -3363,6 +3373,44 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = Docs_Title(s)
 	case "docs_at":
 		found = Docs_VisibleAnchor(ctx)
+	case "palette":
+		found = s.palette.open ? "open" : "closed"
+	case "palette_query":
+		found = s.palette.query
+		return found == value, found
+	case "palette_row", "palette_has":
+		row := -1
+		rest := value
+		if name == "palette_row" {
+			number, _, after := strings.partition(value, " ")
+			row, _ = strconv.parse_int(number)
+			rest = after
+		}
+		kind, _, label := strings.partition(rest, " ")
+		entries := Palette_Entries(s, Palette_CodePath(s))
+		matches := Palette_Matches(entries, s.palette.query)
+		rows := make([dynamic]string, context.temp_allocator)
+		for m, i in matches[:min(len(matches), PALETTE_SHOWN)] {
+			entry := entries[m.entry]
+			name := fmt.tprintf("%v %s", entry.kind, entry.label)
+			if (row < 0 || i == row) && name == fmt.tprintf("%s %s", kind, label) do return s.palette.open, name
+			if i < 5 || i == row do append(&rows, name)
+		}
+		return false, strings.join(rows[:], ", ", context.temp_allocator)
+	case "palette_matches":
+		n, _ := strconv.parse_int(value)
+		count := len(Palette_Matches(Palette_Entries(s, Palette_CodePath(s)), s.palette.query))
+		return count >= n, fmt.tprintf("%d", count)
+	case "palette_highlight":
+		found = fmt.tprintf("%d", s.palette.highlight)
+	case "settings_tab":
+		found = fmt.tprintf("%v", s.settingsDialog.tab)
+	case "settings_highlight":
+		found = s.settingsDialog.highlight == "" ? "none" : s.settingsDialog.highlight
+	case "crumbs":
+		labels := make([dynamic]string, context.temp_allocator)
+		for c in Breadcrumbs_Scene(s) do append(&labels, c.label)
+		found = strings.join(labels[:], " > ", context.temp_allocator)
 	case "docs_hits":
 		n, _ := strconv.parse_int(value)
 		count := len(Docs_Search(Docs_Library(), s.docs.search))

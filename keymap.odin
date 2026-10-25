@@ -164,6 +164,7 @@ ACTION_LABELS := [Action]string{
 	.Open_Settings = "Settings", .Play_Scene = "Play the open scene", .Open_Project_Settings = "Project settings", .Build_Scripts = "Build scripts", .Open_Script = "Open script in code editor",
 	.Close_Code_Tab = "Close code tab",
 	.Mode_Scene = "Scene mode", .Mode_Level = "Level mode",
+	.Command_Palette = "Command palette: search everywhere",
 	.Level_Flip_X = "Level: flip the tiles on X", .Level_Flip_Y = "Level: flip the tiles on Y",
 	.Level_Random_Mode = "Level: random tiles or a stamp", .Level_Toggle_Grid = "Level: show the grid and snap to it",
 	.Level_Single_Layer = "Level: fade the other layers", .Level_Tile_Stacking = "Level: stack tiles",

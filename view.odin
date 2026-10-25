@@ -29,7 +29,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	coding := CodeEditor_Frame(ctx, state.mode == .Scene && CodeTabs_Active(&state) != "")
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
 		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.listenerDialog.open || state.newEvent.open || state.componentClose.open || state.newData.open || state.projectSettings.open || state.aboutOpen || state.git.discardAsk != "" ||
-		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open || state.level.conflict.open
+		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open || state.level.conflict.open || state.palette.open
 	// The running game's values a code tab shows (code_live.odin)
 	CodeLive_Frame(&state, ctx)
 	// The States tab's machine in the running game (state_machine_edit.odin)
@@ -96,6 +96,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		ldtkConflictDialogView(&state, ctx),
 		// The docs window (view_docs.odin)
 		docsWindowView(&state, ctx),
+		// The command palette, over the docs window it can open (view_command_palette.odin)
+		commandPaletteView(&state, ctx),
 		// A drag into code: its label, its drop (code_drag.odin)
 		CodeDrag_View(&state, ctx),
 		cross_align = .Stretch,
@@ -166,6 +168,7 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			item("Delete Node", .Delete_Node, keys),
 			item("Deselect", .Deselect, keys),
 			{separator = true},
+			item("Command Palette...", .Command_Palette, keys),
 			item("Settings...", .Open_Settings, keys),
 		}},
 		{"Scripts", []skald.Menu_Item(Msg){
@@ -218,6 +221,8 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 		}},
 		{"Help", []skald.Menu_Item(Msg){
 			item("User Manual", .User_Manual, keys),
+			// The command palette's other name: one popup finds actions, settings, nodes, assets, docs
+			{label = "Search Everywhere...", msg = Msg(Action.Command_Palette), shortcut = keys.taken ? {} : Chord_OnPlatform(keys.keymap[.Command_Palette][1])},
 			{label = "Keyboard Shortcuts", msg = Msg(Open_Keyboard_Settings{})},
 			item("About", .About, keys),
 		}},

@@ -1024,10 +1024,22 @@ levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	for asset, i in s.project.assets do if asset.kind == .LDtk && asset.path == file do index = i
 	doc := LDtkDoc_Get(s.project.rootPath, file)
 	readable := doc != nil && doc.problem == ""
-	// Where the canvas is: the world (with several, its name), the focused level
+	// Where the canvas is, as breadcrumbs (breadcrumbs.odin): the world (with several, its name;
+	// a click: the world view), the focused or selected level (a click focuses it), the layer
 	place := "World"
 	if readable && len(doc.worlds) > 1 do place, _ = LDtkDoc_WorldNames(doc, LevelMode_World(s, doc))
-	if s.level.focus != "" do place = fmt.tprintf("%s  %s  %s", place, ICON_ARROW_RIGHT, s.level.focus)
+	crumbs := make([dynamic]Crumb, context.temp_allocator)
+	level := s.level.focus != "" ? s.level.focus : s.level.level
+	append(&crumbs, Crumb{label = place, msg = s.level.focus != "" ? Msg(Level_Focus_Changed("")) : nil})
+	if level != "" {
+		append(&crumbs, Crumb{label = level, msg = s.level.focus == "" ? Msg(Level_Focus_Changed(strings.clone(level, context.temp_allocator))) : nil})
+		if def := LevelMode_LayerDef(s, doc); def >= 0 {
+			main := LDtkDoc_Main(doc)
+			append(&crumbs, Crumb{label = Json_String(main, Json_Get(main, def, "identifier"))})
+		}
+	}
+	// What the header's buttons and notes leave of the canvas' width
+	crumbsWidth := lastRect(ctx, skald.hash_id(LEVEL_CANVAS_KEY)).w - tk.panelButtonWidth * 4 - tk.fieldS
 	actions := make([dynamic]skald.View, context.temp_allocator)
 	if s.level.view.zoom > 0 do append(&actions, uiText(th, .Muted, fmt.tprintf("%.0f%%", s.level.view.zoom * 100)))
 	if s.level.focus != "" {
@@ -1048,7 +1060,7 @@ levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	items := make([dynamic]skald.View, context.temp_allocator)
-	append(&items, uiText(th, .Value, place))
+	append(&items, breadcrumbsRow(ctx, crumbs[:], "level-crumb", crumbsWidth))
 	if LDtkDoc_IsUnsaved(s.project.rootPath, file) do append(&items, uiText(th, .Muted, "(unsaved: Ctrl+S saves)", color = th.color.warning))
 	if summary := LevelSelect_Summary(s); summary != "" do append(&items, uiText(th, .Muted, summary, max_width = tk.textMeasure))
 	append(&items, skald.flex(1, skald.spacer(0)))

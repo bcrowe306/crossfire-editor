@@ -278,7 +278,12 @@ editor_palette_run :: proc(ed: ^Editor, row: int) {
 	if row < 0 || row >= len(matches) {
 		return
 	}
-	e := entries[matches[row].entry]
+	editor_palette_run_entry(ed, entries[matches[row].entry])
+}
+
+// editor_palette_run_entry runs one palette entry (one of `editor_palette_entries`'s), as the
+// palette does when it's chosen: a host that lists the entries in its own palette runs them with it.
+editor_palette_run_entry :: proc(ed: ^Editor, e: Palette_Entry) {
 	switch e.kind {
 	case .Command:
 		// Remember it for the empty-query ordering.

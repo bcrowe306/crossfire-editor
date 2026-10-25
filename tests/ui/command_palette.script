@@ -1,0 +1,140 @@
+# The command palette, also Search Everywhere (command_palette.odin, view_command_palette.odin), and
+# the breadcrumbs above the viewport (breadcrumbs.odin). Runs on a scratch copy of the demo project.
+# Run with: task test:ui
+
+wait 5
+expect scene MenuScene
+expect crumbs MenuScene
+
+# Ctrl+Shift+P opens it on everything, the search focused; Escape closes it
+key ctrl+shift+p
+expect palette open
+expect typing true
+expect palette_query
+expect palette_matches 200
+expect palette_highlight 0
+key DOWN
+key DOWN
+expect palette_highlight 2
+key UP
+expect palette_highlight 1
+key escape
+expect palette closed
+
+# Ctrl+P is the same palette (Search Everywhere); the category buttons type a prefix
+key ctrl+p
+expect palette open
+click_widget palette-category-Node
+expect palette_query @
+click_widget palette-category-Doc
+expect palette_query ?
+click_widget palette-category-All
+expect palette_query
+key escape
+expect palette closed
+
+# Assets (#): a scene opens
+key ctrl+shift+p
+type #playscene
+expect palette_row 0 Asset PlayScene
+key RETURN
+expect palette closed
+expect scene PlayScene
+
+# Nodes (@): selected, its parents opened; the breadcrumbs show its path
+key ctrl+shift+p
+type @pingpong
+expect palette_row 0 Node BalloonPingPong
+key RETURN
+expect palette closed
+expect selected BalloonPingPong
+expect crumbs PlayScene > World > Props > BalloonPingPong
+
+# A crumb selects that ancestor; the scene's clears the selection
+click_widget crumb-2
+expect selected Props
+expect crumbs PlayScene > World > Props
+click_widget crumb-0
+expect selected none
+expect crumbs PlayScene
+
+# Actions (>): run with their keys; a fuzzy query finds them
+key ctrl+shift+p
+type >tglbottom
+expect palette_row 0 Action Toggle bottom panel
+key escape
+key ctrl+shift+p
+type >about
+expect palette_row 0 Action About
+key RETURN
+expect palette closed
+expect about_dialog open
+key escape
+
+# Settings (,): Settings opens on the row's tab with the row lit
+key ctrl+shift+p
+type ,row height
+expect palette_row 0 Setting Row height
+key RETURN
+expect settings_dialog open
+expect settings_tab Appearance
+expect settings_highlight Row height
+key escape
+expect settings_dialog closed
+key ctrl+shift+p
+type ,hot reload
+key RETURN
+expect settings_tab Editor
+expect settings_highlight Hot reload
+wait 3
+expect widget_visible settings-highlight true
+key escape
+
+# Docs (?): the docs window opens at the page
+key ctrl+shift+p
+type ?scene changes
+expect palette_row 0 Doc Scene changes
+key RETURN
+expect docs open
+expect docs_address_has scene-changes
+click_widget docs-close
+
+# A click runs a row; with nothing matching Enter just closes
+key ctrl+shift+p
+type #menuscene
+click_widget palette-row-0
+expect palette closed
+expect scene MenuScene
+key ctrl+shift+p
+type zzzzqqq
+expect palette_matches 0
+key RETURN
+expect palette closed
+
+# In a code tab it lists the code editor's commands too (one palette: Ctrl+Shift+P and Ctrl+P
+# don't open the code editor's own), and runs them in the tab
+click_row browser-tree 2
+click_row scene-tree 2
+scroll_into_view inspector-scroll inspector-new-script
+click_widget inspector-new-script
+type Palette
+click_widget new-script-create
+wait_until code_focused true timeout=5
+write_project_file scripts/palette.odin package scripts\n\nalpha :: proc() {\n}\n
+wait_until code_contains true alpha :: proc timeout=5
+key ctrl+HOME
+expect code_caret 1 1
+key ctrl+shift+p
+expect palette open
+type >go to end of file
+expect palette_row 0 Code Go to End of File
+key RETURN
+expect palette closed
+wait_until code_focused true timeout=5
+expect code_caret 5 1
+key ctrl+p
+expect palette open
+type >build
+expect palette_has Action Build scripts
+key escape
+expect palette closed

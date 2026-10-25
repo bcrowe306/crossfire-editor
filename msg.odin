@@ -101,6 +101,9 @@ Action :: enum {
 	// Editor modes (editor_modes.odin): show the Scene mode, the Level mode
 	Mode_Scene,
 	Mode_Level,
+	// The command palette, also Search Everywhere (command_palette.odin): every action, setting,
+	// node, asset and manual page; in a code tab the code editor's commands too
+	Command_Palette,
 
 	// The Level mode's painting (level_paint.odin), LDtk's keys: flip the tile brush, random tiles,
 	// the grid (lines and snapping), the other layers faded, tile stacking, auto-layer tiles shown,
@@ -1156,6 +1159,12 @@ Msg :: union {
 	Docs_Closed,
 	Docs_Search_Changed,
 	Docs_Open_On_Web,
+	Palette_Query_Changed,
+	Palette_Highlight_Moved,
+	Palette_Confirmed,
+	Palette_Chosen,
+	Palette_Category_Picked,
+	Palette_Closed,
 	About_Link_Opened,
 	Viewport_Content_Measured,
 	Asset_Drag_Pressed,

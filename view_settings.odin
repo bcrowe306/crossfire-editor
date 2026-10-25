@@ -31,6 +31,9 @@ settingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	dialog := &s.settingsDialog
 	if dialog.open && dialog.capture.active do captureKey(ctx)
+	// The row the command palette asked for: lit (settingRow), and scrolled into view once laid out
+	settingsHighlight = dialog.highlight
+	if settingsRevealWanted do settingsReveal(ctx, dialog.tab)
 
 	content: skald.View
 	if dialog.open {
@@ -421,11 +424,58 @@ keyboardTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	)
 }
 
-// "Label     [control]"
+// The row the command palette opened Settings at (`SettingsDialog.highlight`), set by the view
+@(private="file")
+settingsHighlight: string
+
+// Set by the palette when it opens Settings at a row: the view scrolls the tab to it once
+settingsRevealWanted: bool
+
+// The highlighted row's label's widget key (the reveal finds its rect)
+SETTINGS_HIGHLIGHT_KEY :: "settings-highlight"
+
+// Scrolls the tab so the highlighted row shows, once both were laid out (last frame's rects)
+@(private="file")
+settingsReveal :: proc(ctx: ^skald.Ctx(Msg), tab: SettingsTab) {
+	tk := uiTokens(ctx)
+	key: string
+	#partial switch tab {
+	case .Appearance: key = "settings-appearance-scroll"
+	case .Editor:     key = "settings-editor-scroll"
+	case .Toolchain:  key = "settings-toolchain-scroll"
+	case:
+		settingsRevealWanted = false
+		return
+	}
+	scroll, scrolled := &ctx.widgets.states[skald.hash_id(key)]
+	row, found := ctx.widgets.states[skald.hash_id(SETTINGS_HIGHLIGHT_KEY)]
+	if !scrolled || !found || scroll.last_rect.h <= 0 || row.last_rect.h <= 0 {
+		skald.send(ctx, Msg(Frame_Requested{}))
+		return
+	}
+	settingsRevealWanted = false
+	view, at := scroll.last_rect, row.last_rect
+	if at.y + at.h + tk.m > view.y + view.h {
+		scroll.scroll_y += at.y + at.h + tk.m - (view.y + view.h)
+	} else if at.y - tk.m < view.y {
+		scroll.scroll_y = max(scroll.scroll_y - (view.y - at.y + tk.m), 0)
+	} else {
+		return
+	}
+	skald.send(ctx, Msg(Frame_Requested{}))
+}
+
+// "Label     [control]"; the command palette's row has its label lit
 @(private="file")
 settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
 	tk := uiTokens(ctx)
 	th := ctx.theme
+	if label != "" && label == settingsHighlight {
+		tip := fieldTip(label)
+		lit := skald.tooltip(ctx, uiText(th, .Section, label, color = th.color.primary), tip == "" ? "Found with the command palette" : tip,
+			id = skald.hash_id(SETTINGS_HIGHLIGHT_KEY))
+		return skald.row(skald.col(lit, width = tk.labelWidthWide), control, spacing = th.spacing.sm, cross_align = .Center)
+	}
 	return skald.row(
 		skald.col(tipLabel(ctx, label, uiText(th, .Label, label)), width = tk.labelWidthWide),
 		control,

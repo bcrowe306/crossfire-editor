@@ -179,6 +179,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	if command, handled := CodeProviders_Update(out, m); handled do return command
 	if command, handled := CodeColors_Update(out, m); handled do return command
 	if command, handled := Docs_Update(out, m); handled do return command
+	if command, handled := Palette_Update(out, m); handled do return command
 	if command, handled := CodeActions_Update(out, m); handled do return command
 	if CodeLive_Update(out, m) do return {}
 	if LogPoints_Update(out, m) do return {}
@@ -236,6 +237,8 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		// Handled by ScriptIndex_Update above
 	case Docs_Opened, Docs_Link_Clicked, Docs_Hit_Chosen, Docs_Back, Docs_Forward, Docs_Closed, Docs_Search_Changed, Docs_Open_On_Web:
 		// Handled by Docs_Update above
+	case Palette_Query_Changed, Palette_Highlight_Moved, Palette_Confirmed, Palette_Chosen, Palette_Category_Picked, Palette_Closed:
+		// Handled by Palette_Update above
 	case Code_Usage_Opened, Code_Rename_Requested, NameTable_Loaded, EngineDocs_Loaded, Code_Hover_Audio, Code_Help_Requested:
 		// Handled by CodeProviders_Update above
 	case Code_Color_Requested, Code_Color_Changed, Code_Color_Hex_Changed, Code_Color_Alpha_Changed, Code_Color_Applied, Code_Color_Cancelled:
@@ -1512,6 +1515,8 @@ handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 		if out.slicer.shown > 0 do Slicer_Close(out, out.slicer.shown - 1)
 	case .Mode_Scene, .Mode_Level:
 		// Modes_Update switches (editor_modes.odin)
+	case .Command_Palette:
+		Palette_Open(out)
 	case .Level_Flip_X, .Level_Flip_Y, .Level_Random_Mode, .Level_Toggle_Grid, .Level_Single_Layer, .Level_Tile_Stacking,
 	     .Level_Auto_Layers, .Level_Delete, .Level_Duplicate, .Level_Cancel, .Level_World_Mode,
 	     .Level_Depth_Further, .Level_Depth_Closer, .Level_Move_Further, .Level_Move_Closer, .Level_Select_All, .Level_Empty_Space, .Level_Save_Tile_Selection,
@@ -1694,7 +1699,6 @@ importAsset :: proc(state: ^State, path: string) {
 }
 
 // Selects an asset in the browser; a sound gets loaded for the preview panel
-@(private="file")
 selectAsset :: proc(state: ^State, index: int) {
 	asset := state.project.assets[index]
 	state.browserSelection = {kind = .Asset, folder = AssetFolder(asset.kind), index = index}

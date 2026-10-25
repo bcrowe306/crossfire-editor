@@ -255,40 +255,45 @@ key ctrl+MINUS
 expect code_state font_size 13
 key ctrl+0
 expect code_state font_size 14
+# Ctrl+P and Ctrl+Shift+P open the editor's command palette (command_palette.odin), which lists
+# the code editor's commands and windows: the code editor's own palette doesn't open
 key ctrl+p
-expect code_state palette.open true
-key ESCAPE
+expect palette open
 expect code_state palette.open false
+key ESCAPE
+expect palette closed
 key ctrl+shift+p
-expect code_state palette.open true
+expect palette open
+expect code_state palette.open false
 key ESCAPE
 # F1 is the editor's Help in a code tab (the docs window at the API entry of an engine name at
 # the caret, else the manual's code editor page: code_previews.script, docs.script), not the
 # palette
 key F1
 wait_until docs open timeout=5
-expect code_state palette.open false
+expect palette closed
 key ESCAPE
 wait_until docs closed timeout=5
 click_widget code-editor
 wait_until code_focused true timeout=5
 key ctrl+shift+p
-expect code_state palette.open true
-type keymap editor
+expect palette open
+type >keymap editor
+expect palette_row 0 Code Keymap Editor
 key RETURN
-expect code_state window keymap
+wait_until code_state window keymap timeout=5
 key ESCAPE
 expect code_state window text
 key ctrl+p
-type theme editor
+type >theme editor
 key RETURN
-expect code_state window theme
+wait_until code_state window theme timeout=5
 key ESCAPE
 expect code_state window text
 key ctrl+p
-type utilities
+type >utilities
 key RETURN
-expect code_state window utilities
+wait_until code_state window utilities timeout=5
 key ESCAPE
 expect code_state window text
 
