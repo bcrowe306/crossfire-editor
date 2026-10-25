@@ -26,15 +26,16 @@ LDtk feature and where it is.
 
 ## Levels
 
-**A new level:** **New Level** at the top of the Levels sidebar (or the World tab's **New Level
-(pick a spot)**), then click the canvas where it goes: the pointer shows the level (the world's
+**A new level:** **+** (New Level) in the Levels sidebar's header (or **+ Level** on the World
+tab's toolbar row, **+** on the Level tab's), then click the canvas where it goes: the pointer shows the level (the world's
 **New level width / height**, the World tab), blue where it fits, red where it would overlap
 another; in a linear world, a line shows where in the order it goes. **Esc** or a right click
 cancels. A right click on empty space in the world has **New Level Here**. The new level is
 named by the project's **level name pattern** (the Project tab; `Level_0`, `Level_1`...), at the
 depth shown, selected.
 
-**Its settings** are in the **Level** tab:
+**Its settings** are in the **Level** tab (its list is the world's levels; its toolbar row: **+**,
+**Duplicate**, **Delete**, **Up** and **Down** in the world's order, **Focus**):
 
 | Setting | What it does |
 |---|---|
@@ -45,7 +46,7 @@ depth shown, selected.
 | **Width / Height**, **Resize** | Type the new size, then **Resize**: the right and bottom edges move; what's past them is removed (entities too, unless their type may leave the level) |
 | **Background color** | Its own color, or **Default** (the project's) |
 | **Image**, **Position**, **Pivot** | A picture under its layers (one of the project's images), scaled not at all, to fit, to cover (or stretched), or repeated, the pivot saying which part shows |
-| **Duplicate**, **Delete** | A copy beside it (selected), or the level removed (references to its entities go; not the last level of a world) |
+| **Duplicate**, **Delete** (the toolbar row) | A copy beside it (selected), or the level removed (references to its entities go; not the last level of a world) |
 
 Its **fields** are below them, then the level fields' definitions
 ([Level definitions](level_definitions.md#fields)).
@@ -66,11 +67,14 @@ The Levels sidebar's menu has the same: **Rename** (the Level tab's name, ready 
 
 ## Worlds
 
-The **World** tab:
+The **World** tab: its list is the worlds (pick one to show it), its toolbar row:
 
-- **Add a World**: a project with one world gets LDtk's **Multi-worlds** turned on (its levels
-  become its first world's), then a new world (`World2`...). **Delete This World** removes the
-  shown world and its levels (not the last world).
+- **+ World**: a project with one world gets LDtk's **Multi-worlds** turned on (its levels
+  become its first world's), then a new world (`World2`...). **Delete** removes the shown world
+  and its levels (not the last world). **+ Level** makes a level in it (above).
+
+Its settings:
+
 - **Name** (with several worlds), **IID**.
 - **Layout**: **Free** (anywhere), **GridVania** (on a world grid: **Grid width / height**),
   **Horizontal** or **Vertical** (one after the other, in their order). Changing it moves the
@@ -78,7 +82,7 @@ The **World** tab:
 - **New level width / height**: new levels' size (on the grid in GridVania).
 - **Depth shown**, and each level's order (the arrows) and place.
 
-With several worlds, the Levels sidebar's and the World tab's choice picks the one shown; a
+With several worlds, the Levels sidebar's choice and the World tab's list pick the one shown; a
 level's menu **Move to** moves it to another world.
 
 ## Selecting, moving and copying
@@ -129,7 +133,8 @@ that tile. Saving a single tile forgets the saved selections it's in.
 
 ## The Project tab
 
-The LDtk file's own settings, as LDtk's project panel has them:
+The LDtk file's own settings, as LDtk's project panel has them (the tab has no list: its toolbar
+row has **Save**):
 
 | Section | Settings |
 |---|---|

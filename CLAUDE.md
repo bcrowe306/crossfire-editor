@@ -75,7 +75,7 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
 - **Editor modes** (`editor_modes.odin`, `level_mode.odin`): the mode bar beside the menus
   switches the workspace between the **Scene** mode (everything above) and the **Level** mode,
   the LDtk level editor laid out as LDtk (all five phases, 2026-10-24/25: the user's design; parity with LDtk checked feature by feature in the manual's level_parity.md): a
-  tool row (LDtk's tools per layer type; the play controls), the Levels sidebar (worlds, levels:
+  the editor's toolbar (LDtk's tools per layer type in the viewport tools' place), the Levels sidebar (worlds, levels:
   select, focus), the canvas (the world, or a focused level; levels and entities picked and
   moved, links drawn; **painting** as LDtk: IntGrid values with the auto-layers worked out by
   LDtk's rules ported (byte-identical to LDtk's samples), tiles (stamps, random, flips, stacking),
@@ -96,7 +96,9 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   draw them; saved tile selections; every project panel option, LDtk's extra save outputs:
   backups, PNG images, the simple export); edits in memory, saved into the `.ldtk` file with the project (Ctrl+S, Play, exports),
   undoable, LDtk's own saves merged; the scenes showing each level, a scene made for a level, Open
-  in LDtk at a level); see "Editor modes" and "Editing LDtk projects" below.
+  in LDtk at a level); built from the editor's own widgets and sizes (the toolbar, panel headers,
+  the scene tree's rows, the inspector's rows; the user's correction of 2026-10-25), its list tabs
+  in one shared layout (view_list_tab.odin); see "Editor modes" and "Editing LDtk projects" below.
 - **The website** [crossfireengine.io](https://crossfireengine.io) (`../crossfire_astro`,
   bcrowe306/crossfire-astro) publishes this repository's `docs/manual/` and the engine's doc
   comments (see "Documentation").
@@ -209,7 +211,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `editor.odin` | `State`, `Layout`, panel size rules (`FittedSidebarWidths`, `FittedBottomHeight`), `init`, args, `main` |
 | `msg.odin` | `Msg` union and `Action` (menu, toolbar and shortcut commands) |
 | `editor_modes.odin` | **Editor modes**: `EditorMode` (Scene, Level), `EDITOR_MODES` (each mode's registration: name, icon, its `view`, its bottom tabs, its manual page, the `Action` switching to it), `Mode_Layout` / `Mode_LayoutOf` (each mode's panel sizes), `Mode_BottomTab`, `Mode_ShowBottomTab` / `Mode_ShowLogTab`, `Mode_Set`, `.editor/modes.ini` (`Mode_Save` / `Mode_Load`), the mode bar (`modeBarView`), `modeWorkspaceView`, `Modes_Update` |
-| `level_mode.odin` | **The Level mode** (LDtk's layout: the doc block has the picture): `LevelMode` (`State.level`: its layout, bottom tab, file and world, selected level, entity and layer, the focused level, the tool, the canvas's `LevelView` and `LevelDrag`, the tabs' items, the last edit's problem, the conflict dialog), `LevelMode_Sidebars` / `LevelMode_Sizes` (the design's sizes, compact, one sidebar), `levelModeView` (the Levels sidebar, the canvas over the bottom panel, the Layers sidebar), `levelMapView` (the canvas's header, the disk bar), `LevelMode_File`, `LevelMode_World` / `_WorldLevels`, `LevelMode_ScenesShowing`, the `Level_*` / `LDtk_*` messages (`LevelMode_Update`: rows, focus, worlds, layers, tools, canvas presses, drags and releases, edits and renames the scenes follow, the disk bar's answer), `LevelDrag_Target` (where a drag lands: GridVania's grid, an entity's layer grid), `LevelMode_Status`, `ldtkConflictDialogView` |
+| `level_mode.odin` | **The Level mode** (LDtk's layout: the doc block has the picture): `LevelMode` (`State.level`: its layout, bottom tab, file and world, selected level, entity and layer, the focused level, the tool, the canvas's `LevelView` and `LevelDrag`, the tabs' items, the last edit's problem, the conflict dialog), `LEVEL_LAYOUT_DEFAULT` (the Scene mode's sidebar widths), `levelModeView` (the Levels sidebar, the canvas over the bottom panel, the Layers sidebar: the Scene mode's splits and `FittedSidebarWidths`), the bottom lists' widths (`listWidths`, `List_Tab_Resized`), `levelMapView` (the canvas's header, the disk bar), `LevelMode_File`, `LevelMode_World` / `_WorldLevels`, `LevelMode_ScenesShowing`, the `Level_*` / `LDtk_*` messages (`LevelMode_Update`: rows, focus, worlds, layers, tools, canvas presses, drags and releases, edits and renames the scenes follow, the disk bar's answer), `LevelDrag_Target` (where a drag lands: GridVania's grid, an entity's layer grid), `LevelMode_Status`, `ldtkConflictDialogView` |
 | `level_canvas.odin` | **The world canvas**: `levelCanvasView` / `LevelCanvas_Build` (input from its last rect: the painting tools first on the focused level; the levels' pictures with each layer's opacity, entities, links, the painting overlay; a focused level's neighbours dimmed), `LevelCanvas_Content` (the shown world's levels, entities (shapes, tiles, a stroke's previews: resized, erased, a copy's ghost) and links in world pixels, a drag's target applied), `LevelCanvas_Fit` / `_FitOnce` (the world or the focused level), `LevelCanvas_WorldToWindow` (the driver's) |
 | `level_paint.odin` | **Painting in the Level mode** (phase 2; its doc block has LDtk's buttons and keys): `LevelPaint` (`LevelMode.paint`: the picked value per layer, tiles per tileset, entity type, flips, random, LDtk's toggles, the `LevelStroke`, a `LevelPick` waiting, the chain), the focused level's model (`LevelPaint_Model`, kept across strokes, rebuilt per document version), `LevelPaint_PlanPress` (what a press does: a grid stroke, erase, resize, point, place, Alt pick / copy, a pick, refused with why), `LevelPaint_Press` / `_Moved` / `_Released` / `_Commit` (one `LDtkDoc_Commit` a stroke), entity boxes and handles (`LevelEntityBox`, `LevelPaint_HandleAt`, LDtk's isOver and ResizeTool), `LevelPaint_Update` (the palette's picks, the keys' actions, Delete, Ctrl+D), `LevelPaint_Classify` (the history's labels), `LevelPaint_Cursor` |
 | `level_canvas_paint.odin` | **The painting overlay**: `LevelOverlay` (grid lines, the brush's cells, rectangle or stamp image, the selected entity's handles, its points' path, the hint: why a press did nothing), `LevelOverlay_Build` / `_DrawGrid` / `_Draw` / `_DrawHint`, `LevelEntity_Draw` (an entity as LDtk draws it: its shape, color, alphas, tile) |
@@ -220,13 +222,13 @@ Skald is not immediate-mode and not a retained widget tree:
 | `ldtk_paint.odin` | **LDtk's painting tools on a model**: `LDtkPaintMode`, `LDtkTileBrush` (stamp, random, flips, stacking), `LDtkPaintStroke`, lines (Bresenham), `ldtkFloodFill` (LDtk's order), IntGrid cell / line / rectangle / fill, tiles at a cell, stamps, rectangles, fills, removal |
 | `ldtk_entity_ops.odin` | **Entity edits LDtk makes** (`LDtkOps_EntityEdit`): added (LDtk's JSON key order, `maxCount` / `limitScope` / `limitBehavior`), removed (references to it dropped), resized, duplicated, a point moved, array and symmetrical references; new iids (`LDtk_NewIid`), the table of contents rebuilt |
 | `ldtk_json_pretty.odin` | **LDtk's JSON writer, ported** (its JsonPretty): `LDtkJV` values, `LDtk_PrettyJson` (Compact / Minified: lines up to 85 columns, number grids 35 a row, rules on one line), `LDtk_JsNumber` (JavaScript's `String(n)`) |
-| `view_level_tools.odin` | **The Level mode's tool row** (`LevelTools_View`, instead of the toolbar): `LevelTool`, `LEVEL_TOOLS` (icons, names, what each does: all work since phase 2), `LevelTools_For` (LDtk's tools per layer type), `LevelMode_LayerDef` / `_LayerType` (the selected layer), `LevelTool_Available` / `_Look` / `_Tip`, the play controls, the overflow menu (`Ctx_Level_Tools`) |
-| `view_level_sidebars.odin` | **The Level mode's sidebars**: Levels (the file and world choices, a row per level: select, double-click focus, its menu `Ctx_Level` / `LevelMode_MenuItems`), Layers (the selected level's layers: select, the eye, a grip's drag to reorder: file state `layerRowDrag`; the palette under them), one sidebar of both in a narrow window (`levelSidebarsStackedView`), `sidebarRow` (a zone row with its own presses) |
-| `view_ldtk_tab.odin` | **The Level mode's LDtk tabs** (`LevelMode_LDtkTab(s, ctx, tab)`: World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules, Project), each tab's rows (the world and its choice, the level with its scenes, fields and neighbours, a layer with its IntGrid values and the scenes' collision kinds, entity types with their fields, instances and references, enums, tilesets, the rules (view_ldtk_rules.odin), the file's settings), text fields keeping what's typed in `State.numberEdit`, number fields (`LDtkNumberTarget`) |
+| `view_level_tools.odin` | **The Level mode's tools** (on the editor's toolbar: view.odin's `toolbarView` puts them in the viewport tools' place): `LevelTool`, `LEVEL_TOOLS` (icons, names, what each does: all work since phase 2), `LevelTools_For` (LDtk's tools per layer type), `LevelMode_LayerDef` / `_LayerType` (the selected layer), `LevelTool_Available` / `_Look` / `_Tip`, the toolbar's overflow menu's items (`LevelTools_MenuItems`, `Ctx_Toolbar_More{level}`) |
+| `view_level_sidebars.odin` | **The Level mode's sidebars**, the Scene mode's panels (`panelHeader`, `rowList` rows): Levels (+ New Level in its header, the file and world choices, a row per level: select, double-click focus, its menu `Ctx_Level` / `LevelMode_MenuItems`), Layers (the selected level's layers: select, the eye, a row dragged to reorder as the scene tree's: file state `layerRowDrag`, an overlay line; the palette under them), `LevelLayer_Icon` |
+| `view_ldtk_tab.odin` | **The Level mode's LDtk tabs** (`LevelMode_LDtkTab(s, ctx, tab)`: World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules, Project, in view_list_tab.odin's layout: `tabListItem`, `tabTool`, `tabItemChoice` fill its list and toolbar row; `tabRow` is the inspector's row), each tab's rows (the world and its choice, the level with its scenes, fields and neighbours, a layer with its IntGrid values and the scenes' collision kinds, entity types with their fields, instances and references, enums, tilesets, the rules (view_ldtk_rules.odin), the file's settings), text fields keeping what's typed in `State.numberEdit`, number fields (`LDtkNumberTarget`) |
 | `ldtk_rule_ops.odin` | **The Auto-layer Rules tab's edits** (`LDtkOps_RuleEdit`, the `Rule_*` ops): a layer's groups read as LDtk's fromJson reads them (`LDtkRules_ReadGroups`, `LDtkGroupEdit`), changed, written as its toJson writes them (`ldtkGroupJV`, `ldtkRuleJV`) after its rule tidy (`LDtkRule_Tidy`: trim, mirrors, checkers, out-of-bounds), then LDtk's tidy and the rules applied again (`rerunRules`); `LDTK_RULE_MEMBERS` (the options and LDtk's bounds), groups, rules, patterns, tiles, LDtk's clipboard (`LDtkRules_CopyText`, `Rule_Pasted`), duplicate and remap, the level's optional groups, seed and tileset; `LDtkRules_At` (the rules of a cell), `LDtkRules_BiomeValues` |
 | `ldtk_rule_assistant.odin` | **LDtk's Rule Assistant, ported** (RulesWizard): `LDtkWallFragment` (its parts in LDtk's order, their grid places, patterns and mirrors), `LDtkAssistant` (the choices; `_Encode` / `_Decode` for the edit, `_Import` reads a group back), `ruleAssistant` (the group made or made again) |
 | `level_rules.odin` | **The rules tab's state** (`LevelRules`, `State.level.rules`: the page (list, rule editor, Assistant, remap, icon, color), the groups opened, the edited and last rules, the editor's value (`LevelRules_SmartValue`: RuleEditor's pick), the Assistant's and remap's choices, LDtk's clipboard), `Rules_View` / `LevelRules_Update` (none of it undone), `LevelRules_BeforeEdit` / `_AfterEdit` (a cut copies; a new rule opens its editor, a new group its name), what the pointer is over (`LevelRules_SetHovered`, `_SetCanvasCell`, `_AtPointer`) |
-| `view_ldtk_rules.odin` | **The Auto-layer Rules tab** (`LDtkRules_Tab`): the list (header: + Group's menu, Paste, Randomize, Render, the level's tileset; groups' headers with grip, toggle or eye, icon, name, biomes, + / EDIT, menu; rules' rows with grip, toggle, pattern preview, chance, opacity, flags, insert), grips' drags (file state `rulesDrag`), the rule editor (tiles and stamps on a tile picker `rTilePicker`, pivot, the value palette, the 9 x 9 pattern grid with LDtk's buttons `rPatternGrid`, out-of-bounds, every option, the modulo preview), the Assistant's page (its parts' grid), Duplicate and Remap, icon and color pages, the menus (`Ctx_Rules_New`, `Ctx_Rule_Group`, `Ctx_Rule`: `LevelRules_MenuItems`) |
+| `view_ldtk_rules.odin` | **The Auto-layer Rules tab** (`LDtkRules_Tab`): its sidebar list (the layers with rules), its toolbar row (+ Group's menu, Paste, Randomize, Render), the list (the level's tileset; groups' headers with grip, toggle or eye, icon, name, biomes, + / EDIT, menu; rules' rows with grip, toggle, pattern preview, chance, opacity, flags, insert), grips' drags (file state `rulesDrag`), the rule editor (tiles and stamps on a tile picker `rTilePicker`, pivot, the value palette, the 9 x 9 pattern grid with LDtk's buttons `rPatternGrid`, out-of-bounds, every option, the modulo preview), the Assistant's page (its parts' grid), Duplicate and Remap, icon and color pages, the menus (`Ctx_Rules_New`, `Ctx_Rule_Group`, `Ctx_Rule`: `LevelRules_MenuItems`) |
 | `ldtk_json.odin` | **JSON that keeps its text**: `Json_Parse` (a flat tree of nodes with their spans), lookups (`Json_Get`, `Json_At`, `Json_Items`, `Json_String`, `Json_Path`), patches (`Json_SetPatch`, `Json_AppendPatch`, `Json_InsertPatch`, `Json_AddMemberPatch`, `Json_RemovePatch`, `Json_Apply`), values written like their neighbours (`Json_Quote`, `Json_FormatNumber`, `Json_Object`, `Json_Array`, minified files kept minified) |
 | `ldtk_doc.odin` | **An LDtk project's files as the Level mode edits them, in memory**: `LDtkDoc` (the .ldtk file and its levels' .ldtkl files: each one's text, what's on disk and whether it's unsaved; worlds, levels), the cache (`LDtkDoc_Get`: read again when a file changes, LDtk's change merged into unsaved edits or waiting: `LDtkDoc_DiskConflict` / `_ResolveDisk`; `LDtkDoc_Outside`), lookups (levels' rects as LDtk lays them out, definitions by uid, layer instances, entities by iid), `LDtkPatches`, `LDtkDoc_Commit` / `_SetTexts` (in memory), saving (`LDtkDoc_Save`, `LDtkDocs_SaveProject`, `LDtk_WriteFile`: atomic, the modification time always moved on), what the engine reads of it (`LDtkDoc_Stamp`, `LDtkDoc_GameText`, `LDtkDoc_ProvideToGame`) |
 | `ldtk_ops.odin` | **The LDtk edits**: `LDtk_Edit` (`LDtkEditOp`: layers, entity types, fields, instances, references, levels' places and fields, IntGrid values, enums, the world), `LDtkOps_Apply` (each op's patches and the mirrors LDtk keeps: `__identifier`s, `__type`s, enum values everywhere, `__grid`, `__opacity`, layer instance order, neighbours, world positions, the table of contents), LDtk's rules ported (`LDtk_CleanIdentifier`, `LDtkDoc_Neighbours`, layout changes, `LDtk_SnapToGrid`, field values and defaults), `LDtkOps_GridSizeLocked`, `LDtkOps_FieldLocked`, `LDtkOps_RefAllowed` |
@@ -243,6 +245,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `level_select.odin` | **The selection on the canvas** (`LevelMode.selection`): rectangles (Shift + Alt, the Select tool), moved and copied by drags, Ctrl+A, Delete, empty spaces (Shift+E), `LevelSelectOverlay`, `LevelSelect_Summary` (the header) |
 | `level_fields_render.odin` | **Field values on the canvas** (FieldInstanceRender): `LevelFields_Make` (rows above / at the center / beneath, radii, points, reference links by display mode), `LevelFields_DrawRows`, `LevelFields_DrawMark`, `LevelFields_DrawLink` (LDtk's link styles) |
 | `view_ldtk_project.odin` | **The World, Level and Project tabs' rows** (LDtk's world panel, level form and project panel): `LDtkProject_WorldTab`, `LDtkProject_LevelSettings`, `LDtkProject_ProjectTab`, `pivotPicker` |
+| `view_list_tab.odin` | **The bottom tabs' shared layout** for a tab managing a list (the Level mode's World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules; the Project tab without a list): `ListTab_Layout` (the widths first: the sidebar, kept per tab; a dropdown under `LIST_TAB_COMPACT_WIDTH`; the content's rows as `Inspector_Layout` lays them out), `ListTab` / `ListTabItem` (the list, the toolbar row's buttons and text), `listTabView` (the toolbar row, the sidebar's `rowList` beside the content in a split, `List_Tab_Resized`) |
 | `view_ldtk_defs.odin` | **The definitions editors' UI** in the Layers, Entities, Enums, Tilesets and Level tabs (`LDtkDefs_Layers`, `_Entities`, `_Enums`, `_Tilesets`, `_LevelFields`): lists' buttons, members' rows, the field form (`defsFieldForm`), `tilesetPicker` (tile rectangles, tags, a tile), `LevelMode_SelectMade` |
 | `update.odin` | `update`, the only place State changes |
 | `keymap.odin` | `DEFAULT_KEYMAP`, shortcut dispatch, typing guard, the platform's keys (`Chord_OnPlatform` / `Chord_FromPlatform` / `Chord_Format`: the keymap's Ctrl is Cmd on macOS), `keyParen` (an action's keys for text) |
@@ -266,7 +269,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `atlas_edit.odin` | **Texture atlases**: `AtlasDef` (`Project.atlases`, asset kind Atlas, `atlases/`), `Project_CreateAtlas` (the browser's New Atlas), `Atlas_PackFiles` (packs with `e.Atlas_Pack`, writes the PNG and `.atlas.xml` on every edit), `atlasInspector` (`State.atlasSelection`), `atlasPreview`, Sprites' `NodeDef.region` (the Region row) |
 | `node_scripts_edit.odin` | **Several scripts per node and node types of game code**: `NodeDef.moreScripts` / `customKind` / `customProps`, `Node_Script_Added` / `_Removed` / `_Open`, `NodeScriptTarget` / `NodeCustomTarget` (PropTarget), `AddNode_Entries` (Add Node's "Your node types"), `NodeDef_Codes` (what a node runs, in the engine's order), the inspector's rows (`moreScriptsRows`, `nodeTypeRows`) |
 | `tree_rows.odin` | Flattens the project into browser and scene tree rows, applying the browser search. Shared by view and update, because Skald's tree reports clicks by row index |
-| `view.odin` | Root layout: menu bar with the mode bar, toolbar (the Level mode's tool row instead: view_level_tools.odin), the mode's workspace (the Scene mode's: `sceneModeView`), status bar, remove-asset dialog, panel header helpers |
+| `view.odin` | Root layout: menu bar with the mode bar, toolbar (every mode's: the Level mode's tools in the viewport tools' place, `Toolbar_Overflow` by the mode's tool count), the mode's workspace (the Scene mode's: `sceneModeView`), status bar, remove-asset dialog, panel header helpers (`panelHeader`, `panelButton`, `panelToolButton`: a panel button under its own key, with a label or pressed) |
 | `view_browser.odin` | Left sidebar: project browser (search, tree, collapsible preview panel) |
 | `view_browser_info.odin` | The preview for scripts (`scriptInfoPreview`: what each registered script and data type is, where it's used) and scenes (`scenePreview`: facts, actions, the scene's own settings) |
 | `scene_settings.odin` | A scene's own settings (`SceneDef.settings`, the engine's `e.SceneSettings`): their messages and undo |
@@ -334,7 +337,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard, Toolchain tabs |
 | `settings.default.ini` | Default settings, built into the editor |
-| `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); type colors; `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
+| `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); `Tree_RowView` (one row's look: every list's), `rowList` (a list of keyed rows that look and act as the tree's: the Level mode's sidebars and bottom lists); type colors (`AssetKind_Color`); `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings; `NumberField_MinWidth` (never drawn narrower) |
 | `code_editor/` | **The built-in code editor**: an Odin code editor on SDL3 (buffer, keymap, syntax, LSP client, `editor` = package `code_editor`, its own README, tests and Taskfile). Changed here: its `editor` package renamed `code_editor` (Odin package names must be unique: it was `editor`, ours then; ours is `crossfire_editor` now), and SDL_ttf calls taking `[^]u8` for this Odin |
@@ -362,7 +365,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `particles_edit.odin` | **The Particles tab's model**: `ParticlesEditor` (`State.particles`: the emitter shown, its category), `Particles_Follow`, `Particles_Emitter`, `Particles_Target` (what the particle messages edit), `Particles_Categories` / `Particles_FieldGroups` (the engine's `group` tags, then All), `PARTICLE_PRESETS` (`Particles_Preset`), `Particles_Update` (`Particles_Category_Picked`, `Particles_Restart`, `Particles_Preset_Applied`) |
 | `view_particles.odin` | The bottom panel's **Particles** tab (`ParticlesPanel`): the categories' column (names, icons, or a choice: `Particles_TabLayout`), the category's settings (`particleSettingRows`), the header (`particlesHeader`: name and live count, Restart, Emitting, One-shot, Preset, Reset, Manual) |
 | `view_inspector_physics.odin` | The inspector's physics properties: layer grids (`layerGrid`), body, shape and ray fields, the points field; `shapeBody` (a shape's body) |
-| `view_bottom.odin` | Bottom panel: the shown mode's tabs (the Scene mode's Console / Output / Animation / Mixer ... / States / Particles / Dialogue / Plugins, the Level mode's World / Level / Layers / Entities / Enums / Tilesets / Auto-layer Rules / Project / Console / Output, its tab row the design's 40 px), collapsible; the log tabs' view (`logView`: header of filters, a `virtual_list` of lines, `logFollow`) |
+| `view_bottom.odin` | Bottom panel: the shown mode's tabs (the Scene mode's Console / Output / Animation / Mixer ... / States / Particles / Dialogue / Plugins, the Level mode's World / Level / Layers / Entities / Enums / Tilesets / Auto-layer Rules / Project / Console / Output), collapsible; the log tabs' view (`logView`: header of filters, a `virtual_list` of lines, `logFollow`) |
 | `console.odin` | **The Console's and Output tab's lines**: `LogList` (`State.console` / `output`: lines with a level and category, the categories seen, counts, the history limit, filters, following), `LogList_Append` / `Trim` / `Clear` / `Shown`, `LOG_*_CATEGORY`, `LogLevel` (the engine's), `Console_Update` (the `Log_*` messages) |
 | `console_test.odin` | Tests: categories and the limit, filters, the game's lines parsed, the messages and menus, the setting |
 | `error_locations.odin` | **Clickable errors**: `ErrorLocation_Parse` (a line's `path(line:col)` / `path:line:col`, Windows drive letters, paths with spaces), `ErrorLocation_Resolve` (where the file is), `ErrorLocation_Open` (Go to Error: `Script_Open` at the line and column, read-only outside the project), `Path_InProject`; tests in `error_locations_test.odin` |
@@ -402,6 +405,26 @@ Skald is not immediate-mode and not a retained widget tree:
   mode's `Layout` (`Mode_Layout`); `Workspace_Measured` sets every mode's (one area). A mode's
   splits need ids of their own (`level-split-left`...): a split keeps its drag state by id.
   `State.layout` and `State.bottomTab` are the Scene mode's.
+- **Every mode uses the editor's shared widgets and sizes** (the user's correction of 2026-10-25:
+  "The Level editor looks like a different app"): one toolbar (`toolbarView`: a mode's tools in
+  the viewport tools' place, `Toolbar_Overflow` by the mode's tool count), panel headers
+  (`panelHeader`) and buttons (`panelButton`, `panelToolButton` for a kept key), list rows that
+  are the scene tree's (`Tree_RowView`, `rowList`: `settings.rowHeight`, its font, icons, indent,
+  selection colors; a row dragged to reorder, not a grip), the inspector's rows
+  (`inspectorLabelled`, `Inspector_Layout`), the sidebars' default widths (`DEFAULT_LEFT_WIDTH`,
+  `DEFAULT_RIGHT_WIDTH`), minimums and fitting (`FittedSidebarWidths`). A design or mockup gives
+  the arrangement, not its pixel sizes, colors, corners or paddings: no mode-only sizes.
+  Checked by `level_mode_layout_tools_worlds_and_layers` (the sidebars against the Scene mode's)
+  and by measuring both modes' rects (2026-10-25: the toolbar's buttons 31 x 23 px at y 35 and
+  the workspace at y 65 in both, rows 26 px, sidebars 240 / 300, fitted to 190 / 238 at 640 px).
+- **A bottom tab that manages a list uses the shared layout** (view_list_tab.odin, the user's
+  sketch): the tab strip, a toolbar row (the list's add / duplicate / delete / up / down and the
+  tab's actions as panel buttons, then a text), then the list in a sidebar (`rowList` rows; a
+  divider whose width is kept per tab) beside the selected item's settings in the inspector's rows;
+  under `LIST_TAB_COMPACT_WIDTH` (480 px of panel: a tiled window's is about 200) the list is a
+  dropdown over the settings. The widths are worked out before the rows are built
+  (`ListTab_Layout`), since rows size their controls from them. A new list tab fills a `ListTab`
+  and calls `listTabView`; a toolbar row's buttons keep their older keys (`panelToolButton`).
 - **Another mode's widgets keep their last rects in Skald's store** (states live about two
   minutes unbuilt): code that hit-tests a widget's last rect without building it (the viewport's
   `ViewportHovered`, F1's `Docs_TrackPointer`) must check the mode first, or the Level mode's map
@@ -2441,12 +2464,13 @@ pages: getting_started.md's "Editor modes" and `docs/manual/level_mode.md`.
   workspace buttons are the model: no height of its own), each tab an icon and a name, the shown
   one in the accent color, a tooltip with its keys.
 - **Shared:** the menu bar (View > Scene Mode / Level Mode, checked; another mode's items
-  disabled), the play controls (the Level mode's tool row has the toolbar's: same keys), the
-  Console and Output (one list each; the Level mode's strip shows them too), Settings, Project
-  Settings, the docs window, the history. Per mode: the workspace, panel sizes, the bottom tab,
-  the status bar's middle (`LevelMode_Status`). The Scene mode's toolbar (its file and undo
-  buttons, tools, Export) and its project browser are the Scene mode's: the Level mode has its tool
-  row and its Levels sidebar instead.
+  disabled), the toolbar (its file, undo, play and Export buttons; the mode's tools in the
+  viewport tools' place), the Console and Output (one list each; the Level mode's strip shows them
+  too), Settings, Project Settings, the docs window, the history, and the panels' look and default
+  sizes (the layout rules' "Every mode uses the editor's shared widgets and sizes"). Per mode: the
+  workspace, panel sizes, the bottom tab, the status bar's middle (`LevelMode_Status`). The
+  viewport's tools and the project browser are the Scene mode's: the Level mode has its layer tools
+  and its Levels sidebar instead.
 - **Code tabs are the Scene mode's**, beside the scene tabs: `CodeTabs_Open(show = true)` shows the
   Scene mode, so Go to Error, Open Script and the docs' links reach the code from any mode; the
   code view, `CodeEditor_Frame` and the live values only run there.
@@ -2464,25 +2488,29 @@ pages: getting_started.md's "Editor modes" and `docs/manual/level_mode.md`.
 ### The Level mode: LDtk's layout (phase 1 of TODO.md's "LDtk level editor", 2026-10-24)
 
 The user's design (`LDtk_interface.html`, a Penpot export of a 1920x1080 mockup, not committed:
-the user's file) with the editor's theme colors; level_mode.odin's doc block has the picture.
-- **The tool row** (view_level_tools.odin, `LevelTools_View`, built by `view` instead of the
-  toolbar): the selected layer's tools centered in the window (a spacer as wide as the play
-  controls before them), the play controls at its end (the toolbar's keys `toolbar-play`...).
+the user's file) gives the arrangement; the sizes and widgets are the editor's (the user's
+correction of 2026-10-25: phase 1 had copied the mockup's 75 px tool row of 45 px buttons, 60 px
+rows and 300 px sidebars, and the Level mode looked like another app); level_mode.odin's doc block
+has the picture.
+- **The tools** (view_level_tools.odin) are on the editor's toolbar (`toolbarView`), in the
+  viewport tools' place, with its buttons, grouping, file, undo, play and Export buttons.
   LDtk has no tool buttons (left paints, right erases, Shift a rectangle, Shift + click fills, Alt
   picks: its Tool.hx), so the row is those per layer type (`LevelTools_For`: IntGrid Select /
   Pencil / Rectangle / Fill / Eraser / Picker; Tiles with Stamp and Random; Entities Select /
   Place / Eraser / Picker; AutoLayer Select). Since phase 2 every tool works (painting: below).
-  Narrow: the tools go into `level-tool-more` (`Ctx_Level_Tools`).
-- **Sizes** (`LevelMode_Sizes`): the design's at full size (a 75 px row of 45 px buttons with
-  10 px corners, 32 px headers, 60 px rows, a 40 px tab row); under `LEVEL_COMPACT_WIDTH` (1100 px
-  of workspace) the toolbar's sizes, shorter rows, sidebars at most `LEVEL_COMPACT_SIDEBAR`
-  (220); under `LEVEL_ONE_SIDEBAR_WIDTH` (760: a tiled window) one sidebar, the levels over the
-  layers (`LevelMode_Sidebars`, which `view` and `update`'s `Center_Resized` both use). The
-  Level layout starts at `LEVEL_LAYOUT_DEFAULT` (300 / 300 / 374).
-- **The Levels sidebar** (view_level_sidebars.odin): the file choice (`level-file`, several LDtk
-  assets), the world choice (`level-world`, LDtk's Multi-worlds), a row per level of the shown
-  world (`level-row-<i>`: zones with their own press handling, `sidebarRow`: a click
-  `Level_Row_Clicked`, a double-click focuses, a right-click selects it and opens `Ctx_Level{level:
+  Narrow: the tools go into the toolbar's overflow menu (`toolbar-more`, `Ctx_Toolbar_More{level}`:
+  `LevelTools_MenuItems`), by the same rule as the viewport's (`Toolbar_Overflow` takes the mode's
+  tool count).
+- **Sizes:** the Scene mode's. The sidebars start at its widths (`LEVEL_LAYOUT_DEFAULT`:
+  `DEFAULT_LEFT_WIDTH` / `DEFAULT_RIGHT_WIDTH`, a 374 px bottom panel for LDtk's tabs) and fit a
+  window as its sidebars do (`FittedSidebarWidths`, `MIN_SIDEBAR_WIDTH`, `MIN_CENTER_WIDTH`; no
+  one-sidebar layout); the rows are `settings.rowHeight`, the headers `panelHeader`s, the tab
+  strip the bottom panel's own height.
+- **The Levels sidebar** (view_level_sidebars.odin): the panel header (+ is `level-new`: a new
+  level's spot), the file choice (`level-file`, several LDtk assets), the world choice
+  (`level-world`, LDtk's Multi-worlds), a row per level of the shown world (`level-row-<i>`:
+  `rowList`'s rows, the scene tree's: a click `Level_Row_Clicked`, Up / Down the next, a
+  double-click focuses, a right-click selects it and opens `Ctx_Level{level:
   its index}`: the target holds no string, it outlives the frame). Its menu: Focus, Open in the
   Scene Mode, New Scene with This Level, Open in LDtk at This Level, Rename, Duplicate, Delete,
   depths, Move to another world, New Level... (phase 5: "Levels, worlds and the project").
@@ -2499,14 +2527,16 @@ the user's file) with the editor's theme colors; level_mode.odin's doc block has
   definitions); a row selects the layer (`Level_Layer_Picked`: `LevelMode.layerDef`, which the
   tools and the Layers tab follow; -1 the first); the eye (`level-layer-eye-<i>`, a zone: a
   button draws its own background) sends `Layer_Visible` (LDtk's eye is the layer instance's
-  `visible`, saved and undoable: its LevelRender.setLayerVisibility); the grip
-  (`level-layer-grip-<i>`) drags the layer: file state `layerRowDrag` (view-only, like
-  `valueSlider`'s), a line where it goes, the release sends `Layer_Move` with `number` the places
-  moved (ldtk_ops.odin's `ldtkMove`: the definitions' array and every level's instances in that
+  `visible`, saved and undoable: its LevelRender.setLayerVisibility); a row dragged (past
+  `TREE_DRAG_THRESHOLD`, as the scene tree's) moves the layer: file state `layerRowDrag`
+  (view-only, like `valueSlider`'s), an overlay line where it goes, the release sends `Layer_Move`
+  with `number` the places moved (ldtk_ops.odin's `ldtkMove`: the definitions' array and every level's instances in that
   order).
 - **The bottom tabs** are LDtk's panels (`BottomTab` World, Level, Layers, Entities, Enums,
   Tilesets, Auto_Layer_Rules, LDtk_Project: `BottomTab_Label` names them), then Console and
-  Output; view_ldtk_tab.odin builds them (`LevelMode_LDtkTab(s, ctx, tab)`). Today's sections
+  Output; view_ldtk_tab.odin builds them (`LevelMode_LDtkTab(s, ctx, tab)`), every one with a list
+  in the bottom tabs' shared layout (view_list_tab.odin: toolbar row, list sidebar
+  `ldtk-list-<Tab>`, settings; the Project tab without a list). Today's sections
   moved: Layers + Collisions (an IntGrid layer's values and kinds) into Layers; Entities + Links'
   references into Entities; Level fields + the old level panel (size, place, the scenes showing
   it, New Scene with This Level) + Links' neighbours into Level; World (the shown world, its
@@ -2531,8 +2561,10 @@ the user's file) with the editor's theme colors; level_mode.odin's doc block has
   a level doesn't redraw it. Entities are outlined from the JSON (pivot, size, smart color), links
   are EntityRef `__value`s (arrows) and the selected level's neighbours (`LDtkDoc_Neighbours`,
   dashed).
-- **The tabs' rows** (view_ldtk_tab.odin): each tab picks its item (`ldtk-item-<Tab>`,
-  `LDtk_Item_Picked`, by uid: the first when gone). Text fields send `LDtk_Text_Typed` (the typed
+- **The tabs' rows** (view_ldtk_tab.odin): each tab picks its item in its list (`ldtk-list-<Tab>-<i>`,
+  a narrow panel's dropdown `ldtk-item-<Tab>`; `LDtk_Item_Picked` and the others, by uid: the first
+  when gone); its rows are the inspector's (`tabRow` → `inspectorLabelled`, stacked by
+  `Inspector_Layout` at the content's width). Text fields send `LDtk_Text_Typed` (the typed
   text kept in `State.numberEdit` while focused, applied whenever valid: an invalid name never
   reaches the document, `LevelMode.problem` says why above the rows), numbers
   `LDtkNumberTarget`, flags and choices `LDtk_Edit` directly. The Layers tab's kind choices edit
@@ -2540,13 +2572,14 @@ the user's file) with the editor's theme colors; level_mode.odin's doc block has
   another scene).
 - **Looked at** in PNGs at 640x660, 900x500, 1280x720 and 1920x1080 (Skald's offscreen renderer
   made public in the submodule's working tree for a scratch driver command rendering the whole
-  window, then put back), against the design's render.
+  window, then put back), against the design's render; again on 2026-10-25 beside the Scene mode's,
+  with both modes' widget rects compared (see the layout rules).
 - Tests: `editor_modes_test.odin` (switching, bottom tabs and panel sizes per mode, what shows the
   Scene mode, the keys' scope and chords, persistence, a level's scene made and opened, undo and
   redo across modes; `level_mode_layout_tools_worlds_and_layers`: the sidebars at four widths,
   the tools per layer type and only Select working, worlds, focus, the layer selection, a layer
   dragged two places in one step, the world remembered); `tests/ui/modes.script` (the bar, the
-  keys, the actions, the tool row and Levels sidebar instead of the toolbar and browser, a
+  keys, the actions, the toolbar's Level tools and the Levels sidebar instead of the viewport's tools and browser, a
   selection kept across modes, Scene-only keys idle in the Level mode, the world of an imported
   LDtk file, a level selected, New Scene with This Level in the Level tab, undo back into the Level
   mode, a level's menu opening its scene, the mode remembered when the project opens again);
@@ -2638,8 +2671,9 @@ data/Definitions.hx, data/def/, misc/FieldTypeConverter, importer/) as the botto
   source, kill layer or biome changes (LDtk waits for the next rule change); a field's conversion
   converts level fields' values too (LDtk only entities'); IntGrid values move to a place in a
   group (LDtk's drag moving down always went to the group's end).
-- **The UI**: each list's choice and buttons (`ldtk-<list>-add`, `-duplicate`, `-delete`, `-up`,
-  `-down`), members' rows keyed `ldtk-<kind>-<member>`, the field form for entities' and levels'
+- **The UI**: each tab's list in its sidebar (view_list_tab.odin), its buttons on the toolbar row
+  (`ldtk-<list>-add`, `-duplicate`, `-delete`, `-up`, `-down`: `listTools`); a sub-list's (fields)
+  choice and buttons in the rows, members' rows keyed `ldtk-<kind>-<member>`, the field form for entities' and levels'
   fields, `tilesetPicker` (`ldtk-picker-<what>`: a drag picks a rectangle, tags, or one tile; its
   drag state is file state, freed by `LDtkDefs_Destroy`). Picks: `LDtk_Def_Picked` (field, level
   field, tileset, tile data mode, data tile); a definition made or copied is selected
@@ -2866,7 +2900,7 @@ each edit changes and what isn't editable yet.
   As's texts), `ldtk_opens_at_a_level`, `level_canvas_drags_levels_and_entities`;
   `tests/ui/ldtk_tab.script` (LDtk's bottom tabs, the Levels sidebar (select, focus, the world
   view, a level's menu), the Layers sidebar (a layer selected and the tools following it, the eye,
-  a layer dragged by its grip, undone), a layer's opacity and name, a refused name, undo / redo,
+  a layer dragged by its row, undone), a layer's opacity and name, a refused name, undo / redo,
   an entity clicked on the canvas and its field, a level field, a level and an entity dragged, the
   document unsaved and the file unchanged until Save, a touched file merged with unsaved edits, a
   file written over unsaved edits and Keep My Edits, Play saving first, opened again; driver:
@@ -3956,15 +3990,16 @@ Highlights:
   (`ctx.widgets.states`) without touching its state. **Give every widget a test should reach a
   stable `hash_id` key.** Existing keys:
   - the mode bar's tabs `mode-tab-<Name>` (`mode-tab-Level`); the Level mode's (level_mode.odin's
-    doc block): its tool row `level-tool-<Tool>` / `level-tool-more`, the Levels sidebar's
-    `level-row-<i>`, `level-file`, `level-world`, `level-import`, the Layers sidebar's
-    `level-layer-row-<i>` / `-grip-<i>` / `-eye-<i>`, the palette's `level-value-<v>`,
+    doc block): its tools on the toolbar `level-tool-<Tool>` (overflow `toolbar-more`), the Levels
+    sidebar's `level-list`, `level-row-<i>`, `level-new`, `level-file`, `level-world`,
+    `level-import`, the Layers sidebar's `level-layers`, `level-layer-row-<i>` / `-eye-<i>`, the palette's `level-value-<v>`,
     `level-palette-tiles` / `-random` / `-flip-x` / `-flip-y` / `-stacking`,
     `level-entity-type-<uid>`, the canvas `ldtk-map-Level` and its header's
     `panel-level-fit` / `-world-view` / `-focus` / `-open-ldtk`, the disk bar's `ldtk-disk-reload` /
     `-keep`, its bottom strip `level-bottom-tabs` (far tabs: `send Bottom_Tab <Tab>`), the tabs'
     (view_ldtk_tab.odin's doc block: `ldtk-tab-scroll`, `level-new-scene`, `level-open-scene-<i>`,
-    `ldtk-layer-name`...), the conflict dialog's `ldtk-conflict-overwrite` / `-keep` / `-cancel`
+    `ldtk-layer-name`...; the lists `ldtk-list-<Tab>`, rows `ldtk-list-<Tab>-<i>`, a narrow panel's
+    dropdown `ldtk-item-<Tab>`), the conflict dialog's `ldtk-conflict-overwrite` / `-keep` / `-cancel`
     (driver checks `mode`, `level <file | level | tab | levels | shown_in | entity | problem |
     conflict | outside | world | focus | tool | layer | layer_type | unsaved | disk_conflict |
     sidebars | value | tiles | random | flip | grid | single_layer | stacking | auto_layers |
@@ -4088,7 +4123,9 @@ Highlights:
   changed) and plays it.
 - `scroll_into_view <scroll> <widget>` pages a scroll container until the widget is visible: widgets
   far outside a scroll aren't laid out, and keep stale rects. A `wait_until` that passes lets a few
-  frames settle before the next command.
+  frames settle before the next command. `top` puts the widget at the view's top, so what's under
+  it is in view too (a drag's target: ldtk_rules.script's rule dragged onto the next group, in a
+  short window); a widget drawn outside the scroll (a bottom tab's toolbar row) passes as it is.
 - A game window (Play) makes a tiling window manager shrink the editor's window, which moves every
   rect (visible runs; headless games have no window): stop the game before clicking things that
   may move.

@@ -20,11 +20,15 @@ Level mode edit does ([Saving, undo and LDtk](level_mode.md#saving-undo-and-ldtk
 
 ## The lists
 
-Each tab starts with its list: pick the definition in the choice, and under it:
+Each tab has the bottom tabs' layout ([The bottom tabs](level_mode.md#the-bottom-tabs)): its list
+on the left (click a definition to edit it; in a narrow panel, a dropdown), the definition's
+settings on the right, and on the toolbar row above them the list's buttons (hover one for what it
+does):
 
 - **Add**: a layer by its type (**IntGrid**, **Entities**, **Tiles**, **AutoLayer**; new layers go
   on top), an **Entity** (or a **Rectangle region** or **Circle region**: hollow, resizable,
-  tagged `region`), a field of any type, an **Enum**, a tileset from one of the project's images.
+  tagged `region`), an **Enum**, a tileset from one of the project's images (**From an
+  image...**). A field is added in its definition's settings (**New field**: any type).
 - **Duplicate**: a copy after it, named like it with a number (`Walls2`).
 - **Delete**: and what used it goes with it (a layer's content in every level, an entity type's
   entities, an enum's fields).

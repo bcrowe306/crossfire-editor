@@ -121,7 +121,7 @@ The Taskfile passes the flags every build needs:
 
 The editor has **modes**, switched by the tabs beside the menu bar (the mode bar), View > Scene
 Mode / Level Mode, or Ctrl+Alt+1 / Ctrl+Alt+2: **Scene** (the layout below) and **Level**, the
-LDtk level editor laid out like LDtk: a tool row (LDtk's tools per layer type), a Levels sidebar
+LDtk level editor laid out like LDtk with the editor's own panels: LDtk's tools per layer type on the toolbar, a Levels sidebar
 (worlds, levels: select, focus), the canvas (pan, zoom, drag levels and entities, links between
 them, a focused level larger, and **painting** as LDtk does with its mouse buttons and keys:
 IntGrid values with the auto-layer tiles LDtk's rules would make, tiles (stamps, random, flips),

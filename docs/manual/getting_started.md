@@ -104,7 +104,7 @@ its own layout, made for one kind of work.
 | Mode | What it's for | Keys |
 |---|---|---|
 | **Scene** | Building scenes from nodes: the layout above, with the viewport, the scene tree, the inspector and the code tabs | Ctrl+Alt+1 |
-| **Level** | The LDtk level editor, laid out like LDtk: a tool row, the world's levels in a sidebar and on a canvas (move them, focus one), the selected level's layers, and LDtk's panels as tabs (layers, entities, fields, enums, the world), saved into the `.ldtk` file with the project; the scenes showing each level ([Level mode](level_mode.md)) | Ctrl+Alt+2 |
+| **Level** | The LDtk level editor, laid out like LDtk with the editor's own panels: LDtk's tools on the toolbar, the world's levels in a sidebar and on a canvas (move them, focus one), the selected level's layers, and LDtk's panels as tabs (layers, entities, fields, enums, the world), saved into the `.ldtk` file with the project; the scenes showing each level ([Level mode](level_mode.md)) | Ctrl+Alt+2 |
 
 **View > Scene Mode** and **View > Level Mode** do the same (on a Mac the keys are Cmd+Alt+1 and
 Cmd+Alt+2). The editor remembers which mode each project was left in.

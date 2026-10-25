@@ -128,8 +128,22 @@ differently, 41 not done, 23 not applicable).
 
 The user's decisions (2026-10-24), kept: phases each released; LDtk's tools adapting to the layer
 type; LDtk's panels as the bottom tabs (Console and Output at the end); edits in memory, written on
-Save, Play and exports; the menu bar and mode bar kept, the tool row replacing the toolbar; the
-editor's theme; several worlds with a world picker.
+Save, Play and exports; the menu bar and mode bar kept; the editor's theme; several worlds with a
+world picker.
+
+**The user's correction (2026-10-25), done the same day:** "The UI needs to be consistent with
+the Scene UI. List items in the panels need to be the same size. Toolbar buttons as well. The
+Level editor looks like a different app. That wasn't my intention." The mockup gives the
+arrangement only, not its sizes: the Level mode uses the editor's shared widgets and sizes. Its
+tools are on the editor's toolbar (the Scene mode's buttons, sizes, overflow, file, undo, play and
+Export buttons; no 75 px tool row of 45 px buttons); its Levels and Layers sidebars have the
+panels' headers and the scene tree's rows (`settings.rowHeight`, not 60 px rows; a layer dragged
+by its row, not a grip), the Scene mode's sidebar widths and fitting (no 300 px sidebars, no
+one-sidebar narrow layout). And the bottom tabs that manage a list (World, Level, Layers,
+Entities, Enums, Tilesets, Auto-layer Rules; the Project tab without a list) share one layout,
+the user's sketch: the tab strip, a toolbar row (the list's buttons and a text), then the list in
+a resizable sidebar beside the selected item's settings in the inspector's rows (a dropdown in a
+narrow panel): view_list_tab.odin.
 
 ## Code editor integration (asked 2026-10-23; done 2026-10-24)
 

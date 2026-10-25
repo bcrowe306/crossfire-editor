@@ -124,7 +124,7 @@ Every key below is in **Settings > Keyboard** (the Level mode's actions), where 
 | Tiles' enum tags drawn on Tiles layers | **Not done**: the Tilesets tab shows a tile's tags on its picture |
 | Select empty spaces | **Done** |
 | Tile stacking | **Done** |
-| Options greyed out for layer types that don't use them | **Differently**: the tool row shows the selected layer type's tools |
+| Options greyed out for layer types that don't use them | **Differently**: the toolbar shows the selected layer type's tools |
 | Zoom limits | **Done** |
 | Fit the view, scroll to the level | **Done**: the header's Fit; selecting a level or entity in the tabs centers it |
 | World view when zooming far out, a level when zooming into it | **Not done**: double-click a level, the header's World button, Shift+W |

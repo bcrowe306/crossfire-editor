@@ -10,7 +10,8 @@ The editor has **modes**, picked with the tabs beside the menu bar
 ([Editor modes](getting_started.md#editor-modes)). The **Scene** mode is where you build scenes
 from nodes. The **Level** mode is the editor's **LDtk level editor**: the levels of an
 [LDtk](https://ldtk.io) project, laid out as they are in its world, which you look into, move
-around and edit, laid out like LDtk itself. Your edits are saved into the `.ldtk` file when you
+around and edit, laid out like LDtk itself, with the editor's own toolbar, panels and lists (it
+looks and works like the Scene mode). Your edits are saved into the `.ldtk` file when you
 save the project, so LDtk, the viewport and a running game all read the same file
 ([LDtk levels](levels.md)).
 
@@ -27,7 +28,7 @@ LDtk feature.
 
 - [Opening it](#opening-it)
 - [The window in the Level mode](#the-window-in-the-level-mode)
-- [The tool row](#the-tool-row)
+- [The toolbar](#the-toolbar)
 - [The Levels sidebar](#the-levels-sidebar)
 - [The canvas](#the-canvas)
 - [Painting](#painting)
@@ -52,33 +53,38 @@ you left it in, on the same LDtk file and world.
 ```
 +--------------------------------------------------------------------+
 | File Edit Scripts View Scene Help      [Scene | Level]             |
-|        [select] [pencil] [rect] [fill] [eraser] [picker]   > || [] |
+| new open save | undo redo | select pencil rect ... |  > || [] | Export |
 +-----------+--------------------------------------+-----------------+
-| Levels    | World > Start      Fit  Open in LDtk | Layers          |
-| Start     |                                      | = Entities  (o) |
-| Cave      |   the canvas: the world, or the      | = Tiles     (o) |
-| Tower     |   focused level larger               | = Walls     (o) |
-|           +--------------------------------------+                 |
+| Levels  + | World > Start      Fit  Open in LDtk | Layers: Start   |
+| Start     |                                      | # Entities  (o) |
+| Cave      |   the canvas: the world, or the      | # Tiles     (o) |
+| Tower     |   focused level larger               | # Walls     (o) |
+|           +--------------------------------------+ Palette         |
 |           | World Level Layers Entities Enums ...|                 |
-|           | the tab's settings                   |                 |
+|           | [+] [copy] [delete] [up] [down] text |                 |
+|           | the list | the selected item's       |                 |
+|           |          | settings                  |                 |
 +-----------+--------------------------------------+-----------------+
 ```
 
 | Part | What it's for |
 |---|---|
-| **Tool row** (top) | LDtk's tools for the selected layer, and the play controls at its end ([The tool row](#the-tool-row)) |
+| **Toolbar** (top) | The editor's toolbar: LDtk's tools for the selected layer in place of the viewport's, the play controls and Export ([The toolbar](#the-toolbar)) |
 | **Levels** (left) | The world's levels: select one, double-click to focus it, right-click for its menu ([The Levels sidebar](#the-levels-sidebar)) |
 | **Canvas** (middle) | The world's levels drawn as the game draws them, or one level larger ([The canvas](#the-canvas)) |
 | **Layers** (right) | The selected level's layers: select one, show or hide it, drag it up or down ([The Layers sidebar](#the-layers-sidebar)) |
 | **Bottom tabs** | LDtk's panels, then the **Console** and **Output** ([The bottom tabs](#the-bottom-tabs)) |
 
-The menus and the mode bar stay at the top. The panels resize like the Scene mode's (drag the
-dividers) and keep their own sizes.
+The menus and the mode bar stay at the top. Everything is the editor's: the toolbar, the panel
+headers, the rows of the lists (the scene tree's size, font, icons and selection colors), the
+buttons and the settings' rows (the inspector's). The sidebars start at the Scene mode's widths
+and resize like its sidebars (drag the dividers); each mode keeps its own sizes.
 
-## The tool row
+## The toolbar
 
-The tool row replaces the toolbar in the Level mode. In the middle, the tools of the **selected
-layer** (the Layers sidebar's), as LDtk has them for that kind of layer:
+The toolbar is the Scene mode's: the file and undo buttons, then the tools, the play controls in
+the middle and **Export** at the end. In the Level mode the tools are the **selected layer**'s
+(the Layers sidebar's), as LDtk has them for that kind of layer:
 
 | Layer | Tools |
 |---|---|
@@ -93,13 +99,15 @@ layer **Stamp**, on an Entities layer **Place**), **Random**, **Rectangle**, **F
 and **Picker**. LDtk itself has no tool buttons: its mouse buttons and keys do the same with any
 tool (the right button erases, Shift + drag a rectangle...), and so do they here.
 
-At its end are the **play controls**: Play, Play the scene open in the Scene mode, Pause, Stop and
-Restart, as on the Scene mode's toolbar. The file and undo buttons are in the menus (**Ctrl+S**,
-**Ctrl+Z**).
+The **play controls** are the Scene mode's: Play, Play the scene open in the Scene mode, Pause,
+Stop, Restart and the game's collision shapes. In a narrow window the tools go into the toolbar's
+**...** menu, as the viewport's do.
 
 ## The Levels sidebar
 
-The left sidebar lists the levels of the world, in the world's order:
+The left sidebar, where the Scene mode has the project browser, lists the levels of the world, in
+the world's order (rows like the scene tree's: **Up** and **Down** pick the next one once you've
+clicked the list):
 
 - **Click** a level: it's selected (on the canvas too, and the Layers sidebar shows its layers).
 - **Double-click** it: the canvas **focuses** on it ([The canvas](#the-canvas)).
@@ -107,12 +115,12 @@ The left sidebar lists the levels of the world, in the world's order:
   (the scene showing it), **New Scene with This Level**, **Open in LDtk at This Level**, **Rename**,
   **Duplicate**, **Delete**, a depth further or closer, **Move to** another world, **New Level...**
   ([Levels, worlds and the project](level_worlds.md#levels)).
-- **New Level** at its top: click the canvas where the new level goes.
+- **+** in its header (**New Level**): click the canvas where the new level goes.
 
-With several LDtk files in the project, a choice at the top picks the one shown. With several
-**worlds** in the file (LDtk's Multi-worlds), a second choice picks the world: the sidebar and the
-canvas show its levels (the World tab has the same choice). Without an LDtk file, the sidebar has
-**Import...**.
+With several LDtk files in the project, a choice under the header picks the one shown. With
+several **worlds** in the file (LDtk's Multi-worlds), a second choice picks the world: the sidebar
+and the canvas show its levels (the World tab's list picks it too). Without an LDtk file, the
+sidebar has **Import...**.
 
 ## The canvas
 
@@ -280,15 +288,16 @@ where you can change it:
 
 ## The Layers sidebar
 
-The right sidebar lists the selected level's layers, the top one first (as LDtk lists them). Each
-row has a grip, the layer's name and type, and an eye:
+The right sidebar, where the Scene mode has the scene tree, lists the selected level's layers, the
+top one first (as LDtk lists them). Each row has the layer type's icon (in the layer's list color),
+its name, and an eye:
 
-- **Click** a layer to select it: the tool row shows its tools, and the **Layers** tab its
-  settings.
+- **Click** a layer to select it: the toolbar shows its tools, and the **Layers** tab its
+  settings. **Up** and **Down** pick the next one.
 - **The eye** shows or hides the layer in that level, as LDtk's eye does: it's saved in the file
   (the layer's `visible` in the level), so a game hides the layer too. Each click is an undo step.
-- **Drag the grip** up or down to move the layer: it moves in every level (LDtk keeps one order
-  for all of them). One undo step.
+- **Drag a row** up or down to move the layer, as you drag nodes in the scene tree: it moves in
+  every level (LDtk keeps one order for all of them). One undo step.
 
 With no level selected, the sidebar lists the project's layers (select one; the eyes need a
 level).
@@ -303,6 +312,27 @@ mode's. A tab strip wider than the panel scrolls sideways. Every control sends a
 once in the LDtk file the editor has open (saved with the project: [Saving, undo and
 LDtk](#saving-undo-and-ldtk)); a refused edit says why.
 
+Every tab with a list has the same layout:
+
+```
+| World | Level | Layers | Entities | ...                     |
+| [+ IntGrid] [+ Tiles] ... [copy] [delete] [up] [down]  text |
+| Entities      | Name      [Tiles        ]                    |
+| Tiles         | Opacity   [1.00   ] - +                      |
+| Walls         | ...                                          |
+```
+
+- **The toolbar row:** the list's buttons (add, duplicate, delete, move up and down) and the
+  tab's own, with a line about the selected item (its place, a count). Hover a button for what it
+  does.
+- **The list** on the left, rows like the scene tree's: click one to edit it (**Up** and **Down**
+  pick the next one). Drag the divider to make it wider; each tab keeps its width.
+- **The settings** of the selected item on the right, rows like the inspector's: the label beside
+  its control, or over it when the panel is narrow.
+
+In a narrow bottom panel (a tiled window's) the list is a dropdown at the top of the settings.
+The **Project** tab has no list: its toolbar row has **Save**.
+
 Fields' values are typed as text: a number, `true` or `false` (a checkbox), a color as
 `#RRGGBB`, a point as `x, y` (cells), an enum's or a reference's value from a list. An empty
 field is the field's default. Names are cleaned up as LDtk does (spaces and other characters
@@ -311,16 +341,19 @@ taken; a name that can't be used isn't kept, and the tab says why above its rows
 
 ### The World tab
 
-The world: **Add a World** and **Delete This World** (LDtk's Multi-worlds), with several worlds
-which one shows and its name; its **layout** (Free, GridVania, linear side by side or one above
+The list: the project's worlds (one until you add another: LDtk's Multi-worlds); picking one shows
+it. The toolbar row: **+ World** and **Delete** (this world), **+ Level** (New Level: pick its spot
+on the canvas). The world's name (with several worlds); its **layout** (Free, GridVania, linear side by side or one above
 the other: changing it moves the levels as LDtk would), its **grid** (GridVania's; the levels
-move with it), new levels' size, the depth shown, **New Level**, and each level's order, **X** and
-**Y** ([Worlds](level_worlds.md#worlds)).
+move with it), new levels' size, the depth shown, and each level's order, **X** and **Y**
+([Worlds](level_worlds.md#worlds)).
 
 ### The Level tab
 
-The selected level: its name (automatic or typed), IID, depth, place, size (**Resize**),
-background color and image, **Duplicate** and **Delete** ([Levels](level_worlds.md#levels)); how
+The list: the world's levels (as the Levels sidebar has them). The toolbar row: **+** (New Level),
+**Duplicate**, **Delete**, **Up** and **Down** (the level's place in the world's order) and
+**Focus**. The selected level: its name (automatic or typed), IID, depth, place, size (**Resize**),
+background color and image ([Levels](level_worlds.md#levels)); how
 many layers, entities, fields and neighbours it has; the **scenes showing it** (click one to open it in the Scene mode, its
 LDtkLevel node selected) or **New Scene with This Level**; its custom **fields**; its
 **neighbours**. With no level selected, how many levels the world has. Under them the **level
@@ -335,8 +368,8 @@ level, after the ones naming it.
 
 ### The Layers tab
 
-The selected layer (the Layers sidebar's, or the choice at the top) and the layer list: add a
-layer of each type, duplicate, delete, reorder; every setting LDtk has (name, opacity, grid,
+The list: the project's layers (the one selected is the Layers sidebar's too). The toolbar row:
+add a layer of each type, duplicate, delete, move up or down. Every setting LDtk has (name, opacity, grid,
 offsets, parallax, how LDtk shows it), an IntGrid layer's values and groups, a layer's tileset, an
 auto-layer's source, an Entities layer's tags. For every scene whose LDtkLevel node uses an
 IntGrid layer for collision, what each value becomes there (**Solid**, **One-way platform**,
@@ -345,8 +378,9 @@ IntGrid layer for collision, what each value becomes there (**Solid**, **One-way
 
 ### The Entities tab
 
-The entity types (add, duplicate, delete, reorder; size, shape, look, tile, limits, tags) and
-their **fields** ([Level definitions](level_definitions.md#entity-types)); then the type's
+The list: the entity types, in their colors. The toolbar row: add one (or LDtk's rectangle and
+circle regions), duplicate, delete, move up or down. The type's size, shape, look, tile, limits,
+tags and its **fields** ([Level definitions](level_definitions.md#entity-types)); then the type's
 entities in the selected level (all of them with none selected). Click one to select it (and
 center the canvas on it): its position and every field's value are edited below it. Then the
 level's **references**: the entity reference fields of its entities, each pointing at an entity
@@ -354,19 +388,23 @@ the field allows.
 
 ### The Enums tab
 
-The enums: their names, tags, icons and values (added, renamed, recolored, reordered, removed),
+The list: the enums (external ones with their file). The toolbar row: add one, duplicate, delete,
+move up or down. Their names, tags, icons and values (added, renamed, recolored, reordered, removed),
 and external enums imported from a file and synced with it
 ([Level definitions](level_definitions.md#enums)).
 
 ### The Tilesets tab
 
-The tilesets: made from the project's images, their grid, spacing and padding, tags, and their
+The list: the tilesets. The toolbar row: a new one from an image (**From an image...**), an empty
+one, LDtk's icons, duplicate, delete, move up or down. Their image, grid, spacing and padding, tags, and their
 tiles' enum tags and custom data on their picture
 ([Level definitions](level_definitions.md#tilesets)).
 
 ### The Auto-layer Rules tab
 
-The selected layer's auto-layer rules, as LDtk's rule panel edits them: groups (on, off, optional
+The list: the layers with rules (IntGrid layers and auto-layers, their groups counted): pick one to
+edit its rules. The toolbar row: **+ Group** (with the Assistant, or empty), **Paste group**,
+**Randomize**, **Render**. The layer's auto-layer rules, as LDtk's rule panel edits them: groups (on, off, optional
 per level, biomes, colors, icons), rules and their editor (tiles, the pattern, chance, mirrors,
 modulos, offsets, Perlin), the Rule Assistant, Duplicate and Remap. Hovering a rule outlines its
 cells on the focused level, and the canvas's cell under the pointer highlights its rules
@@ -377,7 +415,7 @@ cells on the focused level, and the canvas's cell under the pointer highlights i
 The LDtk file's own settings, every option of LDtk's project panel: separate level files, minified
 JSON, backups, image export, the simple export, identifier style, level names, defaults, LDtk's
 advanced flags, custom commands (kept, never run), the description; whether it has unsaved
-edits, with **Save** ([The Project tab](level_worlds.md#the-project-tab)).
+edits, with **Save** on its toolbar row ([The Project tab](level_worlds.md#the-project-tab)).
 
 What LDtk keeps in step is kept too: renaming an entity type renames it on every entity and in
 the project's table of contents, renaming an enum value changes every field set to it, a layer's
@@ -418,20 +456,21 @@ LDtk does that the Level mode doesn't is listed in [LDtk parity](level_parity.md
 
 ## A narrow window
 
-The Level mode fits smaller windows:
+The Level mode fits smaller windows as the Scene mode does:
 
-- **Under about 1100 px wide**, the tool row and rows are smaller (the toolbar's size), and the
-  sidebars are at most 220 px wide.
-- **Under about 760 px wide** (a tiled window), there's one sidebar: the levels over the layers.
-- **The tools** go into a **...** menu when they don't fit beside the play controls.
-- The bottom tabs scroll sideways; the tabs' rows put their labels over their controls when the
-  panel is narrow.
+- **The sidebars** narrow together, keeping the canvas its room, as the browser and the
+  inspector do.
+- **The tools** go into the toolbar's **...** menu when they don't fit (and narrower still the
+  file and undo buttons).
+- **The bottom tabs** scroll sideways; a tab's list becomes a dropdown over its settings, and the
+  settings put their labels over their controls.
 
 ## What's shared with the Scene mode
 
-The menus, the play controls, the **Console** and **Output** tabs, **Settings** and **Project
-Settings**, and the docs window are the same in both modes. The Scene mode's toolbar tools
-(Select, Move, Rotate...) and its project browser don't show here, and the commands for nodes and
+The menus, the toolbar (its file, undo, play and Export buttons), the **Console** and **Output**
+tabs, **Settings** and **Project Settings**, and the docs window are the same in both modes, and
+so are the panels' looks and sizes. The Scene mode's viewport tools (Select, Move, Rotate...) and
+its project browser don't show here, and the commands for nodes and
 the viewport (Add Node, Delete, Copy, the grid, the zoom...) are greyed out in the menus.
 
 **Undo** is one history for both modes: Ctrl+Z undoes the last edit wherever it was made, and

@@ -207,7 +207,7 @@ The LDtkLevel's inspector explains how the level is built, so there are no surpr
 ## Editing levels in the editor
 
 The editor's **Level mode** ([Level mode](level_mode.md)) edits the LDtk project itself, as LDtk
-does and laid out like it: paint IntGrid values (the auto-layers follow), tiles and entities, make,
+does, laid out like it with the editor's own panels: paint IntGrid values (the auto-layers follow), tiles and entities, make,
 move, resize and delete levels and worlds, and in its tabs (LDtk's panels: World, Level, Layers,
 Entities, Enums, Tilesets, Auto-layer Rules, Project) edit every definition, every field's value,
 the auto-layer rules and the project's settings ([Level definitions](level_definitions.md),

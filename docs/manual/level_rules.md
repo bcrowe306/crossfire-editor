@@ -23,17 +23,19 @@ every Level mode edit does ([Saving, undo and LDtk](level_mode.md#saving-undo-an
 
 ## The tab
 
-At the top:
+The tab has the bottom tabs' layout ([The bottom tabs](level_mode.md#the-bottom-tabs)):
 
-- **Layer**: whose rules it shows, an IntGrid layer or an AutoLayer. It follows the layer selected
-  in the Layers sidebar; picking one here selects it.
+- **The list** (left): the layers that can have rules, IntGrid layers and AutoLayers, each with
+  its number of groups. It follows the layer selected in the Layers sidebar; picking one here
+  selects it. In a narrow panel it's a dropdown.
+- **The toolbar row** (above them):
 - **+ Group**: a new group, made by the **Rule Assistant** (recommended: below) or empty. An empty
   group goes first in the list, its name ready to type.
 - **Paste group**: a group you copied, at the end.
 - **Randomize**: a new random seed for the layer in the selected level: rules with a chance or a
   Perlin filter change where they apply.
 - **Render**: the auto-layers' tiles shown, or their IntGrid values instead (**Shift+R**).
-- **Tileset here**: the tileset the rules draw with in the selected level. Any tileset of the same
+- **Tileset here** (the first of the rows): the tileset the rules draw with in the selected level. Any tileset of the same
   size (tiles across and down, grid) works: a "winter" tileset for one level, say.
 
 A layer whose settings stop its rules working (an IntGrid layer without a tileset, an AutoLayer
