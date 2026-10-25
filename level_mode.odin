@@ -116,6 +116,8 @@ LevelMode :: struct {
 	depth: int,
 	// A tab field to focus next frame (its widget key; owned): the Level tab's name for Rename
 	focusField: string,
+	// LDtk's selection in the focused level (level_select.odin; iids owned)
+	selection: [dynamic]LDtkSelElem,
 	// The Level tab's new size for a level (its iid, owned; the size typed), until Resize
 	sizeLevel: string,
 	sizeDraft: [2]int,
@@ -141,6 +143,9 @@ LevelDragMode :: enum {
 	Entity,
 	// Resizing the focused level `target` (its iid) by a handle (level_world_tools.odin)
 	Resize,
+	// A selection's rectangle drawn, the selection moved (level_select.odin)
+	Select_Rect,
+	Select_Move,
 }
 
 // A drag on the world canvas, press to release
@@ -383,6 +388,8 @@ LevelMode_Destroy :: proc(level: ^LevelMode) {
 	delete(level.tileTag)
 	delete(level.focusField)
 	delete(level.sizeLevel)
+	LevelSelection_Clear(&level.selection)
+	delete(level.selection)
 	LevelPaint_Destroy(&level.paint)
 	LevelRules_Destroy(&level.rules)
 	layout, tab := level.layout, level.bottomTab
@@ -545,6 +552,7 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		// A new level's spot and the resize handles first, then the tools on the focused level
 		// (level_paint.odin), else select, move, pan
 		if LevelWorld_Press(state, v) do return {}, true
+		if LevelSelect_Press(state, v) do return {}, true
 		if !LevelPaint_Press(state, v) do levelCanvasPressed(state, v)
 	case Level_Canvas_Moved:
 		if LevelPaint_Moved(state, v) do return {}, true
@@ -554,12 +562,13 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 		case .None:
 		case .Pan:
 			if state.level.view.zoom > 0 do state.level.view.center -= v.delta / state.level.view.zoom
-		case .Level, .Entity, .Resize:
+		case .Level, .Entity, .Resize, .Select_Rect, .Select_Move:
 			drag.offset = v.world - drag.start
 			if !drag.moved && linalg_length(drag.offset * state.level.view.zoom) >= LEVEL_DRAG_SLOP do drag.moved = true
 		}
 	case Level_Canvas_Released:
 		if LevelWorld_Released(state) do return {}, true
+		if LevelSelect_Released(state) do return {}, true
 		if !LevelPaint_Released(state) do levelCanvasReleased(state)
 	case Level_Entity_Picked:
 		levelSelectEntity(state, string(v), center = true)
@@ -851,7 +860,7 @@ LevelDrag_Target :: proc(state: ^State, doc: ^LDtkDoc) -> [2]int {
 	p := drag.origin + drag.offset
 	switch drag.mode {
 	case .None, .Pan:
-	case .Resize:
+	case .Resize, .Select_Rect, .Select_Move:
 	case .Level:
 		// LDtk's WorldTool: grids, other levels' edges (level_world_tools.odin)
 		return LevelDrag_LevelTarget(state, doc)
@@ -1092,6 +1101,7 @@ levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	items := make([dynamic]skald.View, context.temp_allocator)
 	append(&items, skald.text(place, th.color.fg, th.font.size_sm))
 	if LDtkDoc_IsUnsaved(s.project.rootPath, file) do append(&items, skald.text("(unsaved: Ctrl+S saves)", th.color.warning, th.font.size_xs))
+	if summary := LevelSelect_Summary(s); summary != "" do append(&items, skald.text(summary, th.color.fg_muted, th.font.size_xs, max_width = 420))
 	append(&items, skald.flex(1, skald.spacer(0)))
 	append(&items, ..actions[:])
 	header := skald.row(..items[:],

@@ -701,3 +701,65 @@ ldtk_field_values_change_as_ldtk_changes_them :: proc(t: ^testing.T) {
 	testing.expect_value(t, LDtk_ApplyRegex("/^[0-9]+$/", "12a"), "")
 	testing.expect_value(t, LDtk_ApplyRegex("/(foo|bar)/gi", "xFOOyBar"), "FOOBar")
 }
+
+/*
+LDtk's selection moved, copied and deleted (ldtk_selection_ops.odin) as its SelectionTool does: a
+row of IntGrid cells moved up a cell (gone from where they were), copied (kept there too), an
+entity moved with them, one moved out of its level removed (its type doesn't allow it), an empty
+space rectangle clearing where it lands, the selection deleted; every result checked (schema,
+engine, tidy).
+*/
+@(test)
+ldtk_selections_move_copy_and_delete_as_ldtk_does :: proc(t: ^testing.T) {
+	dir := worldCopy("ldtk_selection")
+	defer removeAll(dir)
+	defer LDtkDoc_DestroyAll()
+	file := "world.ldtk"
+	cell :: proc(dir: string, x, y: int) -> int {
+		doc := LDtkDoc_Get(dir, "world.ldtk")
+		m, _ := LDtkLevel_Read(doc, "", LDtkDoc_FindLevel(doc, "Start"))
+		defer LDtkLevel_Destroy(&m)
+		l := LDtkLevel_LayerByDef(&m, LDtkLevel_DefUid(&m, "Walls"))
+		return LDtkLayer_IntGrid(l, x, y)
+	}
+	doc := LDtkDoc_Get(dir, file)
+	m, _ := LDtkLevel_Read(doc, "", LDtkDoc_FindLevel(doc, "Start"))
+	walls := LDtkLevel_DefUid(&m, "Walls")
+	h := LDtkLevel_LayerByDef(&m, walls).cHei
+	LDtkLevel_Destroy(&m)
+	bottom := h - 1
+	testing.expect_value(t, cell(dir, 0, bottom), 1)
+	sel := []LDtkSelElem{{kind = .Cell, layer = walls, cx = 0, cy = bottom}, {kind = .Cell, layer = walls, cx = 1, cy = bottom}, {kind = .Entity, iid = "coin1"}}
+	coinX := lvEntityX(dir, file, "coin1")
+	lvMust(t, dir, file, {op = .Selection_Edit, level = "lvl-start", key = "move", text = LDtk_SelectionText(sel), number2 = -16})
+	testing.expect_value(t, cell(dir, 0, bottom), 0)
+	testing.expect_value(t, cell(dir, 0, bottom - 1), 1)
+	testing.expect_value(t, cell(dir, 1, bottom - 1), 1)
+	testing.expect_value(t, lvEntityX(dir, file, "coin1"), coinX)
+	// A copy: the originals stay
+	moved := []LDtkSelElem{{kind = .Cell, layer = walls, cx = 0, cy = bottom - 1}}
+	lvMust(t, dir, file, {op = .Selection_Edit, level = "lvl-start", key = "move", text = LDtk_SelectionText(moved), number = 64, flag = true})
+	testing.expect_value(t, cell(dir, 0, bottom - 1), 1)
+	testing.expect_value(t, cell(dir, 4, bottom - 1), 1)
+	// An entity moved out of its level goes (its type doesn't allow it), references to it too
+	lvMust(t, dir, file, {op = .Selection_Edit, level = "lvl-start", key = "move", text = LDtk_SelectionText([]LDtkSelElem{{kind = .Entity, iid = "coin1"}}), number = -1000})
+	testing.expect_value(t, lvEntityX(dir, file, "coin1"), -1)
+	// Empty space: the rectangle clears where it lands, in the visible layers (Walls is hidden in
+	// the fixture: it keeps its value; Tiles loses its tile)
+	tiles :: proc(dir: string, x, y: int) -> int {
+		doc := LDtkDoc_Get(dir, "world.ldtk")
+		m, _ := LDtkLevel_Read(doc, "", LDtkDoc_FindLevel(doc, "Start"))
+		defer LDtkLevel_Destroy(&m)
+		l := LDtkLevel_LayerByDef(&m, LDtkLevel_DefUid(&m, "Tiles"))
+		return len(l.tiles[LDtkLayer_Coord(l, x, y)])
+	}
+	rect := []LDtkSelElem{{kind = .Rect, rect = {64, 79, 0, 15}}}
+	testing.expect_value(t, tiles(dir, 4, bottom), 1)
+	lvMust(t, dir, file, {op = .Selection_Edit, level = "lvl-start", key = "move", text = LDtk_SelectionText(rect), number2 = f64((bottom) * 16)})
+	testing.expect_value(t, tiles(dir, 4, bottom), 0)
+	testing.expect_value(t, cell(dir, 4, bottom), 1)
+	// Deleted
+	lvMust(t, dir, file, {op = .Selection_Edit, level = "lvl-start", key = "delete", text = LDtk_SelectionText([]LDtkSelElem{{kind = .Cell, layer = walls, cx = 0, cy = bottom - 1}, {kind = .Entity, iid = "player1"}})})
+	testing.expect_value(t, cell(dir, 0, bottom - 1), 0)
+	testing.expect_value(t, lvEntityX(dir, file, "player1"), -1)
+}

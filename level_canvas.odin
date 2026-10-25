@@ -115,6 +115,8 @@ LevelCanvasLevel :: struct {
 	dim, otherDepth: bool,
 	// A copy being dragged (Ctrl + Alt): drawn where it'll go, not hit
 	ghost: bool,
+	// Its fields' values (level_fields_render.odin: over it in the world view, above it focused)
+	fields: LevelFields,
 }
 
 // How an entity is drawn (its definition's `renderMode`)
@@ -146,10 +148,14 @@ LevelCanvasEntity :: struct {
 	tileMode: string,
 	// A copy being dragged (Ctrl + Alt): drawn where it'll go, not hit
 	ghost: bool,
+	// Its fields' values and shapes as LDtk draws them (level_fields_render.odin); its name hidden
+	// with them (a layer hiding its fields while inactive)
+	fields: LevelFields,
+	nameHidden: bool,
 }
 
-// A link: an entity reference (`entity`) or a neighbour (between level centers; `level`: the
-// level it's of, by identifier)
+// A link between level centers (a neighbour; `level`: the level it's of, by identifier). Entity
+// references are drawn by their fields (level_fields_render.odin); `entity` marks such a link.
 LevelCanvasLink :: struct {
 	from, to: [2]f32,
 	entity: bool,
@@ -192,9 +198,11 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 	es := make([dynamic]LevelCanvasEntity, context.temp_allocator)
 	// Entities shown per document entity (a removed one in a stroke, a hidden layer's: none)
 	shownIndex := make([dynamic]int, context.temp_allocator)
-	centers := make(map[string][2]f32, context.temp_allocator)
 	stroke := &state.level.paint.stroke
 	folder := LDtkDoc_Folder(doc)
+	// For the fields: where each entity is (references' targets), and each one's places
+	targets := make(map[string]LevelFieldTarget, context.temp_allocator)
+	places := make([dynamic]LevelFieldEntity, context.temp_allocator)
 	for e in LDtkDoc_Entities(doc) {
 		json := LDtkDoc_Json(doc, e.file)
 		def := LDtkDoc_DefByUid(doc, "entities", Json_Int(json, Json_Get(json, e.node, "defUid"), -1))
@@ -253,7 +261,17 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 			append(&shownIndex, len(es))
 			append(&es, look)
 		}
-		centers[iid] = look.center
+		{
+			grid := Json_Int(json, Json_Get(json, e.layer, "__gridSize"), 16)
+			cell := Json_Get(json, e.node, "__grid")
+			pivotAt := origin + at
+			pointOrigin := origin + {(f32(Json_Int(json, Json_At(json, cell, 0))) + 0.5) * f32(grid), (f32(Json_Int(json, Json_At(json, cell, 1))) + 0.5) * f32(grid)}
+			if Json_Bool(main, Json_Get(main, def, "resizableX")) do pointOrigin.x = look.center.x
+			if Json_Bool(main, Json_Get(main, def, "resizableY")) do pointOrigin.y = look.center.y
+			targets[iid] = {center = look.center, pivot = pivotAt, identifier = look.identifier, level = look.level, world = doc.levels[e.level].world, depth = LDtkDoc_LevelDepth(doc, e.level)}
+			append(&places, LevelFieldEntity{pivot = pivotAt, center = look.center, pointOrigin = pointOrigin, layerOrigin = origin, grid = grid,
+				world = doc.levels[e.level].world, depth = LDtkDoc_LevelDepth(doc, e.level)})
+		}
 		// A copy dragged with Ctrl + Alt: where it'll go
 		if drag.moved && drag.mode == .Entity && drag.target == iid && drag.copy {
 			ghost := look
@@ -263,20 +281,34 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 		}
 	}
 	lk := make([dynamic]LevelCanvasLink, context.temp_allocator)
-	// Entity references: from the entity to each target (arrays too)
+	// Fields (their values, radii, points and reference links: level_fields_render.odin): in the
+	// world view only those shown in the world; a layer hiding its fields while another is selected
+	worldMode := state.level.focus == ""
+	selectedLayer := -1
+	if layerDef := LevelMode_LayerDef(state, doc); layerDef >= 0 do selectedLayer = Json_Int(main, Json_Get(main, layerDef, "uid"), -1)
 	for e, i in LDtkDoc_Entities(doc) {
 		if shownIndex[i] < 0 do continue
 		json := LDtkDoc_Json(doc, e.file)
-		for fi in Json_Items(json, Json_Get(json, e.node, "fieldInstances")) {
-			t := Json_String(json, Json_Get(json, fi, "__type"))
-			if t != "EntityRef" && t != "Array<EntityRef>" do continue
-			value := Json_Get(json, fi, "__value")
-			targets := Json_Kind(json, value) == .Array ? Json_Items(json, value) : []int{value}
-			for target in targets {
-				to, found := centers[Json_String(json, Json_Get(json, target, "entityIid"))]
-				if found do append(&lk, LevelCanvasLink{from = es[shownIndex[i]].center, to = to, entity = true})
+		look := &es[shownIndex[i]]
+		def := LDtkDoc_DefByUid(doc, "entities", Json_Int(json, Json_Get(json, e.node, "defUid"), -1))
+		ld := LDtkDoc_DefByUid(doc, "layers", look.layer)
+		alpha := f32(1)
+		if !worldMode && look.layer != selectedLayer {
+			if Json_Bool(main, Json_Get(main, ld, "hideFieldsWhenInactive")) {
+				look.nameHidden = true
+				continue
 			}
+			alpha = f32(Json_Float(main, Json_Get(main, ld, "inactiveOpacity"), 1))
 		}
+		look.fields = LevelFields_Make(doc, json, Json_Items(main, Json_Get(main, def, "fieldDefs")), Json_Get(json, e.node, "fieldInstances"), look.color, worldMode, &places[i], targets, look.level)
+		look.fields.alpha = alpha
+	}
+	for &l, i in ls {
+		smart := skald.rgb(0x40465B)
+		if c, ok := LDtk_ParseColor(Json_String(main, Json_Get(main, doc.levels[i].entry, "__smartColor"))); ok do smart = skald.rgb(u32(c))
+		l.fields = LevelFields_Make(doc, main, Json_Items(main, LDtkDoc_Defs(doc, "levelFields")), Json_Get(main, doc.levels[i].entry, "fieldInstances"), smart, worldMode, nil, targets, l.identifier)
+		// A level's fields go over it whatever their position (WorldRender.updateFieldsPos)
+		for &row in l.fields.rows do row.pos = .Above
 	}
 	// Neighbours: from each level's center to its neighbours'
 	for _, i in doc.levels {
@@ -467,6 +499,10 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			background: skald.Color,
 			label: string,
 			selected, hovered, dim, ghost: bool,
+			// Its fields' rows (over its bottom in the world view, above it focused) at an opacity
+			fields: []LevelFieldRow,
+			fieldsAlpha: f32,
+			fieldsAbove: bool,
 		}
 		PaintEntity :: struct {
 			rect: [4]f32,
@@ -474,9 +510,16 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			// dim: in a level that isn't the focused one (not outlined)
 			selected, hovered, dim: bool,
 		}
+		// A field's shape in screen pixels (level_fields_render.odin)
+		PaintMark :: struct {
+			mark: LevelFieldMark,
+			from, to: [2]f32,
+			alpha: f32,
+		}
 		Paint :: struct {
 			levels: []PaintLevel,
 			entities: []PaintEntity,
+			marks: []PaintMark,
 			links: []LevelCanvasLink,
 			// GridVania's grid (screen pixels between lines, the first lines' offsets; 0: none)
 			grid, gridOrigin: [2]f32,
@@ -489,6 +532,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			// The world tools' (level_world_tools.odin): handles, a resize, a new level's spot, a
 			// linear world's insertion
 			world: ^LevelWorldOverlay,
+			// LDtk's selection (level_select.odin)
+			selection: ^LevelSelectOverlay,
 		}
 		paint := new(Paint, context.temp_allocator)
 		pl := make([]PaintLevel, len(levels), context.temp_allocator)
@@ -523,12 +568,24 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			}
 			pl[i] = {rect = {p.x, p.y, l.world[2] * zoom, l.world[3] * zoom}, pieces = pieces[:],
 				background = l.background, label = l.identifier, selected = l.identifier == s.level.level && !l.ghost, hovered = i == hoveredLevel, dim = l.dim, ghost = l.ghost}
+			// WorldRender.updateFieldsPos: every level's in the world view, fading out zoomed far out;
+			// focused, only the focused level's
+			if !l.ghost && !l.otherDepth {
+				if s.level.focus == "" {
+					pl[i].fields, pl[i].fieldsAlpha = l.fields.rows, min((zoom - 0.1) / 0.1, 1)
+				} else if l.identifier == s.level.focus {
+					pl[i].fields, pl[i].fieldsAlpha, pl[i].fieldsAbove = l.fields.rows, 1, true
+				}
+			}
 		}
 		pe := make([]PaintEntity, len(entities), context.temp_allocator)
+		pm := make([dynamic]PaintMark, context.temp_allocator)
 		for en, i in entities {
 			p := toScreen(en.world.xy, center, zoom, size)
 			pe[i] = {rect = {p.x, p.y, en.world[2] * zoom, en.world[3] * zoom}, look = en, selected = en.iid == s.level.entity && !en.ghost, hovered = i == hoveredEntity,
 				dim = s.level.focus != "" && en.level != s.level.focus}
+			if pe[i].dim || en.ghost do continue
+			for m in en.fields.marks do append(&pm, PaintMark{m, toScreen(m.from, center, zoom, size), toScreen(m.to, center, zoom, size), en.fields.alpha})
 		}
 		// The selected level's neighbours (all of them would cross every level)
 		pk := make([dynamic]LevelCanvasLink, context.temp_allocator)
@@ -536,7 +593,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			if !link.entity && link.level != s.level.level do continue
 			append(&pk, LevelCanvasLink{toScreen(link.from, center, zoom, size), toScreen(link.to, center, zoom, size), link.entity, link.level})
 		}
-		paint^ = {levels = pl, entities = pe, links = pk[:], bg = th.color.bg, line = th.color.border, accent = th.color.primary, fg = th.color.fg,
+		paint^ = {levels = pl, entities = pe, marks = pm[:], links = pk[:], bg = th.color.bg, line = th.color.border, accent = th.color.primary, fg = th.color.fg,
 			muted = th.color.fg_muted, link = skald.rgb(0x7FD1FF), neighbour = th.color.fg_muted, fontSize = th.font.size_xs, zoom = zoom, showEntities = zoom >= 0.15}
 		shownWorld := LevelMode_World(s, doc)
 		if len(doc.worlds) > 0 && LDtkDoc_WorldLayout(doc, shownWorld) == "GridVania" {
@@ -566,6 +623,7 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				hover = center + (local - size * 0.5) / zoom
 			}
 			paint.world = LevelWorldOverlay_Build(s, doc, hover, center, zoom, size)
+			if s.level.focus != "" do for l in levels do if l.identifier == s.level.focus && !l.ghost do paint.selection = LevelSelectOverlay_Build(s, doc, l.world.xy, center, zoom, size)
 			if s.level.spot do cursor = .Crosshair
 		}
 		return skald.canvas(ctx, paint, proc(p: ^Paint, painter: skald.Canvas_Painter) {
@@ -618,6 +676,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				skald.draw_polygon(r, {c, head - dir * 6 + side * 5, head - dir * 6 - side * 5}, p.link, aa = true)
 				skald.draw_circle(r, a, 3, p.link, aa = true)
 			}
+			// Fields' shapes (radii, points, reference links) under the entities
+			if p.showEntities do for m in p.marks do LevelFields_DrawMark(r, m.mark, [2]f32{b.x, b.y} + m.from, [2]f32{b.x, b.y} + m.to, p.zoom, m.alpha)
 			for e in p.entities {
 				if e.dim && !e.selected do continue
 				rect := skald.Rect{b.x + e.rect[0], b.y + e.rect[1], max(e.rect[2], 2), max(e.rect[3], 2)}
@@ -627,6 +687,12 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 				case e.selected: skald.draw_rect_outline(r, {rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4}, 2, p.accent)
 				case e.hovered:  skald.draw_rect_outline(r, {rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2}, 2, p.fg)
 				}
+			}
+			// Fields' values around their entities, over every entity
+			if p.showEntities do for e in p.entities {
+				if e.dim || len(e.look.fields.rows) == 0 do continue
+				rect := skald.Rect{b.x + e.rect[0], b.y + e.rect[1], max(e.rect[2], 2), max(e.rect[3], 2)}
+				LevelFields_DrawRows(r, rect, e.look.fields.rows, p.fontSize, e.look.fields.alpha, LevelEntity_NameShown(e.look, rect, p.zoom))
 			}
 			if p.overlay != nil do LevelOverlay_Draw(r, b, p.overlay)
 			for l in p.levels {
@@ -645,7 +711,15 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 					skald.pop_clip(r)
 				}
 			}
+			// Levels' fields
+			for l in p.levels {
+				if len(l.fields) == 0 || l.fieldsAlpha <= 0 do continue
+				rect := skald.Rect{b.x + l.rect[0], b.y + l.rect[1], l.rect[2], l.rect[3]}
+				line := l.fieldsAbove ? skald.Rect{rect.x, rect.y - 4, rect.w, 0} : skald.Rect{rect.x, rect.y + rect.h - 4, rect.w, 0}
+				LevelFields_DrawRows(r, line, l.fields, p.fontSize, l.fieldsAlpha, false)
+			}
 			if p.overlay != nil do LevelOverlay_DrawHint(r, b, p.overlay)
+			if p.selection != nil do LevelSelectOverlay_Draw(r, b, p.selection)
 			if p.world != nil do LevelWorldOverlay_Draw(r, b, p.world, p.fg, p.accent, p.bg, p.fontSize)
 		}, id = id, width = size.x, height = size.y, cursor = cursor)
 	}

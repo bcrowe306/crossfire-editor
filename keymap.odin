@@ -105,6 +105,8 @@ ACTION_KEY_RULES := #partial [Action]ActionKeyRule{
 	.Level_Depth_Closer = {onlyIn = {.Level}},
 	.Level_Move_Further = {onlyIn = {.Level}},
 	.Level_Move_Closer = {onlyIn = {.Level}},
+	.Level_Select_All = {textChord = true, onlyIn = {.Level}},
+	.Level_Empty_Space = {onlyIn = {.Level}},
 }
 
 /*
@@ -153,6 +155,7 @@ ACTION_LABELS := [Action]string{
 	.Level_World_Mode = "Level: the world or the level",
 	.Level_Depth_Further = "Level: show the next world depth", .Level_Depth_Closer = "Level: show the previous world depth",
 	.Level_Move_Further = "Level: move the level a depth further", .Level_Move_Closer = "Level: move the level a depth closer",
+	.Level_Select_All = "Level: select everything", .Level_Empty_Space = "Level: select empty spaces too",
 }
 
 /*

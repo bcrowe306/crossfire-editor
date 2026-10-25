@@ -361,9 +361,17 @@ LevelEntity_Draw :: proc(r: ^skald.Renderer, rect: skald.Rect, e: LevelCanvasEnt
 		skald.draw_line(r, {rect.x, rect.y}, {rect.x + rect.w, rect.y + rect.h}, 2, line, aa = true)
 		skald.draw_line(r, {rect.x + rect.w, rect.y}, {rect.x, rect.y + rect.h}, 2, line, aa = true)
 	}
-	if e.showName && rect.h >= 6 && zoom >= 0.5 {
-		drawTextTop(r, e.identifier, rect.x, rect.y - fontSize - 2, {1, 1, 1, 0.85 * alpha}, fontSize)
+	if LevelEntity_NameShown(e, rect, zoom) {
+		// Centered over it, its first 16 characters (EntityRender: `ed.identifier.substr(0,16)`)
+		name := e.identifier[:min(len(e.identifier), 16)]
+		w, _ := skald.measure_text(r, name, fontSize)
+		drawTextTop(r, name, rect.x + rect.w * 0.5 - w * 0.5, rect.y - fontSize - 2, {1, 1, 1, 0.85 * alpha}, fontSize)
 	}
+}
+
+// Whether an entity's name shows over it: its type shows it, its layer doesn't hide it, and it's big enough
+LevelEntity_NameShown :: proc(e: LevelCanvasEntity, rect: skald.Rect, zoom: f32) -> bool {
+	return e.showName && !e.nameHidden && rect.h >= 6 && zoom >= 0.5
 }
 
 /*

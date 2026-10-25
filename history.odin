@@ -1950,6 +1950,7 @@ LDTK_EDIT_LABELS := [LDtkEditOp]string{
 	.Project_Set = "Change the LDtk project's settings", .Project_Flag = "Change an LDtk project option",
 	.Project_Command = "Change the LDtk project's commands",
 	.Field_Value = "Change a field's value",
+	.Selection_Edit = "Move the selection",
 }
 
 /*
@@ -1969,7 +1970,7 @@ LDtkEdit_Info :: proc(edit: LDtk_Edit) -> EditInfo {
 	     .Rule_Group_Assistant, .Rule_Added, .Rule_Removed, .Rule_Duplicated, .Rule_Moved, .Rule_Pattern, .Rule_Tiles, .Rule_Pasted,
 	     .Rule_Seed, .Rule_Tileset_Here,
 	     .Level_Added, .Level_Removed, .Level_Duplicated, .Level_Depth, .Level_Resized, .Level_Sorted, .Level_World_Moved,
-	     .World_Added, .World_Removed, .Project_Flag:
+	     .World_Added, .World_Removed, .Project_Flag, .Selection_Edit:
 	case .Field_Value:
 		// Typing a value merges (per item); adding, removing, moving don't
 		if edit.key == "" || edit.key == "set" do info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.entity, edit.level, edit.field, edit.index))

@@ -191,6 +191,11 @@ LDtkEditOp :: enum {
 	// (`level`) field `field`; `key` set (`text`, an array's item `index`), add, remove, move
 	// (`number`), clear
 	Field_Value,
+
+	// LDtk's selection moved, copied or deleted (ldtk_selection_ops.odin): `level`, `text` the
+	// selection, `key` move / delete, `number`, `number2` the move, `flag` a copy, `number3` the
+	// single layer mode's layer (0: every visible layer)
+	Selection_Edit,
 }
 
 // Which list of definitions a `Def_*` edit is about
@@ -515,6 +520,8 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 		return LDtkOps_ProjectEdit(root, doc, edit), {}
 	case .Field_Value:
 		return LDtkOps_FieldValue(root, doc, edit), {}
+	case .Selection_Edit:
+		return LDtkOps_SelectionEdit(doc, edit), {}
 
 	// Levels in the world
 	case .Level_X, .Level_Y, .Level_Moved:

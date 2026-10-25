@@ -123,6 +123,9 @@ LevelPaint :: struct {
 	noStacking, noGrid, hideAutoLayers: bool,
 	// The other layers faded (LDtk's single layer mode, Shift+A)
 	singleLayer: bool,
+	// LDtk's "select empty spaces" (Shift+E): a selection's rectangle is selected too, so a move
+	// clears where it lands (level_select.odin)
+	emptySpace: bool,
 	stroke: LevelStroke,
 	pick: LevelPick,
 	// The entity placed last: the next placed one may be referenced from it (owned)
@@ -1178,6 +1181,8 @@ LevelPaint_Update :: proc(state: ^State, m: Msg) -> bool {
 		case .Level_Cancel:
 			if state.level.spot {
 				state.level.spot = false
+			} else if len(state.level.selection) > 0 {
+				LevelSelection_Clear(&state.level.selection)
 			} else if paint.pick.kind != .None {
 				levelPickCancel(state)
 			} else {
@@ -1189,7 +1194,12 @@ LevelPaint_Update :: proc(state: ^State, m: Msg) -> bool {
 			} else if state.level.level != "" {
 				levelFocus(state, state.level.level)
 			}
+		case .Level_Select_All:
+			LevelSelect_All(state)
+		case .Level_Empty_Space:
+			paint.emptySpace = !paint.emptySpace
 		case .Level_Delete:
+			if LevelSelect_Delete(state) do return true
 			if state.level.entity == "" do return true
 			iid := strings.clone(state.level.entity, context.temp_allocator)
 			levelApplyEdit(state, {op = .Entity_Removed, file = LevelMode_File(state), entity = iid})
@@ -1252,6 +1262,7 @@ LevelPaint_Classify :: proc(s: ^State, m: Msg) -> (EditInfo, bool) {
 		switch st.kind {
 		case .None:
 			drag := s.level.drag
+			if drag.mode == .Select_Move && drag.moved do return EditInfo{scope = .Files, ldtkFile = file, label = fmt.tprintf("%s the selection in %s", drag.copy ? "Copy" : "Move", where_)}, true
 			if drag.mode == .Entity && drag.copy && drag.moved do return EditInfo{scope = .Files, ldtkFile = file, label = fmt.tprintf("Copy an entity in %s", where_)}, true
 			return {}, false
 		case .Grid:
@@ -1265,6 +1276,10 @@ LevelPaint_Classify :: proc(s: ^State, m: Msg) -> (EditInfo, bool) {
 	case Action:
 		#partial switch v {
 		case .Level_Delete:
+			if len(s.level.selection) > 0 {
+				info.label = fmt.tprintf("Remove the selection in %s", where_)
+				return info, true
+			}
 			if s.level.entity == "" do return {}, false
 			info.label = fmt.tprintf("Remove an entity in %s", where_)
 			return info, true
