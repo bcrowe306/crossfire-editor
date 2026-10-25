@@ -104,7 +104,22 @@ row with LDtk's tools per layer type, Select working, painting greyed out; the L
 sidebars; focus; several worlds; LDtk's panels as the bottom tabs; narrow windows), and the
 saving switch: edits in memory, written on Save, Play, exports and Open in LDtk, LDtk's saves
 merged or asked about. CLAUDE.md's "The Level mode: LDtk's layout" and "Editing LDtk projects"
-describe it, the manual's level_mode.md is the guide. Next: phase 2 (painting).
+describe it, the manual's level_mode.md is the guide.
+
+**Phase 2 done (2026-10-24):** painting the focused level as LDtk does, its buttons and keys
+(labelled, in settings.default.ini): IntGrid values (Pencil, Rectangle, Fill, Eraser, Picker, the
+palette), auto-layers worked out by LDtk's rules ported (identical to LDtk's samples), tiles
+(stamps, random, flips, stacking, the tileset palette), entities (placed from the palette,
+selected, moved, resized, copied with Ctrl + Alt + drag or Ctrl+D, removed; count limits; points
+dragged and references and points picked on the canvas), grid lines, the brush's preview, layer
+opacities and single layer mode; one undo step a stroke (big files' steps keep only hunks),
+saved on Save. CLAUDE.md's "Painting in the Level mode" describes it (with the performance
+numbers), the manual's level_mode.md "Painting" is the guide. Left for later phases or not
+built: LDtk's grid-cell selection tool (select, move and copy rectangles of cells), saved tile
+selections, rule groups toggled from the canvas, picking references in another level, field
+values drawn on the canvas (LDtk's field display modes), NineSlice / Repeat tile render modes (drawn approximately), a release
+hitch of about 120 ms on a 6.5 MB level (the document's text parsed again). Next: phase 3 (the
+definitions editors).
 
 The Level mode becomes a better interface for editing LDtk projects, with full parity with LDtk
 itself (its source: the workspace's `ldtk/`). The layout comes from the user's design,

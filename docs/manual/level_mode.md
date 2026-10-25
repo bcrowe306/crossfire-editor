@@ -1,6 +1,6 @@
 ---
 title: Level mode
-description: "The editor's LDtk level editor: your LDtk project's levels in a Levels sidebar and on a canvas you pan, zoom and rearrange, a tool row, a Layers sidebar, and LDtk's panels as tabs (World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules, Project), saved into the .ldtk file when you save."
+description: "The editor's LDtk level editor: your LDtk project's levels in a Levels sidebar and on a canvas you pan, zoom and rearrange, LDtk's painting tools (IntGrid values, tiles, entities, auto-layers kept up to date), a Layers sidebar with its palette, and LDtk's panels as tabs (World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules, Project), saved into the .ldtk file when you save."
 order: 18
 ---
 
@@ -14,17 +14,20 @@ around and edit, laid out like LDtk itself. Your edits are saved into the `.ldtk
 save the project, so LDtk, the viewport and a running game all read the same file
 ([LDtk levels](levels.md)).
 
-It's being built in phases. **Today** (phase 1) it edits what's there: where levels and entities
-are, the layers' settings and order, which layers each level shows, entity types and their
-fields, every field's value, IntGrid values, enums and the world's layout. Painting tiles and
-IntGrid cells and placing entities come in phase 2 (until then, do them in LDtk); then the
-definitions editors, auto-layer rules, and the rest of what LDtk does.
+It's being built in phases. **Today** (phases 1 and 2) it edits where levels and entities are,
+the layers' settings and order, which layers each level shows, entity types and their fields,
+every field's value, IntGrid values, enums and the world's layout, and it **paints** as LDtk
+does: IntGrid cells (with the auto-layer tiles their rules make, the tiles LDtk would make),
+tiles, and entities placed, moved, resized, copied and removed
+([Painting](#painting)). Next come the definitions editors, auto-layer rules, and the rest of
+what LDtk does.
 
 - [Opening it](#opening-it)
 - [The window in the Level mode](#the-window-in-the-level-mode)
 - [The tool row](#the-tool-row)
 - [The Levels sidebar](#the-levels-sidebar)
 - [The canvas](#the-canvas)
+- [Painting](#painting)
 - [The Layers sidebar](#the-layers-sidebar)
 - [The bottom tabs](#the-bottom-tabs)
 - [Saving, undo and LDtk](#saving-undo-and-ldtk)
@@ -81,9 +84,11 @@ layer** (the Layers sidebar's), as LDtk has them for that kind of layer:
 | **Entities** | Select, Place, Eraser, Picker |
 | **Auto-layer** | Select (its tiles come from its rules) |
 
-**Select** is the canvas as it works today: click to select a level or an entity, drag to move
-it. The painting tools show greyed out: painting arrives in phase 2 (their tooltips say so). Until
-then, paint in LDtk (**Open in LDtk**).
+**Select** picks and moves: click to select a level or an entity, drag to move it. The others
+paint the **focused** level's selected layer ([Painting](#painting)): **Pencil** (on a Tiles
+layer **Stamp**, on an Entities layer **Place**), **Random**, **Rectangle**, **Fill**, **Eraser**
+and **Picker**. LDtk itself has no tool buttons: its mouse buttons and keys do the same with any
+tool (the right button erases, Shift + drag a rectangle...), and so do they here.
 
 At its end are the **play controls**: Play, Play the scene open in the Scene mode, Pause, Stop and
 Restart, as on the Scene mode's toolbar. The file and undo buttons are in the menus (**Ctrl+S**,
@@ -152,6 +157,113 @@ Where a dragged level lands depends on the world's layout: anywhere (in whole pi
 by their order, so they don't move: change the layout in the **World** tab first. Each move is one
 undo step; the levels' neighbours (which LDtk works out from where levels touch) follow.
 
+## Painting
+
+Painting happens on the **focused** level (double-click it), on the **layer selected** in the
+Layers sidebar, with what's picked in the **palette** under the layers: an IntGrid value, tiles
+of the layer's tileset, or an entity type. It works as in LDtk, mouse buttons and keys included,
+so what you know from LDtk works here.
+
+- **Each stroke is one undo step**: a Pencil stroke from press to release, a rectangle, a fill, a
+  placed or removed entity, a resize. **Ctrl+Z** takes it back whole.
+- Like every edit, it **stays in the editor until you save** (Ctrl+S, Play, Export): the file on
+  disk changes then ([Saving, undo and LDtk](#saving-undo-and-ldtk)).
+- The canvas shows the **cells** of the selected layer (grid lines; **G** hides them and stops
+  snapping to them), where the brush will paint (the cell, the rectangle, the stamp's tiles under
+  the pointer), and the other layers at their opacity.
+
+### Painting IntGrid cells
+
+Pick a value in the palette (a row per value, its color and name), then:
+
+| Do | What happens |
+|---|---|
+| **Drag** (Pencil) | Paints the cells the pointer crosses |
+| **Right drag**, or the **Eraser** | Erases them |
+| **Shift + drag**, or the **Rectangle** | A rectangle (with the right button: erases it) |
+| **Shift + a quick click**, or the **Fill** | Fills the area of cells like the clicked one |
+| **Alt + click**, or the **Picker** | Picks the value under the pointer (any layer: it selects that layer too) |
+
+**Auto-layers follow:** the layers whose rules read this IntGrid layer (its own auto-layer tiles
+and any AutoLayer layer built from it) are worked out again around each painted cell, as LDtk
+does it: the same rules in the same order, the same random choices (LDtk's seeds and Perlin
+noise), the same tiles. **Shift+R** hides auto-layer tiles while you paint (LDtk's "auto-layer
+rendering").
+
+### Painting tiles
+
+Pick tiles in the palette's **tileset**: a click picks a tile, a drag a rectangle of them (a
+**stamp**); Shift or Ctrl + drag adds to the selection, the right button takes tiles out of it,
+Ctrl + click on a picked tile removes it. The wheel scrolls the tileset, Ctrl + wheel zooms it.
+
+| Do | What happens |
+|---|---|
+| **Drag** (Stamp) | Paints the stamp (the picked tiles as they're laid out in the tileset) |
+| **R**, or the **Random** tool | Paints one of the picked tiles at random in each cell instead |
+| **Shift + drag**, or the **Rectangle** | Fills a rectangle with the stamp (or random tiles) |
+| **Shift + a quick click**, or the **Fill** | Fills the area of cells like the clicked one |
+| **Right drag**, or the **Eraser** | Erases tiles (the top one of a cell first when stacked) |
+| **Alt + click**, or the **Picker** | Picks the tile under the pointer, with its flips |
+| **X** / **Y** | Flips the brush sideways / upside down (also Shift+H / Shift+V) |
+| **Shift+T** | Tile stacking: on (LDtk's default), a tile with see-through pixels painted over another stacks on it; off, it replaces it |
+
+The palette's buttons over the tileset do the same (Stamp / Random, flip X, flip Y, stacking).
+
+### Placing and editing entities
+
+Pick an entity type in the palette (the types the layer takes), then:
+
+| Do | What happens |
+|---|---|
+| **Click** (Place) | Places one where you click (its pivot on the layer's grid; Shift: by the pixel), selected, and keeps dragging it until you let go. A **resizable** type is sized by the drag instead, as LDtk does |
+| **Click** an entity, **drag** it | Selects it (the Entities tab shows it), moves it |
+| **Drag a handle** of the selected entity | Resizes it (resizable types: the handles on its sides and corners) |
+| **Ctrl + Alt + drag** an entity | Drags a copy of it |
+| **Ctrl+D** | Duplicates the selected entity (one cell to the right) |
+| **Delete** | Removes the selected entity |
+| **Right click** or **right drag**, or the **Eraser** | Removes the entities (and points) under the pointer |
+| **Alt + click**, or the **Picker** | Picks the entity's type and selects it |
+
+A type limited to a number of entities (LDtk's "max count") follows its rule when you place
+more: the oldest is moved or removed, or the placement is refused, as the type says. Placing an
+entity right after another whose reference field allows it links them (LDtk's "auto chain").
+
+**Fields on the canvas:** the selected entity's **point** fields show their points (and the path
+between them): drag one to move it. In the Entities tab, a point or a reference field has
+**Pick**: click on the canvas where the point goes, or the entity it refers to (Esc cancels).
+Array fields of points and references get a row per item with **×** to remove it and **Clear**.
+
+### Seeing the layers
+
+| Key | What it does |
+|---|---|
+| **G** | Shows or hides the grid (and snapping to it) |
+| **Shift+A** | Fades the other layers (LDtk's single layer mode) |
+| **Shift+R** | Shows or hides auto-layer tiles |
+| **Esc** | Cancels a pick waiting for a click, or the stroke |
+| **Shift+W** | Back to the world view |
+
+### LDtk's keys
+
+The painting keys are LDtk's own; each is in **Settings > Keyboard** (the Level mode's actions),
+where you can change it:
+
+| LDtk | Here |
+|---|---|
+| Left button / right button | Paint / erase (any tool) |
+| Shift + drag, Shift + click | Rectangle, fill |
+| Alt + click | Pick |
+| Ctrl + Alt + drag | Copy an entity |
+| X, Y (Shift+H, Shift+V) | Flip the tile brush |
+| R | Random tiles |
+| G | Grid |
+| Shift+A | Single layer mode |
+| Shift+T | Tile stacking |
+| Shift+R | Auto-layer tiles |
+| Delete, Ctrl+D | Remove, duplicate the selected entity |
+| Esc | Cancel |
+| Shift+W | World view |
+
 ## The Layers sidebar
 
 The right sidebar lists the selected level's layers, the top one first (as LDtk lists them). Each
@@ -166,6 +278,9 @@ row has a grip, the layer's name and type, and an eye:
 
 With no level selected, the sidebar lists the project's layers (select one; the eyes need a
 level).
+
+Under the layers is the **palette** of the selected layer: its IntGrid values, its tileset, or
+its entity types ([Painting](#painting)).
 
 ## The bottom tabs
 
@@ -245,8 +360,8 @@ opacity is every level's, a moved level's entities get their new world positions
 layer or entity type is renamed in your scenes' LDtkLevel nodes too (their collision layer and
 entity rules), in the same undo step. Scripts named like an entity type aren't renamed.
 
-Not editable here yet (LDtk edits them, and the tabs say so): array fields, tile fields,
-symmetrical references, external enums, tilesets, levels' sizes and names, new or deleted levels,
+Not editable here yet (LDtk edits them, and the tabs say so): array fields other than points and
+references, tile fields, external enums, tilesets, levels' sizes and names, new or deleted levels,
 the order of a linear world's levels, a field's or a layer's type, auto-layer rules, the project's
 settings.
 
@@ -261,7 +376,8 @@ settings.
 - **Nothing else in the file changes:** the editor only rewrites the values it edits, in LDtk's
   style, so LDtk opens it as before and your version control shows small changes. Each file is
   replaced whole when it's written, never left half written.
-- **Undo** (Ctrl+Z) takes an edit back, one step per edit (typing a name or a value is one step).
+- **Undo** (Ctrl+Z) takes an edit back, one step per edit (typing a name or a value is one step,
+  a painting stroke is one step).
   Undo back to what was saved and there's nothing left to save.
 - **LDtk saved the file** while the editor had it open: the editor reads it again (the status bar
   and the canvas's header say when). If you had unsaved edits, LDtk's change is **merged** with
@@ -308,8 +424,14 @@ bar's Git branch (the Git tab is the Scene mode's).
 **The world is empty.** The project has no LDtk file yet: import one (**Ctrl+I**, or the Levels
 sidebar's **Import...**). See [LDtk levels](levels.md).
 
-**I can't paint.** Painting comes in phase 2: the tools are there, greyed out. Paint in LDtk until
-then (**Open in LDtk**, then save there).
+**I can't paint.** Focus the level first (double-click it): painting is on the focused level.
+Then check the layer selected in the Layers sidebar is shown (its eye), that something is picked
+in its palette, and that the file isn't from an LDtk older than 1.0 (the canvas says why a press
+did nothing, at its bottom).
+
+**My auto-layer tiles changed where I didn't paint.** Rules look at the cells around each one, so
+painting a cell can change the tiles a few cells away, as in LDtk. Undo takes them back with the
+stroke.
 
 **I changed the level in LDtk and the world didn't change.** It's read again when the file
 changes: save in LDtk, then come back to the editor.

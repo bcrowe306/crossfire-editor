@@ -74,11 +74,14 @@ and export it to the desktop platforms and the web (later: Steam, consoles).
   and the panels' Manual buttons (see "Docs in the editor" below).
 - **Editor modes** (`editor_modes.odin`, `level_mode.odin`): the mode bar beside the menus
   switches the workspace between the **Scene** mode (everything above) and the **Level** mode,
-  the LDtk level editor laid out as LDtk (phase 1 of five, 2026-10-24: the user's design): a tool
-  row (LDtk's tools per layer type, painting greyed out until phase 2; the play controls), the
-  Levels sidebar (worlds, levels: select, focus), the canvas (the world, or a focused level;
-  levels and entities picked and moved, links drawn), the Layers sidebar (select, eye, drag to
-  reorder), LDtk's panels as bottom tabs (World, Level, Layers, Entities, Enums, Tilesets,
+  the LDtk level editor laid out as LDtk (phases 1 and 2 of five, 2026-10-24: the user's design): a
+  tool row (LDtk's tools per layer type; the play controls), the Levels sidebar (worlds, levels:
+  select, focus), the canvas (the world, or a focused level; levels and entities picked and
+  moved, links drawn; **painting** as LDtk: IntGrid values with the auto-layers worked out by
+  LDtk's rules ported (byte-identical to LDtk's samples), tiles (stamps, random, flips, stacking),
+  entities placed, moved, resized, copied, removed, their points and references picked on the
+  canvas; one undo step a stroke), the Layers sidebar (select, eye, drag to reorder, the layer's
+  palette), LDtk's panels as bottom tabs (World, Level, Layers, Entities, Enums, Tilesets,
   Auto-layer Rules, Project) editing layers, entity types, fields, references, enums and the
   world; edits in memory, saved into the `.ldtk` file with the project (Ctrl+S, Play, exports),
   undoable, LDtk's own saves merged; the scenes showing each level, a scene made for a level, Open
@@ -196,9 +199,18 @@ Skald is not immediate-mode and not a retained widget tree:
 | `msg.odin` | `Msg` union and `Action` (menu, toolbar and shortcut commands) |
 | `editor_modes.odin` | **Editor modes**: `EditorMode` (Scene, Level), `EDITOR_MODES` (each mode's registration: name, icon, its `view`, its bottom tabs, its manual page, the `Action` switching to it), `Mode_Layout` / `Mode_LayoutOf` (each mode's panel sizes), `Mode_BottomTab`, `Mode_ShowBottomTab` / `Mode_ShowLogTab`, `Mode_Set`, `.editor/modes.ini` (`Mode_Save` / `Mode_Load`), the mode bar (`modeBarView`), `modeWorkspaceView`, `Modes_Update` |
 | `level_mode.odin` | **The Level mode** (LDtk's layout: the doc block has the picture): `LevelMode` (`State.level`: its layout, bottom tab, file and world, selected level, entity and layer, the focused level, the tool, the canvas's `LevelView` and `LevelDrag`, the tabs' items, the last edit's problem, the conflict dialog), `LevelMode_Sidebars` / `LevelMode_Sizes` (the design's sizes, compact, one sidebar), `levelModeView` (the Levels sidebar, the canvas over the bottom panel, the Layers sidebar), `levelMapView` (the canvas's header, the disk bar), `LevelMode_File`, `LevelMode_World` / `_WorldLevels`, `LevelMode_ScenesShowing`, the `Level_*` / `LDtk_*` messages (`LevelMode_Update`: rows, focus, worlds, layers, tools, canvas presses, drags and releases, edits and renames the scenes follow, the disk bar's answer), `LevelDrag_Target` (where a drag lands: GridVania's grid, an entity's layer grid), `LevelMode_Status`, `ldtkConflictDialogView` |
-| `level_canvas.odin` | **The world canvas**: `levelCanvasView` / `LevelCanvas_Build` (input from its last rect, the levels' pictures, outlines, entities, links; a focused level's neighbours dimmed), `LevelCanvas_Content` (the shown world's levels, entities and links in world pixels, a drag's target applied), the level pictures (`Preview_RenderLDtkLevel`, Skald images keyed by the level's content: a move doesn't redraw), `LevelCanvas_Fit` / `_FitOnce` (the world or the focused level), `LevelCanvas_WorldToWindow` (the driver's) |
-| `view_level_tools.odin` | **The Level mode's tool row** (`LevelTools_View`, instead of the toolbar): `LevelTool`, `LEVEL_TOOLS` (icons, names, which work: Select in phase 1), `LevelTools_For` (LDtk's tools per layer type), `LevelMode_LayerDef` / `_LayerType` (the selected layer), `LevelTool_Available` / `_Look` / `_Tip`, the play controls, the overflow menu (`Ctx_Level_Tools`) |
-| `view_level_sidebars.odin` | **The Level mode's sidebars**: Levels (the file and world choices, a row per level: select, double-click focus, its menu `Ctx_Level` / `LevelMode_MenuItems`), Layers (the selected level's layers: select, the eye, a grip's drag to reorder: file state `layerRowDrag`), one sidebar of both in a narrow window (`levelSidebarsStackedView`), `sidebarRow` (a zone row with its own presses) |
+| `level_canvas.odin` | **The world canvas**: `levelCanvasView` / `LevelCanvas_Build` (input from its last rect: the painting tools first on the focused level; the levels' pictures with each layer's opacity, entities, links, the painting overlay; a focused level's neighbours dimmed), `LevelCanvas_Content` (the shown world's levels, entities (shapes, tiles, a stroke's previews: resized, erased, a copy's ghost) and links in world pixels, a drag's target applied), `LevelCanvas_Fit` / `_FitOnce` (the world or the focused level), `LevelCanvas_WorldToWindow` (the driver's) |
+| `level_paint.odin` | **Painting in the Level mode** (phase 2; its doc block has LDtk's buttons and keys): `LevelPaint` (`LevelMode.paint`: the picked value per layer, tiles per tileset, entity type, flips, random, LDtk's toggles, the `LevelStroke`, a `LevelPick` waiting, the chain), the focused level's model (`LevelPaint_Model`, kept across strokes, rebuilt per document version), `LevelPaint_PlanPress` (what a press does: a grid stroke, erase, resize, point, place, Alt pick / copy, a pick, refused with why), `LevelPaint_Press` / `_Moved` / `_Released` / `_Commit` (one `LDtkDoc_Commit` a stroke), entity boxes and handles (`LevelEntityBox`, `LevelPaint_HandleAt`, LDtk's isOver and ResizeTool), `LevelPaint_Update` (the palette's picks, the keys' actions, Delete, Ctrl+D), `LevelPaint_Classify` (the history's labels), `LevelPaint_Cursor` |
+| `level_canvas_paint.odin` | **The painting overlay**: `LevelOverlay` (grid lines, the brush's cells, rectangle or stamp image, the selected entity's handles, its points' path, the hint: why a press did nothing), `LevelOverlay_Build` / `_DrawGrid` / `_Draw` / `_DrawHint`, `LevelEntity_Draw` (an entity as LDtk draws it: its shape, color, alphas, tile) |
+| `level_layers_render.odin` | **The level pictures**, drawn as LDtk's LayerRender from the decoded levels: the focused level a picture per layer in `LEVEL_CHUNK` pieces (only changed pieces drawn and uploaded, `LEVEL_RENDER_BUDGET_MS` a frame), others one composite; backgrounds (`__bgPos`), IntGrid colors, auto tiles in display order, tiles with LDtk's pivot slip (`LevelPictures_Update` / `_Pieces` / `_Draw`, `LevelPictures_BrushImage`, `LevelPictures_RedrawDirty`) |
+| `view_level_palette.odin` | **The palette** under the Layers sidebar (LDtk's IntGridPalette, TilePalette, EntityPalette): IntGrid values (`level-value-<v>`), the tileset with LDtk's selection rules (`level-palette-tiles`; Stamp / Random, flips, stacking toggles), entity types (`level-entity-type-<uid>`) |
+| `ldtk_level_model.odin` | **A level decoded for painting**: `LDtkLevelModel` (its layers' IntGrid values, grid tiles and auto tiles per cell, rule area counts, what changed, the tilesets' opaque tiles), `LDtkLevel_Read`, the layer edits (`LDtkLayer_SetIntGrid`, `_AddTile`, `_RemoveTiles`...), `LDtkLevel_Patches` (the changed layers written back as LDtk writes them: fast text writers) |
+| `ldtk_rules.odin` | **LDtk's auto-layer rules, ported** (its AutoLayerRuleDef, LayerInstance.applyAllRules...): rules and groups read, `LDtkRule_Matches`, LDtk's seeds (`ldtkRandSeedCoords` with JavaScript's number semantics) and Perlin noise (heaps' `hxd.Perlin`), stamps, offsets, `breakOnMatch`, `LDtkRules_ApplyArea` / `_AfterChange` / `_ApplyAll`, evaluation and display order, biomes / optional groups |
+| `ldtk_paint.odin` | **LDtk's painting tools on a model**: `LDtkPaintMode`, `LDtkTileBrush` (stamp, random, flips, stacking), `LDtkPaintStroke`, lines (Bresenham), `ldtkFloodFill` (LDtk's order), IntGrid cell / line / rectangle / fill, tiles at a cell, stamps, rectangles, fills, removal |
+| `ldtk_entity_ops.odin` | **Entity edits LDtk makes** (`LDtkOps_EntityEdit`): added (LDtk's JSON key order, `maxCount` / `limitScope` / `limitBehavior`), removed (references to it dropped), resized, duplicated, a point moved, array and symmetrical references; new iids (`LDtk_NewIid`), the table of contents rebuilt |
+| `ldtk_json_pretty.odin` | **LDtk's JSON writer, ported** (its JsonPretty): `LDtkJV` values, `LDtk_PrettyJson` (Compact / Minified: lines up to 85 columns, number grids 35 a row, rules on one line), `LDtk_JsNumber` (JavaScript's `String(n)`) |
+| `view_level_tools.odin` | **The Level mode's tool row** (`LevelTools_View`, instead of the toolbar): `LevelTool`, `LEVEL_TOOLS` (icons, names, what each does: all work since phase 2), `LevelTools_For` (LDtk's tools per layer type), `LevelMode_LayerDef` / `_LayerType` (the selected layer), `LevelTool_Available` / `_Look` / `_Tip`, the play controls, the overflow menu (`Ctx_Level_Tools`) |
+| `view_level_sidebars.odin` | **The Level mode's sidebars**: Levels (the file and world choices, a row per level: select, double-click focus, its menu `Ctx_Level` / `LevelMode_MenuItems`), Layers (the selected level's layers: select, the eye, a grip's drag to reorder: file state `layerRowDrag`; the palette under them), one sidebar of both in a narrow window (`levelSidebarsStackedView`), `sidebarRow` (a zone row with its own presses) |
 | `view_ldtk_tab.odin` | **The Level mode's LDtk tabs** (`LevelMode_LDtkTab(s, ctx, tab)`: World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules, Project), each tab's rows (the world and its choice, the level with its scenes, fields and neighbours, a layer with its IntGrid values and the scenes' collision kinds, entity types with their fields, instances and references, enums, tilesets, a summary of the rules, the file's settings), text fields keeping what's typed in `State.numberEdit`, number fields (`LDtkNumberTarget`) |
 | `ldtk_json.odin` | **JSON that keeps its text**: `Json_Parse` (a flat tree of nodes with their spans), lookups (`Json_Get`, `Json_At`, `Json_Items`, `Json_String`, `Json_Path`), patches (`Json_SetPatch`, `Json_AppendPatch`, `Json_InsertPatch`, `Json_AddMemberPatch`, `Json_RemovePatch`, `Json_Apply`), values written like their neighbours (`Json_Quote`, `Json_FormatNumber`, `Json_Object`, `Json_Array`, minified files kept minified) |
 | `ldtk_doc.odin` | **An LDtk project's files as the Level mode edits them, in memory**: `LDtkDoc` (the .ldtk file and its levels' .ldtkl files: each one's text, what's on disk and whether it's unsaved; worlds, levels), the cache (`LDtkDoc_Get`: read again when a file changes, LDtk's change merged into unsaved edits or waiting: `LDtkDoc_DiskConflict` / `_ResolveDisk`; `LDtkDoc_Outside`), lookups (levels' rects as LDtk lays them out, definitions by uid, layer instances, entities by iid), `LDtkPatches`, `LDtkDoc_Commit` / `_SetTexts` (in memory), saving (`LDtkDoc_Save`, `LDtkDocs_SaveProject`, `LDtk_WriteFile`: atomic, the modification time always moved on), what the engine reads of it (`LDtkDoc_Stamp`, `LDtkDoc_GameText`, `LDtkDoc_ProvideToGame`) |
@@ -257,7 +269,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `viewport_math.odin` | Viewport pan/zoom math and drag (move/rotate/scale) math |
 | `add_node.odin` | Add Node dialog logic: `AddNode_Kinds` (search over the engine's `SCENE_NODE_KINDS`), `AddNode_Create` (parent, unique name) |
 | `node_edit.odin` | Subtree copy/paste/duplicate, `Scene_MoveNode` (reorder and reparent keeping the world transform), unique names |
-| `history.odin` | Undo/redo: command history, automatic recording (`History_Classify`), merging; LDtk document steps (`FileChange`: the Level mode's, in memory: `History_RestoreFiles`, `History_MergeText`, `History_ResolveConflict`, `LDtkEdit_Info`) |
+| `history.odin` | Undo/redo: command history, automatic recording (`History_Classify`), merging; LDtk document steps (`FileChange`: the Level mode's, in memory: `History_RestoreFiles`, `History_MergeText`, `History_ResolveConflict`, `LDtkEdit_Info`; a big file's step keeps only its hunks: `FileText`, `FileHunk`) |
 | `settings.odin` | `Settings`, loading/saving editor.ini over `settings.default.ini`, chord text, the Skald theme |
 | `zip.odin` | Zip files: `Zip_Write` (stored), `Zip_List` / `Zip_Read` (stored and deflated, CRC checked), `Zip_SafeName` |
 | `project_archive.odin` | Project archives (`.odinsdl`): `ProjectArchive_Create` (outside assets brought in), `ProjectArchive_Extract`, the File menu's flow |
@@ -2430,9 +2442,7 @@ the user's file) with the editor's theme colors; level_mode.odin's doc block has
   LDtk has no tool buttons (left paints, right erases, Shift a rectangle, Shift + click fills, Alt
   picks: its Tool.hx), so the row is those per layer type (`LevelTools_For`: IntGrid Select /
   Pencil / Rectangle / Fill / Eraser / Picker; Tiles with Stamp and Random; Entities Select /
-  Place / Eraser / Picker; AutoLayer Select). **Phase 1:** only Select works
-  (`LEVEL_TOOLS[tool].works`); the others are disabled buttons whose tooltips say painting comes
-  in phase 2 (`LevelTool_Tip`). `LevelMode.tool` and `Level_Tool_Picked` are ready for phase 2.
+  Place / Eraser / Picker; AutoLayer Select). Since phase 2 every tool works (painting: below).
   Narrow: the tools go into `level-tool-more` (`Ctx_Level_Tools`).
 - **Sizes** (`LevelMode_Sizes`): the design's at full size (a 75 px row of 45 px buttons with
   10 px corners, 32 px headers, 60 px rows, a 40 px tab row); under `LEVEL_COMPACT_WIDTH` (1100 px
@@ -2484,12 +2494,12 @@ the user's file) with the editor's theme colors; level_mode.odin's doc block has
   for middle / right / Space) starts a `LevelDrag` (Pan, Level, Entity), every move sends
   `Level_Canvas_Moved` anywhere, the release `Level_Canvas_Released`, which makes the move
   (`LevelDrag_Target`: a GridVania world's grid, an entity's layer grid with its pivot on a cell's,
-  Shift free) one `.Files` step (`History_Classify` names it from the drag). Each level is a Skald
-  image (`level-map-<hash>`) drawn by `Preview_RenderLDtkLevel` (one software renderer for all, its
-  surface only growing, the document read again when its stamp changes: `LDtkDoc_Stamp`, the
-  unsaved document given to its game), re-rendered only when its content key changes (its layers,
-  size, background and the definitions, per document version: `levelContentKeys`), so dragging a
-  level doesn't redraw it. Entities are outlined from the JSON (pivot, size, smart color), links
+  Shift free) one `.Files` step (`History_Classify` names it from the drag). The levels are drawn
+  by level_layers_render.odin as LDtk's LayerRender draws them (since phase 2; it was the engine's
+  software renderer, `Preview_RenderLDtkLevel`, one picture per level): the focused level a
+  picture per layer in 256 px pieces (painting redraws only the pieces it changed), the others one
+  picture each, drawn again only when their content key changes (`levelContentKeys`), so dragging
+  a level doesn't redraw it. Entities are outlined from the JSON (pivot, size, smart color), links
   are EntityRef `__value`s (arrows) and the selected level's neighbours (`LDtkDoc_Neighbours`,
   dashed).
 - **The tabs' rows** (view_ldtk_tab.odin): each tab picks its item (`ldtk-item-<Tab>`,
@@ -2515,6 +2525,49 @@ the user's file) with the editor's theme colors; level_mode.odin's doc block has
   (fit, drags of levels in Free and GridVania worlds and of entities on and off their grid, a
   click that doesn't move, panning, typing merged into one step, undo, unsaved until undone);
   `tests/ui/ldtk_tab.script` (below).
+
+### Painting in the Level mode (phase 2 of TODO.md's "LDtk level editor", 2026-10-24)
+
+LDtk's tools on the focused level's selected layer, as LDtk behaves (its source in the
+workspace's `../ldtk`, 1.5.3: Tool.hx, tool/lt/, SelectionTool, ResizeTool, data/inst/
+LayerInstance.hx, data/def/AutoLayerRuleDef.hx). level_paint.odin's doc block has the buttons and
+keys; the manual's level_mode.md "Painting" is the user's guide.
+- **The model, not the JSON, while a stroke runs:** the focused level is decoded once per
+  document version (`LevelPaint_Model`: ldtk_level_model.odin, about 35-58 ms for a 256 x 256
+  level of six layers, optimized), changed in place by the tools (ldtk_paint.odin) and the rules
+  (ldtk_rules.odin), drawn from it (only the changed pieces); the release writes the changed
+  layers back (`LDtkLevel_Patches`: the arrays rewritten as LDtk's JsonPretty writes them,
+  ldtk_json_pretty.odin) in one `LDtkDoc_Commit`: one `.Files` step a stroke. The model survives
+  the commit (only grid strokes are dropped when it's rebuilt).
+- **Auto-layers are LDtk's, byte for byte:** rules evaluated in LDtk's order around each change
+  (radius: the rules' size; `LDtkRules_AfterChange`: the layer's own rules, the AutoLayers built
+  from it, Tiles layers' tiles killed by rules), its seeds with JavaScript's number semantics
+  (`ldtkRandSeedCoords`), heaps' Perlin noise (repeat 50, gradients scaled as at run time), the
+  area counts LDtk uses to skip rules (`isRelevantInLayerAt`: 10 x 10 areas, a group's values
+  `(g + 1) * 1000`, ungrouped values counted as 1000), tiles stored by coordinate (Haxe's IntMap
+  iterates in order) and drawn in display order (groups and rules reversed). Checked against
+  LDtk's own samples (`ldtk_rules_test.odin`: every auto layer of every sample in `../ldtk`
+  re-evaluated from its IntGrid, 130 layers, 57,682 tiles, identical; a sabotaged rule fails it).
+  The demo's legacy.ldtk differs only in its random tiles: make_demo.py chose them with Python's
+  `random`, not LDtk's seeds.
+- **Entities** (ldtk_entity_ops.odin, `LDtkOps_EntityEdit`): new ones written in LDtk's key order
+  with new iids, `__worldX/Y` in Free and GridVania worlds, LDtk's count limits, references to a
+  removed entity dropped, the table of contents rebuilt only when it differs.
+- **Performance** (2026-10-24, optimized, `level_painting_is_fast`, best of runs): a generated
+  256 x 256 level of six layers (6.5 MB file, 34,607 auto tiles): press 35-58 ms (the decode,
+  first press after a document change), moves 2.5-3.5 ms mean (worst 6-11 ms), release 120-147 ms
+  (most of it `LDtkDoc_SetTexts` parsing the 6.5 MB text again), undo 55-104 ms; the demo's
+  Hollow (180 x 48): moves 1.4-2 ms, release 10-56 ms, undo 8-12 ms. Moves are what keeps 60 fps.
+- **Undo steps of big files keep hunks** (history.odin's `FileText`): files under
+  `FILE_STEP_WHOLE_MAX` (256 KB) keep both texts; bigger ones the diff's hunks (`textHunks`: the
+  texts split after `,` and line breaks, resynced on six equal segments in a row, the nearest
+  within 4096): 0.1 MB a stroke on the 256 x 256 level instead of 13 MB. A hunk step needs the
+  document as the step left it (applied exactly); otherwise it waits on the conflict dialog.
+- Tests: `level_paint_test.odin` (each tool and layer type against LDtk's behaviour, rules and
+  writing, entity edits, the Level mode's strokes with undo, the performance test with
+  byte-identical undo / redo), `ldtk_rules_test.odin` (LDtk's samples, the JSON writer),
+  `tests/ui/level_paint.script` (every kind painted, at 640x660, 1280x720 and 900x500); fixture
+  `tests/fixtures/ldtk_paint/` (`make_paint.py`).
 
 ## Editing LDtk projects (implemented, `ldtk_json.odin`, `ldtk_doc.odin`, `ldtk_ops.odin`)
 
@@ -2568,13 +2621,15 @@ each edit changes and what isn't editable yet.
   `EditInfo.withProject`; components, which the project's snapshot doesn't hold, through
   `FileChange.components`, their nodes before and after: `ldtk_renames_follow_into_components_and_undo`). Files LDtk older than 1.0 wrote aren't edited (`LDtkOps_TooOld`).
 - **Undo** (history.odin, `.Files`): the snapshot is the document's texts in memory, the step
-  keeps the files that changed (`FileChange`: before and after texts, and the project's snapshot
-  for renames). Undo puts "before" back in the document (`History_RestoreFiles` →
+  keeps the files that changed (`FileChange`: before and after texts, or a big file's hunks
+  (`FileText`, since phase 2: see "Painting in the Level mode"), and the project's snapshot for
+  renames). Undo puts "before" back in the document (`History_RestoreFiles` →
   `LDtkDoc_SetTexts`) when it's as the step left it; when it changed since (LDtk saved the file and
   it was read again or merged), `History_MergeText` applies the step's change to it when the two
   changes don't overlap (common prefix and suffix of each against the step's text) and the result
   parses; otherwise the step waits on the conflict dialog (`ldtkConflictDialogView`: Overwrite,
-  Keep the File (the step and the older history go), Cancel).
+  Keep the File (the step and the older history go), Cancel; a big file's hunks can't overwrite a
+  file changed where they are: the file is kept).
 - **External changes** (`LDtkDoc_Get`, when any file's time changed): without unsaved edits the
   document is read again; with them, LDtk's change is merged into them per file
   (`ldtkMergeDisk`: `History_MergeText` with the saved text as the base, the document's as ours,
@@ -3711,14 +3766,19 @@ Highlights:
   - the mode bar's tabs `mode-tab-<Name>` (`mode-tab-Level`); the Level mode's (level_mode.odin's
     doc block): its tool row `level-tool-<Tool>` / `level-tool-more`, the Levels sidebar's
     `level-row-<i>`, `level-file`, `level-world`, `level-import`, the Layers sidebar's
-    `level-layer-row-<i>` / `-grip-<i>` / `-eye-<i>`, the canvas `ldtk-map-Level` and its header's
+    `level-layer-row-<i>` / `-grip-<i>` / `-eye-<i>`, the palette's `level-value-<v>`,
+    `level-palette-tiles` / `-random` / `-flip-x` / `-flip-y` / `-stacking`,
+    `level-entity-type-<uid>`, the canvas `ldtk-map-Level` and its header's
     `panel-level-fit` / `-world-view` / `-focus` / `-open-ldtk`, the disk bar's `ldtk-disk-reload` /
     `-keep`, its bottom strip `level-bottom-tabs` (far tabs: `send Bottom_Tab <Tab>`), the tabs'
     (view_ldtk_tab.odin's doc block: `ldtk-tab-scroll`, `level-new-scene`, `level-open-scene-<i>`,
     `ldtk-layer-name`...), the conflict dialog's `ldtk-conflict-overwrite` / `-keep` / `-cancel`
     (driver checks `mode`, `level <file | level | tab | levels | shown_in | entity | problem |
     conflict | outside | world | focus | tool | layer | layer_type | unsaved | disk_conflict |
-    sidebars>`, `ldtk`, `ldtk_disk`; tests/ui/modes.script, ldtk_tab.script)
+    sidebars | value | tiles | random | flip | grid | single_layer | stacking | auto_layers |
+    stroke | pick | entity_type>`, `ldtk`, `ldtk_disk`, `ldtk_cell`, `ldtk_tiles`, `ldtk_count`,
+    `level_entities`; commands `level_paint`, `level_drag_world`, `level_palette_tiles`;
+    tests/ui/modes.script, ldtk_tab.script, level_paint.script)
   - the sprite sheet slicer's tab (slicer_edit.odin's doc block: `slicer-tab-<i>`, `slicer-canvas`,
     `slicer-scroll`, `slicer-<SlicerNumber>`, `slicer-add`, `slicer-create`, `slicer-apply`...),
     the browser preview's `browser-slice`, the Animation panel's `animation-slice` (driver:
