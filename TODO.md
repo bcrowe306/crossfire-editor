@@ -87,6 +87,43 @@ Left:
   physics, particles), with numbers before and after in the engine's CLAUDE.md "Performance"
   section.
 
+## UI and UX: look and usability (asked 2026-10-25; build in this order, a release per round)
+
+The user's decisions (2026-10-25): the editor-wide command palette is Ctrl+Shift+P, merged with the
+code editor's (in a code tab it lists the code editor's commands too); with no project argument the
+editor starts on a welcome screen (the demo no longer opens by itself; tests and a path argument
+unaffected); layouts are maximize + presets (no docking); **no motion** (the UI stays instant).
+
+1. **Pointers that follow what's under them** (Skald's cursor request, used once today): hand on
+   buttons, links, tabs and list rows; double arrows on splitters and panel borders; I-beam on text
+   fields, the code editor and selectable text (Console, docs, read-only values); canvas tools
+   (crosshair painting, open / closed hand panning, move / resize arrows over gizmo and level
+   handles); not-allowed on disabled controls and refused drops. Built into the shared widgets.
+2. **Viewport colors in the theme** (Settings > Appearance): the viewport's and the Level canvas's
+   backgrounds, grid / major / axis colors, game frame, selection outline, gizmo colors, guides;
+   live preview and reset, saved in editor.ini.
+3. **Even, consistent spacing: a small design system.** Tokens (a 4 px spacing scale, control
+   heights, row height, panel padding, icon sizes, from the font size and the Spacing setting); an
+   audit replacing hand-written pixel numbers in the views; alignment rules (label columns, button
+   groups, section gaps); a unit test flagging new hard-coded sizes; measured renders of every
+   panel. Includes **typography** (one hierarchy: panel titles, section headers, labels, values,
+   muted text), **focus** (a visible focus ring, a sensible Tab order through panels and dialogs),
+   **contrast** (a warning when a theme color makes text unreadable) and **icons** (one size and
+   weight per context, one icon per action).
+4. **Finding things:** an editor-wide **command palette** (Ctrl+Shift+P: every action, setting,
+   node, asset, manual page; merged with the code editor's in code tabs); **search everywhere**
+   (nodes, assets, settings, docs); **breadcrumbs** for the selected node's path above the viewport.
+5. **Feedback:** **notifications** (toasts with progress for builds, exports, saves, installs);
+   a project **Problems panel** (missing assets, broken node paths, unresolved references, script
+   errors; each clickable to fix); a visual **undo history** (a list of steps, jump to one);
+   **empty states with actions** in every panel.
+6. **Workflow:** **maximize a panel** (double-click its tab) and **layout presets** (panel sizes and
+   shown tabs saved per project); **multi-node editing** (a property set on every selected node,
+   mixed values shown as "—"); **pinned / favorite properties** and remembered collapsed sections in
+   the inspector; **drop targets that light up** during a drag; **contextual hints** (the status bar
+   shows the current tool's keys); a **welcome screen** (recent projects, Open, New, the demo, the
+   manual).
+
 ## LDtk level editor: parity with LDtk (asked 2026-10-24; done 2026-10-25)
 
 Built in five phases, each its own release: the layout (the user's design, `LDtk_interface.html`),
