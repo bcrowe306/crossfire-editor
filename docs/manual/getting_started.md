@@ -82,7 +82,7 @@ use **File > Open Project** (Ctrl+O). See [Projects](projects.md).
 | **Toolbar** | New, Open, Save; Undo and Redo; the tools (Select, Move, Rotate, Scale, Transform, Zoom, Pan); in the middle **Play**, **Play this scene**, **Pause**, **Stop**, **Restart** and the game's collision shapes (on while you develop: [Seeing the shapes](physics.md#seeing-the-shapes)); **Export** on the right. In a narrow window the tools (narrower still, the file and undo buttons too) move into the **…** button's menu |
 | **Browser** (left) | Your project's files, sorted into folders: Scenes, Scripts, Images, Audio, Music, Fonts, Data, Components, Levels and more. The search box at the top filters them. **+** imports a file (Ctrl+I), the trash button removes one |
 | **Preview** (under the browser) | What the selected file is: an image's picture and size, a sound you can play, a scene's facts and its settings |
-| **Viewport** (middle) | The open scene, drawn the way the game draws it. Click a node to select it, drag it to move it. Each open scene has a tab above it |
+| **Viewport** (middle) | The open scene, drawn the way the game draws it. Click a node to select it, drag it to move it. Each open scene has a tab above it; under the tabs, the selected node's path (the scene, its parents, the node): click a name to select it |
 | **Scene tree** (right, top) | Every node of the open scene, children indented under their parents |
 | **Inspector** (right, bottom) | The selected node's settings: its name, position, rotation, scale, and what its kind has (an image, a text, a sound...). Made narrow, it puts each setting's name above its control |
 | **Bottom panel** | Tabs: **Console** (messages from the editor and your game), **Output** (building), **Animation**, **Mixer**, **Git**, **Tiles**, **Timeline**, **Live**, **States**, **Particles**, **Dialogue**, **Plugins**. Ctrl+J shows or hides it |
@@ -95,6 +95,31 @@ name in the inspector) to see what it does.
 the engine's API reference and a guide to every node kind; right-click a node, a scene or an
 asset and choose **Open Docs** to read about it. **Help > Keyboard Shortcuts** lists every shortcut (you can change
 them there too).
+
+### Finding things
+
+**Edit > Command Palette** (**Ctrl+Shift+P**, or **Ctrl+P**; **Help > Search Everywhere** is the
+same window) finds anything by typing a few of its letters, in order: `tglbottom` finds **Toggle
+bottom panel**, `pingp` a node called **BalloonPingPong**. It lists:
+
+- every command, with its shortcut
+- every setting (Settings opens on its tab with the setting lit)
+- the open scene's nodes, with their parents (the node is selected)
+- your scenes, assets and scripts (a scene opens, an asset is selected in the browser, a script
+  opens in its tab)
+- the manual's and the API reference's pages (they open in the docs window)
+- in a code tab, everything the code editor can do ([Code editor](code_editor.md#the-command-palette))
+
+**Up** and **Down** choose (Page Up and Page Down jump), **Enter** runs, **Escape** closes; a click
+runs a row too. To search one kind only, start with its sign, or click its button under the search:
+
+| Type first | Finds |
+|---|---|
+| `>` | Commands (and the code editor's, in a code tab) |
+| `,` | Settings |
+| `@` | Nodes of the open scene |
+| `#` | Scenes, assets and scripts |
+| `?` | Pages of the docs |
 
 ## Editor modes
 

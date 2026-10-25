@@ -153,9 +153,14 @@ The Scene mode:
 |---|---|
 | Top | Menu bar (with the mode bar) and toolbar: file actions, undo/redo, tools, play controls (Restart too), export; in a narrow window the tools move into an overflow menu |
 | Left | Project browser: scenes and assets |
-| Center | Scene tabs and the scene view |
+| Center | Scene tabs, the selected node's path (breadcrumbs: click one to select it) and the scene view |
 | Right | Scene node tree and the inspector for the selected node |
 | Bottom | Console / Output / Animation tabs, collapsible (Ctrl+J); the Console and Output filter their lines and keep the newest (Settings > Editor > Console lines kept) |
+
+**Finding things:** the **command palette** (Ctrl+Shift+P or Ctrl+P; Edit > Command Palette, Help >
+Search Everywhere) finds any action (with its shortcut), setting, node of the open scene, scene,
+asset, script or manual page by typing a few of its letters; `>` `,` `@` `#` `?` keep actions,
+settings, nodes, assets or docs. In a code tab it lists the code editor's commands too.
 
 ## Project browser
 
@@ -358,7 +363,8 @@ register_Player :: proc "contextless" () {
 ### The built-in code editor
 
 Scripts open in a **tab next to the scene tabs**, in an Odin code editor (`code_editor/`): Odin
-highlighting, multiple cursors, find and replace, a command palette (Ctrl+P), and with the Odin
+highlighting, multiple cursors, find and replace, its commands in the editor's command palette
+(Ctrl+Shift+P or Ctrl+P), and with the Odin
 language server, completion, signature help, diagnostics and Go to Definition (which opens the
 other file in its own tab). Each script gets its own tab; opening one that's open shows its tab.
 Close a tab with its × (or a middle click, or Ctrl+W); one with unsaved changes asks first. The
@@ -367,8 +373,8 @@ project, and a save builds the scripts in the background so the inspector shows 
 
 While the code editor has the keyboard, keys go to it, except Save, Play, Pause, Stop, Build
 Scripts, Export, Settings, the bottom panel and Quit. Its key bindings are VS Code's and Zed's
-(Ctrl+D next occurrence, Alt+Up/Down move lines, Ctrl+/ comment, F12 definition, Ctrl+P
-palette, ...): the palette (Ctrl+P) lists every command with its keys, and its Keymap Editor
+(Ctrl+D next occurrence, Alt+Up/Down move lines, Ctrl+/ comment, F12 definition, ...): the
+command palette (Ctrl+Shift+P or Ctrl+P) lists every command with its keys, and its Keymap Editor
 changes them. Ctrl+O and Ctrl+Shift+S open and save as through file dialogs. Tab indents with a
 tab, as Odin code does.
 

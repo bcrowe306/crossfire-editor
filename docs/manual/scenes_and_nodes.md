@@ -72,6 +72,12 @@ The panel at the top right shows the open scene's nodes, children indented under
 Its header has the scene's name, **+** (Add Node) and the trash (Delete). The ▸ beside a parent
 folds its children away.
 
+Above the viewport, a slim bar shows the selected node's path: the scene, the node's parents, the
+node (**Level › Props › Balloon**). Click a name to select that parent, or the scene's to clear the
+selection. In a narrow window the names on the left give way first. To find a node by name, type
+`@` and a few of its letters in the command palette (Ctrl+Shift+P: [Finding
+things](getting_started.md#finding-things)).
+
 - **Click** a node to select it. The inspector under the tree shows its settings.
 - **Double-click** it, or press **F2**, to rename it. Enter keeps the name, Escape cancels.
   Paths other nodes keep to it, or through it, follow the new name, and moving a node in the tree

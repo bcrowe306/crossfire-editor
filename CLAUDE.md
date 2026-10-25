@@ -361,6 +361,9 @@ Skald is not immediate-mode and not a retained widget tree:
 | `recent_projects.odin` | Recent projects: `RecentProjects` (`recent_projects.txt` beside the settings), `Recent_Add` / `Remove` / `Clear`, `Recent_Shown` (what the File menu lists), `Recent_Label` |
 | `view_project_dialogs.odin` | The save-changes and New Project dialogs |
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
+| `command_palette.odin` | **The command palette** (Search Everywhere): `PaletteKind`, `PaletteEntry`, `PaletteState` (`State.palette`), `Palette_Entries` (actions with their keys, the menus' other items, a code tab's code editor commands, `PALETTE_SETTINGS` and the color tables, the open scene's nodes, scenes / assets / scripts, the docs' pages), `Palette_ParseQuery` (`PALETTE_PREFIXES`), `Palette_Matches` (the code editor's `ce.fuzzy_score`, then category, label), `Palette_Update` / `_RunRow` / `_Run`, `Palette_NodePath` |
+| `view_command_palette.odin` | The palette's popup (`commandPaletteView`): search, category buttons, the rows (kind, label, detail), the count; Up / Down / Page keys, Enter, Escape |
+| `breadcrumbs.odin` | **Breadcrumbs**: `Crumb`, `Breadcrumbs_Chain` (a node and its ancestors), `Breadcrumbs_Scene`, `Breadcrumbs_Fit` (crumbs dropped from the left), `breadcrumbsRow` (also the Level mode's canvas header), `breadcrumbsBar` (above the viewport) |
 | `view_inspector.odin` | Right sidebar: scene tree above the inspector (common and per-kind properties) |
 | `project_data.odin` | Global scripts (`GlobalDef`) and data resources (`DataDef`) in the project; prop editing for any owner (`PropTarget`); creating, loading and saving data files; writing the generated `scripts/assets.odin` (`Scripts_WriteAssetsFile`, `ASSETS_FILE_MARKER`; its content: script_constants.odin) |
 | `view_fields.odin` | `FieldControl`: the control for one exported field (numbers, bool, text, scene, vector, color, enum, asset handles), for node scripts, globals and data resources |
@@ -1098,7 +1101,8 @@ external program (`Script_OpenInEditor`). Picking a scene tab, or anything that 
   drag's end). Focus is Skald's (`focused_id == hash_id("code-editor")`); Skald's Tab traversal
   takes it before `view`, so `CodeEditor_Frame` gives it back; `IsTyping` counts it, and
   `KeymapDispatch` runs only `CODE_EDITOR_PASSTHROUGH` then (their chords don't reach the code
-  editor); the menu bar drops its shortcuts. Help's chord (F1, `User_Manual`) is the code view's
+  editor; `Command_Palette` is one: the editor's palette lists the code editor's commands, see
+  "Finding things"); the menu bar drops its shortcuts. Help's chord (F1, `User_Manual`) is the code view's
   own: the docs window at the API entry of the engine declaration at the caret, else the type of
   the name there, else the manual's code editor page ("Hovers and previews", below).
 - **Unsaved scripts** count in `Project_IsModified`; `Session_Save`, Play and Export call
@@ -1488,7 +1492,7 @@ See code_previews.odin's, code_colors.odin's and engine_docs.odin's doc blocks; 
   the comment, Inputs / Returns bold, Example as code, and stands in for OLS's (which repeats
   the declaration and the raw comment). **F1 in a code tab** is the host's
   (`CodeEditor_View`: the editor's `User_Manual` chords are taken before the code editor, whose
-  own F1 opened its palette; Ctrl+Shift+P still does): the docs window at the declaration at
+  own F1 opened its palette; its palette is the editor's command palette now: "Finding things"): the docs window at the declaration at
   the caret's API entry (`Docs_EngineAddress`: the area from `ENGINE_API_AREAS`, the anchor the
   name lower-cased, as the website's build-api.mjs makes them; `EngineDoc_URL` is the same entry
   on crossfireengine.io, checked there for five names), else the page of the type the code
@@ -3017,6 +3021,45 @@ One right-click menu for the whole editor (the user asked for complete menus eve
   viewport space, the scene tree, a browser row (a scene, an asset kind, a script), a scene,
   component or code tab, a log line, a bottom panel's graph (its tab's page); not the guides,
   the Align button, the toolbar's overflow or a log's categories.
+
+## Finding things: the command palette and breadcrumbs (implemented, `command_palette.odin`, `view_command_palette.odin`, `breadcrumbs.odin`)
+
+TODO.md's "UI and UX" round 1 (2026-10-25). The user's decisions: the palette is Ctrl+Shift+P; in a
+code tab it's merged with the code editor's (one palette, listing its commands too); no motion.
+- **One palette, two names** (`Action.Command_Palette`: `Ctrl+Shift+P | Ctrl+P` in the keymap;
+  Edit > Command Palette..., Help > Search Everywhere...): every action of the mode with its keys,
+  the menus' items that aren't actions, Settings' rows (`PALETTE_SETTINGS`, the theme and
+  viewport color tables, the Project tab's pages), the open scene's nodes (with their path),
+  scenes, assets and scripts, the manual's and the API's pages. The file's doc block has the
+  order and keys. A prefix keeps one category (`>` actions and code commands, `,` settings, `@`
+  nodes, `#` assets, `?` docs); the popup's category buttons type it. Matching is the code
+  editor's `ce.fuzzy_score` (one matcher for both palettes); at most `PALETTE_SHOWN` rows.
+- **Running a row** (`Palette_Run`): an action's message (`skald.cmd_now`); Settings opens on the
+  row's tab with its label lit (`SettingsDialog.highlight`, not owned) and scrolled into view
+  once (`settingsRevealWanted`, view_settings.odin's `settingsReveal`: the lit label's tooltip
+  is keyed `settings-highlight`); a node is selected (Scene mode, its parents expanded); a scene
+  opens, an asset is selected in the browser (its folder opened), a script opens in its tab; a
+  page opens in the docs window.
+- **Merged with the code editor's:** `Command_Palette` is in `CODE_EDITOR_PASSTHROUGH`, so its
+  chords never reach the code editor; in a code tab the entries include
+  `CodeEditor_PaletteEntries` (kind `.Code`), run with `CodeEditor_RunPaletteEntry` (queued on
+  the `CodeEditor`, run by the next `CodeEditor_View` with the providers running; the tab takes
+  the keyboard back) through the code editor's `editor_palette_run_entry` (split out of
+  `editor_palette_run`). The code editor's own palette opening any other way (its menu, a key
+  bound in its keymap editor) is closed and this one opens instead.
+- **Breadcrumbs** (`breadcrumbsBar`, between the center header and the viewport's canvas; always
+  shown, so the canvas keeps its size): the scene, then the selected node's ancestors and the
+  node; a crumb selects that ancestor (`Node_Picked`), the scene's deselects; crumbs that don't
+  fit are dropped from the left behind "..." (`Breadcrumbs_Fit`). The Level mode's canvas header
+  uses `breadcrumbsRow` for World > level > layer (the world crumb: the world view; the level's:
+  focus it).
+- Keys and checks: `command-palette`, `palette-search`, `palette-scroll`, `palette-row-<i>`,
+  `palette-category-<All | Action | Setting | Node | Asset | Doc>`, `crumb-<i>`,
+  `level-crumb-<i>`, `settings-highlight`; driver checks `palette`, `palette_query`,
+  `palette_row`, `palette_has`, `palette_matches`, `palette_highlight`, `settings_tab`,
+  `settings_highlight`, `crumbs`. Tests: `command_palette_test.odin` (matching and ranking,
+  prefixes, the entries, running them, `palette_settings_cover_the_dialog`, breadcrumbs);
+  `tests/ui/command_palette.script`.
 
 ## Viewport tools (implemented, `viewport_tools.odin`, `view_viewport.odin`, `viewport_math.odin`)
 

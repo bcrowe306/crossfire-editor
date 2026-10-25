@@ -208,10 +208,11 @@ right-click the line and choose **Go to Error**.
 
 ### The command palette
 
-**Ctrl+P** (also Ctrl+Shift+P) opens the **command palette**: a
-searchable list of everything the code editor can do, with each command's shortcut. Type part of
-a name to filter it, Up and Down to choose, Enter to run, Escape to close. Commands you used
-lately are at the top.
+**Ctrl+Shift+P** (also Ctrl+P) opens the editor's **command palette** ([Finding
+things](getting_started.md#finding-things)). In a code tab it lists everything the code editor can
+do too, marked **Code**, with each command's shortcut, beside the editor's own commands, settings,
+nodes, assets and pages. Type a few letters of a name to filter it (start with `>` to see
+commands only), Up and Down to choose, Enter to run (in the code), Escape to close.
 
 The palette also opens the code editor's windows:
 

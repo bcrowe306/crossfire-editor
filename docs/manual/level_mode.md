@@ -135,9 +135,10 @@ background and its entities as the game shows them. On top of them:
   field's display settings say ([Fields on the canvas](level_worlds.md#fields-on-the-canvas)), and,
   for the selected level, dashed lines to its **neighbouring** levels.
 
-The header above it says where you are (**World**, or **World → Start** while a level is
-focused), whether the file has unsaved edits, the zoom, and its buttons: **Focus** the selected
-level, **World** (back to the world view), **Fit**, **Open in LDtk**.
+The header above it says where you are, as a path: the world, the selected (or focused) level and
+the selected layer (**World › Start › Collisions**). Click the world to go back to the world view,
+the level to focus it. Then whether the file has unsaved edits, the zoom, and its buttons:
+**Focus** the selected level, **World** (back to the world view), **Fit**, **Open in LDtk**.
 
 **Focusing a level** (double-click it here or in the Levels sidebar, or the header's Focus) shows
 that level larger, the others faded around it, as LDtk's level view does. While it's focused,

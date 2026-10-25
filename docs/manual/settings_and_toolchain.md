@@ -31,6 +31,8 @@ There are two kinds of settings:
 
 **Edit > Settings...** (Ctrl+,) opens it, with five tabs: **Appearance**, **Editor**,
 **Keyboard**, **Toolchain** and **Project**. Hover over a setting's name to see what it does.
+To find a setting, type `,` and part of its name in the command palette (Ctrl+Shift+P): Settings
+opens on its tab with the setting lit ([Finding things](getting_started.md#finding-things)).
 
 The buttons at the bottom:
 
