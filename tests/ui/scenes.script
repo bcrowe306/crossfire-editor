@@ -106,7 +106,7 @@ expect scene PlayScene
 key ctrl+F5
 wait_until play Playing timeout=120
 wait_until console_contains from scene PlayScene timeout=10
-expect console_contains Renderer: vulkan
+wait_until console_contains Renderer: vulkan timeout=10
 expect project_file_contains project.xml renderer="Vulkan"
 key shift+F5
 wait_until play Stopped

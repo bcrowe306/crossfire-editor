@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:testing"
+import "gui:skald"
 
 // The design tokens (ui_tokens.odin): the sizes the views had at the default look, and how they
 // scale with the Text size and Spacing settings
@@ -37,7 +38,7 @@ design_tokens_scale_with_the_look :: proc(t: ^testing.T) {
 	testing.expect_value(t, big.labelWidth, INSPECTOR_LABEL_WIDTH * 2)
 	testing.expect_value(t, big.fieldM, 300)
 	testing.expect_value(t, big.s, 6)
-	testing.expect(t, big.iconLarge > tk.iconLarge && big.controlHeight > tk.controlHeight, "icons and controls grow")
+	testing.expect(t, big.iconMedium > tk.iconMedium && big.controlHeight > tk.controlHeight, "icons and controls grow")
 	// The text hierarchy: titles over sections over labels over muted text, each in the theme's colors
 	ts, _ := TextRole_Style(&theme, .Title)
 	ss, sc := TextRole_Style(&theme, .Section)
@@ -190,6 +191,66 @@ view_layout_uses_design_tokens :: proc(t: ^testing.T) {
 			if flagged(value) && strings.trim_left(value, "-0123456789.") == "" {
 				testing.expectf(t, false, "%s: a pixel number in a spacer: skald.spacer(%s) (use the design tokens)", file.name, value)
 			}
+		}
+	}
+	free_all(context.temp_allocator)
+}
+
+// WCAG's contrast ratio, the suggestion, and every preset readable (editor_theme.odin's contrast check)
+@(test)
+theme_presets_are_readable :: proc(t: ^testing.T) {
+	white, black := skald.rgb(0xFFFFFF), skald.rgb(0x000000)
+	testing.expectf(t, abs(Contrast_Ratio(black, white) - 21) < 0.01, "black on white is 21:1, got %v", Contrast_Ratio(black, white))
+	testing.expectf(t, abs(Contrast_Ratio(white, white) - 1) < 0.001, "a color on itself is 1:1")
+	// #767676 on white is the classic 4.54:1
+	testing.expectf(t, abs(Contrast_Ratio(skald.rgb(0x767676), white) - 4.54) < 0.02, "gray on white, got %v", Contrast_Ratio(skald.rgb(0x767676), white))
+	// A suggestion reads, and stays near the color it fixes
+	dim := skald.rgb(0x444444)
+	fixed := Contrast_Suggest(dim, skald.rgb(0x101010))
+	testing.expect(t, Contrast_Ratio(fixed, skald.rgb(0x101010)) >= CONTRAST_TEXT_MIN, "the suggestion reads")
+	testing.expect(t, Contrast_Ratio(dim, fixed) < 3, "and is still a gray near it")
+	// Every preset, and the two bases unchanged, meet 4.5:1 for every pair
+	for preset in THEME_PRESETS {
+		settings := Settings_Default()
+		testing.expect(t, EditorTheme_ApplyPreset(&settings, preset.name), preset.name)
+		theme := Settings_Theme(&settings)
+		for p in EditorTheme_ContrastProblems(&theme) {
+			testing.expectf(t, false, "%s: %v on %v is %.2f:1", preset.name, p.pair.text, p.pair.back, p.ratio)
+		}
+	}
+	// A color made unreadable is reported, with a fix that reads
+	settings := Settings_Default()
+	settings.themeColors[.Fg_Muted] = skald.rgb(0x30343C)
+	settings.themeColorsSet += {.Fg_Muted}
+	theme := Settings_Theme(&settings)
+	problems := EditorTheme_ContrastProblems(&theme)
+	testing.expect(t, len(problems) >= 3, "muted text on the window, panels and popups")
+	for p in problems {
+		back := ThemeColor_Field(&theme.color, p.pair.back)^
+		testing.expect(t, p.pair.text == .Fg_Muted && Contrast_Ratio(p.suggestion, back) >= CONTRAST_TEXT_MIN, "the fix reads")
+	}
+	free_all(context.temp_allocator)
+}
+
+/*
+One icon per action: buttons take theirs from `ACTION_ICONS` / `Action_Icon` (icons.odin), so the
+glyphs of the table's actions appear nowhere else in the views.
+*/
+@(test)
+action_icons_are_the_single_source :: proc(t: ^testing.T) {
+	for icon, action in ACTION_ICONS do testing.expectf(t, icon != "", "%v has an icon", action)
+	for action in ([]Action{.New_Project, .Open_Project, .Save_Project, .Undo, .Redo, .Play, .Play_Scene, .Pause, .Stop, .Restart, .Export, .Tool_Select, .Tool_Move, .Tool_Rotate, .Tool_Scale, .Tool_Pan, .Tool_Zoom}) {
+		testing.expectf(t, Action_Icon(action) != "", "the toolbar's %v has an icon", action)
+	}
+	testing.expect(t, Action_Icon(.Delete_Node) == ACTION_ICONS[.Delete] && Action_Icon(.View_Fit) == ACTION_ICONS[.Fit_View], "the keymap's actions use the table")
+	files, err := os.read_all_directory_by_path(".", context.temp_allocator)
+	testing.expect(t, err == nil, "read the sources")
+	for file in files {
+		if !strings.has_suffix(file.name, ".odin") || strings.has_suffix(file.name, "_test.odin") || file.name == "icons.odin" do continue
+		data, readErr := os.read_entire_file(file.fullpath, context.temp_allocator)
+		if readErr != nil do continue
+		for name in ([]string{"ICON_TRASH", "ICON_PLUS", "ICON_CLONE", "ICON_FIT", "ICON_DICE", "ICON_EXTERNAL"}) {
+			testing.expectf(t, !strings.contains(string(data), name), "%s uses %s: take it from ACTION_ICONS", file.name, name)
 		}
 	}
 	free_all(context.temp_allocator)

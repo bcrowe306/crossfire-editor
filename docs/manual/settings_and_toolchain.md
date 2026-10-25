@@ -17,7 +17,9 @@ There are two kinds of settings:
 
 - [The Settings dialog](#the-settings-dialog)
 - [Appearance](#appearance)
+  - [Readable colors](#readable-colors)
 - [Editor](#editor)
+- [Moving around with the keyboard](#moving-around-with-the-keyboard)
 - [Keyboard: changing shortcuts](#keyboard-changing-shortcuts)
 - [Toolchain: what building games needs](#toolchain-what-building-games-needs)
 - [Project](#project)
@@ -83,6 +85,16 @@ once, the ↶ puts the default back, Cancel the old ones, presets set some of th
 | **Level canvas background** | the window background | The Level mode's canvas around the levels |
 | **Level canvas grid** | the borders | The Level mode's world grid |
 
+### Readable colors
+
+The editor checks that its text stays readable on the colors behind it, with the contrast ratio of
+the web's accessibility rules (WCAG): from 1:1 (no difference) to 21:1 (black on white). Text
+needs at least **4.5:1**. When a color you pick goes under that, a warning shows under **Colors**:
+which text on which background, its ratio, and a color that would read (`Muted text on panels is
+hard to read: 2.1:1 (text needs 4.5:1). Try #8E8F91.`). **Use it** puts that color in. The pairs it
+checks: the main and muted text on the window, panels and popups; the text on the accent (buttons,
+the selected tab); warning and danger text on panels and popups. Every preset meets it.
+
 The colors you set are saved in `editor.ini`'s `[theme]` section, one line each (`bg = #1B1B1B`,
 `selection = #E8833A50`, `viewport_bg = #203040`), with `corner_radius`. The code editor has its own colors: see
 [The code editor](code_editor.md#keymaps-and-themes).
@@ -122,6 +134,20 @@ with snapping on or Shift held.
 
 More about these: [The code editor](code_editor.md) (the code editor, the language server, the
 external program), [Hot reload](scripts_node_types_hot_reload.md#hot-reload-changing-scripts-while-the-game-plays).
+
+## Moving around with the keyboard
+
+**Tab** moves the keyboard to the next control (a field, a button, a checkbox, a dropdown) and
+**Shift+Tab** to the one before, in the order they're laid out. The control that has the keyboard
+gets a ring in the accent color, only while you're using the keyboard: a mouse click hides it.
+**Space** or **Enter** presses a focused button or checkbox; **Up** / **Down** step a focused
+dropdown or number.
+
+In a dialog, Tab goes round the dialog's own controls and never leaves it, **Escape** closes it
+(as Cancel), and **Enter** confirms it (its main button: Create, Save, OK...) unless the control
+with the keyboard uses Enter itself (a button, a dropdown, a list). Settings and Project Settings
+are the exception: there Enter only keeps the value you typed. The code editor keeps Tab for
+indenting while it has the keyboard; the viewport and the canvases aren't stops of Tab.
 
 ## Keyboard: changing shortcuts
 

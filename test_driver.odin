@@ -202,6 +202,7 @@ copy: `open_project {project}`).
 	                                 Particles_Category_Picked <i> (the Particles tab's category),
 	                                 Particles_Preset_Applied <name> (a preset, by name),
 	                                 Level_World_Chosen <iid> (the Level mode's world),
+	                                 Settings_Theme_Color_Changed <key> <#RRGGBB> (a theme color),
 	                                 Settings_Viewport_Color_Changed <key> <#RRGGBB> (a canvas
 	                                 color picked in Settings > Appearance: viewport_bg...),
 	                                 LDtk_Item_Picked <Tab> <uid> (a definitions tab's item),
@@ -2259,6 +2260,12 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			key, _, hex := strings.partition(value, " ")
 			for which in ViewportColor do if VIEWPORT_COLOR_KEYS[which] == key {
 				if c, ok := ThemeColor_Parse(hex); ok do msg = Settings_Viewport_Color_Changed{which, c}
+			}
+		case "Settings_Theme_Color_Changed":
+			// <key> <#RRGGBB>: a theme color picked (the picker's message; editor.ini's keys)
+			key, _, hex := strings.partition(value, " ")
+			for which in ThemeColor do if THEME_COLOR_KEYS[which] == key {
+				if c, ok := ThemeColor_Parse(hex); ok do msg = Settings_Theme_Color_Changed{which, c}
 			}
 		// A bottom tab by its name (the strip scrolls in a narrow window)
 		case "Particles_Category_Picked":

@@ -233,17 +233,19 @@ ThemePreset :: struct {
 THEME_PRESETS := [?]ThemePreset {
 	{name = "Dark", base = .Dark},
 	{name = "Light", base = .Light},
+	// Midnight's accent was #5B8CFF (white on it 3.2:1), Graphite's danger #E5534B and Paper's
+	// warning the Light theme's (under 4.5:1 on their panels): darkened or lightened to read
 	{name = "Midnight", base = .Dark, colors = {
 		.Bg = 0x0F1420FF, .Surface = 0x161D2CFF, .Elevated = 0x1E2739FF, .Border = 0x2B3650FF,
-		.Fg = 0xDFE6F3FF, .Fg_Muted = 0x8B97ADFF, .Primary = 0x5B8CFFFF, .On_Primary = 0xFFFFFFFF,
-		.Selection = 0x5B8CFF55, .Success = 0x4CC38AFF, .Warning = 0xE9B44CFF, .Danger = 0xF0616DFF,
+		.Fg = 0xDFE6F3FF, .Fg_Muted = 0x8B97ADFF, .Primary = 0x3A6FE6FF, .On_Primary = 0xFFFFFFFF,
+		.Selection = 0x3A6FE655, .Success = 0x4CC38AFF, .Warning = 0xE9B44CFF, .Danger = 0xF0616DFF,
 	}, viewport = #partial [ViewportColor]u32{
 		.Viewport_Bg = 0x0A0E17FF, .Grid = 0x1F2738FF, .Grid_Major = 0x2C3850FF, .Grid_Axis = 0x3E4D6CFF,
 	}},
 	{name = "Graphite", base = .Dark, colors = {
 		.Bg = 0x1B1B1BFF, .Surface = 0x242424FF, .Elevated = 0x2D2D2DFF, .Border = 0x3A3A3AFF,
 		.Fg = 0xE6E6E6FF, .Fg_Muted = 0x9A9A9AFF, .Primary = 0xE8833AFF, .On_Primary = 0x1B1B1BFF,
-		.Selection = 0xE8833A50, .Success = 0x6CC070FF, .Warning = 0xE8B83AFF, .Danger = 0xE5534BFF,
+		.Selection = 0xE8833A50, .Success = 0x6CC070FF, .Warning = 0xE8B83AFF, .Danger = 0xF06A6EFF,
 	}, viewport = #partial [ViewportColor]u32{
 		.Viewport_Bg = 0x141414FF, .Grid = 0x2A2A2AFF, .Grid_Major = 0x383838FF, .Grid_Axis = 0x4A4A4AFF,
 	}},
@@ -258,7 +260,7 @@ THEME_PRESETS := [?]ThemePreset {
 	{name = "Paper", base = .Light, colors = #partial [ThemeColor]u32{
 		.Bg = 0xF4F1EAFF, .Surface = 0xFBF9F4FF, .Elevated = 0xFFFFFFFF, .Border = 0xD8D2C4FF,
 		.Fg = 0x2B2A27FF, .Fg_Muted = 0x6F6A60FF, .Primary = 0x2F6FDFFF, .On_Primary = 0xFFFFFFFF,
-		.Selection = 0x2F6FDF40,
+		.Selection = 0x2F6FDF40, .Warning = 0x8A5C00FF,
 	}, viewport = #partial [ViewportColor]u32{
 		.Viewport_Bg = 0xD9D4C8FF, .Grid = 0xC4BEB0FF, .Grid_Major = 0xAFA898FF, .Grid_Axis = 0x8E8676FF,
 		.Game_Frame = 0xC8473EB0, .Gizmo_Y = 0x2E9E48FF, .Guides = 0x1C8FB0D9,
@@ -336,3 +338,85 @@ Settings_Viewport_Color_Changed :: struct {
 }
 // A canvas color back to its default
 Settings_Viewport_Color_Reset :: distinct ViewportColor
+
+/*
+Contrast: Settings > Appearance warns when a text color is hard to read on the colors it's drawn on,
+by WCAG 2's contrast ratio (1:1 to 21:1). Body text needs `CONTRAST_TEXT_MIN` (4.5:1, WCAG AA).
+`CONTRAST_PAIRS` lists what the editor draws on what: the main and muted text on the window, the
+panels and popups; text on the accent (buttons, the selected tab); warning and danger text on the
+panels and popups. Every preset meets it (`theme_presets_are_readable`).
+*/
+CONTRAST_TEXT_MIN :: f32(4.5)
+
+// A text color and a background it's drawn on
+ContrastPair :: struct { text, back: ThemeColor }
+
+// What the editor draws on what (`EditorTheme_ContrastProblems` checks each)
+CONTRAST_PAIRS := [?]ContrastPair{
+	{.Fg, .Bg}, {.Fg, .Surface}, {.Fg, .Elevated},
+	{.Fg_Muted, .Bg}, {.Fg_Muted, .Surface}, {.Fg_Muted, .Elevated},
+	{.On_Primary, .Primary},
+	{.Warning, .Surface}, {.Warning, .Elevated},
+	{.Danger, .Surface}, {.Danger, .Elevated},
+}
+
+/*
+WCAG 2's relative luminance of a color. Skald's colors are linear already (`skald.rgb` decodes
+sRGB), so it's the weighted sum; a translucent color is first blended over `over`.
+*/
+Color_Luminance :: proc(c: skald.Color, over := skald.Color{0, 0, 0, 1}) -> f32 {
+	a := clamp(c[3], 0, 1)
+	r := c[0] * a + over[0] * (1 - a)
+	g := c[1] * a + over[1] * (1 - a)
+	b := c[2] * a + over[2] * (1 - a)
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/*
+WCAG 2's contrast ratio of a text color on a background: (lighter + 0.05) / (darker + 0.05), from
+1 (none) to 21 (black on white). A translucent text color is blended over the background.
+*/
+Contrast_Ratio :: proc(text, back: skald.Color) -> f32 {
+	opaque := back
+	opaque[3] = 1
+	l1, l2 := Color_Luminance(text, opaque), Color_Luminance(opaque)
+	if l1 < l2 do l1, l2 = l2, l1
+	return (l1 + 0.05) / (l2 + 0.05)
+}
+
+/*
+A text color readable on `back` that is as close to `text` as it gets: mixed toward white or black
+(whichever the background leaves room for) in small steps until the ratio reaches `minimum`.
+*/
+Contrast_Suggest :: proc(text, back: skald.Color, minimum := CONTRAST_TEXT_MIN) -> skald.Color {
+	toward := Color_Luminance(back) < 0.18 ? skald.Color{1, 1, 1, 1} : skald.Color{0, 0, 0, 1}
+	// The other way when that one can't reach it (a mid-gray background)
+	if Contrast_Ratio(toward, back) < minimum do toward = toward[0] > 0.5 ? skald.Color{0, 0, 0, 1} : skald.Color{1, 1, 1, 1}
+	for step in 0 ..= 40 {
+		t := f32(step) / 40
+		c := skald.Color{text[0] + (toward[0] - text[0]) * t, text[1] + (toward[1] - text[1]) * t, text[2] + (toward[2] - text[2]) * t, 1}
+		// Round to what a hex color can say, then check again
+		parsed, _ := skald.hex_to_color(skald.color_to_hex(c))
+		if Contrast_Ratio(parsed, back) >= minimum do return parsed
+	}
+	return toward
+}
+
+// A pair that's hard to read: its ratio and a text color that would be readable
+ContrastProblem :: struct {
+	pair: ContrastPair,
+	ratio: f32,
+	suggestion: skald.Color,
+}
+
+// The pairs of `CONTRAST_PAIRS` under `CONTRAST_TEXT_MIN` in a theme
+EditorTheme_ContrastProblems :: proc(theme: ^skald.Theme, allocator := context.temp_allocator) -> []ContrastProblem {
+	problems := make([dynamic]ContrastProblem, allocator)
+	for pair in CONTRAST_PAIRS {
+		text := ThemeColor_Field(&theme.color, pair.text)^
+		back := ThemeColor_Field(&theme.color, pair.back)^
+		ratio := Contrast_Ratio(text, back)
+		if ratio < CONTRAST_TEXT_MIN do append(&problems, ContrastProblem{pair, ratio, Contrast_Suggest(text, back)})
+	}
+	return problems[:]
+}

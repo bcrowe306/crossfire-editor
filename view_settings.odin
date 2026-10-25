@@ -168,6 +168,15 @@ appearanceTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		uiSection(th, tk, "Colors"),
 		hint(ctx, "Click a color to change it; the editor shows it at once. The ↶ beside a color you've set puts the theme's back."),
 	)
+	// Text that would be hard to read (editor_theme.odin's contrast check): the ratio, and a fix
+	for p in EditorTheme_ContrastProblems(&current) {
+		textKey, backKey := THEME_COLOR_KEYS[p.pair.text], THEME_COLOR_KEYS[p.pair.back]
+		warning := fmt.tprintf("%s  %s on %s is hard to read: %.1f:1 (text needs %.1f:1). Try %s.", ICON_WARNING,
+			THEME_COLOR_LABELS[p.pair.text], strings.to_lower(THEME_COLOR_LABELS[p.pair.back], context.temp_allocator), p.ratio, CONTRAST_TEXT_MIN, ThemeColor_Format(p.suggestion))
+		fix := skald.button(ctx, "Use it", Msg(Settings_Theme_Color_Changed{p.pair.text, p.suggestion}),
+			id = skald.hash_id(fmt.tprintf("settings-contrast-fix-%s-%s", textKey, backKey)), padding = tk.buttonPadding, font_size = th.font.size_xs)
+		append(&rows, skald.row(uiText(th, .Muted, warning, max_width = tk.textMeasure, color = th.color.warning), fix, spacing = tk.buttonGap, cross_align = .Center))
+	}
 	for which in ThemeColor {
 		key := THEME_COLOR_KEYS[which]
 		color := ThemeColor_Field(&current.color, which)^

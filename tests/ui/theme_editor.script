@@ -75,6 +75,21 @@ expect theme_color viewport_grid #C4BEB0
 click_widget settings-cancel
 wait_until settings_dialog closed
 
+# Contrast: muted text made too dark is reported (WCAG's ratio, editor_theme.odin), and Use it
+# puts a readable color in its place
+key ctrl+comma
+wait_until settings_dialog open
+click_widget settings-tab-Appearance
+send Settings_Theme_Preset_Chosen Dark
+send Settings_Theme_Color_Changed fg_muted #30343C
+wait 2
+scroll_into_view settings-appearance-scroll settings-contrast-fix-fg_muted-bg
+wait_until widget_visible settings-contrast-fix-fg_muted-bg true
+click_widget settings-contrast-fix-fg_muted-bg
+wait_until widget_visible settings-contrast-fix-fg_muted-bg false
+click_widget settings-cancel
+wait_until settings_dialog closed
+
 # Back to Dark for the scripts after this one
 key ctrl+comma
 wait_until settings_dialog open

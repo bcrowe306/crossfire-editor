@@ -254,7 +254,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `context_menus.odin` | **Right-click menus everywhere**: `ContextTarget` (what was clicked), `State.contextMenu`, `Context_Menu_Opened` / `_Closed`, `ContextMenu_Items` (the items per target: nodes, empty viewport, the tree, the browser's every kind, tabs, logs), `contextMenuView` (Skald's `popup_menu`, built first in the frame), `rightPressOpens`, the commands without an older message (`Node_Command`, `Add_Node_Here`, `Paste_Here`, `Tab_Command`, `File_Command`, `Log_Command`, `Asset_Add_To_Scene`) |
 | `context_menus_panels.odin` | The bottom panel's menus (`Ctx_Graph`): States, Dialogue nodes and steps, Timeline tracks and keys, Mixer strips, Git changes, Live nodes, Animation frames, plugins |
 | `viewport_tools.odin` | **Viewport tools**: Align and Distribute (`Align_Nodes`, `Align_Moves` on `Viewport_NodeShapes`' boxes), the Zoom tool's click or box (`ViewportTools_ZoomBox`), guides (`SceneDef.guides`, `Guide_*` messages, `Guides_Snap` / `Guides_SnapNode`, `.editor/guides.ini`: `Guides_Save` / `Guides_Load`) |
-| `editor_theme.odin` | **The editor's look**, edited live in Settings > Appearance: `ThemeColor` (Skald's roles), `Settings.themeColors` / `themeColorsSet` / `cornerRadius`, `EditorTheme_Apply` (in `Settings_Theme`), `THEME_PRESETS`, `ThemeColor_Format` / `_Parse` (editor.ini's `[theme]`); the canvases' colors (`ViewportColor`, `ViewportColors`, `ViewportColor_Default`, `ViewportBg_Bytes`) |
+| `editor_theme.odin` | **The editor's look**, edited live in Settings > Appearance (and its contrast check: `CONTRAST_PAIRS`, `Contrast_Ratio`, `EditorTheme_ContrastProblems`): `ThemeColor` (Skald's roles), `Settings.themeColors` / `themeColorsSet` / `cornerRadius`, `EditorTheme_Apply` (in `Settings_Theme`), `THEME_PRESETS`, `ThemeColor_Format` / `_Parse` (editor.ini's `[theme]`); the canvases' colors (`ViewportColor`, `ViewportColors`, `ViewportColor_Default`, `ViewportBg_Bytes`) |
 | `project.odin` | Project model (`Project`, `SceneDef`, `NodeDef`, `AssetDef`), node insert/remove, world transforms, `Project_Load` (through the engine's parser), the built-in outline of the demo (`Project_CreateDemo`) |
 | `project_xml.odin` | `Project_Save`, XML writer (`ProjectToXML`, `SceneToXML`, `EscapeXML`) |
 | `assets.odin` | Importing (copy into `assets/`), removing, usage counts, asset kinds by extension |
@@ -339,7 +339,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `settings_dialog.odin` | Settings dialog state and messages (edits a draft) |
 | `view_settings.odin` | The Settings dialog: Appearance, Editor, Keyboard, Toolchain tabs |
 | `settings.default.ini` | Default settings, built into the editor |
-| `ui_tokens.odin` | **The design tokens** ("Design tokens" below): `Ui_Tokens` / `UiTokens_Of` / `uiTokens(ctx)` (the spacing scale, control and row heights, panel padding, section and button gaps, label columns, field and dialog widths, icon sizes, all from the look shown and the Row height setting), the text hierarchy (`Text_Role`, `TextRole_Style`, `uiText`; `uiMonoFont`) |
+| `ui_tokens.odin` | **The design tokens** ("Design tokens" below): `Ui_Tokens` / `UiTokens_Of` / `uiTokens(ctx)` (the spacing scale, control and row heights, panel padding, section and button gaps, label columns, field and dialog widths, icon sizes, all from the look shown and the Row height setting), the text hierarchy (`Text_Role`, `TextRole_Style`, `uiText`, `uiSection`; `uiMonoFont`) |
 | `tree_view.odin` | `coloredTree`: the browser's and scene tree's tree widget (skald.tree's behavior, plus per-row icon/label colors); `Tree_RowView` (one row's look: every list's), `rowList` (a list of keyed rows that look and act as the tree's: the Level mode's sidebars and bottom lists); type colors (`AssetKind_Color`); `Tree_RevealSelected` and `Scroll_RevealClicked` (keeping what was clicked in view) |
 | `value_slider.odin` | `valueSlider`: a slider with a typeable value box, Shift for 10× finer drags (no jump to the pointer), and a reset-to-default button. Generic over the message type, its state kept in the file (not `State`), so it can move to a widget package |
 | `number_field.odin` | `numberField`: text box with small flat −/+ buttons, used by the inspector and Settings; `NumberField_MinWidth` (never drawn narrower) |
@@ -388,7 +388,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `slicer_edit.odin` | **The sprite sheet slicer's model**: `SlicerState` (`State.slicer`: the tabs, the one shown, the preview's clock, a name being typed, the asset's name, Use the asset), `SlicerTab` (an image, its `SlicerSettings`, the picks, the shown animation and frame, the canvas's view), `SlicerSettings` (`SliceMode` Grid / Auto, the grid, auto-detect's settings and sprites found, `SliceAnimation`s, the asset made), the cells (`Slicer_CellCount` / `_CellRect` / `_CellAt` / `_RowOf` / `_Rows`), `Slicer_FindSprites` / `Slicer_Detect` (here or on a worker), `Slicer_AnimationDefs` (runs as a grid range, else rectangles; `Slicer_EvenOut`), the outputs (`Slicer_CreateAsset`, `Slicer_Apply`, `Slicer_AddToScene`), `Slicer_Update` (`Slicer_Changed{op: SlicerOp}`, `SlicerNumber`, `SlicerDurationTarget`), `.editor/slicer.ini` (`Slicer_Format` / `_Parse` / `_Load` / `_Save` / `_ReplaceSection`) |
 | `view_slicer.odin` | **The sprite sheet slicer's tab** (`slicerCenterView`: the header, the canvas beside the controls from `SLICER_SIDE_WIDTH`, else over them), `SlicerTabs_View` (the strip's tabs), the canvas (`slicerCanvas`: input from its last rect, the sheet on a checkerboard, the cells in view, the picks numbered, the shown animation's frames), the controls (`slicerControls`, `slicerAnimationRows`: rows as the inspector's, the preview, the frame strip), the driver's `Slicer_CellCenter` / `Slicer_FrameStripCenter` |
 | `animation_sets_edit.odin` | **Animation assets**: `AnimationSetDef` (`.anim.xml`, `Project.animationSets`: load, save when changed, make: `Project_CreateAnimationSet`), `AnimationDef` / set clone, equal and engine conversions, an Aseprite file's tags as a set (`AsepriteEdit_AnimationSet`), the panel's `AnimSource` (`AnimEdit_Source`), the browser preview, `Scene_AddAnimatedSpriteAt` |
-| `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL) and glyph constants |
+| `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL), glyph constants, the action icons (`ACTION_ICONS`, `Icon_Action`, `Action_Icon`: one icon per action) |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment); `repeat <n> <commands>` (written out on load: `ScriptDriver_ExpandRepeats`), `profile_mark <name>` (a trace's mark) |
 | `profiling.odin` | **Profiling with Spall**: `Profiling_Start` (Skald's trace, shared with the engine: `e.Trace_Share`) / `Profiling_Stop` (before any exit), `Profiling_Message` (`update`'s span, named by the message's type) |
 | `tools/profile.sh`, `tests/profile/` | **The profiling harness** and its scenarios (driver scripts between `profile_mark start` and `end`): idle, inspector, browser, viewport, code, level, console |
@@ -487,7 +487,7 @@ Skald is not immediate-mode and not a retained widget tree:
   accent color while focused), `numberField` (Up/Down only: Left/Right move the caret), the
   mixer's `fader` and `panControl`; Skald's own slider, and its `select` (Up / Down while closed:
   Skald 5fc513b). Tests: node_settings.script, particles.script.
-- Inspector fields use tight padding (`InspectorFieldPadding`, 2 px vertical) and capped widths
+- Inspector fields use tight padding (`InspectorFieldPadding`: the `fieldPadding` token, 2 px vertical) and capped widths
   (`INSPECTOR_MAX_NUMBER_WIDTH` 120, `INSPECTOR_MAX_TEXT_WIDTH` 200). Position and Scale have a link
   toggle (`inspectorLinks`): a change to one axis scales the other by the same ratio
   (`LinkedAxis`; from 0 it moves by the same amount). Number widths leave room for that button:
@@ -3047,27 +3047,77 @@ One right-click menu for the whole editor (the user asked for complete menus eve
 
 TODO.md's "UI and UX" round 3 (2026-10-25): one set of sizes for every view, so spacing stays even
 and everything scales together with Settings > Appearance's Text size, Spacing and Row height.
-- **The tokens** (`uiTokens(ctx)`: `UiTokens_Of(ctx.theme, uiRowHeight)`): the spacing scale
-  `hair` (1) / `xxs` (half of xs) / `xs` / `s` / `m` / `l` / `xl` (Skald's theme spacing: a 4 px
-  grid at 100% Spacing, 3 / 6 / 9 / 12 / 18 at the default 75%); `panelPadding`, `sectionGap`,
-  `rowGap`, `buttonGap`, `fieldPadding` / `buttonPadding` (dense fields and small buttons);
-  `controlHeight`, `rowHeight` (the Row height setting: `view` sets `uiRowHeight`),
-  `headerHeight`; `labelWidth` (the inspector's 82 px column) / `labelWidthWide`, field widths
-  `fieldXS`...`fieldXL`, dialog widths `dialogS` / `dialogM` / `dialogL`; icons `iconSmall`
-  (rows, tabs), `iconMedium` (panel header buttons), `iconLarge` (the toolbar);
-  `toolButtonWidth`, `panelButtonWidth`, `squareButton`. Lengths in text units are measured at
-  13 px (`TOKENS_BASE_FONT`), so at the default look they're the sizes the views always had.
+- **The tokens** (`uiTokens(ctx)` = `UiTokens_Of(ctx.theme, uiRowHeight)`; a view declares
+  `tk := uiTokens(ctx)`): the spacing scale `hair` (1) / `xxs` (half of xs) / `xs` / `s` / `m` /
+  `l` / `xl` (Skald's theme spacing: a 4 px grid at 100% Spacing, 3 / 6 / 9 / 12 / 18 at the
+  default 75%); `panelPadding`, `sectionGap`, `rowGap`, `buttonGap`, `fieldPadding` /
+  `buttonPadding` (dense fields and small buttons: s across, xxs down); `controlHeight`,
+  `rowHeight` (the Row height setting: `view` sets `uiRowHeight`), `headerHeight`; `labelWidth`
+  (the inspector's 82 px column) / `labelWidthWide` (Settings' and Project Settings' 170);
+  field widths `fieldXXS` / `fieldXS` / `fieldS` / `fieldM` / `fieldL` / `fieldXL`; wrap widths
+  `textNarrow` (sidebars, the inspector) / `textDialog` / `textMeasure` (Settings' help) /
+  `textWide`; dialog widths `dialogS` / `dialogM` / `dialogL` / `dialogSettings` (Settings' and
+  Project Settings' pages, one width) / `dialogWide`; icons `iconSmall` (panel header buttons),
+  `iconMedium` (the toolbar, list rows, tabs), `iconLarge`; `toolButtonWidth`,
+  `panelButtonWidth` (every small icon button), `squareButton`, `iconColumn`, `swatch`. Lengths in
+  text units are measured at 13 px (`TOKENS_BASE_FONT`), so at the default look they're the sizes
+  the views had (a few uneven ones were evened out: below).
 - **Rules for new UI:** lay out with the tokens, never a pixel number in a layout call's
-  `padding`, `spacing`, `width`, `height` or a `spacer` (`view_layout_uses_design_tokens` scans
-  the view files; its allow-list holds drawing math with a reason). Label columns in a panel use
-  one token (`labelWidth`, or `labelWidthWide` for Settings' pages); a group of buttons one gap
-  (`buttonGap`); sections one gap (`sectionGap`); panel headers are `panelHeader` (one height
-  and padding). Text goes through `uiText(th, role, str)`: `.Title` (dialogs), `.Panel_Title`
-  (panel headers, tabs), `.Section`, `.Label`, `.Value`, `.Muted` (help, captions), `.Code`
-  (the code editor's monospace font); a status color (warning, danger) overrides a role's
-  color, never its size.
-- Test: `design_tokens_scale_with_the_look` (the default look's sizes, the 4 px grid, text
-  scaling, the hierarchy's order).
+  `padding`, `spacing`, `width`, `height`, `max_width` or a `spacer`; a factor (`tk.m * 2`) is
+  fine. `view_layout_uses_design_tokens` scans every source (strings and comments left out) and
+  fails on a new one; its allow-list holds the exceptions with a reason (drawing math, canvases,
+  images, the code editor's widgets, data that isn't layout). Alignment: label columns in a panel
+  use one token (`labelWidth`; `labelWidthWide` in dialogs' forms); a group of buttons one gap
+  (`buttonGap`); sections one gap (`uiSection`); small icon buttons one width
+  (`panelButtonWidth`); panel headers are `panelHeader` (one height and padding).
+- **Typography** (`Text_Role`, `uiText(th, role, str)`, `TextRole_Style`): `.Title` (dialog and
+  docs window titles: lg), `.Panel_Title` (panel headers, tabs: sm), `.Section` (a section's
+  header: sm, the main text, the section gap above it: `uiSection`), `.Label` (form labels: sm,
+  muted), `.Value` (values, list items: sm), `.Muted` (help, captions, counts: xs, muted),
+  `.Code` (the code editor's monospace, `uiMonoFont`). A status color (warning, danger) overrides
+  a role's color, never its size. Sizes are Skald's theme sizes; no new fonts.
+- **What the audit changed** (2026-10-25): about 500 layout numbers became tokens and 410 texts
+  roles; Settings' and Project Settings' label columns (170 vs 120 px of main text) are one
+  column of muted labels and the two dialogs one width; help text wraps at one measure (it was
+  420, 440 or 560); section headers (fg xs in the inspector, sm in the panels, md in Settings)
+  are one style and gap; small icon buttons (22 to 28 px) one width; color chips one size.
+- Tests: `design_tokens_scale_with_the_look`, `view_layout_uses_design_tokens`.
+
+## Focus, contrast and icons (implemented: Skald's focus, `editor_theme.odin`, `icons.odin`)
+
+TODO.md's "UI and UX" round 3 (2026-10-25), with the tokens.
+- **Focus** (Skald, `focus_visible`): Tab / Shift+Tab move the keyboard through the controls in
+  build order; buttons, checks, toggles and selects draw the accent ring only after Tab moved
+  focus (a press hides it: no ring on clicked buttons), text fields show focus either way.
+  Dialogs trap Tab (Skald's modal rect), Escape is `on_dismiss`, and **Enter confirms**: Skald's
+  `dialog(..., on_confirm)` sends it unless the focused widget in the card takes Enter (a
+  button, check, select, list, picker, multi-line field, a field with `on_submit`); every
+  editor dialog with a primary button passes it (`dialogConfirm(ok, msg)`: nothing while the
+  button is disabled); Add Node keeps its own Enter, the LDtk conflict, Git discard and listener
+  dialogs have none (no safe default), and neither have Settings and Project Settings (property
+  sheets: Enter keeps a typed number, console.script and scene_flow.script type and press it). The
+  trap counts only what the dialog drew (Skald: a widget behind the scrim under the card was a
+  stop in a short window). The code editor gets Tab back from Skald
+  (`CodeEditor_Frame`); canvases aren't focusable. Driver: checks `focused <key> | none`,
+  `focus_visible <true|false>`. Tests: Skald's `focus_ring_shows_after_tab_and_hides_after_a_press`,
+  `dialog_enter_confirms_unless_the_focus_takes_it`; `tests/ui/focus_keys.script`.
+- **Contrast** (`CONTRAST_PAIRS`, `Contrast_Ratio`, `Contrast_Suggest`,
+  `EditorTheme_ContrastProblems`): WCAG 2's ratio on Skald's linear colors; text needs 4.5:1
+  (`CONTRAST_TEXT_MIN`): main and muted text on the window, panels and popups, text on the
+  accent, warning and danger on panels and popups. Settings > Appearance lists each pair under
+  it with its ratio and a suggestion (the text color mixed toward white or black until it
+  reads), **Use it** (`settings-contrast-fix-<text>-<back>`) applies it. The presets were fixed
+  to meet it (Midnight's accent, Graphite's danger, Paper's warning) and Skald's dark theme too
+  (primary #2b6ee8, danger #f06a6e). Driver: `send Settings_Theme_Color_Changed <key> <#hex>`.
+  Tests: `theme_presets_are_readable`; theme_editor.script.
+- **Icons** (`ACTION_ICONS`, `Icon_Action`, `Action_Icon`): one icon per action, the table the
+  single source: Add, Delete (the item goes: trash), Remove (out of a list: ×), Clear,
+  Duplicate (ICON_CLONE; Copy is the clipboard's), Move Up / Down, Close, Back, Forward, Reset,
+  Fit View (ICON_FIT: the viewport, Level canvas and slicer had three), Focus, Manual, Open
+  Externally, Refresh, Randomize, Warning, More; the toolbar's buttons take `Action_Icon`.
+  Sizes per context are tokens (`iconSmall` panel buttons, `iconMedium` toolbar, rows and tabs).
+  Menus are text only. Test: `action_icons_are_the_single_source` (their glyphs used nowhere
+  else).
 
 ## The editor's look (implemented, `editor_theme.odin`, Settings > Appearance)
 
