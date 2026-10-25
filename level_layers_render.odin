@@ -468,7 +468,8 @@ levelDraw :: proc(doc: ^LDtkDoc, m: ^LDtkLevelModel, kind: PlaneKind, layer: int
 	case .Composite:
 		drawn = drawBackground(doc, m, rect, scale, out, folder)
 		#reverse for &l in m.layers {
-			if !l.visible do continue
+			// Not the focused level: as LDtk's WorldRender, without layers kept out of the world view
+			if !l.visible || !m.defs[l.def].inWorldView do continue
 			if drawLayer(hideAuto, m, &l, rect, scale, out, folder, view, f32(m.defs[l.def].displayOpacity)) do drawn = true
 		}
 	}

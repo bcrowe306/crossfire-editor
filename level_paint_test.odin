@@ -508,7 +508,7 @@ level_mode_paints_tiles_and_entities :: proc(t: ^testing.T) {
 	// The palette's tiles, flipped by X, stamped
 	paintSend(state, Level_Tool_Picked(.Pencil))
 	ids := []int{8, 9}
-	paintSend(state, Level_Tiles_Picked{10, ids})
+	paintSend(state, Level_Tiles_Picked{tileset = 10, ids = ids})
 	paintSend(state, Msg(Action.Level_Flip_X))
 	paintSend(state, Level_Canvas_Pressed{world = cellWorld(state, 3, 3), level = "Room"})
 	paintSend(state, Level_Canvas_Released{})

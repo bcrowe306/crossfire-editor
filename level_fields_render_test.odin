@@ -53,6 +53,8 @@ level_fields_show_on_the_canvas_as_ldtk_shows_them :: proc(t: ^testing.T) {
 	if !testing.expect_value(t, problem, "") || index < 0 do return
 	lfSend(&state, Mode_Changed(.Level))
 	lfSend(&state, Level_File_Chosen(state.project.assets[index].path))
+	lfSend(&state, Workspace_Measured({1280, 600}))
+	lfSend(&state, Level_Canvas_Measured({600, 300}))
 	root, file := state.project.rootPath, LevelMode_File(&state)
 	doc := LDtkDoc_Get(root, file)
 	if !testing.expect(t, doc != nil && doc.problem == "", "read") do return
@@ -142,4 +144,15 @@ level_fields_show_on_the_canvas_as_ldtk_shows_them :: proc(t: ^testing.T) {
 		testing.expect_value(t, len(item.text), 70)
 	}
 	testing.expect(t, found, "the string shows")
+
+	// A reference picked in another level of the world (the friend field allows it): coin2 in the Cave
+	lfSend(&state, Level_Pick_Started{kind = .Ref, entity = "player1", field = 46, index = -1})
+	lfSend(&state, Level_Canvas_Pressed{world = {256 + 64, 72}, level = "Cave"})
+	lfSend(&state, Level_Canvas_Released{})
+	testing.expect_value(t, state.level.problem, "")
+	testing.expect_value(t, state.level.focus, "Start")
+	main := LDtkDoc_Main(LDtkDoc_Get(root, file))
+	friend := Json_Path(main, "levels.identifier=Start.layerInstances.__identifier=Entities.entityInstances.iid=player1.fieldInstances.__identifier=friend.__value")
+	testing.expect_value(t, Json_String(main, Json_Get(main, friend, "entityIid")), "coin2")
+	testing.expect_value(t, Json_String(main, Json_Get(main, friend, "levelIid")), "lvl-cave")
 }

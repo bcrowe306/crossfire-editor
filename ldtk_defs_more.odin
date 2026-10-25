@@ -1129,6 +1129,30 @@ tilesetTileEdit :: proc(op: ^DefOp) -> string {
 		out := make([dynamic]LDtkJV, context.temp_allocator)
 		for k in kept do append(&out, jobject(jpair("tileId", i64(k.id)), jpair("data", k.data)))
 		defWrite(&p, doc, node, "customData", LDtkJArray(out[:]))
+	case .Tileset_Selection_Saved:
+		// TilesetDef.saveSelection: the saved selections holding any of these tiles go, then the
+		// selection is kept when it's more than one tile
+		mode := edit.text == "Random" ? "Random" : "Stamp"
+		out := make([dynamic]LDtkJV, context.temp_allocator)
+		for sel in Json_Items(main, Json_Get(main, node, "savedSelections")) {
+			ids := make([dynamic]LDtkJV, context.temp_allocator)
+			overlaps := false
+			for id in Json_Items(main, Json_Get(main, sel, "ids")) {
+				v := Json_Int(main, id)
+				if slice.contains(edit.ids, v) do overlaps = true
+				append(&ids, i64(v))
+			}
+			if !overlaps do append(&out, jobject(jpair("ids", LDtkJArray(ids[:])), jpair("mode", strings.clone(Json_String(main, Json_Get(main, sel, "mode")), context.temp_allocator))))
+		}
+		if len(edit.ids) > 1 {
+			ids := make([dynamic]LDtkJV, context.temp_allocator)
+			for id in edit.ids {
+				if id < 0 || id >= cWid * cHei do return "no such tile"
+				append(&ids, i64(id))
+			}
+			append(&out, jobject(jpair("ids", LDtkJArray(ids[:])), jpair("mode", mode)))
+		}
+		defWrite(&p, doc, node, "savedSelections", LDtkJArray(out[:]))
 	case:
 	}
 	return stagesApply(op.s, &p)

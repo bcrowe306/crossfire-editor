@@ -137,10 +137,12 @@ Level_Value_Picked :: struct {
 	layer, value: int,
 }
 
-// A palette pick: tiles of a tileset (ids: only lives for the frame)
+// A palette pick: tiles of a tileset (ids: only lives for the frame); `mode` a saved selection's
+// (1 Stamp, 2 Random; 0: the mode stays)
 Level_Tiles_Picked :: struct {
 	tileset: int,
 	ids: []int,
+	mode: int,
 }
 
 // A palette pick: the entity type Place puts
@@ -538,6 +540,13 @@ LevelPaint_PlanPress :: proc(state: ^State, v: Level_Canvas_Pressed) -> LevelPre
 		case .None:
 		case .Ref:
 			if b, found := LevelPaint_EntityAt(doc, level, -1, p); found do return {kind = .Pick, entity = b}
+			// An entity of another level of the world, at the same depth (LDtk picks across levels;
+			// its field's `allowOutOfLevelRef` decides)
+			for other in 0 ..< len(doc.levels) {
+				if other == level || doc.levels[other].world != doc.levels[level].world || LDtkDoc_LevelDepth(doc, other) != LDtkDoc_LevelDepth(doc, level) do continue
+				r := LDtkDoc_LevelRect(doc, other)
+				if b, found := LevelPaint_EntityAt(doc, other, -1, v.world - {f32(r[0]), f32(r[1])}); found do return {kind = .Pick, entity = b}
+			}
 			return {kind = .Pick_Cancel}
 		case .Point:
 			if insideLevel do return {kind = .Pick}
@@ -1144,6 +1153,7 @@ LevelPaint_Update :: proc(state: ^State, m: Msg) -> bool {
 		append(&ids, ..v.ids)
 		if old, had := paint.tiles[v.tileset]; had do delete(old)
 		paint.tiles[v.tileset] = ids
+		if v.mode != 0 do paint.random = v.mode == 2
 		if state.level.tool == .Select || state.level.tool == .Picker || state.level.tool == .Eraser do state.level.tool = paint.random ? .Random : .Pencil
 		if !LevelTool_Available(state, state.level.tool) do state.level.tool = .Select
 	case Level_Entity_Type_Picked:
@@ -1206,6 +1216,11 @@ LevelPaint_Update :: proc(state: ^State, m: Msg) -> bool {
 			if state.level.problem == "" do setOwned(&state.level.entity, "")
 		case .Level_Duplicate:
 			levelDuplicateSelected(state)
+		case .Level_Save_Tile_Selection:
+			// TileTool.saveSelection: the picked tiles of the selected Tiles layer's tileset
+			if uid, ids := levelPickedTiles(state); len(ids) > 0 {
+				levelApplyEdit(state, {op = .Tileset_Selection_Saved, file = LevelMode_File(state), def = uid, ids = ids, text = paint.random ? "Random" : "Stamp"})
+			}
 		case:
 			return false
 		}
@@ -1287,9 +1302,27 @@ LevelPaint_Classify :: proc(s: ^State, m: Msg) -> (EditInfo, bool) {
 			if s.level.entity == "" do return {}, false
 			info.label = fmt.tprintf("Duplicate an entity in %s", where_)
 			return info, true
+		case .Level_Save_Tile_Selection:
+			if _, ids := levelPickedTiles(s); len(ids) == 0 do return {}, false
+			info.label = "Save a tile selection"
+			return info, true
 		}
 	}
 	return {}, false
+}
+
+// The selected Tiles layer's tileset and its picked tiles (none: no Tiles layer, nothing picked)
+@(private="file")
+levelPickedTiles :: proc(state: ^State) -> (tileset: int, ids: []int) {
+	doc := LDtkDoc_Get(state.project.rootPath, LevelMode_File(state))
+	def := LevelMode_LayerDef(state, doc)
+	if def < 0 do return -1, nil
+	main := LDtkDoc_Main(doc)
+	if Json_String(main, Json_Get(main, def, "__type")) != "Tiles" do return -1, nil
+	uid := Json_Kind(main, Json_Get(main, def, "tilesetDefUid")) == .Number ? Json_Int(main, Json_Get(main, def, "tilesetDefUid")) : -1
+	picked, has := state.level.paint.tiles[uid]
+	if !has do return uid, nil
+	return uid, picked[:]
 }
 
 // The cursor the canvas shows over the focused level (the tool's)

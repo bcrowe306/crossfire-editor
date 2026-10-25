@@ -137,6 +137,9 @@ LDtkEditOp :: enum {
 	// (`text`)
 	Tileset_Tag,
 	Tileset_Custom_Data,
+	// A tile selection saved (`def`, `ids` in picking order, `text` its mode: "Stamp" or
+	// "Random"; TilesetDef.saveSelection: one tile only forgets the saved selections holding it)
+	Tileset_Selection_Saved,
 
 	// The Auto-layer Rules tab (ldtk_rule_ops.odin): `def` the layer definition's uid, `index` a
 	// rule group's uid, `field` a rule's uid (that file's doc block says what each takes)
@@ -503,7 +506,7 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 	     .IntGrid_Value_Added, .IntGrid_Value_Removed, .IntGrid_Value_Moved, .IntGrid_Value_Tile,
 	     .IntGrid_Group_Added, .IntGrid_Group_Removed, .IntGrid_Group_Set, .IntGrid_Group_Moved,
 	     .Enum_Value_Removed, .Enum_Value_Moved, .Enum_Value_Tile, .Enum_Import, .Enum_Sync, .Enum_External_Removed,
-	     .Tileset_Tag, .Tileset_Custom_Data:
+	     .Tileset_Tag, .Tileset_Custom_Data, .Tileset_Selection_Saved:
 		return LDtkOps_DefEdit(root, doc, edit)
 
 	// The Auto-layer Rules tab (ldtk_rule_ops.odin)

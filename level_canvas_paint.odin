@@ -322,25 +322,36 @@ LevelEntity_Draw :: proc(r: ^skald.Renderer, rect: skald.Rect, e: LevelCanvasEnt
 	c := e.color
 	switch e.shape {
 	case .Tile:
+		// EntityRender._renderTile: the tile placed by the entity's pivot (`setCenterRatio`)
 		tw, th := e.tileSrc[2] * zoom, e.tileSrc[3] * zoom
-		dst := rect
+		src := skald.Rect{e.tileSrc[0], e.tileSrc[1], e.tileSrc[2], e.tileSrc[3]}
+		pivotAt := [2]f32{rect.x + rect.w * e.pivot.x, rect.y + rect.h * e.pivot.y}
+		tint := skald.Color{1, 1, 1, e.tileAlpha * alpha}
+		at :: proc(pivotAt, pivot: [2]f32, w, h: f32) -> skald.Rect { return {pivotAt.x - w * pivot.x, pivotAt.y - h * pivot.y, w, h} }
+		drawn := true
 		switch e.tileMode {
-		case "Stretch", "NineSlice":
-		case "Cover":
-			s := max(rect.w / max(tw, 1), rect.h / max(th, 1))
-			dst = {rect.x + (rect.w - tw * s) * 0.5, rect.y + (rect.h - th * s) * 0.5, tw * s, th * s}
-		case "FullSizeCropped", "FullSizeUncropped":
-			dst = {rect.x + (rect.w - tw) * 0.5, rect.y + (rect.h - th) * 0.5, tw, th}
+		case "Stretch":
+			drawn = skald.draw_image_region(r, e.tileImage, rect, src, tint = tint)
+		case "Cover", "FullSizeCropped":
+			// Scaled to cover (or at full size), cropped to the box around the pivot
+			s := e.tileMode == "Cover" ? max(rect.w / max(tw, 1), rect.h / max(th, 1)) : 1
+			fw, fh := min(rect.w, tw * s) / (s * zoom), min(rect.h, th * s) / (s * zoom)
+			sub := skald.Rect{src.x + src.w * e.pivot.x - fw * e.pivot.x, src.y + src.h * e.pivot.y - fh * e.pivot.y, fw, fh}
+			drawn = skald.draw_image_region(r, e.tileImage, at(pivotAt, e.pivot, fw * s * zoom, fh * s * zoom), sub, tint = tint)
+		case "FullSizeUncropped":
+			drawn = skald.draw_image_region(r, e.tileImage, at(pivotAt, e.pivot, tw, th), src, tint = tint)
+		case "Repeat":
+			// dn.heaps.TiledTexture: the tile repeated at its size from the box's corner, cut at its edges
+			levelTiled(r, e.tileImage, rect, src, {tw, th}, tint)
+		case "NineSlice":
+			// h2d.ScaleGrid with tileBorders and tileCenter: corners as they are, edges and center repeated
+			levelNineSlice(r, e.tileImage, rect, src, e.slices, zoom, tint)
 		case:
-			// FitInside (LDtk's default), Repeat drawn once
+			// FitInside (LDtk's default)
 			s := min(rect.w / max(tw, 1), rect.h / max(th, 1))
-			dst = {rect.x + (rect.w - tw * s) * 0.5, rect.y + (rect.h - th * s) * 0.5, tw * s, th * s}
+			drawn = skald.draw_image_region(r, e.tileImage, at(pivotAt, e.pivot, tw * s, th * s), src, tint = tint)
 		}
-		skald.push_clip(r, e.tileMode == "Cover" || e.tileMode == "FullSizeCropped" ? rect : skald.Rect{rect.x - 1e5, rect.y - 1e5, 2e5, 2e5})
-		if !skald.draw_image_region(r, e.tileImage, dst, {e.tileSrc[0], e.tileSrc[1], e.tileSrc[2], e.tileSrc[3]}, tint = {1, 1, 1, e.tileAlpha * alpha}) {
-			skald.draw_rect_outline(r, rect, 1, {c.r, c.g, c.b, 0.8 * alpha})
-		}
-		skald.pop_clip(r)
+		if !drawn do skald.draw_rect_outline(r, rect, 1, {c.r, c.g, c.b, 0.8 * alpha})
 	case .Rectangle:
 		if !e.hollow do skald.draw_rect(r, rect, {c.r, c.g, c.b, e.fillAlpha * alpha})
 		skald.draw_rect_outline(r, rect, 1, {c.r, c.g, c.b, e.lineAlpha * alpha})
@@ -366,6 +377,48 @@ LevelEntity_Draw :: proc(r: ^skald.Renderer, rect: skald.Rect, e: LevelCanvasEnt
 		name := e.identifier[:min(len(e.identifier), 16)]
 		w, _ := skald.measure_text(r, name, fontSize)
 		drawTextTop(r, name, rect.x + rect.w * 0.5 - w * 0.5, rect.y - fontSize - 2, {1, 1, 1, 0.85 * alpha}, fontSize)
+	}
+}
+
+// A tileset rectangle repeated over `dst` (screen pixels, `size` a copy's), the last ones cut
+@(private="file")
+levelTiled :: proc(r: ^skald.Renderer, image: string, dst, src: skald.Rect, size: [2]f32, tint: skald.Color) {
+	if size.x < 0.5 || size.y < 0.5 || dst.w <= 0 || dst.h <= 0 do return
+	for y: f32 = 0; y < dst.h; y += size.y {
+		for x: f32 = 0; x < dst.w; x += size.x {
+			// The last copy of a row or column shows only its part inside the box
+			w, h := min(size.x, dst.w - x), min(size.y, dst.h - y)
+			part := skald.Rect{src.x, src.y, src.w * w / size.x, src.h * h / size.y}
+			skald.draw_image_region(r, image, {dst.x + x, dst.y + y, w, h}, part, tint = tint)
+		}
+	}
+}
+
+// A 9-slice (borders: top, right, bottom, left in tile pixels) over `dst`, its edges and center
+// repeated at the tile's scale
+@(private="file")
+levelNineSlice :: proc(r: ^skald.Renderer, image: string, dst, src: skald.Rect, borders: [4]f32, zoom: f32, tint: skald.Color) {
+	t, rt, b, l := borders[0], borders[1], borders[2], borders[3]
+	cw, ch := max(src.w - l - rt, 0), max(src.h - t - b, 0)
+	// Screen sizes of the borders (never more than the box)
+	sl, sr := min(l * zoom, dst.w * 0.5), min(rt * zoom, dst.w * 0.5)
+	st, sb := min(t * zoom, dst.h * 0.5), min(b * zoom, dst.h * 0.5)
+	inner := skald.Rect{dst.x + sl, dst.y + st, max(dst.w - sl - sr, 0), max(dst.h - st - sb, 0)}
+	xs := [3][2]f32{{dst.x, sl}, {inner.x, inner.w}, {inner.x + inner.w, sr}}
+	ys := [3][2]f32{{dst.y, st}, {inner.y, inner.h}, {inner.y + inner.h, sb}}
+	sx := [3][2]f32{{src.x, l}, {src.x + l, cw}, {src.x + l + cw, rt}}
+	sy := [3][2]f32{{src.y, t}, {src.y + t, ch}, {src.y + t + ch, b}}
+	for row in 0 ..< 3 do for col in 0 ..< 3 {
+		d := skald.Rect{xs[col][0], ys[row][0], xs[col][1], ys[row][1]}
+		part := skald.Rect{sx[col][0], sy[row][0], sx[col][1], sy[row][1]}
+		if d.w <= 0 || d.h <= 0 || part.w <= 0 || part.h <= 0 do continue
+		if row != 1 && col != 1 {
+			skald.draw_image_region(r, image, d, part, tint = tint)
+		} else {
+			// Edges repeat along their length, the center both ways (at the tile's scale)
+			size := [2]f32{col == 1 ? part.w * zoom : d.w, row == 1 ? part.h * zoom : d.h}
+			levelTiled(r, image, d, part, size, tint)
+		}
 	}
 }
 

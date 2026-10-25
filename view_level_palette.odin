@@ -106,6 +106,7 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 			toggle(ctx, "level-palette-flip-x", "Flip X", actionTip(s, "Flip the tiles on X", .Level_Flip_X), paint.flipX, Msg(Action.Level_Flip_X)),
 			toggle(ctx, "level-palette-flip-y", "Flip Y", actionTip(s, "Flip the tiles on Y", .Level_Flip_Y), paint.flipY, Msg(Action.Level_Flip_Y)),
 			toggle(ctx, "level-palette-stacking", "Stack", actionTip(s, "Tile stacking: a tile with transparent pixels goes over the cell's", .Level_Tile_Stacking), !paint.noStacking, Msg(Action.Level_Tile_Stacking)),
+			toggle(ctx, "level-palette-save", "Save", actionTip(s, "Memorize the picked tiles: a click on one of them picks them all again (Ctrl + click: just that tile)", .Level_Save_Tile_Selection), false, Msg(Action.Level_Save_Tile_Selection)),
 			spacing = th.spacing.xs,
 		)
 		Data :: struct {
@@ -164,6 +165,14 @@ paletteRow :: proc(ctx: ^skald.Ctx(Msg), key: string, content: skald.View, selec
 	return skald.View_Zone{id = id, child = child}
 }
 
+// The saved selections' tiles (temp)
+@(private="file")
+savedIds :: proc(saved: []$T) -> [][]int {
+	out := make([][]int, len(saved), context.temp_allocator)
+	for sel, i in saved do out[i] = sel.ids
+	return out
+}
+
 // The tile palette: the tileset at its zoom, the picked tiles, the drag selecting
 @(private="file")
 tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int, size: [2]f32) -> skald.View {
@@ -203,6 +212,17 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 		if m.x < c.x || m.y < c.y || m.x >= c.x + c.w || m.y >= c.y + c.h do hovered = false
 	}
 	picked := s.level.paint.tiles[uid]
+	// The tileset's saved selections (TilesetDef.savedSelections): their tiles and modes
+	Saved :: struct {
+		ids: []int,
+		random: bool,
+	}
+	saved := make([dynamic]Saved, context.temp_allocator)
+	for sel in Json_Items(main, Json_Get(main, td, "savedSelections")) {
+		ids := make([dynamic]int, context.temp_allocator)
+		for v in Json_Items(main, Json_Get(main, sel, "ids")) do append(&ids, Json_Int(main, v))
+		append(&saved, Saved{ids[:], Json_String(main, Json_Get(main, sel, "mode")) == "Random"})
+	}
 	ctrl := skald.PRIMARY_MODIFIER in ctx.input.modifiers
 	shift := .Shift in ctx.input.modifiers
 	if hovered && ctx.input.scroll.y != 0 && ctrl {
@@ -247,7 +267,16 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 			case:
 				append(&out, ..ids[:])
 			}
-			skald.send(ctx, Msg(Level_Tiles_Picked{uid, out[:]}))
+			// TileToolPicker.modifySelection: one tile of a saved selection picks it all (not with Ctrl)
+			mode := 0
+			if len(out) == 1 && !view.ctrl && !remove {
+				for sel in saved do for id in sel.ids do if id == out[0] && mode == 0 {
+					clear(&out)
+					append(&out, ..sel.ids)
+					mode = sel.random ? 2 : 1
+				}
+			}
+			skald.send(ctx, Msg(Level_Tiles_Picked{uid, out[:], mode}))
 			view.dragging = false
 		} else {
 			skald.send(ctx, Msg(Frame_Requested{}))
@@ -259,12 +288,13 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 		zoom, grid, spacing, padding: f32,
 		cWid: int,
 		picked: []int,
+		saved: [][]int,
 		dragging: bool,
 		selection: [4]int,
 		accent, line: skald.Color,
 	}
 	p := new_clone(Paint{image = strings.clone(path, context.temp_allocator), size = {pxW, pxH}, zoom = zoom, grid = gridSize, spacing = spacing, padding = padding,
-		cWid = cWid, picked = picked != nil ? picked[:] : nil, dragging = view.dragging, selection = selection, accent = th.color.primary, line = th.color.border}, context.temp_allocator)
+		cWid = cWid, picked = picked != nil ? picked[:] : nil, saved = savedIds(saved[:]), dragging = view.dragging, selection = selection, accent = th.color.primary, line = th.color.border}, context.temp_allocator)
 	canvas := skald.canvas(ctx, p, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 		r := painter.r
 		b := painter.bounds
@@ -273,6 +303,11 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 		cell :: proc(p: ^Paint, b: skald.Rect, cx, cy: int) -> skald.Rect {
 			step := (p.grid + p.spacing) * p.zoom
 			return {b.x + p.padding * p.zoom + f32(cx) * step, b.y + p.padding * p.zoom + f32(cy) * step, p.grid * p.zoom, p.grid * p.zoom}
+		}
+		// Saved selections: their tiles outlined faintly (a click on one picks them all)
+		for sel in p.saved do for id in sel {
+			c := cell(p, b, id % max(p.cWid, 1), id / max(p.cWid, 1))
+			skald.draw_rect_outline(r, c, 1, {1, 1, 1, 0.35})
 		}
 		// The picked tiles: an outline that shows on any color (dark, then the accent inside)
 		for id in p.picked {

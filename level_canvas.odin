@@ -146,6 +146,9 @@ LevelCanvasEntity :: struct {
 	tileImage: string,
 	tileSrc: [4]f32,
 	tileMode: string,
+	// Its definition's pivot and 9-slice borders (top, right, bottom, left: tile pixels)
+	pivot: [2]f32,
+	slices: [4]f32,
 	// A copy being dragged (Ctrl + Alt): drawn where it'll go, not hit
 	ghost: bool,
 	// Its fields' values and shapes as LDtk draws them (level_fields_render.odin); its name hidden
@@ -231,7 +234,9 @@ LevelCanvas_Content :: proc(state: ^State, doc: ^LDtkDoc) -> (levels: []LevelCan
 			tileAlpha = f32(Json_Float(main, Json_Get(main, def, "tileOpacity"), 1)),
 			hollow = Json_Bool(main, Json_Get(main, def, "hollow")), showName = Json_Bool(main, Json_Get(main, def, "showName"), true),
 			tileMode = Json_String(main, Json_Get(main, def, "tileRenderMode")),
+			pivot = pivot,
 		}
+		for v, k in Json_Items(main, Json_Get(main, def, "nineSliceBorders")) do if k < 4 do look.slices[k] = f32(Json_Int(main, v))
 		switch Json_String(main, Json_Get(main, def, "renderMode")) {
 		case "Ellipse": look.shape = .Ellipse
 		case "Cross":   look.shape = .Cross
@@ -529,6 +534,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			showEntities: bool,
 			// The focused level's tool overlay (level_canvas_paint.odin)
 			overlay: ^LevelOverlay,
+			// A reference being picked: other levels' entities shown
+			picking: bool,
 			// The world tools' (level_world_tools.odin): handles, a resize, a new level's spot, a
 			// linear world's insertion
 			world: ^LevelWorldOverlay,
@@ -594,7 +601,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			append(&pk, LevelCanvasLink{toScreen(link.from, center, zoom, size), toScreen(link.to, center, zoom, size), link.entity, link.level})
 		}
 		paint^ = {levels = pl, entities = pe, marks = pm[:], links = pk[:], bg = th.color.bg, line = th.color.border, accent = th.color.primary, fg = th.color.fg,
-			muted = th.color.fg_muted, link = skald.rgb(0x7FD1FF), neighbour = th.color.fg_muted, fontSize = th.font.size_xs, zoom = zoom, showEntities = zoom >= 0.15}
+			muted = th.color.fg_muted, link = skald.rgb(0x7FD1FF), neighbour = th.color.fg_muted, fontSize = th.font.size_xs, zoom = zoom, showEntities = zoom >= 0.15,
+			picking = s.level.paint.pick.kind == .Ref}
 		shownWorld := LevelMode_World(s, doc)
 		if len(doc.worlds) > 0 && LDtkDoc_WorldLayout(doc, shownWorld) == "GridVania" {
 			grid := LDtkDoc_WorldGrid(doc, shownWorld)
@@ -679,7 +687,8 @@ LevelCanvas_Build :: proc(ctx: ^skald.Ctx(Msg), s: ^State, file: string, size: [
 			// Fields' shapes (radii, points, reference links) under the entities
 			if p.showEntities do for m in p.marks do LevelFields_DrawMark(r, m.mark, [2]f32{b.x, b.y} + m.from, [2]f32{b.x, b.y} + m.to, p.zoom, m.alpha)
 			for e in p.entities {
-				if e.dim && !e.selected do continue
+				// Another level's entities show while a reference is picked (they can be picked)
+				if e.dim && !e.selected && !p.picking do continue
 				rect := skald.Rect{b.x + e.rect[0], b.y + e.rect[1], max(e.rect[2], 2), max(e.rect[3], 2)}
 				// LDtk's look (EntityRender), big enough to see
 				if p.showEntities || e.selected do LevelEntity_Draw(r, rect, e.look, p.fontSize, p.zoom)

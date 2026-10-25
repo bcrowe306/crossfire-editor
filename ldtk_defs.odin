@@ -482,7 +482,7 @@ LDtkOps_DefEdit :: proc(root: string, doc: ^LDtkDoc, edit: LDtk_Edit) -> (proble
 		problem = enumValueEdit(&op)
 	case .Enum_Import, .Enum_Sync, .Enum_External_Removed:
 		problem = externalEnumEdit(&op)
-	case .Tileset_Tag, .Tileset_Custom_Data:
+	case .Tileset_Tag, .Tileset_Custom_Data, .Tileset_Selection_Saved:
 		problem = tilesetTileEdit(&op)
 	case:
 		problem = "not a definition edit"

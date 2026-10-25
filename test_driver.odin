@@ -1159,7 +1159,7 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 	case "level_palette_tiles":
 		ids := make([dynamic]int, context.temp_allocator)
 		for i in 1 ..< len(args) do append(&ids, atoi(args, i, 0))
-		skald.send(ctx, Msg(Level_Tiles_Picked{atoi(args, 0, 0), ids[:]}))
+		skald.send(ctx, Msg(Level_Tiles_Picked{tileset = atoi(args, 0, 0), ids = ids[:]}))
 		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false

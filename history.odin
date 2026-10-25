@@ -1936,7 +1936,7 @@ LDTK_EDIT_LABELS := [LDtkEditOp]string{
 	.IntGrid_Group_Set = "Change an IntGrid group", .IntGrid_Group_Moved = "Move an IntGrid group",
 	.Enum_Value_Removed = "Remove an enum value", .Enum_Value_Moved = "Move an enum value", .Enum_Value_Tile = "Change an enum value's icon",
 	.Enum_Import = "Import external enums", .Enum_Sync = "Sync external enums", .Enum_External_Removed = "Remove external enums",
-	.Tileset_Tag = "Tag tiles", .Tileset_Custom_Data = "Change tiles' custom data",
+	.Tileset_Tag = "Tag tiles", .Tileset_Custom_Data = "Change tiles' custom data", .Tileset_Selection_Saved = "Save a tile selection",
 	.Rule_Group_Added = "Add a rule group", .Rule_Group_Removed = "Remove a rule group", .Rule_Group_Duplicated = "Duplicate a rule group",
 	.Rule_Group_Moved = "Move a rule group", .Rule_Group_Set = "Change a rule group", .Rule_Group_Here = "Turn an optional rule group on or off in a level",
 	.Rule_Group_Remapped = "Duplicate and remap a rule group", .Rule_Group_Assistant = "Make rules with the Assistant",

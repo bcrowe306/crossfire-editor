@@ -278,6 +278,11 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	for layer, i in layers {
 		selected := layer.uid == selectedUid
+		// LDtk's layer options: hidden from the list (`hideInList`; still in its place for drags),
+		// its color beside its name (`uiColor`)
+		def := LDtkDoc_DefByUid(doc, "layers", layer.uid)
+		if Json_Bool(main, Json_Get(main, def, "hideInList")) && !selected do continue
+		uiColor, hasColor := LDtk_ParseColor(Json_String(main, Json_Get(main, def, "uiColor")))
 		fg := selected ? th.color.on_primary : th.color.fg
 		muted := selected ? th.color.on_primary : th.color.fg_muted
 		gripKey := fmt.tprintf("level-layer-grip-%d", i)
@@ -292,7 +297,7 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 			if ctx.input.mouse_pressed[.Left] && !drag.active do drag^ = {active = true, def = layer.uid, from = i, to = i}
 		}
 		typeName := layer.type
-		if def := LDtkDoc_DefByUid(doc, "layers", layer.uid); def >= 0 && Json_Count(main, Json_Get(main, def, "autoRuleGroups")) > 0 && typeName == "IntGrid" do typeName = "IntGrid, auto-layer"
+		if def >= 0 && Json_Count(main, Json_Get(main, def, "autoRuleGroups")) > 0 && typeName == "IntGrid" do typeName = "IntGrid, auto-layer"
 		names := skald.col(
 			skald.text(layer.name, fg, th.font.size_md, max_width = textWidth),
 			sizes.compact ? skald.View(skald.View_Spacer{}) : skald.text(typeName, muted, th.font.size_xs),
@@ -300,6 +305,7 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 		)
 		if sizes.compact do names = skald.row(skald.text(layer.name, fg, th.font.size_sm, max_width = textWidth * 0.6), skald.text(typeName, muted, th.font.size_xs, max_width = textWidth * 0.4), spacing = th.spacing.xs, cross_align = .Center)
 		items := make([dynamic]skald.View, context.temp_allocator)
+		if hasColor do append(&items, skald.col(skald.spacer(0), width = 4, height = sizes.compact ? 16 : 28, bg = skald.rgb(u32(uiColor)), radius = 2))
 		append(&items, grip, skald.flex(1, names))
 		if layer.hasEye {
 			edit := LDtk_Edit{op = .Layer_Visible, file = strings.clone(file, context.temp_allocator), level = strings.clone(levelIid, context.temp_allocator), def = layer.uid, flag = !layer.visible}

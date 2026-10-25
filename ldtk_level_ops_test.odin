@@ -763,3 +763,32 @@ ldtk_selections_move_copy_and_delete_as_ldtk_does :: proc(t: ^testing.T) {
 	testing.expect_value(t, cell(dir, 0, bottom - 1), 0)
 	testing.expect_value(t, lvEntityX(dir, file, "player1"), -1)
 }
+
+/*
+Saved tile selections as LDtk's TilesetDef.saveSelection keeps them: one tile forgets the saved
+selections holding it, several are kept (picking order, the mode); LDtk's sample given back byte for
+byte when its last selection is forgotten and saved again.
+*/
+@(test)
+ldtk_tile_selections_are_saved_as_ldtk_saves_them :: proc(t: ^testing.T) {
+	if !haveSamples() do return
+	defer LDtkDoc_DestroyAll()
+	file := "Typical_TopDown_example.ldtk"
+	original := lvTexts(SAMPLES, file)
+	saved := "defs.tilesets.uid=1.savedSelections"
+	before := Json_Count(LDtkDoc_Main(LDtkDoc_Get(SAMPLES, file)), Json_Path(LDtkDoc_Main(LDtkDoc_Get(SAMPLES, file)), saved))
+	lvMust(t, SAMPLES, file, {op = .Tileset_Selection_Saved, def = 1, ids = {12}, text = "Stamp"})
+	main := LDtkDoc_Main(LDtkDoc_Get(SAMPLES, file))
+	testing.expect_value(t, Json_Count(main, Json_Path(main, saved)), before - 1)
+	lvMust(t, SAMPLES, file, {op = .Tileset_Selection_Saved, def = 1, ids = {11, 12, 13}, text = "Random"})
+	lvSameAs(t, SAMPLES, file, original, "saved again")
+	// A new one: at the end, in picking order; one overlapping it replaces it
+	lvMust(t, SAMPLES, file, {op = .Tileset_Selection_Saved, def = 1, ids = {41, 40}, text = "Stamp"})
+	testing.expect_value(t, lvValue(SAMPLES, file, fmt.tprintf("%s.%d", saved, before)), "{ \"ids\": [41,40], \"mode\": \"Stamp\" }")
+	lvMust(t, SAMPLES, file, {op = .Tileset_Selection_Saved, def = 1, ids = {40, 60}, text = "Random"})
+	main = LDtkDoc_Main(LDtkDoc_Get(SAMPLES, file))
+	last := Json_Count(main, Json_Path(main, saved)) - 1
+	testing.expect_value(t, lvValue(SAMPLES, file, fmt.tprintf("%s.%d", saved, last)), "{ \"ids\": [40,60], \"mode\": \"Random\" }")
+	testing.expect(t, !strings.contains(lvValue(SAMPLES, file, saved), "[41,40]"), "the one it overlapped went")
+	testing.expect(t, lvApply(SAMPLES, file, {op = .Tileset_Selection_Saved, def = 1, ids = {40, 999999}}) != "", "no such tile")
+}

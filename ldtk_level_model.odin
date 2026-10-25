@@ -67,6 +67,8 @@ LDtkLayerInfo :: struct {
 	kind: LDtkLayerKind,
 	gridSize: int,
 	displayOpacity, inactiveOpacity: f64,
+	// Drawn in other levels' pictures (`renderInWorldView`: LDtk's world view)
+	inWorldView: bool,
 	pxOffset: [2]int,
 	// Uids, -1 when none: its tileset, an auto layer's IntGrid source, the Tiles layer whose
 	// tiles remove its auto tiles, the level field picking rule groups (biomes)
@@ -392,6 +394,7 @@ readLayerDef :: proc(main: ^JsonDoc, ld: int) -> LDtkLayerInfo {
 		gridSize = max(Json_Int(main, Json_Get(main, ld, "gridSize"), 16), 1),
 		displayOpacity = Json_Float(main, Json_Get(main, ld, "displayOpacity"), 1),
 		inactiveOpacity = Json_Float(main, Json_Get(main, ld, "inactiveOpacity"), 1),
+		inWorldView = Json_Bool(main, Json_Get(main, ld, "renderInWorldView"), true),
 		pxOffset = {Json_Int(main, Json_Get(main, ld, "pxOffsetX")), Json_Int(main, Json_Get(main, ld, "pxOffsetY"))},
 		tileset = jsonUid(main, Json_Get(main, ld, "tilesetDefUid")),
 		autoSource = jsonUid(main, Json_Get(main, ld, "autoSourceLayerDefUid")),

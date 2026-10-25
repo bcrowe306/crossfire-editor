@@ -124,6 +124,7 @@ Action :: enum {
 	// LDtk's selection (level_select.odin): select everything, select empty spaces too
 	Level_Select_All,
 	Level_Empty_Space,
+	Level_Save_Tile_Selection,
 }
 
 // Panel resizing. Each carries the new size of a split's first pane

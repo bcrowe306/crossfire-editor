@@ -1618,6 +1618,13 @@ rulesColor :: proc(c: ^LDtkTabCtx, layerUid, layer: int) {
 	e := rEdit(c, .Rule_Group_Set, layerUid, group = r.group)
 	e.key = "color"
 	tabRow(c, "Color", tabColorField(c, "ldtk-color-hex", current >= 0 ? LDtk_FormatColor(current) : "", e), "#RRGGBB")
+	// LDtk's color wheel (its ColorPicker): Skald's picker
+	wheel := skald.color_picker(ctx, current >= 0 ? skald.rgb(u32(current)) : skald.rgb(0xFFFFFF), e, proc(edit: LDtk_Edit, v: skald.Color) -> Msg {
+		x := edit
+		x.text = strings.concatenate({"#", skald.color_to_hex(v)}, context.temp_allocator)
+		return x
+	}, id = skald.hash_id("ldtk-color-wheel"), width = min(c.controlWidth, 160))
+	tabRow(c, "Any color", wheel, "pick any color on a wheel")
 	none := e
 	none.text = ""
 	rButtons(c, rButton(c, "ldtk-color-none", "No color", Msg(none), disabled = current < 0), rButton(c, "ldtk-color-cancel", "Done", Msg(Rules_View{op = .Close})))
