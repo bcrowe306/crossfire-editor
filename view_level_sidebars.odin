@@ -373,9 +373,9 @@ Ctx_Level :: struct {
 }
 
 /*
-A level's menu: focus it, open the scene showing it, make one, open it in LDtk; what LDtk does to
-levels and the editor doesn't yet (rename, duplicate, delete, new level: later phases) is listed
-greyed out.
+A level's menu: focus it, open the scene showing it, make one, open it in LDtk; LDtk's edits of
+levels (rename, duplicate, delete, depths, another world, a new level: level_world_tools.odin's
+`levelMenuEdits`).
 */
 LevelMode_MenuItems :: proc(s: ^State, items: ^[dynamic]skald.Menu_Item(Msg), t: Ctx_Level) {
 	file := LevelMode_File(s)

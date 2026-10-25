@@ -36,8 +36,8 @@ those after them) are ldtk_defs.odin's, with LDtk's tidy bringing every level in
 `Rule_*` ops) are ldtk_rule_ops.odin's: written as LDtk's toJson writes them, then the tidy, then
 the rules applied again.
 
-What isn't editable yet (the tab says so): arrays of values, tiles and file paths in fields'
-values, linear world layouts' level order.
+Arrays, tiles and file paths in fields' values are ldtk_field_ops.odin's (`Field_Value`), levels'
+and worlds' edits ldtk_level_ops.odin's, the project's settings ldtk_project_ops.odin's.
 */
 
 // What an LDtk_Edit changes
@@ -739,11 +739,11 @@ LDtkOps_GridSizeLocked :: proc(doc: ^LDtkDoc, layerUid: int) -> string {
 
 // Why a field's values can't be edited here ("" when they can)
 LDtkOps_FieldLocked :: proc(info: LDtkFieldInfo) -> string {
-	if info.isArray do return "arrays aren't editable here yet (LDtk edits them)"
+	if info.isArray do return "an array's values are edited item by item (Field_Value)"
 	#partial switch info.type {
-	case .Tile: return "tiles aren't editable here yet (LDtk edits them)"
+	case .Tile: return "a tile is picked on its tileset (Field_Value)"
 	case .Unknown: return "this field's type isn't known here"
-	case .EntityRef: if info.symmetrical do return "symmetrical references aren't editable here yet (LDtk keeps both ends)"
+	case .EntityRef: if info.symmetrical do return "a symmetrical reference is set by picking it (Entity_Ref keeps both ends)"
 	}
 	return ""
 }

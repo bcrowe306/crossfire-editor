@@ -306,7 +306,7 @@ LDtkProject_ProjectTab :: proc(c: ^LDtkTabCtx) {
 			"The pictures' names: %world, %level_name, %level_idx, %layer_name, %layer_idx")
 	}
 	tabFlagRow(c, "Super simple export", "ldtk-project-simplifiedExport", "Also write each level as a data.json, a CSV per IntGrid layer and PNG pictures (into <project name>/simplified)", set(c, "simplifiedExport"), flagOf(main, "simplifiedExport"))
-	tabFlagRow(c, "Tiled export", "ldtk-project-exportTiled", "Also write Tiled files (TMX) of the levels, for frameworks that only read Tiled's", set(c, "exportTiled"), flagOf(main, "exportTiled"))
+	tabFlagRow(c, "Tiled export", "ldtk-project-exportTiled", "LDtk also writes Tiled files (TMX) when it saves: kept for LDtk, the editor doesn't write them (LDtk's cover only the first world)", set(c, "exportTiled"), flagOf(main, "exportTiled"))
 	tabNote(c, "What these write on Save is in the manual's Project tab section.")
 
 	tabHeading(c, "Names")
