@@ -75,6 +75,9 @@ def make(path, levels_spec, layout, external, worlds=None):
 	root["worldLayout"] = layout
 	root["worldGridWidth"] = 256
 	root["worldGridHeight"] = 128
+	if layout == "GridVania":
+		# LDtk keeps a GridVania world's size for new levels on its grid (World.tidy)
+		root["defaultLevelWidth"], root["defaultLevelHeight"] = 256, 128
 	root["externalLevels"] = external
 	root["dummyWorldIid"] = "world-" + root["iid"]
 	defs = copy.deepcopy(t["defs"])
@@ -130,7 +133,8 @@ def make(path, levels_spec, layout, external, worlds=None):
 	levels = []
 	for i, spec in enumerate(levels_spec):
 		level = {k: copy.deepcopy(v) for k, v in template_level.items() if k != "layerInstances"}
-		level.update({"identifier": spec["name"], "iid": spec["iid"], "uid": 100 + i, "worldX": spec["x"], "worldY": spec["y"], "pxWid": spec["w"], "pxHei": spec["h"]})
+		# Named by hand: LDtk names a level with useAutoIdentifier from the project's pattern on load
+		level.update({"identifier": spec["name"], "iid": spec["iid"], "uid": 100 + i, "worldX": spec["x"], "worldY": spec["y"], "pxWid": spec["w"], "pxHei": spec["h"], "useAutoIdentifier": False})
 		level["fieldInstances"] = [
 			field(level_fd["music"], spec.get("music"), value("V_String", spec["music"]) if spec.get("music") else None),
 			field(level_fd["difficulty"], spec.get("difficulty", 1), value("V_Int", spec["difficulty"]) if "difficulty" in spec else None),
@@ -245,6 +249,8 @@ def make(path, levels_spec, layout, external, worlds=None):
 		root["worldLayout"] = None
 		root["worldGridWidth"] = None
 		root["worldGridHeight"] = None
+		root["defaultLevelWidth"] = None
+		root["defaultLevelHeight"] = None
 		root["flags"] = sorted(set(root.get("flags", []) + ["MultiWorlds"]))
 		for entry in root["toc"]:
 			for d in entry["instancesData"]:
@@ -259,6 +265,8 @@ def make(path, levels_spec, layout, external, worlds=None):
 	ordered = {"__header__": HEADER, **ordered}
 
 	if external:
+		# The files are named "0000-<level>" as LDtk names them with this flag
+		ordered["flags"] = sorted(set(ordered.get("flags", []) + ["PrependIndexToLevelFileNames"]))
 		folder = os.path.join(os.path.dirname(path), os.path.splitext(os.path.basename(path))[0])
 		os.makedirs(folder, exist_ok=True)
 		for i, level in enumerate(levels):

@@ -58,6 +58,10 @@ LDtkTidy_Run :: proc(s: ^Stages, scope: LDtkTidyScope = {}) -> string {
 	p := LDtkPatches{}
 	tidyDefs(&p, s.cur)
 	if problem := stagesApply(s, &p); problem != "" do return problem
+	// The levels' own (World.tidy: automatic names, backgrounds; ldtk_level_ops.odin)
+	p = {}
+	tidyLevels(&p, s.cur)
+	if problem := stagesApply(s, &p); problem != "" do return problem
 	p = {}
 	tidyStructure(&p, s.cur)
 	if problem := stagesApply(s, &p); problem != "" do return problem
@@ -66,7 +70,9 @@ LDtkTidy_Run :: proc(s: ^Stages, scope: LDtkTidyScope = {}) -> string {
 	if problem := stagesApply(s, &p); problem != "" do return problem
 	p = {}
 	ldtkTocPatches(&p, s.cur)
-	return stagesApply(s, &p)
+	if problem := stagesApply(s, &p); problem != "" do return problem
+	// The level files' names (ProjectSaver's, at save)
+	return tidyLevelFiles(s)
 }
 
 // --- Values compared and written -------------------------------------------------------------

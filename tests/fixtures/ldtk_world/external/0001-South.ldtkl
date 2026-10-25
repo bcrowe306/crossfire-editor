@@ -18,7 +18,7 @@
 	"pxHei": 128,
 	"__bgColor": "#202838",
 	"bgColor": null,
-	"useAutoIdentifier": true,
+	"useAutoIdentifier": false,
 	"bgRelPath": null,
 	"bgPos": null,
 	"bgPivotX": 0.5,

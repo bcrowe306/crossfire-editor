@@ -108,29 +108,38 @@ jobject :: proc(pairs: ..LDtkJPair) -> LDtkJV {
 /*
 Edits applied in stages: each stage's patches are made on the document as the stages before left
 it (a removal and an addition in one array can't be one set of patches), then the document gets
-the last texts once.
+the last texts once. A stage may add level files (`added`: a level saved apart that's new, or
+whose file is named again), which the next document reads; files the project file no longer names
+drop out of it (Save removes them from LDtk's folder: ldtk_doc.odin).
 */
 @(private)
 Stages :: struct {
 	base: ^LDtkDoc,
+	// A text per file of `cur`
 	texts: []string,
 	// The document the next patches are made on (the base, or the last stage's)
 	cur: ^LDtkDoc,
 	made: [dynamic]^LDtkDoc,
+	// Level files the next stage brings in, by full path (temp)
+	added: map[string]string,
 }
 
 @(private)
 stagesMake :: proc(doc: ^LDtkDoc) -> Stages {
-	return {base = doc, texts = LDtkDoc_Texts(doc), cur = doc, made = make([dynamic]^LDtkDoc, context.temp_allocator)}
+	return {base = doc, texts = LDtkDoc_Texts(doc), cur = doc, made = make([dynamic]^LDtkDoc, context.temp_allocator), added = make(map[string]string, 4, context.temp_allocator)}
 }
 
-// Applies a stage's patches; the next stage's are made on what they made
+// Applies a stage's patches (and its added files); the next stage's are made on what they made
 @(private)
 stagesApply :: proc(s: ^Stages, patches: ^LDtkPatches) -> string {
-	if LDtkPatches_Empty(patches) do return ""
+	if LDtkPatches_Empty(patches) && len(s.added) == 0 do return ""
 	if problem := LDtkDoc_Apply(s.cur, s.texts, patches); problem != "" do return problem
+	texts := make(map[string]string, len(s.cur.files) + len(s.added), context.temp_allocator)
+	for f, i in s.cur.files do texts[f.path] = s.texts[i]
+	for path, text in s.added do texts[path] = text
+	clear(&s.added)
 	next := new(LDtkDoc, context.temp_allocator)
-	next^ = LDtkDoc_FromTexts(s.base, s.texts)
+	next^ = LDtkDoc_FromPaths(s.base, texts)
 	if next.problem != "" {
 		problem := fmt.tprintf("%s", next.problem)
 		LDtkDoc_Free(next)
@@ -138,6 +147,7 @@ stagesApply :: proc(s: ^Stages, patches: ^LDtkPatches) -> string {
 	}
 	append(&s.made, next)
 	s.cur = next
+	s.texts = LDtkDoc_Texts(next)
 	return ""
 }
 
@@ -147,7 +157,7 @@ stagesFinish :: proc(s: ^Stages, problem: string) -> string {
 	defer for d in s.made do LDtkDoc_Free(d)
 	if problem != "" do return problem
 	if len(s.made) == 0 do return ""
-	return LDtkDoc_SetTexts(s.base, s.texts)
+	return LDtkDoc_SetTextsByPath(s.base, LDtkDoc_TextsByPath(s.cur))
 }
 
 // An item added at the end of an array, at the items' indentation (an empty array gets a line of its own)

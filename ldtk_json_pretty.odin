@@ -58,6 +58,8 @@ PRETTY_MAX_LINE :: 85
 Pretty :: struct {
 	b: ^strings.Builder,
 	minified: bool,
+	// JsonPretty's Full level: every object and array an item a line (number grids still grids)
+	full: bool,
 	indent: int,
 }
 
@@ -75,6 +77,14 @@ Returns:
 LDtk_PrettyJson :: proc(v: LDtkJV, minified: bool, indent := 0) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	p := Pretty{b = &b, minified = minified, indent = indent}
+	prettyValue(&p, "", false, v)
+	return strings.to_string(b)
+}
+
+// A value as JsonPretty's Full level writes it (LDtk's simplified export's data.json files; temp)
+LDtk_PrettyJsonFull :: proc(v: LDtkJV) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	p := Pretty{b = &b, full = true}
 	prettyValue(&p, "", false, v)
 	return strings.to_string(b)
 }
@@ -198,6 +208,8 @@ writeName :: proc(p: ^Pretty, name: string) {
 // JsonPretty.addValue
 @(private="file")
 prettyValue :: proc(p: ^Pretty, name: string, force: bool, v: LDtkJV) {
+	// The file's header is always an item a line (HEADER_VALUE_NAME)
+	force := force || name == "__header__"
 	switch x in v {
 	case LDtkJNull:
 		writeName(p, name)
@@ -248,7 +260,7 @@ prettyObject :: proc(p: ^Pretty, name: string, o: []LDtkJPair, force: bool) {
 	}
 	length := p.minified ? 0 : ldtkPrettyLength(LDtkJObject(o), 0)
 	writeName(p, name)
-	if p.minified || (length <= PRETTY_MAX_LINE && !force) {
+	if p.minified || (length <= PRETTY_MAX_LINE && !force && !p.full) {
 		strings.write_string(p.b, p.minified ? "{" : "{ ")
 		for pair, i in o {
 			prettyValue(p, pair.key, false, pair.value)
@@ -303,7 +315,7 @@ prettyArray :: proc(p: ^Pretty, name: string, a: []LDtkJV, force: bool) {
 		strings.write_byte(p.b, ']')
 		return
 	}
-	if p.minified || (length <= PRETTY_MAX_LINE && !force) {
+	if p.minified || (length <= PRETTY_MAX_LINE && !force && !p.full) {
 		space := ""
 		if !p.minified {
 			_, isBool := a[0].(bool)

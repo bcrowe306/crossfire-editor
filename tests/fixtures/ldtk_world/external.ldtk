@@ -54,8 +54,8 @@
 	"worldLayout": "GridVania",
 	"worldGridWidth": 256,
 	"worldGridHeight": 128,
-	"defaultLevelWidth": 128,
-	"defaultLevelHeight": 64,
+	"defaultLevelWidth": 256,
+	"defaultLevelHeight": 128,
 	"defaultPivotX": 0.5,
 	"defaultPivotY": 1,
 	"defaultGridSize": 16,
@@ -76,7 +76,9 @@
 	"levelNamePattern": "Level_%idx",
 	"tutorialDesc": null,
 	"customCommands": [],
-	"flags": [],
+	"flags": [
+		"PrependIndexToLevelFileNames"
+	],
 	"defs": {
 		"layers": [
 			{
@@ -923,7 +925,7 @@
 			"pxHei": 128,
 			"__bgColor": "#202838",
 			"bgColor": null,
-			"useAutoIdentifier": true,
+			"useAutoIdentifier": false,
 			"bgRelPath": null,
 			"bgPos": null,
 			"bgPivotX": 0.5,
@@ -983,7 +985,7 @@
 			"pxHei": 128,
 			"__bgColor": "#202838",
 			"bgColor": null,
-			"useAutoIdentifier": true,
+			"useAutoIdentifier": false,
 			"bgRelPath": null,
 			"bgPos": null,
 			"bgPivotX": 0.5,

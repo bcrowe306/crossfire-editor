@@ -158,6 +158,39 @@ LDtkEditOp :: enum {
 	Rule_Pasted,
 	Rule_Seed,
 	Rule_Tileset_Here,
+
+	// Levels and worlds (ldtk_level_ops.odin): `level` a level's iid, `world` a world's index.
+	// A new level at the world point `number`, `number2` (depth `index`, `flag`: the grid shown,
+	// `text` its iid); one removed; duplicated (`text` the copy's iid; `flag`: moved by LDtk's
+	// offset, else to `number`, `number2`); a setting (`key`: identifier, useAutoIdentifier,
+	// worldDepth, bgColor, bgRelPath, bgPos, bgPivot; `text`, `number`, `flag`); a depth
+	// further (`number` 1) or closer (-1); resized (`number`, `number2` the new left and top
+	// edges, `number3`, `number4` the size); moved to `number` in its world's order; moved to
+	// the world `world`; a world added (`text` its name, `entity` its level's iid), removed, set
+	// (`key`: identifier, defaultLevelWidth, defaultLevelHeight)
+	Level_Added,
+	Level_Removed,
+	Level_Duplicated,
+	Level_Set,
+	Level_Depth,
+	Level_Resized,
+	Level_Sorted,
+	Level_World_Moved,
+	World_Added,
+	World_Removed,
+	World_Set,
+
+	// The Project tab (ldtk_project_ops.odin): a setting (`key`, its value in `text`, `number`
+	// or `flag`), one of LDtk's flags (`key`, `flag`), the custom commands (`key`: add, remove,
+	// move, command, when; `index` the command, `text`, `number`)
+	Project_Set,
+	Project_Flag,
+	Project_Command,
+
+	// A field's value of any kind (ldtk_field_ops.odin): an entity's (`entity`) or a level's
+	// (`level`) field `field`; `key` set (`text`, an array's item `index`), add, remove, move
+	// (`number`), clear
+	Field_Value,
 }
 
 // Which list of definitions a `Def_*` edit is about
@@ -474,6 +507,15 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 	     .Rule_Pattern, .Rule_Tiles, .Rule_Pasted, .Rule_Seed, .Rule_Tileset_Here:
 		return LDtkOps_RuleEdit(doc, edit), {}
 
+	// Levels and worlds (ldtk_level_ops.odin), the Project tab (ldtk_project_ops.odin)
+	case .Level_Added, .Level_Removed, .Level_Duplicated, .Level_Set, .Level_Depth, .Level_Resized, .Level_Sorted,
+	     .Level_World_Moved, .World_Added, .World_Removed, .World_Set:
+		return LDtkOps_LevelEdit(root, doc, edit), {}
+	case .Project_Set, .Project_Flag, .Project_Command:
+		return LDtkOps_ProjectEdit(root, doc, edit), {}
+	case .Field_Value:
+		return LDtkOps_FieldValue(root, doc, edit), {}
+
 	// Levels in the world
 	case .Level_X, .Level_Y, .Level_Moved:
 		level := LDtkDoc_FindLevel(doc, edit.level)
@@ -643,6 +685,18 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 		refresh = {neighbours = true, worldPositions = true, toc = true}
 	}
 	if LDtkPatches_Empty(&patches) do return "", rename
+	#partial switch edit.op {
+	case .Level_X, .Level_Y, .Level_Moved, .World_Layout, .World_Grid_Width, .World_Grid_Height:
+		// What LDtk derives after a level moves: its tidy too (automatic names, the files' names)
+		s := stagesMake(doc)
+		if problem := stagesApply(&s, &patches); problem != "" {
+			for d in s.made do LDtkDoc_Free(d)
+			return problem, rename
+		}
+		problem := LDtkOps_LevelsFinish(&s)
+		if problem != "" do for d in s.made do LDtkDoc_Free(d)
+		return problem, rename
+	}
 	return ldtkCommit(doc, &patches, refresh), rename
 }
 
@@ -1144,7 +1198,7 @@ LDtkDoc_Neighbours :: proc(doc: ^LDtkDoc, level: int) -> []LDtkNeighbour {
 }
 
 // Every level's `__neighbours`, where they differ from LDtk's rule (an equal set is left as written)
-@(private="file")
+@(private)
 refreshNeighbours :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 	for _, level in doc.levels {
 		wanted := LDtkDoc_Neighbours(doc, level)
@@ -1170,7 +1224,7 @@ refreshNeighbours :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 }
 
 // Entities' `__worldX` / `__worldY` (where the file has them) from their level's place
-@(private="file")
+@(private)
 refreshWorldPositions :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 	for e in LDtkDoc_Entities(doc) {
 		json := LDtkDoc_Json(doc, e.file)
@@ -1186,7 +1240,7 @@ refreshWorldPositions :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 
 // The table of contents' entries from the entities they list: world position, size, exported
 // fields' values
-@(private="file")
+@(private)
 refreshToc :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 	main := LDtkDoc_Main(doc)
 	toc := Json_Get(main, Json_Root(main), "toc")

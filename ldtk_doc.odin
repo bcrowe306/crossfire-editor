@@ -316,6 +316,9 @@ LDtkDoc_DestroyAll :: proc() {
 	}
 	delete(ldtkOutside)
 	ldtkOutside = nil
+	for n in ldtkSaveNotes do delete(n)
+	delete(ldtkSaveNotes)
+	ldtkSaveNotes = nil
 }
 
 // Whether any of a document's files changed on disk since it was read or written
@@ -358,6 +361,23 @@ LDtkDoc_FromTexts :: proc(doc: ^LDtkDoc, texts: []string) -> LDtkDoc {
 	return ldtkDocBuild(doc.files[0].path, byPath, doc)
 }
 
+/*
+A document made from texts by full path: the project file's, and any level file's, a new one
+(not on disk yet: a level added to a project saving levels apart) included. Files the texts don't
+have are the document's (`doc`), else read from disk. Each file keeps the saved text and time
+`doc` has for it; a file that isn't on disk has no saved text (it's unsaved).
+*/
+LDtkDoc_FromPaths :: proc(doc: ^LDtkDoc, texts: map[string]string) -> LDtkDoc {
+	return ldtkDocBuild(doc.files[0].path, texts, doc)
+}
+
+// A document's texts by full path (temp allocated; the texts point into the document)
+LDtkDoc_TextsByPath :: proc(doc: ^LDtkDoc) -> map[string]string {
+	out := make(map[string]string, len(doc.files), context.temp_allocator)
+	for f in doc.files do out[f.path] = f.json.text
+	return out
+}
+
 // Frees a document made by LDtkDoc_FromTexts
 LDtkDoc_Free :: proc(doc: ^LDtkDoc) {
 	ldtkDocFree(doc)
@@ -380,7 +400,8 @@ ldtkDocBuild :: proc(full: string, texts: map[string]string, base: ^LDtkDoc) -> 
 		modified = ldtkModified(path)
 		data, readErr := os.read_entire_file(path, context.temp_allocator)
 		if t, found := texts[path]; found {
-			return t, readErr == nil ? string(data) : t, modified, nil
+			// A file not on disk yet (a new level's) has no saved text: it's unsaved
+			return t, readErr == nil ? string(data) : "", modified, nil
 		}
 		if readErr != nil do return "", "", modified, readErr
 		return string(data), string(data), modified, nil
@@ -684,7 +705,32 @@ LDtkDoc_SetTexts :: proc(doc: ^LDtkDoc, texts: []string) -> string {
 	same := true
 	for text, i in texts do if i < len(doc.files) && text != doc.files[i].json.text do same = false
 	if same do return ""
-	next := LDtkDoc_FromTexts(doc, texts)
+	return ldtkDocReplace(doc, LDtkDoc_FromTexts(doc, texts))
+}
+
+/*
+Gives a document new texts by full path (`LDtkDoc_FromPaths`): edits that add or remove level
+files (levels added, removed or renamed in a project saving levels apart, the option turned on or
+off), and undo and redo of them, which put a step's files back.
+
+Returns:
+- "" or what went wrong (then the document is as it was)
+*/
+LDtkDoc_SetTextsByPath :: proc(doc: ^LDtkDoc, texts: map[string]string) -> string {
+	same := len(texts) == len(doc.files)
+	if same do for f in doc.files {
+		text, found := texts[f.path]
+		if !found || text != f.json.text do same = false
+	}
+	if same do return ""
+	return ldtkDocReplace(doc, LDtkDoc_FromPaths(doc, texts))
+}
+
+// Puts a new build of a document in its place (its version moved on), or keeps it when the new
+// one can't be read
+@(private="file")
+ldtkDocReplace :: proc(doc: ^LDtkDoc, built: LDtkDoc) -> string {
+	next := built
 	if next.problem != "" {
 		problem := fmt.tprintf("%s", next.problem)
 		ldtkDocFree(&next)
@@ -745,16 +791,87 @@ LDtkDoc_Save :: proc(root, path: string) -> string {
 	doc = LDtkDoc_Get(root, path)
 	if doc == nil do return fmt.tprintf("%s is gone", filepath.base(path))
 	if len(doc.diskConflict) > 0 do return fmt.tprintf("%s changed outside the editor where your unsaved edits are: reload it or keep your edits first (the Level mode's bar)", filepath.base(path))
+	// LDtk's backups first: the files as they were (ldtk_save_extras.odin)
+	if note := LDtkSave_Backup(doc); note != "" do ldtkNoteSave(note)
 	for &f in doc.files {
 		if !f.unsaved do continue
+		// A new level file's folder (LDtk's "<project name>/" beside the project file)
+		if f.saved == "" do _ = os.make_directory_all(filepath.dir(f.path))
 		if problem := LDtk_WriteFile(f.path, f.json.text, f.modified); problem != "" do return problem
 		delete(f.saved)
 		f.saved = strings.clone(f.json.text)
 		f.modified = ldtkModified(f.path)
 		f.unsaved = false
 	}
+	ldtkCleanLevelFiles(doc)
+	// What LDtk writes besides: pictures, the simplified export
+	if note := LDtkSave_Exports(doc); note != "" do ldtkNoteSave(note)
 	doc.version += 1
 	return ""
+}
+
+// What the last saves' extras couldn't do (backups, exports), for the caller to log (thread-local)
+@(private="file", thread_local)
+ldtkSaveNotes: [dynamic]string
+
+@(private="file")
+ldtkNoteSave :: proc(note: string) {
+	append(&ldtkSaveNotes, strings.clone(note))
+}
+
+/*
+What the saves since the last call couldn't do besides writing the files (a backup, PNG pictures,
+the simplified export: ldtk_save_extras.odin), each once; the files themselves were written.
+
+Returns:
+- The notes (temp allocated)
+*/
+LDtkDoc_TakeSaveNotes :: proc() -> []string {
+	out := make([]string, len(ldtkSaveNotes), context.temp_allocator)
+	for n, i in ldtkSaveNotes {
+		out[i] = strings.clone(n, context.temp_allocator)
+		delete(n)
+	}
+	clear(&ldtkSaveNotes)
+	return out
+}
+
+/*
+What LDtk's saver does to the level files' folder (ProjectSaver's SavingExternLevels and Done):
+`<project name>/` beside the project file keeps only the `.ldtkl` files of the levels saved apart
+(every one when they aren't: the option turned off), and goes when nothing is left in it. Only
+`.ldtkl` files in that folder are ever removed.
+*/
+@(private="file")
+ldtkCleanLevelFiles :: proc(doc: ^LDtkDoc) {
+	main := doc.files[0].path
+	folder := LDtk_LevelFilesFolder(main)
+	if !os.is_dir(folder) do return
+	entries, err := os.read_all_directory_by_path(folder, context.temp_allocator)
+	if err != nil do return
+	left := 0
+	for entry in entries {
+		if entry.type != .Directory && strings.has_suffix(entry.name, ".ldtkl") {
+			kept := false
+			for f in doc.files[1:] do if Paths_Same(f.path, entry.fullpath) do kept = true
+			if !kept && os.remove(entry.fullpath) == nil do continue
+		}
+		left += 1
+	}
+	if left == 0 do _ = os.remove(folder)
+}
+
+/*
+The folder LDtk keeps a project's own files in (levels saved apart, PNG exports, backups):
+`<project name>/` beside the project file (Project.getAbsExternalFilesDir).
+
+Returns:
+- The full path (temp allocated)
+*/
+LDtk_LevelFilesFolder :: proc(projectFile: string) -> string {
+	base := filepath.base(projectFile)
+	stem := strings.trim_suffix(base, filepath.ext(base))
+	return joinPath(filepath.dir(projectFile), stem, allocator = context.temp_allocator)
 }
 
 /*
@@ -773,6 +890,7 @@ LDtkDocs_SaveProject :: proc(state: ^State) -> bool {
 		} else {
 			logLine(state, .Info, fmt.aprintf("Saved %s", asset.path))
 		}
+		for note in LDtkDoc_TakeSaveNotes() do logLine(state, .Warning, fmt.aprintf("%s: %s", asset.path, note))
 	}
 	return ok
 }

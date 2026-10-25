@@ -774,13 +774,24 @@ level_canvas_drags_levels_and_entities :: proc(t: ^testing.T) {
 	testing.expect_value(t, state.level.view.fitted, "world.ldtk||")
 	testing.expect(t, state.level.view.zoom > 1.3 && state.level.view.zoom < 1.5, "fitted")
 
-	// A level dragged (Free: whole pixels), one undo step
+	// A level dragged (Free: on the project's grid while it's shown, as LDtk's WorldTool), one undo step
 	send(&state, Level_Canvas_Pressed{world = {64, 192}, level = "Tower"})
 	testing.expect_value(t, state.level.level, "Tower")
 	testing.expect_value(t, state.level.drag.mode, LevelDragMode.Level)
 	send(&state, Level_Canvas_Moved{world = {80, 194}, delta = {20, 3}})
 	send(&state, Level_Canvas_Moved{world = {164.4, 195}, delta = {100, 1}})
 	send(&state, Level_Canvas_Released{})
+	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldX"), "96")
+	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldY"), "128")
+	testing.expect_value(t, len(state.history.undo), 1)
+	send(&state, Msg(Action.Undo))
+	// Without the grid (G) and with Shift (no snapping to other levels' edges): whole pixels
+	state.level.paint.noGrid = true
+	send(&state, Level_Canvas_Pressed{world = {64, 192}, level = "Tower"})
+	send(&state, Level_Canvas_Moved{world = {80, 194}, delta = {20, 3}, free = true})
+	send(&state, Level_Canvas_Moved{world = {164.4, 195}, delta = {100, 1}, free = true})
+	send(&state, Level_Canvas_Released{})
+	state.level.paint.noGrid = false
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldX"), "100")
 	testing.expect_value(t, valueAt(path, "levels.identifier=Tower.worldY"), "131")
 	testing.expect_value(t, len(state.history.undo), 1)

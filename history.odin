@@ -103,7 +103,8 @@ A file's text before and after a step (all owned). A big file keeps only what ch
 (`FileHunk`: the bytes before and after, where each is in its text), found by a diff over the
 texts' values (`textHunks`): a stroke on a 256 x 256 level changes some cells and the auto-layer
 tiles around them in a 6.5 MB file, and two whole texts a step were 13 MB (200 steps: 2.6 GB).
-Files under `FILE_STEP_WHOLE_MAX` keep their whole texts (`whole`: `before`, `after`).
+Files under `FILE_STEP_WHOLE_MAX` keep their whole texts (`whole`: `before`, `after`), and so does a
+file the step made or dropped (a level saved apart, added, removed or named again: "" on that side).
 `fileStepMake` makes one, `fileStepTarget` the text a document gets back from one.
 */
 FileText :: struct {
@@ -150,7 +151,8 @@ FileText_Size :: proc(f: FileText) -> int {
 // A file step from whole texts (cloned, or their hunks)
 @(private="file")
 fileStepMake :: proc(path, before, after: string) -> FileText {
-	if max(len(before), len(after)) < FILE_STEP_WHOLE_MAX do return {path = strings.clone(path), before = strings.clone(before), after = strings.clone(after), whole = true}
+	// A file made or dropped ("" one side) keeps its text: undo puts it back without a document to apply hunks to
+	if before == "" || after == "" || max(len(before), len(after)) < FILE_STEP_WHOLE_MAX do return {path = strings.clone(path), before = strings.clone(before), after = strings.clone(after), whole = true}
 	return {path = strings.clone(path), hunks = textHunks(before, after), beforeLen = len(before), afterLen = len(after)}
 }
 
@@ -477,6 +479,7 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	}
 	// The Level mode's painting: a stroke's release, a placement, Delete and Duplicate (level_paint.odin)
 	if s.mode == .Level {
+		if info, world := LevelWorld_Classify(s, m); world do return info
 		if info, painted := LevelPaint_Classify(s, m); painted do return info
 	}
 	#partial switch v in m {
@@ -775,7 +778,7 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 	case Level_Canvas_Released:
 		drag := s.level.drag
 		if drag.moved && (drag.mode == .Level || drag.mode == .Entity) {
-			return {scope = .Files, ldtkFile = LevelMode_File(s), label = drag.mode == .Level ? "Move a level in the world" : "Move an entity"}
+			return {scope = .Files, ldtkFile = LevelMode_File(s), label = drag.mode == .Level ? "Move a level in the world" : "Move an entity", withProject = drag.mode == .Level}
 		}
 	case Level_Collision_Kind_Changed:
 		if v.scene >= 0 && v.scene < len(s.project.scenes) do return {scope = .Project, label = fmt.tprintf("Change what IntGrid value %d becomes in %s", v.value, s.project.scenes[v.scene].name)}
@@ -1083,9 +1086,19 @@ History_Commit :: proc(s: ^State, snap: ^EditSnapshot, now: time.Tick) {
 		change := &command.change.(FileChange)
 		snap.info.ldtkFile = ""
 		doc := LDtkDoc_Get(s.project.rootPath, change.ldtkFile)
+		// Files the edit made (a level saved apart, added or named again): from nothing ("")
+		if doc != nil do for df in doc.files {
+			had := false
+			for f in snap.files do if f.path == df.path do had = true
+			if !had do append(&change.files, fileStepMake(df.path, "", df.json.text))
+		}
 		for &f in snap.files {
 			now := f.before
-			if doc != nil do if text, found := LDtkDoc_TextOf(doc, f.path); found do now = text
+			// A file the edit dropped (its level removed, or saved in the project file again): to nothing
+			if doc != nil {
+				text, found := LDtkDoc_TextOf(doc, f.path)
+				now = found ? text : ""
+			}
 			if now == f.before {
 				delete(f.path)
 				delete(f.before)
@@ -1783,9 +1796,14 @@ History_RestoreFiles :: proc(s: ^State, change: ^FileChange, undo, force: bool) 
 		targets[i] = target
 	}
 	if doc != nil {
-		texts := LDtkDoc_Texts(doc)
-		for f, i in change.files do for df, j in doc.files do if df.path == f.path do texts[j] = targets[i]
-		if problem := LDtkDoc_SetTexts(doc, texts); problem != "" do logLine(s, .Error, strings.clone(problem))
+		// By path: a step may bring a level file back or drop one ("": not in the document then)
+		texts := make(map[string]string, len(doc.files) + len(change.files), context.temp_allocator)
+		for df in doc.files do texts[df.path] = df.json.text
+		for f, i in change.files {
+			if targets[i] == "" do delete_key(&texts, f.path)
+			else do texts[f.path] = targets[i]
+		}
+		if problem := LDtkDoc_SetTextsByPath(doc, texts); problem != "" do logLine(s, .Error, strings.clone(problem))
 	}
 	if change.hasProject do restoreProjectSnapshot(s, undo ? change.project.before : change.project.after)
 	for &c in change.components {
@@ -1925,6 +1943,13 @@ LDTK_EDIT_LABELS := [LDtkEditOp]string{
 	.Rule_Added = "Add a rule", .Rule_Removed = "Remove a rule", .Rule_Duplicated = "Duplicate a rule", .Rule_Moved = "Move a rule",
 	.Rule_Set = "Change a rule", .Rule_Pattern = "Change a rule's pattern", .Rule_Tiles = "Change a rule's tiles", .Rule_Pasted = "Paste rules",
 	.Rule_Seed = "Randomize a layer's rules", .Rule_Tileset_Here = "Change a layer's tileset in a level",
+	.Level_Added = "Add a level", .Level_Removed = "Delete a level", .Level_Duplicated = "Duplicate a level",
+	.Level_Set = "Change a level", .Level_Depth = "Change a level's depth", .Level_Resized = "Resize a level",
+	.Level_Sorted = "Move a level in its world's order", .Level_World_Moved = "Move a level to another world",
+	.World_Added = "Add a world", .World_Removed = "Delete a world", .World_Set = "Change a world",
+	.Project_Set = "Change the LDtk project's settings", .Project_Flag = "Change an LDtk project option",
+	.Project_Command = "Change the LDtk project's commands",
+	.Field_Value = "Change a field's value",
 }
 
 /*
@@ -1942,7 +1967,20 @@ LDtkEdit_Info :: proc(edit: LDtk_Edit) -> EditInfo {
 	     .Enum_External_Removed, .Tileset_Tag,
 	     .Rule_Group_Added, .Rule_Group_Removed, .Rule_Group_Duplicated, .Rule_Group_Moved, .Rule_Group_Here, .Rule_Group_Remapped,
 	     .Rule_Group_Assistant, .Rule_Added, .Rule_Removed, .Rule_Duplicated, .Rule_Moved, .Rule_Pattern, .Rule_Tiles, .Rule_Pasted,
-	     .Rule_Seed, .Rule_Tileset_Here:
+	     .Rule_Seed, .Rule_Tileset_Here,
+	     .Level_Added, .Level_Removed, .Level_Duplicated, .Level_Depth, .Level_Resized, .Level_Sorted, .Level_World_Moved,
+	     .World_Added, .World_Removed, .Project_Flag:
+	case .Field_Value:
+		// Typing a value merges (per item); adding, removing, moving don't
+		if edit.key == "" || edit.key == "set" do info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.entity, edit.level, edit.field, edit.index))
+	case .Level_Set, .World_Set, .Project_Set, .Project_Command:
+		// Typed text merges (a name, a number); toggles and choices don't
+		switch edit.key {
+		case "identifier", "worldDepth", "bgColor", "defaultLevelWidth", "defaultLevelHeight", "levelNamePattern", "pngFilePattern",
+		     "defaultGridSize", "defaultEntityWidth", "defaultEntityHeight", "bgColor_project", "defaultLevelBgColor", "backupLimit",
+		     "backupRelPath", "tutorialDesc", "command", "defaultPivot":
+			info.mergeKey = hash.fnv64a(transmute([]byte)fmt.tprint("ldtk", edit.op, edit.file, edit.world, edit.level, edit.index, edit.key))
+		}
 	case .Rule_Set, .Rule_Group_Set:
 		// Typed and stepped values merge (one step a field while typing); toggles and choices don't
 		merges := false
@@ -1955,6 +1993,12 @@ LDtkEdit_Info :: proc(edit: LDtk_Edit) -> EditInfo {
 	if edit.op == .Def_Set do info.label = fmt.tprintf("%s in %s", LDtkDefs_SetLabel(edit), filepath.base(edit.file))
 	if edit.op == .Rule_Set do info.label = fmt.tprintf("%s in %s", LDtkRules_SetLabel(edit), filepath.base(edit.file))
 	// Renames scenes follow (their LDtkLevel nodes name layers and entity types)
-	info.withProject = edit.op == .Layer_Name || edit.op == .Entity_Name
+	// Level renames (asked, automatic names, a project's identifier style) are followed by scenes too
+	#partial switch edit.op {
+	case .Layer_Name, .Entity_Name, .Level_Added, .Level_Removed, .Level_Duplicated, .Level_Set, .Level_Sorted, .Level_World_Moved,
+	     .Level_X, .Level_Y, .Level_Moved, .World_Layout, .World_Grid_Width, .World_Grid_Height, .World_Added, .World_Removed,
+	     .World_Set, .Project_Set, .Project_Flag:
+		info.withProject = true
+	}
 	return info
 }

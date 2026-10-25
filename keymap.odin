@@ -101,6 +101,10 @@ ACTION_KEY_RULES := #partial [Action]ActionKeyRule{
 	.Level_Duplicate = {textChord = true, onlyIn = {.Level}},
 	.Level_Cancel = {onlyIn = {.Level}},
 	.Level_World_Mode = {onlyIn = {.Level}},
+	.Level_Depth_Further = {onlyIn = {.Level}},
+	.Level_Depth_Closer = {onlyIn = {.Level}},
+	.Level_Move_Further = {onlyIn = {.Level}},
+	.Level_Move_Closer = {onlyIn = {.Level}},
 }
 
 /*
@@ -147,6 +151,8 @@ ACTION_LABELS := [Action]string{
 	.Level_Auto_Layers = "Level: show auto-layer tiles", .Level_Delete = "Level: delete the selected entity",
 	.Level_Duplicate = "Level: duplicate the selected entity", .Level_Cancel = "Level: cancel a pick, deselect",
 	.Level_World_Mode = "Level: the world or the level",
+	.Level_Depth_Further = "Level: show the next world depth", .Level_Depth_Closer = "Level: show the previous world depth",
+	.Level_Move_Further = "Level: move the level a depth further", .Level_Move_Closer = "Level: move the level a depth closer",
 }
 
 /*
