@@ -1,0 +1,172 @@
+# Painting in the Level mode (level_paint.odin, ldtk_paint.odin, ldtk_rules.odin, ldtk_entity_ops.odin,
+# level_layers_render.odin, level_canvas_paint.odin, view_level_palette.odin), as LDtk's tools: on the
+# focused level's selected layer, IntGrid values with the palette, Pencil strokes, the right button
+# erasing, Shift rectangles and quick Shift fills, the Rectangle / Fill / Eraser / Picker tools, Alt
+# picks; tiles: a stamp picked in the tileset palette, flipped (X), random (R), a rectangle; entities:
+# placed from the palette, a resizable one resized at once, references chained, Delete, Ctrl+D, the
+# right button removing, Ctrl + Alt dragging a copy, a reference and points picked from the
+# Entities tab; each stroke one undo step; the document unsaved until Ctrl+S writes it.
+# Run with: task test:ui (and test:ui:fullscreen, test:ui:short)
+#
+# The fixture tests/fixtures/ldtk_paint/paint.ldtk (make_paint.py): Room (20 x 12 cells, empty) and
+# Hall (16 x 8: tiles, a stone strip, entities hero1, box1, coin1, link1, link2); layers Entities
+# (uid 1), Decor (Tiles, 2), Ground (IntGrid with rules, 3: grass 1, stone 2, dirt 3, water 4),
+# Shade (AutoLayer of Ground, 4); entity types Hero (20), Box (21, resizable), Coin (22), Key (23),
+# Flag (24), Link (25).
+
+wait 5
+key ctrl+alt+2
+expect mode Level
+import tests/fixtures/ldtk_paint/paint.ldtk
+expect level file assets/paint/paint.ldtk
+wait_until level levels 2
+wait_until widget_visible ldtk-map-Level true
+double_click_widget level-row-0
+expect level focus Room
+wait 5
+
+# IntGrid: the palette's value, a Pencil stroke (one undo step: the document changes at the release)
+click_widget level-layer-row-2
+expect level layer Ground
+wait 3
+send Level_Tool_Picked Pencil
+expect level tool Pencil
+expect level value 1
+level_paint 1 9 18 9
+wait_until ldtk_cell Room Ground 10 9 1
+expect ldtk_cell Room Ground 1 9 1
+expect ldtk_cell Room Ground 18 9 1
+expect level unsaved yes
+# The rules made Ground's auto-layer tiles
+expect ldtk_count levels.identifier=Room.layerInstances.__identifier=Ground.autoLayerTiles >10
+# Another value from the palette; Shift + drag: a rectangle
+click_widget level-value-2
+expect level value 2
+level_paint 0 10 19 11 shift
+wait_until ldtk_cell Room Ground 19 11 2
+expect ldtk_cell Room Ground 0 10 2
+# The right button erases
+level_paint 5 9 7 9 right
+wait_until ldtk_cell Room Ground 6 9 0
+expect ldtk_cell Room Ground 4 9 1
+# Undo puts the cells back (one step), redo erases them again
+key ctrl+z
+wait_until ldtk_cell Room Ground 6 9 1
+key ctrl+shift+z
+wait_until ldtk_cell Room Ground 6 9 0
+# Shift + a quick click fills (LDtk's): water in the empty area above the floor
+click_widget level-value-4
+level_paint 10 3 10 3 shift
+wait_until ldtk_cell Room Ground 0 0 4
+expect ldtk_cell Room Ground 10 9 1
+# The Fill tool, the Rectangle tool, the Eraser
+send Level_Tool_Picked Fill
+click_widget level-value-3
+level_paint 2 2 2 2
+wait_until ldtk_cell Room Ground 0 0 3
+send Level_Tool_Picked Rectangle
+click_widget level-value-2
+level_paint 2 2 4 3
+wait_until ldtk_cell Room Ground 4 3 2
+send Level_Tool_Picked Eraser
+level_paint 2 2 4 2
+wait_until ldtk_cell Room Ground 3 2 0
+expect ldtk_cell Room Ground 3 3 2
+# The Picker (and Alt + click with any tool): the value under the pointer, back to the Pencil
+send Level_Tool_Picked Picker
+level_paint 3 3 3 3
+expect level value 2
+expect level tool Pencil
+level_paint 10 9 10 9 alt
+expect level value 1
+
+# Tiles: a 2 x 2 stamp from the palette (tiles 8, 9, 16, 17), flipped on X
+send Level_Layer_Picked 2
+expect level layer Decor
+wait_until widget_visible level-palette-tiles true
+level_palette_tiles 10 8 9 16 17
+send Level_Tool_Picked Pencil
+level_paint 3 2 3 2
+wait_until ldtk_tiles Room Decor 3 2 8
+expect ldtk_tiles Room Decor 4 3 17
+key x
+expect level flip x-
+level_paint 8 2 8 2
+wait_until ldtk_tiles Room Decor 8 2 9
+expect ldtk_tiles Room Decor 9 2 8
+key x
+# A tile picked in the palette by a click
+click_at level-palette-tiles 0.0625 0.125
+expect level tiles [0]
+level_paint 12 1 12 1
+wait_until ldtk_tiles Room Decor 12 1 0
+# R: random (the toolbar's Random), a rectangle of random picks
+key r
+expect level random on
+expect level tool Random
+level_palette_tiles 10 0 1 2
+level_paint 0 0 2 0 shift
+wait_until ldtk_count levels.identifier=Room.layerInstances.__identifier=Decor.gridTiles 12
+key r
+expect level random off
+# The right button removes the top tile; the picker takes a tile and its flips
+level_paint 12 1 12 1 right
+wait_until ldtk_tiles Room Decor 12 1 none
+level_paint 8 2 8 2 alt
+expect level tiles [9]
+expect level flip x-
+key x
+
+# Entities: a Hero placed from the palette (its pivot on the cell), the next one chained to it
+send Level_Layer_Picked 1
+expect level layer Entities
+wait 3
+click_widget level-entity-type-20
+expect level entity_type 20
+expect level tool Pencil
+level_paint 3 7 3 7
+wait_until level_entities Room 1
+level_paint 8 7 8 7
+wait_until level_entities Room 2
+# A Box resizes as it's placed (its handle follows the drag)
+click_widget level-entity-type-21
+level_drag_world 192 32 250 70
+wait_until level_entities Room 3
+expect level stroke None
+# Delete removes the selected one, undo brings it back; Ctrl+D copies the selected one (Alt + click
+# selects it: LDtk's)
+key delete
+wait_until level_entities Room 2
+key ctrl+z
+wait_until level_entities Room 3
+level_paint 12 2 12 2 alt
+expect level entity_type 21
+key ctrl+d
+wait_until level_entities Room 4
+# The right button removes what it crosses (one step)
+level_paint 3 7 8 7 right
+wait_until level_entities Room 2
+key ctrl+z
+wait_until level_entities Room 4
+# Ctrl + Alt + drag copies an entity (LDtk's)
+level_paint 8 6 12 6 ctrl alt
+wait_until level_entities Room 5
+
+# The Entities tab: a Hero's point field picked on the canvas (an array: clicks add points)
+level_paint 3 6 3 6 alt
+expect level entity_type 20
+wait_until widget_visible ldtk-tab-scroll true
+send Bottom_Tab Entities
+scroll_into_view ldtk-tab-scroll ldtk-instance-field-31-pick
+click_widget ldtk-instance-field-31-pick
+expect level pick Point
+level_paint 10 3 10 3
+level_paint 12 3 12 3
+key escape
+expect level pick None
+
+# Saved: the file has the painting
+key ctrl+s
+wait_until level unsaved no
+expect ldtk_disk levels.identifier=Room.layerInstances.__identifier=Ground.intGridCsv.190 1
+expect ldtk_disk levels.identifier=Room.layerInstances.__identifier=Ground.intGridCsv.30 3

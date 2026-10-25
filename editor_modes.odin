@@ -77,7 +77,7 @@ EDITOR_MODES := [EditorMode]EditorModeInfo{
 		name = "Level", icon = ICON_MAP, action = .Mode_Level,
 		about = "Level mode: the world, your LDtk project's levels laid out",
 		view = levelModeView,
-		bottomTabs = []BottomTab{.LDtk, .Console, .Output},
+		bottomTabs = []BottomTab{.World, .Level, .Layers, .Entities, .Enums, .Tilesets, .Auto_Layer_Rules, .LDtk_Project, .Console, .Output},
 		manual = "level_mode",
 	},
 }
@@ -181,8 +181,8 @@ Mode_Set :: proc(state: ^State, mode: EditorMode, save := true) {
 }
 
 /*
-Writes the project's mode and the Level mode's world to `.editor/modes.ini` (only when the project
-is a folder on disk and the text changed).
+Writes the project's mode and the Level mode's world (its LDtk file and, with several worlds, the
+one shown) to `.editor/modes.ini` (only when the project is a folder on disk and the text changed).
 
 Returns:
 - "" or what went wrong
@@ -191,7 +191,7 @@ Mode_Save :: proc(state: ^State) -> string {
 	root := state.project.rootPath
 	if root == "" || !os.exists(root) do return ""
 	path, _ := filepath.join({root, MODES_FILE}, context.temp_allocator)
-	text := fmt.tprintf("; The editor's mode for this project (Crossfire Editor)\nmode = %v\nlevel_file = %s\n", state.mode, state.level.file)
+	text := fmt.tprintf("; The editor's mode for this project (Crossfire Editor)\nmode = %v\nlevel_file = %s\nlevel_world = %s\n", state.mode, state.level.file, state.level.world)
 	if old, err := os.read_entire_file(path, context.temp_allocator); err == nil && string(old) == text do return ""
 	if state.mode == .Scene && state.level.file == "" && !os.exists(path) do return ""
 	_ = os.make_directory_all(filepath.dir(path))
@@ -209,6 +209,10 @@ Mode_Load :: proc(state: ^State) {
 	state.level.file = ""
 	delete(state.level.level)
 	state.level.level = ""
+	delete(state.level.world)
+	state.level.world = ""
+	delete(state.level.focus)
+	state.level.focus = ""
 	path, _ := filepath.join({state.project.rootPath, MODES_FILE}, context.temp_allocator)
 	data, err := os.read_entire_file(path, context.temp_allocator)
 	if err != nil do return
@@ -219,6 +223,8 @@ Mode_Load :: proc(state: ^State) {
 			if mode, ok := reflect.enum_from_name(EditorMode, strings.trim_space(value)); ok do state.mode = mode
 		case "level_file":
 			state.level.file = strings.clone(strings.trim_space(value))
+		case "level_world":
+			state.level.world = strings.clone(strings.trim_space(value))
 		}
 	}
 }

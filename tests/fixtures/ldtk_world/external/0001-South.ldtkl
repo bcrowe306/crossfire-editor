@@ -18,12 +18,12 @@
 	"pxHei": 128,
 	"__bgColor": "#202838",
 	"bgColor": null,
-	"useAutoIdentifier": true,
+	"useAutoIdentifier": false,
 	"bgRelPath": null,
 	"bgPos": null,
 	"bgPivotX": 0.5,
 	"bgPivotY": 0.5,
-	"__smartColor": "#ADADB5",
+	"__smartColor": "#848992",
 	"__bgPos": null,
 	"externalRelPath": null,
 	"fieldInstances": [
@@ -93,8 +93,16 @@
 						0.5,
 						1
 					],
-					"__tags": [],
-					"__tile": null,
+					"__tags": [
+						"pickup"
+					],
+					"__tile": {
+						"tilesetUid": 5,
+						"x": 16,
+						"y": 16,
+						"w": 16,
+						"h": 16
+					},
 					"__smartColor": "#FFCC00",
 					"iid": "coin2",
 					"width": 16,

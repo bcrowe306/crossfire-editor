@@ -168,14 +168,11 @@ Docs_TrackPointer :: proc(ctx: ^skald.Ctx(Msg), mode := EditorMode.Scene, slicer
 	docsPointerPanel = .None
 	// Another mode's panels keep their last rects in Skald's store: only the shown mode's count
 	if mode == .Level {
-		switch {
-		case inside(ctx, "browser-scroll", p): docsPointerPanel = .Browser
-		case:
-			docsPointerPanel = .Level
-			if st, ok := ctx.widgets.states[skald.hash_id("level-bottom-tabs-scroll")]; ok {
-				r := st.last_rect
-				if r.w > 0 && p.y >= r.y && p.x >= r.x - 8 && p.x < r.x + r.w + 200 do docsPointerPanel = .Bottom
-			}
+		// The Level mode's page, or its bottom tab's (each LDtk panel has its section)
+		docsPointerPanel = .Level
+		if st, ok := ctx.widgets.states[skald.hash_id("level-bottom-tabs-scroll")]; ok {
+			r := st.last_rect
+			if r.w > 0 && p.y >= r.y && p.x >= r.x - 8 && p.x < r.x + r.w + 200 do docsPointerPanel = .Bottom
 		}
 		return
 	}

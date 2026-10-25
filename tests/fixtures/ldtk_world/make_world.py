@@ -12,6 +12,9 @@ Weather, level fields (music, difficulty, weather), and every level's neighbours
 external.ldtk: two levels saved as separate files (external/*.ldtkl, "Save levels to separate
 files"), in a GridVania world.
 
+worlds.ldtk: LDtk's Multi-worlds: two worlds, Overworld (Meadow and Hill side by side, Free) and
+Underworld (Crypt, GridVania), the root's levels empty and its world settings null.
+
 Both use ../ldtk/tiles.png (copied beside them). Written with tabs, like the other fixtures; the
 tests check that the editor's edits keep them valid against the schema.
 """
@@ -64,7 +67,7 @@ def field(fd, v, raw):
 	}
 
 
-def make(path, levels_spec, layout, external):
+def make(path, levels_spec, layout, external, worlds=None):
 	t = json.load(open(TEMPLATE))
 	root = {k: v for k, v in t.items() if k not in ("defs", "levels", "worlds")}
 	root["__header__"] = HEADER
@@ -72,6 +75,9 @@ def make(path, levels_spec, layout, external):
 	root["worldLayout"] = layout
 	root["worldGridWidth"] = 256
 	root["worldGridHeight"] = 128
+	if layout == "GridVania":
+		# LDtk keeps a GridVania world's size for new levels on its grid (World.tidy)
+		root["defaultLevelWidth"], root["defaultLevelHeight"] = 256, 128
 	root["externalLevels"] = external
 	root["dummyWorldIid"] = "world-" + root["iid"]
 	defs = copy.deepcopy(t["defs"])
@@ -127,7 +133,8 @@ def make(path, levels_spec, layout, external):
 	levels = []
 	for i, spec in enumerate(levels_spec):
 		level = {k: copy.deepcopy(v) for k, v in template_level.items() if k != "layerInstances"}
-		level.update({"identifier": spec["name"], "iid": spec["iid"], "uid": 100 + i, "worldX": spec["x"], "worldY": spec["y"], "pxWid": spec["w"], "pxHei": spec["h"]})
+		# Named by hand: LDtk names a level with useAutoIdentifier from the project's pattern on load
+		level.update({"identifier": spec["name"], "iid": spec["iid"], "uid": 100 + i, "worldX": spec["x"], "worldY": spec["y"], "pxWid": spec["w"], "pxHei": spec["h"], "useAutoIdentifier": False})
 		level["fieldInstances"] = [
 			field(level_fd["music"], spec.get("music"), value("V_String", spec["music"]) if spec.get("music") else None),
 			field(level_fd["difficulty"], spec.get("difficulty", 1), value("V_Int", spec["difficulty"]) if "difficulty" in spec else None),
@@ -160,7 +167,9 @@ def make(path, levels_spec, layout, external):
 		layer = level["layerInstances"][0]
 		instance = {
 			"__identifier": ident, "__grid": [px[0] // GRID, (px[1] - (1 if d["pivotY"] == 1 else 0)) // GRID],
-			"__pivot": [d["pivotX"], d["pivotY"]], "__tags": [], "__tile": None, "__smartColor": d["color"],
+			"__pivot": [d["pivotX"], d["pivotY"]], "__tags": list(d["tags"]),
+			# EntityDef.getDefaultTile: the type's own tile
+			"__tile": d["tileRect"] if d.get("tilesetId") is not None and d.get("tileRect") else None, "__smartColor": d["color"],
 			"iid": iid, "width": d["width"], "height": d["height"], "defUid": d["uid"], "px": px, "fieldInstances": fields,
 		}
 		if layout in ("Free", "GridVania"):
@@ -170,7 +179,9 @@ def make(path, levels_spec, layout, external):
 		return instance
 
 	def ref(target, li, lv):
-		return {"entityIid": target, "layerIid": levels[lv]["layerInstances"][0]["iid"], "levelIid": levels[lv]["iid"], "worldIid": root["dummyWorldIid"]}
+		# The target's world (Multi-worlds: the world holding its level)
+		world = next((w["iid"] for w in (worlds or []) if levels[lv]["identifier"] in w["levels"]), root["dummyWorldIid"])
+		return {"entityIid": target, "layerIid": levels[lv]["layerInstances"][0]["iid"], "levelIid": levels[lv]["iid"], "worldIid": world}
 
 	for i, spec in enumerate(levels_spec):
 		for e in spec["entities"]:
@@ -208,9 +219,12 @@ def make(path, levels_spec, layout, external):
 	} for c in coins]}]
 
 	# Neighbours (LDtk's rule: touching levels of the same depth, by side)
+	world_of = {n: w["iid"] for w in (worlds or []) for n in w["levels"]}
 	for l in levels:
 		for o in levels:
 			if o is l: continue
+			# Neighbours are of the same world
+			if world_of.get(l["identifier"]) != world_of.get(o["identifier"]): continue
 			x, y, w, h = l["worldX"], l["worldY"], l["pxWid"], l["pxHei"]
 			ox, oy, ow, oh = o["worldX"], o["worldY"], o["pxWid"], o["pxHei"]
 			overlap = x < ox + ow and x + w > ox and y < oy + oh and y + h > oy
@@ -224,6 +238,24 @@ def make(path, levels_spec, layout, external):
 
 	root["levels"] = levels
 	root["worlds"] = []
+	if worlds:
+		# Multi-worlds: each world its levels; the root's own world settings are null
+		by_name = {l["identifier"]: l for l in levels}
+		for w in worlds:
+			root["worlds"].append({"iid": w["iid"], "identifier": w["name"], "defaultLevelWidth": 256, "defaultLevelHeight": 128,
+				"worldGridWidth": w.get("grid", 256), "worldGridHeight": w.get("grid", 128), "worldLayout": w["layout"],
+				"levels": [by_name[n] for n in w["levels"]]})
+		root["levels"] = []
+		root["worldLayout"] = None
+		root["worldGridWidth"] = None
+		root["worldGridHeight"] = None
+		root["defaultLevelWidth"] = None
+		root["defaultLevelHeight"] = None
+		root["flags"] = sorted(set(root.get("flags", []) + ["MultiWorlds"]))
+		for entry in root["toc"]:
+			for d in entry["instancesData"]:
+				for w in worlds:
+					if any(by_name[n]["iid"] == d["iids"]["levelIid"] for n in w["levels"]): d["iids"]["worldIid"] = w["iid"]
 	ordered = {}
 	for k in t.keys():
 		if k in root: ordered[k] = root[k]
@@ -233,6 +265,8 @@ def make(path, levels_spec, layout, external):
 	ordered = {"__header__": HEADER, **ordered}
 
 	if external:
+		# The files are named "0000-<level>" as LDtk names them with this flag
+		ordered["flags"] = sorted(set(ordered.get("flags", []) + ["PrependIndexToLevelFileNames"]))
 		folder = os.path.join(os.path.dirname(path), os.path.splitext(os.path.basename(path))[0])
 		os.makedirs(folder, exist_ok=True)
 		for i, level in enumerate(levels):
@@ -270,6 +304,17 @@ def main():
 		{"name": "South", "iid": "lvl-south", "x": 0, "y": 128, "w": 256, "h": 128,
 		 "entities": [("Coin", "coin2", [64, 72])]},
 	], "GridVania", True)
+	make(os.path.join(HERE, "worlds.ldtk"), [
+		{"name": "Meadow", "iid": "lvl-meadow", "x": 0, "y": 0, "w": 256, "h": 128, "music": "meadow",
+		 "entities": [("Player", "player1", [32, 96]), ("Coin", "coin1", [104, 72])]},
+		{"name": "Hill", "iid": "lvl-hill", "x": 256, "y": 0, "w": 256, "h": 128,
+		 "entities": [("Coin", "coin2", [64, 72])]},
+		{"name": "Crypt", "iid": "lvl-crypt", "x": 0, "y": 0, "w": 256, "h": 128,
+		 "entities": [("Coin", "coin3", [56, 56])]},
+	], "Free", False, worlds=[
+		{"name": "Overworld", "iid": "world-over", "layout": "Free", "levels": ["Meadow", "Hill"]},
+		{"name": "Underworld", "iid": "world-under", "layout": "GridVania", "levels": ["Crypt"]},
+	])
 
 
 if __name__ == "__main__":

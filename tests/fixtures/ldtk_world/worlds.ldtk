@@ -1,0 +1,2772 @@
+{
+	"__header__": {
+		"fileType": "LDtk Project JSON",
+		"app": "LDtk",
+		"doc": "https://ldtk.io/json",
+		"schema": "https://ldtk.io/files/JSON_SCHEMA.json",
+		"appAuthor": "Sebastien 'deepnight' Benard",
+		"appVersion": "1.5.3",
+		"url": "https://ldtk.io"
+	},
+	"iid": "proj-worlds",
+	"jsonVersion": "1.5.3",
+	"appBuildId": 473703,
+	"nextUid": 60,
+	"identifierStyle": "Capitalize",
+	"toc": [
+		{
+			"identifier": "Coin",
+			"instances": [],
+			"instancesData": [
+				{
+					"iids": {
+						"worldIid": "world-over",
+						"levelIid": "lvl-meadow",
+						"layerIid": "lvl-meadow-entities",
+						"entityIid": "coin1"
+					},
+					"worldX": 104,
+					"worldY": 72,
+					"widPx": 16,
+					"heiPx": 16,
+					"fields": {
+						"value": 1
+					}
+				},
+				{
+					"iids": {
+						"worldIid": "world-over",
+						"levelIid": "lvl-hill",
+						"layerIid": "lvl-hill-entities",
+						"entityIid": "coin2"
+					},
+					"worldX": 320,
+					"worldY": 72,
+					"widPx": 16,
+					"heiPx": 16,
+					"fields": {
+						"value": 5
+					}
+				},
+				{
+					"iids": {
+						"worldIid": "world-under",
+						"levelIid": "lvl-crypt",
+						"layerIid": "lvl-crypt-entities",
+						"entityIid": "coin3"
+					},
+					"worldX": 56,
+					"worldY": 56,
+					"widPx": 16,
+					"heiPx": 16,
+					"fields": {
+						"value": 1
+					}
+				}
+			]
+		}
+	],
+	"worldLayout": null,
+	"worldGridWidth": null,
+	"worldGridHeight": null,
+	"defaultLevelWidth": null,
+	"defaultLevelHeight": null,
+	"defaultPivotX": 0.5,
+	"defaultPivotY": 1,
+	"defaultGridSize": 16,
+	"defaultEntityWidth": 16,
+	"defaultEntityHeight": 16,
+	"bgColor": "#40465B",
+	"defaultLevelBgColor": "#202838",
+	"minifyJson": false,
+	"externalLevels": false,
+	"exportTiled": false,
+	"simplifiedExport": false,
+	"imageExportMode": "None",
+	"exportLevelBg": true,
+	"pngFilePattern": null,
+	"backupOnSave": false,
+	"backupLimit": 10,
+	"backupRelPath": null,
+	"levelNamePattern": "Level_%idx",
+	"tutorialDesc": null,
+	"customCommands": [],
+	"flags": [
+		"MultiWorlds"
+	],
+	"defs": {
+		"layers": [
+			{
+				"__type": "Entities",
+				"identifier": "Entities",
+				"type": "Entities",
+				"uid": 1,
+				"doc": null,
+				"uiColor": null,
+				"gridSize": 16,
+				"guideGridWid": 0,
+				"guideGridHei": 0,
+				"displayOpacity": 1,
+				"inactiveOpacity": 0.6,
+				"hideInList": false,
+				"hideFieldsWhenInactive": true,
+				"canSelectWhenInactive": true,
+				"renderInWorldView": true,
+				"pxOffsetX": 0,
+				"pxOffsetY": 0,
+				"parallaxFactorX": 0,
+				"parallaxFactorY": 0,
+				"parallaxScaling": true,
+				"requiredTags": [],
+				"excludedTags": [],
+				"autoTilesKilledByOtherLayerUid": null,
+				"uiFilterTags": [],
+				"useAsyncRender": false,
+				"intGridValues": [],
+				"intGridValuesGroups": [],
+				"autoRuleGroups": [],
+				"autoSourceLayerDefUid": null,
+				"tilesetDefUid": null,
+				"tilePivotX": 0,
+				"tilePivotY": 0,
+				"biomeFieldUid": null
+			},
+			{
+				"__type": "Tiles",
+				"identifier": "Tiles",
+				"type": "Tiles",
+				"uid": 2,
+				"doc": null,
+				"uiColor": null,
+				"gridSize": 16,
+				"guideGridWid": 0,
+				"guideGridHei": 0,
+				"displayOpacity": 1,
+				"inactiveOpacity": 1,
+				"hideInList": false,
+				"hideFieldsWhenInactive": false,
+				"canSelectWhenInactive": true,
+				"renderInWorldView": true,
+				"pxOffsetX": 0,
+				"pxOffsetY": 0,
+				"parallaxFactorX": 0,
+				"parallaxFactorY": 0,
+				"parallaxScaling": true,
+				"requiredTags": [],
+				"excludedTags": [],
+				"autoTilesKilledByOtherLayerUid": null,
+				"uiFilterTags": [],
+				"useAsyncRender": false,
+				"intGridValues": [],
+				"intGridValuesGroups": [],
+				"autoRuleGroups": [],
+				"autoSourceLayerDefUid": null,
+				"tilesetDefUid": 5,
+				"tilePivotX": 0,
+				"tilePivotY": 0,
+				"biomeFieldUid": null
+			},
+			{
+				"__type": "IntGrid",
+				"identifier": "Walls",
+				"type": "IntGrid",
+				"uid": 3,
+				"doc": null,
+				"uiColor": null,
+				"gridSize": 16,
+				"guideGridWid": 0,
+				"guideGridHei": 0,
+				"displayOpacity": 0.5,
+				"inactiveOpacity": 0.6,
+				"hideInList": false,
+				"hideFieldsWhenInactive": true,
+				"canSelectWhenInactive": true,
+				"renderInWorldView": true,
+				"pxOffsetX": 0,
+				"pxOffsetY": 0,
+				"parallaxFactorX": 0,
+				"parallaxFactorY": 0,
+				"parallaxScaling": true,
+				"requiredTags": [],
+				"excludedTags": [],
+				"autoTilesKilledByOtherLayerUid": null,
+				"uiFilterTags": [],
+				"useAsyncRender": false,
+				"intGridValues": [
+					{
+						"value": 1,
+						"identifier": "wall",
+						"color": "#8C8C99",
+						"tile": null,
+						"groupUid": 0
+					},
+					{
+						"value": 2,
+						"identifier": "platform",
+						"color": "#C08040",
+						"tile": null,
+						"groupUid": 0
+					},
+					{
+						"value": 3,
+						"identifier": "water",
+						"color": "#3070D0",
+						"tile": null,
+						"groupUid": 0
+					}
+				],
+				"intGridValuesGroups": [],
+				"autoRuleGroups": [],
+				"autoSourceLayerDefUid": null,
+				"tilesetDefUid": null,
+				"tilePivotX": 0,
+				"tilePivotY": 0,
+				"biomeFieldUid": null
+			}
+		],
+		"entities": [
+			{
+				"identifier": "Player",
+				"uid": 10,
+				"tags": [],
+				"exportToToc": false,
+				"allowOutOfBounds": false,
+				"doc": null,
+				"width": 16,
+				"height": 16,
+				"resizableX": false,
+				"resizableY": false,
+				"minWidth": null,
+				"maxWidth": null,
+				"minHeight": null,
+				"maxHeight": null,
+				"keepAspectRatio": false,
+				"tileOpacity": 1,
+				"fillOpacity": 0.08,
+				"lineOpacity": 0,
+				"hollow": false,
+				"color": "#3FB8FF",
+				"renderMode": "Rectangle",
+				"showName": true,
+				"tilesetId": null,
+				"tileRenderMode": "FitInside",
+				"tileRect": null,
+				"uiTileRect": null,
+				"nineSliceBorders": [],
+				"maxCount": 0,
+				"limitScope": "PerLevel",
+				"limitBehavior": "MoveLastOne",
+				"pivotX": 0.5,
+				"pivotY": 1,
+				"fieldDefs": [
+					{
+						"__type": "Float",
+						"canBeNull": true,
+						"identifier": "speed",
+						"isArray": false,
+						"type": "F_Float",
+						"uid": 40,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "ValueOnly",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": {
+							"id": "V_Float",
+							"params": [
+								120
+							]
+						},
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": 1000,
+						"min": 0,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					},
+					{
+						"__type": "Int",
+						"canBeNull": false,
+						"identifier": "lives",
+						"isArray": false,
+						"type": "F_Int",
+						"uid": 41,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "ValueOnly",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": {
+							"id": "V_Int",
+							"params": [
+								3
+							]
+						},
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					},
+					{
+						"__type": "String",
+						"canBeNull": true,
+						"identifier": "name",
+						"isArray": false,
+						"type": "F_String",
+						"uid": 42,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "ValueOnly",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": null,
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					},
+					{
+						"__type": "LocalEnum.Mood",
+						"canBeNull": true,
+						"identifier": "mood",
+						"isArray": false,
+						"type": "F_Enum(30)",
+						"uid": 43,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "ValueOnly",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": null,
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					},
+					{
+						"__type": "Color",
+						"canBeNull": false,
+						"identifier": "tint",
+						"isArray": false,
+						"type": "F_Color",
+						"uid": 44,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "ValueOnly",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": null,
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					},
+					{
+						"__type": "Point",
+						"canBeNull": true,
+						"identifier": "home",
+						"isArray": false,
+						"type": "F_Point",
+						"uid": 45,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "ValueOnly",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": null,
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					},
+					{
+						"__type": "EntityRef",
+						"canBeNull": true,
+						"identifier": "friend",
+						"isArray": false,
+						"type": "F_EntityRef",
+						"uid": 46,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "RefLinkBetweenCenters",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": null,
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					}
+				]
+			},
+			{
+				"identifier": "Coin",
+				"uid": 11,
+				"tags": [
+					"pickup"
+				],
+				"exportToToc": true,
+				"allowOutOfBounds": false,
+				"doc": null,
+				"width": 16,
+				"height": 16,
+				"resizableX": false,
+				"resizableY": false,
+				"minWidth": null,
+				"maxWidth": null,
+				"minHeight": null,
+				"maxHeight": null,
+				"keepAspectRatio": false,
+				"tileOpacity": 1,
+				"fillOpacity": 0.08,
+				"lineOpacity": 0,
+				"hollow": false,
+				"color": "#FFCC00",
+				"renderMode": "Tile",
+				"showName": true,
+				"tilesetId": 5,
+				"tileRenderMode": "FitInside",
+				"tileRect": {
+					"tilesetUid": 5,
+					"x": 16,
+					"y": 16,
+					"w": 16,
+					"h": 16
+				},
+				"uiTileRect": null,
+				"nineSliceBorders": [],
+				"maxCount": 0,
+				"limitScope": "PerLevel",
+				"limitBehavior": "MoveLastOne",
+				"pivotX": 0.5,
+				"pivotY": 1,
+				"fieldDefs": [
+					{
+						"__type": "Int",
+						"canBeNull": false,
+						"identifier": "value",
+						"isArray": false,
+						"type": "F_Int",
+						"uid": 47,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "ValueOnly",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": true,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": {
+							"id": "V_Int",
+							"params": [
+								1
+							]
+						},
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					}
+				]
+			},
+			{
+				"identifier": "Door",
+				"uid": 12,
+				"tags": [
+					"pickup"
+				],
+				"exportToToc": false,
+				"allowOutOfBounds": false,
+				"doc": null,
+				"width": 16,
+				"height": 32,
+				"resizableX": false,
+				"resizableY": false,
+				"minWidth": null,
+				"maxWidth": null,
+				"minHeight": null,
+				"maxHeight": null,
+				"keepAspectRatio": false,
+				"tileOpacity": 1,
+				"fillOpacity": 0.08,
+				"lineOpacity": 0,
+				"hollow": false,
+				"color": "#B05030",
+				"renderMode": "Tile",
+				"showName": true,
+				"tilesetId": 5,
+				"tileRenderMode": "FitInside",
+				"tileRect": {
+					"tilesetUid": 5,
+					"x": 16,
+					"y": 16,
+					"w": 16,
+					"h": 16
+				},
+				"uiTileRect": null,
+				"nineSliceBorders": [],
+				"maxCount": 0,
+				"limitScope": "PerLevel",
+				"limitBehavior": "MoveLastOne",
+				"pivotX": 0.5,
+				"pivotY": 1,
+				"fieldDefs": [
+					{
+						"__type": "EntityRef",
+						"canBeNull": true,
+						"identifier": "target",
+						"isArray": false,
+						"type": "F_EntityRef",
+						"uid": 48,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "OnlySame",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "RefLinkBetweenCenters",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": null,
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					},
+					{
+						"__type": "Bool",
+						"canBeNull": false,
+						"identifier": "locked",
+						"isArray": false,
+						"type": "F_Bool",
+						"uid": 49,
+						"allowOutOfLevelRef": true,
+						"allowedRefTags": [],
+						"allowedRefs": "Any",
+						"autoChainRef": true,
+						"editorAlwaysShow": false,
+						"editorCutLongValues": true,
+						"editorDisplayMode": "ValueOnly",
+						"editorDisplayPos": "Above",
+						"editorDisplayScale": 1,
+						"editorLinkStyle": "CurvedArrow",
+						"editorShowInWorld": true,
+						"exportToToc": false,
+						"searchable": false,
+						"symmetricalRef": false,
+						"useForSmartColor": false,
+						"defaultOverride": {
+							"id": "V_Bool",
+							"params": [
+								false
+							]
+						},
+						"acceptFileTypes": null,
+						"arrayMaxLength": null,
+						"arrayMinLength": null,
+						"max": null,
+						"min": null,
+						"regex": null,
+						"tilesetUid": null,
+						"textLanguageMode": null,
+						"editorDisplayColor": null,
+						"editorTextPrefix": null,
+						"editorTextSuffix": null,
+						"doc": null,
+						"allowedRefsEntityUid": null
+					}
+				]
+			}
+		],
+		"tilesets": [
+			{
+				"__cWid": 2,
+				"__cHei": 2,
+				"identifier": "Tiles",
+				"uid": 5,
+				"relPath": "tiles.png",
+				"embedAtlas": null,
+				"pxWid": 32,
+				"pxHei": 32,
+				"tileGridSize": 16,
+				"spacing": 0,
+				"padding": 0,
+				"tags": [],
+				"tagsSourceEnumUid": null,
+				"enumTags": [],
+				"customData": [],
+				"savedSelections": [],
+				"cachedPixelData": null
+			}
+		],
+		"enums": [
+			{
+				"identifier": "Mood",
+				"uid": 30,
+				"values": [
+					{
+						"id": "Happy",
+						"tileRect": null,
+						"color": 5622869
+					},
+					{
+						"id": "Sad",
+						"tileRect": null,
+						"color": 5592524
+					},
+					{
+						"id": "Angry",
+						"tileRect": null,
+						"color": 13391189
+					}
+				],
+				"iconTilesetUid": null,
+				"externalRelPath": null,
+				"externalFileChecksum": null,
+				"tags": []
+			},
+			{
+				"identifier": "Weather",
+				"uid": 31,
+				"values": [
+					{
+						"id": "Sunny",
+						"tileRect": null,
+						"color": 16768324
+					},
+					{
+						"id": "Rainy",
+						"tileRect": null,
+						"color": 4491468
+					}
+				],
+				"iconTilesetUid": null,
+				"externalRelPath": null,
+				"externalFileChecksum": null,
+				"tags": []
+			}
+		],
+		"externalEnums": [],
+		"levelFields": [
+			{
+				"__type": "String",
+				"canBeNull": true,
+				"identifier": "music",
+				"isArray": false,
+				"type": "F_String",
+				"uid": 50,
+				"allowOutOfLevelRef": true,
+				"allowedRefTags": [],
+				"allowedRefs": "Any",
+				"autoChainRef": true,
+				"editorAlwaysShow": false,
+				"editorCutLongValues": true,
+				"editorDisplayMode": "ValueOnly",
+				"editorDisplayPos": "Above",
+				"editorDisplayScale": 1,
+				"editorLinkStyle": "CurvedArrow",
+				"editorShowInWorld": true,
+				"exportToToc": false,
+				"searchable": false,
+				"symmetricalRef": false,
+				"useForSmartColor": false,
+				"defaultOverride": null,
+				"acceptFileTypes": null,
+				"arrayMaxLength": null,
+				"arrayMinLength": null,
+				"max": null,
+				"min": null,
+				"regex": null,
+				"tilesetUid": null,
+				"textLanguageMode": null,
+				"editorDisplayColor": null,
+				"editorTextPrefix": null,
+				"editorTextSuffix": null,
+				"doc": null,
+				"allowedRefsEntityUid": null
+			},
+			{
+				"__type": "Int",
+				"canBeNull": false,
+				"identifier": "difficulty",
+				"isArray": false,
+				"type": "F_Int",
+				"uid": 51,
+				"allowOutOfLevelRef": true,
+				"allowedRefTags": [],
+				"allowedRefs": "Any",
+				"autoChainRef": true,
+				"editorAlwaysShow": false,
+				"editorCutLongValues": true,
+				"editorDisplayMode": "ValueOnly",
+				"editorDisplayPos": "Above",
+				"editorDisplayScale": 1,
+				"editorLinkStyle": "CurvedArrow",
+				"editorShowInWorld": true,
+				"exportToToc": false,
+				"searchable": false,
+				"symmetricalRef": false,
+				"useForSmartColor": false,
+				"defaultOverride": {
+					"id": "V_Int",
+					"params": [
+						1
+					]
+				},
+				"acceptFileTypes": null,
+				"arrayMaxLength": null,
+				"arrayMinLength": null,
+				"max": null,
+				"min": null,
+				"regex": null,
+				"tilesetUid": null,
+				"textLanguageMode": null,
+				"editorDisplayColor": null,
+				"editorTextPrefix": null,
+				"editorTextSuffix": null,
+				"doc": null,
+				"allowedRefsEntityUid": null
+			},
+			{
+				"__type": "LocalEnum.Weather",
+				"canBeNull": true,
+				"identifier": "weather",
+				"isArray": false,
+				"type": "F_Enum(31)",
+				"uid": 52,
+				"allowOutOfLevelRef": true,
+				"allowedRefTags": [],
+				"allowedRefs": "Any",
+				"autoChainRef": true,
+				"editorAlwaysShow": false,
+				"editorCutLongValues": true,
+				"editorDisplayMode": "ValueOnly",
+				"editorDisplayPos": "Above",
+				"editorDisplayScale": 1,
+				"editorLinkStyle": "CurvedArrow",
+				"editorShowInWorld": true,
+				"exportToToc": false,
+				"searchable": false,
+				"symmetricalRef": false,
+				"useForSmartColor": false,
+				"defaultOverride": null,
+				"acceptFileTypes": null,
+				"arrayMaxLength": null,
+				"arrayMinLength": null,
+				"max": null,
+				"min": null,
+				"regex": null,
+				"tilesetUid": null,
+				"textLanguageMode": null,
+				"editorDisplayColor": null,
+				"editorTextPrefix": null,
+				"editorTextSuffix": null,
+				"doc": null,
+				"allowedRefsEntityUid": null
+			}
+		]
+	},
+	"levels": [],
+	"worlds": [
+		{
+			"iid": "world-over",
+			"identifier": "Overworld",
+			"defaultLevelWidth": 256,
+			"defaultLevelHeight": 128,
+			"worldGridWidth": 256,
+			"worldGridHeight": 128,
+			"worldLayout": "Free",
+			"levels": [
+				{
+					"identifier": "Meadow",
+					"iid": "lvl-meadow",
+					"uid": 100,
+					"worldX": 0,
+					"worldY": 0,
+					"worldDepth": 0,
+					"pxWid": 256,
+					"pxHei": 128,
+					"__bgColor": "#202838",
+					"bgColor": null,
+					"useAutoIdentifier": false,
+					"bgRelPath": null,
+					"bgPos": null,
+					"bgPivotX": 0.5,
+					"bgPivotY": 0.5,
+					"__smartColor": "#848992",
+					"__bgPos": null,
+					"externalRelPath": null,
+					"fieldInstances": [
+						{
+							"__identifier": "music",
+							"__type": "String",
+							"__value": "meadow",
+							"__tile": null,
+							"defUid": 50,
+							"realEditorValues": [
+								{
+									"id": "V_String",
+									"params": [
+										"meadow"
+									]
+								}
+							]
+						},
+						{
+							"__identifier": "difficulty",
+							"__type": "Int",
+							"__value": 1,
+							"__tile": null,
+							"defUid": 51,
+							"realEditorValues": []
+						},
+						{
+							"__identifier": "weather",
+							"__type": "LocalEnum.Weather",
+							"__value": null,
+							"__tile": null,
+							"defUid": 52,
+							"realEditorValues": []
+						}
+					],
+					"__neighbours": [
+						{
+							"levelIid": "lvl-hill",
+							"dir": "e"
+						}
+					],
+					"layerInstances": [
+						{
+							"__identifier": "Entities",
+							"__type": "Entities",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 1,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": null,
+							"__tilesetRelPath": null,
+							"iid": "lvl-meadow-entities",
+							"levelId": 100,
+							"layerDefUid": 1,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": true,
+							"optionalRules": [],
+							"intGridCsv": [],
+							"autoLayerTiles": [],
+							"seed": 1,
+							"overrideTilesetUid": null,
+							"gridTiles": [],
+							"entityInstances": [
+								{
+									"__identifier": "Player",
+									"__grid": [
+										2,
+										5
+									],
+									"__pivot": [
+										0.5,
+										1
+									],
+									"__tags": [],
+									"__tile": null,
+									"__smartColor": "#3FB8FF",
+									"iid": "player1",
+									"width": 16,
+									"height": 16,
+									"defUid": 10,
+									"px": [
+										32,
+										96
+									],
+									"fieldInstances": [
+										{
+											"__identifier": "speed",
+											"__type": "Float",
+											"__value": 150,
+											"__tile": null,
+											"defUid": 40,
+											"realEditorValues": [
+												{
+													"id": "V_Float",
+													"params": [
+														150
+													]
+												}
+											]
+										},
+										{
+											"__identifier": "lives",
+											"__type": "Int",
+											"__value": 3,
+											"__tile": null,
+											"defUid": 41,
+											"realEditorValues": []
+										},
+										{
+											"__identifier": "name",
+											"__type": "String",
+											"__value": "Hero",
+											"__tile": null,
+											"defUid": 42,
+											"realEditorValues": [
+												{
+													"id": "V_String",
+													"params": [
+														"Hero"
+													]
+												}
+											]
+										},
+										{
+											"__identifier": "mood",
+											"__type": "LocalEnum.Mood",
+											"__value": "Happy",
+											"__tile": null,
+											"defUid": 43,
+											"realEditorValues": [
+												{
+													"id": "V_String",
+													"params": [
+														"Happy"
+													]
+												}
+											]
+										},
+										{
+											"__identifier": "tint",
+											"__type": "Color",
+											"__value": "#FFCC00",
+											"__tile": null,
+											"defUid": 44,
+											"realEditorValues": [
+												{
+													"id": "V_Int",
+													"params": [
+														16763904
+													]
+												}
+											]
+										},
+										{
+											"__identifier": "home",
+											"__type": "Point",
+											"__value": {
+												"cx": 2,
+												"cy": 5
+											},
+											"__tile": null,
+											"defUid": 45,
+											"realEditorValues": [
+												{
+													"id": "V_String",
+													"params": [
+														"2,5"
+													]
+												}
+											]
+										},
+										{
+											"__identifier": "friend",
+											"__type": "EntityRef",
+											"__value": {
+												"entityIid": "coin1",
+												"layerIid": "lvl-meadow-entities",
+												"levelIid": "lvl-meadow",
+												"worldIid": "world-over"
+											},
+											"__tile": null,
+											"defUid": 46,
+											"realEditorValues": [
+												{
+													"id": "V_String",
+													"params": [
+														"coin1"
+													]
+												}
+											]
+										}
+									],
+									"__worldX": 32,
+									"__worldY": 96
+								},
+								{
+									"__identifier": "Coin",
+									"__grid": [
+										6,
+										4
+									],
+									"__pivot": [
+										0.5,
+										1
+									],
+									"__tags": [
+										"pickup"
+									],
+									"__tile": {
+										"tilesetUid": 5,
+										"x": 16,
+										"y": 16,
+										"w": 16,
+										"h": 16
+									},
+									"__smartColor": "#FFCC00",
+									"iid": "coin1",
+									"width": 16,
+									"height": 16,
+									"defUid": 11,
+									"px": [
+										104,
+										72
+									],
+									"fieldInstances": [
+										{
+											"__identifier": "value",
+											"__type": "Int",
+											"__value": 1,
+											"__tile": null,
+											"defUid": 47,
+											"realEditorValues": []
+										}
+									],
+									"__worldX": 104,
+									"__worldY": 72
+								}
+							]
+						},
+						{
+							"__identifier": "Tiles",
+							"__type": "Tiles",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 1,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": 5,
+							"__tilesetRelPath": "tiles.png",
+							"iid": "lvl-meadow-tiles",
+							"levelId": 100,
+							"layerDefUid": 2,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": true,
+							"optionalRules": [],
+							"intGridCsv": [],
+							"autoLayerTiles": [],
+							"seed": 2,
+							"overrideTilesetUid": null,
+							"gridTiles": [
+								{
+									"px": [
+										0,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										112
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										16,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										113
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										32,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										114
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										48,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										115
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										64,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										116
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										80,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										117
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										96,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										118
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										112,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										119
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										128,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										120
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										144,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										121
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										160,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										122
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										176,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										123
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										192,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										124
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										208,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										125
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										224,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										126
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										240,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										127
+									],
+									"a": 1
+								}
+							],
+							"entityInstances": []
+						},
+						{
+							"__identifier": "Walls",
+							"__type": "IntGrid",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 0.5,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": null,
+							"__tilesetRelPath": null,
+							"iid": "lvl-meadow-walls",
+							"levelId": 100,
+							"layerDefUid": 3,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": false,
+							"optionalRules": [],
+							"intGridCsv": [
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								2,
+								2,
+								2,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1
+							],
+							"autoLayerTiles": [],
+							"seed": 3,
+							"overrideTilesetUid": null,
+							"gridTiles": [],
+							"entityInstances": []
+						}
+					]
+				},
+				{
+					"identifier": "Hill",
+					"iid": "lvl-hill",
+					"uid": 101,
+					"worldX": 256,
+					"worldY": 0,
+					"worldDepth": 0,
+					"pxWid": 256,
+					"pxHei": 128,
+					"__bgColor": "#202838",
+					"bgColor": null,
+					"useAutoIdentifier": false,
+					"bgRelPath": null,
+					"bgPos": null,
+					"bgPivotX": 0.5,
+					"bgPivotY": 0.5,
+					"__smartColor": "#848992",
+					"__bgPos": null,
+					"externalRelPath": null,
+					"fieldInstances": [
+						{
+							"__identifier": "music",
+							"__type": "String",
+							"__value": null,
+							"__tile": null,
+							"defUid": 50,
+							"realEditorValues": []
+						},
+						{
+							"__identifier": "difficulty",
+							"__type": "Int",
+							"__value": 1,
+							"__tile": null,
+							"defUid": 51,
+							"realEditorValues": []
+						},
+						{
+							"__identifier": "weather",
+							"__type": "LocalEnum.Weather",
+							"__value": null,
+							"__tile": null,
+							"defUid": 52,
+							"realEditorValues": []
+						}
+					],
+					"__neighbours": [
+						{
+							"levelIid": "lvl-meadow",
+							"dir": "w"
+						}
+					],
+					"layerInstances": [
+						{
+							"__identifier": "Entities",
+							"__type": "Entities",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 1,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": null,
+							"__tilesetRelPath": null,
+							"iid": "lvl-hill-entities",
+							"levelId": 101,
+							"layerDefUid": 1,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": true,
+							"optionalRules": [],
+							"intGridCsv": [],
+							"autoLayerTiles": [],
+							"seed": 1,
+							"overrideTilesetUid": null,
+							"gridTiles": [],
+							"entityInstances": [
+								{
+									"__identifier": "Coin",
+									"__grid": [
+										4,
+										4
+									],
+									"__pivot": [
+										0.5,
+										1
+									],
+									"__tags": [
+										"pickup"
+									],
+									"__tile": {
+										"tilesetUid": 5,
+										"x": 16,
+										"y": 16,
+										"w": 16,
+										"h": 16
+									},
+									"__smartColor": "#FFCC00",
+									"iid": "coin2",
+									"width": 16,
+									"height": 16,
+									"defUid": 11,
+									"px": [
+										64,
+										72
+									],
+									"fieldInstances": [
+										{
+											"__identifier": "value",
+											"__type": "Int",
+											"__value": 5,
+											"__tile": null,
+											"defUid": 47,
+											"realEditorValues": [
+												{
+													"id": "V_Int",
+													"params": [
+														5
+													]
+												}
+											]
+										}
+									],
+									"__worldX": 320,
+									"__worldY": 72
+								}
+							]
+						},
+						{
+							"__identifier": "Tiles",
+							"__type": "Tiles",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 1,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": 5,
+							"__tilesetRelPath": "tiles.png",
+							"iid": "lvl-hill-tiles",
+							"levelId": 101,
+							"layerDefUid": 2,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": true,
+							"optionalRules": [],
+							"intGridCsv": [],
+							"autoLayerTiles": [],
+							"seed": 2,
+							"overrideTilesetUid": null,
+							"gridTiles": [
+								{
+									"px": [
+										0,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										112
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										16,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										113
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										32,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										114
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										48,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										115
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										64,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										116
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										80,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										117
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										96,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										118
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										112,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										119
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										128,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										120
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										144,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										121
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										160,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										122
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										176,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										123
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										192,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										124
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										208,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										125
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										224,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										126
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										240,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										127
+									],
+									"a": 1
+								}
+							],
+							"entityInstances": []
+						},
+						{
+							"__identifier": "Walls",
+							"__type": "IntGrid",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 0.5,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": null,
+							"__tilesetRelPath": null,
+							"iid": "lvl-hill-walls",
+							"levelId": 101,
+							"layerDefUid": 3,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": false,
+							"optionalRules": [],
+							"intGridCsv": [
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								2,
+								2,
+								2,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1
+							],
+							"autoLayerTiles": [],
+							"seed": 3,
+							"overrideTilesetUid": null,
+							"gridTiles": [],
+							"entityInstances": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"iid": "world-under",
+			"identifier": "Underworld",
+			"defaultLevelWidth": 256,
+			"defaultLevelHeight": 128,
+			"worldGridWidth": 256,
+			"worldGridHeight": 128,
+			"worldLayout": "GridVania",
+			"levels": [
+				{
+					"identifier": "Crypt",
+					"iid": "lvl-crypt",
+					"uid": 102,
+					"worldX": 0,
+					"worldY": 0,
+					"worldDepth": 0,
+					"pxWid": 256,
+					"pxHei": 128,
+					"__bgColor": "#202838",
+					"bgColor": null,
+					"useAutoIdentifier": false,
+					"bgRelPath": null,
+					"bgPos": null,
+					"bgPivotX": 0.5,
+					"bgPivotY": 0.5,
+					"__smartColor": "#848992",
+					"__bgPos": null,
+					"externalRelPath": null,
+					"fieldInstances": [
+						{
+							"__identifier": "music",
+							"__type": "String",
+							"__value": null,
+							"__tile": null,
+							"defUid": 50,
+							"realEditorValues": []
+						},
+						{
+							"__identifier": "difficulty",
+							"__type": "Int",
+							"__value": 1,
+							"__tile": null,
+							"defUid": 51,
+							"realEditorValues": []
+						},
+						{
+							"__identifier": "weather",
+							"__type": "LocalEnum.Weather",
+							"__value": null,
+							"__tile": null,
+							"defUid": 52,
+							"realEditorValues": []
+						}
+					],
+					"__neighbours": [],
+					"layerInstances": [
+						{
+							"__identifier": "Entities",
+							"__type": "Entities",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 1,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": null,
+							"__tilesetRelPath": null,
+							"iid": "lvl-crypt-entities",
+							"levelId": 102,
+							"layerDefUid": 1,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": true,
+							"optionalRules": [],
+							"intGridCsv": [],
+							"autoLayerTiles": [],
+							"seed": 1,
+							"overrideTilesetUid": null,
+							"gridTiles": [],
+							"entityInstances": [
+								{
+									"__identifier": "Coin",
+									"__grid": [
+										3,
+										3
+									],
+									"__pivot": [
+										0.5,
+										1
+									],
+									"__tags": [
+										"pickup"
+									],
+									"__tile": {
+										"tilesetUid": 5,
+										"x": 16,
+										"y": 16,
+										"w": 16,
+										"h": 16
+									},
+									"__smartColor": "#FFCC00",
+									"iid": "coin3",
+									"width": 16,
+									"height": 16,
+									"defUid": 11,
+									"px": [
+										56,
+										56
+									],
+									"fieldInstances": [
+										{
+											"__identifier": "value",
+											"__type": "Int",
+											"__value": 1,
+											"__tile": null,
+											"defUid": 47,
+											"realEditorValues": []
+										}
+									],
+									"__worldX": 56,
+									"__worldY": 56
+								}
+							]
+						},
+						{
+							"__identifier": "Tiles",
+							"__type": "Tiles",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 1,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": 5,
+							"__tilesetRelPath": "tiles.png",
+							"iid": "lvl-crypt-tiles",
+							"levelId": 102,
+							"layerDefUid": 2,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": true,
+							"optionalRules": [],
+							"intGridCsv": [],
+							"autoLayerTiles": [],
+							"seed": 2,
+							"overrideTilesetUid": null,
+							"gridTiles": [
+								{
+									"px": [
+										0,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										112
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										16,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										113
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										32,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										114
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										48,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										115
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										64,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										116
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										80,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										117
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										96,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										118
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										112,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										119
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										128,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										120
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										144,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										121
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										160,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										122
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										176,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										123
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										192,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										124
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										208,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										125
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										224,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										126
+									],
+									"a": 1
+								},
+								{
+									"px": [
+										240,
+										112
+									],
+									"src": [
+										0,
+										0
+									],
+									"f": 0,
+									"t": 0,
+									"d": [
+										127
+									],
+									"a": 1
+								}
+							],
+							"entityInstances": []
+						},
+						{
+							"__identifier": "Walls",
+							"__type": "IntGrid",
+							"__cWid": 16,
+							"__cHei": 8,
+							"__gridSize": 16,
+							"__opacity": 0.5,
+							"__pxTotalOffsetX": 0,
+							"__pxTotalOffsetY": 0,
+							"__tilesetDefUid": null,
+							"__tilesetRelPath": null,
+							"iid": "lvl-crypt-walls",
+							"levelId": 102,
+							"layerDefUid": 3,
+							"pxOffsetX": 0,
+							"pxOffsetY": 0,
+							"visible": false,
+							"optionalRules": [],
+							"intGridCsv": [
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								2,
+								2,
+								2,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								0,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1,
+								1
+							],
+							"autoLayerTiles": [],
+							"seed": 3,
+							"overrideTilesetUid": null,
+							"gridTiles": [],
+							"entityInstances": []
+						}
+					]
+				}
+			]
+		}
+	],
+	"dummyWorldIid": "world-proj-worlds"
+}

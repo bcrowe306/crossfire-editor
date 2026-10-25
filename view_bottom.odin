@@ -27,7 +27,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	active := 0
 	labels := make([]string, len(tabList), context.temp_allocator)
 	for tab, i in tabList {
-		labels[i] = fmt.tprintf("%v", tab)
+		labels[i] = BottomTab_Label(tab)
 		if tab == shown do active = i
 	}
 	prefix := s.mode == .Scene ? "" : fmt.tprintf("%s-", strings.to_lower(EDITOR_MODES[s.mode].name, context.temp_allocator))
@@ -81,7 +81,8 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	case .Particles: content = ParticlesPanel(s, ctx)
 	case .Dialogue:  content = DialoguePanel(s, ctx)
 	case .Plugins:   content = PluginsPanel(s, ctx)
-	case .LDtk:      content = LevelMode_LDtkTab(s, ctx)
+	case .World, .Level, .Layers, .Entities, .Enums, .Tilesets, .Auto_Layer_Rules, .LDtk_Project:
+		content = LevelMode_LDtkTab(s, ctx, shown)
 	}
 
 	return skald.col(

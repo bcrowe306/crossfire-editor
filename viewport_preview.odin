@@ -62,8 +62,9 @@ Preview :: struct {
 	animated: bool,
 	lastFrame: time.Tick,
 	pixels: [dynamic]u8,
-	// The LDtk files the game read, and their modification times then (forgetChangedLDtk)
-	ldtkModified: map[string]time.Time,
+	// The LDtk files the game read, and their stamps then (`LDtkDoc_Stamp`: the file's time, or
+	// the unsaved document's version; forgetChangedLDtk)
+	ldtkModified: map[string]u64,
 	// Bumped when image files saved since (in Aseprite, an image editor) were read again
 	// (`Preview_FrameKey`), and when that was last looked at
 	texturesVersion: int,
@@ -582,24 +583,27 @@ rebuild :: proc(s: ^State, scene: ^SceneDef) {
 }
 
 /*
-Drops the LDtk projects the preview game read whose files changed since (saved in LDtk), so the
-build reads them again. Their nodes are gone: the scene was destroyed first.
+Drops the LDtk projects the preview game read whose files changed since (saved in LDtk) or whose
+unsaved document did (the Level mode's edits: `LDtkDoc_Stamp`), so the build reads them again;
+an unsaved one is given to the game from memory (`LDtkDoc_ProvideToGame`). Their nodes are gone:
+the scene was destroyed first.
 */
 @(private="file")
 forgetChangedLDtk :: proc(s: ^State, game: ^e.Game) {
 	changed := make([dynamic]string, context.temp_allocator)
 	for path in game.ldtk {
-		modified := ldtkModified(joinPath(s.project.rootPath, path, allocator = context.temp_allocator))
-		if known, found := preview.ldtkModified[path]; found && known == modified do continue
+		stamp := LDtkDoc_Stamp(s.project.rootPath, path)
+		if known, found := preview.ldtkModified[path]; found && known == stamp do continue
 		append(&changed, strings.clone(path, context.temp_allocator))
 	}
 	for path in changed do e.Game_ForgetLDtk(game, path)
-	// Each file's time as read (forgotten ones are read again by this build)
+	// Each file's stamp as read (forgotten ones are read again by this build)
 	for path, _ in preview.ldtkModified do delete(path)
 	clear(&preview.ldtkModified)
 	for &scene in s.project.scenes do for &node in scene.nodes {
 		if node.kind != .LDtkLevel || node.ldtk.file == "" || node.ldtk.file in preview.ldtkModified do continue
-		preview.ldtkModified[strings.clone(node.ldtk.file)] = ldtkModified(joinPath(s.project.rootPath, node.ldtk.file, allocator = context.temp_allocator))
+		preview.ldtkModified[strings.clone(node.ldtk.file)] = LDtkDoc_Stamp(s.project.rootPath, node.ldtk.file)
+		LDtkDoc_ProvideToGame(game, s.project.rootPath, node.ldtk.file)
 	}
 }
 
@@ -981,14 +985,16 @@ Returns:
 */
 Preview_RenderLDtk :: proc(s: ^State, slot: LDtkThumbnailSlot, file, level: string, allLevels: bool, size: [2]int) -> (pixels: []u8, key: u64, ok: bool) {
 	if file == "" || size.x <= 0 || size.y <= 0 do return nil, 0, false
-	modified := ldtkModified(joinPath(s.project.rootPath, file, allocator = context.temp_allocator))
-	signature := fmt.tprintf("%s|%s|%v|%v|%v", file, level, allLevels, size, modified)
+	stamp := LDtkDoc_Stamp(s.project.rootPath, file)
+	signature := fmt.tprintf("%s|%s|%v|%v|%v", file, level, allLevels, size, stamp)
 	key = hash.fnv64a(transmute([]u8)signature)
 	t := &ldtkThumbnails[slot]
 	if key == t.key && len(t.pixels) == size.x * size.y * 4 do return t.pixels[:], key, true
 	if !thumbnailTarget(t, size) do return nil, 0, false
-	// A changed file is read again (no scene of this game holds the old one: each is destroyed)
+	// A changed file is read again (no scene of this game holds the old one: each is destroyed);
+	// the Level mode's unsaved edits from memory
 	e.Game_ForgetLDtk(t.game, file)
+	LDtkDoc_ProvideToGame(t.game, s.project.rootPath, file)
 	t.game.size = s.project.gameSize
 	scene := new(e.Scene)
 	e.Scene_Init(scene)
@@ -1107,11 +1113,13 @@ Preview_RenderLDtkLevel :: proc(s: ^State, file, level: string, size: [2]f32, sc
 		clear(&lt.files)
 	}
 	t := &lt.t
-	modified := ldtkModified(joinPath(s.project.rootPath, file, allocator = context.temp_allocator))
-	if known, found := lt.files[file]; !found || known != modified {
+	// The file as saved, or the Level mode's unsaved document (`LDtkDoc_Stamp`)
+	stamp := LDtkDoc_Stamp(s.project.rootPath, file)
+	if known, found := lt.files[file]; !found || known != stamp {
 		e.Game_ForgetLDtk(t.game, file)
-		if !found do lt.files[strings.clone(file)] = modified
-		else do lt.files[file] = modified
+		LDtkDoc_ProvideToGame(t.game, s.project.rootPath, file)
+		if !found do lt.files[strings.clone(file)] = stamp
+		else do lt.files[file] = stamp
 	}
 	t.game.size = s.project.gameSize
 	scene := new(e.Scene)
@@ -1156,7 +1164,7 @@ Preview_RenderLDtkLevel :: proc(s: ^State, file, level: string, size: [2]f32, sc
 LevelThumbnail :: struct {
 	t: Thumbnail,
 	size: [2]int,
-	files: map[string]time.Time,
+	files: map[string]u64,
 }
 
 @(private="file", thread_local)

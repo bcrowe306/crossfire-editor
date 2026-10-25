@@ -1,7 +1,7 @@
 ---
 title: Scene changes
 description: Transitions between scenes, scenes opened over others like pause menus, and loading screens.
-order: 29
+order: 33
 ---
 
 # Scene changes: transitions, pause menus, loading screens

@@ -1,6 +1,6 @@
 ---
 title: Level mode
-description: "The editor's world editor: your LDtk project's levels on a canvas you pan, zoom and rearrange, entities you pick and move, and the LDtk tab, which edits layers, entities, fields, enums and the world and saves them into the .ldtk file."
+description: "The editor's LDtk level editor: your LDtk project's levels in a Levels sidebar and on a canvas you pan, zoom and rearrange, LDtk's painting tools (IntGrid values, tiles, entities, auto-layers kept up to date), a Layers sidebar with its palette, and LDtk's panels as tabs (World, Level, Layers, Entities, Enums, Tilesets, Auto-layer Rules, Project), saved into the .ldtk file when you save."
 order: 18
 ---
 
@@ -8,21 +8,34 @@ order: 18
 
 The editor has **modes**, picked with the tabs beside the menu bar
 ([Editor modes](getting_started.md#editor-modes)). The **Scene** mode is where you build scenes
-from nodes. The **Level** mode is where you work on your game's **world**: the levels of an
-[LDtk](https://ldtk.io) project, laid out as they are in it, which you can move around, look
-into and edit. Every edit is saved into the `.ldtk` file at once, so LDtk, the viewport and a
-running game all read the same file ([LDtk levels](levels.md)).
+from nodes. The **Level** mode is the editor's **LDtk level editor**: the levels of an
+[LDtk](https://ldtk.io) project, laid out as they are in its world, which you look into, move
+around and edit, laid out like LDtk itself, with the editor's own toolbar, panels and lists (it
+looks and works like the Scene mode). Your edits are saved into the `.ldtk` file when you
+save the project, so LDtk, the viewport and a running game all read the same file
+([LDtk levels](levels.md)).
 
-You still paint tiles and place new entities in LDtk; the Level mode edits what's there: where
-levels and entities are, the layers' settings, entity types and their fields, every field's
-value, IntGrid values, enums and the world's layout.
+It does what LDtk does to a project (built in five phases, done 2026-10-25): it **paints** as
+LDtk does: IntGrid cells (with the auto-layer tiles their rules make, the tiles LDtk would make),
+tiles, and entities placed, moved, resized, copied and removed ([Painting](#painting)); it
+edits the project's **definitions** as LDtk's panels do: layers, entity types and their fields,
+enums, tilesets and level fields ([Level definitions](level_definitions.md)); the **auto-layer
+rules** as LDtk's rule panel does ([Auto-layer rules](level_rules.md)); and **levels, worlds and
+the project's settings**: levels made, renamed, copied, resized and deleted, worlds and their
+layouts, LDtk's selection, field values drawn on the canvas, every option of LDtk's project panel
+([Levels, worlds and the project](level_worlds.md)). [LDtk parity](level_parity.md) checks every
+LDtk feature.
 
 - [Opening it](#opening-it)
 - [The window in the Level mode](#the-window-in-the-level-mode)
-- [The world canvas](#the-world-canvas)
-- [Levels and their scenes](#levels-and-their-scenes)
-- [The LDtk tab](#the-ldtk-tab)
+- [The toolbar](#the-toolbar)
+- [The Levels sidebar](#the-levels-sidebar)
+- [The canvas](#the-canvas)
+- [Painting](#painting)
+- [The Layers sidebar](#the-layers-sidebar)
+- [The bottom tabs](#the-bottom-tabs)
 - [Saving, undo and LDtk](#saving-undo-and-ldtk)
+- [A narrow window](#a-narrow-window)
 - [What's shared with the Scene mode](#whats-shared-with-the-scene-mode)
 - [Questions](#questions)
 
@@ -33,44 +46,104 @@ value, IntGrid values, enums and the world's layout.
   the Scene mode.
 
 The editor remembers the mode for each project: open the project again and it shows the mode
-you left it in, on the same world.
+you left it in, on the same LDtk file and world.
 
 ## The window in the Level mode
 
 ```
-+-----------+-----------------------------------------+--------------+
-| browser   | World: legacy.ldtk   Fit  Open in LDtk  | Level        |
-|           |                                         |              |
-|           |   the world: every level in place, its  | the selected |
-|           |   entities and links                    | level and    |
-|           +-----------------------------------------+ entity, the  |
-| preview   | bottom panel: LDtk, Console, Output     | scenes that  |
-|           |                                         | show it      |
-+-----------+-----------------------------------------+--------------+
++--------------------------------------------------------------------+
+| File Edit Scripts View Scene Help      [Scene | Level]             |
+| new open save | undo redo | select pencil rect ... |  > || [] | Export |
++-----------+--------------------------------------+-----------------+
+| Levels  + | World > Start      Fit  Open in LDtk | Layers: Start   |
+| Start     |                                      | # Entities  (o) |
+| Cave      |   the canvas: the world, or the      | # Tiles     (o) |
+| Tower     |   focused level larger               | # Walls     (o) |
+|           +--------------------------------------+ Palette         |
+|           | World Level Layers Entities Enums ...|                 |
+|           | [+] [copy] [delete] [up] [down] text |                 |
+|           | the list | the selected item's       |                 |
+|           |          | settings                  |                 |
++-----------+--------------------------------------+-----------------+
 ```
 
 | Part | What it's for |
 |---|---|
-| **Browser** (left) | The same project browser as in the Scene mode. Selecting an LDtk project there shows its world |
-| **World** (middle) | The canvas: the LDtk project's levels, drawn as the game draws them. With several LDtk projects, the choice in its header picks one; **Fit** shows the whole world; **Open in LDtk** opens the file in LDtk at the selected level |
-| **Level** (right) | The selected level: its size, where it is in the world, its layers, entities, fields and neighbours, the selected entity, and the scenes showing the level |
-| **Bottom panel** | **LDtk** (the editor of the project's settings: below), and the same **Console** and **Output** as the Scene mode's |
+| **Toolbar** (top) | The editor's toolbar: LDtk's tools for the selected layer in place of the viewport's, the play controls and Export ([The toolbar](#the-toolbar)) |
+| **Levels** (left) | The world's levels: select one, double-click to focus it, right-click for its menu ([The Levels sidebar](#the-levels-sidebar)) |
+| **Canvas** (middle) | The world's levels drawn as the game draws them, or one level larger ([The canvas](#the-canvas)) |
+| **Layers** (right) | The selected level's layers: select one, show or hide it, drag it up or down ([The Layers sidebar](#the-layers-sidebar)) |
+| **Bottom tabs** | LDtk's panels, then the **Console** and **Output** ([The bottom tabs](#the-bottom-tabs)) |
 
-The panels resize like the Scene mode's, and keep their own sizes: making the browser wider
-here doesn't change it in the Scene mode.
+The menus and the mode bar stay at the top. Everything is the editor's: the toolbar, the panel
+headers, the rows of the lists (the scene tree's size, font, icons and selection colors), the
+buttons and the settings' rows (the inspector's). The sidebars start at the Scene mode's widths
+and resize like its sidebars (drag the dividers); each mode keeps its own sizes.
 
-## The world canvas
+## The toolbar
 
-Every level of the world is drawn where the world puts it, with its layers, its background and
-its entities as the game shows them. On top of them:
+The toolbar is the Scene mode's: the file and undo buttons, then the tools, the play controls in
+the middle and **Export** at the end. In the Level mode the tools are the **selected layer**'s
+(the Layers sidebar's), as LDtk has them for that kind of layer:
+
+| Layer | Tools |
+|---|---|
+| **IntGrid** | Select, Pencil, Rectangle, Fill, Eraser, Picker |
+| **Tiles** | Select, Stamp, Random, Rectangle, Fill, Eraser, Picker |
+| **Entities** | Select, Place, Eraser, Picker |
+| **Auto-layer** | Select (its tiles come from its rules) |
+
+**Select** picks and moves: click to select a level or an entity, drag to move it. The others
+paint the **focused** level's selected layer ([Painting](#painting)): **Pencil** (on a Tiles
+layer **Stamp**, on an Entities layer **Place**), **Random**, **Rectangle**, **Fill**, **Eraser**
+and **Picker**. LDtk itself has no tool buttons: its mouse buttons and keys do the same with any
+tool (the right button erases, Shift + drag a rectangle...), and so do they here.
+
+The **play controls** are the Scene mode's: Play, Play the scene open in the Scene mode, Pause,
+Stop, Restart and the game's collision shapes. In a narrow window the tools go into the toolbar's
+**...** menu, as the viewport's do.
+
+## The Levels sidebar
+
+The left sidebar, where the Scene mode has the project browser, lists the levels of the world, in
+the world's order (rows like the scene tree's: **Up** and **Down** pick the next one once you've
+clicked the list):
+
+- **Click** a level: it's selected (on the canvas too, and the Layers sidebar shows its layers).
+- **Double-click** it: the canvas **focuses** on it ([The canvas](#the-canvas)).
+- **Right-click** it: its menu: **Focus** (or **Back to the World**), **Open in the Scene Mode**
+  (the scene showing it), **New Scene with This Level**, **Open in LDtk at This Level**, **Rename**,
+  **Duplicate**, **Delete**, a depth further or closer, **Move to** another world, **New Level...**
+  ([Levels, worlds and the project](level_worlds.md#levels)).
+- **+** in its header (**New Level**): click the canvas where the new level goes.
+
+With several LDtk files in the project, a choice under the header picks the one shown. With
+several **worlds** in the file (LDtk's Multi-worlds), a second choice picks the world: the sidebar
+and the canvas show its levels (the World tab's list picks it too). Without an LDtk file, the
+sidebar has **Import...**.
+
+## The canvas
+
+The canvas shows every level of the world where the world puts it, with its layers, its
+background and its entities as the game shows them. On top of them:
 
 - each level's **name**, in its top-left corner, and an outline (the selected level's in the
   accent color);
 - each **entity**'s outline in its color (when you're zoomed in far enough to see them; the
   selected entity's always);
-- **links**: an arrow from each entity to the entities its reference fields point at (an
-  EntityRef field: a door to the door it leads to), and, for the selected level, dashed lines to
-  its **neighbouring** levels.
+- **fields**: entities' and levels' field values, radii, points and reference links, as each
+  field's display settings say ([Fields on the canvas](level_worlds.md#fields-on-the-canvas)), and,
+  for the selected level, dashed lines to its **neighbouring** levels.
+
+The header above it says where you are (**World**, or **World → Start** while a level is
+focused), whether the file has unsaved edits, the zoom, and its buttons: **Focus** the selected
+level, **World** (back to the world view), **Fit**, **Open in LDtk**.
+
+**Focusing a level** (double-click it here or in the Levels sidebar, or the header's Focus) shows
+that level larger, the others faded around it, as LDtk's level view does. While it's focused,
+clicking another level focuses that one, its entities are the ones you can pick, and the level
+doesn't move when you drag it (the drag pans). **Double-click outside it**, or the header's
+**World** button, to go back to the world view.
 
 To move around:
 
@@ -79,62 +152,270 @@ To move around:
 | **Wheel** | Zoom in and out around the pointer |
 | **Shift + wheel**, **Ctrl + wheel**, sideways scrolling | Pan (like the viewport; **Settings > Editor > Wheel pans** swaps zooming and panning, for touchpads) |
 | **Middle** or **right drag**, **Space + drag**, a drag on empty space | Pan |
-| **Fit** (the header's button) | The whole world in view |
+| **Fit** (the header's button) | The whole world (or the focused level) in view |
 
-To work on the world:
+To work on the world (the **Select** tool):
 
 | Do | What happens |
 |---|---|
-| **Click** a level | Selects it: the Level panel and the LDtk tab show it |
-| **Double-click** a level | Opens the scene showing it in the Scene mode |
-| **Drag** a level | Moves it in the world |
-| **Click** an entity | Selects it (and its level): the LDtk tab's **Entities** shows it, ready to edit |
+| **Click** a level | Selects it |
+| **Double-click** a level | Focuses it |
+| **Drag** a level (the world view) | Moves it in the world |
+| **Click** an entity | Selects it (and its level): the **Entities** tab shows it, ready to edit |
 | **Drag** an entity | Moves it in its level, on its layer's grid; hold **Shift** to move it by the pixel |
-| Click **empty space** | Selects nothing |
+| Click **empty space** | Selects nothing (in the world view) |
+| **Right click** a level or empty space | The menu: New Level Here, Duplicate, Delete, Move to another world... |
+| **Ctrl + Alt + drag** a level | A copy of it goes there |
+| **Drag a handle** around the focused level | Resizes it |
+| **Shift + Alt + drag** on the focused level | Selects a rectangle of cells and entities: drag it to move it, Ctrl + Alt + drag to copy it, Delete to remove it ([Selecting](level_worlds.md#selecting-moving-and-copying)) |
 
 Where a dragged level lands depends on the world's layout: anywhere (in whole pixels) in a
 **Free** world, on the world grid in a **GridVania** one. Levels of a **linear** world are placed
-by their order, so they don't move: change the layout in the LDtk tab's **World** first. Each move
-is one undo step, saved into the `.ldtk` file when you let go; the levels' neighbours (which LDtk
-works out from where levels touch) follow.
+by their order, so they don't move: change the layout in the **World** tab first. Each move is one
+undo step; the levels' neighbours (which LDtk works out from where levels touch) follow.
 
-## Levels and their scenes
+## Painting
 
-A level shows in a scene through an **LDtkLevel** node naming it
-([Putting a level in a scene](levels.md#putting-a-level-in-a-scene)). Select a level and the
-Level panel lists the scenes showing it, each with its LDtkLevel node: click one to open it in
-the Scene mode, the node selected. **Double-click** the level on the canvas to open the first
-of them.
+Painting happens on the **focused** level (double-click it), on the **layer selected** in the
+Layers sidebar, with what's picked in the **palette** under the layers: an IntGrid value, tiles
+of the layer's tileset, or an entity type. It works as in LDtk, mouse buttons and keys included,
+so what you know from LDtk works here.
 
-A level no scene shows yet has **New Scene with This Level** in the Level panel: it makes a scene
-named after the level, with a World node and an LDtkLevel node showing that level, and opens it
-in the Scene mode. It's one undo step: **Ctrl+Z** takes the scene away again and goes back to the
-Level mode.
+- **Each stroke is one undo step**: a Pencil stroke from press to release, a rectangle, a fill, a
+  placed or removed entity, a resize. **Ctrl+Z** takes it back whole.
+- Like every edit, it **stays in the editor until you save** (Ctrl+S, Play, Export): the file on
+  disk changes then ([Saving, undo and LDtk](#saving-undo-and-ldtk)).
+- The canvas shows the **cells** of the selected layer (grid lines; **G** hides them and stops
+  snapping to them), where the brush will paint (the cell, the rectangle, the stamp's tiles under
+  the pointer), and the other layers at their opacity.
 
-Scenes whose LDtkLevel node shows **All levels** are listed for every level of the world, after
-the ones naming it.
+### Painting IntGrid cells
 
-## The LDtk tab
+Pick a value in the palette (a row per value, its color and name), then:
 
-The bottom panel's **LDtk** tab is where the project's settings are edited. Its sections are the
-vertical tabs on its left (in a narrow panel, a choice above the section):
-
-| Section | What you can do |
+| Do | What happens |
 |---|---|
-| **Layers** | Pick a layer: its **name**, whether the selected level shows it, its **opacity**, **parallax** (X, Y, scaling), its **grid size** (only while nothing is painted in it: LDtk moves painted cells when it changes) and its **order** (Up / Down, in every level) |
-| **Entities** | Pick an entity type: its **name**, **width**, **height**, **color**, **pivot**; its **fields**' names and defaults; the type's entities in the selected level (all of them with none selected). Click one to select it (and center the canvas on it): its position and every field's value are edited below it |
-| **Collisions** | Pick an IntGrid layer: each value's **name** and **color**; and, for every scene whose LDtkLevel node uses that layer for collision, what each value becomes there (**Solid**, **One-way platform**, **Area**, **Nothing**: the node's settings, not the file's) |
-| **Links** | The entity reference fields of the selected level's entities: pick what each points at (only the entities the field allows). The selected level's **neighbours**, which LDtk works out from where levels are: move levels to change them |
-| **Level fields** | The selected level's custom fields (and, with no level selected, the fields' names) |
-| **Enums** | Pick an enum: its **name**, each value's **name** and **color**; **add a value**, **add an enum** |
-| **World** | The world's **layout** (Free, GridVania, linear side by side or one above the other: changing it moves the levels as LDtk would), its **grid** (GridVania's; the levels move with it), and each level's **X** and **Y** |
-| **Tilesets** | What each tileset is (its image, size and grid) |
+| **Drag** (Pencil) | Paints the cells the pointer crosses |
+| **Right drag**, or the **Eraser** | Erases them |
+| **Shift + drag**, or the **Rectangle** | A rectangle (with the right button: erases it) |
+| **Shift + a quick click**, or the **Fill** | Fills the area of cells like the clicked one |
+| **Alt + click**, or the **Picker** | Picks the value under the pointer (any layer: it selects that layer too) |
+
+**Auto-layers follow:** the layers whose rules read this IntGrid layer (its own auto-layer tiles
+and any AutoLayer layer built from it) are worked out again around each painted cell, as LDtk
+does it: the same rules in the same order, the same random choices (LDtk's seeds and Perlin
+noise), the same tiles. **Shift+R** hides auto-layer tiles while you paint (LDtk's "auto-layer
+rendering").
+
+### Painting tiles
+
+Pick tiles in the palette's **tileset**: a click picks a tile, a drag a rectangle of them (a
+**stamp**); Shift or Ctrl + drag adds to the selection, the right button takes tiles out of it,
+Ctrl + click on a picked tile removes it. The wheel scrolls the tileset, Ctrl + wheel zooms it.
+
+| Do | What happens |
+|---|---|
+| **Drag** (Stamp) | Paints the stamp (the picked tiles as they're laid out in the tileset) |
+| **R**, or the **Random** tool | Paints one of the picked tiles at random in each cell instead |
+| **Shift + drag**, or the **Rectangle** | Fills a rectangle with the stamp (or random tiles) |
+| **Shift + a quick click**, or the **Fill** | Fills the area of cells like the clicked one |
+| **Right drag**, or the **Eraser** | Erases tiles (the top one of a cell first when stacked) |
+| **Alt + click**, or the **Picker** | Picks the tile under the pointer, with its flips |
+| **X** / **Y** | Flips the brush sideways / upside down (also Shift+H / Shift+V) |
+| **Shift+T** | Tile stacking: on (LDtk's default), a tile with see-through pixels painted over another stacks on it; off, it replaces it |
+
+The palette's buttons over the tileset do the same (Stamp / Random, flip X, flip Y, stacking).
+
+### Placing and editing entities
+
+Pick an entity type in the palette (the types the layer takes), then:
+
+| Do | What happens |
+|---|---|
+| **Click** (Place) | Places one where you click (its pivot on the layer's grid; Shift: by the pixel), selected, and keeps dragging it until you let go. A **resizable** type is sized by the drag instead, as LDtk does |
+| **Click** an entity, **drag** it | Selects it (the Entities tab shows it), moves it |
+| **Drag a handle** of the selected entity | Resizes it (resizable types: the handles on its sides and corners) |
+| **Ctrl + Alt + drag** an entity | Drags a copy of it |
+| **Ctrl+D** | Duplicates the selected entity (one cell to the right) |
+| **Delete** | Removes the selected entity |
+| **Right click** or **right drag**, or the **Eraser** | Removes the entities (and points) under the pointer |
+| **Alt + click**, or the **Picker** | Picks the entity's type and selects it |
+
+A type limited to a number of entities (LDtk's "max count") follows its rule when you place
+more: the oldest is moved or removed, or the placement is refused, as the type says. Placing an
+entity right after another whose reference field allows it links them (LDtk's "auto chain").
+
+**Fields on the canvas:** the selected entity's **point** fields show their points (and the path
+between them): drag one to move it. In the Entities tab, a point or a reference field has
+**Pick**: click on the canvas where the point goes, or the entity it refers to (Esc cancels).
+Array fields of points and references get a row per item with **×** to remove it and **Clear**.
+
+### Seeing the layers
+
+| Key | What it does |
+|---|---|
+| **G** | Shows or hides the grid (and snapping to it) |
+| **Shift+A** | Fades the other layers (LDtk's single layer mode) |
+| **Shift+R** | Shows or hides auto-layer tiles |
+| **Esc** | Cancels a pick waiting for a click, or the stroke |
+| **Shift+W** | Back to the world view |
+
+### LDtk's keys
+
+The painting keys are LDtk's own; each is in **Settings > Keyboard** (the Level mode's actions),
+where you can change it:
+
+| LDtk | Here |
+|---|---|
+| Left button / right button | Paint / erase (any tool) |
+| Shift + drag, Shift + click | Rectangle, fill |
+| Alt + click | Pick |
+| Ctrl + Alt + drag | Copy an entity |
+| X, Y (Shift+H, Shift+V) | Flip the tile brush |
+| R | Random tiles |
+| G | Grid |
+| Shift+A | Single layer mode |
+| Shift+T | Tile stacking |
+| Shift+R | Auto-layer tiles |
+| Delete, Ctrl+D | Remove (the selection first), duplicate the selected entity |
+| Esc | Cancel |
+| Shift+W | World view |
+| Ctrl+A, Shift+E | Select all, select empty cells too |
+| Shift+S | Save the picked tiles as a selection |
+| P, L, E, U, T, C | The Project, Layers, Entities, Enums, Tilesets, Level tab |
+| 1 to 9, 0 | Select a layer |
+| PgUp / PgDn (Ctrl: the level) | Another world depth |
+
+## The Layers sidebar
+
+The right sidebar, where the Scene mode has the scene tree, lists the selected level's layers, the
+top one first (as LDtk lists them). Each row has the layer type's icon (in the layer's list color),
+its name, and an eye:
+
+- **Click** a layer to select it: the toolbar shows its tools, and the **Layers** tab its
+  settings. **Up** and **Down** pick the next one.
+- **The eye** shows or hides the layer in that level, as LDtk's eye does: it's saved in the file
+  (the layer's `visible` in the level), so a game hides the layer too. Each click is an undo step.
+- **Drag a row** up or down to move the layer, as you drag nodes in the scene tree: it moves in
+  every level (LDtk keeps one order for all of them). One undo step.
+
+With no level selected, the sidebar lists the project's layers (select one; the eyes need a
+level).
+
+Under the layers is the **palette** of the selected layer: its IntGrid values, its tileset, or
+its entity types ([Painting](#painting)).
+
+## The bottom tabs
+
+The bottom panel's tabs are LDtk's panels, then the same **Console** and **Output** as the Scene
+mode's. A tab strip wider than the panel scrolls sideways. Every control sends an edit, made at
+once in the LDtk file the editor has open (saved with the project: [Saving, undo and
+LDtk](#saving-undo-and-ldtk)); a refused edit says why.
+
+Every tab with a list has the same layout:
+
+```
+| World | Level | Layers | Entities | ...                     |
+| [+ IntGrid] [+ Tiles] ... [copy] [delete] [up] [down]  text |
+| Entities      | Name      [Tiles        ]                    |
+| Tiles         | Opacity   [1.00   ] - +                      |
+| Walls         | ...                                          |
+```
+
+- **The toolbar row:** the list's buttons (add, duplicate, delete, move up and down) and the
+  tab's own, with a line about the selected item (its place, a count). Hover a button for what it
+  does.
+- **The list** on the left, rows like the scene tree's: click one to edit it (**Up** and **Down**
+  pick the next one). Drag the divider to make it wider; each tab keeps its width.
+- **The settings** of the selected item on the right, rows like the inspector's: the label beside
+  its control, or over it when the panel is narrow.
+
+In a narrow bottom panel (a tiled window's) the list is a dropdown at the top of the settings.
+The **Project** tab has no list: its toolbar row has **Save**.
 
 Fields' values are typed as text: a number, `true` or `false` (a checkbox), a color as
 `#RRGGBB`, a point as `x, y` (cells), an enum's or a reference's value from a list. An empty
 field is the field's default. Names are cleaned up as LDtk does (spaces and other characters
 become `_`, the project's identifier style applies: `my door` becomes `My_door`) and must not be
-taken; a name that can't be used isn't saved, and the tab says why above the section.
+taken; a name that can't be used isn't kept, and the tab says why above its rows.
+
+### The World tab
+
+The list: the project's worlds (one until you add another: LDtk's Multi-worlds); picking one shows
+it. The toolbar row: **+ World** and **Delete** (this world), **+ Level** (New Level: pick its spot
+on the canvas). The world's name (with several worlds); its **layout** (Free, GridVania, linear side by side or one above
+the other: changing it moves the levels as LDtk would), its **grid** (GridVania's; the levels
+move with it), new levels' size, the depth shown, and each level's order, **X** and **Y**
+([Worlds](level_worlds.md#worlds)).
+
+### The Level tab
+
+The list: the world's levels (as the Levels sidebar has them). The toolbar row: **+** (New Level),
+**Duplicate**, **Delete**, **Up** and **Down** (the level's place in the world's order) and
+**Focus**. The selected level: its name (automatic or typed), IID, depth, place, size (**Resize**),
+background color and image ([Levels](level_worlds.md#levels)); how
+many layers, entities, fields and neighbours it has; the **scenes showing it** (click one to open it in the Scene mode, its
+LDtkLevel node selected) or **New Scene with This Level**; its custom **fields**; its
+**neighbours**. With no level selected, how many levels the world has. Under them the **level
+fields**' definitions, edited like entities' fields ([Level definitions](level_definitions.md#fields)).
+
+A level shows in a scene through an **LDtkLevel** node naming it
+([Putting a level in a scene](levels.md#putting-a-level-in-a-scene)). **New Scene with This Level**
+makes a scene named after the level, with a World node and an LDtkLevel node showing that level,
+and opens it in the Scene mode. It's one undo step: **Ctrl+Z** takes the scene away again and
+goes back to the Level mode. Scenes whose LDtkLevel node shows **All levels** are listed for every
+level, after the ones naming it.
+
+### The Layers tab
+
+The list: the project's layers (the one selected is the Layers sidebar's too). The toolbar row:
+add a layer of each type, duplicate, delete, move up or down. Every setting LDtk has (name, opacity, grid,
+offsets, parallax, how LDtk shows it), an IntGrid layer's values and groups, a layer's tileset, an
+auto-layer's source, an Entities layer's tags. For every scene whose LDtkLevel node uses an
+IntGrid layer for collision, what each value becomes there (**Solid**, **One-way platform**,
+**Area**, **Nothing**: the node's settings, not the file's). See
+[Level definitions](level_definitions.md#layers).
+
+### The Entities tab
+
+The list: the entity types, in their colors. The toolbar row: add one (or LDtk's rectangle and
+circle regions), duplicate, delete, move up or down. The type's size, shape, look, tile, limits,
+tags and its **fields** ([Level definitions](level_definitions.md#entity-types)); then the type's
+entities in the selected level (all of them with none selected). Click one to select it (and
+center the canvas on it): its position and every field's value are edited below it. Then the
+level's **references**: the entity reference fields of its entities, each pointing at an entity
+the field allows.
+
+### The Enums tab
+
+The list: the enums (external ones with their file). The toolbar row: add one, duplicate, delete,
+move up or down. Their names, tags, icons and values (added, renamed, recolored, reordered, removed),
+and external enums imported from a file and synced with it
+([Level definitions](level_definitions.md#enums)).
+
+### The Tilesets tab
+
+The list: the tilesets. The toolbar row: a new one from an image (**From an image...**), an empty
+one, LDtk's icons, duplicate, delete, move up or down. Their image, grid, spacing and padding, tags, and their
+tiles' enum tags and custom data on their picture
+([Level definitions](level_definitions.md#tilesets)).
+
+### The Auto-layer Rules tab
+
+The list: the layers with rules (IntGrid layers and auto-layers, their groups counted): pick one to
+edit its rules. The toolbar row: **+ Group** (with the Assistant, or empty), **Paste group**,
+**Randomize**, **Render**. The layer's auto-layer rules, as LDtk's rule panel edits them: groups (on, off, optional
+per level, biomes, colors, icons), rules and their editor (tiles, the pattern, chance, mirrors,
+modulos, offsets, Perlin), the Rule Assistant, Duplicate and Remap. Hovering a rule outlines its
+cells on the focused level, and the canvas's cell under the pointer highlights its rules
+([Auto-layer rules](level_rules.md)).
+
+### The Project tab
+
+The LDtk file's own settings, every option of LDtk's project panel: separate level files, minified
+JSON, backups, image export, the simple export, identifier style, level names, defaults, LDtk's
+advanced flags, custom commands (kept, never run), the description; whether it has unsaved
+edits, with **Save** on its toolbar row ([The Project tab](level_worlds.md#the-project-tab)).
 
 What LDtk keeps in step is kept too: renaming an entity type renames it on every entity and in
 the project's table of contents, renaming an enum value changes every field set to it, a layer's
@@ -142,65 +423,95 @@ opacity is every level's, a moved level's entities get their new world positions
 layer or entity type is renamed in your scenes' LDtkLevel nodes too (their collision layer and
 entity rules), in the same undo step. Scripts named like an entity type aren't renamed.
 
-Not editable here yet (LDtk edits them, and the tab says so): array fields, tile fields,
-symmetrical references, external enums, tilesets, levels' sizes and names, the order of a linear
-world's levels, a field's or a layer's type. Painting tiles and IntGrid cells, and placing new
-entities, are LDtk's.
+Every field's value is editable here, arrays and tiles included (add, remove, move, clear). What
+LDtk does that the Level mode doesn't is listed in [LDtk parity](level_parity.md).
 
 ## Saving, undo and LDtk
 
-- **Every edit is saved into the file at once**, the files a level is saved in apart (LDtk's
-  "Save levels to separate files": `.ldtkl` files) included. Nothing else in the file changes:
-  the editor only rewrites the values it edits, in LDtk's style, so LDtk opens it as before and
-  your version control shows small changes. They don't make the project "Modified": Ctrl+S has
-  nothing more to write.
-- **Undo** (Ctrl+Z) puts the file back as it was before the edit, one step per edit (typing a
-  name or a value is one step).
-- **LDtk saved the file** while the editor was open: the editor reads it again (the status bar and
-  the World header say when). An undo after that still works when your edit and LDtk's change are
-  in different places in the file; when they overlap, the editor asks whether to **overwrite**
-  LDtk's change or **keep the file** as LDtk saved it.
+- **Edits stay in the editor until you save**, as in LDtk: each edit changes the LDtk file the
+  editor has open, the canvas, the viewport and the inspector show it at once, and the project
+  shows **Modified** (the canvas's header says "unsaved"). **Save** (Ctrl+S) writes it, the files
+  its levels are saved in apart (LDtk's "Save levels to separate files": `.ldtkl` files) included.
+  **Play** and **Export** save it first, so the game reads your edits, and so does **Open in
+  LDtk**.
+- **Nothing else in the file changes:** the editor only rewrites the values it edits, in LDtk's
+  style, so LDtk opens it as before and your version control shows small changes. Each file is
+  replaced whole when it's written, never left half written.
+- **Undo** (Ctrl+Z) takes an edit back, one step per edit (typing a name or a value is one step,
+  a painting stroke is one step).
+  Undo back to what was saved and there's nothing left to save.
+- **LDtk saved the file** while the editor had it open: the editor reads it again (the status bar
+  and the canvas's header say when). If you had unsaved edits, LDtk's change is **merged** with
+  them when the two are in different places in the file. When they're in the same place, a bar
+  over the canvas asks: **Reload It** (the file as LDtk saved it; your unsaved edits go) or **Keep
+  My Edits** (saving then writes them over LDtk's change); saving waits for the answer. An undo
+  after LDtk's change works the same way: merged when it can be, else the editor asks whether to
+  **overwrite** LDtk's change or **keep the file** as it is.
 - **LDtk doesn't notice the editor's changes** while it has the file open, and its next save
   writes over them. Edit in one at a time: close the project in LDtk (or open it again there)
-  after editing here.
+  after saving here.
 - **Open in LDtk** opens the file at the selected level (or the selected entity's level: LDtk
   can't be told which entity to select). LDtk's command line only takes the file, so the editor
   sets the level LDtk remembers in its own settings ("last project") before starting it.
 
+## A narrow window
+
+The Level mode fits smaller windows as the Scene mode does:
+
+- **The sidebars** narrow together, keeping the canvas its room, as the browser and the
+  inspector do.
+- **The tools** go into the toolbar's **...** menu when they don't fit (and narrower still the
+  file and undo buttons).
+- **The bottom tabs** scroll sideways; a tab's list becomes a dropdown over its settings, and the
+  settings put their labels over their controls.
+
 ## What's shared with the Scene mode
 
-The menus, the toolbar's file, undo and play buttons and **Export**, the browser, the **Console**
-and **Output** tabs, **Settings** and **Project Settings**, and the docs window are the same in
-both modes. The toolbar's tools (Select, Move, Rotate...) are the Scene mode's, so they don't
-show here, and the commands for nodes and the viewport (Add Node, Delete, Copy, the grid, the
-zoom...) are greyed out in the menus.
+The menus, the toolbar (its file, undo, play and Export buttons), the **Console** and **Output**
+tabs, **Settings** and **Project Settings**, and the docs window are the same in both modes, and
+so are the panels' looks and sizes. The Scene mode's viewport tools (Select, Move, Rotate...) and
+its project browser don't show here, and the commands for nodes and
+the viewport (Add Node, Delete, Copy, the grid, the zoom...) are greyed out in the menus.
 
 **Undo** is one history for both modes: Ctrl+Z undoes the last edit wherever it was made, and
 shows the mode (and the scene) it was made in. Playing, building and exporting show the Console
 and Output tabs in whichever mode is showing.
 
-Things that belong to the Scene mode bring it forward: opening a scene in the browser, opening a
-script (the code tabs are beside the scene tabs), a Console line's error location, the status
+Things that belong to the Scene mode bring it forward: opening a scene, selecting a node, opening
+a script (the code tabs are beside the scene tabs), a Console line's error location, the status
 bar's Git branch (the Git tab is the Scene mode's).
 
 ## Questions
 
-**The world is empty.** The project has no LDtk file yet: import one (**Ctrl+I**, or the
-**Import...** button the Level mode shows then). See [LDtk levels](levels.md).
+**The world is empty.** The project has no LDtk file yet: import one (**Ctrl+I**, or the Levels
+sidebar's **Import...**). See [LDtk levels](levels.md).
+
+**I can't paint.** Focus the level first (double-click it): painting is on the focused level.
+Then check the layer selected in the Layers sidebar is shown (its eye), that something is picked
+in its palette, and that the file isn't from an LDtk older than 1.0 (the canvas says why a press
+did nothing, at its bottom).
+
+**My auto-layer tiles changed where I didn't paint.** Rules look at the cells around each one, so
+painting a cell can change the tiles a few cells away, as in LDtk. Undo takes them back with the
+stroke.
 
 **I changed the level in LDtk and the world didn't change.** It's read again when the file
 changes: save in LDtk, then come back to the editor.
 
-**My edit here disappeared after I saved in LDtk.** LDtk had the file open and saved its own copy
-over it. Open the file again in LDtk after editing here (or undo LDtk's save there).
+**My edit isn't in the game / in LDtk.** It's in the editor until you save: **Ctrl+S** (Play and
+Export save first).
 
-**A name I typed isn't saved.** It isn't a usable identifier, or another one has it: the LDtk
-tab says why above the section. Finish typing a name that works.
+**My edit here disappeared after I saved in LDtk.** LDtk had the file open and saved its own copy
+over it. Open the file again in LDtk after saving here (or undo LDtk's save there).
+
+**A name I typed isn't kept.** It isn't a usable identifier, or another one has it: the tab says
+why above its rows. Finish typing a name that works.
 
 **I can't drag levels.** The world is linear (its levels are placed by their order): pick
-**Free** or **GridVania** in the LDtk tab's **World**.
+**Free** or **GridVania** in the **World** tab. Or a level is focused: go back to the world view
+(the header's **World** button).
 
 **My entity jumps when I drag it.** It's placed on its layer's grid, as LDtk places it; hold
 **Shift** to move it by the pixel.
 
-**Where are the tools?** They're the Scene mode's (Ctrl+Alt+1).
+**Where are the Scene mode's tools and the browser?** They're the Scene mode's (Ctrl+Alt+1).

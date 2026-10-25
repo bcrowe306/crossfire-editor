@@ -1,8 +1,12 @@
-# The Level mode's world canvas and LDtk tab (level_mode.odin, level_canvas.odin, view_ldtk_tab.odin,
-# ldtk_ops.odin): the tab's vertical tabs, a layer's name and opacity edited, an entity picked on
-# the canvas and its field edited, a level's field, a level and an entity dragged on the canvas,
-# undo and redo of each (the file's values on disk), a refused edit, a file changed outside the
-# editor, and everything still there after the project opens again.
+# The Level mode's layout and LDtk editing (level_mode.odin, view_level_sidebars.odin,
+# view_level_tools.odin, level_canvas.odin, view_ldtk_tab.odin, ldtk_ops.odin, ldtk_doc.odin):
+# LDtk's bottom tabs; the Levels sidebar (select, focus, the world view, a level's menu); the
+# Layers sidebar (select a layer: the tools follow its type; the eye; a layer dragged to another
+# place); a layer's name and opacity edited, an entity picked on the canvas and its field edited, a
+# level's field, a level and an entity dragged; undo and redo of each; a refused edit; edits kept in
+# memory until saved (the file on disk unchanged, the project modified); a file changed outside the
+# editor, merged and clashing (the bar: keep my edits); Play saving first; everything still there
+# after the project opens again.
 # Run with: task test:ui
 #
 # The fixture tests/fixtures/ldtk_world/world.ldtk: Start (0, 0) and Cave (256, 0) side by side,
@@ -16,34 +20,90 @@ import tests/fixtures/ldtk_world/world.ldtk
 expect level file assets/world/world.ldtk
 wait_until level levels 3
 wait_until widget_visible ldtk-map-Level true
-expect level tab LDtk
+expect level tab World
 
-# The vertical tabs (a narrow panel: a choice over the section instead)
-if_drawn ldtk-tab-Entities click_widget ldtk-tab-Entities
-if_drawn ldtk-tab-select send LDtk_Tab_Picked Entities
-expect level ldtk_tab Entities
-if_drawn ldtk-tab-Enums click_widget ldtk-tab-Enums
-if_drawn ldtk-tab-select send LDtk_Tab_Picked Enums
-expect level ldtk_tab Enums
-if_drawn ldtk-tab-World click_widget ldtk-tab-World
-if_drawn ldtk-tab-select send LDtk_Tab_Picked World
-expect level ldtk_tab World
-if_drawn ldtk-tab-Layers click_widget ldtk-tab-Layers
-if_drawn ldtk-tab-select send LDtk_Tab_Picked Layers
-expect level ldtk_tab Layers
+# LDtk's panels as the bottom tabs (the strip scrolls in a narrow window: tabs out of view are sent)
+click_tab level-bottom-tabs 2
+expect level tab Layers
+send Bottom_Tab Entities
+expect level tab Entities
+send Bottom_Tab Enums
+expect level tab Enums
+send Bottom_Tab Auto_Layer_Rules
+expect level tab Auto_Layer_Rules
+send Bottom_Tab LDtk_Project
+expect level tab LDtk_Project
+send Bottom_Tab World
+expect level tab World
+send Bottom_Tab Layers
+expect level tab Layers
 
-# A layer (the first: Entities): its opacity stepped down, its name typed
+# The Levels sidebar: a click selects, a double-click focuses (the canvas shows that level), the
+# canvas header's World button goes back to the world view
+click_widget level-row-1
+expect level level Cave
+expect level focus none
+double_click_widget level-row-2
+expect level focus Tower
+expect level level Tower
+click_widget level-row-0
+expect level focus Start
+click_widget panel-level-world-view
+expect level focus none
+expect level level Start
+# A level's menu: Focus, and the level's edits (levels.script uses them)
+right_click_widget level-row-1
+expect context_menu open
+expect context_item Duplicate enabled
+expect context_item Delete enabled
+click_context_item Focus
+expect level focus Cave
+click_widget panel-level-world-view
+expect level focus none
+
+# The Layers sidebar: the selected level's layers; a layer selected, the tools follow its type
+# (painting itself: level_paint.script)
+click_widget level-row-0
+expect level layer Entities
+click_widget level-layer-row-2
+expect level layer Walls
+expect level layer_type IntGrid
+if_drawn level-tool-Fill expect widget_visible level-tool-Fill true
+send Level_Tool_Picked Fill
+expect level tool Fill
+send Level_Tool_Picked Select
+expect level tool Select
+# The eye: the layer hidden in Start (the layer instance's visible), shown again by undo
+click_widget level-layer-eye-1
+wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=2.visible false
+expect ldtk levels.identifier=Cave.layerInstances.layerDefUid=2.visible true
+action Undo
+wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=2.visible true
+# Its row dragged two places down (as the scene tree drags nodes): every level's layers follow; undo puts it back
+drag_widget_to level-layer-row-0 level-layer-row-2
+wait_until ldtk defs.layers.2.uid 1
+expect ldtk levels.identifier=Tower.layerInstances.2.layerDefUid 1
+action Undo
+wait_until ldtk defs.layers.0.uid 1
+click_widget level-layer-row-0
+expect level layer Entities
+
+# A layer (the selected one: Entities): its opacity stepped down, its name typed
 scroll_into_view ldtk-tab-scroll ldtk-layer-opacity-dec
 click_widget ldtk-layer-opacity-dec
 wait_until ldtk defs.layers.uid=1.displayOpacity 0.95
 expect ldtk levels.identifier=Cave.layerInstances.layerDefUid=1.__opacity 0.95
+# In memory until saved: the file on disk is as it was, the project shows it's modified
+expect ldtk_disk defs.layers.uid=1.displayOpacity 1
+expect level unsaved yes
+expect modified true
 scroll_into_view ldtk-tab-scroll ldtk-layer-name
 click_widget ldtk-layer-name
 key ctrl+a
 type things
 wait_until ldtk defs.layers.uid=1.identifier Things
 expect ldtk levels.identifier=Tower.layerInstances.layerDefUid=1.__identifier Things
-# A taken name is refused (the file keeps the last good one) and the tab says why
+# A taken name is refused (the document keeps the last good one) and the tab says why
 key ctrl+a
 type Tiles
 expect level problem another layer is named Tiles
@@ -51,7 +111,7 @@ expect ldtk defs.layers.uid=1.identifier Things
 key ctrl+a
 type Things
 key escape
-# Undo: the name, then the opacity, as they were in the file
+# Undo: the name, then the opacity, as they were
 action Undo
 wait_until ldtk defs.layers.uid=1.identifier Entities
 action Undo
@@ -59,11 +119,11 @@ wait_until ldtk defs.layers.uid=1.displayOpacity 1
 action Redo
 wait_until ldtk defs.layers.uid=1.displayOpacity 0.95
 
-# An entity picked on the canvas: selected, its level too, the tab shows it; its field edited
+# An entity picked on the canvas: selected, its level too, the Entities tab shows it; its field edited
 click_entity player1
 expect level entity player1
 expect level level Start
-expect level ldtk_tab Entities
+expect level tab Entities
 scroll_into_view ldtk-tab-scroll ldtk-instance-field-41
 click_widget ldtk-instance-field-41
 key ctrl+a
@@ -71,10 +131,9 @@ type 9
 wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=player1.fieldInstances.defUid=41.__value 9
 key escape
 
-# The selected level's field
-if_drawn ldtk-tab-Level_Fields click_widget ldtk-tab-Level_Fields
-if_drawn ldtk-tab-select send LDtk_Tab_Picked Level_Fields
-expect level ldtk_tab Level_Fields
+# The selected level's field (the Level tab)
+send Bottom_Tab Level
+expect level tab Level
 scroll_into_view ldtk-tab-scroll ldtk-level-field-50
 click_widget ldtk-level-field-50
 key ctrl+a
@@ -99,23 +158,63 @@ expect ldtk toc.0.instancesData.0.worldX 136
 action Undo
 wait_until ldtk levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=coin1.px [104,72]
 
-# LDtk (another program) saved the file: the status says so; an undo of a change elsewhere in it
-# is merged with it
+# LDtk (another program) saved the file: the status says so; its change (at the end of the file)
+# is merged with the unsaved edits, and an undo after it too
 expect level outside no
 touch_project_file assets/world/world.ldtk
 wait_until level outside yes
+expect level disk_conflict no
+expect level unsaved yes
 action Undo
 wait_until ldtk levels.identifier=Tower.worldX 0
 expect level conflict closed
 
-# The LDtk edits are written already: they don't make the project modified (the import does)
+# Saved: the file has the edits, nothing's unsaved
+expect ldtk_disk defs.layers.uid=1.displayOpacity 1
 action Save_Project
 expect modified false
-# The project opened again: the file is as it was left
+expect level unsaved no
+expect ldtk_disk defs.layers.uid=1.displayOpacity 0.95
+expect ldtk_disk levels.identifier=Start.fieldInstances.defUid=50.__value boss
+
+# LDtk wrote the whole file over an unsaved edit: the bar asks; keep my edits, then save writes them
+send Bottom_Tab Level
+scroll_into_view ldtk-tab-scroll ldtk-level-field-50
+click_widget ldtk-level-field-50
+key ctrl+a
+type calm
+wait_until ldtk levels.identifier=Start.fieldInstances.defUid=50.__value calm
+key escape
+write_project_file assets/world/world.ldtk {"defs":{}}
+wait_until level disk_conflict yes
+wait_until widget_visible ldtk-disk-keep true
+click_widget ldtk-disk-keep
+expect level disk_conflict no
+expect level unsaved yes
+action Save_Project
+expect level unsaved no
+expect ldtk_disk levels.identifier=Start.fieldInstances.defUid=50.__value calm
+
+# Play saves the unsaved edits first (the game reads the file)
+scroll_into_view ldtk-tab-scroll ldtk-level-field-50
+click_widget ldtk-level-field-50
+key ctrl+a
+type storm
+wait_until ldtk levels.identifier=Start.fieldInstances.defUid=50.__value storm
+key escape
+expect ldtk_disk levels.identifier=Start.fieldInstances.defUid=50.__value calm
+click_widget toolbar-play
+wait_until level unsaved no
+expect ldtk_disk levels.identifier=Start.fieldInstances.defUid=50.__value storm
+wait_until play Playing timeout=120
+click_widget toolbar-stop
+wait_until play Stopped
+
+# The project opened again: the file is as it was saved
 open_project {project}
 wait_until mode Level
 wait_until level levels 3
 expect ldtk defs.layers.uid=1.displayOpacity 0.95
-expect ldtk levels.identifier=Start.fieldInstances.defUid=50.__value boss
+expect ldtk levels.identifier=Start.fieldInstances.defUid=50.__value storm
 expect ldtk levels.identifier=Start.layerInstances.layerDefUid=1.entityInstances.iid=player1.fieldInstances.defUid=41.__value 9
 expect ldtk levels.identifier=Tower.worldX 0

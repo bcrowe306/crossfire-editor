@@ -529,6 +529,16 @@ def lair():
 
 # --- lair.ldtk --------------------------------------------------------------------------------
 
+def smart_color(color):
+    """A level's __smartColor as LDtk derives it without fields: its background 45% toward white (Level.getSmartColor)."""
+    c = int(color[1:], 16)
+    out = 0
+    for shift in (16, 8, 0):
+        v = (c >> shift) & 255
+        out |= int(v + (255 - v) * 0.45 + 0.5) << shift
+    return "#%06X" % out
+
+
 def tile_rect(tileset, x, y, w, h):
     return make("TilesetRect", tilesetUid=tileset, x=x, y=y, w=w, h=h)
 
@@ -714,7 +724,7 @@ def make_levels():
         color = {"Forest": "#8FE1E3", "Hollow": "#2A2A48", "Lair": "#2A0E16"}[m.name]
         levels.append(make("Level", identifier=m.name, iid=level_iid, uid=index, worldX=world_x, worldY=0, worldDepth=0,
                            pxWid=m.w * G, pxHei=m.h * G, __bgColor=color, bgColor=color, bgRelPath=None, bgPos=None,
-                           bgPivotX=0.5, bgPivotY=0.0, __bgPos=None, __smartColor=color, useAutoIdentifier=False,
+                           bgPivotX=0.5, bgPivotY=0.0, __bgPos=None, __smartColor=smart_color(color), useAutoIdentifier=False,
                            externalRelPath=None, fieldInstances=[], __neighbours=[], layerInstances=layers))
         print(f"  {m.name}: {m.w} x {m.h} cells, {len(auto_tiles)} ground tiles, {len(decor_tiles)} decor, {len(back_tiles)} back wall, {len(instances)} entities")
         world_x += m.w * G + 256

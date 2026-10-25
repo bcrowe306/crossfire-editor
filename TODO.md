@@ -87,39 +87,53 @@ Left:
   physics, particles), with numbers before and after in the engine's CLAUDE.md "Performance"
   section.
 
-## LDtk level editor: parity with LDtk (asked 2026-10-24; build in phases, each released)
+## LDtk level editor: parity with LDtk (asked 2026-10-24; done 2026-10-25)
 
-The Level mode becomes a better interface for editing LDtk projects, with full parity with LDtk
-itself (its source: the workspace's `ldtk/`). The layout comes from the user's design,
-`LDtk_interface.html` (a Penpot export, 1920x1080: rendered, it shows):
-- a **tool row** across the top (75 px; seven 45 px square icon buttons, centered);
-- **left sidebar** (300 px): "Levels" header, then a row per level (60 px: a document icon,
-  the level's name; the selected row highlighted);
-- **center**: the canvas (the world / level);
-- **bottom panel** under the canvas (about a third of the height): a row of tabs (40 px) over
-  the selected tab's content;
-- **right sidebar** (300 px): "Layers" header, then a row per layer of the selected level
-  (60 px: a drag handle to reorder, the layer's name and type, an eye toggle on the right).
+Built in five phases, each its own release: the layout (the user's design, `LDtk_interface.html`),
+painting, the definitions editors, the auto-layer rules, and levels, worlds and the project
+(phase 5: levels made, copied, resized, deleted; worlds and layouts; every project panel option and
+LDtk's save outputs; LDtk's selection; field values drawn on the canvas; saved tile selections;
+LDtk's panel and layer keys). Everything is written as LDtk writes it, checked against LDtk's own
+samples. CLAUDE.md's "Editor modes" sections describe it; the manual's level pages are the guides,
+and `docs/manual/level_parity.md` checks every LDtk 1.5.3 feature (429: 305 done, 60 done
+differently, 41 not done, 23 not applicable).
 
-The user's decisions (2026-10-24):
-- **Phases, each released and usable:** 1) the new layout with what exists today; 2) painting
-  in the level: IntGrid values, tiles, entities placed / moved / resized, with LDtk's tools;
-  3) the definitions editors: layers, entities and their fields, enums, tilesets, level fields;
-  4) auto-layer rules; 5) worlds (several, layouts), project settings and everything else
-  LDtk does (a parity audit against `ldtk/`).
-- **Tools:** LDtk's (select / move, pencil, rectangle, fill, eraser, picker, tile stamp and
-  random), the set adapting to the selected layer's type as LDtk's does; the mock's seven icons
-  are placeholders.
-- **Bottom tabs:** LDtk's panels: World, Level (its fields and settings), Layers, Entities,
-  Enums, Tilesets, Auto-layer Rules, Project; Console and Output kept at the end.
-- **Saving:** edits change the document in memory (fast painting, an undo step per stroke);
-  Save (Ctrl+S), Play and exports write the .ldtk / .ldtkl files, as LDtk does. The file shows
-  unsaved until then. (Today every edit is written at once: phase 1 or 2 changes that.)
-- **Chrome:** the menu bar with the mode bar stays; the design's tool row replaces the editor's
-  toolbar in the Level mode (play controls kept at its end); the Levels list replaces the
-  project browser there.
-- **Colors:** the layout and sizes only; the editor keeps its theme (Settings > Appearance).
-- **Several worlds:** supported, with a world picker (Levels sidebar, World tab).
+**Open, from the parity audit** (none needed to edit levels; LDtk opens the same file meanwhile):
+- Bake an auto-layer into a Tiles layer (EditLayerDefs.bakeLayer: delete, empty or keep the
+  original); move existing entities to another layer (MoveEntitiesBetweenLayers).
+- A definitions clipboard between projects (LDtk's system clipboard of layers, entities, enums,
+  tilesets, fields), and LDtk's confirmations (undo stands in today).
+- A command palette (definitions, levels, entities, searchable field values).
+- Palettes: keyboard navigation (WASD / arrows, saved selections), IntGrid and entity palettes'
+  columns view and search, the rule editor's value palette columns.
+- View toggles: show details (tiles only), tiles' enum tags drawn, a drag across layer eyes,
+  Shift + click solo, the layer list's tag filter, a layer's documentation as a tooltip, LevelTile
+  fields drawn in the world view, the world view on zooming out, zoom keys and Space + right drag,
+  the pointer's coordinates in a footer, a flash on picked elements.
+- Speed: the release hitch on huge levels (the document parsed again: about 120 ms at 6.5 MB);
+  rule edits applied in the focused level first and the others in the background.
+- Files: images (tilesets, backgrounds) reloaded when they change on disk; lost files relocated;
+  renaming the project (its levels' folder too); restoring a backup; Ogmo 3 import.
+- The rule editor's per-control help tips (one help text today).
+
+The user's decisions (2026-10-24), kept: phases each released; LDtk's tools adapting to the layer
+type; LDtk's panels as the bottom tabs (Console and Output at the end); edits in memory, written on
+Save, Play and exports; the menu bar and mode bar kept; the editor's theme; several worlds with a
+world picker.
+
+**The user's correction (2026-10-25), done the same day:** "The UI needs to be consistent with
+the Scene UI. List items in the panels need to be the same size. Toolbar buttons as well. The
+Level editor looks like a different app. That wasn't my intention." The mockup gives the
+arrangement only, not its sizes: the Level mode uses the editor's shared widgets and sizes. Its
+tools are on the editor's toolbar (the Scene mode's buttons, sizes, overflow, file, undo, play and
+Export buttons; no 75 px tool row of 45 px buttons); its Levels and Layers sidebars have the
+panels' headers and the scene tree's rows (`settings.rowHeight`, not 60 px rows; a layer dragged
+by its row, not a grip), the Scene mode's sidebar widths and fitting (no 300 px sidebars, no
+one-sidebar narrow layout). And the bottom tabs that manage a list (World, Level, Layers,
+Entities, Enums, Tilesets, Auto-layer Rules; the Project tab without a list) share one layout,
+the user's sketch: the tab strip, a toolbar row (the list's buttons and a text), then the list in
+a resizable sidebar beside the selected item's settings in the inspector's rows (a dropdown in a
+narrow panel): view_list_tab.odin.
 
 ## Code editor integration (asked 2026-10-23; done 2026-10-24)
 

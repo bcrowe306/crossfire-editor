@@ -119,12 +119,9 @@ coloredTree :: proc(
 	st := skald.widget_get(ctx, id, .Tree)
 	focused := skald.widget_has_focus(ctx, id)
 
-	fs := th.font.size_md
 	rh := row_height
-	indent := th.spacing.lg
-	CHEVRON_WIDTH :: f32(16)
+	indent := TREE_INDENT(th)
 	padX := th.spacing.sm
-	iconGap := th.spacing.xs
 	rect := st.last_rect
 
 	selectedRow := -1
@@ -146,7 +143,7 @@ coloredTree :: proc(
 		if i >= 0 && i < len(rows) {
 			r := rows[i]
 			chevronX := rect.x + padX + f32(r.depth) * indent
-			onChevron := mouse.x >= chevronX && mouse.x < chevronX + CHEVRON_WIDTH
+			onChevron := mouse.x >= chevronX && mouse.x < chevronX + TREE_CHEVRON_WIDTH
 			if r.expandable && onChevron {
 				skald.send(ctx, on_toggle(i))
 			} else {
@@ -192,40 +189,146 @@ coloredTree :: proc(
 	skald.widget_set(ctx, id, st)
 
 	views := make([]skald.View, len(rows), context.temp_allocator)
-	for r, i in rows {
-		bg := skald.Color{}
-		iconColor := r.iconColor[3] > 0 ? r.iconColor : th.color.fg_muted
-		labelColor := r.labelColor[3] > 0 ? r.labelColor : th.color.fg
-		chevronColor := th.color.fg_muted
-		switch {
-		case r.selected && focused:
-			bg = th.color.primary
-			iconColor, labelColor, chevronColor = th.color.on_primary, th.color.on_primary, th.color.on_primary
-		case r.selected:
-			bg = skald.selected_inactive_bg_for(th^)
-		case focused && i == cursor:
-			bg = th.color.selection
-		}
-		chevron := r.expandable ? (r.expanded ? "▼" : "▶") : "  "
-		children := make([dynamic]skald.View, context.temp_allocator)
-		append(&children,
-			skald.spacer(padX + f32(r.depth) * indent),
-			skald.col(skald.text(chevron, chevronColor, fs), width = CHEVRON_WIDTH, height = rh, main_align = .Center, cross_align = .Center),
-		)
-		if r.icon != "" do append(&children, skald.spacer(iconGap), skald.text(r.icon, iconColor, fs))
-		append(&children, skald.spacer(iconGap), skald.text(r.label, labelColor, fs))
-		if r.badge != "" {
-			badgeColor := r.selected ? th.color.on_primary : (r.badgeColor[3] > 0 ? r.badgeColor : th.color.fg_muted)
-			append(&children, skald.spacer(iconGap * 2), skald.text(r.badge, badgeColor, th.font.size_xs))
-		}
-		append(&children, skald.flex(1, skald.spacer(0)))
-		views[i] = skald.row(..children[:], height = rh, cross_align = .Center, bg = bg, radius = th.radius.sm)
-	}
+	for r, i in rows do views[i] = Tree_RowView(th, r, rh, focused, focused && i == cursor)
 	// A bare zone, as skald.tree does: it records the rect under `id` without `skald.zone`'s click
 	// state, which would claim the slot with another widget kind and reset this tree's state
 	content := new(skald.View, context.temp_allocator)
 	content^ = skald.col(..views, cross_align = .Stretch)
 	return skald.View_Zone{id = id, child = content}
+}
+
+// A row of `rowList`: a tree row's look, its own widget key and what a press on it sends
+ListRow :: struct {
+	row: ColoredTreeRow,
+	// The row's widget key (a zone: tests click it; temp)
+	key: string,
+	// Sent by a press on the row, and by Up / Down / Home / End reaching it (nil: nothing)
+	pick: Msg,
+	// Views at the row's end (an eye), and the zones among them whose presses aren't the row's
+	trailing: []skald.View,
+	exclude: []skald.Widget_ID,
+}
+
+// What a press on a `rowList` was: the row (-1 none), a double-click, the right button
+RowListPress :: struct {
+	row: int,
+	double, right: bool,
+}
+
+/*
+A list whose rows look and behave like the scene tree's (`Tree_RowView`: the same height, font,
+indent, selection colors), each row a zone of its own key, so lists that aren't trees (the Level
+mode's levels, layers and its bottom tabs' items) are the editor's lists. A left press on a row
+sends its `pick` and gives the list the keyboard; while it has it, Up / Down / Home / End pick
+the next row. The list is focusable under `key` (its rows `rows[i].key`).
+
+Inputs:
+- key: The list's widget key
+- rows: Its rows
+- rowHeight: `settings.rowHeight`
+
+Returns:
+- view: The rows (put them in a scroll with `reveal_focus = false`)
+- press: The row pressed this frame, a double-click, a right press (the caller opens a menu)
+*/
+rowList :: proc(ctx: ^skald.Ctx(Msg), key: string, rows: []ListRow, rowHeight: f32) -> (view: skald.View, press: RowListPress) {
+	th := ctx.theme
+	id := skald.hash_id(key)
+	skald.widget_make_focusable(ctx, id)
+	focused := skald.widget_has_focus(ctx, id)
+	press.row = -1
+	blocked := ctx.widgets.modal_rect_prev.w > 0 || skald.mouse_over_overlay(ctx) || len(ctx.widgets.overlay_rects_prev) > 0
+	selected := -1
+	for r, i in rows do if r.row.selected && selected < 0 do selected = i
+	views := make([]skald.View, len(rows), context.temp_allocator)
+	for r, i in rows {
+		rowId := skald.hash_id(r.key)
+		hovered := !blocked && skald.widget_hovered(ctx, rowId)
+		for other in r.exclude do if skald.widget_hovered(ctx, other) do hovered = false
+		if hovered && ctx.input.mouse_pressed[.Left] {
+			press = {row = i, double = ctx.input.mouse_click_count[.Left] >= 2}
+			if r.pick != nil do skald.send(ctx, r.pick)
+			skald.widget_focus(ctx, id)
+			focused = true
+		} else if hovered && ctx.input.mouse_pressed[.Right] {
+			press = {row = i, right = true}
+		}
+		child := new(skald.View, context.temp_allocator)
+		child^ = Tree_RowView(th, r.row, rowHeight, focused, false, ..r.trailing)
+		views[i] = skald.View_Zone{id = rowId, child = child}
+	}
+	// The keyboard: the next row
+	if focused && len(rows) > 0 && press.row < 0 {
+		keys := ctx.input.keys_pressed
+		to := -1
+		switch {
+		case .Down in keys: to = min(selected + 1, len(rows) - 1)
+		case .Up in keys:   to = max(selected - 1, 0)
+		case .Home in keys: to = 0
+		case .End in keys:  to = len(rows) - 1
+		}
+		if to >= 0 && to != selected && rows[to].pick != nil do skald.send(ctx, rows[to].pick)
+	}
+	content := new(skald.View, context.temp_allocator)
+	content^ = skald.col(..views, cross_align = .Stretch)
+	return skald.View_Zone{id = id, child = content}, press
+}
+
+// The width of a tree row's chevron column
+TREE_CHEVRON_WIDTH :: f32(16)
+
+// How far a tree row moves right per level of depth
+TREE_INDENT :: proc(th: ^skald.Theme) -> f32 {
+	return th.spacing.lg
+}
+
+/*
+One tree row as the browser and the scene tree draw it (`coloredTree`): its indent, chevron, icon,
+label, badge and anything `trailing` after them (the Level mode's layer eye), on the selection's
+color. Lists that aren't trees (the Level mode's sidebars and its bottom tabs' lists) draw their rows
+with it, so every list in the editor has one look.
+
+Inputs:
+- th: The theme
+- r: The row
+- rowHeight: The row's height (`settings.rowHeight`)
+- focused: The list has the keyboard: the selected row is in the accent color (else the
+  inactive selection's)
+- cursor: The keyboard's row (highlighted while focused)
+- trailing: Views at the row's end
+*/
+Tree_RowView :: proc(th: ^skald.Theme, r: ColoredTreeRow, rowHeight: f32, focused, cursor: bool, trailing: ..skald.View) -> skald.View {
+	fs := th.font.size_md
+	padX := th.spacing.sm
+	iconGap := th.spacing.xs
+	bg := skald.Color{}
+	iconColor := r.iconColor[3] > 0 ? r.iconColor : th.color.fg_muted
+	labelColor := r.labelColor[3] > 0 ? r.labelColor : th.color.fg
+	chevronColor := th.color.fg_muted
+	switch {
+	case r.selected && focused:
+		bg = th.color.primary
+		iconColor, labelColor, chevronColor = th.color.on_primary, th.color.on_primary, th.color.on_primary
+	case r.selected:
+		bg = skald.selected_inactive_bg_for(th^)
+	case cursor:
+		bg = th.color.selection
+	}
+	chevron := r.expandable ? (r.expanded ? "▼" : "▶") : "  "
+	children := make([dynamic]skald.View, context.temp_allocator)
+	append(&children,
+		skald.spacer(padX + f32(r.depth) * TREE_INDENT(th)),
+		skald.col(skald.text(chevron, chevronColor, fs), width = TREE_CHEVRON_WIDTH, height = rowHeight, main_align = .Center, cross_align = .Center),
+	)
+	if r.icon != "" do append(&children, skald.spacer(iconGap), skald.text(r.icon, iconColor, fs))
+	append(&children, skald.spacer(iconGap), skald.text(r.label, labelColor, fs))
+	if r.badge != "" {
+		badgeColor := r.selected ? th.color.on_primary : (r.badgeColor[3] > 0 ? r.badgeColor : th.color.fg_muted)
+		append(&children, skald.spacer(iconGap * 2), skald.text(r.badge, badgeColor, th.font.size_xs))
+	}
+	append(&children, skald.flex(1, skald.spacer(0)))
+	if len(trailing) > 0 do append(&children, ..trailing)
+	return skald.row(..children[:], height = rowHeight, cross_align = .Center, bg = bg, radius = th.radius.sm)
 }
 
 /*
@@ -270,6 +373,11 @@ SCENE_COLOR :: skald.Color{0.36, 0.62, 1.0, 1}
 // Components (browser rows, instance nodes): a scene's blue toward violet
 COMPONENT_COLOR :: skald.Color{0.55, 0.5, 1.0, 1}
 SCRIPT_COLOR :: skald.Color{0.55, 0.85, 0.35, 1}
+
+// An asset kind's color (the browser's): the Level mode's level rows are the LDtk files' color
+AssetKind_Color :: proc(kind: AssetKind) -> skald.Color {
+	return assetKindColor(kind)
+}
 
 @(private="file")
 assetKindColor :: proc(kind: AssetKind) -> skald.Color {

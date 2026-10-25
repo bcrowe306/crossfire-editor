@@ -1,0 +1,124 @@
+# Phase 5 of the LDtk level editor (ldtk_level_ops.odin, ldtk_project_ops.odin, level_world_tools.odin,
+# level_select.odin, level_fields_render.odin, view_ldtk_project.odin): a new level picked on the
+# canvas, renamed, given a background color, duplicated, deleted; the canvas's right-click menu; a
+# world added (Multi-worlds) and undone; the Project tab's options (minified JSON on and off);
+# LDtk's selection (a rectangle selected and deleted, undone); a tile selection saved; LDtk's panel
+# and layer keys; saved.
+# Run with: task test:ui
+#
+# The fixture tests/fixtures/ldtk_world/world.ldtk: Start (0, 0, 256 x 128) and Cave (256, 0)
+# side by side, Tower (0, 128) under Start, a Free world making 128 x 64 levels named Level_%idx;
+# layers Entities (uid 1), Tiles (2, tileset 5: 2 x 2 tiles), Walls (3); coin1 in Start at (104, 72).
+
+wait 5
+key ctrl+alt+2
+expect mode Level
+import tests/fixtures/ldtk_world/world.ldtk
+wait_until level levels 3
+wait_until widget_visible ldtk-map-Level true
+
+# A new level: the World tab's New Level, then a click where it goes (LDtk's spot picker)
+send Bottom_Tab World
+scroll_into_view ldtk-tab-scroll ldtk-world-new-level
+click_widget ldtk-world-new-level
+expect level spot yes
+level_world_click 320 190
+wait_until level levels 4
+expect level spot no
+expect level level Level_3
+expect ldtk levels.identifier=Level_3.pxWid 128
+expect ldtk levels.identifier=Level_3.pxHei 64
+expect level unsaved yes
+# Undo takes it away, redo brings it back
+action Undo
+wait_until level levels 3
+action Redo
+wait_until level levels 4
+scroll_into_view level-list-scroll level-row-3
+click_widget level-row-3
+expect level level Level_3
+
+# The Level tab: its automatic name off (LDtk names new levels by the project's pattern), its name
+# typed, its background color
+send Bottom_Tab Level
+scroll_into_view ldtk-tab-scroll ldtk-level-auto
+click_widget ldtk-level-auto
+wait_until ldtk levels.identifier=Level_3.useAutoIdentifier false
+scroll_into_view ldtk-tab-scroll ldtk-level-identifier
+click_widget ldtk-level-identifier
+key ctrl+a
+type Bonus
+wait_until ldtk levels.identifier=Bonus.useAutoIdentifier false
+key escape
+expect level level Bonus
+scroll_into_view ldtk-tab-scroll ldtk-level-bg
+click_widget ldtk-level-bg
+key ctrl+a
+type #336699
+wait_until ldtk levels.identifier=Bonus.bgColor #336699
+key escape
+expect ldtk levels.identifier=Bonus.__bgColor #336699
+# Duplicated (a copy beside it), then the copy deleted
+scroll_into_view ldtk-tab-scroll ldtk-level-duplicate
+click_widget ldtk-level-duplicate
+wait_until level levels 5
+scroll_into_view ldtk-tab-scroll ldtk-level-delete
+click_widget ldtk-level-delete
+wait_until level levels 4
+expect ldtk levels.identifier=Bonus.bgColor #336699
+
+# The canvas's right-click menu on a level: Duplicate, Delete, New Level Here
+click_widget level-row-0
+level_world_click 40 40 right
+expect context_menu open
+expect context_item Duplicate enabled
+expect context_item Delete enabled
+key escape
+
+# A world added (LDtk's Multi-worlds turned on), undone
+send Bottom_Tab World
+scroll_into_view ldtk-tab-scroll ldtk-world-add
+click_widget ldtk-world-add
+wait_until ldtk flags.0 MultiWorlds
+expect ldtk worlds.1.identifier World2
+action Undo
+wait_until ldtk flags.0 missing
+
+# The Project tab: minified JSON on (the file written without spaces), off again
+send Bottom_Tab LDtk_Project
+scroll_into_view ldtk-tab-scroll ldtk-project-minifyJson
+click_widget ldtk-project-minifyJson
+wait_until ldtk minifyJson true
+click_widget ldtk-project-minifyJson
+wait_until ldtk minifyJson false
+
+# LDtk's selection on the focused Start: Shift + Alt drag a rectangle around coin1, Delete
+double_click_widget level-row-0
+expect level focus Start
+key 1
+expect level layer Entities
+level_drag_world 90 60 130 100 shift alt
+wait_until level selection 1
+key delete
+wait_until level_entities Start 2
+expect level selection 0
+action Undo
+wait_until level_entities Start 3
+
+# A tile selection saved (Shift+S), on the Tiles layer (key 2)
+key 2
+expect level layer Tiles
+level_palette_tiles 5 0 1
+key shift+s
+wait_until ldtk defs.tilesets.uid=5.savedSelections.0.ids [0,1]
+
+# LDtk's panel keys: E the Entities tab, again: the panel closes; P the Project tab
+key e
+expect level tab Entities
+key p
+expect level tab LDtk_Project
+
+# Saved: the file on disk has the new level
+key ctrl+s
+wait_until level unsaved no
+expect ldtk_disk levels.identifier=Bonus.bgColor #336699

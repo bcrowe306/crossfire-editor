@@ -1,7 +1,7 @@
 ---
 title: Localization
 description: Translate your game's text into other languages with CSV translation tables, "@key" texts in labels, buttons and menus, and Tr(key) in scripts.
-order: 30
+order: 34
 ---
 
 # Localization

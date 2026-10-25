@@ -64,6 +64,10 @@ copy: `open_project {project}`).
 	                                 starts so: Down to it, then Return
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
+	hover_at <key> <fx> <fy>         Move the pointer there (no button): a rule's pattern, a cell of
+	                                 the Level mode's canvas
+	drag_to <from key> <to key> [fy] Press at a widget's center, move to another's (fy: how far
+	                                 down it, 0 to 1), release: a rule's or group's grip to a row
 	scroll_by <scroll key> <dy>      Scroll a scroll container by dy pixels (0 or less: to the top)
 	if_drawn <key> <command>         Run the command only if the widget was drawn last frame (layouts
 	                                 that depend on the window: the toolbar's overflow, toolbar-more)
@@ -81,6 +85,16 @@ copy: `open_project {project}`).
 	                                 center by world pixels (shift: held)
 	drag_entity <iid> <dx> <dy> [shift]   The same for an entity (shift: off its grid)
 	click_entity <iid>               Click an entity on the Level mode's canvas
+	level_hover <cx> <cy>            Move the pointer over a cell of the focused level's selected
+	                                 layer (the Auto-layer Rules tab highlights the rules there)
+	level_paint c1 r1 c2 r2 [right] [shift] [alt] [ctrl]
+	                                 A stroke on the Level mode's focused level, between two cells
+	                                 of its selected layer (centers), holding the keys given (right:
+	                                 the right button); c1 r1 = c2 r2 is a click
+	level_drag_world x1 y1 x2 y2 [right] [shift]   The same between two points of the focused level
+	                                 (its pixels: entities' handles, points)
+	level_palette_tiles <tileset uid> <id>...   Pick tiles in the palette (Level_Tiles_Picked)
+	level_world_click <x> <y> [right] [double]   Click a world point of the Level mode's canvas
 	paint_cells c1 r1 c2 r2 [right]  A stroke between two cells of the selected TileMap (the Tiles panel's layer)
 	click_state <i>                  Click state i's box in the States tab's graph
 	drag_state <i> <dx> <dy>         Drag state i's box by (dx, dy) pixels
@@ -128,9 +142,11 @@ copy: `open_project {project}`).
 	                                 then release (the code tab must have the keyboard: code_click)
 	double_click_widget <key>        Double-click the center of a widget's visible part
 	wheel_widget <key> <steps>       Turn the wheel over a widget (positive: up / back)
-	scroll_into_view <scroll key> <widget key>
+	scroll_into_view <scroll key> <widget key> [top]
 	                                 Scroll so the widget is in view, e.g.
-	                                 scroll_into_view inspector-scroll inspector-new-script
+	                                 scroll_into_view inspector-scroll inspector-new-script; `top`
+	                                 puts it at the view's top (what's below it in view too: a
+	                                 drag's target); a widget drawn outside the scroll passes
 	right_click_row <tree key> <row> Right-click a row (opens the scene tree's context menu)
 	click_context_item <label>[/<label>]  Choose an item of the open context menu (context_menus.odin)
 	                                 by its label, or the start of it ("Open Script" for "Open
@@ -180,7 +196,16 @@ copy: `open_project {project}`).
 	                                 Right_Sidebar_Width <px> (the inspector's sidebar, as its
 	                                 divider dragged; at least MIN_SIDEBAR_WIDTH),
 	                                 Particles_Category_Picked <i> (the Particles tab's category),
-	                                 Particles_Preset_Applied <name> (a preset, by name)
+	                                 Particles_Preset_Applied <name> (a preset, by name),
+	                                 Level_World_Chosen <iid> (the Level mode's world),
+	                                 LDtk_Item_Picked <Tab> <uid> (a definitions tab's item),
+	                                 LDtk_Def_Picked <Field | Level_Field | Tileset> <uid> or
+	                                 LDtk_Def_Picked Tile_Tag [value] (the tilesets' tile data mode),
+	                                 Bottom_Tab <Tab> (the shown mode's bottom tab: one scrolled
+	                                 out of the strip's view), Level_Tool_Picked <Tool> (the tool
+	                                 row's, in its overflow menu in a narrow window),
+	                                 Level_Layer_Picked <layer uid>, Level_Value_Picked <layer uid>
+	                                 <value>, Level_Entity_Type_Picked <uid> (the palette's)
 	archive_project <path>           Export Project Archive to a file, as if picked in its dialog
 	open_archive <archive> | <folder>
 	                                 Open Project Archive: unpack the archive into the folder (as
@@ -272,16 +297,47 @@ Checks:
 	project <name>               The open project's name
 	ldtk_level <identifier|first>    The selected LDtkLevel node's level
 	mode <Scene | Level>         The editor mode that shows (editor_modes.odin)
-	level <file | level | tab | levels | shown_in | entity | ldtk_tab | problem | conflict | outside> <value>
+	level <file | level | tab | levels | shown_in | entity | problem | conflict | outside> <value>
 	                             The Level mode (level_mode.odin): its world's file, the selected
-	                             level (none), its bottom tab, how many levels its world has, how
+	                             level (none), its bottom tab, how many levels the document has, how
 	                             many scenes show the selected level, the selected entity's iid
-	                             (none), the LDtk tab's section, why the last LDtk edit wasn't
-	                             written (none), the conflict dialog (open | closed), whether
-	                             the file changed outside the editor (yes | no)
-	ldtk [<file>:]<json path> <value>  A value of the Level mode's LDtk project on disk (Json_Path:
-	                             `levels.identifier=Start.worldX`; <file>: one beside it, a .ldtkl),
-	                             as JSON without spaces (strings bare; `missing`)
+	                             (none), why the last LDtk edit wasn't made (none), the conflict
+	                             dialog (open | closed), whether the file changed outside the
+	                             editor (yes | no)
+	level <selection | spot | depth> <value>
+	                             The selection's elements (level_select.odin), whether a new level's
+	                             spot is being picked (yes | no), the world depth shown
+	level <world | focus | tool | layer | layer_type | unsaved | disk_conflict | sidebars> <value>
+	                             The shown world's name, the focused level (none), the tool, the
+	                             selected layer and its type, whether the document has unsaved edits
+	                             or a clash with LDtk's change on disk (yes | no), the Levels and
+	                             Layers sidebars' widths ("240 300": fitted as the Scene mode's)
+	ldtk [<file>:]<json path> <value>  A value of the Level mode's LDtk project as the editor has it
+	                             (unsaved edits included; Json_Path: `levels.identifier=Start.worldX`;
+	                             <file>: one beside it, a .ldtkl), as JSON without spaces (strings
+	                             bare; `missing`)
+	ldtk_disk [<file>:]<json path> <value>  The same, of the file on disk
+	level <value | tiles | random | flip | grid | single_layer | stacking | auto_layers | stroke |
+	       pick | entity_type> <value>
+	                             Painting (level_paint.odin): the selected layer's IntGrid value,
+	                             the picked tile ids (`[8, 9]`), random tiles (on | off), the flips
+	                             (`x-`, `xy`, `--`), the grid, the faded layers, tile stacking, the
+	                             auto-layer tiles shown (on | off), the stroke (None, Grid, Resize...),
+	                             a pick waiting (None, Ref, Point), the entity type Place puts (-1)
+	rules <page | rule | last | value | layer | clip | renaming | stamp | help | perlin_preview |
+	       assistant_main | assistant_other | assistant_part | assistant_tiles | name | marks |
+	       highlighted | open <group uid>> <value>
+	                             The Auto-layer Rules tab (level_rules.odin): its page (List,
+	                             Editor, Assistant...), the edited rule's and the last rule's uids,
+	                             the editor's value, the layer shown (uid), the clipboard (None, Rule,
+	                             Group), the group being renamed, the stamp picked, the help and the
+	                             Perlin preview (on | off), the Assistant's choices (a part's tiles:
+	                             `0,1`), the name typed, the cells outlined on the canvas, how many
+	                             rules the canvas's pointer highlights, a group open (yes | no)
+	ldtk_cell <level> <layer> <cx> <cy> <value>   An IntGrid cell of the document as the editor has it
+	ldtk_tiles <level> <layer> <cx> <cy> <ids>    A cell's tile ids, bottom first (`8,16`; none)
+	ldtk_count <json path> <n | >n>  How many items a document's array has (more than n)
+	level_entities <level> <n>   How many entities a level has
 	about_dialog <open | closed>, confirm_dialog <open | closed>, new_project_dialog <open | closed>
 	settings_dialog <open | closed>
 	setting <font_size | spacing | row_height | theme | undo_merge_ms | undo_limit | console_limit> <value>
@@ -1057,6 +1113,122 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		report(true, line)
 		return false
 
+	case "level_world_click":
+		// level_world_click <x> <y> [right] [double]: a click at a world point of the Level mode's
+		// canvas (a new level's spot, the canvas's right-click menu)
+		p, ok := LevelCanvas_WorldToWindow(s, ctx, {f32(atoi(args, 0, 0)), f32(atoi(args, 1, 0))})
+		if !ok || len(args) < 2 {
+			fail(fmt.tprintf("%s: the canvas hasn't been drawn, or not enough numbers", line))
+			return true
+		}
+		button := sdl.BUTTON_LEFT
+		clicks := 1
+		for arg in args[2:] {
+			if arg == "right" do button = sdl.BUTTON_RIGHT
+			if arg == "double" do clicks = 2
+		}
+		pushMouse(.MOUSE_MOTION, p)
+		for _ in 0 ..< clicks {
+			queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, p, button))
+			queueBatch(mouseEvent(.MOUSE_BUTTON_UP, p, button))
+		}
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "level_hover":
+		// level_hover cx cy: the pointer over a cell of the focused level's selected layer (no button)
+		m := LevelPaint_Current()
+		doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+		if m == nil || doc == nil || len(args) < 2 {
+			fail(fmt.tprintf("%s: no focused level, or not enough numbers", line))
+			return true
+		}
+		r := LDtkDoc_LevelRect(doc, m.level)
+		l, _ := LevelPaint_Layer(s, m)
+		grid, off := f32(16), [2]int{}
+		if l != nil do grid, off = f32(m.defs[l.def].gridSize), LDtkLayer_Offset(m, l)
+		p, ok := LevelCanvas_WorldToWindow(s, ctx, {f32(r[0]) + (f32(atoi(args, 0, 0)) + 0.5) * grid + f32(off.x), f32(r[1]) + (f32(atoi(args, 1, 0)) + 0.5) * grid + f32(off.y)})
+		if !ok {
+			fail(fmt.tprintf("%s: the canvas hasn't been drawn", line))
+			return true
+		}
+		pushMouse(.MOUSE_MOTION, p)
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "level_paint", "level_drag_world":
+		// level_paint c1 r1 c2 r2 [mods] / level_drag_world x1 y1 x2 y2 [mods]: a stroke on the
+		// focused level (cells of the selected layer, or level pixels)
+		m := LevelPaint_Current()
+		doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+		if m == nil || doc == nil || len(args) < 4 {
+			fail(fmt.tprintf("%s: no focused level, or not enough numbers", line))
+			return true
+		}
+		r := LDtkDoc_LevelRect(doc, m.level)
+		world :: proc(s: ^State, m: ^LDtkLevelModel, r: [4]f64, x, y: int, cells: bool) -> [2]f32 {
+			if !cells do return {f32(r[0]) + f32(x), f32(r[1]) + f32(y)}
+			l, _ := LevelPaint_Layer(s, m)
+			grid, off := f32(16), [2]int{}
+			if l != nil do grid, off = f32(m.defs[l.def].gridSize), LDtkLayer_Offset(m, l)
+			return {f32(r[0]) + (f32(x) + 0.5) * grid + f32(off.x), f32(r[1]) + (f32(y) + 0.5) * grid + f32(off.y)}
+		}
+		cells := command == "level_paint"
+		a, okA := LevelCanvas_WorldToWindow(s, ctx, world(s, m, r, atoi(args, 0, 0), atoi(args, 1, 0), cells))
+		b, okB := LevelCanvas_WorldToWindow(s, ctx, world(s, m, r, atoi(args, 2, 0), atoi(args, 3, 0), cells))
+		if !okA || !okB {
+			fail(fmt.tprintf("%s: the canvas hasn't been drawn", line))
+			return true
+		}
+		mods: sdl.Keymod
+		button := sdl.BUTTON_LEFT
+		for arg in args[4:] {
+			switch arg {
+			case "right": button = sdl.BUTTON_RIGHT
+			case "shift": mods += {.LSHIFT}
+			case "alt":   mods += {.LALT}
+			case "ctrl":  mods += PRIMARY_KEYMOD
+			}
+		}
+		pushMouse(.MOUSE_MOTION, a)
+		held := [3]sdl.Scancode{.LSHIFT, .LALT, PRIMARY_KEYMOD == {.LGUI} ? .LGUI : .LCTRL}
+		heldMods := [3]sdl.Keymod{{.LSHIFT}, {.LALT}, PRIMARY_KEYMOD}
+		for k, i in held do if heldMods[i] <= mods {
+			ev: sdl.Event
+			ev.type = .KEY_DOWN
+			ev.key.scancode = k
+			ev.key.key = sdl.GetKeyFromScancode(k, {}, false)
+			ev.key.mod = mods
+			ev.key.down = true
+			queueBatch(ev)
+		}
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, a, button))
+		if a != b {
+			STEPS :: 6
+			for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
+		}
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b, button))
+		for k, i in held do if heldMods[i] <= mods {
+			ev: sdl.Event
+			ev.type = .KEY_UP
+			ev.key.scancode = k
+			ev.key.key = sdl.GetKeyFromScancode(k, {}, false)
+			queueBatch(ev)
+		}
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "level_palette_tiles":
+		ids := make([dynamic]int, context.temp_allocator)
+		for i in 1 ..< len(args) do append(&ids, atoi(args, i, 0))
+		skald.send(ctx, Msg(Level_Tiles_Picked{tileset = atoi(args, 0, 0), ids = ids[:]}))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
 	case "click_state", "drag_state":
 		node, _ := States_Machine(s)
 		i := atoi(args, 0, 0)
@@ -1227,6 +1399,49 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		}
 		r := items[index]
 		click({r.x + r.w * 0.5, r.y + r.h * 0.5})
+		report(true, line)
+		return false
+
+	case "drag_to":
+		// drag_to <from key> <to key> [fy]: press at a widget's center, move to another's (fy: how
+		// far down it, 0 to 1; the middle by default), release
+		if len(args) < 2 {
+			fail(fmt.tprintf("%s: expected two widget keys", line))
+			return true
+		}
+		from, okA := widgetRect(ctx, args[0])
+		to, okB := widgetRect(ctx, args[1])
+		if !okA || !okB {
+			fail(fmt.tprintf("%s: both widgets must have been drawn last frame", line))
+			return true
+		}
+		fy := f32(0.5)
+		if len(args) > 2 do fy, _ = strconv.parse_f32(args[2])
+		a := [2]f32{from.x + from.w * 0.5, from.y + from.h * 0.5}
+		b := [2]f32{to.x + to.w * 0.5, to.y + to.h * fy}
+		pushMouse(.MOUSE_MOTION, a)
+		queueBatch(mouseEvent(.MOUSE_BUTTON_DOWN, a))
+		STEPS :: 6
+		for i in 1..=STEPS do queueBatch(mouseEvent(.MOUSE_MOTION, a + (b - a) * f32(i) / STEPS))
+		queueBatch(mouseEvent(.MOUSE_BUTTON_UP, b))
+		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "hover_at":
+		if len(args) < 3 {
+			fail(fmt.tprintf("%s: expected a widget key and two fractions", line))
+			return true
+		}
+		rect, ok := widgetRect(ctx, args[0])
+		if !ok {
+			fail(fmt.tprintf("%s: no widget with key '%s' was drawn last frame", line, args[0]))
+			return true
+		}
+		fx, _ := strconv.parse_f32(args[1])
+		fy, _ := strconv.parse_f32(args[2])
+		pushMouse(.MOUSE_MOTION, {rect.x + rect.w * fx, rect.y + rect.h * fy})
+		driver.waitFrames = INPUT_SETTLE_FRAMES
 		report(true, line)
 		return false
 
@@ -1531,7 +1746,21 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		// At the end of the content (paging no longer moves it), visible is as good as it gets
 		atEnd := driver.scrollAttempts > 1 && scroll.scroll_y == driver.lastScrollY
 		driver.lastScrollY = scroll.scroll_y
-		if _, visible := widgetRect(ctx, args[1]); visible && (atEnd || clearOfEdges(ctx.widgets.states[skald.hash_id(args[1])].last_rect, area, scroll.scroll_y <= 0)) {
+		// A widget drawn outside the scroll (a bottom tab's toolbar row, over its content) is in view
+		if r, visible := widgetRect(ctx, args[1]); visible && (r.y + r.h <= area.y || r.y >= area.y + area.h || r.x + r.w <= area.x || r.x >= area.x + area.w) {
+			driver.scrollAttempts = 0
+			report(true, line)
+			return true
+		}
+		// `top`: the widget near the view's top (what's under it in view too: a drag's target below it)
+		top := len(args) > 2 && args[2] == "top"
+		TOP_MARGIN :: f32(8)
+		placed := clearOfEdges(ctx.widgets.states[skald.hash_id(args[1])].last_rect, area, scroll.scroll_y <= 0)
+		if top {
+			y := ctx.widgets.states[skald.hash_id(args[1])].last_rect.y
+			placed = y >= area.y && y <= area.y + TOP_MARGIN * 3
+		}
+		if _, visible := widgetRect(ctx, args[1]); visible && (atEnd || placed) {
 			driver.scrollAttempts = 0
 			report(true, line)
 			return true
@@ -1539,9 +1768,10 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		widget := ctx.widgets.states[skald.hash_id(args[1])]
 		if driver.scrollAttempts == 0 {
 			scroll.scroll_y = 0
-		} else if skald.widget_drawn_last_frame(ctx.widgets, widget) && widget.last_rect.h > 0 {
-			// Laid out (so its rect is current): center it
-			scroll.scroll_y = max(scroll.scroll_y + (widget.last_rect.y + widget.last_rect.h * 0.5) - (area.y + area.h * 0.5), 0)
+		} else if (top || skald.widget_drawn_last_frame(ctx.widgets, widget)) && widget.last_rect.h > 0 {
+			// Laid out (so its rect is current; a zone's always is): center it (or put it at the top)
+			at := top ? area.y + TOP_MARGIN + widget.last_rect.h * 0.5 : area.y + area.h * 0.5
+			scroll.scroll_y = max(scroll.scroll_y + (widget.last_rect.y + widget.last_rect.h * 0.5) - at, 0)
 		} else {
 			scroll.scroll_y += max(area.h * 0.6, 40)
 		}
@@ -1984,8 +2214,49 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 				msg = Center_Resized(layout.workspace.x - left - DIVIDER - width - DIVIDER)
 			}
 		// The LDtk tab's section (level_mode.odin), as its sidebar or (narrow) its choice would pick it
-		case "LDtk_Tab_Picked":
-			if tab, ok := reflect.enum_from_name(LDtkTab, value); ok do msg = LDtk_Tab_Picked(tab)
+		case "Level_World_Chosen":
+			msg = Level_World_Chosen(value)
+		// The definitions editors' picks (view_ldtk_defs.odin): a tab's item by uid
+		// ("<Tab> <uid>"), a field, level field or tileset by uid, the tile data mode ("" custom data)
+		case "LDtk_Item_Picked":
+			tabName, _, uidText := strings.partition(value, " ")
+			tab, ok := reflect.enum_from_name(BottomTab, tabName)
+			uid, uidOk := strconv.parse_int(uidText)
+			if ok && uidOk do msg = LDtk_Item_Picked{tab, uid}
+		case "LDtk_Def_Picked":
+			whatText, _, arg := strings.partition(value, " ")
+			switch whatText {
+			case "Field": if uid, ok := strconv.parse_int(arg); ok do msg = LDtk_Def_Picked{what = .Field, uid = uid}
+			case "Level_Field": if uid, ok := strconv.parse_int(arg); ok do msg = LDtk_Def_Picked{what = .Level_Field, uid = uid}
+			case "Tileset": if uid, ok := strconv.parse_int(arg); ok do msg = LDtk_Def_Picked{what = .Tileset, uid = uid}
+			case "Tile_Tag": msg = LDtk_Def_Picked{what = .Tile_Tag, text = strings.clone(arg, context.temp_allocator)}
+			}
+		// Painting (level_paint.odin): a tool by name (the row's overflow in a narrow window), a
+		// layer by its definition's uid, an IntGrid value of a layer ("<layer uid> <value>"), the
+		// entity type Place puts
+		case "Level_Tool_Picked":
+			if tool, ok := reflect.enum_from_name(LevelTool, value); ok do msg = Level_Tool_Picked(tool)
+		case "Level_Layer_Picked":
+			if uid, ok := strconv.parse_int(value); ok do msg = Level_Layer_Picked(uid)
+		case "Level_Value_Picked":
+			layer, _, v := strings.partition(value, " ")
+			l, okL := strconv.parse_int(layer)
+			n, okV := strconv.parse_int(v)
+			if okL && okV do msg = Level_Value_Picked{l, n}
+		case "Level_Entity_Type_Picked":
+			if uid, ok := strconv.parse_int(value); ok do msg = Level_Entity_Type_Picked(uid)
+		// The Auto-layer Rules tab's view (level_rules.odin): "<op> [uid] [number] [flag 0 | 1]"
+		case "Rules_View":
+			parts := strings.fields(value, context.temp_allocator)
+			if len(parts) > 0 {
+				if op, ok := reflect.enum_from_name(RulesViewOp, parts[0]); ok {
+					v := Rules_View{op = op, uid = -1}
+					if len(parts) > 1 do v.uid, _ = strconv.parse_int(parts[1])
+					if len(parts) > 2 do v.number, _ = strconv.parse_int(parts[2])
+					if len(parts) > 3 do v.flag = parts[3] == "1"
+					msg = v
+				}
+			}
 		case "Dialogue_Created":      msg = Dialogue_Created{}
 		// The docs window at an address (docs_window.odin), as a way in would open it
 		case "Docs_Opened":           msg = Docs_Opened(strings.clone(value, context.temp_allocator))
@@ -3444,6 +3715,49 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = s.project.name
 	case "mode":
 		found = fmt.tprint(s.mode)
+	case "rules":
+		// The Auto-layer Rules tab: `rules <field> <value>` (`rules open <uid> <yes | no>`)
+		field, _, wanted := strings.partition(strings.trim_space(value), " ")
+		r := &s.level.rules
+		onOff :: proc(b: bool) -> string { return b ? "on" : "off" }
+		switch field {
+		case "page":     found = fmt.tprint(r.page)
+		case "rule":     found = fmt.tprint(r.rule)
+		case "last":     found = fmt.tprint(r.last)
+		case "value":    found = fmt.tprint(r.value)
+		case "layer":
+			uid, _ := LevelRules_Layer(s, LDtkDoc_Get(s.project.rootPath, LevelMode_File(s)))
+			found = fmt.tprint(uid)
+		case "clip":     found = fmt.tprint(r.clipKind)
+		case "renaming": found = fmt.tprint(r.renaming)
+		case "stamp":    found = fmt.tprint(r.stamp)
+		case "help":     found = onOff(r.help)
+		case "perlin_preview": found = onOff(r.perlinPreview)
+		case "assistant_main":  found = fmt.tprint(r.assistant.main)
+		case "assistant_other": found = fmt.tprint(r.assistant.other)
+		case "assistant_part":  found = fmt.tprint(r.part)
+		case "assistant_tiles":
+			ids := make([dynamic]string, context.temp_allocator)
+			for id in r.assistant.tiles[r.part] do append(&ids, fmt.tprint(id))
+			found = len(ids) == 0 ? "none" : strings.join(ids[:], ",", context.temp_allocator)
+		case "name":     found = r.name
+		case "marks":    found = fmt.tprint(LevelRules_Marks())
+		case "highlighted":
+			uid, _ := LevelRules_Layer(s, LDtkDoc_Get(s.project.rootPath, LevelMode_File(s)))
+			found = fmt.tprint(len(LevelRules_AtPointer(uid)))
+		case "open":
+			group, _, want := strings.partition(wanted, " ")
+			uid, _ := strconv.parse_int(group)
+			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+			_, layer := LevelRules_Layer(s, doc)
+			groups := layer >= 0 ? LDtkRules_ReadGroups(LDtkDoc_Main(doc), layer) : nil
+			found = LevelRules_GroupOpen(s, groups[:], uid) ? "yes" : "no"
+			return found == want, found
+		case:
+			return false, fmt.tprintf("unknown rules field %q", field)
+		}
+		return found == wanted, found
+
 	case "level":
 		// The Level mode: `level <field> <value>`
 		field, _, wanted := strings.partition(strings.trim_space(value), " ")
@@ -3455,19 +3769,64 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
 			found = doc == nil ? "0" : fmt.tprint(len(doc.levels))
 		case "entity":   found = s.level.entity == "" ? "none" : s.level.entity
-		case "ldtk_tab": found = fmt.tprint(s.level.tab)
+		case "world":
+			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+			found = "none"
+			if doc != nil && doc.problem == "" do found, _ = LDtkDoc_WorldNames(doc, LevelMode_World(s, doc))
+		case "focus":    found = s.level.focus == "" ? "none" : s.level.focus
+		case "tool":     found = fmt.tprint(s.level.tool)
+		case "layer":
+			// The selected layer's identifier
+			doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+			def := LevelMode_LayerDef(s, doc)
+			found = "none"
+			if def >= 0 do found = Json_String(LDtkDoc_Main(doc), Json_Get(LDtkDoc_Main(doc), def, "identifier"))
+		case "layer_type": found = LevelMode_LayerType(s) == "" ? "none" : LevelMode_LayerType(s)
+		case "unsaved":  found = LDtkDoc_IsUnsaved(s.project.rootPath, LevelMode_File(s)) ? "yes" : "no"
+		case "disk_conflict":
+			_, clash := LDtkDoc_DiskConflict(s.project.rootPath, LevelMode_File(s))
+			found = clash ? "yes" : "no"
+		case "sidebars":
+			// The Levels and Layers sidebars' widths, as the Scene mode's fit (FittedSidebarWidths)
+			left, right := FittedSidebarWidths(Mode_LayoutOf(s, .Level))
+			found = fmt.tprintf("%.0f %.0f", left, right)
 		case "problem":  found = s.level.problem == "" ? "none" : s.level.problem
+		// Phase 5: the selection's elements, a new level's spot being picked, the depth shown
+		case "selection": found = fmt.tprint(len(s.level.selection))
+		case "spot":      found = s.level.spot ? "yes" : "no"
+		case "depth":     found = fmt.tprint(s.level.depth)
 		case "conflict": found = s.level.conflict.open ? "open" : "closed"
 		case "outside":
 			_, outside := LDtkDoc_Outside(s.project.rootPath, LevelMode_File(s))
 			found = outside ? "yes" : "no"
 		case "shown_in": found = fmt.tprint(len(LevelMode_ScenesShowing(s, LevelMode_File(s), s.level.level)))
+		// Painting (level_paint.odin): the selected layer's picked value, the picked tiles, the
+		// options, the stroke, a pick waiting, the type Place puts
+		case "value":
+			m := LevelPaint_Current()
+			l, _ := LevelPaint_Layer(s, m)
+			found = l == nil ? "none" : fmt.tprint(LevelPaint_Value(s, m, l))
+		case "tiles":
+			m := LevelPaint_Current()
+			l, _ := LevelPaint_Layer(s, m)
+			found = "none"
+			if l != nil do found = fmt.tprint(LevelPaint_Brush(s, m, l).ids)
+		case "random": found = s.level.paint.random ? "on" : "off"
+		case "flip":   found = fmt.tprintf("%s%s", s.level.paint.flipX ? "x" : "-", s.level.paint.flipY ? "y" : "-")
+		case "grid":   found = s.level.paint.noGrid ? "off" : "on"
+		case "single_layer": found = s.level.paint.singleLayer ? "on" : "off"
+		case "stacking": found = s.level.paint.noStacking ? "off" : "on"
+		case "auto_layers": found = s.level.paint.hideAutoLayers ? "off" : "on"
+		case "stroke": found = fmt.tprint(s.level.paint.stroke.kind)
+		case "pick":   found = fmt.tprint(s.level.paint.pick.kind)
+		case "entity_type": found = fmt.tprint(s.level.paint.entityDef)
 		case:            return false, fmt.tprintf("unknown level field %q", field)
 		}
 		return found == strings.trim_space(wanted), found
-	case "ldtk":
+	case "ldtk", "ldtk_disk":
 		// ldtk <json path> <value> / ldtk <file>:<json path> <value>: a value in the Level mode's
-		// LDtk project on disk (a file beside it: a .ldtkl), as JSON without spaces (strings bare)
+		// LDtk project as the editor has it (unsaved edits included; ldtk_disk: the file on disk),
+		// a file beside it: a .ldtkl; as JSON without spaces (strings bare)
 		path, _, wanted := strings.partition(strings.trim_space(value), " ")
 		file := LevelMode_File(s)
 		full := joinPath(s.project.rootPath, file, allocator = context.temp_allocator)
@@ -3475,14 +3834,68 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 			full = joinPath(filepath.dir(full), other, allocator = context.temp_allocator)
 			path = rest
 		}
-		data, err := os.read_entire_file(full, context.temp_allocator)
-		if err != nil do return false, fmt.tprintf("can't read %s", full)
-		doc, problem := Json_Parse(string(data), context.temp_allocator)
+		text := ""
+		if cached, found := LDtkDoc_CachedText(full); found && name == "ldtk" {
+			text = cached
+		} else {
+			data, err := os.read_entire_file(full, context.temp_allocator)
+			if err != nil do return false, fmt.tprintf("can't read %s", full)
+			text = string(data)
+		}
+		doc, problem := Json_Parse(text, context.temp_allocator)
 		if problem != "" do return false, problem
 		node := Json_Path(&doc, path)
 		if node < 0 do return strings.trim_space(wanted) == "missing", "missing"
 		found = Json_Kind(&doc, node) == .String ? Json_String(&doc, node) : jsonCompact(Json_Text(&doc, node))
 		return found == strings.trim_space(wanted), found
+	case "ldtk_cell", "ldtk_tiles", "ldtk_count", "level_entities":
+		// ldtk_cell <level> <layer> <cx> <cy> <value>: an IntGrid cell in the document (unsaved
+		// edits included); ldtk_tiles <level> <layer> <cx> <cy> <ids>: a cell's tile ids, bottom
+		// first ("none": empty); ldtk_count <json path> <n>: an array's length (`>n`: more than n);
+		// level_entities <level> <n>: the level's entities
+		doc := LDtkDoc_Get(s.project.rootPath, LevelMode_File(s))
+		if doc == nil || doc.problem != "" do return false, "no LDtk document"
+		parts := strings.fields(value, context.temp_allocator)
+		switch name {
+		case "ldtk_count":
+			if len(parts) < 2 do return false, "ldtk_count <path> <n>"
+			main := LDtkDoc_Main(doc)
+			n := Json_Count(main, Json_Path(main, parts[0]))
+			found = fmt.tprint(n)
+			if strings.has_prefix(parts[1], ">") {
+				least, _ := strconv.parse_int(parts[1][1:])
+				return n > least, found
+			}
+			return found == parts[1], found
+		case "level_entities":
+			if len(parts) < 2 do return false, "level_entities <level> <n>"
+			level := LDtkDoc_FindLevel(doc, parts[0])
+			if level < 0 do return false, "no such level"
+			found = fmt.tprint(len(LevelPaint_Entities(doc, level)))
+			return found == parts[1], found
+		}
+		if len(parts) < 5 do return false, "<level> <layer> <cx> <cy> <value>"
+		level := LDtkDoc_FindLevel(doc, parts[0])
+		if level < 0 do return false, "no such level"
+		file, array := LDtkDoc_LayerInstances(doc, level)
+		json := LDtkDoc_Json(doc, file)
+		li := -1
+		for item in Json_Items(json, array) do if Json_String(json, Json_Get(json, item, "__identifier")) == parts[1] do li = item
+		if li < 0 do return false, "no such layer"
+		cx, _ := strconv.parse_int(parts[2])
+		cy, _ := strconv.parse_int(parts[3])
+		cw := Json_Int(json, Json_Get(json, li, "__cWid"))
+		coord := cx + cy * cw
+		if name == "ldtk_cell" {
+			found = fmt.tprint(Json_Int(json, Json_At(json, Json_Get(json, li, "intGridCsv"), coord)))
+			return found == parts[4], found
+		}
+		ids := make([dynamic]string, context.temp_allocator)
+		for t in Json_Items(json, Json_Get(json, li, "gridTiles")) {
+			if Json_Int(json, Json_At(json, Json_Get(json, t, "d"), 0), -1) == coord do append(&ids, Json_Text(json, Json_Get(json, t, "t")))
+		}
+		found = len(ids) == 0 ? "none" : strings.join(ids[:], ",", context.temp_allocator)
+		return found == parts[4], found
 	case "ldtk_level":
 		// The selected node's LDtk level ("" shows as "first")
 		if selected == nil do return false, "nothing selected"

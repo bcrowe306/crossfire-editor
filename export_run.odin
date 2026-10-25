@@ -77,6 +77,8 @@ Export_Start :: proc(state: ^State, targets: bit_set[ExportTarget]) -> skald.Com
 		return {}
 	}
 	if !CodeTabs_SaveAll(state) do return {}
+	// The Level mode's unsaved LDtk edits: exports take the files (ldtk_doc.odin)
+	if !LDtkDocs_SaveProject(state) do return {}
 	_ = Shaders_Compile(state)
 	_ = Fonts_MakeMSDF(state)
 	if message := Project_Save(&state.project); message != "" {

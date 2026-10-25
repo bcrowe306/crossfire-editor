@@ -1,15 +1,16 @@
 package crossfire_editor
 
 import "core:fmt"
+import "core:hash"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:time"
+import e "engine:."
 
 /*
-An LDtk project as the LDtk tab edits it: its files' JSON, kept as written (ldtk_json.odin), with
-where its worlds, levels, layers and entities are. ldtk_ops.odin's edits change it and write it
-back (`LDtkDoc_Commit`).
+An LDtk project as the Level mode edits it: its files' JSON, kept as written (ldtk_json.odin), with
+where its worlds, levels, layers and entities are. ldtk_ops.odin's edits change it.
 
 - **Files:** the `.ldtk` file, then every level saved apart ("Save levels to separate files": a
   level's `externalRelPath`, a `.ldtkl` file beside the project). A level's own settings
@@ -17,22 +18,38 @@ back (`LDtkDoc_Commit`).
   its `.ldtkl` file; its layers only in the `.ldtkl` file (`LDtkDoc_LevelObjects`).
 - **Worlds:** without LDtk's "Multi-worlds" option a project has one world, the file's root (its
   `levels`, `worldLayout`, `worldGridWidth`...); with it, every object of `worlds`.
+- **Edits stay in memory** (decided 2026-10-24, as LDtk does: fast painting, an undo step per
+  stroke): an edit changes the document's texts (`LDtkDoc_Commit`), not the files. Each file
+  remembers what's on disk (`saved`, its time `modified`), so the document knows it's unsaved
+  (`LDtkDoc_Unsaved`); Save (Ctrl+S), Play and exports write it (`LDtkDoc_Save`,
+  `LDtkDocs_SaveProject`), each file replaced atomically. Until then the project shows
+  "Modified", and the viewport, the inspector and the Level mode's pictures read the document
+  in memory (`LDtkDoc_Stamp`, `LDtkDoc_ProvideToGame`, `LDtkDoc_GameText`).
 - **Cached** per full path (`LDtkDoc_Get`), read again when a file's modification time changes.
   A change the editor didn't write (LDtk saved the file) is remembered (`LDtkDoc_Outside`), for the
-  Level mode's status line.
-- **Writing** (`LDtkDoc_Commit`) applies an edit's patches to each file, checks the result parses,
-  and replaces the file atomically (a new file beside it, then renamed over it: a failure never
-  leaves a half-written file). The new modification time is always later than the old one
-  (`ensureNewerTime`), so every cache keyed by it (the inspector's, the viewport's, a running
-  game's LDtk_WatchFiles) reads it again, even when the file system's clock is coarse.
+  Level mode's status line. With unsaved edits, LDtk's change is merged into them when the two
+  don't touch (`History_MergeText`: base the saved text, ours the document's, theirs the file's);
+  otherwise the file's new text waits (`LDtkDoc_DiskConflict`) until the user reloads it (the
+  unsaved edits dropped) or keeps the editor's (Save then writes over LDtk's change):
+  `LDtkDoc_ResolveDisk`.
+- **Writing** (`LDtkDoc_Save`) replaces each changed file atomically (a new file beside it, then
+  renamed over it: a failure never leaves a half-written file). The new modification time is
+  always later than the old one (`ensureNewerTime`), so every cache keyed by it (the inspector's,
+  the viewport's, a running game's LDtk_WatchFiles) reads it again, even when the file system's
+  clock is coarse.
 */
 
 // One file of an LDtk project
 LDtkDocFile :: struct {
 	// The file (full path, owned)
 	path: string,
+	// What the editor has: the text on disk, or with the edits not saved yet
 	json: JsonDoc,
+	// The file on disk as last read or written: its modification time and text (owned)
 	modified: time.Time,
+	saved: string,
+	// The editor's text isn't what's on disk (`json.text != saved`)
+	unsaved: bool,
 }
 
 // A world of an LDtk project
@@ -55,6 +72,12 @@ LDtkDocLevel :: struct {
 	file, node: int,
 }
 
+// A file's new text on disk, waiting while it clashes with unsaved edits (owned)
+LDtkDiskText :: struct {
+	path, text: string,
+	modified: time.Time,
+}
+
 // An LDtk project's files and where things are in them
 LDtkDoc :: struct {
 	// The .ldtk file first, then the levels' .ldtkl files
@@ -63,8 +86,11 @@ LDtkDoc :: struct {
 	levels: [dynamic]LDtkDocLevel,
 	// What couldn't be read ("" when everything was)
 	problem: string,
-	// Bumped every time it's read or written
+	// Bumped every time it's read, edited or written
 	version: int,
+	// Files LDtk changed while the editor had unsaved edits in them that touch the same places:
+	// their texts on disk, until `LDtkDoc_ResolveDisk` (empty: none)
+	diskConflict: [dynamic]LDtkDiskText,
 }
 
 // The document's project file
@@ -77,6 +103,9 @@ LDtkOutsideChange :: struct {
 	at: time.Time,
 	// The changed file's name (owned)
 	file: string,
+	// The editor had unsaved edits: they were merged with it (`merged`), or they clash with it
+	// (`conflict`: LDtkDoc_DiskConflict)
+	merged, conflict: bool,
 }
 
 @(private="file")
@@ -85,15 +114,16 @@ LDtkDocEntry :: struct {
 }
 
 // Documents by the .ldtk file's full path. Package state, like the inspector's parsed copies
-// (LDtkEdit_Project): the view reads them and they're a cache of the files. Thread-local: unit
-// tests run on several threads
+// (LDtkEdit_Project): the view reads them. Thread-local: unit tests run on several threads
 @(private="file", thread_local)
 ldtkDocs: map[string]LDtkDocEntry
 @(private="file", thread_local)
 ldtkOutside: map[string]LDtkOutsideChange
 
 /*
-The LDtk project at a path, read (or read again, when one of its files changed since).
+The LDtk project at a path, read (or read again, when one of its files changed on disk since). A
+change on disk while the document has unsaved edits is merged into them when the two don't touch;
+when they do, the document stays as it is and the disk's text waits (`LDtkDoc_DiskConflict`).
 
 Inputs:
 - root: The project folder
@@ -107,26 +137,130 @@ LDtkDoc_Get :: proc(root, path: string) -> ^LDtkDoc {
 	if path == "" do return nil
 	full := joinPath(root, path, allocator = context.temp_allocator)
 	if entry, found := ldtkDocs[full]; found {
-		if !ldtkDocChanged(entry.doc) do return entry.doc
+		doc := entry.doc
+		if !ldtkDocChanged(doc) do return doc
 		// Changed outside the editor (its own writes keep the times)
 		changed := ""
-		for f in entry.doc.files do if ldtkModified(f.path) != f.modified do changed = f.path
-		if changed != "" {
-			if old, had := ldtkOutside[full]; had do delete(old.file)
-			else do ldtkOutside[strings.clone(full)] = {}
-			ldtkOutside[full] = {time.now(), strings.clone(filepath.base(changed))}
+		// (a copy: reading the file again and merging free the document's paths)
+		for f in doc.files do if ldtkModified(f.path) != f.modified do changed = strings.clone(f.path, context.temp_allocator)
+		if changed == "" && len(doc.files) == 0 do changed = full
+		if !LDtkDoc_Unsaved(doc) {
+			ldtkNoteOutside(full, changed, false, false)
+			version := doc.version
+			ldtkDocFree(doc)
+			doc^ = ldtkDocRead(full)
+			doc.version = version + 1
+			return doc
 		}
-		version := entry.doc.version
-		ldtkDocFree(entry.doc)
-		entry.doc^ = ldtkDocRead(full)
-		entry.doc.version = version + 1
-		return entry.doc
+		// Unsaved edits: LDtk's change merged into them, or waiting for the user
+		if len(doc.diskConflict) > 0 && ldtkConflictSeen(doc) do return doc
+		merged := ldtkMergeDisk(doc)
+		ldtkNoteOutside(full, changed, merged, !merged)
+		return doc
 	}
 	if !os.exists(full) do return nil
 	doc := new(LDtkDoc)
 	doc^ = ldtkDocRead(full)
 	ldtkDocs[strings.clone(full)] = {doc}
 	return doc
+}
+
+// The document at a path if it's cached (nil: never read, so not edited either)
+@(private="file")
+ldtkCached :: proc(root, path: string) -> ^LDtkDoc {
+	if path == "" do return nil
+	full := joinPath(root, path, allocator = context.temp_allocator)
+	if entry, found := ldtkDocs[full]; found do return entry.doc
+	return nil
+}
+
+@(private="file")
+ldtkNoteOutside :: proc(full, changed: string, merged, conflict: bool) {
+	if old, had := ldtkOutside[full]; had do delete(old.file)
+	else do ldtkOutside[strings.clone(full)] = {}
+	ldtkOutside[full] = {time.now(), strings.clone(filepath.base(changed)), merged, conflict}
+}
+
+// Whether the waiting disk texts are still what's on disk (nothing newer to merge)
+@(private="file")
+ldtkConflictSeen :: proc(doc: ^LDtkDoc) -> bool {
+	for f in doc.files {
+		now := ldtkModified(f.path)
+		if now == f.modified do continue
+		seen := false
+		for d in doc.diskConflict do if d.path == f.path && d.modified == now do seen = true
+		if !seen do return false
+	}
+	return true
+}
+
+/*
+Merges what changed on disk into a document with unsaved edits: per file, the editor's change
+(from the saved text to its own) and the disk's (from the saved text to the file's) when they
+don't touch. A file without unsaved edits simply takes the disk's text; with `keepMine`, a file
+whose changes clash keeps the editor's text (Save writes it over the disk's).
+
+Returns:
+- Whether everything merged (false: the document is as it was, the disk's texts wait in
+  `diskConflict`)
+*/
+@(private="file")
+ldtkMergeDisk :: proc(doc: ^LDtkDoc, keepMine := false) -> bool {
+	clearDiskConflict(doc)
+	texts := make(map[string]string, len(doc.files), context.temp_allocator)
+	disk := make([]string, len(doc.files), context.temp_allocator)
+	times := make([]time.Time, len(doc.files), context.temp_allocator)
+	clash := false
+	for f, i in doc.files {
+		times[i] = ldtkModified(f.path)
+		data, err := os.read_entire_file(f.path, context.temp_allocator)
+		disk[i] = err == nil ? string(data) : f.saved
+		switch {
+		case disk[i] == f.saved:
+			texts[f.path] = f.json.text
+		case !f.unsaved || disk[i] == f.json.text:
+			texts[f.path] = disk[i]
+		case:
+			merged, ok := History_MergeText(f.saved, f.json.text, disk[i])
+			if ok {
+				texts[f.path] = merged
+			} else if keepMine {
+				texts[f.path] = f.json.text
+			} else {
+				clash = true
+				append(&doc.diskConflict, LDtkDiskText{strings.clone(f.path), strings.clone(disk[i]), times[i]})
+			}
+		}
+	}
+	if clash do return false
+	paths := make([]string, len(doc.files), context.temp_allocator)
+	for f, i in doc.files do paths[i] = strings.clone(f.path, context.temp_allocator)
+	full := paths[0]
+	next := ldtkDocBuild(full, texts, doc)
+	// What's on disk now is the saved text the merged edits are measured from
+	for &f in next.files {
+		for p, i in paths do if p == f.path {
+			delete(f.saved)
+			f.saved = strings.clone(disk[i])
+			f.modified = times[i]
+		}
+		f.unsaved = f.json.text != f.saved
+	}
+	version := doc.version
+	ldtkDocFree(doc)
+	doc^ = next
+	doc.version = version + 1
+	return true
+}
+
+@(private="file")
+clearDiskConflict :: proc(doc: ^LDtkDoc) {
+	for d in doc.diskConflict {
+		delete(d.path)
+		delete(d.text)
+	}
+	delete(doc.diskConflict)
+	doc.diskConflict = nil
 }
 
 /*
@@ -151,7 +285,23 @@ LDtkDoc_ForgetOutside :: proc(root, path: string) {
 	}
 }
 
-// Frees every cached document (tests, quitting)
+/*
+Whether a document's files changed on disk in a way that clashes with its unsaved edits (LDtk
+saved over the same places): the user reloads the files or keeps the editor's version
+(`LDtkDoc_ResolveDisk`).
+
+Returns:
+- The changed files' names (temp allocated), and whether there are any
+*/
+LDtkDoc_DiskConflict :: proc(root, path: string) -> ([]string, bool) {
+	doc := ldtkCached(root, path)
+	if doc == nil || len(doc.diskConflict) == 0 do return nil, false
+	names := make([]string, len(doc.diskConflict), context.temp_allocator)
+	for d, i in doc.diskConflict do names[i] = filepath.base(d.path)
+	return names, true
+}
+
+// Frees every cached document (tests, quitting, another project opened: unsaved edits are dropped)
 LDtkDoc_DestroyAll :: proc() {
 	for path, entry in ldtkDocs {
 		ldtkDocFree(entry.doc)
@@ -166,6 +316,9 @@ LDtkDoc_DestroyAll :: proc() {
 	}
 	delete(ldtkOutside)
 	ldtkOutside = nil
+	for n in ldtkSaveNotes do delete(n)
+	delete(ldtkSaveNotes)
+	ldtkSaveNotes = nil
 }
 
 // Whether any of a document's files changed on disk since it was read or written
@@ -180,35 +333,49 @@ ldtkDocChanged :: proc(doc: ^LDtkDoc) -> bool {
 ldtkDocFree :: proc(doc: ^LDtkDoc) {
 	for &f in doc.files {
 		delete(f.path)
+		delete(f.saved)
 		Json_Destroy(&f.json)
 	}
 	delete(doc.files)
 	delete(doc.worlds)
 	delete(doc.levels)
 	delete(doc.problem)
+	clearDiskConflict(doc)
 	doc^ = {}
 }
 
-// Reads a project's files and finds its worlds and levels
+// Reads a project's files from disk and finds its worlds and levels
 @(private="file")
 ldtkDocRead :: proc(full: string) -> LDtkDoc {
-	modified := ldtkModified(full)
-	text, err := os.read_entire_file(full, context.temp_allocator)
-	if err != nil do return LDtkDoc{problem = fmt.aprintf("Couldn't read %s: %v", filepath.base(full), err)}
-	return ldtkDocBuild(full, string(text), modified, nil)
+	return ldtkDocBuild(full, nil, nil)
 }
 
 /*
-A document made from texts in memory: the project file's, and the level files' in `texts` (by
-full path; the others are read from disk). An edit's second pass reads what the first wrote
-before anything is written (ldtk_ops.odin).
+A document made from texts in memory: the files' in `texts` (by full path; the others are read
+from disk). Each file keeps the saved text and time `doc` has for it (a file `doc` doesn't have is
+taken as it is on disk). An edit's second pass reads what the first made (ldtk_ops.odin).
 */
 LDtkDoc_FromTexts :: proc(doc: ^LDtkDoc, texts: []string) -> LDtkDoc {
 	byPath := make(map[string]string, len(texts), context.temp_allocator)
-	for f, i in doc.files do byPath[f.path] = texts[i]
-	result := ldtkDocBuild(doc.files[0].path, texts[0], doc.files[0].modified, byPath)
-	for &f in result.files do for old in doc.files do if old.path == f.path do f.modified = old.modified
-	return result
+	for f, i in doc.files do if i < len(texts) do byPath[f.path] = texts[i]
+	return ldtkDocBuild(doc.files[0].path, byPath, doc)
+}
+
+/*
+A document made from texts by full path: the project file's, and any level file's, a new one
+(not on disk yet: a level added to a project saving levels apart) included. Files the texts don't
+have are the document's (`doc`), else read from disk. Each file keeps the saved text and time
+`doc` has for it; a file that isn't on disk has no saved text (it's unsaved).
+*/
+LDtkDoc_FromPaths :: proc(doc: ^LDtkDoc, texts: map[string]string) -> LDtkDoc {
+	return ldtkDocBuild(doc.files[0].path, texts, doc)
+}
+
+// A document's texts by full path (temp allocated; the texts point into the document)
+LDtkDoc_TextsByPath :: proc(doc: ^LDtkDoc) -> map[string]string {
+	out := make(map[string]string, len(doc.files), context.temp_allocator)
+	for f in doc.files do out[f.path] = f.json.text
+	return out
 }
 
 // Frees a document made by LDtkDoc_FromTexts
@@ -216,15 +383,40 @@ LDtkDoc_Free :: proc(doc: ^LDtkDoc) {
 	ldtkDocFree(doc)
 }
 
+/*
+Builds a document: the project file and its levels' files, from `texts` (by full path) or from
+disk. A file `base` has keeps its saved text and time; another is as it is on disk.
+*/
 @(private="file")
-ldtkDocBuild :: proc(full, text: string, modified: time.Time, texts: map[string]string) -> LDtkDoc {
+ldtkDocBuild :: proc(full: string, texts: map[string]string, base: ^LDtkDoc) -> LDtkDoc {
 	doc := LDtkDoc{}
+	// A file's text (from `texts` or disk) and what's on disk for it (`base`'s, or the disk's)
+	load :: proc(path: string, texts: map[string]string, base: ^LDtkDoc) -> (text, saved: string, modified: time.Time, err: os.Error) {
+		if base != nil do for f in base.files do if f.path == path {
+			saved, modified = f.saved, f.modified
+			if t, found := texts[path]; found do return t, saved, modified, nil
+			return f.json.text, saved, modified, nil
+		}
+		modified = ldtkModified(path)
+		data, readErr := os.read_entire_file(path, context.temp_allocator)
+		if t, found := texts[path]; found {
+			// A file not on disk yet (a new level's) has no saved text: it's unsaved
+			return t, readErr == nil ? string(data) : "", modified, nil
+		}
+		if readErr != nil do return "", "", modified, readErr
+		return string(data), string(data), modified, nil
+	}
+	text, saved, modified, err := load(full, texts, base)
+	if err != nil {
+		doc.problem = fmt.aprintf("Couldn't read %s: %v", filepath.base(full), err)
+		return doc
+	}
 	json, problem := Json_Parse(text)
 	if problem != "" {
 		doc.problem = fmt.aprintf("%s isn't JSON: %s", filepath.base(full), problem)
 		return doc
 	}
-	append(&doc.files, LDtkDocFile{strings.clone(full), json, modified})
+	append(&doc.files, LDtkDocFile{path = strings.clone(full), json = json, modified = modified, saved = strings.clone(saved), unsaved = text != saved})
 	main := LDtkDoc_Main(&doc)
 	root := Json_Root(main)
 	if Json_Kind(main, root) != .Object || Json_Get(main, root, "defs") < 0 {
@@ -248,16 +440,13 @@ ldtkDocBuild :: proc(full, text: string, modified: time.Time, texts: map[string]
 			if Json_Kind(main, external) == .String {
 				rel := Json_String(main, external)
 				path := joinPath(folder, rel, allocator = context.temp_allocator)
-				levelText: []byte
-				readErr: os.Error
-				if inMemory, found := texts[path]; found do levelText = transmute([]byte)inMemory
-				else do levelText, readErr = os.read_entire_file(path, context.temp_allocator)
+				levelText, levelSaved, levelModified, readErr := load(path, texts, base)
 				if readErr != nil {
 					if doc.problem == "" do doc.problem = fmt.aprintf("Couldn't read the level file %s: %v", rel, readErr)
-				} else if levelJson, levelProblem := Json_Parse(string(levelText)); levelProblem != "" {
+				} else if levelJson, levelProblem := Json_Parse(levelText); levelProblem != "" {
 					if doc.problem == "" do doc.problem = fmt.aprintf("The level file %s isn't JSON: %s", rel, levelProblem)
 				} else {
-					append(&doc.files, LDtkDocFile{strings.clone(path), levelJson, ldtkModified(path)})
+					append(&doc.files, LDtkDocFile{path = strings.clone(path), json = levelJson, modified = levelModified, saved = strings.clone(levelSaved), unsaved = levelText != levelSaved})
 					level.file = len(doc.files) - 1
 					level.node = Json_Root(&doc.files[level.file].json)
 				}
@@ -267,6 +456,34 @@ ldtkDocBuild :: proc(full, text: string, modified: time.Time, texts: map[string]
 	}
 	return doc
 }
+
+/*
+Answers a clash between unsaved edits and LDtk's change on disk (`LDtkDoc_DiskConflict`).
+
+Inputs:
+- reload: Read the files as they are on disk (the unsaved edits are dropped); false keeps the
+  editor's version where the two clash (still unsaved: Save writes it over LDtk's change), and
+  takes LDtk's changes elsewhere
+
+Returns:
+- What was done, for the Console ("" when there was nothing to answer; temp allocated)
+*/
+LDtkDoc_ResolveDisk :: proc(root, path: string, reload: bool) -> string {
+	doc := ldtkCached(root, path)
+	if doc == nil || len(doc.diskConflict) == 0 do return ""
+	name := strings.clone(filepath.base(doc.files[0].path), context.temp_allocator)
+	if reload {
+		full := strings.clone(doc.files[0].path, context.temp_allocator)
+		version := doc.version
+		ldtkDocFree(doc)
+		doc^ = ldtkDocRead(full)
+		doc.version = version + 1
+		return fmt.tprintf("Read %s again as LDtk saved it: the unsaved edits were dropped (Ctrl+Z still steps through them)", name)
+	}
+	ldtkMergeDisk(doc, keepMine = true)
+	return fmt.tprintf("Kept your edits to %s: saving writes them over LDtk's change", name)
+}
+
 
 // A world's identifier and iid (a single world: "World" and the root's dummyWorldIid)
 LDtkDoc_WorldNames :: proc(doc: ^LDtkDoc, world: int) -> (identifier, iid: string) {
@@ -425,17 +642,19 @@ LDtkPatches_Empty :: proc(p: ^LDtkPatches) -> bool {
 	return true
 }
 
+
 /*
-Applies an edit's patches and writes the files it changed (each replaced atomically), then reads
-the document again from what was written.
+Applies an edit's patches to the document in memory (nothing is written: `LDtkDoc_Save` does,
+on Save, Play and exports), and reads it again from the new texts.
 
 Returns:
-- "" or what went wrong (then no file was written: the patches overlapped, or a result didn't parse)
+- "" or what went wrong (then nothing changed: the patches overlapped, or a result didn't parse)
 */
 LDtkDoc_Commit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches) -> string {
 	texts := LDtkDoc_Texts(doc)
-	if problem := LDtkDoc_Apply(doc, texts, patches); problem != "" do return problem
-	return LDtkDoc_WriteTexts(doc, texts)
+	// SetTexts reads the result (and refuses it when it doesn't parse): no need to parse it twice
+	if problem := LDtkDoc_Apply(doc, texts, patches, check = false); problem != "" do return problem
+	return LDtkDoc_SetTexts(doc, texts)
 }
 
 // The texts a document holds, one per file (temp allocated; they point into the document)
@@ -451,44 +670,316 @@ allocated), checking each result still parses.
 
 Inputs:
 - texts: A text per file (`LDtkDoc_Texts`), whose spans the patches refer to
+- check: Parse each result (false: the caller reads it anyway: `LDtkDoc_Commit`)
 
 Returns:
-- "" or what went wrong (then `texts` may be partly changed: don't write them)
+- "" or what went wrong (then `texts` may be partly changed: don't use them)
 */
-LDtkDoc_Apply :: proc(doc: ^LDtkDoc, texts: []string, patches: ^LDtkPatches) -> string {
+LDtkDoc_Apply :: proc(doc: ^LDtkDoc, texts: []string, patches: ^LDtkPatches, check := true) -> string {
 	for list, i in patches.files {
 		if len(list) == 0 || i >= len(texts) do continue
 		text, ok := Json_Apply(texts[i], list[:], context.temp_allocator)
-		if !ok do return "the edit's changes overlap (nothing was written)"
-		check, problem := Json_Parse(text, context.temp_allocator)
-		if problem != "" do return fmt.tprintf("the edit made %s unreadable (nothing was written): %s", filepath.base(doc.files[i].path), problem)
-		Json_Destroy(&check)
+		if !ok do return "the edit's changes overlap (nothing was changed)"
+		if check {
+			parsed, problem := Json_Parse(text, context.temp_allocator)
+			if problem != "" do return fmt.tprintf("the edit made %s unreadable (nothing was changed): %s", filepath.base(doc.files[i].path), problem)
+			Json_Destroy(&parsed)
+		}
 		texts[i] = text
 	}
 	return ""
 }
 
 /*
-Writes new texts for a document's files (those that differ from what it holds), atomically, and
-reads it again. Undo and redo write a step's files back through it.
+Gives a document new texts for its files, in memory (undo and redo put a step's texts back
+through it), and reads it again from them. Each file keeps what's on disk, so it's unsaved when
+its text differs from that.
 
 Inputs:
 - texts: A text per file of the document, in its order
 
 Returns:
-- "" or what went wrong
+- "" or what went wrong (a text that isn't a readable LDtk project: the document is as it was)
 */
-LDtkDoc_WriteTexts :: proc(doc: ^LDtkDoc, texts: []string) -> string {
-	full := strings.clone(doc.files[0].path, context.temp_allocator)
-	for text, i in texts {
-		if i >= len(doc.files) || text == doc.files[i].json.text do continue
-		if problem := LDtk_WriteFile(doc.files[i].path, text, doc.files[i].modified); problem != "" do return problem
+LDtkDoc_SetTexts :: proc(doc: ^LDtkDoc, texts: []string) -> string {
+	same := true
+	for text, i in texts do if i < len(doc.files) && text != doc.files[i].json.text do same = false
+	if same do return ""
+	return ldtkDocReplace(doc, LDtkDoc_FromTexts(doc, texts))
+}
+
+/*
+Gives a document new texts by full path (`LDtkDoc_FromPaths`): edits that add or remove level
+files (levels added, removed or renamed in a project saving levels apart, the option turned on or
+off), and undo and redo of them, which put a step's files back.
+
+Returns:
+- "" or what went wrong (then the document is as it was)
+*/
+LDtkDoc_SetTextsByPath :: proc(doc: ^LDtkDoc, texts: map[string]string) -> string {
+	same := len(texts) == len(doc.files)
+	if same do for f in doc.files {
+		text, found := texts[f.path]
+		if !found || text != f.json.text do same = false
+	}
+	if same do return ""
+	return ldtkDocReplace(doc, LDtkDoc_FromPaths(doc, texts))
+}
+
+// Puts a new build of a document in its place (its version moved on), or keeps it when the new
+// one can't be read
+@(private="file")
+ldtkDocReplace :: proc(doc: ^LDtkDoc, built: LDtkDoc) -> string {
+	next := built
+	if next.problem != "" {
+		problem := fmt.tprintf("%s", next.problem)
+		ldtkDocFree(&next)
+		return problem
 	}
 	version := doc.version
+	conflict := doc.diskConflict
+	doc.diskConflict = nil
 	ldtkDocFree(doc)
-	doc^ = ldtkDocRead(full)
+	doc^ = next
 	doc.version = version + 1
+	doc.diskConflict = conflict
 	return ""
+}
+
+// The text a document has for one of its files, by full path (false: not one of its files)
+LDtkDoc_TextOf :: proc(doc: ^LDtkDoc, path: string) -> (string, bool) {
+	for f in doc.files do if f.path == path do return f.json.text, true
+	return "", false
+}
+
+/*
+The text the editor has for a file of any document it has read (an edited one's unsaved text), by
+full path: tests and the UI driver read values through it.
+
+Returns:
+- The text, and false when no document has the file (read it from disk)
+*/
+LDtkDoc_CachedText :: proc(path: string) -> (string, bool) {
+	for _, entry in ldtkDocs do if text, found := LDtkDoc_TextOf(entry.doc, path); found do return text, true
+	return "", false
+}
+
+// Whether a document has edits not written to its files yet
+LDtkDoc_Unsaved :: proc(doc: ^LDtkDoc) -> bool {
+	if doc == nil do return false
+	for f in doc.files do if f.unsaved do return true
+	return false
+}
+
+// Whether an LDtk project (relative to the project folder) has unsaved edits in the editor
+LDtkDoc_IsUnsaved :: proc(root, path: string) -> bool {
+	return LDtkDoc_Unsaved(ldtkCached(root, path))
+}
+
+/*
+Writes a document's unsaved files (each replaced atomically; the others aren't touched), first
+merging what LDtk saved meanwhile (`LDtkDoc_Get`). Refused while LDtk's change clashes with the
+edits (`LDtkDoc_DiskConflict`): the user answers that first.
+
+Returns:
+- "" or what went wrong (the files written before it stay written)
+*/
+LDtkDoc_Save :: proc(root, path: string) -> string {
+	doc := ldtkCached(root, path)
+	if doc == nil || !LDtkDoc_Unsaved(doc) do return ""
+	// LDtk saved meanwhile: merged first (or a clash)
+	doc = LDtkDoc_Get(root, path)
+	if doc == nil do return fmt.tprintf("%s is gone", filepath.base(path))
+	if len(doc.diskConflict) > 0 do return fmt.tprintf("%s changed outside the editor where your unsaved edits are: reload it or keep your edits first (the Level mode's bar)", filepath.base(path))
+	// LDtk's backups first: the files as they were (ldtk_save_extras.odin)
+	if note := LDtkSave_Backup(doc); note != "" do ldtkNoteSave(note)
+	for &f in doc.files {
+		if !f.unsaved do continue
+		// A new level file's folder (LDtk's "<project name>/" beside the project file)
+		if f.saved == "" do _ = os.make_directory_all(filepath.dir(f.path))
+		if problem := LDtk_WriteFile(f.path, f.json.text, f.modified); problem != "" do return problem
+		delete(f.saved)
+		f.saved = strings.clone(f.json.text)
+		f.modified = ldtkModified(f.path)
+		f.unsaved = false
+	}
+	ldtkCleanLevelFiles(doc)
+	// What LDtk writes besides: pictures, the simplified export
+	if note := LDtkSave_Exports(doc); note != "" do ldtkNoteSave(note)
+	doc.version += 1
+	return ""
+}
+
+// What the last saves' extras couldn't do (backups, exports), for the caller to log (thread-local)
+@(private="file", thread_local)
+ldtkSaveNotes: [dynamic]string
+
+@(private="file")
+ldtkNoteSave :: proc(note: string) {
+	append(&ldtkSaveNotes, strings.clone(note))
+}
+
+/*
+What the saves since the last call couldn't do besides writing the files (a backup, PNG pictures,
+the simplified export: ldtk_save_extras.odin), each once; the files themselves were written.
+
+Returns:
+- The notes (temp allocated)
+*/
+LDtkDoc_TakeSaveNotes :: proc() -> []string {
+	out := make([]string, len(ldtkSaveNotes), context.temp_allocator)
+	for n, i in ldtkSaveNotes {
+		out[i] = strings.clone(n, context.temp_allocator)
+		delete(n)
+	}
+	clear(&ldtkSaveNotes)
+	return out
+}
+
+/*
+What LDtk's saver does to the level files' folder (ProjectSaver's SavingExternLevels and Done):
+`<project name>/` beside the project file keeps only the `.ldtkl` files of the levels saved apart
+(every one when they aren't: the option turned off), and goes when nothing is left in it. Only
+`.ldtkl` files in that folder are ever removed.
+*/
+@(private="file")
+ldtkCleanLevelFiles :: proc(doc: ^LDtkDoc) {
+	main := doc.files[0].path
+	folder := LDtk_LevelFilesFolder(main)
+	if !os.is_dir(folder) do return
+	entries, err := os.read_all_directory_by_path(folder, context.temp_allocator)
+	if err != nil do return
+	left := 0
+	for entry in entries {
+		if entry.type != .Directory && strings.has_suffix(entry.name, ".ldtkl") {
+			kept := false
+			for f in doc.files[1:] do if Paths_Same(f.path, entry.fullpath) do kept = true
+			if !kept && os.remove(entry.fullpath) == nil do continue
+		}
+		left += 1
+	}
+	if left == 0 do _ = os.remove(folder)
+}
+
+/*
+The folder LDtk keeps a project's own files in (levels saved apart, PNG exports, backups):
+`<project name>/` beside the project file (Project.getAbsExternalFilesDir).
+
+Returns:
+- The full path (temp allocated)
+*/
+LDtk_LevelFilesFolder :: proc(projectFile: string) -> string {
+	base := filepath.base(projectFile)
+	stem := strings.trim_suffix(base, filepath.ext(base))
+	return joinPath(filepath.dir(projectFile), stem, allocator = context.temp_allocator)
+}
+
+/*
+Writes every LDtk project of the editor's project that has unsaved edits (Save, Play, exports).
+
+Returns:
+- Whether all of them were written (each problem is logged)
+*/
+LDtkDocs_SaveProject :: proc(state: ^State) -> bool {
+	ok := true
+	for asset in state.project.assets {
+		if asset.kind != .LDtk || !LDtkDoc_IsUnsaved(state.project.rootPath, asset.path) do continue
+		if problem := LDtkDoc_Save(state.project.rootPath, asset.path); problem != "" {
+			logLine(state, .Error, fmt.aprintf("Couldn't save %s: %s", asset.path, problem))
+			ok = false
+		} else {
+			logLine(state, .Info, fmt.aprintf("Saved %s", asset.path))
+		}
+		for note in LDtkDoc_TakeSaveNotes() do logLine(state, .Warning, fmt.aprintf("%s: %s", asset.path, note))
+	}
+	return ok
+}
+
+// Whether any LDtk project of the editor's project has unsaved edits
+LDtkDocs_AnyUnsaved :: proc(state: ^State) -> bool {
+	for asset in state.project.assets do if asset.kind == .LDtk && LDtkDoc_IsUnsaved(state.project.rootPath, asset.path) do return true
+	return false
+}
+
+/*
+The unsaved texts of a project's LDtk files, by full path (temp allocated): Save As writes them
+into the copy, which then has the edits saved and the original stays as it was on disk.
+*/
+LDtkDocs_UnsavedTexts :: proc(state: ^State) -> map[string]string {
+	out := make(map[string]string, 8, context.temp_allocator)
+	for asset in state.project.assets {
+		if asset.kind != .LDtk do continue
+		doc := ldtkCached(state.project.rootPath, asset.path)
+		if doc == nil do continue
+		for f in doc.files do if f.unsaved do out[f.path] = f.json.text
+	}
+	return out
+}
+
+/*
+A stamp of what an LDtk file reads as now: it changes when the file changes on disk and with every
+unsaved edit. Caches of what the engine makes of the file key on it (the viewport, the inspector,
+the Level mode's pictures).
+
+Returns:
+- The stamp
+*/
+LDtkDoc_Stamp :: proc(root, path: string) -> u64 {
+	full := joinPath(root, path, allocator = context.temp_allocator)
+	if doc := ldtkCached(root, path); doc != nil && LDtkDoc_Unsaved(doc) {
+		return hash.fnv64a(transmute([]byte)fmt.tprintf("unsaved|%s|%d", full, doc.version))
+	}
+	return hash.fnv64a(transmute([]byte)fmt.tprintf("disk|%s|%v", full, ldtkModified(full)))
+}
+
+/*
+The document as one project file the engine reads (`e.LDtk_Parse`): its levels saved apart get
+their layers from their `.ldtkl` files' texts in memory (the engine reads a level entry's layers
+when it has them, else its file from disk).
+
+Returns:
+- The text (temp allocated)
+*/
+LDtkDoc_GameText :: proc(doc: ^LDtkDoc) -> string {
+	main := LDtkDoc_Main(doc)
+	patches := make([dynamic]JsonPatch, context.temp_allocator)
+	for level in doc.levels {
+		if level.file == 0 do continue
+		json := LDtkDoc_Json(doc, level.file)
+		layers := Json_Get(json, level.node, "layerInstances")
+		if layers < 0 do continue
+		at := Json_Get(main, level.entry, "layerInstances")
+		if at >= 0 {
+			append(&patches, Json_SetPatch(main, at, Json_Text(json, layers)))
+		} else {
+			append(&patches, Json_AddMemberPatch(main, level.entry, "layerInstances", Json_Text(json, layers)))
+		}
+	}
+	if len(patches) == 0 do return main.text
+	text, ok := Json_Apply(main.text, patches[:], context.temp_allocator)
+	return ok ? text : main.text
+}
+
+/*
+Gives a game the editor's unsaved version of an LDtk project (parsed from `LDtkDoc_GameText`), so
+`e.Game_LoadLDtk` finds it instead of reading the file; a saved one is left for the game to read.
+Forget the game's copy first when the stamp changed (`LDtkDoc_Stamp`).
+
+Returns:
+- Whether the game got the unsaved version
+*/
+LDtkDoc_ProvideToGame :: proc(game: ^e.Game, root, path: string) -> bool {
+	doc := ldtkCached(root, path)
+	if game == nil || doc == nil || !LDtkDoc_Unsaved(doc) || doc.problem != "" do return false
+	if path in game.ldtk do return true
+	project, problem := e.LDtk_Parse(LDtkDoc_GameText(doc), doc.files[0].path)
+	if project == nil {
+		_ = problem
+		return false
+	}
+	if game.ldtk == nil do game.ldtk = make(map[string]^e.LDtkProject)
+	game.ldtk[strings.clone(path)] = project
+	return true
 }
 
 /*
@@ -555,19 +1046,6 @@ ensureNewerTime :: proc(path: string, before: time.Time) {
 	if time.diff(before, now) > 0 do return
 	later := time.time_add(before, time.Millisecond)
 	_ = os.change_times(path, later, later)
-}
-
-/*
-The texts of a document's files, read from disk now (temp allocated; "" for a file that can't be
-read). Undo snapshots take them.
-*/
-LDtkDoc_DiskTexts :: proc(doc: ^LDtkDoc) -> []string {
-	out := make([]string, len(doc.files), context.temp_allocator)
-	for f, i in doc.files {
-		data, err := os.read_entire_file(f.path, context.temp_allocator)
-		out[i] = err == nil ? string(data) : ""
-	}
-	return out
 }
 
 // The document's folder (the .ldtk file's)

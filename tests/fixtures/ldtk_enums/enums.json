@@ -1,0 +1,5 @@
+{
+	"Gem": "ruby, emerald",
+	"Metal": ["iron", "gold"],
+	"Ignored": 5
+}

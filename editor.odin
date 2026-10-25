@@ -13,6 +13,10 @@ import sdl "vendor:sdl3"
 DIVIDER :: 6
 
 MIN_SIDEBAR_WIDTH  :: 180
+// The sidebars' widths the first time a mode shows (every mode's: the Scene mode's browser and
+// inspector, the Level mode's Levels and Layers)
+DEFAULT_LEFT_WIDTH  :: 240
+DEFAULT_RIGHT_WIDTH :: 300
 MIN_CENTER_WIDTH   :: 200
 MIN_VIEWPORT_HEIGHT :: 160
 MIN_BOTTOM_HEIGHT  :: 90
@@ -65,8 +69,28 @@ BottomTab :: enum {
 	Dialogue,
 	// The project's editor plugins (view_plugins.odin)
 	Plugins,
-	// The Level mode's LDtk tab (level_mode.odin; not the Scene mode's)
-	LDtk,
+	// The Level mode's tabs, LDtk's panels (view_ldtk_tab.odin; not the Scene mode's): the world
+	// (its layout, its levels' places), the selected level (its settings, fields, scenes,
+	// neighbours), the layers (the selected one's settings, IntGrid values, collision kinds),
+	// entity types (fields, instances, references), enums, tilesets, auto-layer rules (a summary
+	// until they're edited here) and the project file's settings
+	World,
+	Level,
+	Layers,
+	Entities,
+	Enums,
+	Tilesets,
+	Auto_Layer_Rules,
+	LDtk_Project,
+}
+
+// A bottom tab's name in the strip ("Auto-layer Rules"; LDtk's panels' names)
+BottomTab_Label :: proc(tab: BottomTab) -> string {
+	#partial switch tab {
+	case .Auto_Layer_Rules: return "Auto-layer Rules"
+	case .LDtk_Project:     return "Project"
+	}
+	return fmt.tprintf("%v", tab)
 }
 
 // Folders shown in the project browser
@@ -423,15 +447,15 @@ init :: proc() -> State {
 		busSelection = -1,
 		viewport = {animate = true, gridVisible = true, showShapes = true},
 		layout = {
-			leftWidth = 240,
-			rightWidth = 300,
+			leftWidth = DEFAULT_LEFT_WIDTH,
+			rightWidth = DEFAULT_RIGHT_WIDTH,
 			bottomHeight = 200,
 			sceneTreeHeight = 280,
 			bottomOpen = true,
 			previewOpen = true,
 			previewHeight = 220,
 		},
-		level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .LDtk},
+		level = {layout = LEVEL_LAYOUT_DEFAULT, bottomTab = .World, layerDef = -1, entityDef = -1, enumDef = -1, fieldDef = -1, levelField = -1, tilesetDef = -1, dataTile = -1, paint = {entityDef = -1}, rules = LEVEL_RULES_DEFAULT},
 	}
 	args := parseArgs()
 	settings, problems := Settings_Load(args.settings)

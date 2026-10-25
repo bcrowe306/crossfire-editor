@@ -33,8 +33,12 @@ menu bar do the same thing), then `Context_Menu_Closed`.
 	Ctx_Log_Categories  the Console's (Output's) category button: every category seen, checked
 	                  when shown (picking one keeps the menu open: `ContextMenu.keepOpen`)
 	Ctx_Script_Field  a script field's label in the inspector: go to its declaration in the code
-	Ctx_Toolbar_More  the toolbar's overflow button (a narrow window): the tools, maybe the file
-	                  and undo buttons
+	Ctx_Toolbar_More  the toolbar's overflow button (a narrow window): the mode's tools (the
+	                  viewport's, the Level mode's layer tools), maybe the file and undo buttons
+	Ctx_Rules_New, Ctx_Rule_Group, Ctx_Rule
+	                  the Level mode's Auto-layer Rules tab: + Group's choices, a rule group's menu
+	                  (copy, cut, paste, duplicate, delete, rename, remap, color, icon,
+	                  out-of-bounds, the Assistant, biomes, optional), a rule's (view_ldtk_rules.odin)
 
 Widget key: `context-menu` (the driver's `click_context_item <label>[/<submenu label>]`).
 */
@@ -55,6 +59,12 @@ ContextTarget :: union {
 	Ctx_Guide,
 	Ctx_Toolbar_More,
 	Ctx_Script_Field,
+	// The Level mode's (view_level_sidebars.odin)
+	Ctx_Level,
+	// The Auto-layer Rules tab's (view_ldtk_rules.odin)
+	Ctx_Rules_New,
+	Ctx_Rule_Group,
+	Ctx_Rule,
 }
 
 // A script field's label in the inspector: the selected node's script's field (its index in the
@@ -65,11 +75,12 @@ Ctx_Script_Field :: struct {
 }
 
 // The toolbar's overflow button, in a narrow window (view.odin's `Toolbar_Overflow`): the
-// viewport's tools (not with `noTools`: a mode without them, editor_modes.odin), and with `files`
-// the file and undo / redo buttons too
+// viewport's tools (with `level` the Level mode's layer tools; not with `noTools`), and with
+// `files` the file and undo / redo buttons too
 Ctx_Toolbar_More :: struct {
 	files: bool,
 	noTools: bool,
+	level: bool,
 }
 
 // A guide of the open scene (its index)
@@ -382,6 +393,8 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 	case Ctx_Graph:     ContextMenu_PanelItems(s, &items, t)
 	case Ctx_Align:     append(&items, ..ViewportTools_AlignItems(s))
 	case Ctx_Script_Field: scriptFieldItems(s, &items, t)
+	case Ctx_Level:     LevelMode_MenuItems(s, &items, t)
+	case Ctx_Rules_New, Ctx_Rule_Group, Ctx_Rule: LevelRules_MenuItems(s, &items, t)
 	case Ctx_Toolbar_More:
 		if t.files {
 			append(&items,
@@ -393,7 +406,9 @@ ContextMenu_Items :: proc(s: ^State) -> []skald.Menu_Item(Msg) {
 				actionItem(s, "Redo", .Redo))
 			if !t.noTools do append(&items, MENU_SEPARATOR)
 		}
-		if !t.noTools do append(&items,
+		// The Level mode's layer tools (view_level_tools.odin), or the viewport's
+		if !t.noTools && t.level do LevelTools_MenuItems(s, &items)
+		else if !t.noTools do append(&items,
 			actionItem(s, "Select Tool", .Tool_Select, checked = s.tool == .Select),
 			actionItem(s, "Move Tool", .Tool_Move, checked = s.tool == .Move),
 			actionItem(s, "Rotate Tool", .Tool_Rotate, checked = s.tool == .Rotate),
@@ -463,6 +478,10 @@ contextDocsAddress :: proc(s: ^State) -> string {
 		return Docs_ManualAddress(DOCS_BOTTOM_TAB_PAGES[t.output ? .Output : .Console])
 	case Ctx_Log_Categories:
 		// A filter list: no docs item among its categories
+	case Ctx_Level:
+		return Docs_ManualAddress(DOCS_LEVELS_SIDEBAR_PAGE)
+	case Ctx_Rules_New, Ctx_Rule_Group, Ctx_Rule:
+		return Docs_ManualAddress(DOCS_BOTTOM_TAB_PAGES[.Auto_Layer_Rules])
 	case Ctx_Align, Ctx_Guide, Ctx_Toolbar_More, Ctx_Script_Field:
 	}
 	return ""

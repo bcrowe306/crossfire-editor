@@ -42,6 +42,10 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	Timeline_Follow(&out)
 	States_Follow(&out)
 	Particles_Follow(&out)
+	// The Level mode's levels by iid after an LDtk step (a rename, an undo of one)
+	isUndo := false
+	if a, ok := m.(Action); ok do isUndo = a == .Undo || a == .Redo
+	if info.scope == .Files || isUndo do LevelMode_Follow(&out)
 	// The inspector shows a data resource chosen in the browser, until a node is selected
 	if out.browserSelection != state.browserSelection && out.browserSelection.kind == .Asset &&
 	   out.browserSelection.index < len(out.project.assets) && out.project.assets[out.browserSelection.index].kind == .Data {
@@ -296,8 +300,11 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		// Handled by ContextMenu_Update and ViewportTools_Update above
 	case Mode_Changed, Bottom_Tab_Picked, Level_File_Chosen, Level_Map_Clicked, Level_Scene_Opened, Level_Scene_Created,
 	     Level_Canvas_Measured, Level_Canvas_Pressed, Level_Canvas_Moved, Level_Canvas_Released, Level_Canvas_Zoomed, Level_Canvas_Panned,
-	     Level_Canvas_Fit, Level_Entity_Picked, Level_Collision_Kind_Changed, LDtk_Tab_Picked, LDtk_Item_Picked, LDtk_Text_Typed,
-	     LDtk_New_Name_Typed, LDtk_Edit, LDtk_Conflict_Chosen:
+	     Level_Canvas_Fit, Level_Entity_Picked, Level_Collision_Kind_Changed, LDtk_Item_Picked, LDtk_Text_Typed,
+	     LDtk_New_Name_Typed, LDtk_Def_Picked, LDtk_Edit, LDtk_Conflict_Chosen, Level_World_Chosen, Level_Row_Clicked, Level_Focus_Changed,
+	     Level_Open_Showing, Level_Layer_Picked, Level_Tool_Picked, LDtk_Disk_Chosen, List_Tab_Resized,
+	     Level_Value_Picked, Level_Tiles_Picked, Level_Entity_Type_Picked, Level_Pick_Started, Rules_View,
+	     Level_Spot_Started, Level_Depth_Shown, Level_Rename_Started, Level_Field_Focused, Level_Size_Typed:
 		// Handled by Modes_Update and LevelMode_Update above
 	case Log_Follow_Toggled, Log_Follow_Set, Log_Level_Toggled, Log_Category_Toggled,
 	     Log_Categories_Shown, Log_Search_Changed, Log_Filters_Cleared, Log_Test_Lines:
@@ -799,6 +806,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	case Left_Resized:
 		layout.leftWidth = max(f32(v), MIN_SIDEBAR_WIDTH)
 	case Center_Resized:
+		// Every mode's sidebars fit the same way (the Level mode's too: level_mode.odin)
 		left, _ := FittedSidebarWidths(layout)
 		rest := layout.workspace.x - left - DIVIDER
 		layout.rightWidth = max(rest - f32(v) - DIVIDER, MIN_SIDEBAR_WIDTH)
@@ -1504,6 +1512,11 @@ handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 		if out.slicer.shown > 0 do Slicer_Close(out, out.slicer.shown - 1)
 	case .Mode_Scene, .Mode_Level:
 		// Modes_Update switches (editor_modes.odin)
+	case .Level_Flip_X, .Level_Flip_Y, .Level_Random_Mode, .Level_Toggle_Grid, .Level_Single_Layer, .Level_Tile_Stacking,
+	     .Level_Auto_Layers, .Level_Delete, .Level_Duplicate, .Level_Cancel, .Level_World_Mode,
+	     .Level_Depth_Further, .Level_Depth_Closer, .Level_Move_Further, .Level_Move_Closer, .Level_Select_All, .Level_Empty_Space, .Level_Save_Tile_Selection,
+	     .Level_Panel_Project, .Level_Panel_Layers, .Level_Panel_Entities, .Level_Panel_Enums, .Level_Panel_Tilesets, .Level_Panel_Level, .Level_Layer_1, .Level_Layer_2, .Level_Layer_3, .Level_Layer_4, .Level_Layer_5, .Level_Layer_6, .Level_Layer_7, .Level_Layer_8, .Level_Layer_9, .Level_Layer_10:
+		// LevelMode_Update handles them (level_paint.odin)
 	case .Open_Settings:
 		SettingsDialog_Open(out)
 	case .Export:

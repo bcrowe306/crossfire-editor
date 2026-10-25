@@ -7,10 +7,11 @@ import "core:strconv"
 import "core:strings"
 
 /*
-The LDtk tab's edits, written back into the LDtk project (ldtk_doc.odin): one `LDtk_Edit` message
-per change, each an undo step restoring the files (history.odin's `.Files` scope).
+The Level mode's edits of the LDtk project (ldtk_doc.odin): one `LDtk_Edit` message per change,
+made in the document in memory (Save, Play and exports write it), each an undo step restoring the
+document's texts (history.odin's `.Files` scope).
 
-**What an edit writes.** Only the values it changes (`LDtkPatches`: spans of the text replaced),
+**What an edit changes.** Only the values it changes (`LDtkPatches`: spans of the text replaced),
 so everything else in the files stays byte for byte as LDtk wrote it. And what LDtk keeps in step
 with them, as LDtk itself would:
 - renames update the copies LDtk keeps beside instances (`__identifier` of layer, entity and field
@@ -29,9 +30,14 @@ Identifiers are cleaned up as LDtk does (`LDtk_CleanIdentifier`, the project's i
 and must be unique. External levels (`.ldtkl` files) are written where the level's data is. A file
 LDtk older than 1.0 wrote isn't edited (LDtk updates it when it saves).
 
-What isn't editable yet (the tab says so): arrays of values, tiles and file paths in fields,
-symmetrical entity references, external enums, linear world layouts' level order, a field's or
-layer's type.
+Definitions (layers, entity types, fields, enums, tilesets, level fields: the `Def_*` ops and
+those after them) are ldtk_defs.odin's, with LDtk's tidy bringing every level in step
+(ldtk_tidy.odin); `Field_Default` and `Layer_Grid_Size` go through it too. Auto-layer rules (the
+`Rule_*` ops) are ldtk_rule_ops.odin's: written as LDtk's toJson writes them, then the tidy, then
+the rules applied again.
+
+Arrays, tiles and file paths in fields' values are ldtk_field_ops.odin's (`Field_Value`), levels'
+and worlds' edits ldtk_level_ops.odin's, the project's settings ldtk_project_ops.odin's.
 */
 
 // What an LDtk_Edit changes
@@ -64,6 +70,17 @@ LDtkEditOp :: enum {
 	Entity_Moved,
 	Entity_Field,
 	Entity_Ref,
+	// Painting entities (ldtk_entity_ops.odin; LDtk's EntityTool, SelectionTool, ResizeTool): a new
+	// one of the entity type `def` in the level `level`'s layer `index` (a layer definition's
+	// uid) at `number`, `number2`, its iid `entity`; one removed (`entity`), resized (`number`,
+	// `number2` its position, `number3`, `number4` its size), duplicated (`entity` the source,
+	// `text` the copy's iid, at `number`, `number2`); a point field's point (`field`, `index`
+	// in an array or -1 for a new one, the cell `number`, `number2`; `flag` removes it)
+	Entity_Added,
+	Entity_Removed,
+	Entity_Resized,
+	Entity_Duplicated,
+	Entity_Point,
 	// A level (`level`: its iid): a field's value, its world position (`number`, `number2`)
 	Level_Field,
 	Level_X,
@@ -82,6 +99,115 @@ LDtkEditOp :: enum {
 	World_Layout,
 	World_Grid_Width,
 	World_Grid_Height,
+
+	// The definitions editors (ldtk_defs.odin): `kind` says which list, `def` the definition's uid
+	// (`field` a field's). A member set (`key`; its value in `text`, `number` or `flag` by the
+	// member's kind: `LDTK_MEMBERS`); a definition created (`text`: a layer's type, an entity
+	// preset, a field's type with `flag` for an array and `def` its entity (-1: a level field), a
+	// tileset's image), removed, duplicated, moved (`number` places)
+	Def_Set,
+	Def_Added,
+	Def_Removed,
+	Def_Duplicated,
+	Def_Moved,
+	// A field's type converted (`field`, `text`: the conversion's id, FieldTypeConverter)
+	Field_Converted,
+	// An IntGrid layer's values (`def`): one added to a group (`index`: its uid, 0 none), removed
+	// (`index`: the value), moved (`index`, into the group `number` at `number2`), its tile
+	// (`index`, `text` "x,y,w,h" of the tileset `number`, "" none); its groups: added, removed
+	// (`index`: its uid), a member (`index`, `key` identifier / color, `text`), moved (`number`)
+	IntGrid_Value_Added,
+	IntGrid_Value_Removed,
+	IntGrid_Value_Moved,
+	IntGrid_Value_Tile,
+	IntGrid_Group_Added,
+	IntGrid_Group_Removed,
+	IntGrid_Group_Set,
+	IntGrid_Group_Moved,
+	// An enum's values (`def`, `index`): removed, moved (`number` places), its icon (`text` "x,y,w,h")
+	Enum_Value_Removed,
+	Enum_Value_Moved,
+	Enum_Value_Tile,
+	// External enums: a file imported (`text`: its path from the project file), one synced again,
+	// one's enums removed
+	Enum_Import,
+	Enum_Sync,
+	Enum_External_Removed,
+	// A tileset's tiles (`def`, `ids`): an enum value's tag on or off (`text`, `flag`), custom data
+	// (`text`)
+	Tileset_Tag,
+	Tileset_Custom_Data,
+	// A tile selection saved (`def`, `ids` in picking order, `text` its mode: "Stamp" or
+	// "Random"; TilesetDef.saveSelection: one tile only forgets the saved selections holding it)
+	Tileset_Selection_Saved,
+
+	// The Auto-layer Rules tab (ldtk_rule_ops.odin): `def` the layer definition's uid, `index` a
+	// rule group's uid, `field` a rule's uid (that file's doc block says what each takes)
+	Rule_Group_Added,
+	Rule_Group_Removed,
+	Rule_Group_Duplicated,
+	Rule_Group_Moved,
+	Rule_Group_Set,
+	Rule_Group_Here,
+	Rule_Group_Remapped,
+	Rule_Group_Assistant,
+	Rule_Added,
+	Rule_Removed,
+	Rule_Duplicated,
+	Rule_Moved,
+	Rule_Set,
+	Rule_Pattern,
+	Rule_Tiles,
+	Rule_Pasted,
+	Rule_Seed,
+	Rule_Tileset_Here,
+
+	// Levels and worlds (ldtk_level_ops.odin): `level` a level's iid, `world` a world's index.
+	// A new level at the world point `number`, `number2` (depth `index`, `flag`: the grid shown,
+	// `text` its iid); one removed; duplicated (`text` the copy's iid; `flag`: moved by LDtk's
+	// offset, else to `number`, `number2`); a setting (`key`: identifier, useAutoIdentifier,
+	// worldDepth, bgColor, bgRelPath, bgPos, bgPivot; `text`, `number`, `flag`); a depth
+	// further (`number` 1) or closer (-1); resized (`number`, `number2` the new left and top
+	// edges, `number3`, `number4` the size); moved to `number` in its world's order; moved to
+	// the world `world`; a world added (`text` its name, `entity` its level's iid), removed, set
+	// (`key`: identifier, defaultLevelWidth, defaultLevelHeight)
+	Level_Added,
+	Level_Removed,
+	Level_Duplicated,
+	Level_Set,
+	Level_Depth,
+	Level_Resized,
+	Level_Sorted,
+	Level_World_Moved,
+	World_Added,
+	World_Removed,
+	World_Set,
+
+	// The Project tab (ldtk_project_ops.odin): a setting (`key`, its value in `text`, `number`
+	// or `flag`), one of LDtk's flags (`key`, `flag`), the custom commands (`key`: add, remove,
+	// move, command, when; `index` the command, `text`, `number`)
+	Project_Set,
+	Project_Flag,
+	Project_Command,
+
+	// A field's value of any kind (ldtk_field_ops.odin): an entity's (`entity`) or a level's
+	// (`level`) field `field`; `key` set (`text`, an array's item `index`), add, remove, move
+	// (`number`), clear
+	Field_Value,
+
+	// LDtk's selection moved, copied or deleted (ldtk_selection_ops.odin): `level`, `text` the
+	// selection, `key` move / delete, `number`, `number2` the move, `flag` a copy, `number3` the
+	// single layer mode's layer (0: every visible layer)
+	Selection_Edit,
+}
+
+// Which list of definitions a `Def_*` edit is about
+LDtkDefKind :: enum u8 {
+	Layer,
+	Entity,
+	Field,
+	Enum,
+	Tileset,
 }
 
 // An edit of an LDtk project (strings only live for the frame)
@@ -95,8 +221,12 @@ LDtk_Edit :: struct {
 	// A level's and an entity's iid
 	level, entity: string,
 	text: string,
-	number, number2: f64,
+	number, number2, number3, number4: f64,
 	flag: bool,
+	// The definitions editors: which list, the member set, tiles
+	kind: LDtkDefKind,
+	key: string,
+	ids: []int,
 }
 
 // A rename an edit made, which scenes may follow (their LDtkLevel nodes name layers and entities)
@@ -106,7 +236,7 @@ LDtkRename :: struct {
 }
 
 // What an edit's second pass brings in step (ldtkCommit)
-@(private="file")
+@(private)
 LDtkRefresh :: struct {
 	// Every level's neighbours, and its entities' world positions
 	neighbours, worldPositions: bool,
@@ -115,14 +245,14 @@ LDtkRefresh :: struct {
 }
 
 /*
-Applies an edit to an LDtk project and writes the files it changed.
+Applies an edit to an LDtk project's document in memory (`LDtkDoc_Save` writes it).
 
 Inputs:
 - root: The project folder
 - edit: The edit
 
 Returns:
-- "" or why nothing was written; and a rename scenes may follow
+- "" or why nothing changed; and a rename scenes may follow
 */
 LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename: LDtkRename) {
 	doc := LDtkDoc_Get(root, edit.file)
@@ -163,49 +293,35 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 		case .Layer_Parallax_Scaling:
 			set(&patches, doc, 0, Json_Get(main, def, "parallaxScaling"), edit.flag ? "true" : "false")
 		case .Layer_Grid_Size:
+			// LDtk remaps every level's cells (ldtk_defs.odin's layerGrid)
 			if why := LDtkOps_GridSizeLocked(doc, edit.def); why != "" do return why, {}
-			grid := clamp(int(math.round(edit.number)), 1, 1024)
-			set(&patches, doc, 0, Json_Get(main, def, "gridSize"), fmt.tprint(grid))
-			for li in ldtkLayerInstancesOf(doc, edit.def) {
-				json := LDtkDoc_Json(doc, li.file)
-				rect := LDtkDoc_LevelRect(doc, li.level)
-				cw, ch := int(math.ceil(rect[2] / f64(grid))), int(math.ceil(rect[3] / f64(grid)))
-				set(&patches, doc, li.file, Json_Get(json, li.node, "__gridSize"), fmt.tprint(grid))
-				set(&patches, doc, li.file, Json_Get(json, li.node, "__cWid"), fmt.tprint(cw))
-				set(&patches, doc, li.file, Json_Get(json, li.node, "__cHei"), fmt.tprint(ch))
-				// An empty IntGrid layer's cells: zeros, as many as the new grid has
-				csv := Json_Get(json, li.node, "intGridCsv")
-				if Json_Count(json, csv) > 0 {
-					zeros := make([]string, cw * ch, context.temp_allocator)
-					for &z in zeros do z = "0"
-					set(&patches, doc, li.file, csv, Json_Array(..zeros))
-				}
-				// Entities keep their pixels; their cells follow
-				for e in Json_Items(json, Json_Get(json, li.node, "entityInstances")) do ldtkSetGrid(&patches, doc, li.file, e, grid)
-			}
+			e := edit
+			e.op, e.kind, e.key = .Def_Set, .Layer, "gridSize"
+			return LDtkOps_DefEdit(root, doc, e)
 		}
 	case .Layer_Move:
+		// `number` places: -1 up, 1 down, more from a drag in the Layers sidebar
 		layers := LDtkDoc_Defs(doc, "layers")
 		def := LDtkDoc_DefByUid(doc, "layers", edit.def)
 		items := Json_Items(main, layers)
 		at, _ := slice.linear_search(items, def)
-		to := at + (edit.number < 0 ? -1 : 1)
-		if def < 0 || to < 0 || to >= len(items) do return "", {}
-		other := items[to]
-		otherUid := Json_Int(main, Json_Get(main, other, "uid"))
-		ldtkSwap(&patches, doc, 0, def, other)
+		steps := int(math.round(edit.number))
+		if steps == 0 do steps = edit.number < 0 ? -1 : edit.number > 0 ? 1 : 0
+		to := clamp(at + steps, 0, len(items) - 1)
+		if def < 0 || to == at do return "", {}
+		ldtkMove(&patches, doc, 0, items, at, to)
 		// Every level's layer instances are in the definitions' order
+		order := make([]int, len(items), context.temp_allocator)
+		for d, i in items do order[i] = Json_Int(main, Json_Get(main, d, "uid"), -1)
 		for _, level in doc.levels {
 			file, array := LDtkDoc_LayerInstances(doc, level)
 			if array < 0 do continue
 			json := LDtkDoc_Json(doc, file)
-			a, b := -1, -1
-			for li in Json_Items(json, array) {
-				uid := Json_Int(json, Json_Get(json, li, "layerDefUid"), -1)
-				if uid == edit.def do a = li
-				if uid == otherUid do b = li
-			}
-			if a >= 0 && b >= 0 do ldtkSwap(&patches, doc, file, a, b)
+			instances := Json_Items(json, array)
+			// The instances as the definitions are (LDtk keeps them so); a level that differs is left
+			same := len(instances) == len(order)
+			if same do for li, i in instances do if Json_Int(json, Json_Get(json, li, "layerDefUid"), -1) != order[i] do same = false
+			if same do ldtkMove(&patches, doc, file, instances, at, to)
 		}
 	case .Layer_Visible:
 		level := LDtkDoc_FindLevel(doc, edit.level)
@@ -296,27 +412,11 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 				}
 			}
 		} else {
-			if info.isArray do return "arrays' defaults aren't editable here yet", {}
-			#partial switch info.type {
-			case .Int, .Float, .Bool, .String, .Text:
-			case: return fmt.tprintf("%v fields' defaults aren't editable here yet", info.type), {}
-			}
-			override := "null"
-			if strings.trim_space(edit.text) != "" {
-				_, raw, ok, why := ldtkFieldValue(doc, info, edit.text, minified)
-				if !ok do return why, {}
-				// realEditorValues' one item is the override
-				override = strings.trim_suffix(strings.trim_prefix(raw, "["), "]")
-			}
-			set(&patches, doc, 0, Json_Get(main, fieldDef, "defaultOverride"), override)
-			// Instances using the default show the new one
-			newInfo := info
-			newInfo.defaultText = ldtkDefaultText(info, override)
-			for u in users {
-				json := LDtkDoc_Json(doc, u.file)
-				if ldtkUsesDefault(json, u.node) do set(&patches, doc, u.file, Json_Get(json, u.node, "__value"), newInfo.defaultText)
-			}
-			refresh.toc = true
+			// Every type's default, as LDtk's FieldDef.setDefault reads it (ldtk_defs.odin); the
+			// instances using it follow through LDtk's tidy
+			e := edit
+			e.op, e.kind, e.key = .Def_Set, .Field, "defaultOverride"
+			return LDtkOps_DefEdit(root, doc, e)
 		}
 
 	// Entity instances
@@ -378,6 +478,8 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 		if fieldDef < 0 do return "no such field", {}
 		info := LDtkDoc_FieldInfo(doc, fieldDef)
 		if info.type != .EntityRef do return "not an entity reference", {}
+		// Arrays and symmetrical references: LDtk's FieldInstance.setEntityRefTo (ldtk_entity_ops.odin)
+		if info.isArray || info.symmetrical do return LDtkOps_EntityEdit(doc, edit), {}
 		if why := LDtkOps_FieldLocked(info); why != "" do return why, {}
 		value, raw := "null", "[]"
 		if edit.text != "" {
@@ -394,6 +496,35 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 			set(&patches, doc, e.file, Json_Get(json, fi, "realEditorValues"), raw)
 		}
 		refresh.toc = true
+
+	// Painting entities (ldtk_entity_ops.odin)
+	case .Entity_Added, .Entity_Removed, .Entity_Resized, .Entity_Duplicated, .Entity_Point:
+		return LDtkOps_EntityEdit(doc, edit), {}
+
+	// The definitions editors (ldtk_defs.odin)
+	case .Def_Set, .Def_Added, .Def_Removed, .Def_Duplicated, .Def_Moved, .Field_Converted,
+	     .IntGrid_Value_Added, .IntGrid_Value_Removed, .IntGrid_Value_Moved, .IntGrid_Value_Tile,
+	     .IntGrid_Group_Added, .IntGrid_Group_Removed, .IntGrid_Group_Set, .IntGrid_Group_Moved,
+	     .Enum_Value_Removed, .Enum_Value_Moved, .Enum_Value_Tile, .Enum_Import, .Enum_Sync, .Enum_External_Removed,
+	     .Tileset_Tag, .Tileset_Custom_Data, .Tileset_Selection_Saved:
+		return LDtkOps_DefEdit(root, doc, edit)
+
+	// The Auto-layer Rules tab (ldtk_rule_ops.odin)
+	case .Rule_Group_Added, .Rule_Group_Removed, .Rule_Group_Duplicated, .Rule_Group_Moved, .Rule_Group_Set, .Rule_Group_Here,
+	     .Rule_Group_Remapped, .Rule_Group_Assistant, .Rule_Added, .Rule_Removed, .Rule_Duplicated, .Rule_Moved, .Rule_Set,
+	     .Rule_Pattern, .Rule_Tiles, .Rule_Pasted, .Rule_Seed, .Rule_Tileset_Here:
+		return LDtkOps_RuleEdit(doc, edit), {}
+
+	// Levels and worlds (ldtk_level_ops.odin), the Project tab (ldtk_project_ops.odin)
+	case .Level_Added, .Level_Removed, .Level_Duplicated, .Level_Set, .Level_Depth, .Level_Resized, .Level_Sorted,
+	     .Level_World_Moved, .World_Added, .World_Removed, .World_Set:
+		return LDtkOps_LevelEdit(root, doc, edit), {}
+	case .Project_Set, .Project_Flag, .Project_Command:
+		return LDtkOps_ProjectEdit(root, doc, edit), {}
+	case .Field_Value:
+		return LDtkOps_FieldValue(root, doc, edit), {}
+	case .Selection_Edit:
+		return LDtkOps_SelectionEdit(doc, edit), {}
 
 	// Levels in the world
 	case .Level_X, .Level_Y, .Level_Moved:
@@ -564,6 +695,18 @@ LDtkOps_Apply :: proc(root: string, edit: LDtk_Edit) -> (problem: string, rename
 		refresh = {neighbours = true, worldPositions = true, toc = true}
 	}
 	if LDtkPatches_Empty(&patches) do return "", rename
+	#partial switch edit.op {
+	case .Level_X, .Level_Y, .Level_Moved, .World_Layout, .World_Grid_Width, .World_Grid_Height:
+		// What LDtk derives after a level moves: its tidy too (automatic names, the files' names)
+		s := stagesMake(doc)
+		if problem := stagesApply(&s, &patches); problem != "" {
+			for d in s.made do LDtkDoc_Free(d)
+			return problem, rename
+		}
+		problem := LDtkOps_LevelsFinish(&s)
+		if problem != "" do for d in s.made do LDtkDoc_Free(d)
+		return problem, rename
+	}
 	return ldtkCommit(doc, &patches, refresh), rename
 }
 
@@ -583,30 +726,24 @@ LDtkOps_TooOld :: proc(doc: ^LDtkDoc) -> string {
 }
 
 /*
-Why a layer's grid size can't change ("" when it can): cells drawn in it (IntGrid values, tiles,
-auto-layer tiles) would move, and an auto-layer and its source share one grid.
+Why a layer's grid size can't change ("" when it can): an auto-layer takes its source layer's grid
+(LDtk's grid input is read only for it). Any other layer's cells are remapped (ldtk_defs.odin).
 */
 LDtkOps_GridSizeLocked :: proc(doc: ^LDtkDoc, layerUid: int) -> string {
 	main := LDtkDoc_Main(doc)
 	def := LDtkDoc_DefByUid(doc, "layers", layerUid)
 	if def < 0 do return "no such layer"
 	if Json_Kind(main, Json_Get(main, def, "autoSourceLayerDefUid")) == .Number do return "an auto-layer takes its source layer's grid"
-	for d in Json_Items(main, LDtkDoc_Defs(doc, "layers")) do if Json_Int(main, Json_Get(main, d, "autoSourceLayerDefUid"), -1) == layerUid do return "an auto-layer uses this layer's cells"
-	for li in ldtkLayerInstancesOf(doc, layerUid) {
-		json := LDtkDoc_Json(doc, li.file)
-		if Json_Count(json, Json_Get(json, li.node, "gridTiles")) > 0 || Json_Count(json, Json_Get(json, li.node, "autoLayerTiles")) > 0 do return "it has tiles drawn: change it in LDtk, which moves them"
-		for v in Json_Items(json, Json_Get(json, li.node, "intGridCsv")) do if Json_Int(json, v) != 0 do return "it has cells painted: change it in LDtk, which moves them"
-	}
 	return ""
 }
 
 // Why a field's values can't be edited here ("" when they can)
 LDtkOps_FieldLocked :: proc(info: LDtkFieldInfo) -> string {
-	if info.isArray do return "arrays aren't editable here yet (LDtk edits them)"
+	if info.isArray do return "an array's values are edited item by item (Field_Value)"
 	#partial switch info.type {
-	case .Tile: return "tiles aren't editable here yet (LDtk edits them)"
+	case .Tile: return "a tile is picked on its tileset (Field_Value)"
 	case .Unknown: return "this field's type isn't known here"
-	case .EntityRef: if info.symmetrical do return "symmetrical references aren't editable here yet (LDtk keeps both ends)"
+	case .EntityRef: if info.symmetrical do return "a symmetrical reference is set by picking it (Entity_Ref keeps both ends)"
 	}
 	return ""
 }
@@ -675,7 +812,7 @@ LDtkDoc_FieldInfo :: proc(doc: ^LDtkDoc, node: int) -> LDtkFieldInfo {
 }
 
 // A field's default as `__value` text, from its `defaultOverride` text (LDtk's FieldDef.get*Default)
-@(private="file")
+@(private)
 ldtkDefaultText :: proc(info: LDtkFieldInfo, override: string) -> string {
 	if info.isArray do return "[]"
 	param := ""
@@ -705,7 +842,7 @@ ldtkDefaultText :: proc(info: LDtkFieldInfo, override: string) -> string {
 }
 
 // Whether a field instance uses its definition's default (no editor value of its own)
-@(private="file")
+@(private)
 ldtkUsesDefault :: proc(json: ^JsonDoc, fieldInstance: int) -> bool {
 	raw := Json_Get(json, fieldInstance, "realEditorValues")
 	for v in Json_Items(json, raw) do if Json_Kind(json, v) != .Null do return false
@@ -719,7 +856,7 @@ FieldInstance.parseValue and toJson): clamped to its range, an enum's value chec
 Returns:
 - The two texts, and false with why when the text isn't a value of the field's type
 */
-@(private="file")
+@(private)
 ldtkFieldValue :: proc(doc: ^LDtkDoc, info: LDtkFieldInfo, text: string, minified: bool) -> (value, raw: string, ok: bool, problem: string) {
 	wrap :: proc(minified: bool, id, param: string) -> string {
 		return Json_Array(Json_Object(minified, {"id", Json_Quote(id)}, {"params", Json_Array(param)}))
@@ -783,7 +920,7 @@ LDtkDoc_EnumValues :: proc(doc: ^LDtkDoc, enumUid: int) -> []string {
 }
 
 // An entity reference's `__value` (LDtk's EntityReferenceInfos)
-@(private="file")
+@(private)
 ldtkRefValue :: proc(doc: ^LDtkDoc, target: LDtkDocEntity, minified: bool) -> string {
 	json := LDtkDoc_Json(doc, target.file)
 	_, levelIid := LDtkDoc_LevelNames(doc, target.level)
@@ -839,7 +976,7 @@ ldtkLayerInstancesOf :: proc(doc: ^LDtkDoc, layerUid: int) -> []LDtkLayerPlace {
 }
 
 // Every instance of an entity definition (temp allocated)
-@(private="file")
+@(private)
 ldtkEntitiesOf :: proc(doc: ^LDtkDoc, defUid: int) -> []LDtkDocEntity {
 	out := make([dynamic]LDtkDocEntity, context.temp_allocator)
 	for e in LDtkDoc_Entities(doc) {
@@ -871,7 +1008,7 @@ ldtkAllFieldDefs :: proc(doc: ^LDtkDoc) -> []int {
 }
 
 // Every field instance (entities' and levels', each copy of a level's; temp allocated)
-@(private="file")
+@(private)
 ldtkAllFieldInstances :: proc(doc: ^LDtkDoc) -> []LDtkDocPlace {
 	out := make([dynamic]LDtkDocPlace, context.temp_allocator)
 	for e in LDtkDoc_Entities(doc) {
@@ -941,8 +1078,21 @@ ldtkSwap :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, a, b: int) {
 	LDtkPatches_Add(patches, file, Json_SetPatch(json, b, ta))
 }
 
-// The grid size of the layer an entity is in
+// Moves an array item from `from` to `to` (the items between shift by one): each item in the range
+// takes the text of the one that ends up there (array items of one array: layers reordered)
 @(private="file")
+ldtkMove :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file: int, items: []int, from, to: int) {
+	json := LDtkDoc_Json(doc, file)
+	texts := make([]string, len(items), context.temp_allocator)
+	for item, i in items do texts[i] = strings.clone(Json_Text(json, item), context.temp_allocator)
+	order := make([dynamic]int, context.temp_allocator)
+	for i in 0 ..< len(items) do if i != from do append(&order, i)
+	inject_at(&order, to, from)
+	for i in min(from, to) ..= max(from, to) do LDtkPatches_Add(patches, file, Json_SetPatch(json, items[i], texts[order[i]]))
+}
+
+// The grid size of the layer an entity is in
+@(private)
 ldtkInstanceGrid :: proc(doc: ^LDtkDoc, e: LDtkDocEntity) -> int {
 	json := LDtkDoc_Json(doc, e.file)
 	return max(Json_Int(json, Json_Get(json, e.layer, "__gridSize"), 16), 1)
@@ -959,7 +1109,7 @@ ldtkSetGrid :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, entity, grid: in
 
 // An entity's `__grid` from its position (`px`, or the one given), its pivot and grid
 // (LDtk's EntityInstance.getCx: a pivot of 1 counts the pixel before it)
-@(private="file")
+@(private)
 ldtkSetGridPivot :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, entity, grid: int, pivotX, pivotY: f64, at: Maybe([2]int) = nil) {
 	json := LDtkDoc_Json(doc, file)
 	px := Json_Get(json, entity, "px")
@@ -970,14 +1120,16 @@ ldtkSetGridPivot :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc, file, entity, gri
 }
 
 /*
-Writes an edit: its patches, then (from what they make, before anything is written) what LDtk
-keeps in step: neighbours, entities' world positions, the table of contents.
+Makes an edit in the document (in memory: saving writes it): its patches, then (from what they
+make) what LDtk keeps in step: neighbours, entities' world positions, the table of contents.
 */
-@(private="file")
+@(private)
 ldtkCommit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches, refresh: LDtkRefresh) -> string {
 	texts := LDtkDoc_Texts(doc)
 	if problem := LDtkDoc_Apply(doc, texts, patches); problem != "" do return problem
-	if refresh != {} {
+	// A painted IntGrid layer's legacy array follows it (the ExportPreCsvIntGridFormat flag)
+	legacy := LDtkDoc_HasFlag(doc, "ExportPreCsvIntGridFormat")
+	if refresh != {} || legacy {
 		after := LDtkDoc_FromTexts(doc, texts)
 		defer LDtkDoc_Free(&after)
 		if after.problem == "" {
@@ -985,13 +1137,14 @@ ldtkCommit :: proc(doc: ^LDtkDoc, patches: ^LDtkPatches, refresh: LDtkRefresh) -
 			if refresh.neighbours do refreshNeighbours(&more, &after)
 			if refresh.worldPositions do refreshWorldPositions(&more, &after)
 			if refresh.toc do refreshToc(&more, &after)
+			if legacy do tidyLegacyIntGrid(&more, &after)
 			// The second pass's spans are the first pass's results'
 			second := LDtkDoc_Texts(&after)
 			if problem := LDtkDoc_Apply(&after, second, &more); problem != "" do return problem
 			for t, i in second do texts[i] = strings.clone(t, context.temp_allocator)
 		}
 	}
-	return LDtkDoc_WriteTexts(doc, texts)
+	return LDtkDoc_SetTexts(doc, texts)
 }
 
 // A level's neighbour as LDtk lists it
@@ -1058,7 +1211,7 @@ LDtkDoc_Neighbours :: proc(doc: ^LDtkDoc, level: int) -> []LDtkNeighbour {
 }
 
 // Every level's `__neighbours`, where they differ from LDtk's rule (an equal set is left as written)
-@(private="file")
+@(private)
 refreshNeighbours :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 	for _, level in doc.levels {
 		wanted := LDtkDoc_Neighbours(doc, level)
@@ -1084,7 +1237,7 @@ refreshNeighbours :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 }
 
 // Entities' `__worldX` / `__worldY` (where the file has them) from their level's place
-@(private="file")
+@(private)
 refreshWorldPositions :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 	for e in LDtkDoc_Entities(doc) {
 		json := LDtkDoc_Json(doc, e.file)
@@ -1100,7 +1253,7 @@ refreshWorldPositions :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 
 // The table of contents' entries from the entities they list: world position, size, exported
 // fields' values
-@(private="file")
+@(private)
 refreshToc :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 	main := LDtkDoc_Main(doc)
 	toc := Json_Get(main, Json_Root(main), "toc")
@@ -1133,7 +1286,7 @@ refreshToc :: proc(patches: ^LDtkPatches, doc: ^LDtkDoc) {
 }
 
 // Whether two values are the same JSON (whatever their spacing)
-@(private="file")
+@(private)
 jsonSameValue :: proc(a: ^JsonDoc, an: int, b: ^JsonDoc, bn: int) -> bool {
 	ka, kb := Json_Kind(a, an), Json_Kind(b, bn)
 	if ka != kb do return false

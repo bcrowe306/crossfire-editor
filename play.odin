@@ -99,6 +99,8 @@ playStart :: proc(state: ^State, scene := "") -> skald.Command(Msg) {
 	}
 
 	if !CodeTabs_SaveAll(state) do return {}
+	// The Level mode's unsaved LDtk edits: the game reads the files (ldtk_doc.odin)
+	if !LDtkDocs_SaveProject(state) do return {}
 	_ = Shaders_Compile(state)
 	_ = Fonts_MakeMSDF(state)
 	if message := Project_Save(&state.project); message != "" {

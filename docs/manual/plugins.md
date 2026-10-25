@@ -1,7 +1,7 @@
 ---
 title: Editor plugins
 description: Extend the editor with your own Odin code — tool commands that change the project, importers for other file formats, and extra inspector rows — reloaded every time you save.
-order: 39
+order: 43
 ---
 
 # Editor plugins

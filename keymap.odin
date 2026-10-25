@@ -89,6 +89,41 @@ ACTION_KEY_RULES := #partial [Action]ActionKeyRule{
 	.Nudge_Down_Large = {viewportOnly = true, onlyIn = {.Scene}},
 	.Open_Script = {onlyIn = {.Scene}},
 	.Close_Code_Tab = {onlyIn = {.Scene}},
+	// The Level mode's (level_paint.odin)
+	.Level_Flip_X = {onlyIn = {.Level}},
+	.Level_Flip_Y = {onlyIn = {.Level}},
+	.Level_Random_Mode = {onlyIn = {.Level}},
+	.Level_Toggle_Grid = {onlyIn = {.Level}},
+	.Level_Single_Layer = {onlyIn = {.Level}},
+	.Level_Tile_Stacking = {onlyIn = {.Level}},
+	.Level_Auto_Layers = {onlyIn = {.Level}},
+	.Level_Delete = {onlyIn = {.Level}},
+	.Level_Duplicate = {textChord = true, onlyIn = {.Level}},
+	.Level_Cancel = {onlyIn = {.Level}},
+	.Level_World_Mode = {onlyIn = {.Level}},
+	.Level_Depth_Further = {onlyIn = {.Level}},
+	.Level_Depth_Closer = {onlyIn = {.Level}},
+	.Level_Move_Further = {onlyIn = {.Level}},
+	.Level_Move_Closer = {onlyIn = {.Level}},
+	.Level_Select_All = {textChord = true, onlyIn = {.Level}},
+	.Level_Empty_Space = {onlyIn = {.Level}},
+	.Level_Save_Tile_Selection = {onlyIn = {.Level}},
+	.Level_Panel_Project = {onlyIn = {.Level}},
+	.Level_Panel_Layers = {onlyIn = {.Level}},
+	.Level_Panel_Entities = {onlyIn = {.Level}},
+	.Level_Panel_Enums = {onlyIn = {.Level}},
+	.Level_Panel_Tilesets = {onlyIn = {.Level}},
+	.Level_Panel_Level = {onlyIn = {.Level}},
+	.Level_Layer_1 = {onlyIn = {.Level}},
+	.Level_Layer_2 = {onlyIn = {.Level}},
+	.Level_Layer_3 = {onlyIn = {.Level}},
+	.Level_Layer_4 = {onlyIn = {.Level}},
+	.Level_Layer_5 = {onlyIn = {.Level}},
+	.Level_Layer_6 = {onlyIn = {.Level}},
+	.Level_Layer_7 = {onlyIn = {.Level}},
+	.Level_Layer_8 = {onlyIn = {.Level}},
+	.Level_Layer_9 = {onlyIn = {.Level}},
+	.Level_Layer_10 = {onlyIn = {.Level}},
 }
 
 /*
@@ -129,6 +164,32 @@ ACTION_LABELS := [Action]string{
 	.Open_Settings = "Settings", .Play_Scene = "Play the open scene", .Open_Project_Settings = "Project settings", .Build_Scripts = "Build scripts", .Open_Script = "Open script in code editor",
 	.Close_Code_Tab = "Close code tab",
 	.Mode_Scene = "Scene mode", .Mode_Level = "Level mode",
+	.Level_Flip_X = "Level: flip the tiles on X", .Level_Flip_Y = "Level: flip the tiles on Y",
+	.Level_Random_Mode = "Level: random tiles or a stamp", .Level_Toggle_Grid = "Level: show the grid and snap to it",
+	.Level_Single_Layer = "Level: fade the other layers", .Level_Tile_Stacking = "Level: stack tiles",
+	.Level_Auto_Layers = "Level: show auto-layer tiles", .Level_Delete = "Level: delete the selected entity",
+	.Level_Duplicate = "Level: duplicate the selected entity", .Level_Cancel = "Level: cancel a pick, deselect",
+	.Level_World_Mode = "Level: the world or the level",
+	.Level_Depth_Further = "Level: show the next world depth", .Level_Depth_Closer = "Level: show the previous world depth",
+	.Level_Move_Further = "Level: move the level a depth further", .Level_Move_Closer = "Level: move the level a depth closer",
+	.Level_Select_All = "Level: select everything", .Level_Empty_Space = "Level: select empty spaces too",
+	.Level_Save_Tile_Selection = "Level: memorize the picked tiles",
+	.Level_Panel_Project = "Level: show the Project tab (again: close the panel)",
+	.Level_Panel_Layers = "Level: show the Layers tab (again: close the panel)",
+	.Level_Panel_Entities = "Level: show the Entities tab (again: close the panel)",
+	.Level_Panel_Enums = "Level: show the Enums tab (again: close the panel)",
+	.Level_Panel_Tilesets = "Level: show the Tilesets tab (again: close the panel)",
+	.Level_Panel_Level = "Level: show the Level tab (again: close the panel)",
+	.Level_Layer_1 = "Level: select the first layer",
+	.Level_Layer_2 = "Level: select the second layer",
+	.Level_Layer_3 = "Level: select the third layer",
+	.Level_Layer_4 = "Level: select the fourth layer",
+	.Level_Layer_5 = "Level: select the fifth layer",
+	.Level_Layer_6 = "Level: select the sixth layer",
+	.Level_Layer_7 = "Level: select the seventh layer",
+	.Level_Layer_8 = "Level: select the eighth layer",
+	.Level_Layer_9 = "Level: select the ninth layer",
+	.Level_Layer_10 = "Level: select the tenth layer",
 }
 
 /*
@@ -196,15 +257,20 @@ keyParen :: proc(s: ^State, action: Action) -> string {
 
 /*
 The action using a chord, other than `except`. The Settings dialog warns about such conflicts;
-at runtime the first action in `Action` order wins.
+at runtime the first action in `Action` order wins. Actions of modes that never show together
+(`ActionKeyRule.onlyIn`) don't conflict: the Scene mode's G and the Level mode's are both G.
 
 Returns:
 - The action, and whether there is one
 */
 Keymap_FindChord :: proc(keymap: ^Keymap, chord: skald.Shortcut, except: Action) -> (Action, bool) {
 	if chord == {} do return {}, false
+	mine := ACTION_KEY_RULES[except].onlyIn
 	for chords, action in keymap {
 		if action == except do continue
+		// Actions of different modes may share a key (G is the Scene mode's grid and the Level mode's)
+		theirs := ACTION_KEY_RULES[action].onlyIn
+		if mine != {} && theirs != {} && mine & theirs == {} do continue
 		for c in chords do if c == chord do return action, true
 	}
 	return {}, false

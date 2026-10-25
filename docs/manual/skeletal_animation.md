@@ -1,7 +1,7 @@
 ---
 title: Skeletal animation
 description: Animate characters with bones instead of frame-by-frame drawings, bend pictures over bones with skinned meshes, reach for targets with inverse kinematics, and import DragonBones characters.
-order: 26
+order: 30
 ---
 
 # Skeletal animation

@@ -1,0 +1,171 @@
+# The Level mode's definitions editors (view_ldtk_defs.odin, ldtk_defs.odin, ldtk_tidy.odin):
+# layers made, set and removed (their instances in every level following), IntGrid values; an
+# entity type made, drawn with a tileset's tile picked on its picture, a field added with its
+# default; an enum and its values; a tileset's spacing, a tag enum and tiles tagged on its picture,
+# a tile's custom data; a level field; each edit one undo step, in memory until saved.
+# Run with: task test:ui (and :fullscreen, :short)
+#
+# The fixture tests/fixtures/ldtk_world/world.ldtk: layers Entities (uid 1), Tiles (2), Walls (3,
+# IntGrid: values 1 to 3), tileset Tiles (5, 2 x 2 tiles), entity types Player (10), Coin (11),
+# Door (12), enums Mood (30: Happy, Sad, Angry) and Weather (31), level fields 50 to 52; nextUid 60.
+
+wait 5
+key ctrl+alt+2
+expect mode Level
+import tests/fixtures/ldtk_world/world.ldtk
+wait_until level levels 3
+wait_until widget_visible ldtk-map-Level true
+click_widget level-row-0
+
+# Layers: a new IntGrid layer on top, in every level; its documentation; removed again
+send Bottom_Tab Layers
+expect level tab Layers
+scroll_into_view ldtk-tab-scroll ldtk-layers-add-IntGrid
+click_widget ldtk-layers-add-IntGrid
+wait_until ldtk defs.layers.0.identifier IntGrid
+expect ldtk defs.layers.0.uid 60
+expect ldtk levels.identifier=Tower.layerInstances.0.__identifier IntGrid
+expect level layer IntGrid
+scroll_into_view ldtk-tab-scroll ldtk-layer-doc
+click_widget ldtk-layer-doc
+type Collision cells
+wait_until ldtk defs.layers.uid=60.doc Collision cells
+key escape
+scroll_into_view ldtk-tab-scroll ldtk-layer-hideInList
+click_widget ldtk-layer-hideInList
+wait_until ldtk defs.layers.uid=60.hideInList true
+scroll_into_view ldtk-tab-scroll ldtk-layers-delete
+click_widget ldtk-layers-delete
+wait_until ldtk defs.layers.uid=60 missing
+expect ldtk levels.identifier=Tower.layerInstances.0.__identifier Entities
+# Undo brings it back, with its documentation, in every level
+action Undo
+wait_until ldtk defs.layers.0.uid 60
+expect ldtk levels.identifier=Cave.layerInstances.0.layerDefUid 60
+send LDtk_Item_Picked Layers 60
+scroll_into_view ldtk-tab-scroll ldtk-layers-delete
+click_widget ldtk-layers-delete
+wait_until ldtk defs.layers.0.uid 1
+
+# Walls' values: one added, its name typed, removed; Walls' grid halved (its cells keep their place)
+send LDtk_Item_Picked Layers 3
+expect level layer Walls
+scroll_into_view ldtk-tab-scroll ldtk-intgrid-add
+click_widget ldtk-intgrid-add
+wait_until ldtk defs.layers.uid=3.intGridValues.3.value 4
+scroll_into_view ldtk-tab-scroll ldtk-intgrid-name-4
+click_widget ldtk-intgrid-name-4
+type lava
+wait_until ldtk defs.layers.uid=3.intGridValues.3.identifier lava
+key escape
+scroll_into_view ldtk-tab-scroll ldtk-intgrid-remove-4
+click_widget ldtk-intgrid-remove-4
+wait_until ldtk defs.layers.uid=3.intGridValues.3 missing
+scroll_into_view ldtk-tab-scroll ldtk-layer-grid-dec
+click_widget ldtk-layer-grid-dec
+wait_until ldtk defs.layers.uid=3.gridSize 15
+expect ldtk levels.identifier=Start.layerInstances.layerDefUid=3.__cWid 18
+action Undo
+wait_until ldtk defs.layers.uid=3.gridSize 16
+
+# An entity type (uid 61: the removed layer kept 60, uids aren't reused, as in LDtk): made, hollow, drawn with a tile of the Tiles tileset picked on its picture
+send Bottom_Tab Entities
+expect level tab Entities
+scroll_into_view ldtk-tab-scroll ldtk-entities-add
+click_widget ldtk-entities-add
+wait_until ldtk defs.entities.3.identifier Entity
+expect ldtk defs.entities.3.uid 61
+scroll_into_view ldtk-tab-scroll ldtk-entity-hollow
+click_widget ldtk-entity-hollow
+wait_until ldtk defs.entities.uid=61.hollow true
+scroll_into_view ldtk-tab-scroll ldtk-entity-render
+click_widget ldtk-entity-render
+click_overlay_item 3
+wait_until ldtk defs.entities.uid=61.renderMode Tile
+expect ldtk defs.entities.uid=61.tilesetId 5
+expect ldtk defs.entities.uid=61.fillOpacity 0.08
+scroll_into_view ldtk-tab-scroll ldtk-picker-entity-tile
+drag_widget ldtk-picker-entity-tile 0.75 0.75 0.75 0.75
+wait_until ldtk defs.entities.uid=61.tileRect {"tilesetUid":5,"x":16,"y":16,"w":16,"h":16}
+# A field: an Integer, its default typed
+scroll_into_view ldtk-tab-scroll ldtk-fields-add
+click_widget ldtk-fields-add
+click_overlay_item 0
+wait_until ldtk defs.entities.uid=61.fieldDefs.0.identifier Integer
+expect ldtk defs.entities.uid=61.fieldDefs.0.uid 62
+scroll_into_view ldtk-tab-scroll ldtk-field-default-62
+click_widget ldtk-field-default-62
+type 7
+wait_until ldtk defs.entities.uid=61.fieldDefs.0.defaultOverride.params.0 7
+key escape
+scroll_into_view ldtk-tab-scroll ldtk-field-canBeNull
+click_widget ldtk-field-canBeNull
+wait_until ldtk defs.entities.uid=61.fieldDefs.0.canBeNull true
+# Coin's size: its coins follow
+send LDtk_Item_Picked Entities 11
+scroll_into_view ldtk-tab-scroll ldtk-entity-width-inc
+click_widget ldtk-entity-width-inc
+wait_until ldtk defs.entities.uid=11.width 17
+expect ldtk levels.identifier=Cave.layerInstances.layerDefUid=1.entityInstances.iid=coin2.width 17
+
+# Enums: a new one, a value added and removed
+send Bottom_Tab Enums
+expect level tab Enums
+scroll_into_view ldtk-tab-scroll ldtk-enums-add
+click_widget ldtk-enums-add
+wait_until ldtk defs.enums.2.identifier Enum
+scroll_into_view ldtk-tab-scroll ldtk-enum-new-value
+click_widget ldtk-enum-new-value
+type Red
+key escape
+scroll_into_view ldtk-tab-scroll ldtk-enum-add-value
+click_widget ldtk-enum-add-value
+wait_until ldtk defs.enums.2.values.0.id Red
+scroll_into_view ldtk-tab-scroll ldtk-enum-remove-0
+click_widget ldtk-enum-remove-0
+wait_until ldtk defs.enums.2.values []
+
+# Tilesets: the spacing, a tag enum, tiles tagged on the picture, a tile's custom data
+send Bottom_Tab Tilesets
+expect level tab Tilesets
+scroll_into_view ldtk-tab-scroll ldtk-tileset-padding-inc
+click_widget ldtk-tileset-padding-inc
+wait_until ldtk defs.tilesets.0.padding 1
+action Undo
+wait_until ldtk defs.tilesets.0.padding 0
+scroll_into_view ldtk-tab-scroll ldtk-tileset-tagsSourceEnumUid
+click_widget ldtk-tileset-tagsSourceEnumUid
+click_overlay_item 1
+wait_until ldtk defs.tilesets.0.tagsSourceEnumUid 30
+send LDtk_Def_Picked Tile_Tag Sad
+scroll_into_view ldtk-tab-scroll ldtk-picker-tileset
+drag_widget ldtk-picker-tileset 0.25 0.25 0.75 0.25
+wait_until ldtk defs.tilesets.0.enumTags.1.tileIds [0,1]
+drag_widget ldtk-picker-tileset 0.75 0.25 0.75 0.25 right
+wait_until ldtk defs.tilesets.0.enumTags.1.tileIds [0]
+send LDtk_Def_Picked Tile_Tag
+scroll_into_view ldtk-tab-scroll ldtk-picker-tileset
+drag_widget ldtk-picker-tileset 0.75 0.75 0.75 0.75
+scroll_into_view ldtk-tab-scroll ldtk-tileset-data
+click_widget ldtk-tileset-data
+type solid
+wait_until ldtk defs.tilesets.0.customData.0.data solid
+expect ldtk defs.tilesets.0.customData.0.tileId 3
+key escape
+
+# A level field: a Boolean, in every level
+send Bottom_Tab Level
+expect level tab Level
+scroll_into_view ldtk-tab-scroll ldtk-level-fields-add
+click_widget ldtk-level-fields-add
+click_overlay_item 4
+wait_until ldtk defs.levelFields.3.identifier Boolean
+expect ldtk levels.identifier=Tower.fieldInstances.3.__value false
+
+# In memory until saved; Save writes it
+expect level unsaved yes
+expect ldtk_disk defs.levelFields.3 missing
+action Save_Project
+wait_until level unsaved no
+expect ldtk_disk defs.levelFields.3.identifier Boolean
+expect ldtk_disk defs.tilesets.0.customData.0.data solid
