@@ -438,6 +438,7 @@ codeCloseDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = s.codeClose.open,
 		on_dismiss = proc() -> Msg { return Code_Close_Chosen(.Cancel) },
+		on_confirm = proc() -> Msg { return Code_Close_Chosen(.Save) },
 		content = skald.col(
 			uiText(th, .Title, fmt.tprintf("Save changes to %s?", name)),
 			uiText(th, .Label, "Closing the tab loses the changes that aren't saved."),

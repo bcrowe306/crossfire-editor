@@ -428,6 +428,7 @@ CodeColorDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = true,
 		on_dismiss = proc() -> Msg { return Code_Color_Cancelled{} },
+		on_confirm = proc() -> Msg { return Code_Color_Applied{} },
 		content = skald.col(
 			uiText(th, .Title, "Color"),
 			uiText(th, .Muted, fmt.tprintf("%s, line %d: %s", filenameOf(d.literal.path), d.literal.line + 1, d.literal.text), max_width = tk.textDialog),

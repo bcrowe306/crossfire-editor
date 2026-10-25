@@ -853,6 +853,7 @@ LogPointDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = true,
 		on_dismiss = proc() -> Msg { return Log_Point_Cancelled{} },
+		on_confirm = proc() -> Msg { return Log_Point_Saved{} },
 		content = skald.col(
 			uiText(th, .Title, "Log Point"),
 			uiText(th, .Muted, fmt.tprintf("%s, line %d: %s", d.file, d.line, d.text), max_width = tk.textDialog),

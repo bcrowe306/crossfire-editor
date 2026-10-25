@@ -28,6 +28,7 @@ confirmDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = s.session.confirm.open,
 		on_dismiss = proc() -> Msg { return Confirm_Chosen(.Cancel) },
+		on_confirm = proc() -> Msg { return Confirm_Chosen(.Save) },
 		content = skald.col(
 			uiText(th, .Title, fmt.tprintf("Save changes to %s?", s.project.name)),
 			uiText(th, .Label, fmt.tprintf("The project has unsaved changes. Save them before %s?", what)),
@@ -68,6 +69,7 @@ newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = np.open,
 		on_dismiss = proc() -> Msg { return New_Project_Cancelled{} },
+		on_confirm = proc() -> Msg { return New_Project_Created{} },
 		content = skald.col(
 			uiText(th, .Title, np.saveAs ? "Save Project As" : "New Project"),
 			skald.row(
@@ -140,6 +142,7 @@ newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = s.newScript.open,
 		on_dismiss = proc() -> Msg { return New_Script_Cancelled{} },
+		on_confirm = dialogConfirm(problem == "", proc() -> Msg { return New_Script_Created{} }),
 		content = skald.col(
 			uiText(th, .Title, "New Script"),
 			skald.row(
@@ -202,6 +205,7 @@ newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = s.newData.open,
 		on_dismiss = proc() -> Msg { return New_Data_Cancelled{} },
+		on_confirm = dialogConfirm(!(problem != "" || noTypes || s.newData.type == ""), proc() -> Msg { return New_Data_Created{} }),
 		content = skald.col(
 			uiText(th, .Title, "New Data Resource"),
 			skald.row(
@@ -250,6 +254,7 @@ componentCloseDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View 
 	return skald.dialog(ctx,
 		open = true,
 		on_dismiss = proc() -> Msg { return Component_Close_Chosen(.Cancel) },
+		on_confirm = proc() -> Msg { return Component_Close_Chosen(.Save) },
 		content = skald.col(
 			uiText(th, .Title, fmt.tprintf("Save changes to %s?", name), max_width = tk.textDialog),
 			uiText(th, .Label, "Don't Save puts the component back as its file has it (instances everywhere follow); its undo steps go.", max_width = tk.textDialog),

@@ -1384,6 +1384,7 @@ CodeRangeDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = true,
 		on_dismiss = proc() -> Msg { return Code_Range_Cancelled{} },
+		on_confirm = proc() -> Msg { return Code_Range_Applied{} },
 		content = skald.col(
 			uiText(th, .Title, fmt.tprintf("Range of %s", r.field)),
 			uiText(th, .Muted, fmt.tprintf("The inspector keeps it between Min and Max (empty: no limit)%s.", r.whole ? "; whole numbers" : ""), max_width = tk.textDialog),

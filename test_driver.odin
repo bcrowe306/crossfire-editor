@@ -283,6 +283,9 @@ Checks:
 	live_theme <applied | draft> The look the editor shows is the applied settings' (or the dialog's draft)
 	theme_color <key> <#RRGGBB>  A theme color the editor shows now (bg, primary...: editor.ini's keys;
 	                             the canvases' viewport_bg, viewport_grid, level_bg... too)
+	focused <key> | none         The widget with the keyboard focus (Tab moves it)
+	focus_visible <true|false>   Whether focus rings show (the keyboard moved focus last: Skald's
+	                             focus_visible)
 	cursor <shape>               The pointer's shape after the last frame (Skald's Cursor_Shape names,
 	                             any case: Default, Pointer, Text, Crosshair, Move, EW_Resize,
 	                             NS_Resize, NWSE_Resize, NESW_Resize, Not_Allowed, Grab, Grabbing)
@@ -2972,6 +2975,15 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		draft := Settings_Theme(&s.settingsDialog.draft).color == ctx.theme.color
 		found = applied && draft ? "applied, draft" : applied ? "applied" : draft ? "draft" : "neither"
 		return strings.contains(found, value), found
+	case "focused":
+		// focused <key> | none: the widget with the keyboard focus (Tab moves it)
+		id := ctx.widgets.focused_id
+		if value == "none" do return id == 0, id == 0 ? "none" : "another widget"
+		return id == skald.hash_id(value), id == skald.hash_id(value) ? value : (id == 0 ? "none" : "another widget")
+	case "focus_visible":
+		// focus_visible <true|false>: whether focus rings show (the keyboard moved focus last)
+		found = fmt.tprint(skald.focus_visible(ctx))
+		return found == value, found
 	case "cursor":
 		// cursor <shape>: what the pointer shows (the last frame's requests: Skald's cursor_shown)
 		found = fmt.tprint(skald.cursor_shown(ctx))

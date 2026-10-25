@@ -168,6 +168,7 @@ newEventDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = true,
 		on_dismiss = proc() -> Msg { return New_Event_Cancelled{} },
+		on_confirm = dialogConfirm(problem == "", proc() -> Msg { return New_Event_Created{} }),
 		content = skald.col(
 			uiText(th, .Title, fmt.tprintf("New Event on %s", d.script)),
 			field(ctx, "Name", skald.text_input(ctx, d.name, proc(v: string) -> Msg { return New_Event_Name_Changed(v) },

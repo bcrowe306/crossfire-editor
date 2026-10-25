@@ -540,9 +540,17 @@ panelToolButton :: proc(ctx: ^skald.Ctx(Msg), key, icon, tip: string, msg: Msg, 
 	button := skald.button(ctx, text, msg,
 		id = skald.hash_id(key),
 		bg = on ? th.color.primary : th.color.surface, fg = on ? th.color.on_primary : th.color.fg_muted,
-		width = label == "" ? t.panelButtonWidth : 0, padding = {label == "" ? 0 : t.s, t.xs}, font_size = t.iconMedium, disabled = disabled)
+		width = label == "" ? t.panelButtonWidth : 0, padding = {label == "" ? 0 : t.s, t.xs}, font_size = t.iconSmall, disabled = disabled)
 	tipKey := strings.has_prefix(key, "panel-") ? fmt.tprintf("panel-tip-%s", key[len("panel-"):]) : fmt.tprintf("%s-tip", key)
 	return skald.tooltip(ctx, button, tip, id = skald.hash_id(tipKey))
+}
+
+/*
+A dialog's Enter (Skald's `on_confirm`): the confirm message while the primary button is enabled
+(`ok`), nothing otherwise, so Enter never does what the disabled button wouldn't.
+*/
+dialogConfirm :: proc(ok: bool, confirm: proc() -> Msg) -> proc() -> Msg {
+	return ok ? confirm : nil
 }
 
 // Confirmation before removing an asset: remove it from the project, or also delete its file
@@ -563,6 +571,7 @@ removeAssetDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = s.removeConfirm.open,
 		on_dismiss = proc() -> Msg { return Asset_Remove_Cancelled{} },
+		on_confirm = proc() -> Msg { return Asset_Remove_Confirmed{deleteFile = false} },
 		content = skald.col(
 			uiText(th, .Title, fmt.tprintf("Remove %s?", name)),
 			uiText(th, .Label, usageText),

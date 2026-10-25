@@ -56,6 +56,7 @@ aboutDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	return skald.dialog(ctx,
 		open = s.aboutOpen,
 		on_dismiss = proc() -> Msg { return About_Closed{} },
+		on_confirm = proc() -> Msg { return About_Closed{} },
 		content = skald.col(
 			skald.row(skald.flex(1, skald.spacer(0)), logo, skald.flex(1, skald.spacer(0))),
 			uiText(th, .Title, APP_NAME),

@@ -1,0 +1,45 @@
+# The keyboard in dialogs (Skald's focus_visible and dialog on_confirm; CLAUDE.md's "Focus and
+# contrast"): no focus ring after a click, Tab moves focus inside the dialog and stays in it (the
+# ring shows then), Escape closes, Enter confirms (the primary button), Enter on a focused button
+# is that button's.
+# Run with: task test:ui
+
+wait 5
+import tests/fixtures/beep.wav
+expect assets 4
+
+# Escape closes
+click_widget panel-remove-asset
+expect dialog open
+expect focus_visible false
+key ESCAPE
+expect dialog closed
+expect assets 4
+
+# Tab goes round the dialog's buttons and never leaves it
+click_widget panel-remove-asset
+expect dialog open
+key TAB
+expect focus_visible true
+expect focused dialog-cancel
+key TAB
+expect focused dialog-delete-file
+key TAB
+expect focused dialog-remove
+key TAB
+expect focused dialog-cancel
+key shift+TAB
+expect focused dialog-remove
+# Enter on the focused Cancel is Cancel, not the dialog's confirm
+key TAB
+expect focused dialog-cancel
+key RETURN
+expect dialog closed
+expect assets 4
+
+# Enter confirms: Remove from Project
+click_widget panel-remove-asset
+expect dialog open
+key RETURN
+expect dialog closed
+expect assets 3
