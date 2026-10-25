@@ -123,6 +123,11 @@ unaffected); layouts are maximize + presets (no docking); **no motion** (the UI 
    the inspector; **drop targets that light up** during a drag; **contextual hints** (the status bar
    shows the current tool's keys); a **welcome screen** (recent projects, Open, New, the demo, the
    manual).
+7. **A zoomable palette in the Level mode** (asked 2026-10-25): the tile palette (the tileset
+   shown for picking tiles and stamps, and the rules' tile picker and the entity / tileset tile
+   pickers that show a tileset) zooms like the canvas: wheel or Ctrl+wheel around the pointer,
+   + / − / fit buttons, pan when zoomed in, crisp pixels at every zoom, the zoom remembered per
+   tileset.
 
 ## LDtk level editor: parity with LDtk (asked 2026-10-24; done 2026-10-25)
 
