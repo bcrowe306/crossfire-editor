@@ -841,6 +841,7 @@ The Log Point dialog: the line, the expression (`logpoint-expression`), OK (`log
 Remove (`logpoint-remove`, for one that's there) and Cancel (`logpoint-cancel`).
 */
 LogPointDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	d := &s.logPoints.dialog
 	if !d.open do return closedDialog(ctx, "logpoint-dialog")
 	th := ctx.theme
@@ -853,18 +854,18 @@ LogPointDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = true,
 		on_dismiss = proc() -> Msg { return Log_Point_Cancelled{} },
 		content = skald.col(
-			skald.text("Log Point", th.color.fg, th.font.size_lg),
-			skald.text(fmt.tprintf("%s, line %d: %s", d.file, d.line, d.text), th.color.fg_muted, th.font.size_xs, max_width = 380),
-			skald.text("Log", th.color.fg, th.font.size_sm),
-			skald.text_input(ctx, strings.clone(d.expression, context.temp_allocator), proc(v: string) -> Msg { return Log_Point_Expression_Changed(v) }, id = skald.hash_id("logpoint-expression"), width = 380),
-			skald.text("An expression, or several with commas (self.hp, delta). It's logged each time the line is reached, before it runs, in the Console's logpoint category. The script isn't changed: the game is built with it (hot reload while it plays).", th.color.fg_muted, th.font.size_xs, max_width = 380),
+			uiText(th, .Title, "Log Point"),
+			uiText(th, .Muted, fmt.tprintf("%s, line %d: %s", d.file, d.line, d.text), max_width = tk.textDialog),
+			uiText(th, .Value, "Log"),
+			skald.text_input(ctx, strings.clone(d.expression, context.temp_allocator), proc(v: string) -> Msg { return Log_Point_Expression_Changed(v) }, id = skald.hash_id("logpoint-expression"), width = tk.dialogS),
+			uiText(th, .Muted, "An expression, or several with commas (self.hp, delta). It's logged each time the line is reached, before it runs, in the Console's logpoint category. The script isn't changed: the game is built with it (hot reload while it plays).", max_width = tk.textDialog),
 			skald.row(..buttons[:], spacing = th.spacing.sm),
 			spacing = th.spacing.sm,
 			padding = th.spacing.lg,
 			cross_align = .Stretch,
 		),
 		id = skald.hash_id("logpoint-dialog"),
-		width = 420,
+		width = tk.dialogM,
 	)
 }
 

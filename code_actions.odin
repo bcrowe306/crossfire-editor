@@ -1365,15 +1365,17 @@ The Range dialog: Min (`code-range-min`), Max (`code-range-max`), Default (`code
 the tag it writes, OK (`code-range-ok`) and Cancel (`code-range-cancel`).
 */
 CodeRangeDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	if !s.codeRange.open do return closedDialog(ctx, "code-range-dialog")
 	th := ctx.theme
 	r := &s.codeRange.request
 	row :: proc(ctx: ^skald.Ctx(Msg), label, value, key: string, which: int) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		on: proc(which: int, text: string) -> Msg = proc(which: int, text: string) -> Msg { return Code_Range_Field_Changed{which, text} }
 		return skald.row(
-			skald.col(skald.text(label, th.color.fg, th.font.size_sm), width = 70),
-			skald.text_input(ctx, value, which, on, id = skald.hash_id(key), width = 160),
+			skald.col(uiText(th, .Value, label), width = tk.fieldXS),
+			skald.text_input(ctx, value, which, on, id = skald.hash_id(key), width = tk.fieldM),
 			spacing = th.spacing.sm, cross_align = .Center)
 	}
 	problem := s.codeRange.problem != "" ? s.codeRange.problem : CodeRange_Problem(r^)
@@ -1383,12 +1385,12 @@ CodeRangeDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = true,
 		on_dismiss = proc() -> Msg { return Code_Range_Cancelled{} },
 		content = skald.col(
-			skald.text(fmt.tprintf("Range of %s", r.field), th.color.fg, th.font.size_lg),
-			skald.text(fmt.tprintf("The inspector keeps it between Min and Max (empty: no limit)%s.", r.whole ? "; whole numbers" : ""), th.color.fg_muted, th.font.size_xs, max_width = 340),
+			uiText(th, .Title, fmt.tprintf("Range of %s", r.field)),
+			uiText(th, .Muted, fmt.tprintf("The inspector keeps it between Min and Max (empty: no limit)%s.", r.whole ? "; whole numbers" : ""), max_width = tk.textDialog),
 			row(ctx, "Min", r.min, "code-range-min", 0),
 			row(ctx, "Max", r.max, "code-range-max", 1),
 			row(ctx, "Default", r.defaultValue, "code-range-default", 2),
-			skald.text(problem != "" ? problem : fmt.tprintf("Writes %s", writes), problem != "" ? th.color.danger : th.color.fg_muted, th.font.size_xs, max_width = 340),
+			skald.text(problem != "" ? problem : fmt.tprintf("Writes %s", writes), problem != "" ? th.color.danger : th.color.fg_muted, th.font.size_xs, max_width = tk.textDialog),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
 				skald.button(ctx, "Cancel", Msg(Code_Range_Cancelled{}), id = skald.hash_id("code-range-cancel"), bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm),
@@ -1400,6 +1402,6 @@ CodeRangeDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			cross_align = .Stretch,
 		),
 		id = skald.hash_id("code-range-dialog"),
-		width = 380,
+		width = tk.dialogS,
 	)
 }

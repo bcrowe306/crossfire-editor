@@ -416,30 +416,32 @@ The Color dialog: the literal as written, Skald's color picker, the hex (`code-c
 alpha (`code-color-alpha`), OK (`code-color-ok`) and Cancel (`code-color-cancel`).
 */
 CodeColorDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	if !s.codeColor.open do return closedDialog(ctx, "code-color-dialog")
 	th := ctx.theme
 	d := &s.codeColor
 	linear := skald.rgb(u32(d.color.r) << 16 | u32(d.color.g) << 8 | u32(d.color.b))
 	label :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.col(skald.text(text, ctx.theme.color.fg, ctx.theme.font.size_sm), width = 60)
+		tk := uiTokens(ctx)
+		return skald.col(uiText(ctx.theme, .Value, text), width = tk.fieldXS)
 	}
 	return skald.dialog(ctx,
 		open = true,
 		on_dismiss = proc() -> Msg { return Code_Color_Cancelled{} },
 		content = skald.col(
-			skald.text("Color", th.color.fg, th.font.size_lg),
-			skald.text(fmt.tprintf("%s, line %d: %s", filenameOf(d.literal.path), d.literal.line + 1, d.literal.text), th.color.fg_muted, th.font.size_xs, max_width = 360),
+			uiText(th, .Title, "Color"),
+			uiText(th, .Muted, fmt.tprintf("%s, line %d: %s", filenameOf(d.literal.path), d.literal.line + 1, d.literal.text), max_width = tk.textDialog),
 			skald.row(label(ctx, "Color"),
-				skald.color_picker(ctx, linear, proc(c: skald.Color) -> Msg { return Code_Color_Changed(c) }, id = skald.hash_id("code-color-picker"), width = 200),
+				skald.color_picker(ctx, linear, proc(c: skald.Color) -> Msg { return Code_Color_Changed(c) }, id = skald.hash_id("code-color-picker"), width = tk.fieldL),
 				spacing = th.spacing.sm, cross_align = .Center),
 			skald.row(label(ctx, "Hex"),
-				skald.text_input(ctx, d.hex, proc(v: string) -> Msg { return Code_Color_Hex_Changed(v) }, id = skald.hash_id("code-color-hex"), width = 200),
+				skald.text_input(ctx, d.hex, proc(v: string) -> Msg { return Code_Color_Hex_Changed(v) }, id = skald.hash_id("code-color-hex"), width = tk.fieldL),
 				spacing = th.spacing.sm, cross_align = .Center),
 			skald.row(label(ctx, "Alpha"),
-				skald.slider(ctx, f32(d.color.a), proc(v: f32) -> Msg { return Code_Color_Alpha_Changed(v) }, id = skald.hash_id("code-color-alpha"), min_value = 0, max_value = 255, step = 1, width = 160),
-				skald.text(fmt.tprintf("%d", d.color.a), th.color.fg_muted, th.font.size_sm),
+				skald.slider(ctx, f32(d.color.a), proc(v: f32) -> Msg { return Code_Color_Alpha_Changed(v) }, id = skald.hash_id("code-color-alpha"), min_value = 0, max_value = 255, step = 1, width = tk.fieldM),
+				uiText(th, .Label, fmt.tprintf("%d", d.color.a)),
 				spacing = th.spacing.sm, cross_align = .Center),
-			skald.text(fmt.tprintf("Writes %s", ColorLiteral_Write(d.literal.text, d.literal.form, d.color)), th.color.fg_muted, th.font.size_xs, max_width = 360),
+			uiText(th, .Muted, fmt.tprintf("Writes %s", ColorLiteral_Write(d.literal.text, d.literal.form, d.color)), max_width = tk.textDialog),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
 				skald.button(ctx, "Cancel", Msg(Code_Color_Cancelled{}), id = skald.hash_id("code-color-cancel"), bg = th.color.surface, fg = th.color.fg, font_size = th.font.size_sm),
@@ -451,7 +453,7 @@ CodeColorDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			cross_align = .Stretch,
 		),
 		id = skald.hash_id("code-color-dialog"),
-		width = 400,
+		width = tk.dialogS,
 	)
 }
 

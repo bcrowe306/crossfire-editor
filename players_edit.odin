@@ -63,6 +63,7 @@ The Input tab's Local players rows (under the action list). Keys `input-players-
 `input-players-keyboard`, `input-players-join`.
 */
 playersSettingRows :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	d := &s.projectSettings
 	p := d.players
@@ -75,22 +76,21 @@ playersSettingRows :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 	append(&joins, PLAYERS_JOIN_DEFAULT)
 	for a in d.actions do append(&joins, a.name)
 	label :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return tipLabel(ctx, text, skald.text(text, ctx.theme.color.fg, ctx.theme.font.size_sm))
+		return tipLabel(ctx, text, uiText(ctx.theme, .Label, text))
 	}
 	append(&rows,
 		skald.spacer(th.spacing.sm),
 		skald.divider(ctx),
-		skald.text("Local players", th.color.fg, th.font.size_sm),
+		uiText(th, .Section, "Local players"),
 		skald.row(label(ctx, "Most players"), skald.select(ctx, fmt.tprint(p.maxPlayers), counts[:], Payload{.Max_Players}, onText,
-			id = skald.hash_id("input-players-max"), width = 70), spacing = th.spacing.sm, cross_align = .Center),
+			id = skald.hash_id("input-players-max"), width = tk.fieldXS), spacing = th.spacing.sm, cross_align = .Center),
 		skald.row(label(ctx, "Keyboard player"), skald.checkbox(ctx, p.keyboard, "", Payload{.Keyboard},
 			proc(pl: Payload, v: bool) -> Msg { return Players_Setting_Changed{field = pl.field, flag = v} }, id = skald.hash_id("input-players-keyboard")),
 			spacing = th.spacing.sm, cross_align = .Center),
 		label(ctx, "Join with"),
 		skald.select(ctx, p.joinAction == "" ? PLAYERS_JOIN_DEFAULT : strings.clone(p.joinAction, context.temp_allocator), joins[:], Payload{.Join_Action}, onText,
-			id = skald.hash_id("input-players-join"), width = 210),
-		skald.text("While a game is joining (e.Players_StartJoining), a press of this on a free gamepad or the keyboard adds a player. Each player's actions: e.Player_IsActionPressed(player, \"jump\").",
-			th.color.fg_muted, th.font.size_xs, max_width = 210),
+			id = skald.hash_id("input-players-join"), width = tk.fieldL),
+		uiText(th, .Muted, "While a game is joining (e.Players_StartJoining), a press of this on a free gamepad or the keyboard adds a player. Each player's actions: e.Player_IsActionPressed(player, \"jump\").", max_width = tk.textNarrow),
 	)
 	return rows[:]
 }

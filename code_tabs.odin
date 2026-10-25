@@ -331,6 +331,7 @@ Widget keys: the tab is `key`, its close button `key` with "-close" before the n
 (`scene-tab-close-1`).
 */
 editorTab :: proc(ctx: ^skald.Ctx(Msg), label, tip: string, active: bool, selectMsg, closeMsg: Msg, key: string, closable := true, menu: ContextTarget = nil) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	tabId := skald.hash_id(key)
 	// A right-click: its context menu (context_menus.odin)
@@ -357,7 +358,7 @@ editorTab :: proc(ctx: ^skald.Ctx(Msg), label, tip: string, active: bool, select
 	return skald.tooltip(ctx, skald.col(
 		skald.row(..parts[:], spacing = 0, cross_align = .Center, bg = bg, radius = th.radius.sm),
 		underline,
-		spacing = 2,
+		spacing = tk.xxs,
 		cross_align = .Stretch,
 	), tip, id = skald.hash_id(fmt.tprintf("%s-tip", key)))
 }
@@ -371,10 +372,11 @@ tabCloseKey :: proc(key: string) -> string {
 
 // The code view's header button: Save (the tabs get the rest of the header)
 CodeTabs_HeaderButtons :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	save := skald.button(ctx, ICON_SAVE, Msg(Code_Save_Requested{}), id = skald.hash_id("code-save"),
 		disabled = !CodeEditor_IsDirty(path), bg = th.color.surface, fg = th.color.fg,
-		padding = {th.spacing.sm, 3}, font_size = th.font.size_sm, radius = th.radius.sm)
+		padding = {tk.s, tk.xs}, font_size = th.font.size_sm, radius = th.radius.sm)
 	return skald.tooltip(ctx, save, actionTip(s, "Save the script (Save also saves the project)", .Save_Project), id = skald.hash_id("code-save-tip"))
 }
 
@@ -383,9 +385,10 @@ CodeTabs_DiskBar :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> skald
 	th := ctx.theme
 	if !CodeEditor_HasDiskConflict(path) do return skald.spacer(0)
 	small :: proc(ctx: ^skald.Ctx(Msg), label: string, msg: Msg, key: string) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.bg, fg = th.color.fg,
-			padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm)
+			padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
 	}
 	// The message wraps to the panel and the buttons go under it: in a narrow panel one line
 	// pushed the buttons past its edge
@@ -414,10 +417,10 @@ CodeTabs_StatusLine :: proc(s: ^State, ctx: ^skald.Ctx(Msg), path: string) -> sk
 	message := CodeEditor_StatusText(path)
 	if message == "" do message = fmt.tprintf("%s%s", filepath.base(path), CodeEditor_IsReadOnly(path) ? " (read only: outside the project)" : CodeEditor_IsDirty(path) ? " (unsaved)" : "")
 	return skald.row(
-		skald.text(message, th.color.fg_muted, th.font.size_xs),
+		uiText(th, .Muted, message),
 		skald.flex(1, skald.spacer(0)),
-		skald.text(fmt.tprintf("Ln %d, Col %d", line, column), th.color.fg_muted, th.font.size_xs),
-		skald.text(fmt.tprintf("Language server: %s", server), th.color.fg_muted, th.font.size_xs),
+		uiText(th, .Muted, fmt.tprintf("Ln %d, Col %d", line, column)),
+		uiText(th, .Muted, fmt.tprintf("Language server: %s", server)),
 		spacing = th.spacing.md,
 		padding = th.spacing.xs,
 		cross_align = .Center,
@@ -436,8 +439,8 @@ codeCloseDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = s.codeClose.open,
 		on_dismiss = proc() -> Msg { return Code_Close_Chosen(.Cancel) },
 		content = skald.col(
-			skald.text(fmt.tprintf("Save changes to %s?", name), th.color.fg, th.font.size_lg),
-			skald.text("Closing the tab loses the changes that aren't saved.", th.color.fg_muted, th.font.size_sm),
+			uiText(th, .Title, fmt.tprintf("Save changes to %s?", name)),
+			uiText(th, .Label, "Closing the tab loses the changes that aren't saved."),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.button(ctx, "Cancel", Msg(Code_Close_Chosen(.Cancel)), id = skald.hash_id("code-close-cancel"),

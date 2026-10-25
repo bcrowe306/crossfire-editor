@@ -29,8 +29,8 @@ confirmDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = s.session.confirm.open,
 		on_dismiss = proc() -> Msg { return Confirm_Chosen(.Cancel) },
 		content = skald.col(
-			skald.text(fmt.tprintf("Save changes to %s?", s.project.name), th.color.fg, th.font.size_lg),
-			skald.text(fmt.tprintf("The project has unsaved changes. Save them before %s?", what), th.color.fg_muted, th.font.size_sm),
+			uiText(th, .Title, fmt.tprintf("Save changes to %s?", s.project.name)),
+			uiText(th, .Label, fmt.tprintf("The project has unsaved changes. Save them before %s?", what)),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.button(ctx, "Cancel", Msg(Confirm_Chosen(.Cancel)), id = skald.hash_id("confirm-cancel"),
@@ -52,12 +52,14 @@ confirmDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 }
 
 newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
 	if !s.session.newProject.open do return closedDialog(ctx, "new-project-dialog")
 	th := ctx.theme
 	np := &s.session.newProject
 	label :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.col(skald.text(text, ctx.theme.color.fg, ctx.theme.font.size_sm), width = 80)
+		tk := uiTokens(ctx)
+		return skald.col(uiText(ctx.theme, .Value, text), width = tk.fieldXS)
 	}
 	info := fmt.tprintf("Creates the folder %s/%s with project.xml, a Main scene and assets/.", np.location, np.name)
 	if np.saveAs {
@@ -67,7 +69,7 @@ newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = np.open,
 		on_dismiss = proc() -> Msg { return New_Project_Cancelled{} },
 		content = skald.col(
-			skald.text(np.saveAs ? "Save Project As" : "New Project", th.color.fg, th.font.size_lg),
+			uiText(th, .Title, np.saveAs ? "Save Project As" : "New Project"),
 			skald.row(
 				label(ctx, "Name"),
 				skald.flex(1, skald.text_input(ctx, np.name,
@@ -86,7 +88,7 @@ newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				spacing = th.spacing.sm,
 				cross_align = .Center,
 			),
-			skald.text(info, th.color.fg_muted, th.font.size_xs, max_width = 440),
+			uiText(th, .Muted, info, max_width = tk.textMeasure),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
@@ -102,7 +104,7 @@ newProjectDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		),
 		id = skald.hash_id("new-project-dialog"),
 		initial_focus = skald.hash_id("new-project-name"),
-		width = 480,
+		width = tk.dialogL,
 	)
 }
 
@@ -120,6 +122,7 @@ kindLabels := [ScriptKind]string{
 }
 
 newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
 	if !s.newScript.open do return closedDialog(ctx, "new-script-dialog")
 	th := ctx.theme
@@ -138,9 +141,9 @@ newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = s.newScript.open,
 		on_dismiss = proc() -> Msg { return New_Script_Cancelled{} },
 		content = skald.col(
-			skald.text("New Script", th.color.fg, th.font.size_lg),
+			uiText(th, .Title, "New Script"),
 			skald.row(
-				skald.col(skald.text("Name", th.color.fg, th.font.size_sm), width = 60),
+				skald.col(uiText(th, .Value, "Name"), width = tk.fieldXS),
 				skald.flex(1, skald.text_input(ctx, name,
 					proc(v: string) -> Msg { return New_Script_Name_Changed(v) },
 					id = skald.hash_id("new-script-name"), placeholder = "PlayerController")),
@@ -148,17 +151,17 @@ newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				cross_align = .Center,
 			),
 			skald.row(
-				skald.col(skald.text("Kind", th.color.fg, th.font.size_sm), width = 60),
+				skald.col(uiText(th, .Value, "Kind"), width = tk.fieldXS),
 				skald.select(ctx, kindLabels[s.newScript.kind], slice.enumerated_array(&kindLabels),
 					proc(v: string) -> Msg {
 						for label, kind in kindLabels do if label == v do return New_Script_Kind_Changed(kind)
 						return New_Script_Kind_Changed(.Node)
 					},
-					id = skald.hash_id("new-script-kind"), width = 260),
+					id = skald.hash_id("new-script-kind"), width = tk.fieldXL),
 				spacing = th.spacing.sm,
 				cross_align = .Center,
 			),
-			skald.text(info, problem != "" && name != "" ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = 400),
+			skald.text(info, problem != "" && name != "" ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = tk.textDialog),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
@@ -174,7 +177,7 @@ newScriptDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		),
 		id = skald.hash_id("new-script-dialog"),
 		initial_focus = skald.hash_id("new-script-name"),
-		width = 440,
+		width = tk.dialogM,
 	)
 }
 
@@ -184,6 +187,7 @@ writes data/<name>.data.json with every field at its default, lists it as an ass
 in the inspector. Keys: `new-data-name`, `new-data-type`, `new-data-create`, `new-data-cancel`.
 */
 newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
 	if !s.newData.open do return closedDialog(ctx, "new-data-dialog")
 	th := ctx.theme
@@ -199,9 +203,9 @@ newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = s.newData.open,
 		on_dismiss = proc() -> Msg { return New_Data_Cancelled{} },
 		content = skald.col(
-			skald.text("New Data Resource", th.color.fg, th.font.size_lg),
+			uiText(th, .Title, "New Data Resource"),
 			skald.row(
-				skald.col(skald.text("Name", th.color.fg, th.font.size_sm), width = 60),
+				skald.col(uiText(th, .Value, "Name"), width = tk.fieldXS),
 				skald.flex(1, skald.text_input(ctx, strings.clone(name, context.temp_allocator),
 					proc(v: string) -> Msg { return New_Data_Name_Changed(v) },
 					id = skald.hash_id("new-data-name"), placeholder = "Fast Ship")),
@@ -209,14 +213,14 @@ newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 				cross_align = .Center,
 			),
 			skald.row(
-				skald.col(skald.text("Type", th.color.fg, th.font.size_sm), width = 60),
+				skald.col(uiText(th, .Value, "Type"), width = tk.fieldXS),
 				skald.select(ctx, strings.clone(s.newData.type, context.temp_allocator), types[:],
 					proc(v: string) -> Msg { return New_Data_Type_Changed(v) },
-					id = skald.hash_id("new-data-type"), width = 240),
+					id = skald.hash_id("new-data-type"), width = tk.fieldL),
 				spacing = th.spacing.sm,
 				cross_align = .Center,
 			),
-			skald.text(info, (problem != "" && name != "") || noTypes ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = 400),
+			skald.text(info, (problem != "" && name != "") || noTypes ? th.color.warning : th.color.fg_muted, th.font.size_xs, max_width = tk.textDialog),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
@@ -232,12 +236,13 @@ newDataDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		),
 		id = skald.hash_id("new-data-dialog"),
 		initial_focus = skald.hash_id("new-data-name"),
-		width = 440,
+		width = tk.dialogM,
 	)
 }
 
 // A component's tab closing with unsaved changes: save it, throw them away, or keep it open
 componentCloseDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	if !s.componentClose.open do return closedDialog(ctx, "component-close-dialog")
 	th := ctx.theme
 	name := ""
@@ -246,8 +251,8 @@ componentCloseDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View 
 		open = true,
 		on_dismiss = proc() -> Msg { return Component_Close_Chosen(.Cancel) },
 		content = skald.col(
-			skald.text(fmt.tprintf("Save changes to %s?", name), th.color.fg, th.font.size_lg, max_width = 400),
-			skald.text("Don't Save puts the component back as its file has it (instances everywhere follow); its undo steps go.", th.color.fg_muted, th.font.size_sm, max_width = 400),
+			uiText(th, .Title, fmt.tprintf("Save changes to %s?", name), max_width = tk.textDialog),
+			uiText(th, .Label, "Don't Save puts the component back as its file has it (instances everywhere follow); its undo steps go.", max_width = tk.textDialog),
 			skald.spacer(th.spacing.sm),
 			skald.row(
 				skald.button(ctx, "Cancel", Msg(Component_Close_Chosen(.Cancel)), id = skald.hash_id("component-close-cancel"),

@@ -112,7 +112,7 @@ docsWindowContent :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width, height: f32) -
 		iconButton(ctx, "docs-back", ICON_ARROW_LEFT, "", Msg(Docs_Back{}), disabled = s.docs.at <= 0),
 		iconButton(ctx, "docs-forward", ICON_ARROW_RIGHT, "", Msg(Docs_Forward{}), disabled = s.docs.at + 1 >= len(s.docs.history)),
 		iconButton(ctx, "docs-contents", ICON_HOUSE, wide ? "Contents" : "", Msg(Docs_Hit_Chosen{address = "/manual/", clear = !wide})),
-		skald.flex(1, skald.text(title, th.color.fg, th.font.size_md, max_width = width - (wide ? 470 : 230), overflow = .Ellipsis)),
+		skald.flex(1, uiText(th, .Title, title, max_width = width - (wide ? 470 : 230), overflow = .Ellipsis)),
 		iconButton(ctx, "docs-web", ICON_EXTERNAL, wide ? "Open on crossfireengine.io" : "Web", Msg(Docs_Open_On_Web{}), disabled = current == ""),
 		iconButton(ctx, "docs-close", ICON_XMARK, "", Msg(Docs_Closed{})),
 		spacing = th.spacing.xs,
@@ -151,22 +151,24 @@ docsWindowContent :: proc(s: ^State, ctx: ^skald.Ctx(Msg), width, height: f32) -
 // The contents (the manual's pages, the API's areas), or the search's results
 @(private="file")
 docsSidebar :: proc(s: ^State, ctx: ^skald.Ctx(Msg), lib: ^DocsLibrary, page: ^DocsPage, searching: bool, width: f32, clear: bool) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	entry :: proc(ctx: ^skald.Ctx(Msg), key, text, detail: string, address: string, current, clear: bool, width: f32) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		id := skald.hash_id(key)
 		bg := current ? th.color.primary : skald.widget_hovered(ctx, id) ? th.color.surface : skald.Color{}
 		fg := current ? th.color.on_primary : th.color.fg
 		parts := make([dynamic]skald.View, context.temp_allocator)
-		append(&parts, skald.text(text, fg, th.font.size_sm, max_width = width - 8))
-		if detail != "" do append(&parts, skald.text(detail, current ? th.color.on_primary : th.color.fg_muted, th.font.size_xs, max_width = width - 8))
-		return skald.clickable(ctx, skald.col(..parts[:], padding = 4, spacing = 1, width = width, bg = bg, radius = th.radius.sm),
+		append(&parts, skald.text(text, fg, th.font.size_sm, max_width = width - tk.s))
+		if detail != "" do append(&parts, skald.text(detail, current ? th.color.on_primary : th.color.fg_muted, th.font.size_xs, max_width = width - tk.s))
+		return skald.clickable(ctx, skald.col(..parts[:], padding = tk.xs, spacing = tk.hair, width = width, bg = bg, radius = th.radius.sm),
 			Msg(Docs_Hit_Chosen{address = strings.clone(address, context.temp_allocator), clear = clear}), id = id, focusable = false)
 	}
 	if searching {
 		hits := Docs_Search(lib, s.docs.search)
-		if len(hits) == 0 do append(&rows, skald.text(fmt.tprintf("Nothing matches '%s'.", s.docs.search), th.color.fg_muted, th.font.size_sm, max_width = width))
+		if len(hits) == 0 do append(&rows, uiText(th, .Label, fmt.tprintf("Nothing matches '%s'.", s.docs.search), max_width = width))
 		for hit, i in hits {
 			p := &lib.pages[hit.page]
 			address := hit.anchor != "" ? fmt.tprintf("%s#%s", p.address, hit.anchor) : p.address
@@ -175,10 +177,11 @@ docsSidebar :: proc(s: ^State, ctx: ^skald.Ctx(Msg), lib: ^DocsLibrary, page: ^D
 			if len(snippet) > 160 do snippet = fmt.tprintf("%s...", snippet[:md_runeStart(snippet, 157)])
 			append(&rows, entry(ctx, fmt.tprintf("docs-hit-%d", i), label, snippet, address, false, clear, width))
 		}
-		return skald.col(..rows[:], spacing = 2)
+		return skald.col(..rows[:], spacing = tk.xxs)
 	}
 	header :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.col(skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs), padding = 4)
+		tk := uiTokens(ctx)
+		return skald.col(uiText(ctx.theme, .Muted, text), padding = tk.xs)
 	}
 	append(&rows, header(ctx, "MANUAL"))
 	apiStarted := false
@@ -189,8 +192,8 @@ docsSidebar :: proc(s: ^State, ctx: ^skald.Ctx(Msg), lib: ^DocsLibrary, page: ^D
 		}
 		append(&rows, entry(ctx, fmt.tprintf("docs-entry-%d", i), p.title, "", p.address, page == &p, clear, width))
 	}
-	if len(lib.pages) == 0 do append(&rows, skald.text("No docs were found beside the editor.", th.color.fg_muted, th.font.size_sm, max_width = width))
-	return skald.col(..rows[:], spacing = 1)
+	if len(lib.pages) == 0 do append(&rows, uiText(th, .Label, "No docs were found beside the editor.", max_width = width))
+	return skald.col(..rows[:], spacing = tk.hair)
 }
 
 // The page: its title, then its blocks (only those in view built)
@@ -281,15 +284,16 @@ docsMeasure :: proc(ctx: ^skald.Ctx(Msg), lib: ^DocsLibrary, page: ^DocsPage, wi
 // A layout block: 0 the page's title, i the doc's block i-1, with its spacing below it
 @(private="file")
 docsBlockAt :: proc(ctx: ^skald.Ctx(Msg), lib: ^DocsLibrary, page: ^DocsPage, i: int, width: f32, dark, measure: bool) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	if i == 0 {
 		where_ := page.api ? "Engine API reference" : "Manual"
 		parts := make([dynamic]skald.View, context.temp_allocator)
-		append(&parts, skald.text(where_, th.color.fg_muted, th.font.size_xs))
+		append(&parts, uiText(th, .Muted, where_))
 		append(&parts, skald.rich_text(ctx, {skald.span_bold(page.title)}, th.color.fg, th.font.size_xl + 4, max_width = width))
-		if page.description != "" do append(&parts, skald.text(page.description, th.color.fg_muted, th.font.size_sm, max_width = width))
+		if page.description != "" do append(&parts, uiText(th, .Label, page.description, max_width = width))
 		append(&parts, skald.spacer(th.spacing.md))
-		return skald.col(..parts[:], spacing = 4, width = width)
+		return skald.col(..parts[:], spacing = tk.xs, width = width)
 	}
 	b := &page.doc.blocks[i - 1]
 	// The manual's first heading repeats the title (the website drops it too)
@@ -319,13 +323,13 @@ docsBlockAt :: proc(ctx: ^skald.Ctx(Msg), lib: ^DocsLibrary, page: ^DocsPage, i:
 		append(&parts, text(ctx, b.spans, size, width, measure, key(i, 0), bold = true))
 		if b.level == 2 do append(&parts, skald.divider(ctx))
 		append(&parts, skald.spacer(th.spacing.sm))
-		return skald.col(..parts[:], spacing = 4, width = width, cross_align = .Stretch)
+		return skald.col(..parts[:], spacing = tk.xs, width = width, cross_align = .Stretch)
 	case .Paragraph:
 		if len(b.spans) == 1 && b.spans[0].image do return docsImage(ctx, lib, page, b.spans[0], width, gap)
 		return skald.col(text(ctx, b.spans, th.font.size_md, width, measure, key(i, 0)), skald.spacer(gap))
 	case .Quote:
 		return skald.col(
-			skald.row(skald.rect({3, 0}, th.color.primary), text(ctx, b.spans, th.font.size_md, width - 16, measure, key(i, 0), th.color.fg_muted), spacing = 10),
+			skald.row(skald.rect({3, 0}, th.color.primary), text(ctx, b.spans, th.font.size_md, width - 16, measure, key(i, 0), th.color.fg_muted), spacing = tk.m),
 			skald.spacer(gap))
 	case .Rule:
 		return skald.col(skald.spacer(gap), skald.divider(ctx), skald.spacer(gap), width = width, cross_align = .Stretch)
@@ -341,7 +345,7 @@ docsBlockAt :: proc(ctx: ^skald.Ctx(Msg), lib: ^DocsLibrary, page: ^DocsPage, i:
 				text(ctx, item.spans, th.font.size_md, width - indent - markerWidth, measure, key(i, n)),
 			))
 		}
-		return skald.col(skald.col(..rows[:], spacing = 4), skald.spacer(gap))
+		return skald.col(skald.col(..rows[:], spacing = tk.xs), skald.spacer(gap))
 	case .Code:
 		return skald.col(docsCode(ctx, b, width, dark, measure), skald.spacer(gap))
 	case .Table:
@@ -381,6 +385,7 @@ docsSpans :: proc(ctx: ^skald.Ctx(Msg), spans: []MdSpan, size: f32, bold: bool) 
 // A code block: Odin highlighted with the code editor's tokenizer and colors, line by line
 @(private="file")
 docsCode :: proc(ctx: ^skald.Ctx(Msg), b: ^MdBlock, width: f32, dark, measure: bool) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	theme := ce.preset_theme(dark ? .Ayu_Dark : .Ayu_Light)
 	color :: proc(c: [4]u8) -> skald.Color { return {f32(c[0]) / 255, f32(c[1]) / 255, f32(c[2]) / 255, f32(c[3]) / 255} }
@@ -407,9 +412,9 @@ docsCode :: proc(ctx: ^skald.Ctx(Msg), b: ^MdBlock, width: f32, dark, measure: b
 			append(&spans, skald.Text_Span{str = l, font = docsMono, size = size, color = fg})
 		}
 		if len(spans) == 0 || l == "" do append(&spans, skald.Text_Span{str = " ", font = docsMono, size = size, color = fg})
-		append(&rows, skald.rich_text(ctx, spans[:], fg, size, docsMono, max_width = width - 20))
+		append(&rows, skald.rich_text(ctx, spans[:], fg, size, docsMono, max_width = width - tk.xl))
 	}
-	return skald.col(..rows[:], padding = 10, width = width, bg = color(transmute([4]u8)theme.background), radius = th.radius.sm)
+	return skald.col(..rows[:], padding = tk.m, width = width, bg = color(transmute([4]u8)theme.background), radius = th.radius.sm)
 }
 
 // A token's color in a code editor theme (the code editor's own mapping, which it keeps private)
@@ -506,7 +511,7 @@ docsImage :: proc(ctx: ^skald.Ctx(Msg), lib: ^DocsLibrary, page: ^DocsPage, span
 			return skald.col(skald.image(ctx, path, width = w, height = h, fit = .Contain), skald.spacer(gap))
 		}
 	}
-	return skald.col(skald.text(fmt.tprintf("[%s]", span.text), th.color.fg_muted, th.font.size_sm), skald.spacer(gap))
+	return skald.col(uiText(th, .Label, fmt.tprintf("[%s]", span.text)), skald.spacer(gap))
 }
 
 /*

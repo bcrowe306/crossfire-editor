@@ -29,6 +29,7 @@ logoUploaded: bool
 About_Link_Opened :: distinct string
 
 aboutDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
 	if !s.aboutOpen do return closedDialog(ctx, "about-dialog")
 	th := ctx.theme
@@ -47,18 +48,19 @@ aboutDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		if d.ready do skald.draw_image(p.r, ABOUT_LOGO, p.bounds, .Contain)
 	}, id = skald.hash_id("about-logo"), width = 128, height = 128)
 	link :: proc(ctx: ^skald.Ctx(Msg), key, label, url: string) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, Msg(About_Link_Opened(url)), id = skald.hash_id(key),
-			bg = th.color.surface, fg = th.color.primary, padding = {th.spacing.sm, 2}, font_size = th.font.size_sm, radius = th.radius.sm)
+			bg = th.color.surface, fg = th.color.primary, padding = tk.fieldPadding, font_size = th.font.size_sm, radius = th.radius.sm)
 	}
 	return skald.dialog(ctx,
 		open = s.aboutOpen,
 		on_dismiss = proc() -> Msg { return About_Closed{} },
 		content = skald.col(
 			skald.row(skald.flex(1, skald.spacer(0)), logo, skald.flex(1, skald.spacer(0))),
-			skald.text(APP_NAME, th.color.fg, th.font.size_lg),
-			skald.text(fmt.tprintf("Version %s", EDITOR_VERSION), th.color.fg_muted, th.font.size_sm),
-			skald.text(fmt.tprintf("Games are built with Odin %s and the Crossfire Engine.", ODIN_VERSION), th.color.fg_muted, th.font.size_sm, max_width = 360),
+			uiText(th, .Title, APP_NAME),
+			uiText(th, .Label, fmt.tprintf("Version %s", EDITOR_VERSION)),
+			uiText(th, .Label, fmt.tprintf("Games are built with Odin %s and the Crossfire Engine.", ODIN_VERSION), max_width = tk.textDialog),
 			skald.row(
 				link(ctx, "about-editor", "Editor on GitHub", EDITOR_REPOSITORY),
 				link(ctx, "about-engine", "Engine on GitHub", ENGINE_REPOSITORY),
@@ -74,7 +76,7 @@ aboutDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			cross_align = .Center,
 		),
 		id = skald.hash_id("about-dialog"),
-		width = 420,
+		width = tk.dialogM,
 	)
 }
 

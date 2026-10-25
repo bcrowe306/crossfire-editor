@@ -28,6 +28,7 @@ Widget keys for UI tests: `project-settings-tab-<Tab>`, `project-settings-name`,
 `input-add-gamepad`, `input-add-axis`, `input-device`.
 */
 projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
 	// Embedded: the Settings dialog's Project tab shows it (ProjectSettings_TabsView)
 	if !s.projectSettings.open || s.projectSettings.embedded do return closedDialog(ctx, "project-settings-dialog")
@@ -47,7 +48,7 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 			generalHeight = clamp(f32(ctx.renderer.fb_size.y) - 220, 160, 560)
 		}
 		content = skald.col(
-			skald.text("Project Settings", th.color.fg, th.font.size_lg),
+			uiText(th, .Title, "Project Settings"),
 			tabs,
 			skald.divider(ctx),
 			skald.col(skald.flex(1, body), height = d.tab == .General ? generalHeight : exportHeight, cross_align = .Stretch),
@@ -65,7 +66,7 @@ projectSettingsDialogView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View
 			cross_align = .Stretch,
 		)
 	}
-	width: f32 = d.tab == .General ? 460 : 760
+	width: f32 = d.tab == .General ? tk.dialogSettings : tk.dialogWide
 	return skald.dialog(ctx,
 		open = d.open,
 		on_dismiss = proc() -> Msg { return Project_Settings_Cancelled{} },
@@ -117,13 +118,14 @@ gridTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	field :: proc(ctx: ^skald.Ctx(Msg), s: ^State, target: GridTarget, value: int, limits: [2]int, unit: string) -> skald.View {
 		return skald.row(
 			numberField(ctx, s, fmt.tprintf("project-settings-grid-%v", target), target, f64(value), 1, 0, 120, f64(limits[0]), f64(limits[1])),
-			skald.text(unit, ctx.theme.color.fg_muted, ctx.theme.font.size_sm),
+			uiText(ctx.theme, .Label, unit),
 			spacing = ctx.theme.spacing.xs,
 			cross_align = .Center,
 		)
 	}
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
-		return skald.text(text, ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = 440)
+		tk := uiTokens(ctx)
+		return uiText(ctx.theme, .Muted, text, max_width = tk.textMeasure)
 	}
 	return skald.col(
 		settingRow(ctx, "Grid width", field(ctx, s, .Width, g.size.x, e.GRID_SIZE_RANGE, "px")),
@@ -141,8 +143,9 @@ gridTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 @(private="file")
 settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
+	tk := uiTokens(ctx)
 	return skald.row(
-		skald.col(tipLabel(ctx, label, skald.text(label, ctx.theme.color.fg, ctx.theme.font.size_sm)), width = 120),
+		skald.col(tipLabel(ctx, label, uiText(ctx.theme, .Label, label)), width = tk.labelWidthWide),
 		control,
 		spacing = ctx.theme.spacing.sm,
 		cross_align = .Center,
@@ -152,6 +155,7 @@ settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> 
 // The renderer choices: every backend, marked when this computer's SDL doesn't have it
 @(private="file")
 rendererSelect :: proc(ctx: ^skald.Ctx(Msg), backend: e.RenderBackend) -> skald.View {
+	tk := uiTokens(ctx)
 	labels := make([dynamic]string, context.temp_allocator)
 	for b in e.RenderBackend do append(&labels, rendererLabel(b))
 	return skald.select(ctx, rendererLabel(backend), labels[:],
@@ -159,7 +163,7 @@ rendererSelect :: proc(ctx: ^skald.Ctx(Msg), backend: e.RenderBackend) -> skald.
 			for b in e.RenderBackend do if rendererLabel(b) == label do return Project_Settings_Renderer_Changed(b)
 			return nil
 		},
-		id = skald.hash_id("project-settings-renderer"), width = 260)
+		id = skald.hash_id("project-settings-renderer"), width = tk.fieldXL)
 }
 
 @(private="file")
@@ -179,6 +183,7 @@ rendererNote :: proc(backend: e.RenderBackend) -> string {
 
 @(private="file")
 generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	d := &s.projectSettings
 	scenes := make([dynamic]string, context.temp_allocator)
@@ -189,47 +194,44 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		// Copies: d lives in this frame's copy of the state (see the rule in CLAUDE.md)
 		settingRow(ctx, "Name", skald.text_input(ctx, strings.clone(d.name, context.temp_allocator),
 			proc(v: string) -> Msg { return Project_Settings_Name_Changed(v) },
-			id = skald.hash_id("project-settings-name"), width = 260)),
+			id = skald.hash_id("project-settings-name"), width = tk.fieldXL)),
 		settingRow(ctx, "Resolution", skald.row(
 			numberField(ctx, s, "project-settings-width", GameSizeTarget(0), f64(d.gameSize.x), 16, 0, 120, 16, 16384),
-			skald.text("x", th.color.fg_muted, th.font.size_sm),
+			uiText(th, .Label, "x"),
 			numberField(ctx, s, "project-settings-height", GameSizeTarget(1), f64(d.gameSize.y), 16, 0, 120, 16, 16384),
 			spacing = th.spacing.xs,
 			cross_align = .Center,
 		)),
 		settingRow(ctx, "Scaling", skald.select(ctx, fmt.tprint(d.scaleMode), modes[:],
 			proc(v: string) -> Msg { return Project_Settings_Scale_Changed(v) },
-			id = skald.hash_id("project-settings-scale"), width = 160)),
+			id = skald.hash_id("project-settings-scale"), width = tk.fieldM)),
 		settingRow(ctx, "Renderer", rendererSelect(ctx, d.renderer)),
-		skald.text(rendererNote(d.renderer), th.color.fg_muted, th.font.size_xs, max_width = 420),
+		uiText(th, .Muted, rendererNote(d.renderer), max_width = tk.textMeasure),
 		settingRow(ctx, "Image filtering", textureFilterSelect(ctx, d.textureFilter, "project-settings-texture-filter", true,
 			proc(f: e.TextureFilter) -> Msg { return Project_Settings_Texture_Filter_Changed(f) })),
-		skald.text("How images look drawn bigger, smaller or turned: Smooth for painted art, Pixels for pixel art (hard square pixels). Each image can choose its own in the browser's preview.", th.color.fg_muted, th.font.size_xs, max_width = 420),
+		uiText(th, .Muted, "How images look drawn bigger, smaller or turned: Smooth for painted art, Pixels for pixel art (hard square pixels). Each image can choose its own in the browser's preview.", max_width = tk.textMeasure),
 		settingRow(ctx, "Window", skald.row(
 			windowFlag(ctx, "Fullscreen", .Fullscreen, d.window.fullscreen),
 			windowFlag(ctx, "VSync", .VSync, d.window.vsync),
 			windowFlag(ctx, "High DPI", .High_DPI, d.window.highDPI),
 			spacing = th.spacing.md,
 		)),
-		skald.text("How the game's window starts: fullscreen at the desktop's resolution, frames in step with the display (vsync), at the display's full pixel density (sharper on high-DPI screens). Games can change fullscreen and vsync while running.",
-			th.color.fg_muted, th.font.size_xs, max_width = 420),
+		uiText(th, .Muted, "How the game's window starts: fullscreen at the desktop's resolution, frames in step with the display (vsync), at the display's full pixel density (sharper on high-DPI screens). Games can change fullscreen and vsync while running.", max_width = tk.textMeasure),
 		settingRow(ctx, "Sound output", audioOutputSelects(ctx, d.audioOutput)),
-		skald.text("The format the game asks its sound device for; the device converts it to what it really is. Stereo at 48 kHz works on every device. \"The device's own\" asks for the device's native format, which fails on outputs SDL can't open that way (some multichannel, Bluetooth or HDMI outputs). If a format won't open, the game tries the others, then other devices, and logs what it got.",
-			th.color.fg_muted, th.font.size_xs, max_width = 420),
+		uiText(th, .Muted, "The format the game asks its sound device for; the device converts it to what it really is. Stereo at 48 kHz works on every device. \"The device's own\" asks for the device's native format, which fails on outputs SDL can't open that way (some multichannel, Bluetooth or HDMI outputs). If a format won't open, the game tries the others, then other devices, and logs what it got.", max_width = tk.textMeasure),
 		settingRow(ctx, "Background", skald.color_picker(ctx, d.background,
 			proc(c: skald.Color) -> Msg { return Project_Settings_Background_Changed(c) },
-			id = skald.hash_id("project-settings-background"), width = 160)),
+			id = skald.hash_id("project-settings-background"), width = tk.fieldM)),
 		settingRow(ctx, "Start scene", skald.select(ctx, strings.clone(d.startScene, context.temp_allocator), scenes[:],
 			proc(v: string) -> Msg { return Project_Settings_Start_Changed(v) },
-			id = skald.hash_id("project-settings-start"), width = 200)),
-		skald.text(fmt.tprintf("The scene the game starts in (Play, and exports). Play Scene%s starts in the open scene instead.", keyParen(s, .Play_Scene)),
-			th.color.fg_muted, th.font.size_xs, max_width = 420),
+			id = skald.hash_id("project-settings-start"), width = tk.fieldL)),
+		uiText(th, .Muted, fmt.tprintf("The scene the game starts in (Play, and exports). Play Scene%s starts in the open scene instead.", keyParen(s, .Play_Scene)), max_width = tk.textMeasure),
 		settingRow(ctx, "Icon", iconSelect(ctx, s, d.icon)),
 		skald.col(..sceneFlowSettingRows(ctx, s), spacing = th.spacing.sm, cross_align = .Stretch),
 		settingRow(ctx, "Language", skald.text_input(ctx, strings.clone(d.locale, context.temp_allocator),
 			proc(v: string) -> Msg { return Project_Settings_Locale_Changed(v) },
-			id = skald.hash_id("project-settings-locale"), width = 120)),
-		skald.text(localeNote(s), th.color.fg_muted, th.font.size_xs, max_width = 420),
+			id = skald.hash_id("project-settings-locale"), width = tk.fieldS)),
+		uiText(th, .Muted, localeNote(s), max_width = tk.textMeasure),
 		skald.divider(ctx),
 		settingRow(ctx, "Pixels per meter", numberField(ctx, s, "project-settings-ppm", PhysicsTarget.Pixels_Per_Meter, f64(d.physics.pixelsPerMeter), 10, 0, 120, 1, 10000)),
 		settingRow(ctx, "Gravity", skald.row(
@@ -240,15 +242,12 @@ generalTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		settingRow(ctx, "Show shapes", skald.checkbox(ctx, d.physics.debugDraw, "Draw collision shapes in the game while developing",
 			proc(v: bool) -> Msg { return Project_Settings_Physics_Debug_Changed(v) },
 			id = skald.hash_id("project-settings-physics-debug"))),
-		skald.text("For Play only: exports never draw them. While playing, F9 shows and hides them. Also in the Scene menu.",
-			th.color.fg_muted, th.font.size_xs, max_width = 420),
+		uiText(th, .Muted, "For Play only: exports never draw them. While playing, F9 shows and hides them. Also in the Scene menu.", max_width = tk.textMeasure),
 		settingRow(ctx, "Smooth motion", skald.checkbox(ctx, d.physics.smoothing, "Draw bodies between physics steps",
 			proc(v: bool) -> Msg { return Project_Settings_Physics_Smoothing_Changed(v) },
 			id = skald.hash_id("project-settings-physics-smoothing"))),
-		skald.text("Physics steps 60 times a second whatever the frame rate; smoothing draws moving bodies in between, so they glide on fast screens (they're drawn up to one step behind).",
-			th.color.fg_muted, th.font.size_xs, max_width = 420),
-		skald.text("Physics works in meters: a body of 1 m is this many pixels (Box2D does best with things 0.1 to 10 m). Gravity is in pixels per second², y down: 980 is Earth's at 100 px per meter.",
-			th.color.fg_muted, th.font.size_xs, max_width = 420),
+		uiText(th, .Muted, "Physics steps 60 times a second whatever the frame rate; smoothing draws moving bodies in between, so they glide on fast screens (they're drawn up to one step behind).", max_width = tk.textMeasure),
+		uiText(th, .Muted, "Physics works in meters: a body of 1 m is this many pixels (Box2D does best with things 0.1 to 10 m). Gravity is in pixels per second², y down: 980 is Earth's at 100 px per meter.", max_width = tk.textMeasure),
 		spacing = th.spacing.sm,
 		cross_align = .Stretch,
 	)
@@ -261,20 +260,22 @@ Widget keys: `global-<i>` (shows it), `global-up-<i>`, `global-down-<i>`, `globa
 */
 @(private="file")
 globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	d := &s.projectSettings
 	list := make([dynamic]skald.View, context.temp_allocator)
 	small :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, disabled := false) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg_muted,
-			font_size = th.font.size_xs, padding = {th.spacing.xs, 1}, radius = th.radius.sm, disabled = disabled)
+			font_size = th.font.size_xs, padding = {tk.xs, tk.hair}, radius = th.radius.sm, disabled = disabled)
 	}
 	for g, i in d.globals {
 		shown := i == d.selectedGlobal
 		append(&list, skald.row(
 			skald.button(ctx, fmt.tprintf("%s  %s", ICON_GLOBE, g.script), Msg(Global_Selected(i)), id = skald.hash_id(fmt.tprintf("global-%d", i)),
 				bg = shown ? th.color.primary : th.color.bg, fg = shown ? th.color.on_primary : th.color.fg,
-				font_size = th.font.size_sm, padding = {th.spacing.sm, 2}, width = 150),
+				font_size = th.font.size_sm, padding = tk.fieldPadding, width = tk.fieldM),
 			small(ctx, fmt.tprintf("global-up-%d", i), ICON_CHEVRON_UP, Msg(Global_Moved{i, -1}), i == 0),
 			small(ctx, fmt.tprintf("global-down-%d", i), ICON_CHEVRON_DOWN, Msg(Global_Moved{i, 1}), i == len(d.globals) - 1),
 			small(ctx, fmt.tprintf("global-remove-%d", i), ICON_TRASH, Msg(Global_Removed(i))),
@@ -282,7 +283,7 @@ globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			cross_align = .Center,
 		))
 	}
-	if len(d.globals) == 0 do append(&list, skald.text("No globals yet.", th.color.fg_muted, th.font.size_sm))
+	if len(d.globals) == 0 do append(&list, uiText(th, .Label, "No globals yet."))
 	// Scripts that could be added
 	choices := make([dynamic]string, context.temp_allocator)
 	append(&choices, TEXTURE_NONE)
@@ -291,27 +292,26 @@ globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		for g in d.globals do if g.script == script.name do taken = true
 		if !taken do append(&choices, script.name)
 	}
-	append(&list, skald.spacer(th.spacing.sm), skald.text("Add a script as a global:", th.color.fg_muted, th.font.size_xs),
+	append(&list, skald.spacer(th.spacing.sm), uiText(th, .Muted, "Add a script as a global:"),
 		skald.select(ctx, TEXTURE_NONE, choices[:], proc(v: string) -> Msg { return Global_Added(v) },
-			id = skald.hash_id("global-add"), width = 220, placeholder = "Choose a script"))
+			id = skald.hash_id("global-add"), width = tk.fieldL, placeholder = "Choose a script"))
 	if s.scripts.status != .Ready {
-		append(&list, skald.text(fmt.tprintf("Build the scripts%s to list them here.", keyParen(s, .Build_Scripts)), th.color.fg_muted, th.font.size_xs, max_width = 230))
+		append(&list, uiText(th, .Muted, fmt.tprintf("Build the scripts%s to list them here.", keyParen(s, .Build_Scripts)), max_width = tk.textNarrow))
 	}
 
 	fields := make([dynamic]skald.View, context.temp_allocator)
 	append(&fields,
-		skald.text("Globals run for the whole game, across scenes, in this order: game state, settings, a HUD. Every Play starts them from these values. Scripts reach one with e.Global(Type), and e.Save_Game / e.Load_Game save and restore their fields as JSON.",
-			th.color.fg_muted, th.font.size_xs, max_width = 440),
+		uiText(th, .Muted, "Globals run for the whole game, across scenes, in this order: game state, settings, a HUD. Every Play starts them from these values. Scripts reach one with e.Global(Type), and e.Save_Game / e.Load_Game save and restore their fields as JSON.", max_width = tk.textMeasure),
 		skald.spacer(th.spacing.xs))
 	if d.selectedGlobal >= 0 && d.selectedGlobal < len(d.globals) {
 		g := &d.globals[d.selectedGlobal]
-		append(&fields, skald.text(g.script, th.color.fg, th.font.size_md))
+		append(&fields, uiText(th, .Section, g.script))
 		desc := ScriptCatalog_Find(&s.scripts, g.script)
 		if desc == nil {
-			append(&fields, skald.text(fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), g.script), th.color.fg_muted, th.font.size_xs))
-			for p in g.props do append(&fields, settingRow(ctx, p.name, skald.text(p.value, th.color.fg_muted, th.font.size_sm)))
+			append(&fields, uiText(th, .Muted, fmt.tprintf("Build the scripts%s to edit %s's fields.", keyParen(s, .Build_Scripts), g.script)))
+			for p in g.props do append(&fields, settingRow(ctx, p.name, uiText(th, .Label, p.value)))
 		} else {
-			if len(desc.fields) == 0 do append(&fields, skald.text("No exported fields (tag a field with export:\"\" to set it here).", th.color.fg_muted, th.font.size_xs))
+			if len(desc.fields) == 0 do append(&fields, uiText(th, .Muted, "No exported fields (tag a field with export:\"\" to set it here)."))
 			key := fmt.tprintf("global%d", d.selectedGlobal)
 			for &field in desc.fields {
 				append(&fields, settingRow(ctx, field.name, FieldControl(ctx, s, g.props[:], &field, key, DraftGlobalTarget(d.selectedGlobal), 260, 120)))
@@ -322,7 +322,7 @@ globalsTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	return skald.row(
 		skald.col(skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..list[:], spacing = th.spacing.xs, cross_align = .Start), id = skald.hash_id("globals-list-scroll"))),
-			width = 270, cross_align = .Stretch),
+			width = tk.fieldXL, cross_align = .Stretch),
 		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..fields[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start),
 			id = skald.hash_id("globals-fields-scroll"))),
 		spacing = th.spacing.md,
@@ -339,6 +339,7 @@ one).
 */
 @(private="file")
 inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	d := &s.projectSettings
 	if d.capturing {
@@ -349,9 +350,10 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		}
 	}
 	small :: proc(ctx: ^skald.Ctx(Msg), key, label: string, msg: Msg, disabled := false) -> skald.View {
+		tk := uiTokens(ctx)
 		th := ctx.theme
 		return skald.button(ctx, label, msg, id = skald.hash_id(key), bg = th.color.surface, fg = th.color.fg_muted,
-			font_size = th.font.size_xs, padding = {th.spacing.xs, 1}, radius = th.radius.sm, disabled = disabled)
+			font_size = th.font.size_xs, padding = {tk.xs, tk.hair}, radius = th.radius.sm, disabled = disabled)
 	}
 
 	list := make([dynamic]skald.View, context.temp_allocator)
@@ -362,7 +364,7 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&list, skald.row(
 			skald.button(ctx, fmt.tprintf("%s  (%d)", a.name, len(a.bindings)), Msg(Input_Action_Selected(i)), id = skald.hash_id(fmt.tprintf("input-action-%d", i)),
 				bg = shown ? th.color.primary : th.color.bg, fg = shown ? th.color.on_primary : th.color.fg,
-				font_size = th.font.size_sm, padding = {th.spacing.sm, 2}, width = 140, text_align = .Start),
+				font_size = th.font.size_sm, padding = tk.fieldPadding, width = tk.fieldM, text_align = .Start),
 			small(ctx, fmt.tprintf("input-up-%d", i), ICON_CHEVRON_UP, Msg(Input_Action_Moved{i, -1}), i == 0),
 			small(ctx, fmt.tprintf("input-down-%d", i), ICON_CHEVRON_DOWN, Msg(Input_Action_Moved{i, 1}), i == len(d.actions) - 1),
 			small(ctx, fmt.tprintf("input-remove-%d", i), ICON_TRASH, Msg(Input_Action_Removed(i))),
@@ -370,27 +372,26 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			cross_align = .Center,
 		))
 	}
-	if len(d.actions) == 0 do append(&list, skald.text("No actions yet.", th.color.fg_muted, th.font.size_sm))
+	if len(d.actions) == 0 do append(&list, uiText(th, .Label, "No actions yet."))
 	newProblem := d.newActionName == "" ? "" : ActionNameProblem(d.actions[:], -1, d.newActionName)
 	append(&list,
 		skald.spacer(th.spacing.sm),
-		skald.text("New action:", th.color.fg_muted, th.font.size_xs),
+		uiText(th, .Muted, "New action:"),
 		skald.row(
 			skald.text_input(ctx, strings.clone(d.newActionName, context.temp_allocator), proc(v: string) -> Msg { return Input_New_Name_Changed(v) },
-				id = skald.hash_id("input-new-name"), width = 140, placeholder = "jump", invalid = newProblem != ""),
+				id = skald.hash_id("input-new-name"), width = tk.fieldM, placeholder = "jump", invalid = newProblem != ""),
 			skald.button(ctx, fmt.tprintf("%s Add", ICON_PLUS), Msg(Input_Action_Added{}), id = skald.hash_id("input-add"),
-				font_size = th.font.size_sm, padding = {th.spacing.sm, 2}, disabled = d.newActionName == "" || newProblem != ""),
+				font_size = th.font.size_sm, padding = tk.fieldPadding, disabled = d.newActionName == "" || newProblem != ""),
 			spacing = th.spacing.xs, cross_align = .Center,
 		),
-		skald.text(newProblem, th.color.danger, th.font.size_xs),
+		uiText(th, .Muted, newProblem, color = th.color.danger),
 		small(ctx, "input-defaults", "Add the default ui_ actions", Msg(Input_Defaults_Added{})),
 	)
 	// Local players (players_edit.odin)
 	append(&list, ..playersSettingRows(s, ctx))
 
 	fields := make([dynamic]skald.View, context.temp_allocator)
-	append(&fields, skald.text("Actions are named inputs that keys, mouse buttons and gamepads trigger. Scripts ask about them: e.Input_IsActionPressed(\"jump\"), e.Input_IsActionJustPressed, e.Input_GetVector(\"ui_left\", \"ui_right\", \"ui_up\", \"ui_down\").",
-		th.color.fg_muted, th.font.size_xs, max_width = 320))
+	append(&fields, uiText(th, .Muted, "Actions are named inputs that keys, mouse buttons and gamepads trigger. Scripts ask about them: e.Input_IsActionPressed(\"jump\"), e.Input_IsActionJustPressed, e.Input_GetVector(\"ui_left\", \"ui_right\", \"ui_up\", \"ui_down\").", max_width = tk.textDialog))
 	if d.selectedAction >= 0 && d.selectedAction < len(d.actions) {
 		a := &d.actions[d.selectedAction]
 		nameId := skald.hash_id("input-name")
@@ -398,23 +399,23 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		problem := typing ? ActionNameProblem(d.actions[:], d.selectedAction, d.renameText) : ""
 		append(&fields,
 			settingRow(ctx, "Name", skald.text_input(ctx, strings.clone(typing ? d.renameText : a.name, context.temp_allocator),
-				proc(v: string) -> Msg { return Input_Action_Renamed(v) }, id = nameId, width = 170, invalid = problem != "")),
-			skald.text(problem, th.color.danger, th.font.size_xs),
+				proc(v: string) -> Msg { return Input_Action_Renamed(v) }, id = nameId, width = tk.fieldM, invalid = problem != "")),
+			uiText(th, .Muted, problem, color = th.color.danger),
 			settingRow(ctx, "Deadzone", valueSlider(ctx, "input-deadzone", a.deadzone, struct {}{},
 				proc(_: struct {}, v: f32) -> Msg { return Input_Deadzone_Changed(v) }, 0, 0.99, step = 0.01, decimals = 2,
-				defaultValue = e.DEFAULT_ACTION_DEADZONE, width = 200)),
-			skald.text("How far a stick or trigger must move to count.", th.color.fg_muted, th.font.size_xs),
+				defaultValue = e.DEFAULT_ACTION_DEADZONE, width = tk.fieldL)),
+			uiText(th, .Muted, "How far a stick or trigger must move to count."),
 			skald.spacer(th.spacing.xs),
-			skald.text("Triggered by", th.color.fg, th.font.size_sm),
+			uiText(th, .Value, "Triggered by"),
 		)
 		for binding, i in a.bindings {
 			append(&fields, skald.row(
-				skald.col(skald.text(e.InputBinding_Describe(binding), th.color.fg, th.font.size_sm), width = 200),
+				skald.col(uiText(th, .Value, e.InputBinding_Describe(binding)), width = tk.fieldL),
 				small(ctx, fmt.tprintf("input-binding-remove-%d", i), ICON_TRASH, Msg(Input_Binding_Removed(i))),
 				spacing = th.spacing.sm, cross_align = .Center,
 			))
 		}
-		if len(a.bindings) == 0 do append(&fields, skald.text("Nothing yet: add a key or button below.", th.color.fg_muted, th.font.size_xs))
+		if len(a.bindings) == 0 do append(&fields, uiText(th, .Muted, "Nothing yet: add a key or button below."))
 
 		capture := d.capturing ? "Press a key, mouse button or wheel... (Escape cancels)" : fmt.tprintf("%s  Press a key or button", ICON_PLUS)
 		modifiers := ctx.input.modifiers
@@ -422,7 +423,7 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.spacer(th.spacing.xs),
 			skald.button(ctx, capture, d.capturing ? Msg(Input_Capture_Cancelled{}) : Msg(Input_Capture_Started(modifiers)), id = skald.hash_id("input-capture"),
 				bg = d.capturing ? th.color.primary : th.color.surface, fg = d.capturing ? th.color.on_primary : th.color.fg,
-				font_size = th.font.size_sm, padding = {th.spacing.sm, 3}),
+				font_size = th.font.size_sm, padding = {tk.s, tk.xs}),
 		)
 		names :: proc($E: typeid) -> []string {
 			list := make([dynamic]string, context.temp_allocator)
@@ -438,31 +439,30 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			settingRow(ctx, "Key", skald.select(ctx, "", names(e.Key), proc(v: string) -> Msg {
 				k, _ := reflect.enum_from_name(e.Key, v)
 				return Input_Binding_Added{e.KeyBinding{k}}
-			}, id = skald.hash_id("input-add-key"), width = 170, placeholder = "Add a key")),
+			}, id = skald.hash_id("input-add-key"), width = tk.fieldM, placeholder = "Add a key")),
 			settingRow(ctx, "Mouse", skald.select(ctx, "", names(e.MouseButton), proc(v: string) -> Msg {
 				b, _ := reflect.enum_from_name(e.MouseButton, v)
 				return Input_Binding_Added{e.MouseBinding{b}}
-			}, id = skald.hash_id("input-add-mouse"), width = 170, placeholder = "Add a mouse button")),
+			}, id = skald.hash_id("input-add-mouse"), width = tk.fieldM, placeholder = "Add a mouse button")),
 			settingRow(ctx, "Gamepad", skald.select(ctx, "", names(e.GamepadButton), d.bindingDevice, proc(device: int, v: string) -> Msg {
 				b, _ := reflect.enum_from_name(e.GamepadButton, v)
 				return Input_Binding_Added{e.GamepadButtonBinding{b, device}}
-			}, id = skald.hash_id("input-add-gamepad"), width = 170, placeholder = "Add a gamepad button")),
+			}, id = skald.hash_id("input-add-gamepad"), width = tk.fieldM, placeholder = "Add a gamepad button")),
 			settingRow(ctx, "Stick, trigger", skald.select(ctx, "", axes[:], d.bindingDevice, proc(device: int, v: string) -> Msg {
 				name, _, sign := strings.partition(v, " ")
 				axis, _ := reflect.enum_from_name(e.GamepadAxis, name)
 				return Input_Binding_Added{e.GamepadAxisBinding{axis, sign == "−" ? -1 : 1, device}}
-			}, id = skald.hash_id("input-add-axis"), width = 170, placeholder = "Add a stick direction")),
+			}, id = skald.hash_id("input-add-axis"), width = tk.fieldM, placeholder = "Add a stick direction")),
 			settingRow(ctx, "For", skald.select(ctx, devices[clamp(d.bindingDevice + 1, 0, len(devices) - 1)], devices, proc(v: string) -> Msg {
 				for name, i in ([]string{"Any gamepad", "Gamepad 1", "Gamepad 2", "Gamepad 3", "Gamepad 4"}) do if name == v do return Input_Device_Changed(i - 1)
 				return {}
-			}, id = skald.hash_id("input-device"), width = 170)),
-			skald.text("The gamepad new gamepad bindings are for: Any (most games), or one, for local multiplayer. Sticks: − is left or up, + right or down.",
-				th.color.fg_muted, th.font.size_xs, max_width = 320),
+			}, id = skald.hash_id("input-device"), width = tk.fieldM)),
+			uiText(th, .Muted, "The gamepad new gamepad bindings are for: Any (most games), or one, for local multiplayer. Sticks: − is left or up, + right or down.", max_width = tk.textDialog),
 		)
 	}
 	return skald.row(
 		skald.col(skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..list[:], spacing = th.spacing.xs, cross_align = .Start), id = skald.hash_id("input-list-scroll"))),
-			width = 230, cross_align = .Stretch),
+			width = tk.fieldL, cross_align = .Stretch),
 		skald.flex(1, skald.scroll(ctx, {0, 0}, skald.col(..fields[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start),
 			id = skald.hash_id("input-fields-scroll"))),
 		spacing = th.spacing.md,
@@ -473,12 +473,13 @@ inputTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // The target list on the left, the shown target's settings on the right
 @(private="file")
 exportTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	d := &s.projectSettings
 
 	list := make([dynamic]skald.View, context.temp_allocator)
 	for group in ExportGroup {
-		append(&list, skald.text(fmt.tprintf("%v", group), th.color.fg_muted, th.font.size_xs))
+		append(&list, uiText(th, .Muted, fmt.tprintf("%v", group)))
 		for info, target in EXPORT_TARGETS {
 			if info.group != group do continue
 			shown := target == d.exportTarget
@@ -491,19 +492,19 @@ exportTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 					id = skald.hash_id(fmt.tprintf("export-target-%v", target)),
 					bg = shown ? th.color.primary : th.color.bg,
 					fg = shown ? th.color.on_primary : (Export_Implemented(target) ? th.color.fg : th.color.fg_muted),
-					font_size = th.font.size_sm, padding = {th.spacing.sm, 2}, width = 210),
+					font_size = th.font.size_sm, padding = tk.fieldPadding, width = tk.fieldL),
 				spacing = th.spacing.xs,
 				cross_align = .Center,
 			))
 		}
 		append(&list, skald.spacer(th.spacing.xs))
 	}
-	targets := skald.scroll(ctx, {0, 0}, skald.col(..list[:], spacing = 2, cross_align = .Start),
+	targets := skald.scroll(ctx, {0, 0}, skald.col(..list[:], spacing = tk.xxs, cross_align = .Start),
 		id = skald.hash_id("export-targets-scroll"))
 
 	return skald.row(
 		// flex: a scroll needs a height to scroll in
-		skald.col(skald.flex(1, targets), width = 250, cross_align = .Stretch),
+		skald.col(skald.flex(1, targets), width = tk.fieldL, cross_align = .Stretch),
 		// A scroll position per target: each opens at the top, with its Export button in view
 		skald.flex(1, skald.scroll(ctx, {0, 0}, exportTargetSettings(s, ctx),
 			id = skald.hash_id(fmt.tprintf("export-settings-scroll-%v", d.exportTarget)))),
@@ -514,6 +515,7 @@ exportTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 @(private="file")
 exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	d := &s.projectSettings
 	target := d.exportTarget
@@ -523,7 +525,7 @@ exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// The buttons sit beside the title, so they're in view whatever the target's settings
 	busy := Export_Busy(s)
 	header := make([dynamic]skald.View, context.temp_allocator)
-	append(&header, skald.text(info.label, th.color.fg, th.font.size_md))
+	append(&header, uiText(th, .Section, info.label))
 	append(&header, skald.button(ctx, "Export", Msg(Export_Target_Run(target)),
 		id = skald.hash_id("export-run"), font_size = th.font.size_sm, disabled = busy))
 	if busy {
@@ -538,8 +540,8 @@ exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	} else if _, hasEmsdk := Toolchain_EmsdkDir(); target == .Web && !hasEmsdk {
 		status, statusColor = "Needs Emscripten: the first web export installs it (about 1 GB, once), or Settings > Toolchain > Install Emscripten.", th.color.warning
 	}
-	append(&rows, skald.text(status, statusColor, th.font.size_sm, max_width = 440))
-	append(&rows, skald.text(info.note, th.color.fg_muted, th.font.size_xs, max_width = 440))
+	append(&rows, skald.text(status, statusColor, th.font.size_sm, max_width = tk.textMeasure))
+	append(&rows, uiText(th, .Muted, info.note, max_width = tk.textMeasure))
 	append(&rows, skald.spacer(th.spacing.xs))
 
 	for field in info.fields {
@@ -562,34 +564,34 @@ exportTargetSettings :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			// A copy: the text is inline in this frame's copy of the state
 			control = skald.text_input(ctx, strings.clone(FixedText_String(ExportField_Text(t, field)), context.temp_allocator), payload,
 				proc(p: Payload, v: string) -> Msg { return Export_Text_Changed{p.target, p.field, v} },
-				id = key, width = 300, placeholder = placeholder)
+				id = key, width = tk.fieldXL, placeholder = placeholder)
 		case .Bool:
 			control = skald.checkbox(ctx, ExportField_Bool(t, field)^, "", payload,
 				proc(p: Payload, v: bool) -> Msg { return Export_Flag_Changed{p.target, p.field, v} },
 				id = key)
 		}
 		append(&rows, settingRow(ctx, fieldInfo.label, control))
-		if fieldInfo.help != "" do append(&rows, skald.text(fieldInfo.help, th.color.fg_muted, th.font.size_xs, max_width = 440))
+		if fieldInfo.help != "" do append(&rows, uiText(th, .Muted, fieldInfo.help, max_width = tk.textMeasure))
 	}
 
 	append(&rows, skald.spacer(th.spacing.sm))
-	append(&rows, skald.text("Export (above) exports this target. File > Export exports every checked target. Exporting saves the project and applies these settings.",
-		th.color.fg_muted, th.font.size_xs, max_width = 440))
+	append(&rows, uiText(th, .Muted, "Export (above) exports this target. File > Export exports every checked target. Exporting saves the project and applies these settings.", max_width = tk.textMeasure))
 	return skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start)
 }
 
 // The sound output's sample rate and channels (keys project-settings-audio-rate, -channels)
 @(private="file")
 audioOutputSelects :: proc(ctx: ^skald.Ctx(Msg), output: e.AudioOutputSettings) -> skald.View {
+	tk := uiTokens(ctx)
 	rate := output.frequency == 0 ? AUDIO_OWN : fmt.tprintf("%d Hz", output.frequency)
 	channels := output.channels == 0 ? AUDIO_OWN : output.channels == 1 ? "Mono" : output.channels == 2 ? "Stereo" : fmt.tprintf("%d channels", output.channels)
 	return skald.row(
 		skald.select(ctx, rate, []string{"48000 Hz", "44100 Hz", AUDIO_OWN},
 			proc(v: string) -> Msg { return Project_Settings_Audio_Changed{false, v == AUDIO_OWN ? 0 : v == "44100 Hz" ? 44100 : 48000} },
-			id = skald.hash_id("project-settings-audio-rate"), width = 140),
+			id = skald.hash_id("project-settings-audio-rate"), width = tk.fieldM),
 		skald.select(ctx, channels, []string{"Stereo", "Mono", AUDIO_OWN},
 			proc(v: string) -> Msg { return Project_Settings_Audio_Changed{true, v == AUDIO_OWN ? 0 : v == "Mono" ? 1 : 2} },
-			id = skald.hash_id("project-settings-audio-channels"), width = 140),
+			id = skald.hash_id("project-settings-audio-channels"), width = tk.fieldM),
 		spacing = ctx.theme.spacing.sm,
 	)
 }
@@ -617,10 +619,11 @@ localeNote :: proc(s: ^State) -> string {
 // The window icon: one of the project's images, or None (the engine's Crossfire logo)
 @(private="file")
 iconSelect :: proc(ctx: ^skald.Ctx(Msg), s: ^State, icon: string) -> skald.View {
+	tk := uiTokens(ctx)
 	images := make([dynamic]string, context.temp_allocator)
 	append(&images, TEXTURE_NONE)
 	for asset in s.project.assets do if asset.kind == .Image do append(&images, asset.path)
 	return skald.select(ctx, icon == "" ? TEXTURE_NONE : strings.clone(icon, context.temp_allocator), images[:],
 		proc(v: string) -> Msg { return Project_Settings_Icon_Changed(v) },
-		id = skald.hash_id("project-settings-icon"), width = 260)
+		id = skald.hash_id("project-settings-icon"), width = tk.fieldXL)
 }

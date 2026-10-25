@@ -21,6 +21,7 @@ Widget keys for UI tests: `add-node-dialog`, `add-node-search`, `add-node-scroll
 `add-node-<Kind>` (a node type of the project's code: `add-node-<Type>`).
 */
 addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	// Closed: no content (its buttons would stay clickable where they were drawn: closedDialog)
 	if !s.addNode.open do return closedDialog(ctx, "add-node-dialog")
 	th := ctx.theme
@@ -56,7 +57,7 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		if entryHeader != header {
 			header = entryHeader
 			append(&rows, skald.col(
-				skald.text(header, th.color.fg_muted, th.font.size_sm),
+				uiText(th, .Label, header),
 				height = headerHeight,
 				padding = th.spacing.sm,
 				main_align = .End,
@@ -77,7 +78,7 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 			skald.text(fmt.tprintf("%s  %s", NodeKindIcon(entry.kind), label), fg, th.font.size_md),
 			skald.text(entry.description, muted, th.font.size_xs),
 			height = rowHeight,
-			spacing = 2,
+			spacing = tk.xxs,
 			padding = th.spacing.sm,
 			cross_align = .Stretch,
 			bg = bg,
@@ -87,7 +88,7 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		append(&rows, skald.clickable(ctx, row, msg, id = id, focusable = false))
 	}
 	if len(entries) == 0 {
-		append(&rows, skald.text(fmt.tprintf("No node types match '%s'", s.addNode.search), th.color.fg_muted, th.font.size_sm))
+		append(&rows, uiText(th, .Label, fmt.tprintf("No node types match '%s'", s.addNode.search)))
 	}
 
 	// As tall as the list, less in a short window (the title, search, hint and Cancel take
@@ -102,10 +103,10 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		open = s.addNode.open,
 		on_dismiss = proc() -> Msg { return Add_Node_Cancelled{} },
 		content = skald.col(
-			skald.text(s.addNode.forComponent ? "New Component" : "Add Node", th.color.fg, th.font.size_lg),
+			uiText(th, .Title, s.addNode.forComponent ? "New Component" : "Add Node"),
 			search,
 			list,
-			skald.text(addNodeParentHint(s), th.color.fg_muted, th.font.size_xs),
+			uiText(th, .Muted, addNodeParentHint(s)),
 			skald.row(
 				skald.flex(1, skald.spacer(0)),
 				skald.button(ctx, "Cancel", Msg(Add_Node_Cancelled{}), id = skald.hash_id("add-node-cancel")),
@@ -116,7 +117,7 @@ addNodeDialog :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		),
 		id = skald.hash_id("add-node-dialog"),
 		initial_focus = skald.hash_id("add-node-search"),
-		width = 420,
+		width = tk.dialogM,
 	)
 }
 

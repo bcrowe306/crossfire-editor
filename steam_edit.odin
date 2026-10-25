@@ -146,11 +146,13 @@ title, description, hidden, remove), Add Achievement. Keys `project-settings-ste
 `steam-achievement-add`.
 */
 SteamTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
+	tk := uiTokens(ctx)
 	th := ctx.theme
 	d := &s.projectSettings
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	note :: proc(ctx: ^skald.Ctx(Msg), text: string, warning := false) -> skald.View {
-		return skald.text(text, warning ? ctx.theme.color.warning : ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = 680)
+		tk := uiTokens(ctx)
+		return skald.text(text, warning ? ctx.theme.color.warning : ctx.theme.color.fg_muted, ctx.theme.font.size_xs, max_width = tk.textWide)
 	}
 	Payload :: struct { field: SteamField, index: int }
 	onText :: proc(p: Payload, v: string) -> Msg { return Steam_Setting_Changed{field = p.field, index = p.index, text = v} }
@@ -159,27 +161,27 @@ SteamTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows,
 		note(ctx, "Achievements, stats and cloud saves through Steam. Until the Steamworks SDK is part of the engine, games run its stub: achievements and stats are kept with the game's saves (and logged), so scripts can use them now and work unchanged on Steam later."),
 		settingRow(ctx, "Steam app ID", skald.text_input(ctx, appID, Payload{.App_ID, -1}, onText, id = skald.hash_id("project-settings-steam-app-id"),
-			width = 160, placeholder = "480", padding = InspectorFieldPadding(ctx))),
+			width = tk.fieldM, placeholder = "480", padding = InspectorFieldPadding(ctx))),
 		settingRow(ctx, "Cloud saves", skald.checkbox(ctx, d.steam.cloudSaves, "e.Save_Game and e.Load_Game use Steam Cloud files", Payload{.Cloud_Saves, -1}, onFlag,
 			id = skald.hash_id("project-settings-steam-cloud"))),
 		skald.divider(ctx),
-		skald.text("Achievements", th.color.fg, th.font.size_md),
+		uiText(th, .Section, "Achievements"),
 	)
 	if len(d.achievements) == 0 do append(&rows, note(ctx, "None yet. Their names must match the API names set up on Steamworks."))
 	key :: proc(i: int, field: string) -> skald.Widget_ID { return skald.hash_id(fmt.tprintf("steam-achievement-%d-%s", i, field)) }
 	for a, i in d.achievements {
 		remove := skald.button(ctx, ICON_TRASH, Msg(Steam_Achievement_Removed(i)), id = key(i, "remove"),
-			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {th.spacing.xs, 1})
+			bg = th.color.surface, fg = th.color.fg_muted, font_size = th.font.size_xs, padding = {tk.xs, tk.hair})
 		hidden := skald.checkbox(ctx, a.hidden, "Hidden", Payload{.Hidden, i}, onFlag, id = key(i, "hidden"))
 		// Two lines, so a narrow dialog (a tiled window) keeps every control in view
 		append(&rows,
 			skald.row(
-				skald.text_input(ctx, a.name, Payload{.Name, i}, onText, id = key(i, "name"), width = 180, placeholder = "API name", padding = InspectorFieldPadding(ctx)),
-				skald.text_input(ctx, a.title, Payload{.Title, i}, onText, id = key(i, "title"), width = 180, placeholder = "Title", padding = InspectorFieldPadding(ctx)),
+				skald.text_input(ctx, a.name, Payload{.Name, i}, onText, id = key(i, "name"), width = tk.fieldM, placeholder = "API name", padding = InspectorFieldPadding(ctx)),
+				skald.text_input(ctx, a.title, Payload{.Title, i}, onText, id = key(i, "title"), width = tk.fieldM, placeholder = "Title", padding = InspectorFieldPadding(ctx)),
 				remove,
 				spacing = th.spacing.xs, cross_align = .Center),
 			skald.row(
-				skald.text_input(ctx, a.description, Payload{.Description, i}, onText, id = key(i, "description"), width = 280, placeholder = "How to get it", padding = InspectorFieldPadding(ctx)),
+				skald.text_input(ctx, a.description, Payload{.Description, i}, onText, id = key(i, "description"), width = tk.fieldXL, placeholder = "How to get it", padding = InspectorFieldPadding(ctx)),
 				hidden,
 				spacing = th.spacing.xs, cross_align = .Center),
 		)
@@ -187,7 +189,7 @@ SteamTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 	append(&rows,
 		skald.button(ctx, fmt.tprintf("%s  Add Achievement", ICON_PLUS), Msg(Steam_Achievement_Added{}), id = skald.hash_id("steam-achievement-add"),
-			bg = th.color.surface, fg = th.color.fg, padding = {th.spacing.sm, 2}, font_size = th.font.size_xs, radius = th.radius.sm),
+			bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm),
 		note(ctx, "Scripts unlock them by name: e.Steam_UnlockAchievement(ACHIEVEMENT_FIRST_BLOOD) (constants in scripts/assets.odin). Stats need no list: e.Steam_AddStat(\"ENEMIES\", 1), then e.Steam_StoreStats()."),
 	)
 	return skald.col(..rows[:], spacing = th.spacing.sm, padding = th.spacing.xs, cross_align = .Start)
@@ -196,6 +198,7 @@ SteamTab :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 // A labelled row of the Steam tab (its label has a tooltip: tooltips.odin)
 @(private="file")
 settingRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View) -> skald.View {
-	return skald.row(skald.col(tipLabel(ctx, label, skald.text(label, ctx.theme.color.fg, ctx.theme.font.size_sm)), width = 120), control,
+	tk := uiTokens(ctx)
+	return skald.row(skald.col(tipLabel(ctx, label, uiText(ctx.theme, .Label, label)), width = tk.labelWidthWide), control,
 		spacing = ctx.theme.spacing.sm, cross_align = .Center)
 }
