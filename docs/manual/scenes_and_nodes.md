@@ -175,6 +175,25 @@ Below these come the node's script (see [Scripts](scripts.md)), its events, and 
 its kind: an image for a Sprite, a text for a Label, a shape for a CollisionShape. Each kind's page
 in this manual explains them.
 
+### Several nodes at once
+
+Select several nodes (Ctrl+click or Shift+click in the scene tree or the viewport, a box in the
+viewport, Ctrl+A) and the inspector shows the settings they all have: position, rotation, scale,
+layer, visible, Z index, Y sort, blend, process and groups. Change one and it changes on every
+selected node, as one step to undo. A setting whose values differ shows **—** until you set it.
+A name, a kind's own settings, scripts and events are one node's: select that node alone.
+
+### Pinned settings and folded sections
+
+Hover a setting's row and a pin appears beside its name: click it to pin the setting. Pinned
+settings move to a **Pinned** section at the top of the inspector, for every node of that kind
+(pin Texture once and every Sprite shows it first); click the pin there to unpin it.
+
+The **Node** section (name to groups) and the kind's section (Sprite, Label...) fold with a click
+on their headers. Folding is remembered for each kind too: fold Node for Sprites and every Sprite
+opens folded. Pinned settings still show while their section is folded. Pins and folds are kept
+with the project (`.editor/inspector.ini`).
+
 Labels and Menus follow their parent's position, but not its rotation or scale.
 
 ## The viewport

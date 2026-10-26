@@ -94,13 +94,7 @@ code editor's (in a code tab it lists the code editor's commands too); with no p
 editor starts on a welcome screen (the demo no longer opens by itself; tests and a path argument
 unaffected); layouts are maximize + presets (no docking); **no motion** (the UI stays instant).
 
-1. **Workflow:** **maximize a panel** (double-click its tab) and **layout presets** (panel sizes and
-   shown tabs saved per project); **multi-node editing** (a property set on every selected node,
-   mixed values shown as "—"); **pinned / favorite properties** and remembered collapsed sections in
-   the inspector; **drop targets that light up** during a drag; **contextual hints** (the status bar
-   shows the current tool's keys); a **welcome screen** (recent projects, Open, New, the demo, the
-   manual).
-2. **A zoomable palette in the Level mode** (asked 2026-10-25): the tile palette (the tileset
+1. **A zoomable palette in the Level mode** (asked 2026-10-25): the tile palette (the tileset
    shown for picking tiles and stamps, and the rules' tile picker and the entity / tileset tile
    pickers that show a tileset) zooms like the canvas: wheel or Ctrl+wheel around the pointer,
    + / − / fit buttons, pan when zoomed in, crisp pixels at every zoom, the zoom remembered per

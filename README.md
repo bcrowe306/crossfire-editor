@@ -46,7 +46,7 @@ git clone --recursive https://github.com/bcrowe306/crossfire-editor odin_sdl_edi
 git clone --recursive https://github.com/bcrowe306/crossfire-engine odin_sdl_engine
 cd odin_sdl_editor
 task setup    # fetch the submodules, build Odin's STB libraries and the engine's Box2D (once)
-task run      # build and run the editor; it opens the demo project (the first run also
+task run      # build and run the editor on its welcome screen (Open the Demo; the first run also
               # builds the static SDL and the shader tools: CMake, a C++ compiler, Python 3)
 ```
 
@@ -161,6 +161,15 @@ The Scene mode:
 Search Everywhere) finds any action (with its shortcut), setting, node of the open scene, scene,
 asset, script or manual page by typing a few of its letters; `>` `,` `@` `#` `?` keep actions,
 settings, nodes, assets or docs. In a code tab it lists the code editor's commands too.
+
+**Workflow:** a **welcome screen** when started without a project (recent projects, New, Open,
+the demo, the manual; File > Welcome); a panel **maximized** by double-clicking its title or tabs
+(View > Maximize Panel, Shift+Space; Escape restores); **layout presets** (View > Layout:
+Default, Code, Level, Wide Viewport, your own saved ones), the layout remembered per project;
+**several nodes edited at once** in the inspector (shared settings, "—" where they differ, one
+undo step); **pinned settings** and folded sections remembered per node kind; **drop targets**
+outlined while dragging; the current tool's keys in the status bar. See
+[docs/manual/getting_started.md](docs/manual/getting_started.md#layouts).
 
 **Feedback:** **notifications** in the bottom-right corner for saves, exports, failed builds and
 installs (errors stay until dismissed; a button shows the Output, the Console or the problems, or

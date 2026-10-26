@@ -174,13 +174,16 @@ add it as a task and to the README's command table.
 - `task prebuilt` builds this platform's **prebuilt player** (`<engine>/player`, `-o:speed`) into
   `build/prebuilt/<target>/player` and `build/release/prebuilt/...`, next to both editors: projects
   without scripts then play and export without compiling. `run` and the UI test tasks depend on it.
-- `task run -- <project folder>` opens another project. With no argument the editor opens the
-  demo project (`Editor_DemoProject`): `examples/demo_project` beside the executable (release
-  archives ship it there), else in the working folder (a checkout); from a macOS bundle a copy
-  in `~/Documents/Crossfire Editor`, made on first run from the bundle's
-  `Resources/demo_project` (`Editor_ShippedDemo`, `Folder_Copy`). Only when there's no shipped
-  demo to copy does `Project_CreateDemo` write a reduced built-in one (an outline of the demo:
-  its title, options and an empty level, made of UI controls, no images).
+- `task run -- <project folder>` opens a project. With no argument the editor opens on the
+  **welcome screen** (welcome.odin; the user's decision, 2026-10-25: the demo no longer opens by
+  itself), whose **Open the Demo** opens the demo project (`Editor_DemoProject`):
+  `examples/demo_project` beside the executable (release archives ship it there), else in the
+  working folder (a checkout); from a macOS bundle a copy in `~/Documents/Crossfire Editor`, made
+  on first use from the bundle's `Resources/demo_project` (`Demo_Prepare`: `Editor_ShippedDemo`,
+  `Folder_Copy`). Only when there's no shipped demo to copy does `Project_CreateDemo` write a
+  reduced built-in one (an outline of the demo: its title, options and an empty level, made of
+  UI controls, no images). The UI tests (`tools/ui_tests.sh`) and the profiler
+  (`tools/profile.sh`) always pass a project folder.
 - Skald is imported as `import "gui:skald"` (`-collection:gui=Skald`, set by the Taskfile).
 - Runtime needs a Vulkan loader and SDL3 (plus SDL3_image, SDL3_ttf, SDL3_mixer through the engine).
   Per-OS setup is in `Skald/PLATFORMS.md`.
@@ -363,6 +366,12 @@ Skald is not immediate-mode and not a retained widget tree:
 | `view_add_node.odin` | The Add Node dialog: search box, list of node kinds, Up/Down/Enter keys |
 | `command_palette.odin` | **The command palette** (Search Everywhere): `PaletteKind`, `PaletteEntry`, `PaletteState` (`State.palette`), `Palette_Entries` (actions with their keys, the menus' other items, a code tab's code editor commands, `PALETTE_SETTINGS` and the color tables, the open scene's nodes, scenes / assets / scripts, the docs' pages), `Palette_ParseQuery` (`PALETTE_PREFIXES`), `Palette_Matches` (the code editor's `ce.fuzzy_score`, then category, label), `Palette_Update` / `_RunRow` / `_Run`, `Palette_NodePath` |
 | `view_command_palette.odin` | The palette's popup (`commandPaletteView`): search, category buttons, the rows (kind, label, detail), the count; Up / Down / Page keys, Enter, Escape |
+| `welcome.odin` | **The welcome screen** ("Workflow" below): `WelcomeScreen` (`State.welcome`: open, no project), `Project_CreatePlaceholder` (the project held with none open: no folder, never written), `Demo_Prepare` (the demo made where it's kept on first use), `Welcome_Update`, `welcomeView` |
+| `layouts.odin` | **Maximized panels and layout presets** ("Workflow" below): `MaxPanel` (`Layout.maximized`), `Layout_ToggleMaximized`, `Maximize_Track` (a double-click on a panel's title zone or tab strip; the shortcut's panel under the pointer), `panelTitleZone`; `LayoutPreset`, `BuiltinLayout` / `LayoutPreset_Builtin`, `Layout_Capture` / `_Apply` / `_SavePreset`, `.editor/layout.ini` (`Layouts_Text` / `_Parse` / `_Load` / `_Save` / `_Follow`), `Layout_MenuItems` (View > Layout), `layoutSaveDialogView` |
+| `multi_edit.odin` | **Multi-node editing** ("Workflow" below): `MultiEdit_Applies` / `_Apply` (a node property message applied to every selected node through `applyMsg`), `MultiEdit_Classify` (one `.Scene` step), `MultiEdit_Mixed` (`MultiProp`), `inspectorMultiView`, `MIXED_VALUE` |
+| `inspector_prefs.odin` | **Pinned rows and remembered sections** per node type ("Workflow" below): `InspectorPrefs` (`State.inspectorPrefs`), `.editor/inspector.ini` (`InspectorPrefs_Load` / `_Save` / `_Text` / `_Parse`), `inspectorPins` (the rows `inspectorView` diverts to Pinned), `inspectorPinnedRow`, `pinnedPlaceholder` / `Inspector_DropPlaceholders`, `inspectorSectionHeader` |
+| `drop_targets.odin` | **Drop targets lit during a drag** ("Workflow" below): `DropTargets_Keys` (the drag's valid targets), `dropTargetsView` (their outlines), `rectIntersect` |
+| `tool_hints.odin` | **The status bar's tool hints**: `TOOL_HINTS`, `LEVEL_TOOL_HINTS`, `Tool_Hint`, `STATUS_HINT_MIN_WIDTH` |
 | `notifications.odin` | **Toasts**: `Toast`, `ToastLevel`, `ToastAction`, `Notifications` (`State.notifications`), `Notify` / `Notifications_Push`, `_Expire`, `_NextDeadline`, `_Dismiss`, the jobs' progress toasts (`ToastJob`, `Notifications_RunningJobs`, `_Follow`, `_Jobs`), `Notifications_Update`, `notificationsView`, `Overlay_PopupOpen` (a popup open, the toasts aside) |
 | `problems.odin` | **The Problems tab**: `Problem`, `ProblemKind`, `ProblemsState` (`State.problems`), `Problems_Gather` (missing assets, `NodePaths_Broken`, unresolved scripts and node types, the Output's errors, the script index's problems), `Problems_Go`, `Problems_Update`, `ProblemsPanel` |
 | `undo_history.odin` | **The History tab**: `History_Jump`, `History_JumpTo` (undo / redo to a step), `UndoHistory_Update`, `UndoHistoryPanel` |
@@ -829,6 +838,8 @@ shows up here with no editor change (it still needs inspector fields).
   root), nudges. A viewport drag applies the tool to the dragged node and `Viewport_FollowDrag`
   gives the others the same movement, rotation and scale factor. Multi-node drags and nudges are
   `.Scene`-scope undo steps. Undo/redo restore only the primary node.
+- **The inspector** with several selected shows the properties they share and sets them on all
+  (multi_edit.odin, "Workflow" below).
 
 ### Viewport grid and snapping
 
@@ -3104,6 +3115,53 @@ appear and go at once).
   <Action> <text>`, `send Problems_Refresh`, `remove_project_file`; checks `toasts`, `toast`,
   `problems`, `problem`, `history`. Tests: `notifications_test.odin`; tests/ui/feedback.script.
   User guide: `docs/manual/feedback.md`.
+
+## Workflow: layouts, multi-editing, pins, drop targets, hints, the welcome screen (implemented, `layouts.odin`, `multi_edit.odin`, `inspector_prefs.odin`, `drop_targets.odin`, `tool_hints.odin`, `welcome.odin`)
+
+TODO.md's "UI and UX" round "Workflow" (2026-10-25). The user's decisions: maximize and presets,
+**no docking**; no motion; with no project argument the welcome screen. Each file's doc block has
+the details.
+- **Maximize** (`Layout.maximized`, per mode): a double-click on a panel's header title
+  (`panelHeaderOf(ctx, key, ...)`: the zone `panel-title-<key>`: browser, scene-tree, inspector,
+  levels, layers) or tab strip (`center-tabs`, `bottom-tabs-scroll`, the Level canvas's header
+  `level-canvas-header`), View > Maximize Panel or `Action.Maximize_Panel` (**Shift+Space**:
+  Ctrl+Shift+M is the code editor's Problems; not in `CODE_EDITOR_PASSTHROUGH`, so a code tab
+  keeps typing spaces) shows that panel alone in the mode's workspace (`sceneModeView`'s and
+  `levelModeView`'s switch); again, or Escape (`.Deselect` / `.Level_Cancel`, taken first in
+  `applyMsg`), restores. The bottom panel's zone `panel-bottom` is how the shortcut finds it.
+- **Layout presets** (View > Layout): built-in Default, Code, Level, Wide Viewport
+  (`LayoutPreset_Builtin` per mode), the project's saved ones (Save Current Layout As...: the
+  `layout-save-*` dialog), Reset Layout. Each mode's layout (sizes, open panels, bottom tab) and
+  the presets live in `.editor/layout.ini`, written by `Layouts_Follow` after a message that
+  isn't a divider's drag (nothing while the layout is the untouched default), read with
+  `Mode_Load` when a project opens.
+- **Multi-node editing**: the generic node property messages (`Node_Field_Changed`,
+  `Node_Text_Changed`, `Node_Flag_Changed`, `Node_Visibility_Changed`, `Node_Layer_Toggled`, a
+  node number field's typing) with several nodes selected go to `MultiEdit_Apply` instead of
+  `applyMsg` (`update`), one `.Scene` undo step; the inspector shows `inspectorMultiView` (the
+  shared base rows; "—" for mixed values: `numberField(mixed)`, `enumSelect(mixed)`). Not
+  covered: names, the kinds' own rows, scripts, events (select one node).
+- **Pins and sections** (per node type, `.editor/inspector.ini`): `inspectorRow` hands a row to
+  `inspectorPinnedRow` while the one-node inspector builds; a pinned row moves to Pinned (its
+  place keeps a `-0` spacer the assembly drops). The Node and kind sections collapse (`Node`,
+  `Kind`); a collapsed section isn't built unless the type has pins. Script and Events keep their
+  own headers.
+- **Drop targets**: `dropTargetsView` (in `view`, after the code drag's label) outlines the drag's
+  targets (`DropTargets_Keys`: the release cases of `browserDrag`, `sceneTreeMouse`, code_drag).
+- **Hints**: the status bar's flex space shows `Tool_Hint` (elided; none under
+  `STATUS_HINT_MIN_WIDTH`, where the bar is full already).
+- **Welcome screen**: with no project argument, or one that fails to open (an error toast),
+  `init` holds `Project_CreatePlaceholder` (rootPath "": nothing writes) and `view` draws
+  `welcomeView` with the dialogs, the docs window and toasts over it (the keymap is off; Escape
+  goes back over a real project). File > Welcome opens it; `switchProject` closes it.
+- Keys: `panel-title-<key>`, `panel-bottom`, `level-canvas-header`, `layout-save-name` / `-ok` /
+  `-cancel`, `inspector-row-<label>`, `inspector-pin-<label>`, `inspector-section-<Node | Kind>`,
+  `welcome-*` (welcome.odin). Driver: `send Welcome_Opened`, `send Layout_Save_Opened`, `send
+  Layout_Preset_Applied <name | i>`; checks `welcome`, `maximized`, `layout_left`,
+  `layout_presets`, `layout_dialog`, `tool_hint_has`, `inspector_pinned`, `inspector_collapsed`.
+  Tests: `workflow_test.odin`; tests/ui/workflow.script, welcome.script. User guides:
+  `docs/manual/getting_started.md` (the welcome screen, the window's layouts),
+  `docs/manual/scenes_and_nodes.md` (several nodes, pins, sections).
 
 ## Viewport tools (implemented, `viewport_tools.odin`, `view_viewport.odin`, `viewport_math.odin`)
 

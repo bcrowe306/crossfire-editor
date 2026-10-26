@@ -40,9 +40,23 @@ one does; on a Mac the app brings its own).
 On macOS, the app isn't notarized by Apple yet, so the first time you open it macOS may refuse.
 Open **System Settings > Privacy & Security** and choose **Open Anyway** for Crossfire Editor.
 
+## The welcome screen
+
+Started without a project, the editor opens on its **welcome screen**:
+
+- **Recent Projects**: the projects you opened lately, each with its folder. Click one to open it;
+  its **×** takes it off the list (the folder stays where it is).
+- **New Project...**, **Open Project...** and **Open Project Archive...** (see [Projects](projects.md)).
+- **Open the Demo**: the demo project, below.
+- **User Manual**: this manual.
+
+**File > Welcome** shows it again while a project is open; **Back to** (or Escape) returns to the
+project. Started with a project's folder (`crossfire-editor path/to/MyGame`), the editor opens
+that project instead; if it can't be opened, you land on the welcome screen with the reason.
+
 ## The demo project
 
-The first time you start the editor it opens the **demo project**, "Legacy of the Wardens": a
+**Open the Demo** on the welcome screen opens the **demo project**, "Legacy of the Wardens": a
 platformer with a title screen, options, an opening dialogue, three levels made in LDtk and a boss.
 Press **F5** to play it. Look around: click things in the scene tree, see their settings in the
 inspector, change some and play again. You can't break anything you can't undo (Ctrl+Z). Its
@@ -52,7 +66,7 @@ Where the demo lives:
 
 - from an archive (Linux `.tar.gz`, Windows `.zip`): `examples/demo_project`, beside the editor;
 - from the AppImage, the Windows installer or the macOS app: a copy in your **Documents** folder,
-  `Documents/Crossfire Editor`, made the first time you start it.
+  `Documents/Crossfire Editor`, made the first time you open it.
 
 To open another project, start the editor with its folder (`crossfire-editor path/to/MyGame`) or
 use **File > Open Project** (Ctrl+O). See [Projects](projects.md).
@@ -86,9 +100,25 @@ use **File > Open Project** (Ctrl+O). See [Projects](projects.md).
 | **Scene tree** (right, top) | Every node of the open scene, children indented under their parents |
 | **Inspector** (right, bottom) | The selected node's settings: its name, position, rotation, scale, and what its kind has (an image, a text, a sound...). Made narrow, it puts each setting's name above its control |
 | **Bottom panel** | Tabs: **Console** (messages from the editor and your game), **Output** (building), **Animation**, **Mixer**, **Git**, **Tiles**, **Timeline**, **Live**, **States**, **Particles**, **Dialogue**, **Plugins**. Ctrl+J shows or hides it |
-| **Status bar** (bottom) | The project's name, **Modified** or **Saved**, the open scene, its node count, what's selected, the tool, whether the game is playing, and the game's screen size |
+| **Status bar** (bottom) | The project's name, **Modified** or **Saved**, the open scene, its node count, what's selected, the tool's keys (what Shift, Alt and Space do with it: `Shift: one axis · Alt+drag: duplicate · Space: pan`; not in a narrow window), the tool, whether the game is playing, and the game's screen size |
 
-Drag the lines between the panels to resize them. Hover over almost anything (a button, a setting's
+Drag the lines between the panels to resize them.
+
+### Layouts
+
+- **Maximize a panel:** double-click its title (Project, the scene tree, Inspector; in the Level
+  mode Levels and Layers) or its tabs (the scene tabs above the viewport, the bottom panel's
+  tabs) and it fills the editor's work area. Double-click again, or press **Escape**, to put it
+  back. **View > Maximize Panel** (**Shift+Space**) does the same for the panel under the pointer.
+- **View > Layout** sets the panels' sizes, which ones are open and the bottom panel's tab at
+  once: **Default**, **Code** (a narrow right sidebar, a short Console), **Level** (a tall bottom
+  panel on the Tiles tab), **Wide Viewport** (narrow sidebars, no bottom panel). **Save Current
+  Layout As...** keeps the layout under a name of yours, listed there too; **Reset Layout** goes
+  back to Default.
+- The layout is remembered per project, for each mode (in the project's `.editor/layout.ini`).
+
+While you drag something (a file from the browser, a node in the scene tree), the places that
+would take it are outlined in the accent color; the one under the pointer is tinted. Hover over almost anything (a button, a setting's
 name in the inspector) to see what it does.
 
 **Help > User Manual** (F1) opens this manual in the editor's [docs window](docs_window.md), with
@@ -265,8 +295,9 @@ Once your project has scripts (your own Odin code), the editor compiles your gam
 **The viewport, scene tree and inspector are gone.** The editor is in another mode: click
 **Scene** beside the menus, or press Ctrl+Alt+1 ([Editor modes](#editor-modes)).
 
-**The editor opens a different project.** It opens the demo when started without a project. Use
-**File > Open Recent** to get back to yours, or start it with your project's folder.
+**The editor opens on the welcome screen, not my project.** It does when started without a
+project. Click your project under **Recent Projects** (or **File > Open Recent** later), or start
+the editor with your project's folder.
 
 **Play does nothing, or the Console says Odin wasn't found.** Your project has scripts and needs
 Odin and a linker ([What you'll need for scripts](#what-youll-need-for-scripts)). The **Output**
