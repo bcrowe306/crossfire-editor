@@ -279,7 +279,9 @@ RulesPicked :: struct {
 /*
 A tileset drawn for picking (LDtk's ui.Tileset): fitted to the tab's width, the tiles `selected`
 outlined, `marked` ones filled (`markColor`; `marked2` with `markColor2`), a drag picks a
-rectangle of cells: `ids` column by column as LDtk lists them (Tileset.onMouseUp).
+rectangle of cells: `ids` column by column as LDtk lists them (Tileset.onMouseUp). It zooms and
+pans in its box as the canvas does (tile_zoom.odin; the − / + / Fit buttons over it,
+`ldtk-<key>-zoom-in`...), its zoom kept per tileset.
 */
 @(private="file")
 rTilePicker :: proc(c: ^LDtkTabCtx, key: string, t: RulesTileset, selected: []int, marked: []int = nil, markColor: u32 = 0, marked2: []int = nil, markColor2: u32 = 0, maxHeight: f32 = 300) -> (skald.View, RulesPicked) {
@@ -291,27 +293,22 @@ rTilePicker :: proc(c: ^LDtkTabCtx, key: string, t: RulesTileset, selected: []in
 	zoom = max(zoom, 0.25)
 	pickerKey := fmt.tprintf("ldtk-%s", key)
 	id := skald.hash_id(pickerKey)
-	cellAt :: proc(ctx: ^skald.Ctx(Msg), id: skald.Widget_ID, zoom: f32, t: RulesTileset) -> ([2]int, bool) {
-		st, ok := ctx.widgets.states[id]
-		if !ok do return {}, false
-		r := st.last_rect
-		local := (ctx.input.mouse_pos - {r.x, r.y}) / zoom
-		cx := int(math.floor((local.x - t.padding) / (t.grid + t.spacing)))
-		cy := int(math.floor((local.y - t.padding) / (t.grid + t.spacing)))
-		return {clamp(cx, 0, t.cWid - 1), clamp(cy, 0, t.cHei - 1)}, true
-	}
+	// The view is the size the tileset fits at that zoom; it zooms and pans in it (tile_zoom.odin)
+	zoomKey := TileZoom_Key("picker", t.uid, c.file)
+	zi := tileZoomInput(ctx, c.s, zoomKey, id, t.size)
+	TileZoom_Record(pickerKey, {t = zi.t, zoom = TileZoom_Get(c.s, zoomKey), grid = t.grid, spacing = t.spacing, padding = t.padding, cWid = t.cWid})
 	drag, has := &rulesPicks[pickerKey]
 	if !has {
 		rulesPicks[strings.clone(pickerKey)] = {}
 		drag = &rulesPicks[pickerKey]
 	}
 	picked: RulesPicked
-	if rHovered(ctx, id) && (ctx.input.mouse_pressed[.Left] || ctx.input.mouse_pressed[.Right]) && !drag.dragging {
-		if cell, ok := cellAt(ctx, id, zoom, t); ok do drag^ = {dragging = true, right = !ctx.input.mouse_pressed[.Left], shift = .Shift in ctx.input.modifiers, start = cell}
+	if zi.hovered && !zi.panning && (ctx.input.mouse_pressed[.Left] || ctx.input.mouse_pressed[.Right]) && !drag.dragging {
+		if cell, on := TileZoom_CellAt(zi.t, ctx.input.mouse_pos, t.grid, t.spacing, t.padding, t.cWid, t.cHei); on do drag^ = {dragging = true, right = !ctx.input.mouse_pressed[.Left], shift = .Shift in ctx.input.modifiers, start = cell}
 	}
 	box: [4]int
 	if drag.dragging {
-		cell, _ := cellAt(ctx, id, zoom, t)
+		cell, _ := TileZoom_CellAt(zi.t, ctx.input.mouse_pos, t.grid, t.spacing, t.padding, t.cWid, t.cHei)
 		box = {min(drag.start.x, cell.x), min(drag.start.y, cell.y), max(drag.start.x, cell.x), max(drag.start.y, cell.y)}
 		if !ctx.input.mouse_buttons[.Left] && !ctx.input.mouse_buttons[.Right] {
 			ids := make([dynamic]int, context.temp_allocator)
@@ -324,46 +321,47 @@ rTilePicker :: proc(c: ^LDtkTabCtx, key: string, t: RulesTileset, selected: []in
 	}
 	Paint :: struct {
 		t: RulesTileset,
-		zoom: f32,
+		zoom: TileZoom,
 		selected, marked, marked2: []int,
 		markColor, markColor2, accent: skald.Color,
 		dragging: bool,
 		box: [4]int,
 	}
 	p := new(Paint, context.temp_allocator)
-	p^ = {t = t, zoom = zoom, selected = slice.clone(selected, context.temp_allocator), marked = slice.clone(marked, context.temp_allocator),
+	p^ = {t = t, zoom = TileZoom_Get(c.s, zoomKey), selected = slice.clone(selected, context.temp_allocator), marked = slice.clone(marked, context.temp_allocator),
 		marked2 = slice.clone(marked2, context.temp_allocator), markColor = skald.rgb(markColor), markColor2 = skald.rgb(markColor2),
 		accent = th.color.primary, dragging = drag.dragging, box = box}
 	canvas := skald.canvas(ctx, p, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 		r, b := painter.r, painter.bounds
-		skald.draw_rect(r, b, {0.1, 0.1, 0.12, 1})
-		skald.draw_image_region(r, p.t.path, {b.x, b.y, p.t.size.x * p.zoom, p.t.size.y * p.zoom}, {0, 0, p.t.size.x, p.t.size.y}, inset = false)
-		cell :: proc(p: ^Paint, b: skald.Rect, id: int) -> skald.Rect {
-			s := rTileSrc(p.t, id)
-			return {b.x + s.x * p.zoom, b.y + s.y * p.zoom, s.w * p.zoom, s.h * p.zoom}
+		tf := TileZoom_Transform(p.zoom, p.t.size, b)
+		skald.push_clip(r, b)
+		defer skald.pop_clip(r)
+		TileZoom_DrawImage(r, b, tf, p.t.path, p.t.size)
+		cell :: proc(p: ^Paint, tf: TileZoomTransform, id: int) -> skald.Rect {
+			return TileZoom_ScreenRect(tf, rTileSrc(p.t, id))
 		}
 		for id in p.marked {
-			c := cell(p, b, id)
+			c := cell(p, tf, id)
 			skald.draw_rect(r, c, {p.markColor.r, p.markColor.g, p.markColor.b, 0.35})
 			skald.draw_rect_outline(r, c, 2, p.markColor)
 		}
 		for id in p.marked2 {
-			c := cell(p, b, id)
+			c := cell(p, tf, id)
 			skald.draw_rect(r, c, {p.markColor2.r, p.markColor2.g, p.markColor2.b, 0.35})
 			skald.draw_rect_outline(r, c, 2, p.markColor2)
 		}
 		for id in p.selected {
-			c := cell(p, b, id)
+			c := cell(p, tf, id)
 			skald.draw_rect_outline(r, {c.x - 1, c.y - 1, c.w + 2, c.h + 2}, 1, {0, 0, 0, 0.8})
 			skald.draw_rect_outline(r, c, 2, p.accent)
 		}
 		if p.dragging {
-			a := cell(p, b, p.box[0] + p.box[1] * p.t.cWid)
-			z := cell(p, b, p.box[2] + p.box[3] * p.t.cWid)
+			a := cell(p, tf, p.box[0] + p.box[1] * p.t.cWid)
+			z := cell(p, tf, p.box[2] + p.box[3] * p.t.cWid)
 			skald.draw_rect_outline(r, {a.x, a.y, z.x + z.w - a.x, z.y + z.h - a.y}, 2, {1, 1, 1, 0.9})
 		}
-	}, id = id, width = t.size.x * zoom, height = t.size.y * zoom, cursor = .Crosshair)
-	return canvas, picked
+	}, id = id, width = t.size.x * zoom, height = t.size.y * zoom, cursor = zi.cursor)
+	return skald.col(tileZoomControls(ctx, c.s, zoomKey, pickerKey, t.size), canvas, spacing = uiTokens(ctx).rowGap), picked
 }
 
 // LDtk's selection of individual tiles (Tileset.modifySelection, MultipleIndividuals): a drag

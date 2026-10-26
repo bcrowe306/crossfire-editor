@@ -213,6 +213,7 @@ Mode_Load :: proc(state: ^State) {
 	state.level.world = ""
 	delete(state.level.focus)
 	state.level.focus = ""
+	TileZoom_Load(state)
 	path, _ := filepath.join({state.project.rootPath, MODES_FILE}, context.temp_allocator)
 	data, err := os.read_entire_file(path, context.temp_allocator)
 	if err != nil do return

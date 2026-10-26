@@ -1,7 +1,6 @@
 package crossfire_editor
 
 import "core:fmt"
-import "core:math"
 import "core:strings"
 import "gui:skald"
 
@@ -11,8 +10,9 @@ EntityPalette): under the Layers sidebar's rows, what the selected layer paints 
 
 - **IntGrid:** a row per value (its color, name and number); the picked one is what Pencil,
   Rectangle and Fill paint (`Level_Value_Picked`). Keys `level-value-<value>`.
-- **Tiles:** the layer's tileset, fitted to the sidebar's width (Ctrl + wheel zooms, the wheel
-  scrolls), its picked tiles outlined. A click picks a tile, a drag a rectangle of them (a
+- **Tiles:** the layer's tileset, zoomed and panned as the canvas (tile_zoom.odin: the wheel around
+  the pointer, middle drag or Space + drag, the − / + / Fit buttons `level-palette-tiles-zoom-out`,
+  `-zoom-in`, `-fit`; crisp pixels; the zoom kept per tileset), its picked tiles outlined. A click picks a tile, a drag a rectangle of them (a
   stamp); Shift or Ctrl + drag adds to the selection, the right button removes from it, Ctrl +
   click on a picked tile removes it (LDtk's Tileset.modifySelection). Above it: Stamp / Random
   (R), flip X (X) and Y (Y), tile stacking (Shift+T). Keys `level-palette-tiles` (the canvas),
@@ -22,10 +22,9 @@ EntityPalette): under the Layers sidebar's rows, what the selected layer paints 
 - **AutoLayer:** its tiles come from its rules (the Auto-layer Rules tab).
 */
 
-// The tile palette's view per tileset: its zoom (0: fitted to the width) and the drag selecting
+// The tile palette's drag selecting per tileset (its zoom and pan: tile_zoom.odin)
 @(private="file")
 TilePaletteView :: struct {
-	zoom: f32,
 	// A selection drag: its first tile cell, the button (right removes), the modifiers at the press
 	dragging: bool,
 	start: [2]int,
@@ -99,6 +98,9 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 			toggle(ctx, "level-palette-save", "Save", actionTip(s, "Memorize the picked tiles: a click on one of them picks them all again (Ctrl + click: just that tile)", .Level_Save_Tile_Selection), false, Msg(Action.Level_Save_Tile_Selection)),
 			spacing = th.spacing.xs, line_spacing = th.spacing.xs,
 		)
+		// The tileset's zoom: −, +, Fit and the zoom shown (tile_zoom.odin)
+		zoomRow := tileZoomControls(ctx, s, TileZoom_Key("palette", Json_Int(main, Json_Get(main, td, "uid"), -1), LevelMode_File(s)), "level-palette-tiles",
+			{f32(Json_Int(main, Json_Get(main, td, "pxWid"))), f32(Json_Int(main, Json_Get(main, td, "pxHei")))})
 		Data :: struct {
 			s: ^State,
 			doc: ^LDtkDoc,
@@ -108,7 +110,7 @@ LevelPalette_View :: proc(s: ^State, ctx: ^skald.Ctx(Msg), doc: ^LDtkDoc, textWi
 		tiles := skald.sized(ctx, data, proc(ctx: ^skald.Ctx(Msg), d: ^Data, size: [2]f32) -> skald.View {
 			return tilePaletteView(ctx, d.s, d.doc, d.td, size)
 		})
-		return skald.col(header, skald.col(options, padding = th.spacing.xs), skald.flex(1, tiles), cross_align = .Stretch), true
+		return skald.col(header, skald.col(options, zoomRow, padding = th.spacing.xs, spacing = th.spacing.xs), skald.flex(1, tiles), cross_align = .Stretch), true
 	case "Entities":
 		picked := s.level.paint.entityDef
 		if picked < 0 || LDtkDoc_DefByUid(doc, "entities", picked) < 0 do picked = LevelPaint_FirstAllowed(doc, def, main)
@@ -156,7 +158,8 @@ savedIds :: proc(saved: []$T) -> [][]int {
 	return out
 }
 
-// The tile palette: the tileset at its zoom, the picked tiles, the drag selecting
+// The tile palette: the tileset at its zoom and pan (tile_zoom.odin), the picked tiles, the drag
+// selecting
 @(private="file")
 tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int, size: [2]f32) -> skald.View {
 	tk := uiTokens(ctx)
@@ -175,26 +178,14 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 		tilePalettes[uid] = {}
 		view = &tilePalettes[uid]
 	}
-	fit := max(size.x - 14, 32) / max(pxW, 1)
-	zoom := view.zoom > 0 ? view.zoom : fit
-	id := skald.hash_id("level-palette-tiles")
-	scrollId := skald.hash_id("level-palette-tiles-scroll")
-	// The tile cell under the pointer (from the canvas's last rect, inside the scroll's clip)
-	cellAt :: proc(ctx: ^skald.Ctx(Msg), id: skald.Widget_ID, zoom, gridSize, spacing, padding: f32, cWid, cHei: int) -> ([2]int, bool) {
-		st, ok := ctx.widgets.states[id]
-		if !ok do return {}, false
-		r := st.last_rect
-		local := (ctx.input.mouse_pos - {r.x, r.y}) / zoom
-		cx := int(math.floor((local.x - padding) / (gridSize + spacing)))
-		cy := int(math.floor((local.y - padding) / (gridSize + spacing)))
-		return {clamp(cx, 0, cWid - 1), clamp(cy, 0, cHei - 1)}, true
-	}
-	hovered := skald.widget_hovered(ctx, id) && !skald.mouse_over_overlay(ctx) && !Overlay_PopupOpen(ctx)
-	if st, ok := ctx.widgets.states[id]; ok && st.clip_rect.w > 0 {
-		m := ctx.input.mouse_pos
-		c := st.clip_rect
-		if m.x < c.x || m.y < c.y || m.x >= c.x + c.w || m.y >= c.y + c.h do hovered = false
-	}
+	content := [2]f32{pxW, pxH}
+	widgetKey := "level-palette-tiles"
+	id := skald.hash_id(widgetKey)
+	zoomKey := TileZoom_Key("palette", uid, LevelMode_File(s))
+	// The wheel, a pan, and the one transform that draws and hit-tests (tile_zoom.odin)
+	zi := tileZoomInput(ctx, s, zoomKey, id, content)
+	hovered := zi.hovered && !zi.panning
+	TileZoom_Record(widgetKey, {t = zi.t, zoom = TileZoom_Get(s, zoomKey), grid = gridSize, spacing = spacing, padding = padding, cWid = cWid})
 	picked := s.level.paint.tiles[uid]
 	// The tileset's saved selections (TilesetDef.savedSelections): their tiles and modes
 	Saved :: struct {
@@ -209,19 +200,14 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 	}
 	ctrl := skald.PRIMARY_MODIFIER in ctx.input.modifiers
 	shift := .Shift in ctx.input.modifiers
-	if hovered && ctx.input.scroll.y != 0 && ctrl {
-		// Ctrl + wheel zooms (the wheel alone scrolls)
-		view.zoom = clamp(zoom * (ctx.input.scroll.y > 0 ? 1.25 : 0.8), 0.25, 8)
-		ctx.input.scroll = {}
-	}
 	if hovered && (ctx.input.mouse_pressed[.Left] || ctx.input.mouse_pressed[.Right]) && !view.dragging {
-		if c, ok := cellAt(ctx, id, zoom, gridSize, spacing, padding, cWid, cHei); ok {
-			view^ = {zoom = view.zoom, dragging = true, start = c, right = !ctx.input.mouse_pressed[.Left], add = shift || ctrl, ctrl = ctrl}
+		if c, on := TileZoom_CellAt(zi.t, ctx.input.mouse_pos, gridSize, spacing, padding, cWid, cHei); on {
+			view^ = {dragging = true, start = c, right = !ctx.input.mouse_pressed[.Left], add = shift || ctrl, ctrl = ctrl}
 		}
 	}
 	selection: [4]int
 	if view.dragging {
-		c, _ := cellAt(ctx, id, zoom, gridSize, spacing, padding, cWid, cHei)
+		c, _ := TileZoom_CellAt(zi.t, ctx.input.mouse_pos, gridSize, spacing, padding, cWid, cHei)
 		selection = {min(view.start.x, c.x), min(view.start.y, c.y), max(view.start.x, c.x), max(view.start.y, c.y)}
 		if !ctx.input.mouse_buttons[.Left] && !ctx.input.mouse_buttons[.Right] {
 			// LDtk's Tileset.modifySelection: replace, add (Shift / Ctrl), remove (the right button,
@@ -269,7 +255,8 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 	Paint :: struct {
 		image: string,
 		size: [2]f32,
-		zoom, grid, spacing, padding: f32,
+		zoom: TileZoom,
+		grid, spacing, padding: f32,
 		cWid: int,
 		picked: []int,
 		saved: [][]int,
@@ -277,34 +264,36 @@ tilePaletteView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, doc: ^LDtkDoc, td: int,
 		selection: [4]int,
 		accent, line: skald.Color,
 	}
-	p := new_clone(Paint{image = strings.clone(path, context.temp_allocator), size = {pxW, pxH}, zoom = zoom, grid = gridSize, spacing = spacing, padding = padding,
+	p := new_clone(Paint{image = strings.clone(path, context.temp_allocator), size = content, zoom = TileZoom_Get(s, zoomKey), grid = gridSize, spacing = spacing, padding = padding,
 		cWid = cWid, picked = picked != nil ? picked[:] : nil, saved = savedIds(saved[:]), dragging = view.dragging, selection = selection, accent = th.color.primary, line = th.color.border}, context.temp_allocator)
 	canvas := skald.canvas(ctx, p, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 		r := painter.r
 		b := painter.bounds
-		skald.draw_rect(r, b, {0.1, 0.1, 0.12, 1})
-		skald.draw_image_region(r, p.image, {b.x, b.y, p.size.x * p.zoom, p.size.y * p.zoom}, {0, 0, p.size.x, p.size.y}, inset = false)
-		cell :: proc(p: ^Paint, b: skald.Rect, cx, cy: int) -> skald.Rect {
-			step := (p.grid + p.spacing) * p.zoom
-			return {b.x + p.padding * p.zoom + f32(cx) * step, b.y + p.padding * p.zoom + f32(cy) * step, p.grid * p.zoom, p.grid * p.zoom}
+		t := TileZoom_Transform(p.zoom, p.size, b)
+		skald.push_clip(r, b)
+		defer skald.pop_clip(r)
+		TileZoom_DrawImage(r, b, t, p.image, p.size)
+		cell :: proc(p: ^Paint, t: TileZoomTransform, cx, cy: int) -> skald.Rect {
+			step := p.grid + p.spacing
+			return TileZoom_ScreenRect(t, {p.padding + f32(cx) * step, p.padding + f32(cy) * step, p.grid, p.grid})
 		}
 		// Saved selections: their tiles outlined faintly (a click on one picks them all)
 		for sel in p.saved do for id in sel {
-			c := cell(p, b, id % max(p.cWid, 1), id / max(p.cWid, 1))
+			c := cell(p, t, id % max(p.cWid, 1), id / max(p.cWid, 1))
 			skald.draw_rect_outline(r, c, 1, {1, 1, 1, 0.35})
 		}
 		// The picked tiles: an outline that shows on any color (dark, then the accent inside)
 		for id in p.picked {
-			c := cell(p, b, id % max(p.cWid, 1), id / max(p.cWid, 1))
+			c := cell(p, t, id % max(p.cWid, 1), id / max(p.cWid, 1))
 			skald.draw_rect(r, c, {p.accent.r, p.accent.g, p.accent.b, 0.3})
 			skald.draw_rect_outline(r, {c.x - 1, c.y - 1, c.w + 2, c.h + 2}, 1, {0, 0, 0, 0.8})
 			skald.draw_rect_outline(r, c, 2, p.accent)
 		}
 		if p.dragging {
-			a := cell(p, b, p.selection[0], p.selection[1])
-			z := cell(p, b, p.selection[2], p.selection[3])
+			a := cell(p, t, p.selection[0], p.selection[1])
+			z := cell(p, t, p.selection[2], p.selection[3])
 			skald.draw_rect_outline(r, {a.x, a.y, z.x + z.w - a.x, z.y + z.h - a.y}, 2, {1, 1, 1, 0.9})
 		}
-	}, id = id, width = pxW * zoom, height = pxH * zoom, cursor = .Crosshair)
-	return skald.scroll(ctx, {0, 0}, skald.col(canvas, padding = tk.xxs), id = scrollId)
+	}, id = id, width = max(size.x - tk.xxs * 2, 1), height = max(size.y - tk.xxs * 2, 1), cursor = zi.cursor)
+	return skald.col(canvas, padding = tk.xxs)
 }

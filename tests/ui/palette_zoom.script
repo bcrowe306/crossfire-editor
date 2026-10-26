@@ -1,0 +1,91 @@
+# The Level mode's zoomable tileset views (tile_zoom.odin): the tile palette and the tabs' tile
+# pickers zoom like the canvas (the wheel around the pointer), pan (a middle drag; Space + drag),
+# have − / + / Fit buttons, pick the tile under the pointer at any zoom and pan, and keep their zoom
+# per tileset (the palette's and the pickers' apart), across layers and when the project opens again.
+# Run with: task test:ui (and test:ui:fullscreen, test:ui:short)
+#
+# The fixture tests/fixtures/ldtk_paint/paint.ldtk (make_paint.py): its tileset Tiles (uid 10,
+# 128 x 64, 16 px tiles: 8 x 4) on the Decor layer (Tiles, the Layers row 2).
+
+wait 5
+key ctrl+alt+2
+expect mode Level
+import tests/fixtures/ldtk_paint/paint.ldtk
+expect level file assets/paint/paint.ldtk
+wait_until level levels 2
+wait_until widget_visible ldtk-map-Level true
+double_click_widget level-row-0
+expect level focus Room
+wait 5
+send Level_Layer_Picked 2
+expect level layer Decor
+wait_until widget_visible level-palette-tiles true
+
+# Fitted: a click picks the tile under it
+expect tile_zoom level-palette-tiles fit
+click_tileset_tile level-palette-tiles 9
+expect level tiles [9]
+
+# The wheel zooms around the pointer (the view's middle here); a pick at that zoom
+wheel_widget level-palette-tiles 3
+wait 3
+expect tile_zoom level-palette-tiles zoomed
+click_tileset_tile level-palette-tiles 11
+expect level tiles [11]
+# A middle drag pans; the pointer grabs; a pick after it
+drag_widget level-palette-tiles 0.5 0.5 0.3 0.5 middle
+wait 3
+expect tile_zoom level-palette-tiles zoomed
+click_tileset_tile level-palette-tiles 12
+expect level tiles [12]
+
+# Fit, then +, then − (the buttons beside the palette's toggles)
+click_widget level-palette-tiles-fit
+wait 3
+expect tile_zoom level-palette-tiles fit
+click_tileset_tile level-palette-tiles 0
+expect level tiles [0]
+click_widget level-palette-tiles-zoom-in
+wait 3
+expect tile_zoom level-palette-tiles zoomed
+click_widget level-palette-tiles-zoom-in
+wait 3
+click_widget level-palette-tiles-zoom-out
+wait 3
+expect tile_zoom level-palette-tiles zoomed
+click_tileset_tile level-palette-tiles 11
+expect level tiles [11]
+
+# Remembered across layers: an IntGrid layer's palette, then Decor again
+send Level_Layer_Picked 3
+expect level layer Ground
+wait 3
+send Level_Layer_Picked 2
+wait_until widget_visible level-palette-tiles true
+expect tile_zoom level-palette-tiles zoomed
+
+# The Tilesets tab's picker keeps its own zoom: fitted, zoomed by the wheel, Fit again
+send Bottom_Tab Tilesets
+wait 3
+scroll_into_view ldtk-tab-scroll ldtk-picker-tileset
+expect tile_zoom ldtk-picker-tileset fit
+wheel_widget ldtk-picker-tileset 2
+wait 3
+expect tile_zoom ldtk-picker-tileset zoomed
+expect tile_zoom level-palette-tiles zoomed
+scroll_into_view ldtk-tab-scroll ldtk-picker-tileset-fit
+click_widget ldtk-picker-tileset-fit
+wait 3
+expect tile_zoom ldtk-picker-tileset fit
+expect tile_zoom level-palette-tiles zoomed
+
+# Kept with the project: opened again, the palette's zoom is still there
+key ctrl+s
+open_project {project}
+expect mode Level
+wait 5
+send Level_Layer_Picked 2
+wait_until widget_visible level-palette-tiles true
+expect tile_zoom level-palette-tiles zoomed
+click_tileset_tile level-palette-tiles 11
+expect level tiles [11]

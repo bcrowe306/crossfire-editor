@@ -133,6 +133,9 @@ LevelMode :: struct {
 	sizeDraft: [2]int,
 	// The bottom tabs' lists' widths (view_list_tab.odin; 0: LIST_TAB_WIDTH), per tab
 	listWidths: [BottomTab]f32,
+	// The tileset views' zooms by `TileZoom_Key` (tile_zoom.odin; keys owned), kept in
+	// `.editor/tile_zoom.ini`
+	tileZooms: map[string]TileZoom,
 }
 
 // The world canvas's view: the world point at its center and the zoom (screen pixels per world
@@ -343,6 +346,9 @@ LevelMode_Destroy :: proc(level: ^LevelMode) {
 	delete(level.focusField)
 	delete(level.sizeLevel)
 	LevelSelection_Clear(&level.selection)
+	TileZoom_Clear(&level.tileZooms)
+	delete(level.tileZooms)
+	level.tileZooms = nil
 	delete(level.selection)
 	LevelPaint_Destroy(&level.paint)
 	LevelRules_Destroy(&level.rules)
@@ -434,6 +440,7 @@ LevelMode_Update :: proc(state: ^State, m: Msg) -> (skald.Command(Msg), bool) {
 	// Painting's own messages and keys (level_paint.odin), the world tools' (level_world_tools.odin)
 	if LevelPaint_Update(state, m) do return {}, true
 	if LevelWorld_Update(state, m) do return {}, true
+	if TileZoom_Update(state, m) do return {}, true
 	#partial switch v in m {
 	case Level_File_Chosen:
 		if string(v) == state.level.file do return {}, true

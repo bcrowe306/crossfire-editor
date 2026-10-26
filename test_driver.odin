@@ -62,6 +62,11 @@ copy: `open_project {project}`).
 	                                 holding the text, with keys (Ctrl+Home, Down, End)
 	code_pick_action <title start>   Pick the open code actions menu's entry (Ctrl+.) whose title
 	                                 starts so: Down to it, then Return
+	click_tileset_tile <key> <tile id> [ctrl | shift]
+	                                 Click a tile of a tileset view (the palette's level-palette-tiles,
+	                                 a picker's ldtk-picker-<what> / ldtk-rule-tiles...) where it's
+	                                 drawn at its zoom and pan (tile_zoom.odin's probe); fails when
+	                                 the tile is out of the view
 	click_at <key> <fx> <fy>         Click a point of a widget's visible part, as fractions of its
 	                                 width and height (0 0 = top left), e.g. a slider's or ramp's spot
 	hover_at <key> <fx> <fy>         Move the pointer there (no button): a rule's pattern, a cell of
@@ -299,6 +304,9 @@ Checks:
 	focused <key> | none         The widget with the keyboard focus (Tab moves it)
 	focus_visible <true|false>   Whether focus rings show (the keyboard moved focus last: Skald's
 	                             focus_visible)
+	tile_zoom <key> <fit | zoomed | percent>  A tileset view's zoom (fit, zoomed: any but fit, or
+	                             the percent, rounded)
+	tile_shown <key> <id> <true | false>   Whether a tileset view shows a tile's middle
 	cursor <shape>               The pointer's shape after the last frame (Skald's Cursor_Shape names,
 	                             any case: Default, Pointer, Text, Crosshair, Move, EW_Resize,
 	                             NS_Resize, NWSE_Resize, NESW_Resize, Not_Allowed, Grab, Grabbing)
@@ -1513,6 +1521,26 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 		fy, _ := strconv.parse_f32(args[2])
 		pushMouse(.MOUSE_MOTION, {rect.x + rect.w * fx, rect.y + rect.h * fy})
 		driver.waitFrames = INPUT_SETTLE_FRAMES
+		report(true, line)
+		return false
+
+	case "click_tileset_tile":
+		mods, modsOk := clickModifiers(args, 2)
+		if len(args) < 2 || !modsOk {
+			fail(fmt.tprintf("%s: expected a tileset view's key, a tile and ctrl or shift", line))
+			return true
+		}
+		rect, ok := widgetRect(ctx, args[0])
+		at, _, has := TileZoom_TileCenter(args[0], atoi(args, 1, 0))
+		if !ok || !has {
+			fail(fmt.tprintf("%s: no tileset view '%s' was drawn last frame", line, args[0]))
+			return true
+		}
+		if at.x < rect.x || at.y < rect.y || at.x >= rect.x + rect.w || at.y >= rect.y + rect.h {
+			fail(fmt.tprintf("%s: the tile's middle %v is out of the view %v", line, at, rect))
+			return true
+		}
+		click(at, mods)
 		report(true, line)
 		return false
 
@@ -3048,6 +3076,24 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		// focus_visible <true|false>: whether focus rings show (the keyboard moved focus last)
 		found = fmt.tprint(skald.focus_visible(ctx))
 		return found == value, found
+	case "tile_zoom":
+		// tile_zoom <key> <fit | percent>: a tileset view's zoom
+		key, _, expected := strings.partition(value, " ")
+		_, probe, has := TileZoom_TileCenter(key, 0)
+		if !has do return false, "no such view"
+		found = probe.zoom.zoom == 0 ? "fit" : fmt.tprintf("%d", int(math.round(probe.zoom.zoom * 100)))
+		if strings.trim_space(expected) == "zoomed" do return probe.zoom.zoom > 0, found
+		return found == strings.trim_space(expected), found
+	case "tile_shown":
+		// tile_shown <key> <id> <true | false>: whether the view shows the tile's middle
+		fields := strings.fields(value, context.temp_allocator)
+		if len(fields) < 3 do return false, "expected a view, a tile and true or false"
+		at, _, has := TileZoom_TileCenter(fields[0], strconv.parse_int(fields[1]) or_else -1)
+		rect, ok := widgetRect(ctx, fields[0])
+		if !has || !ok do return false, "no such view"
+		shown := at.x >= rect.x && at.y >= rect.y && at.x < rect.x + rect.w && at.y < rect.y + rect.h
+		found = shown ? "true" : "false"
+		return found == fields[2], found
 	case "cursor":
 		// cursor <shape>: what the pointer shows (the last frame's requests: Skald's cursor_shown)
 		found = fmt.tprint(skald.cursor_shown(ctx))

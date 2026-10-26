@@ -96,7 +96,7 @@ wait_until ldtk_tiles Room Decor 8 2 9
 expect ldtk_tiles Room Decor 9 2 8
 key x
 # A tile picked in the palette by a click
-click_at level-palette-tiles 0.0625 0.125
+click_tileset_tile level-palette-tiles 0
 expect level tiles [0]
 level_paint 12 1 12 1
 wait_until ldtk_tiles Room Decor 12 1 0

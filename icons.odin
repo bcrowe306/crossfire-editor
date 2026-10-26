@@ -203,7 +203,10 @@ ICON_WARNING     :: ""
 // Two sheets, one over the other: Duplicate (Copy is ICON_COPY's clipboard)
 ICON_CLONE       :: ""
 // Arrows out to the corners: fit to the view (ICON_SCALE is the Scale tool's)
-ICON_FIT         :: ""
+ICON_FIT         :: "\uf31e"
+// Magnifying glasses with + and − (the tileset views' zoom buttons)
+ICON_ZOOM_IN     :: "\uf00e"
+ICON_ZOOM_OUT    :: "\uf010"
 
 /*
 An action a button or menu item can stand for, with one icon wherever it shows (`ACTION_ICONS`): the
@@ -229,6 +232,8 @@ Icon_Action :: enum {
 	Forward,
 	Reset,
 	Fit_View,
+	Zoom_In,
+	Zoom_Out,
 	Focus,
 	Manual,
 	Open_Externally,
@@ -253,6 +258,8 @@ ACTION_ICONS := [Icon_Action]string {
 	.Forward         = ICON_ARROW_RIGHT,
 	.Reset           = ICON_UNDO,
 	.Fit_View        = ICON_FIT,
+	.Zoom_In         = ICON_ZOOM_IN,
+	.Zoom_Out        = ICON_ZOOM_OUT,
 	.Focus           = ICON_CROSSHAIRS,
 	.Manual          = ICON_CIRCLE_INFO,
 	.Open_Externally = ICON_EXTERNAL,

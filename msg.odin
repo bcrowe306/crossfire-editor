@@ -1502,6 +1502,8 @@ Msg :: union {
 	Level_Tiles_Picked,
 	Level_Entity_Type_Picked,
 	Level_Pick_Started,
+	// The tileset views' zoom and pan (tile_zoom.odin)
+	Tile_Zoom_Changed,
 	// Levels and worlds on the canvas (level_world_tools.odin)
 	Level_Spot_Started,
 	Level_Depth_Shown,

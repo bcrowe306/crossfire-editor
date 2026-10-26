@@ -1,7 +1,6 @@
 package crossfire_editor
 
 import "core:fmt"
-import "core:math"
 import "core:os"
 import "core:path/filepath"
 import "core:slice"
@@ -547,7 +546,9 @@ PickerMode :: enum {
 /*
 A tileset drawn for picking (LDtk's tile rect picker and tagger): its image fitted to the tab's
 width (or `small`: at most 160 px wide), the selection outlined, tagged tiles colored; a drag
-picks a rectangle of cells.
+picks a rectangle of cells. It zooms and pans in that box as the canvas does (tile_zoom.odin: the
+wheel, middle drag or Space + drag, the − / + / Fit buttons over it, `ldtk-picker-<key>-zoom-in`...),
+its zoom kept per tileset.
 
 Inputs:
 - key: The picker's key (`ldtk-picker-<key>`)
@@ -582,32 +583,22 @@ tilesetPicker :: proc(c: ^LDtkTabCtx, key: string, tileset: int, selected: Maybe
 	zoom = max(zoom, 0.25)
 	pickerKey := fmt.tprintf("ldtk-picker-%s", key)
 	id := skald.hash_id(pickerKey)
-	cellAt :: proc(ctx: ^skald.Ctx(Msg), id: skald.Widget_ID, zoom, grid, spacing, padding: f32, cWid, cHei: int) -> ([2]int, bool) {
-		st, ok := ctx.widgets.states[id]
-		if !ok do return {}, false
-		r := st.last_rect
-		local := (ctx.input.mouse_pos - {r.x, r.y}) / zoom
-		cx := int(math.floor((local.x - padding) / (grid + spacing)))
-		cy := int(math.floor((local.y - padding) / (grid + spacing)))
-		return {clamp(cx, 0, cWid - 1), clamp(cy, 0, cHei - 1)}, true
-	}
-	hovered := skald.widget_hovered(ctx, id) && !skald.mouse_over_overlay(ctx) && !Overlay_PopupOpen(ctx)
-	if st, ok := ctx.widgets.states[id]; ok && st.clip_rect.w > 0 {
-		m := ctx.input.mouse_pos
-		r := st.clip_rect
-		if m.x < r.x || m.y < r.y || m.x >= r.x + r.w || m.y >= r.y + r.h do hovered = false
-	}
+	// The view is the size the tileset fits at that zoom; it zooms and pans in it (tile_zoom.odin)
+	zoomKey := TileZoom_Key("picker", tileset, c.file)
+	zi := tileZoomInput(ctx, c.s, zoomKey, id, size)
+	hovered := zi.hovered && !zi.panning
+	TileZoom_Record(pickerKey, {t = zi.t, zoom = TileZoom_Get(c.s, zoomKey), grid = grid, spacing = spacing, padding = padding, cWid = cWid})
 	drag, has := &pickerDrags[pickerKey]
 	if !has {
 		pickerDrags[strings.clone(pickerKey)] = {}
 		drag = &pickerDrags[pickerKey]
 	}
 	if hovered && (ctx.input.mouse_pressed[.Left] || ctx.input.mouse_pressed[.Right]) && !drag.dragging {
-		if cell, ok := cellAt(ctx, id, zoom, grid, spacing, padding, cWid, cHei); ok do drag^ = {dragging = true, right = !ctx.input.mouse_pressed[.Left], start = cell}
+		if cell, on := TileZoom_CellAt(zi.t, ctx.input.mouse_pos, grid, spacing, padding, cWid, cHei); on do drag^ = {dragging = true, right = !ctx.input.mouse_pressed[.Left], start = cell}
 	}
 	box: [4]int
 	if drag.dragging {
-		cell, _ := cellAt(ctx, id, zoom, grid, spacing, padding, cWid, cHei)
+		cell, _ := TileZoom_CellAt(zi.t, ctx.input.mouse_pos, grid, spacing, padding, cWid, cHei)
 		box = {min(drag.start.x, cell.x), min(drag.start.y, cell.y), max(drag.start.x, cell.x), max(drag.start.y, cell.y)}
 		if mode == .Tile do box = {cell.x, cell.y, cell.x, cell.y}
 		if !ctx.input.mouse_buttons[.Left] && !ctx.input.mouse_buttons[.Right] {
@@ -638,7 +629,8 @@ tilesetPicker :: proc(c: ^LDtkTabCtx, key: string, tileset: int, selected: Maybe
 	Paint :: struct {
 		image: string,
 		size: [2]f32,
-		zoom, grid, spacing, padding: f32,
+		zoom: TileZoom,
+		grid, spacing, padding: f32,
 		cWid: int,
 		selected: [4]int,
 		hasSelected, dragging: bool,
@@ -647,7 +639,7 @@ tilesetPicker :: proc(c: ^LDtkTabCtx, key: string, tileset: int, selected: Maybe
 		tagColor, accent: skald.Color,
 	}
 	p := new(Paint, context.temp_allocator)
-	p^ = {image = strings.clone(path, context.temp_allocator), size = size, zoom = zoom, grid = grid, spacing = spacing, padding = padding, cWid = cWid,
+	p^ = {image = strings.clone(path, context.temp_allocator), size = size, zoom = TileZoom_Get(c.s, zoomKey), grid = grid, spacing = spacing, padding = padding, cWid = cWid,
 		dragging = drag.dragging, box = box, accent = th.color.primary, tagColor = skald.rgb(tagColor)}
 	if r, ok := selected.?; ok do p.selected, p.hasSelected = r, true
 	if tagged != nil do p.tagged = slice.clone(tagged, context.temp_allocator)
@@ -655,35 +647,38 @@ tilesetPicker :: proc(c: ^LDtkTabCtx, key: string, tileset: int, selected: Maybe
 	canvas := skald.canvas(ctx, p, proc(p: ^Paint, painter: skald.Canvas_Painter) {
 		r := painter.r
 		b := painter.bounds
-		skald.draw_rect(r, b, {0.1, 0.1, 0.12, 1})
-		skald.draw_image_region(r, p.image, {b.x, b.y, p.size.x * p.zoom, p.size.y * p.zoom}, {0, 0, p.size.x, p.size.y}, inset = false)
-		cell :: proc(p: ^Paint, b: skald.Rect, id: int) -> skald.Rect {
+		t := TileZoom_Transform(p.zoom, p.size, b)
+		skald.push_clip(r, b)
+		defer skald.pop_clip(r)
+		TileZoom_DrawImage(r, b, t, p.image, p.size)
+		cell :: proc(p: ^Paint, t: TileZoomTransform, id: int) -> skald.Rect {
 			cx, cy := id % max(p.cWid, 1), id / max(p.cWid, 1)
-			step := (p.grid + p.spacing) * p.zoom
-			return {b.x + p.padding * p.zoom + f32(cx) * step, b.y + p.padding * p.zoom + f32(cy) * step, p.grid * p.zoom, p.grid * p.zoom}
+			step := p.grid + p.spacing
+			return TileZoom_ScreenRect(t, {p.padding + f32(cx) * step, p.padding + f32(cy) * step, p.grid, p.grid})
 		}
 		for id in p.tagged {
-			c := cell(p, b, id)
+			c := cell(p, t, id)
 			skald.draw_rect(r, c, {p.tagColor.r, p.tagColor.g, p.tagColor.b, 0.35})
 			skald.draw_rect_outline(r, c, 2, p.tagColor)
 		}
 		for id in p.marked {
-			c := cell(p, b, id)
+			c := cell(p, t, id)
 			skald.draw_rect_outline(r, {c.x + 1, c.y + 1, c.w - 2, c.h - 2}, 1, {1, 1, 1, 0.8})
 		}
 		if p.hasSelected {
 			s := p.selected
-			rect := skald.Rect{b.x + f32(s[0]) * p.zoom, b.y + f32(s[1]) * p.zoom, f32(s[2]) * p.zoom, f32(s[3]) * p.zoom}
+			rect := TileZoom_ScreenRect(t, {f32(s[0]), f32(s[1]), f32(s[2]), f32(s[3])})
 			skald.draw_rect_outline(r, {rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2}, 1, {0, 0, 0, 0.8})
 			skald.draw_rect_outline(r, rect, 2, p.accent)
 		}
 		if p.dragging {
-			a := cell(p, b, p.box[0] + p.box[1] * p.cWid)
-			z := cell(p, b, p.box[2] + p.box[3] * p.cWid)
+			a := cell(p, t, p.box[0] + p.box[1] * p.cWid)
+			z := cell(p, t, p.box[2] + p.box[3] * p.cWid)
 			skald.draw_rect_outline(r, {a.x, a.y, z.x + z.w - a.x, z.y + z.h - a.y}, 2, {1, 1, 1, 0.9})
 		}
-	}, id = id, width = size.x * zoom, height = size.y * zoom, cursor = .Crosshair)
-	return skald.row(skald.spacer(c.stacked || !small ? 0 : LDTK_LABEL_WIDTH), canvas, spacing = th.spacing.sm)
+	}, id = id, width = size.x * zoom, height = size.y * zoom, cursor = zi.cursor)
+	picker := skald.col(tileZoomControls(ctx, c.s, zoomKey, pickerKey, size), canvas, spacing = uiTokens(ctx).rowGap)
+	return skald.row(skald.spacer(c.stacked || !small ? 0 : LDTK_LABEL_WIDTH), picker, spacing = th.spacing.sm)
 }
 
 // --- Entities ----------------------------------------------------------------------------------
