@@ -433,6 +433,8 @@ State :: struct {
 	layouts: LayoutState,
 	// The welcome screen (welcome.odin)
 	welcome: WelcomeScreen,
+	// The inspector's pinned rows and collapsed sections per node type (inspector_prefs.odin)
+	inspectorPrefs: InspectorPrefs,
 	// Console tab: editor messages and the running game's output, with its filters (console.odin)
 	console: LogList,
 	// Output tab: build and export output
@@ -518,8 +520,9 @@ init :: proc() -> State {
 	if message == "" do Recent_Add(&state.recentProjects, state.project.rootPath)
 	// The mode the project was left in (editor_modes.odin)
 	Mode_Load(&state)
-	// Its panel layouts (layouts.odin)
+	// Its panel layouts (layouts.odin), the inspector's pins (inspector_prefs.odin)
 	Layouts_Load(&state)
+	InspectorPrefs_Load(&state)
 	return state
 }
 
@@ -568,6 +571,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.session.recent)
 	History_Destroy(&state.history)
 	LayoutState_Destroy(&state.layouts)
+	InspectorPrefs_Destroy(&state.inspectorPrefs)
 	Notifications_Destroy(&state.notifications)
 	Problems_Destroy(&state.problems)
 	ScriptCatalog_Clear(&state.scripts)

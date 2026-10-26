@@ -54,6 +54,8 @@ ICON_CHEVRON_DOWN :: "\uf078"
 ICON_CHEVRON_UP  :: "\uf077"
 // Between breadcrumbs (breadcrumbs.odin)
 ICON_CHEVRON_RIGHT :: "\uf054"
+// A pinned inspector row (inspector_prefs.odin)
+ICON_THUMBTACK :: "\uf08d"
 ICON_CUBE        :: "\uf1b2"
 ICON_CAMERA      :: "\uf030"
 ICON_LIST        :: "\uf03a"

@@ -388,48 +388,63 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		return numberField(ctx, s, fmt.tprintf("inspector-%v-%d", field, key), field, f64(value), step, decimals, width, minValue, maxValue)
 	}
 
-	rows := make([dynamic]skald.View, context.temp_allocator)
-	append(&rows,
-		inspectorRow(ctx, "Name", skald.text_input(ctx, node.name,
-			proc(v: string) -> Msg { return Node_Renamed(v) },
-			id = skald.hash_id(fmt.tprintf("inspector-name-%d", key)),
-			width = controlWidth, padding = InspectorFieldPadding(ctx))),
-		inspectorRow(ctx, "Type", uiText(th, .Label, fmt.tprintf("%s  %v", NodeKindIcon(node.kind), node.kind))),
-		// X/Y pairs: the chain button links them, so changing one changes the other in proportion
-		inspectorRow(ctx, "Position X", linked(ctx, s, .Position, number(ctx, s, key, .Position_X, node.position.x, 1, 0, numberWidth))),
-		inspectorRow(ctx, "Position Y", linkSpace(ctx, number(ctx, s, key, .Position_Y, node.position.y, 1, 0, numberWidth))),
-		inspectorRow(ctx, "Rotation", number(ctx, s, key, .Rotation, node.rotation, 5, 1, numberWidth)),
-		inspectorRow(ctx, "Scale X", linked(ctx, s, .Scale, number(ctx, s, key, .Scale_X, node.scale.x, 0.1, 2, numberWidth))),
-		inspectorRow(ctx, "Scale Y", linkSpace(ctx, number(ctx, s, key, .Scale_Y, node.scale.y, 0.1, 2, numberWidth))),
-		inspectorRow(ctx, "Layer", number(ctx, s, key, .Layer, f32(node.layer), 1, 0, numberWidth, 0, 7)),
-		inspectorRow(ctx, "Visible", skald.checkbox(ctx, node.visible, "",
-			proc(v: bool) -> Msg { return Node_Visibility_Changed(v) },
-			id = skald.hash_id(fmt.tprintf("inspector-visible-%d", key)))),
-		inspectorRow(ctx, "Z index", number(ctx, s, key, .Z_Index, f32(node.zIndex), 1, 0, numberWidth)),
-		inspectorRow(ctx, "Y sort", skald.checkbox(ctx, node.ySort, "", NodeFlag.Y_Sort,
-			proc(flag: NodeFlag, value: bool) -> Msg { return Node_Flag_Changed{flag, value} },
-			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", NodeFlag.Y_Sort, key)))),
-		inspectorRow(ctx, "Blend", enumSelect(ctx, node.blendMode, .Blend_Mode, key, controlWidth)),
-		inspectorRow(ctx, "Process", enumSelect(ctx, node.processMode, .Process_Mode, key, controlWidth)),
-		inspectorRow(ctx, "Groups", skald.text_input(ctx, node.groups, NodeTextField.Groups,
-			proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
-			id = skald.hash_id(fmt.tprintf("inspector-%v-%d", NodeTextField.Groups, key)),
-			width = controlWidth, padding = InspectorFieldPadding(ctx))),
-	)
-	// While a code tab shows, each group drags into code by its chip (code_drag.odin): key
-	// inspector-group-<name>-<node>
-	if s.codeTab > 0 && strings.trim_space(node.groups) != "" {
-		chips := make([dynamic]skald.View, context.temp_allocator)
-		rest := node.groups
-		for part in strings.split_iterator(&rest, ",") {
-			g := strings.trim_space(part)
-			if g == "" do continue
-			chip := skald.col(uiText(th, .Muted, fmt.tprintf("%s %s", ICON_GRIP, g)), padding = tk.xxs, bg = th.color.surface, radius = th.radius.sm)
-			append(&chips, CodeDrag_Zone(ctx, s, chip, fmt.tprintf("inspector-group-%s-%d", g, key), DropSource{kind = .Group, name = g, node = key, index = -1}))
-		}
-		append(&rows, inspectorLabelled(ctx, skald.spacer(0), skald.wrap_row(..chips[:], spacing = th.spacing.xs, line_spacing = 2, width = controlWidth)))
-	}
+	// Pinned rows and collapsed sections, per node type (inspector_prefs.odin)
+	prefs := &s.inspectorPrefs
+	pinned := prefs.pinned[node.kind][:]
+	anyPins := len(pinned) > 0
+	nodeCollapsed := InspectorPrefs_Collapsed(prefs, node.kind, "Node")
+	kindCollapsed := InspectorPrefs_Collapsed(prefs, node.kind, "Kind")
+	inspectorPins = {active = true, kind = node.kind, node = key, labels = pinned,
+		rows = make([]skald.View, len(pinned), context.temp_allocator), filled = make([]bool, len(pinned), context.temp_allocator)}
+	defer inspectorPins = {}
 
+	rows := make([dynamic]skald.View, context.temp_allocator)
+	// The Node section (name to groups): not built while collapsed, unless it may hold pinned rows
+	nodeStart := len(rows)
+	if !nodeCollapsed || anyPins {
+		append(&rows,
+			inspectorRow(ctx, "Name", skald.text_input(ctx, node.name,
+				proc(v: string) -> Msg { return Node_Renamed(v) },
+				id = skald.hash_id(fmt.tprintf("inspector-name-%d", key)),
+				width = controlWidth, padding = InspectorFieldPadding(ctx))),
+			inspectorRow(ctx, "Type", uiText(th, .Label, fmt.tprintf("%s  %v", NodeKindIcon(node.kind), node.kind))),
+			// X/Y pairs: the chain button links them, so changing one changes the other in proportion
+			inspectorRow(ctx, "Position X", linked(ctx, s, .Position, number(ctx, s, key, .Position_X, node.position.x, 1, 0, numberWidth))),
+			inspectorRow(ctx, "Position Y", linkSpace(ctx, number(ctx, s, key, .Position_Y, node.position.y, 1, 0, numberWidth))),
+			inspectorRow(ctx, "Rotation", number(ctx, s, key, .Rotation, node.rotation, 5, 1, numberWidth)),
+			inspectorRow(ctx, "Scale X", linked(ctx, s, .Scale, number(ctx, s, key, .Scale_X, node.scale.x, 0.1, 2, numberWidth))),
+			inspectorRow(ctx, "Scale Y", linkSpace(ctx, number(ctx, s, key, .Scale_Y, node.scale.y, 0.1, 2, numberWidth))),
+			inspectorRow(ctx, "Layer", number(ctx, s, key, .Layer, f32(node.layer), 1, 0, numberWidth, 0, 7)),
+			inspectorRow(ctx, "Visible", skald.checkbox(ctx, node.visible, "",
+				proc(v: bool) -> Msg { return Node_Visibility_Changed(v) },
+				id = skald.hash_id(fmt.tprintf("inspector-visible-%d", key)))),
+			inspectorRow(ctx, "Z index", number(ctx, s, key, .Z_Index, f32(node.zIndex), 1, 0, numberWidth)),
+			inspectorRow(ctx, "Y sort", skald.checkbox(ctx, node.ySort, "", NodeFlag.Y_Sort,
+				proc(flag: NodeFlag, value: bool) -> Msg { return Node_Flag_Changed{flag, value} },
+				id = skald.hash_id(fmt.tprintf("inspector-%v-%d", NodeFlag.Y_Sort, key)))),
+			inspectorRow(ctx, "Blend", enumSelect(ctx, node.blendMode, .Blend_Mode, key, controlWidth)),
+			inspectorRow(ctx, "Process", enumSelect(ctx, node.processMode, .Process_Mode, key, controlWidth)),
+			inspectorRow(ctx, "Groups", skald.text_input(ctx, node.groups, NodeTextField.Groups,
+				proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
+				id = skald.hash_id(fmt.tprintf("inspector-%v-%d", NodeTextField.Groups, key)),
+				width = controlWidth, padding = InspectorFieldPadding(ctx))),
+		)
+		// While a code tab shows, each group drags into code by its chip (code_drag.odin): key
+		// inspector-group-<name>-<node>
+		if s.codeTab > 0 && strings.trim_space(node.groups) != "" {
+			chips := make([dynamic]skald.View, context.temp_allocator)
+			rest := node.groups
+			for part in strings.split_iterator(&rest, ",") {
+				g := strings.trim_space(part)
+				if g == "" do continue
+				chip := skald.col(uiText(th, .Muted, fmt.tprintf("%s %s", ICON_GRIP, g)), padding = tk.xxs, bg = th.color.surface, radius = th.radius.sm)
+				append(&chips, CodeDrag_Zone(ctx, s, chip, fmt.tprintf("inspector-group-%s-%d", g, key), DropSource{kind = .Group, name = g, node = key, index = -1}))
+			}
+			append(&rows, inspectorLabelled(ctx, skald.spacer(0), skald.wrap_row(..chips[:], spacing = th.spacing.xs, line_spacing = 2, width = controlWidth)))
+		}
+
+	}
+	nodeEnd := len(rows)
 	// Properties of this node's kind
 	onText :: proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} }
 	onFlag :: proc(flag: NodeFlag, value: bool) -> Msg { return Node_Flag_Changed{flag, value} }
@@ -467,150 +482,168 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	append(&rows, skald.divider(ctx))
 	append(&rows, ..eventsSection(ctx, s, node, controlWidth))
 
-	if node.kind != .Node2D {
-		append(&rows, skald.divider(ctx), uiText(th, .Value, fmt.tprintf("%v", node.kind)))
-	}
-	switch node.kind {
-	case .Node2D:
-	case .Sprite:
-		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth, atlases = true)))
-		// An atlas: which of its images (atlas_edit.odin)
-		if Asset_IsAtlas(node.texture) {
-			regions := make([dynamic]string, context.temp_allocator)
-			append(&regions, REGION_NONE)
-			append(&regions, ..Atlas_RegionNames(&s.project, node.texture))
-			append(&rows, inspectorRow(ctx, "Region", skald.select(ctx, node.region == "" ? REGION_NONE : node.region, regions[:], NodeTextField.Region, onText,
-				id = skald.hash_id(fmt.tprintf("inspector-region-%d", key)), width = controlWidth)))
-		}
-		append(&rows, ..asepriteSpriteRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .AnimatedSprite:
-		// The animations themselves are edited in the bottom panel's Animation tab; they're the
-		// sprite's own, or an animation asset's (an .anim.xml file, or an Aseprite file's tags)
-		sets := make([dynamic]string, context.temp_allocator)
-		append(&sets, ANIMATION_OWN)
-		for asset in s.project.assets do if Asset_IsAnimations(asset) do append(&sets, asset.path)
-		append(&rows, inspectorRow(ctx, "Animations", skald.select(ctx, node.animationSet == "" ? ANIMATION_OWN : node.animationSet, sets[:], NodeTextField.Animation_Set, onText,
-			id = skald.hash_id(fmt.tprintf("inspector-animation-set-%d", key)), width = controlWidth)))
-		// The animations it plays: its own, or the asset's
-		animations := node.animations[:]
-		if node.animationSet != "" {
-			animations = nil
-			if i := Project_FindAnimationSet(&s.project, node.animationSet); i >= 0 {
-				animations = s.project.animationSets[i].animations[:]
-			} else if set := AsepriteEdit_AnimationSet(s.project.rootPath, node.animationSet); set != nil {
-				animations = set.animations[:]
-			} else {
-				append(&rows, uiText(th, .Muted, fmt.tprintf("%s can't be read.", node.animationSet), max_width = inspectorRowWidth(controlWidth), color = th.color.warning))
+	// The kind's section (inspector_prefs.odin): not built while collapsed, unless it may hold pinned rows
+	kindStart := len(rows)
+	if !kindCollapsed || anyPins {
+		switch node.kind {
+		case .Node2D:
+		case .Sprite:
+			append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth, atlases = true)))
+			// An atlas: which of its images (atlas_edit.odin)
+			if Asset_IsAtlas(node.texture) {
+				regions := make([dynamic]string, context.temp_allocator)
+				append(&regions, REGION_NONE)
+				append(&regions, ..Atlas_RegionNames(&s.project, node.texture))
+				append(&rows, inspectorRow(ctx, "Region", skald.select(ctx, node.region == "" ? REGION_NONE : node.region, regions[:], NodeTextField.Region, onText,
+					id = skald.hash_id(fmt.tprintf("inspector-region-%d", key)), width = controlWidth)))
+			}
+			append(&rows, ..asepriteSpriteRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .AnimatedSprite:
+			// The animations themselves are edited in the bottom panel's Animation tab; they're the
+			// sprite's own, or an animation asset's (an .anim.xml file, or an Aseprite file's tags)
+			sets := make([dynamic]string, context.temp_allocator)
+			append(&sets, ANIMATION_OWN)
+			for asset in s.project.assets do if Asset_IsAnimations(asset) do append(&sets, asset.path)
+			append(&rows, inspectorRow(ctx, "Animations", skald.select(ctx, node.animationSet == "" ? ANIMATION_OWN : node.animationSet, sets[:], NodeTextField.Animation_Set, onText,
+				id = skald.hash_id(fmt.tprintf("inspector-animation-set-%d", key)), width = controlWidth)))
+			// The animations it plays: its own, or the asset's
+			animations := node.animations[:]
+			if node.animationSet != "" {
+				animations = nil
+				if i := Project_FindAnimationSet(&s.project, node.animationSet); i >= 0 {
+					animations = s.project.animationSets[i].animations[:]
+				} else if set := AsepriteEdit_AnimationSet(s.project.rootPath, node.animationSet); set != nil {
+					animations = set.animations[:]
+				} else {
+					append(&rows, uiText(th, .Muted, fmt.tprintf("%s can't be read.", node.animationSet), max_width = inspectorRowWidth(controlWidth), color = th.color.warning))
+				}
+			}
+			choices := make([dynamic]string, context.temp_allocator)
+			append(&choices, ANIMATION_FIRST)
+			for a in animations do append(&choices, a.name)
+			editButton := skald.button(ctx, fmt.tprintf("%s  Edit Animations", ICON_FILM), Msg(Bottom_Tab_Changed(int(BottomTab.Animation))),
+				id = skald.hash_id(fmt.tprintf("inspector-edit-animations-%d", key)),
+				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
+			// Each animation has its own sheet (edited in the Animation panel): the ones they use
+			sheets := make([dynamic]string, context.temp_allocator)
+			for a in animations {
+				name := a.sheet == "" ? "(none)" : filepath.base(strings.trim_suffix(a.sheet, e.ASEPRITE_SHEET_SUFFIX))
+				known := false
+				for other in sheets do if other == name do known = true
+				if !known do append(&sheets, name)
+			}
+			sheetText := len(sheets) == 0 ? "none yet" : strings.join(sheets[:], ", ", context.temp_allocator)
+			append(&rows, inspectorRow(ctx, "Sheets", uiText(th, .Muted, sheetText, max_width = controlWidth)))
+			append(&rows,
+				inspectorRow(ctx, "Starts with", skald.select(ctx, node.autoplay == "" ? ANIMATION_FIRST : node.autoplay, choices[:], NodeTextField.Autoplay, onText,
+					id = skald.hash_id(fmt.tprintf("inspector-autoplay-%d", key)), width = controlWidth)),
+				inspectorRow(ctx, fmt.tprintf("%d animation%s", len(animations), len(animations) == 1 ? "" : "s"), editButton),
+			)
+			append(&rows, ..asepriteSpriteRows(ctx, s, node, key, controlWidth, numberWidth))
+			// Its own animations, shared: an asset other sprites can use (the button on its own row:
+			// it doesn't fit beside a label in a narrow inspector)
+			if node.animationSet == "" {
+				append(&rows, skald.button(ctx, fmt.tprintf("%s  Save as Animation Asset", ICON_FILM), Msg(Anim_Set_From_Node{}),
+					id = skald.hash_id(fmt.tprintf("inspector-save-animations-%d", key)),
+					bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
+			}
+		case .Label:
+			append(&rows,
+				inspectorRow(ctx, "Text", textField(ctx, key, .Text, node.text, controlWidth)),
+				inspectorRow(ctx, "Font size", number(ctx, s, key, .Font_Size, node.fontSize, 2, 0, numberWidth, 1, 400)),
+				inspectorRow(ctx, "Color", colorPicker(ctx, key, node.color, controlWidth)),
+				inspectorRow(ctx, "Centered", flag(ctx, key, .Centered, node.centered)),
+			)
+		case .Camera:
+			append(&rows, ..cameraInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .StaticBody, .DynamicBody, .CharacterMover, .Area, .CollisionShape, .RayCast, .Joint:
+			append(&rows, ..physicsInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+			if node.kind == .CollisionShape do append(&rows, ..sliceShapeRows(ctx, s, node, key, controlWidth))
+		case .ParticleEmitter:
+			append(&rows, ..particleInspectorRows(ctx, s, node, key, controlWidth))
+		case .AudioPlayer, .AudioPlayer2D, .MusicPlayer:
+			append(&rows, ..audioInspectorRows(ctx, s, node, key, controlWidth))
+		case .LDtkLevel:
+			append(&rows, ..ldtkInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .TileMap:
+			append(&rows, ..tileMapInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .Animator:
+			append(&rows, ..animatorInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .ParallaxLayer, .CameraZone, .CameraView:
+			append(&rows, ..cameraToolInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .StateMachine:
+			append(&rows, ..stateMachineInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .NavRegion, .NavAgent:
+			append(&rows, ..navInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .VirtualJoystick, .TouchButton:
+			append(&rows, ..touchInspectorRows(ctx, s, node, key, controlWidth))
+		case .ScreenEffect:
+			append(&rows, ..shaderInspectorRows(ctx, s, node, key, controlWidth))
+		case .Line2D, .Trail2D:
+			append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth)))
+			append(&rows, ..lineInspectorRows(ctx, s, node, key, controlWidth))
+		case .DialogueBox:
+			append(&rows, ..dialogueBoxRows(ctx, s, node, key, controlWidth))
+		case .Skeleton2D, .Bone2D, .SkinnedMesh, .IKChain:
+			append(&rows, ..skeletonInspectorRows(ctx, s, node, key, controlWidth, numberWidth, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth, atlases = true))))
+		case .Light2D, .LightOccluder:
+			append(&rows, ..lightInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .Slider, .CheckBox:
+			append(&rows, ..uiInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
+		case .Component:
+			// The component it's an instance of; its own fields are the component's (Open edits them)
+			choices := make([dynamic]string, context.temp_allocator)
+			append(&choices, TEXTURE_NONE)
+			for asset in s.project.assets do if asset.kind == .Component do append(&choices, asset.path)
+			append(&rows, inspectorRow(ctx, "Component", labeledSelect(ctx, node.component == "" ? TEXTURE_NONE : node.component, Asset_DisplayNames(choices[:]), choices[:], NodeTextField.Component, onText,
+				id = skald.hash_id(fmt.tprintf("inspector-component-%d", key)), width = controlWidth, placeholder = "Choose a component")))
+			if i := Project_FindComponent(&s.project, node.component); i >= 0 {
+				open := skald.button(ctx, fmt.tprintf("%s  Edit %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
+					id = skald.hash_id(fmt.tprintf("inspector-open-component-%d", key)),
+					bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
+				unique := skald.button(ctx, fmt.tprintf("%s  Make Unique", ACTION_ICONS[.Copy]), Msg(Component_Made_Unique{}),
+					id = skald.hash_id(fmt.tprintf("inspector-make-unique-%d", key)),
+					bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
+				append(&rows, inspectorRow(ctx, "", open),
+					inspectorRow(ctx, "", skald.tooltip(ctx, unique, "Give this instance its own copy of the component, to change it without changing the others",
+						id = skald.hash_id(fmt.tprintf("inspector-make-unique-tip-%d", key)))),
+					uiText(th, .Muted, "Its name, position, rotation, scale, layer and visibility are this instance's; the rest is the component's: open it to change every instance.", max_width = tk.textNarrow))
+			} else if node.component != "" {
+				append(&rows, uiText(th, .Muted, fmt.tprintf("%s isn't in the project.", node.component), max_width = tk.textNarrow, color = th.color.warning))
+			}
+		case .Menu:
+			// Editing buttons comes later; show what the menu does
+			for item in node.items {
+				append(&rows, inspectorRow(ctx, item.label, uiText(th, .Label, item.action)))
+			}
+			if len(node.items) == 0 {
+				append(&rows, uiText(th, .Label, "No buttons"))
 			}
 		}
-		choices := make([dynamic]string, context.temp_allocator)
-		append(&choices, ANIMATION_FIRST)
-		for a in animations do append(&choices, a.name)
-		editButton := skald.button(ctx, fmt.tprintf("%s  Edit Animations", ICON_FILM), Msg(Bottom_Tab_Changed(int(BottomTab.Animation))),
-			id = skald.hash_id(fmt.tprintf("inspector-edit-animations-%d", key)),
-			bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
-		// Each animation has its own sheet (edited in the Animation panel): the ones they use
-		sheets := make([dynamic]string, context.temp_allocator)
-		for a in animations {
-			name := a.sheet == "" ? "(none)" : filepath.base(strings.trim_suffix(a.sheet, e.ASEPRITE_SHEET_SUFFIX))
-			known := false
-			for other in sheets do if other == name do known = true
-			if !known do append(&sheets, name)
-		}
-		sheetText := len(sheets) == 0 ? "none yet" : strings.join(sheets[:], ", ", context.temp_allocator)
-		append(&rows, inspectorRow(ctx, "Sheets", uiText(th, .Muted, sheetText, max_width = controlWidth)))
-		append(&rows,
-			inspectorRow(ctx, "Starts with", skald.select(ctx, node.autoplay == "" ? ANIMATION_FIRST : node.autoplay, choices[:], NodeTextField.Autoplay, onText,
-				id = skald.hash_id(fmt.tprintf("inspector-autoplay-%d", key)), width = controlWidth)),
-			inspectorRow(ctx, fmt.tprintf("%d animation%s", len(animations), len(animations) == 1 ? "" : "s"), editButton),
-		)
-		append(&rows, ..asepriteSpriteRows(ctx, s, node, key, controlWidth, numberWidth))
-		// Its own animations, shared: an asset other sprites can use (the button on its own row:
-		// it doesn't fit beside a label in a narrow inspector)
-		if node.animationSet == "" {
-			append(&rows, skald.button(ctx, fmt.tprintf("%s  Save as Animation Asset", ICON_FILM), Msg(Anim_Set_From_Node{}),
-				id = skald.hash_id(fmt.tprintf("inspector-save-animations-%d", key)),
-				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm))
-		}
-	case .Label:
-		append(&rows,
-			inspectorRow(ctx, "Text", textField(ctx, key, .Text, node.text, controlWidth)),
-			inspectorRow(ctx, "Font size", number(ctx, s, key, .Font_Size, node.fontSize, 2, 0, numberWidth, 1, 400)),
-			inspectorRow(ctx, "Color", colorPicker(ctx, key, node.color, controlWidth)),
-			inspectorRow(ctx, "Centered", flag(ctx, key, .Centered, node.centered)),
-		)
-	case .Camera:
-		append(&rows, ..cameraInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .StaticBody, .DynamicBody, .CharacterMover, .Area, .CollisionShape, .RayCast, .Joint:
-		append(&rows, ..physicsInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-		if node.kind == .CollisionShape do append(&rows, ..sliceShapeRows(ctx, s, node, key, controlWidth))
-	case .ParticleEmitter:
-		append(&rows, ..particleInspectorRows(ctx, s, node, key, controlWidth))
-	case .AudioPlayer, .AudioPlayer2D, .MusicPlayer:
-		append(&rows, ..audioInspectorRows(ctx, s, node, key, controlWidth))
-	case .LDtkLevel:
-		append(&rows, ..ldtkInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .TileMap:
-		append(&rows, ..tileMapInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .Animator:
-		append(&rows, ..animatorInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .ParallaxLayer, .CameraZone, .CameraView:
-		append(&rows, ..cameraToolInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .StateMachine:
-		append(&rows, ..stateMachineInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .NavRegion, .NavAgent:
-		append(&rows, ..navInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .VirtualJoystick, .TouchButton:
-		append(&rows, ..touchInspectorRows(ctx, s, node, key, controlWidth))
-	case .ScreenEffect:
-		append(&rows, ..shaderInspectorRows(ctx, s, node, key, controlWidth))
-	case .Line2D, .Trail2D:
-		append(&rows, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth)))
-		append(&rows, ..lineInspectorRows(ctx, s, node, key, controlWidth))
-	case .DialogueBox:
-		append(&rows, ..dialogueBoxRows(ctx, s, node, key, controlWidth))
-	case .Skeleton2D, .Bone2D, .SkinnedMesh, .IKChain:
-		append(&rows, ..skeletonInspectorRows(ctx, s, node, key, controlWidth, numberWidth, inspectorRow(ctx, "Texture", textureSelect(ctx, s, key, node.texture, controlWidth, atlases = true))))
-	case .Light2D, .LightOccluder:
-		append(&rows, ..lightInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .Panel, .Button, .ProgressBar, .TextField, .ScrollBox, .RichText, .Slider, .CheckBox:
-		append(&rows, ..uiInspectorRows(ctx, s, node, key, controlWidth, numberWidth))
-	case .Component:
-		// The component it's an instance of; its own fields are the component's (Open edits them)
-		choices := make([dynamic]string, context.temp_allocator)
-		append(&choices, TEXTURE_NONE)
-		for asset in s.project.assets do if asset.kind == .Component do append(&choices, asset.path)
-		append(&rows, inspectorRow(ctx, "Component", labeledSelect(ctx, node.component == "" ? TEXTURE_NONE : node.component, Asset_DisplayNames(choices[:]), choices[:], NodeTextField.Component, onText,
-			id = skald.hash_id(fmt.tprintf("inspector-component-%d", key)), width = controlWidth, placeholder = "Choose a component")))
-		if i := Project_FindComponent(&s.project, node.component); i >= 0 {
-			open := skald.button(ctx, fmt.tprintf("%s  Edit %s", ICON_CUBES, s.project.scenes[i].name), Msg(Component_Opened(i)),
-				id = skald.hash_id(fmt.tprintf("inspector-open-component-%d", key)),
-				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
-			unique := skald.button(ctx, fmt.tprintf("%s  Make Unique", ACTION_ICONS[.Copy]), Msg(Component_Made_Unique{}),
-				id = skald.hash_id(fmt.tprintf("inspector-make-unique-%d", key)),
-				bg = th.color.surface, fg = th.color.fg, padding = tk.fieldPadding, font_size = th.font.size_xs, radius = th.radius.sm)
-			append(&rows, inspectorRow(ctx, "", open),
-				inspectorRow(ctx, "", skald.tooltip(ctx, unique, "Give this instance its own copy of the component, to change it without changing the others",
-					id = skald.hash_id(fmt.tprintf("inspector-make-unique-tip-%d", key)))),
-				uiText(th, .Muted, "Its name, position, rotation, scale, layer and visibility are this instance's; the rest is the component's: open it to change every instance.", max_width = tk.textNarrow))
-		} else if node.component != "" {
-			append(&rows, uiText(th, .Muted, fmt.tprintf("%s isn't in the project.", node.component), max_width = tk.textNarrow, color = th.color.warning))
-		}
-	case .Menu:
-		// Editing buttons comes later; show what the menu does
-		for item in node.items {
-			append(&rows, inspectorRow(ctx, item.label, uiText(th, .Label, item.action)))
-		}
-		if len(node.items) == 0 {
-			append(&rows, uiText(th, .Label, "No buttons"))
-		}
+		// Its shader (shader_edit.odin; a ScreenEffect's are its own rows above)
+		if node.kind != .ScreenEffect && NodeKind_TakesShader(node.kind) do append(&rows, ..shaderInspectorRows(ctx, s, node, key, controlWidth))
+		// Rows plugins add (plugin_host.odin)
+		append(&rows, ..pluginInspectorRows(ctx, s, controlWidth))
 	}
-	// Its shader (shader_edit.odin; a ScreenEffect's are its own rows above)
-	if node.kind != .ScreenEffect && NodeKind_TakesShader(node.kind) do append(&rows, ..shaderInspectorRows(ctx, s, node, key, controlWidth))
-	// Rows plugins add (plugin_host.odin)
-	append(&rows, ..pluginInspectorRows(ctx, s, controlWidth))
 
-	fields := skald.col(..rows[:],
+	// Put together: Pinned, the Node section, the script and events, the kind's section
+	shown := make([dynamic]skald.View, context.temp_allocator)
+	pinnedRows := make([dynamic]skald.View, context.temp_allocator)
+	for filled, i in inspectorPins.filled do if filled do append(&pinnedRows, inspectorPins.rows[i])
+	inspectorPins.active = false
+	if len(pinnedRows) > 0 {
+		append(&shown, uiText(th, .Section, fmt.tprintf("%s  Pinned", ICON_THUMBTACK)))
+		append(&shown, ..pinnedRows[:])
+		append(&shown, skald.divider(ctx))
+	}
+	append(&shown, inspectorSectionHeader(ctx, node.kind, "Node", "Node", nodeCollapsed))
+	if !nodeCollapsed do append(&shown, ..Inspector_DropPlaceholders(rows[nodeStart:nodeEnd]))
+	append(&shown, ..Inspector_DropPlaceholders(rows[nodeEnd:kindStart]))
+	if node.kind != .Node2D || kindStart < len(rows) {
+		append(&shown, skald.divider(ctx), inspectorSectionHeader(ctx, node.kind, "Kind", fmt.tprintf("%v", node.kind), kindCollapsed))
+		if !kindCollapsed do append(&shown, ..Inspector_DropPlaceholders(rows[kindStart:]))
+	}
+	fields := skald.col(..shown[:],
 		spacing = th.spacing.sm,
 		padding = th.spacing.md,
 		cross_align = .Stretch,
@@ -661,6 +694,8 @@ inspectorRow :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.View, t
 			view = CodeDrag_Zone(ctx, d.state, view, key, DropSource{kind = .Property, name = label, node = d.node, index = -1})
 		}
 	}
+	// The one-node inspector: the row's pin, and a pinned row kept for the Pinned section (inspector_prefs.odin)
+	if row, ok := inspectorPinnedRow(ctx, label, view, control); ok do return row
 	return inspectorLabelled(ctx, view, control)
 }
 

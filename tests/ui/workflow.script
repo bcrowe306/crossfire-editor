@@ -58,3 +58,30 @@ action Select_All
 wait 2
 expect widget_visible panel-title-inspector true
 action Deselect
+
+# Pins: hovering a row shows its pin; a pinned row moves to the top for every Sprite
+click_row browser-tree 2
+expect scene PlayScene
+click_row scene-tree 2
+expect selected Spaceship
+expect inspector_pinned -
+hover_at inspector-row-Rotation 0.5 0.5
+wait 2
+click_widget inspector-pin-Rotation
+expect inspector_pinned Rotation
+wait 2
+expect widget_visible inspector-row-Rotation true
+expect file_exists .editor/inspector.ini
+# Its pin there unpins it
+click_widget inspector-pin-Rotation
+expect inspector_pinned -
+
+# Sections collapse, remembered for the type
+click_widget inspector-section-Node
+expect inspector_collapsed Node
+wait 2
+expect widget_visible inspector-row-Rotation false
+click_widget inspector-section-Node
+expect inspector_collapsed -
+wait 2
+expect widget_visible inspector-row-Rotation true

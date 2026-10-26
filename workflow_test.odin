@@ -7,6 +7,7 @@ package crossfire_editor
 import "core:os"
 import "core:strings"
 import "core:testing"
+import "gui:skald"
 
 // The test project in memory (its root `root`), PlayScene open, nothing selected
 @(private="file")
@@ -260,4 +261,46 @@ multi_edit_sets_every_selected_node_in_one_step :: proc(t: ^testing.T) {
 	scene = &state.project.scenes[state.currentScene]
 	testing.expect_value(t, scene.nodes[1].rotation, f32(45))
 	testing.expect(t, scene.nodes[0].rotation != 45, "the other node isn't changed")
+}
+
+@(test)
+inspector_pins_and_sections_are_kept_per_type :: proc(t: ^testing.T) {
+	dir := "build/test_inspector_prefs"
+	removeAll(dir)
+	os.make_directory_all(dir)
+	defer removeAll(dir)
+	state := workflowState(dir)
+	defer State_Destroy(&state)
+
+	workflowSend(&state, Inspector_Pin_Toggled{kind = .Sprite, label = "Texture"})
+	workflowSend(&state, Inspector_Pin_Toggled{kind = .Sprite, label = "Rotation"})
+	workflowSend(&state, Inspector_Pin_Toggled{kind = .Label, label = "Text"})
+	workflowSend(&state, Inspector_Section_Toggled{kind = .Sprite, section = "Node"})
+	p := &state.inspectorPrefs
+	testing.expect_value(t, InspectorPrefs_PinIndex(p, .Sprite, "Texture"), 0)
+	testing.expect_value(t, InspectorPrefs_PinIndex(p, .Sprite, "Rotation"), 1)
+	testing.expect_value(t, InspectorPrefs_PinIndex(p, .Label, "Rotation"), -1)
+	testing.expect(t, InspectorPrefs_Collapsed(p, .Sprite, "Node"), "the Sprite's Node section is collapsed")
+	testing.expect(t, !InspectorPrefs_Collapsed(p, .Label, "Node"), "the Label's isn't")
+	// Toggling again unpins and opens
+	workflowSend(&state, Inspector_Pin_Toggled{kind = .Sprite, label = "Texture"})
+	testing.expect_value(t, InspectorPrefs_PinIndex(p, .Sprite, "Rotation"), 0)
+
+	// Saved in the project; read back by another state
+	path := joinPath(state.project.rootPath, INSPECTOR_PREFS_FILE, allocator = context.temp_allocator)
+	testing.expect(t, os.exists(path), "the file is written")
+	other := State{project = state.project}
+	InspectorPrefs_Load(&other)
+	testing.expect_value(t, InspectorPrefs_PinIndex(&other.inspectorPrefs, .Sprite, "Rotation"), 0)
+	testing.expect_value(t, InspectorPrefs_PinIndex(&other.inspectorPrefs, .Label, "Text"), 0)
+	testing.expect(t, InspectorPrefs_Collapsed(&other.inspectorPrefs, .Sprite, "Node"), "collapsed, read back")
+	InspectorPrefs_Destroy(&other.inspectorPrefs)
+	// Unknown types and keys are skipped
+	InspectorPrefs_Parse(&other.inspectorPrefs, "[Nope]\npinned = A\n[Sprite]\nbogus = 1\npinned = Scale X | Layer\n")
+	testing.expect_value(t, InspectorPrefs_PinIndex(&other.inspectorPrefs, .Sprite, "Layer"), 1)
+	InspectorPrefs_Destroy(&other.inspectorPrefs)
+
+	// The placeholder a pinned row leaves is dropped, a plain spacer isn't
+	rows := []skald.View{pinnedPlaceholder(), skald.spacer(0)}
+	testing.expect_value(t, len(Inspector_DropPlaceholders(rows)), 1)
 }

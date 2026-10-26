@@ -1518,6 +1518,9 @@ Msg :: union {
 	Welcome_Closed,
 	Welcome_Recent_Removed,
 	Welcome_Demo_Opened,
+	// The inspector's pins and sections (inspector_prefs.odin)
+	Inspector_Pin_Toggled,
+	Inspector_Section_Toggled,
 	// Layouts (layouts.odin)
 	Panel_Maximized,
 	Layout_Preset_Applied,

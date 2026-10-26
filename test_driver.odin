@@ -291,6 +291,8 @@ Checks:
 	layout_left <px>, layout_presets <n>, layout_dialog <open | closed>   The shown mode's left
 	                             sidebar width, the project's saved layouts, Save Current Layout As...
 	tool_hint_has <text>         The status bar's tool hint contains the text (tool_hints.odin)
+	inspector_pinned <a|b | ->, inspector_collapsed <Node|Kind | ->   The selected node's type's
+	                             pinned rows and collapsed sections (inspector_prefs.odin)
 	live_theme <applied | draft> The look the editor shows is the applied settings' (or the dialog's draft)
 	theme_color <key> <#RRGGBB>  A theme color the editor shows now (bg, primary...: editor.ini's keys;
 	                             the canvases' viewport_bg, viewport_grid, level_bg... too)
@@ -3080,6 +3082,17 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		found = fmt.tprintf("%.0f", Mode_Layout(s).leftWidth)
 	case "layout_presets":
 		found = fmt.tprint(len(s.layouts.presets))
+	case "inspector_pinned":
+		// The selected node's type's pinned labels, in order (`a|b`; "-" none)
+		scene := &s.project.scenes[s.currentScene]
+		if s.selectedNode < 0 || s.selectedNode >= len(scene.nodes) do return false, "nothing selected"
+		list := s.inspectorPrefs.pinned[scene.nodes[s.selectedNode].kind][:]
+		found = len(list) == 0 ? "-" : strings.join(list, "|", context.temp_allocator)
+	case "inspector_collapsed":
+		scene := &s.project.scenes[s.currentScene]
+		if s.selectedNode < 0 || s.selectedNode >= len(scene.nodes) do return false, "nothing selected"
+		list := s.inspectorPrefs.collapsed[scene.nodes[s.selectedNode].kind][:]
+		found = len(list) == 0 ? "-" : strings.join(list, "|", context.temp_allocator)
 	case "layout_dialog":
 		found = s.layouts.saveOpen ? "open" : "closed"
 

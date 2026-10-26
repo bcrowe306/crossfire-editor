@@ -207,6 +207,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	if command, handled := Palette_Update(out, m); handled do return command
 	if command, handled := Notifications_Update(out, m); handled do return command
 	if Layouts_Update(out, m) do return {}
+	if InspectorPrefs_Update(out, m) do return {}
 	if command, handled := Welcome_Update(out, m); handled do return command
 	if command, handled := Problems_Update(out, m); handled do return command
 	if UndoHistory_Update(out, m) do return {}
@@ -588,6 +589,8 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		out.viewport.tickPending = true
 		out.viewport.nextTick = time.tick_now()
 		return nextViewportTick(&out.viewport)
+	case Inspector_Pin_Toggled, Inspector_Section_Toggled:
+		// InspectorPrefs_Update (inspector_prefs.odin), above
 	case Welcome_Opened, Welcome_Closed, Welcome_Recent_Removed, Welcome_Demo_Opened:
 		// Welcome_Update (welcome.odin), above
 	case Panel_Maximized, Layout_Preset_Applied, Layout_Save_Opened, Layout_Save_Name_Changed, Layout_Save_Confirmed, Layout_Save_Cancelled:
