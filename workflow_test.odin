@@ -304,3 +304,38 @@ inspector_pins_and_sections_are_kept_per_type :: proc(t: ^testing.T) {
 	rows := []skald.View{pinnedPlaceholder(), skald.spacer(0)}
 	testing.expect_value(t, len(Inspector_DropPlaceholders(rows)), 1)
 }
+
+@(test)
+drop_targets_follow_the_drag :: proc(t: ^testing.T) {
+	state := workflowState()
+	defer State_Destroy(&state)
+	testing.expect_value(t, len(DropTargets_Keys(&state)), 0)
+	image, sound := -1, -1
+	for asset, i in state.project.assets {
+		if asset.kind == .Image && image < 0 do image = i
+		if asset.kind == .Audio && sound < 0 do sound = i
+	}
+	has :: proc(keys: []string, key: string) -> bool {
+		for k in keys do if k == key do return true
+		return false
+	}
+	if testing.expect(t, image >= 0, "the test project has an image") {
+		state.assetDrag = {pressed = true, active = true, asset = image}
+		keys := DropTargets_Keys(&state)
+		testing.expect(t, has(keys, "viewport-canvas"), "an image drops into the viewport")
+		testing.expect(t, has(keys, "center-tabs"), "and onto the center's tabs (the slicer)")
+		testing.expect(t, !has(keys, "code-editor"), "no code tab shows")
+		state.codeTab = 1
+		testing.expect(t, has(keys, "viewport-canvas") && has(DropTargets_Keys(&state), "code-editor"), "a code tab takes it")
+		state.codeTab = 0
+	}
+	if sound >= 0 {
+		state.assetDrag = {pressed = true, active = true, asset = sound}
+		testing.expect(t, !has(DropTargets_Keys(&state), "viewport-canvas"), "a sound doesn't drop into the viewport")
+	}
+	state.assetDrag = {}
+	state.treeDrag = {pressed = true, active = true, node = 0}
+	testing.expect(t, has(DropTargets_Keys(&state), "scene-tree-scroll"), "a node drags within the tree")
+	state.treeDrag = {}
+	testing.expect_value(t, len(DropTargets_Keys(&state)), 0)
+}

@@ -116,6 +116,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		commandPaletteView(&state, ctx),
 		// A drag into code: its label, its drop (code_drag.odin)
 		CodeDrag_View(&state, ctx),
+		// The places a drag would drop into, outlined (drop_targets.odin)
+		dropTargetsView(&state, ctx),
 		// Toasts over everything, in the bottom-right corner (notifications.odin)
 		notificationsView(&state, ctx),
 		cross_align = .Stretch,
