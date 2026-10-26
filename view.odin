@@ -521,8 +521,9 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		middle[0],
 		middle[1],
 		middle[2],
-		// The tool's keys and modifiers (tool_hints.odin): the room the rest leaves, elided
-		skald.flex(1, uiText(th, .Muted, Tool_Hint(s), overflow = .Ellipsis)),
+		// The tool's keys and modifiers (tool_hints.odin): the room the rest leaves, elided; none
+		// in a narrow window, where the rest already fills the bar
+		skald.flex(1, s.layout.workspace.x >= STATUS_HINT_MIN_WIDTH ? uiText(th, .Muted, Tool_Hint(s), overflow = .Ellipsis) : skald.spacer(0)),
 		statusText(ctx, FrameStats_Text()),
 		tool,
 		statusText(ctx, fmt.tprintf("%v", s.playState)),

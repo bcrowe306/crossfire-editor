@@ -7,6 +7,9 @@ One line per tool of the Scene mode's viewport (`Tool`) and of the Level mode (`
 texts follow what the canvases do (view_viewport.odin's drags, level_canvas.odin's modifiers).
 */
 
+// Under this window width the status bar has no room for the hint
+STATUS_HINT_MIN_WIDTH :: 900
+
 // The Scene mode's tools' hints
 TOOL_HINTS := [Tool]string{
 	.Select    = "Click: select · Ctrl+click: toggle · Shift+click: add · Drag empty space: box select · Alt+drag: duplicate · Space: pan",

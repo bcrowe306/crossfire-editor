@@ -204,7 +204,7 @@ inspectorSectionHeader :: proc(ctx: ^skald.Ctx(Msg), kind: NodeKind, key, title:
 	tk := uiTokens(ctx)
 	label := fmt.tprintf("%s  %s", collapsed ? ICON_CHEVRON_RIGHT : ICON_CHEVRON_DOWN, title)
 	button := skald.button(ctx, label, Msg(Inspector_Section_Toggled{kind = kind, section = key}),
-		id = skald.hash_id(fmt.tprintf("inspector-section-%s", key)), bg = {}, fg = th.color.fg,
+		id = skald.hash_id(fmt.tprintf("inspector-section-%s", key)), bg = th.color.bg, fg = th.color.fg,
 		padding = {0, tk.xxs}, font_size = th.font.size_sm, text_align = .Start)
 	return skald.tooltip(ctx, button, collapsed ? "Show this section (remembered for this node type)" : "Hide this section (remembered for this node type)",
 		id = skald.hash_id(fmt.tprintf("inspector-section-tip-%s", key)))
@@ -238,7 +238,7 @@ inspectorPinnedRow :: proc(ctx: ^skald.Ctx(Msg), label: string, labelView, contr
 	pin: skald.View = skald.spacer(0)
 	if index >= 0 || hovered {
 		button := skald.button(ctx, ICON_THUMBTACK, Msg(Inspector_Pin_Toggled{kind = p.kind, label = label}),
-			id = skald.hash_id(fmt.tprintf("inspector-pin-%s", label)), bg = {}, fg = index >= 0 ? th.color.primary : th.color.fg_muted,
+			id = skald.hash_id(fmt.tprintf("inspector-pin-%s", label)), bg = th.color.bg, fg = index >= 0 ? th.color.primary : th.color.fg_muted,
 			padding = {tk.xxs, 0}, font_size = th.font.size_xs)
 		pin = skald.tooltip(ctx, button, index >= 0 ? "Unpin (for every node of this type)" : "Pin to the top (for every node of this type)",
 			id = skald.hash_id(fmt.tprintf("inspector-pin-tip-%s", label)))
