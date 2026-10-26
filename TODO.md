@@ -12,8 +12,8 @@ project: every desktop platform it lists works, installs without warnings, and i
 Each step is its own release; the order is the build order. **Decisions still open** are marked
 (ask the user before building them).
 
-1. **The speed work first** (the "Performance" section below, run 2026-10-26): the viewport and
-   the engine's frame, measured.
+1. **The speed work first** (the "Performance" section below): done 2026-10-26 (the viewport and
+   the engine's frame, measured); only the deferred subtree reuse and Skald's upstreaming are left.
 2. **Platforms, as shipped:**
    - **macOS Developer ID signing and notarization** ("Builds and releases" below has the plan).
    - **The missing prebuilt players on CI:** Linux ARM64 (`ubuntu-24.04-arm`), Windows ARM64
@@ -107,7 +107,8 @@ rects for the reveal code, and hit tests skip widgets not laid out last frame
 mode 3.3 -> 2.8, viewport 4.6 -> 4.2 (5-17% less). Building the culled rows' views is still paid;
 item 1 below would skip that.
 
-Left:
+Left (the section's only open items: the deferred subtree reuse and offering Skald's fixes
+upstream):
 1. **Reuse unchanged parts of the tree:** something like `cached(key, version, builder)`, which
    returns last frame's subtree when its version hasn't changed. **Deferred by the user
    (2026-10-25):** too big a Skald change for now; if it comes back, a measured one-panel
@@ -122,12 +123,15 @@ Left:
 
 ### 4. The editor and the engine (found by the same profile)
 
-- **The viewport's lighting** (`Lighting_Apply` in `Preview_Render`, 15% of the editor's
-  frame on the lit title scene): render the light map less often, or cache it while nothing
-  moves.
-- **The viewport:** don't render the scene again in `Preview_Render` when nothing changed
-  (`sceneSignature` in `viewport_preview.odin` already exists), and find the GPU wait under
-  `SDL_SetRenderTarget` (13% of a frame).
+**The viewport: done (2026-10-26).** The light map is reused while nothing that lights the scene
+changed (the engine's `SceneLighting.mapKey`), an animation tick draws only when an animated
+node's frame moved (`drawKey`), and the frame key now has the lighting and the settings copied
+without a rebuild (a light's radius didn't redraw a still scene). Mean frame (ABBA, median pair):
+the lit title at rest 12.6% less (`lighting` 4.03 -> 0.002 ms a render), the loading scene's
+sprite 16.8% less (`Preview_Render` 2.05 -> 1.00 ms a call), the forest unchanged (its particles
+draw every tick). The GPU wait under `SDL_SetRenderTarget` is SDL's Vulkan renderer waiting for
+its queue (Skald's too) on every target switch: inherent without patching SDL (the editor's
+CLAUDE.md "Viewport" has the numbers).
 
 **The engine's frame: done (2026-10-26).** The 61% `nodes_update` was the font path bug on a busy
 machine; what was left was the HUD's RichText laid out on every measure and draw with a formatted

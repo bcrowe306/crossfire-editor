@@ -407,7 +407,7 @@ Skald is not immediate-mode and not a retained widget tree:
 | `icons.odin` | Font Awesome icon font (`assets/fonts`, OFL), glyph constants, the action icons (`ACTION_ICONS`, `Icon_Action`, `Action_Icon`: one icon per action) |
 | `test_driver.odin` | UI test driver: runs a `--script`, injecting SDL input and checking state (format in its doc comment); `repeat <n> <commands>` (written out on load: `ScriptDriver_ExpandRepeats`), `profile_mark <name>` (a trace's mark) |
 | `profiling.odin` | **Profiling with Spall**: `Profiling_Start` (Skald's trace, shared with the engine: `e.Trace_Share`) / `Profiling_Stop` (before any exit), `Profiling_Message` (`update`'s span, named by the message's type) |
-| `tools/profile.sh`, `tests/profile/` | **The profiling harness** and its scenarios (driver scripts between `profile_mark start` and `end`): idle, inspector, browser, viewport, code, level, console |
+| `tools/profile.sh`, `tests/profile/` | **The profiling harness** and its scenarios (driver scripts between `profile_mark start` and `end`): idle, animated (the loading scene's sprite ticking), inspector, browser, viewport, code, level, console |
 | `editor_test.odin` | Unit tests for the model, XML round trips, transforms, assets, search, viewport math, keymap and update |
 | `tests/ui/*.script` | UI test scripts, run by `task test:ui` |
 | `tools/ui_tests.sh` | The UI test runner: headless editors (SDL's offscreen driver) on per-script copies of the fixture, `--jobs` at a time, longest first, per-script results, times and a summary; `--visible` for real windows |
@@ -588,7 +588,19 @@ features (particles) appear without editor work.
   `GPUTarget_Begin` / `GPUTarget_End`: End sets SDL's target back to the window, which moves the
   image to SHADER_READ_ONLY_OPTIMAL with a barrier and submits (SDL waits for its queue), and
   making it the target again starts with a barrier from fragment-shader reads: Skald's contract
-  for target images, so no per-frame barrier on Skald's side. Everything is on the main thread,
+  for target images, so no per-frame barrier on Skald's side.
+  **The GPU wait under `SDL_SetRenderTarget` is SDL's, and inherent** (looked into 2026-10-26):
+  SDL 3.4's Vulkan renderer ends every target switch with `VULKAN_IssueBatch`, which submits the
+  batch and calls `vkQueueWaitIdle` (SDL_render_vulkan.c: it resets the command buffer, its
+  descriptor pools and upload buffers right after, so it needs the GPU done). The queue is
+  Skald's too, so the wait covers the GPU's time for what SDL drew and for Skald's frame still
+  in flight. Measured per render (spans `gpu_target_begin` / `gpu_target_end`, optimized,
+  Intel UHD 620, 1680x1000): Begin 0.70-0.75 ms (Skald's last frame finishing), End 3.4 ms on
+  the forest and 3.9 ms on the lit title scene (the scene's own GPU time); a sprite on the
+  loading scene 1.2 ms. Lighting added two more switches (3.3 + 0.6 ms) until the light map was
+  reused (above). Removing the rest would mean patching SDL's Vulkan renderer to fence each
+  submit instead of waiting idle (a ring of command buffers and pools); fewer switches and fewer
+  renders are what's done instead. Everything is on the main thread,
   so the shared queue is never used twice at once. **SDL's resources must go before Skald's
   device:** `App.on_shutdown` (a Skald addition) runs `Preview_Destroy`, `CodeEditor_Shutdown`,
   `SharedGPU_Shutdown`. Measured (debug build, fullscreen 1059 x 555): a viewport render 1.7 ms
@@ -618,7 +630,25 @@ features (particles) appear without editor work.
   GPU on every update: ~4 ms optimized, ~46 ms in a debug build, for a 400x730 px viewport;
   ~12 ms for a fullscreen 1059x555 one; now ~0.6 ms, see above). Still:
   - the view only renders and uploads when `Preview_FrameKey` changes (scene, transforms, view,
-    size, animation frame); other redraws reuse the image
+    size, animation frame, the lighting, and the settings `syncTransforms` copies without a
+    rebuild: lights, particles, navigation regions, touch controls, lines, shader parameters);
+    other redraws reuse the image. **A light's settings and the lighting weren't in it** until
+    2026-10-26: a typed radius, the ambient or the light bulb toggle didn't draw in a scene with
+    nothing animated until something else did
+  - **an animation tick draws only what moved** (`drawKey`, 2026-10-26): after the scene's
+    update, `Preview_Render` hashes the frame key without the animation frame, the build count
+    (`preview.builds`: a rebuild with the same signature, a font remade, draws), the target and
+    each AnimatedSprite's animation and frame and each TileMap's shown frame; equal to the last
+    drawn (`drawnKey`), it draws nothing and the image (or the pixels read back) stands
+    (`Preview_SkippedRenders`). Live CPU particles, a GPU emitter, a DialogueBox (it types) or a
+    TextField (its caret) always draw (key 0), and the effects renderer (shaders) always draws.
+    Measured (ABBA, `task profile:compare`, the `animated` scenario: the loading scene's one
+    sprite): `Preview_Render` 2.05 -> 1.00 ms a call, the mean frame 16.8% less (median pair
+    0.832). Scenes with live particles (the title, the forest) draw every tick as before
+  - **the light map is reused** while nothing that lights the scene changed (the engine's
+    `SceneLighting.mapKey`, lighting.odin): on the lit title scene (`idle`) `lighting` 4.03 ->
+    0.002 ms a render, `Preview_Render` 6.19 -> 4.99 ms, the mean frame 12.6% less (median pair
+    0.877). `Preview_LightMapDraws` counts the draws (tests)
   - animations run on a timer at `VIEWPORT_ANIMATION_FPS` (30): `Viewport_Tick` schedules the
     next tick itself, and stops when the window isn't focused (`EditorFocused`)
   - The cheap upload was a Skald change (no mipmaps, a reused staging buffer, no
@@ -3659,7 +3689,9 @@ Its doc comment has the rules; what the code relies on:
 - The viewport outlines occluders (`drawCollisionShape` in their gray) and draws a selected
   light's reach.
 - Tests: `lighting_in_the_editor` (the preview's pixels lit, dark past the reach and behind an
-  occluder, unlit when toggled), `tests/ui/lighting.script` (driver checks `scene_lit`,
+  occluder, unlit when toggled), `viewport_redraws_only_what_changed` (ticks with nothing
+  moving draw nothing; a light moved or edited, an occluder, the ambient, unlit / lit and the
+  view each draw the picture, and the light map, again once), `tests/ui/lighting.script` (driver checks `scene_lit`,
   `light <field>`, `viewport_unlit`). User guide: `docs/manual/lighting.md`.
 
 ## UI controls and themes (implemented, `ui_edit.odin`, `theme_edit.odin`; engine: ui_controls.odin, ui_theme.odin)
@@ -4463,7 +4495,8 @@ TODO.md's "Performance" work (asked 2026-10-24): every speed-up is measured befo
   animations), so frames with and without a scene render alternate and the median jumps
   between the two kinds; a span driven by that timer (`Preview_Render`, `lighting`) changes
   per frame when frames get faster or slower, so compare its time per call (`compare` prints
-  both).
+  both). The viewport's GPU waits have spans of their own: `gpu_target_begin` /
+  `gpu_target_end` (gpu_share.odin), and the engine's `target_switch` for lighting's.
 - **Compare interleaved, on a quiet machine:** `task profile:baseline` keeps the build too
   (`build/profile/baseline/crossfire-editor`), and `task profile:compare` runs it and the new
   build in turns, in **ABBA order** (baseline first in odd runs, the new build first in even

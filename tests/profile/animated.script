@@ -1,0 +1,10 @@
+# Profiling scenario (tools/profile.sh): the demo's loading scene at rest, its one AnimatedSprite
+# playing: the viewport's animation timer ticks at 30 fps, but the sprite's frames change less
+# often (Preview_Render draws only when a frame changed: its draw key).
+send Scene_Tab_Changed 3
+wait_until scene LoadingScene
+wait 60
+profile_mark start
+wait 300
+profile_mark end
+quit

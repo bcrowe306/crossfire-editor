@@ -3,6 +3,7 @@ package crossfire_editor
 import "core:log"
 import "core:os"
 import ce "code_editor/editor"
+import e "engine:."
 import "gui:skald"
 import sdl "vendor:sdl3"
 import vk "vendor:vulkan"
@@ -23,6 +24,12 @@ its text, straight into the image the canvas shows.
   images: see its `image_create_target`).
 - Everything runs on the main thread, as Skald's frames do, so the queue is never used by both
   at once.
+- **Every target switch waits for the GPU:** SDL's Vulkan renderer submits and waits for its
+  queue (`vkQueueWaitIdle`, SDL's VULKAN_IssueBatch) on each `SDL_SetRenderTarget`, and that
+  queue is Skald's: Begin waits for Skald's last frame (about 0.7 ms here), End for what was
+  drawn (3.4-3.9 ms for the demo's levels). Spans `gpu_target_begin` / `gpu_target_end`. Draw
+  less and switch less (the viewport's draw key, the engine's reused light map); avoiding the
+  wait itself would need a change to SDL.
 - Without it (unit tests have no SDL video; `EDITOR_GPU_SHARE=0` or `EDITOR_PREVIEW_SOFTWARE`
   set; a machine where SDL's Vulkan renderer can't use Skald's device) the viewport falls back to
   its own GPU renderer with a readback, then software, and the code tabs to software renderers.
@@ -139,6 +146,7 @@ GPUTarget_Ensure :: proc(t: ^GPUTarget, key: string, size: [2]int) -> bool {
 
 // Starts drawing into the target's top-left `size` (the viewport and clip set to it)
 GPUTarget_Begin :: proc(t: ^GPUTarget, size: [2]int) {
+	e.Trace_Scope("gpu_target_begin")
 	sdl.SetRenderTarget(gpu.renderer, t.texture)
 	rect := sdl.Rect{0, 0, i32(size.x), i32(size.y)}
 	sdl.SetRenderViewport(gpu.renderer, &rect)
@@ -147,6 +155,7 @@ GPUTarget_Begin :: proc(t: ^GPUTarget, size: [2]int) {
 
 // Ends drawing: the image is ready for Skald to draw (and the drawing is submitted)
 GPUTarget_End :: proc() {
+	e.Trace_Scope("gpu_target_end")
 	sdl.SetRenderTarget(gpu.renderer, nil)
 }
 

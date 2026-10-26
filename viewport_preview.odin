@@ -53,6 +53,14 @@ Preview :: struct {
 	sharedTarget: GPUTarget,
 	// The size last drawn (the target's used corner)
 	drawnSize: [2]int,
+	// What the last render shows (`drawKey`: the frame key without the animation frame, the
+	// build, the animated nodes' frames); 0 when unknown. A render whose key is this one draws
+	// nothing: the image is already right
+	drawnKey: u64,
+	// Scenes built (`rebuild`): a rebuild with the same signature (a font remade) draws again
+	builds: int,
+	// Renders that found the picture unchanged and drew nothing (tests)
+	skippedRenders: int,
 	renderer: ^sdl.Renderer,
 	game: ^e.Game,
 	scene: ^e.Scene,
@@ -172,6 +180,17 @@ Preview_Render :: proc(s: ^State, size: [2]int, pixelScale: f32) -> ([]u8, bool)
 	// IK chains reach for their targets, after the Timeline's pose (a target dragged shows at once)
 	if len(preview.scene.ikChains) > 0 do e.Scene_SolveIK(preview.scene)
 
+	// Nothing the picture shows changed since it was drawn (an animation tick between a sprite's
+	// frames, a scene whose emitters are done): the image (or the pixels read back) is still right
+	if !preview.effects {
+		key := drawKey(s, size, pixelScale)
+		if key != 0 && key == preview.drawnKey && size == preview.drawnSize {
+			preview.skippedRenders += 1
+			return preview.shared ? nil : preview.pixels[:], true
+		}
+		preview.drawnKey = key
+	}
+
 	r := preview.renderer
 	viewport := sdl.Rect{0, 0, i32(size.x), i32(size.y)}
 	if preview.shared {
@@ -236,6 +255,56 @@ view, the image size and, while animations play, the animation frame. Equal keys
 rendered image is still right.
 */
 Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
+	return frameKey(s, size, pixelScale, animation = true)
+}
+
+/*
+How many renders found the picture as it was drawn and drew nothing (`Preview_Render`: the
+animation timer ticked, nothing animated moved). For tests.
+*/
+Preview_SkippedRenders :: proc() -> int {
+	return preview.skippedRenders
+}
+
+/*
+What the last render shows, worked out after the scene's update: the frame key without the
+animation frame, the scene's build and target, and each animated node's frame. 0 (always draw)
+when something changes the picture with time that this can't see: live particles, a GPU
+emitter, a dialogue box typing, a text field's caret, shaders.
+*/
+@(private="file")
+drawKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
+	if preview.scene == nil || preview.effects do return 0
+	Head :: struct { frame: u64, builds: int, target: rawptr }
+	head := Head{frameKey(s, size, pixelScale, animation = false), preview.builds, preview.sharedTarget.texture}
+	h := hash.fnv64a(([^]u8)(&head)[:size_of(head)])
+	for node in preview.scene.nodes {
+		if e.Node_Is(node, e.AnimatedSprite) {
+			player := &(cast(^e.AnimatedSprite)node).animation
+			state := [2]int{player.current, player.frame}
+			h = hash.fnv64a(([^]u8)(&state)[:size_of(state)], h)
+		} else if e.Node_Is(node, e.TileMapNode) {
+			frame := (cast(^e.TileMapNode)node).shown
+			h = hash.fnv64a(([^]u8)(&frame)[:size_of(frame)], h)
+		} else if e.Node_Is(node, e.ParticleEmitter) {
+			emitter := cast(^e.ParticleEmitter)node
+			if e.ParticleEmitter_OnGPU(emitter) || e.ParticleEmitter_AliveCount(emitter) > 0 do return 0
+		} else if e.Node_Is(node, e.DialogueBox) || e.Node_Is(node, e.TextField) {
+			return 0
+		}
+	}
+	return h == 0 ? 1 : h
+}
+
+// How many times the previewed scene's light map was drawn (the engine reuses it while nothing
+// that lights the scene changed): for tests
+Preview_LightMapDraws :: proc() -> int {
+	return preview.scene != nil ? preview.scene.lighting.mapDraws : 0
+}
+
+// The frame key (`Preview_FrameKey`), with or without the animation frame
+@(private="file")
+frameKey :: proc(s: ^State, size: [2]int, pixelScale: f32, animation: bool) -> u64 {
 	scene := &s.project.scenes[s.currentScene]
 	State :: struct {
 		signature: u64,
@@ -254,6 +323,9 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		// The scene needs the GPU renderer that runs shaders (a GPU emitter switched on): the
 		// render switches renderers, so it must happen at once
 		effects: bool,
+		// The lighting: the scene's, unless the viewport shows it unlit
+		lit, bodyShadows: bool,
+		ambient: [4]u8,
 	}
 	// Images saved since: read again in place, at most twice a second (a frame only comes when
 	// something happens: coming back to the editor after saving in Aseprite is one)
@@ -269,13 +341,16 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 		pixelScale = pixelScale,
 		center = s.viewport.center,
 		zoom = s.viewport.zoom,
-		animationFrame = s.viewport.animate ? s.viewport.animationFrame : -1,
+		animationFrame = !animation ? -2 : s.viewport.animate ? s.viewport.animationFrame : -1,
 		background = transmute([4]u8)SceneSettings_Background(&s.project, scene),
 		around = ViewportBg_Bytes(s),
 		textures = preview.texturesVersion,
 		timeline = {s.timeline.previewing && s.bottomTab == .Timeline && s.layout.bottomOpen, s.timeline.clip, s.timeline.playhead},
 		showShapes = s.viewport.showShapes,
 		effects = Preview_SceneUsesShaders(scene),
+		lit = scene.settings.lighting && !s.viewport.unlit,
+		bodyShadows = scene.settings.bodyShadows,
+		ambient = transmute([4]u8)scene.settings.ambient,
 	}
 	h := hash.fnv64a(([^]u8)(&key)[:size_of(key)])
 	h ~= previewImportSettings(s)
@@ -289,6 +364,25 @@ Preview_FrameKey :: proc(s: ^State, size: [2]int, pixelScale: f32) -> u64 {
 			line := node.line
 			h = hash.fnv64a(([^]u8)(&line)[:size_of(line)], h)
 			if len(node.points) > 0 do h = hash.fnv64a(([^]u8)(raw_data(node.points))[:len(node.points) * size_of(node.points[0])], h)
+		}
+		// Settings copied every frame too (syncTransforms): lights, particles, navigation
+		// regions, touch controls. A light's radius typed in a scene with nothing animated never
+		// drew until something else did
+		#partial switch node.kind {
+		case .Light2D:
+			light := node.light
+			h = hash.fnv64a(([^]u8)(&light)[:size_of(light)], h)
+		case .ParticleEmitter:
+			particles := node.particles
+			h = hash.fnv64a(([^]u8)(&particles)[:size_of(particles)], h)
+		case .NavRegion:
+			nav := struct { settings: e.NavSettings, size: [2]f32 }{node.nav, node.shapeSize}
+			h = hash.fnv64a(([^]u8)(&nav)[:size_of(nav)], h)
+		case:
+			if NodeKind_IsTouchControl(node.kind) {
+				touch := node.touch
+				h = hash.fnv64a(([^]u8)(&touch)[:size_of(touch)], h)
+			}
 		}
 		// Shader parameters change the picture without a rebuild
 		for p in node.shaderParams {
@@ -548,6 +642,7 @@ Preview_UsesGPU :: proc() -> bool {
 // Builds a fresh engine scene from the editor scene
 @(private="file")
 rebuild :: proc(s: ^State, scene: ^SceneDef) {
+	preview.builds += 1
 	if preview.scene != nil {
 		e.Scene_Destroy(preview.scene)
 		free(preview.scene)
@@ -1272,6 +1367,7 @@ destroyAll :: proc() {
 	preview.offscreen = false
 	preview.surface = nil
 	preview.signature = 0
+	preview.drawnKey = 0
 	clear(&preview.nodes)
 }
 
