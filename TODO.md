@@ -125,14 +125,15 @@ Left:
 - **The viewport's lighting** (`Lighting_Apply` in `Preview_Render`, 15% of the editor's
   frame on the lit title scene): render the light map less often, or cache it while nothing
   moves.
-- **The engine's node updates** (`nodes_update`, 61% of the forest level's frame): find which
-  nodes (a SPALL_AUTO run of `profile_game.sh`), then fix.
 - **The viewport:** don't render the scene again in `Preview_Render` when nothing changed
   (`sceneSignature` in `viewport_preview.odin` already exists), and find the GPU wait under
   `SDL_SetRenderTarget` (13% of a frame).
-- **The engine:** profile the game scenarios above and fix what they show (drawing, lighting,
-  physics, particles), with numbers before and after in the engine's CLAUDE.md "Performance"
-  section.
+
+**The engine's frame: done (2026-10-26).** The 61% `nodes_update` was the font path bug on a busy
+machine; what was left was the HUD's RichText laid out on every measure and draw with a formatted
+font key per word, and lighting's ray sort. The demo's mean frame (CPU clock, ABBA) fell 10-29%:
+forest 0.89 -> 0.68 ms, hollow 1.64 -> 1.31, lair 1.04 -> 0.74, title 0.71 -> 0.63 (the engine's
+CLAUDE.md "Performance" has the numbers).
 
 ## UI and UX: look and usability (asked 2026-10-25; done 2026-10-25)
 
