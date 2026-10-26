@@ -1513,6 +1513,11 @@ Msg :: union {
 	Toast_Dismissed,
 	Toast_Action_Clicked,
 	Toasts_Expired,
+	// The welcome screen (welcome.odin)
+	Welcome_Opened,
+	Welcome_Closed,
+	Welcome_Recent_Removed,
+	Welcome_Demo_Opened,
 	// Layouts (layouts.odin)
 	Panel_Maximized,
 	Layout_Preset_Applied,

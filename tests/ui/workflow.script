@@ -1,0 +1,54 @@
+# Workflow (TODO.md's "UI and UX" round): a maximized panel, layout presets saved per project,
+# the tools' hints in the status bar (layouts.odin, tool_hints.odin). Run with: task test:ui
+
+wait 5
+expect maximized None
+
+# A double-click on a panel's title maximizes it; again, or Escape, restores
+double_click_widget panel-title-inspector
+expect maximized Inspector
+wait 2
+expect widget_visible panel-title-inspector true
+expect widget_visible viewport-canvas false
+double_click_widget panel-title-inspector
+expect maximized None
+double_click_widget panel-title-scene-tree
+expect maximized Scene_Tree
+key escape
+expect maximized None
+# The bottom panel's tab strip, the center's tabs
+double_click_widget bottom-tabs-scroll
+expect maximized Bottom
+key escape
+double_click_widget center-tabs
+expect maximized Center
+# The shortcut (View > Maximize Panel) restores it
+action Maximize_Panel
+expect maximized None
+
+# Presets: a built-in one, then the layout saved under a name and applied again
+send Layout_Preset_Applied Wide_Viewport
+expect layout_left 180
+send Layout_Save_Opened
+expect layout_dialog open
+click_widget layout-save-name
+key ctrl+a
+type Narrow
+click_widget layout-save-ok
+expect layout_dialog closed
+expect layout_presets 1
+send Layout_Preset_Applied Default
+expect layout_left 240
+send Layout_Preset_Applied 0
+expect layout_left 180
+wait 2
+expect file_exists .editor/layout.ini
+
+# The status bar names the tool's keys
+action Tool_Move
+expect tool_hint_has Alt+drag: duplicate
+action Tool_Zoom
+expect tool_hint_has Alt+click: zoom out
+action Mode_Level
+expect tool_hint_has Space: pan
+action Mode_Scene

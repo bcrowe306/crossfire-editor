@@ -194,6 +194,8 @@ copy: `open_project {project}`).
 	                                 Project_Settings_Tab_Changed <tab>, Git_Switch_Branch <name>,
 	                                 Recent_Project_Chosen <i> (the File menu's i-th recent project)
 	                                 (the Git tab's branch list), New_Script_Opened,
+	                                 Welcome_Opened (File > Welcome), Layout_Save_Opened,
+	                                 Layout_Preset_Applied <Default | Code | Level | Wide_Viewport | i>
 	                                 New_Data_Opened (no value), Scene_Tab_Changed <tab index>,
 	                                 Code_Open_Requested <file> (opens it in a code tab),
 	                                 Open_Grid_Settings (View > Grid Settings: Project Settings > Grid)
@@ -284,6 +286,11 @@ Checks:
 	scene_clipboard <true | false>  A scene was copied (the browser's Copy)
 	import_folder <path end>     Where the Import dialog opens next (the last import's folder)
 	local_axes <on | off>        The move arrows follow the node's own axes
+	welcome <open | closed>      The welcome screen (welcome.odin)
+	maximized <MaxPanel>         The shown mode's maximized panel (None, Inspector...: layouts.odin)
+	layout_left <px>, layout_presets <n>, layout_dialog <open | closed>   The shown mode's left
+	                             sidebar width, the project's saved layouts, Save Current Layout As...
+	tool_hint_has <text>         The status bar's tool hint contains the text (tool_hints.odin)
 	live_theme <applied | draft> The look the editor shows is the applied settings' (or the dialog's draft)
 	theme_color <key> <#RRGGBB>  A theme color the editor shows now (bg, primary...: editor.ini's keys;
 	                             the canvases' viewport_bg, viewport_grid, level_bg... too)
@@ -2271,6 +2278,15 @@ runCommand :: proc(s: ^State, ctx: ^skald.Ctx(Msg), line: string) -> bool {
 			if ok do msg = New_Script_Kind_Changed(kind)
 		case "Global_Added":          msg = Global_Added(strings.clone(value, context.temp_allocator))
 		case "New_Script_Opened":     msg = New_Script_Opened{}
+		// Workflow (welcome.odin, layouts.odin): File > Welcome, View > Layout's items
+		case "Welcome_Opened":        msg = Welcome_Opened{}
+		case "Layout_Save_Opened":    msg = Layout_Save_Opened{}
+		case "Layout_Preset_Applied":
+			if which, ok := reflect.enum_from_name(BuiltinLayout, value); ok {
+				msg = Layout_Preset_Applied{builtin = which, user = -1}
+			} else if i, isIndex := strconv.parse_int(value); isIndex {
+				msg = Layout_Preset_Applied{user = i}
+			}
 		case "Open_Grid_Settings":    msg = Open_Grid_Settings{}
 		case "New_Data_Opened":       msg = New_Data_Opened{}
 		case "New_Data_Type_Changed": msg = New_Data_Type_Changed(strings.clone(value, context.temp_allocator))
@@ -3055,6 +3071,20 @@ runCheck :: proc(s: ^State, ctx: ^skald.Ctx(Msg), check: string) -> (ok: bool, f
 		return strings.has_suffix(slashed, value), found
 	case "local_axes":
 		found = s.viewport.localAxes ? "on" : "off"
+	// Workflow (welcome.odin, layouts.odin, tool_hints.odin)
+	case "welcome":
+		found = s.welcome.open ? "open" : "closed"
+	case "maximized":
+		found = fmt.tprint(Mode_Layout(s).maximized)
+	case "layout_left":
+		found = fmt.tprintf("%.0f", Mode_Layout(s).leftWidth)
+	case "layout_presets":
+		found = fmt.tprint(len(s.layouts.presets))
+	case "layout_dialog":
+		found = s.layouts.saveOpen ? "open" : "closed"
+
+	case "tool_hint_has":
+		found = strings.contains(Tool_Hint(s), value) ? value : Tool_Hint(s)
 	case "guides":
 		found = fmt.tprint(len(scene.guides))
 	case "guide":

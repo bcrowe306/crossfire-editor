@@ -52,6 +52,19 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	Maximize_Track(ctx, &state, keysTaken)
 	// The viewport is the Scene mode's (its last rect stays in Skald's store while another mode, or
 	// the slicer's tab, shows)
+	// The welcome screen covers the editor: without a project the keymap is off (Escape still goes back)
+	if state.welcome.open {
+		if !keysTaken && !state.welcome.noProject && !IsTyping(ctx) do skald.shortcut(ctx, skald.Shortcut{key = .Escape}, Msg(Welcome_Closed{}))
+		return skald.col(
+			skald.flex(1, welcomeView(&state, ctx)),
+			newProjectDialogView(&state, ctx),
+			confirmDialogView(&state, ctx),
+			docsWindowView(&state, ctx),
+			notificationsView(&state, ctx),
+			cross_align = .Stretch,
+			bg = th.color.bg,
+		)
+	}
 	KeymapDispatch(ctx, &state.settings.keymap, state.mode == .Scene && state.slicer.shown == 0 && ViewportHovered(ctx), dialogOpen = keysTaken,
 		mode = state.mode, browserFocused = state.browserFocused && state.mode == .Scene)
 
@@ -140,6 +153,8 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 		recentItem = {label = "Open Recent", submenu = recentItems[:]}
 	}
 	append(&fileItems,
+		// The welcome screen (welcome.odin)
+		skald.Menu_Item(Msg){label = "Welcome", msg = Msg(Welcome_Opened{})},
 		item("New Project", .New_Project, keys),
 		item("Open Project", .Open_Project, keys),
 		recentItem,

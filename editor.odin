@@ -431,6 +431,8 @@ State :: struct {
 	layout: Layout,
 	// The project's saved layouts and the Save Current Layout As... dialog (layouts.odin)
 	layouts: LayoutState,
+	// The welcome screen (welcome.odin)
+	welcome: WelcomeScreen,
 	// Console tab: editor messages and the running game's output, with its filters (console.odin)
 	console: LogList,
 	// Output tab: build and export output
@@ -481,6 +483,13 @@ init :: proc() -> State {
 	state.recentProjects = Recent_Load(args.settings)
 	for problem in problems do logLine(&state, .Warning, fmt.aprintf("Settings: %s", problem))
 	root := args.project
+	// No project given: the welcome screen, over a placeholder that's never saved (welcome.odin)
+	if root == "" {
+		state.project = Project_CreatePlaceholder()
+		state.welcome = {open = true, noProject = true}
+		Mode_Load(&state)
+		return state
+	}
 	// An archive given instead of a folder: unpacked next to it, then opened
 	if ProjectArchive_IsArchivePath(root) {
 		if unpacked, problem := ProjectArchive_ExtractArgument(root); problem == "" {
@@ -495,32 +504,14 @@ init :: proc() -> State {
 		state.project = project
 		logLine(&state, .Info, fmt.aprintf("Opened '%s' from %s", project.name, root))
 		for warning in warnings do logLine(&state, .Warning, strings.clone(warning))
-	} else if root == Editor_DemoProject() {
-		// First run: the demo shipped with the editor (a bundle's), copied where it can be edited
-		copied := false
-		if shipped := Editor_ShippedDemo(); shipped != "" {
-			if problem := Folder_Copy(shipped, root); problem != "" {
-				logLine(&state, .Error, fmt.aprintf("Couldn't copy the demo project: %s", problem))
-			} else if demo, demoMessage, demoWarnings := Project_Load(root); demoMessage == "" {
-				state.project = demo
-				copied = true
-				logLine(&state, .Info, fmt.aprintf("Copied the demo project to %s", root))
-				for warning in demoWarnings do logLine(&state, .Warning, strings.clone(warning))
-			}
-		}
-		// Without one: write the built-in sample so there's something to play and edit
-		if !copied {
-			state.project = Project_CreateDemo(root)
-			if saveMessage := Project_Save(&state.project); saveMessage != "" {
-				logLine(&state, .Error, fmt.aprintf("Couldn't create the demo project: %s", saveMessage))
-			} else {
-				logLine(&state, .Info, fmt.aprintf("Created the demo project in %s", root))
-			}
-		}
 	} else {
-		// Don't write into a folder the user named; show the demo without saving it
-		state.project = Project_CreateDemo(DEMO_PROJECT)
-		logLine(&state, .Error, fmt.aprintf("%s. Showing the demo project instead", message))
+		// Nothing written into a folder the user named: the welcome screen, with the reason
+		state.project = Project_CreatePlaceholder()
+		state.welcome = {open = true, noProject = true}
+		logLine(&state, .Error, fmt.aprintf("%s. Showing the welcome screen instead", message))
+		Notify(&state, .Error, fmt.tprintf("Couldn't open %s: %s", root, message))
+		Mode_Load(&state)
+		return state
 	}
 	// After the project is chosen: list its script files for the browser
 	Scripts_Refresh(&state)
@@ -631,7 +622,8 @@ Args :: struct {
 
 @(private="file")
 parseArgs :: proc() -> Args {
-	args := Args{project = Editor_DemoProject()}
+	// No project: the welcome screen (welcome.odin)
+	args := Args{}
 	settingsGiven := false
 	for i := 1; i < len(os.args); i += 1 {
 		if os.args[i] == "--script" && i + 1 < len(os.args) {

@@ -387,6 +387,8 @@ switchProject :: proc(state: ^State, project: Project) {
 	Mode_Load(state)
 	// And its panel layouts (layouts.odin)
 	Layouts_Load(state)
+	// A project is open: the welcome screen goes (welcome.odin)
+	state.welcome = {}
 	state.session.opened += 1
 }
 

@@ -171,3 +171,38 @@ layout_file_skips_the_untouched_defaults :: proc(t: ^testing.T) {
 	testing.expect_value(t, state.bottomTab, BottomTab.Git)
 	testing.expect_value(t, len(state.layouts.presets), 0)
 }
+
+@(test)
+welcome_screen_opens_closes_and_keeps_the_placeholder_unsaved :: proc(t: ^testing.T) {
+	// Without a project: the placeholder has no folder, and the screen can't be closed
+	state := workflowState()
+	defer State_Destroy(&state)
+	Project_Destroy(&state.project)
+	state.project = Project_CreatePlaceholder()
+	state.currentScene = 0
+	state.welcome = {open = true, noProject = true}
+	testing.expect_value(t, state.project.rootPath, "")
+	workflowSend(&state, Welcome_Closed{})
+	testing.expect(t, state.welcome.open, "with no project the welcome screen stays")
+	workflowSend(&state, Action.Deselect)
+	testing.expect(t, state.welcome.open, "Escape doesn't close it either")
+	testing.expect_value(t, Layouts_Save(&state), "")
+	testing.expect_value(t, Mode_Save(&state), "")
+
+	// Over an open project: File > Welcome, then Back or Escape
+	other := workflowState()
+	defer State_Destroy(&other)
+	workflowSend(&other, Welcome_Opened{})
+	testing.expect(t, other.welcome.open, "File > Welcome opens it")
+	workflowSend(&other, Action.Deselect)
+	testing.expect(t, !other.welcome.open, "Escape goes back")
+	workflowSend(&other, Welcome_Opened{})
+	workflowSend(&other, Welcome_Closed{})
+	testing.expect(t, !other.welcome.open, "Back goes back")
+
+	// A recent project taken off the list
+	append(&other.recentProjects.folders, strings.clone("/nowhere/One"), strings.clone("/nowhere/Two"))
+	workflowSend(&other, Welcome_Recent_Removed(0))
+	testing.expect_value(t, len(other.recentProjects.folders), 1)
+	testing.expect_value(t, other.recentProjects.folders[0], "/nowhere/Two")
+}

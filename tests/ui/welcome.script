@@ -1,0 +1,35 @@
+# The welcome screen (welcome.odin): File > Welcome over the open project, its buttons, Back and
+# Escape. (Started with no project the editor opens on it; the scripts always pass one.)
+# Run with: task test:ui
+
+wait 5
+expect welcome closed
+send Welcome_Opened
+expect welcome open
+expect widget_visible welcome-new true
+expect widget_visible welcome-demo true
+# The open project isn't listed: no other recent project yet
+expect widget_visible welcome-empty-demo true
+click_widget welcome-back
+expect welcome closed
+
+# Escape goes back too
+send Welcome_Opened
+key escape
+expect welcome closed
+
+# New Project... opens its dialog over the screen; cancelling stays on it
+send Welcome_Opened
+click_widget welcome-new
+expect new_project_dialog open
+key escape
+expect new_project_dialog closed
+expect welcome open
+
+# The manual opens in the docs window
+click_widget welcome-manual
+expect docs open
+key escape
+expect docs closed
+click_widget welcome-back
+expect welcome closed
