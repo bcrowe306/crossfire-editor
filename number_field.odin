@@ -151,6 +151,7 @@ Inputs:
 - width: Total width, buttons included, at least `NumberField_MinWidth` (narrower is drawn that
   wide). The box has tight vertical padding (2 px)
 - minValue, maxValue: The allowed range
+- mixed: The selected nodes' values differ (multi_edit.odin): the box shows "—" until typed in
 */
 numberField :: proc(
 	ctx: ^skald.Ctx(Msg),
@@ -162,6 +163,7 @@ numberField :: proc(
 	width: f32,
 	minValue := min(f64),
 	maxValue := max(f64),
+	mixed := false,
 ) -> skald.View {
 	tk := uiTokens(ctx)
 	th := ctx.theme
@@ -176,7 +178,7 @@ numberField :: proc(
 		if editing do skald.send(ctx, Msg(Number_Edit_Ended(id)))
 		skald.send(ctx, NumberTarget_Msg(target, clamp(value + f64(steps) * step, minValue, maxValue)))
 	}
-	text := editing && focused ? s.numberEdit.text : formatNumber(value, decimals)
+	text := editing && focused ? s.numberEdit.text : mixed ? MIXED_VALUE : formatNumber(value, decimals)
 	buttonWidth, gap := numberFieldButtonWidth(th), f32(NUMBER_FIELD_GAP)
 
 	Payload :: struct {

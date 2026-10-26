@@ -52,3 +52,9 @@ expect tool_hint_has Alt+click: zoom out
 action Mode_Level
 expect tool_hint_has Space: pan
 action Mode_Scene
+
+# Several nodes selected: the inspector shows what they share
+action Select_All
+wait 2
+expect widget_visible panel-title-inspector true
+action Deselect

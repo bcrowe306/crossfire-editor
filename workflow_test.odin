@@ -206,3 +206,58 @@ welcome_screen_opens_closes_and_keeps_the_placeholder_unsaved :: proc(t: ^testin
 	testing.expect_value(t, len(other.recentProjects.folders), 1)
 	testing.expect_value(t, other.recentProjects.folders[0], "/nowhere/Two")
 }
+
+@(test)
+multi_edit_sets_every_selected_node_in_one_step :: proc(t: ^testing.T) {
+	state := workflowState()
+	defer State_Destroy(&state)
+	scene := &state.project.scenes[state.currentScene]
+	if !testing.expect(t, len(scene.nodes) >= 3, "the test scene has nodes") do return
+	scene.nodes[0].position.x = 10
+	scene.nodes[1].position.x = 20
+	scene.nodes[0].visible, scene.nodes[1].visible = true, false
+	Selection_Set(&state, {0, 1}, 0)
+	state.selectionSet = false
+
+	// Mixed values: the X and the visibility differ, the scale doesn't
+	mixed := MultiEdit_Mixed(&state)
+	testing.expect(t, .Position_X in mixed, "X is mixed")
+	testing.expect(t, .Visible in mixed, "visibility is mixed")
+	testing.expect(t, .Scale_X not_in mixed, "the scale isn't")
+
+	undos := len(state.history.undo)
+	workflowSend(&state, Node_Field_Changed{.Position_X, 50})
+	scene = &state.project.scenes[state.currentScene]
+	testing.expect_value(t, scene.nodes[0].position.x, f32(50))
+	testing.expect_value(t, scene.nodes[1].position.x, f32(50))
+	testing.expect_value(t, len(state.selection), 2)
+	testing.expect_value(t, state.selectedNode, 0)
+	testing.expect_value(t, len(state.history.undo), undos + 1)
+	testing.expect(t, .Position_X not_in MultiEdit_Mixed(&state), "set on both, X isn't mixed")
+	// Typing in the number field: the text is kept once and the value goes to both, merged
+	workflowSend(&state, Number_Text_Changed{target = NodeField.Position_Y, text = "7", lo = min(f64), hi = max(f64)})
+	workflowSend(&state, Number_Text_Changed{target = NodeField.Position_Y, text = "75", lo = min(f64), hi = max(f64)})
+	scene = &state.project.scenes[state.currentScene]
+	testing.expect_value(t, scene.nodes[0].position.y, f32(75))
+	testing.expect_value(t, scene.nodes[1].position.y, f32(75))
+	testing.expect_value(t, len(state.history.undo), undos + 2)
+	workflowSend(&state, Node_Visibility_Changed(true))
+	scene = &state.project.scenes[state.currentScene]
+	testing.expect(t, scene.nodes[0].visible && scene.nodes[1].visible, "both shown")
+
+	// One undo puts both back
+	workflowSend(&state, Action.Undo)
+	workflowSend(&state, Action.Undo)
+	workflowSend(&state, Action.Undo)
+	scene = &state.project.scenes[state.currentScene]
+	testing.expect_value(t, scene.nodes[0].position.x, f32(10))
+	testing.expect_value(t, scene.nodes[1].position.x, f32(20))
+	testing.expect(t, !scene.nodes[1].visible, "visibility back")
+
+	// One node selected: the edit is that node's alone
+	Selection_Set(&state, {1}, 1)
+	workflowSend(&state, Node_Field_Changed{.Rotation, 45})
+	scene = &state.project.scenes[state.currentScene]
+	testing.expect_value(t, scene.nodes[1].rotation, f32(45))
+	testing.expect(t, scene.nodes[0].rotation != 45, "the other node isn't changed")
+}

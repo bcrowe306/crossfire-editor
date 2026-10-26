@@ -456,6 +456,8 @@ History_Classify :: proc(s: ^State, m: Msg) -> EditInfo {
 		return {scope = .Node, node = index, label = label, mergeKey = mergeKey}
 	}
 
+	// A property set on several selected nodes: one step for the scene (multi_edit.odin)
+	if MultiEdit_Applies(s, m) do return MultiEdit_Classify(s, m)
 	if index, field, ok := SceneSettings_Classify(s, m); ok && index >= 0 && index < len(s.project.scenes) {
 		sceneName := s.project.scenes[index].name
 		return {scope = .Project, label = fmt.tprintf("Change the %s of %s", field, sceneName), mergeKey = key("scene-settings", field, index)}
@@ -950,7 +952,7 @@ particleLabel :: proc(name: string) -> string {
 	return name
 }
 
-@(private="file")
+// A node field's name in undo labels (multi_edit.odin's too)
 fieldLabel :: proc(field: NodeField) -> string {
 	switch field {
 	case .Position_X: return "position"

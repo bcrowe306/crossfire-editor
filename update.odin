@@ -35,7 +35,13 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	info := History_Classify(&out, m)
 	snap: ^EditSnapshot
 	if info.scope != .None do snap = History_Snapshot(&out, info)
-	command := applyMsg(&out, m)
+	command: skald.Command(Msg)
+	// A node property set on every selected node (multi_edit.odin)
+	if MultiEdit_Applies(&out, m) {
+		MultiEdit_Apply(&out, m)
+	} else {
+		command = applyMsg(&out, m)
+	}
 	// The panel layouts are saved when they change (layouts.odin)
 	Layouts_Follow(&out, m)
 	// The Timeline follows the selected Animator; an edit elsewhere shows the scene as it is
@@ -153,7 +159,7 @@ isUndoRedo :: proc(m: Msg) -> bool {
 	return isAction && (a == .Undo || a == .Redo)
 }
 
-@(private="file")
+// Package-wide: multi_edit.odin applies a message to each selected node with it
 applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	// The open project's log points (read when the project changes: log_points.odin)
 	LogPoints_Follow(out)

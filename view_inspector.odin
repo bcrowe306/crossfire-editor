@@ -362,17 +362,21 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 
 	node := &scene.nodes[s.selectedNode]
+	// Several selected: the properties they share (multi_edit.odin)
+	if len(s.selection) > 1 && s.mode == .Scene {
+		return skald.col(
+			header,
+			skald.divider(ctx),
+			skald.flex(1, skald.scroll(ctx, {0, 0}, inspectorMultiView(s, ctx), id = skald.hash_id("inspector-scroll"))),
+			cross_align = .Stretch,
+			bg = th.color.bg,
+		)
+	}
 	// Ids include the node index so a half-typed value doesn't carry over to another node
 	key := s.selectedNode
 	// The rows' labels drag into code (inspectorRow)
 	inspectorDrag = {state = s, node = s.selectedNode, kind = NodeDef_BuiltKind(&s.project, node)}
 	defer inspectorDrag = {}
-	// Several selected: the inspector edits the primary one
-	multiNote: skald.View = skald.View_Spacer{size = 0}
-	if len(s.selection) > 1 {
-		multiNote = uiText(th, .Muted, fmt.tprintf("%d nodes selected. Editing %s; moving, nudging, copying and deleting act on all.", len(s.selection), node.name), max_width = tk.textNarrow)
-	}
-
 	// Content inside a scroll view isn't width-limited, so size controls from the sidebar width
 	_, sidebarWidth := FittedSidebarWidths(&s.layout)
 	controlWidth := inspectorControlWidth(th, sidebarWidth)
@@ -386,7 +390,6 @@ inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 
 	rows := make([dynamic]skald.View, context.temp_allocator)
 	append(&rows,
-		multiNote,
 		inspectorRow(ctx, "Name", skald.text_input(ctx, node.name,
 			proc(v: string) -> Msg { return Node_Renamed(v) },
 			id = skald.hash_id(fmt.tprintf("inspector-name-%d", key)),
@@ -777,7 +780,7 @@ InspectorFieldPadding :: proc(ctx: ^skald.Ctx(Msg)) -> [2]f32 {
 }
 
 // A field followed by its pair's link toggle
-@(private="file")
+// (package: the multi-node inspector, multi_edit.odin, uses it too)
 linked :: proc(ctx: ^skald.Ctx(Msg), s: ^State, pair: LinkedPair, field: skald.View) -> skald.View {
 	tk := uiTokens(ctx)
 	th := ctx.theme
@@ -792,7 +795,7 @@ linked :: proc(ctx: ^skald.Ctx(Msg), s: ^State, pair: LinkedPair, field: skald.V
 }
 
 // The second field of a pair, lined up with the first (which has the link button)
-@(private="file")
+// (package: multi_edit.odin)
 linkSpace :: proc(ctx: ^skald.Ctx(Msg), field: skald.View) -> skald.View {
 	return skald.row(field, skald.spacer(LINK_BUTTON_WIDTH), spacing = ctx.theme.spacing.xs)
 }
@@ -887,13 +890,14 @@ inspectorRowView :: proc(ctx: ^skald.Ctx(Msg), label: string, control: skald.Vie
 }
 
 // A dropdown of an enum's values for a node setting, sent as Node_Text_Changed{field, name}
-@(private="file")
-enumSelect :: proc(ctx: ^skald.Ctx(Msg), value: $E, field: NodeTextField, key: int, width: f32) -> skald.View {
+// An enum's dropdown for a node text field (package: multi_edit.odin)
+enumSelect :: proc(ctx: ^skald.Ctx(Msg), value: $E, field: NodeTextField, key: int, width: f32, mixed := false) -> skald.View {
 	names := make([]string, len(E), context.temp_allocator)
 	for v, i in E do names[i] = fmt.tprintf("%v", v)
-	return skald.select(ctx, fmt.tprintf("%v", value), names, field,
+	// Mixed (multi_edit.odin): no value chosen, "—" as its placeholder
+	return skald.select(ctx, mixed ? "" : fmt.tprintf("%v", value), names, field,
 		proc(field: NodeTextField, value: string) -> Msg { return Node_Text_Changed{field, value} },
-		id = skald.hash_id(fmt.tprintf("inspector-%v-%d", field, key)), width = width)
+		id = skald.hash_id(fmt.tprintf("inspector-%v-%d", field, key)), width = width, placeholder = mixed ? MIXED_VALUE : "")
 }
 
 /*
