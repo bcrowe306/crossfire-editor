@@ -385,6 +385,8 @@ switchProject :: proc(state: ^State, project: Project) {
 	state.git.stale = true
 	// The mode it was left in, and its world (editor_modes.odin)
 	Mode_Load(state)
+	// And its panel layouts (layouts.odin)
+	Layouts_Load(state)
 	state.session.opened += 1
 }
 

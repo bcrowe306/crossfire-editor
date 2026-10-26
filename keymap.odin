@@ -147,7 +147,7 @@ ACTION_LABELS := [Action]string{
 	.Add_Node = "Add node", .Delete_Node = "Delete node", .Duplicate_Node = "Duplicate node",
 	.Copy_Node = "Copy node", .Cut_Node = "Cut node", .Paste_Node = "Paste node", .Rename_Node = "Rename node", .Save_As_Component = "Save as component", .Add_Script = "Add or open the node's script",
 	.Select_All = "Select all nodes", .Toggle_Grid = "Show/hide grid", .Toggle_Snap = "Snap to grid", .Toggle_Collision_Shapes = "Show/hide collision shapes", .Toggle_Lighting = "Show the viewport lit or unlit", .Toggle_Physics_Debug = "Show collision shapes in the game (development)", .Play = "Play", .Pause = "Pause",
-	.Stop = "Stop", .Restart = "Restart the game", .Toggle_Bottom_Panel = "Toggle bottom panel", .Clear_Console = "Clear console",
+	.Stop = "Stop", .Restart = "Restart the game", .Toggle_Bottom_Panel = "Toggle bottom panel", .Maximize_Panel = "Maximize the panel under the pointer", .Clear_Console = "Clear console",
 	.About = "About",
 	.User_Manual = "User Manual",
 	.Tool_Select = "Select tool", .Tool_Move = "Move tool", .Tool_Rotate = "Rotate tool",

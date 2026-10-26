@@ -29,7 +29,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	coding := CodeEditor_Frame(ctx, state.mode == .Scene && CodeTabs_Active(&state) != "")
 	keysTaken := state.addNode.open || state.removeConfirm.open || state.settingsDialog.open || state.codeClose.open ||
 		state.session.confirm.open || state.session.newProject.open || state.newScript.open || state.listenerDialog.open || state.newEvent.open || state.componentClose.open || state.newData.open || state.projectSettings.open || state.aboutOpen || state.git.discardAsk != "" ||
-		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open || state.level.conflict.open || state.palette.open
+		state.contextMenu.open || state.logPoints.dialog.open || state.docs.open || state.level.conflict.open || state.palette.open || state.layouts.saveOpen
 	// The running game's values a code tab shows (code_live.odin)
 	CodeLive_Frame(&state, ctx)
 	// The States tab's machine in the running game (state_machine_edit.odin)
@@ -48,6 +48,8 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	Git_View_Tick(&state, ctx)
 	// Where F1 (Help > User Manual) is pressed: the docs window opens at that panel's page
 	Docs_TrackPointer(ctx, state.mode, state.slicer.shown > 0)
+	// A double-click on a panel's header maximizes it; the shortcut's panel (layouts.odin)
+	Maximize_Track(ctx, &state, keysTaken)
 	// The viewport is the Scene mode's (its last rect stays in Skald's store while another mode, or
 	// the slicer's tab, shows)
 	KeymapDispatch(ctx, &state.settings.keymap, state.mode == .Scene && state.slicer.shown == 0 && ViewportHovered(ctx), dialogOpen = keysTaken,
@@ -91,6 +93,7 @@ view :: proc(s: State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		codeCloseDialogView(&state, ctx),
 		componentCloseDialogView(&state, ctx),
 		aboutDialogView(&state, ctx),
+		layoutSaveDialogView(&state, ctx),
 		gitDiscardDialog(&state, ctx),
 		// An undo over an LDtk file changed outside (level_mode.odin)
 		ldtkConflictDialogView(&state, ctx),
@@ -210,6 +213,9 @@ menuBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg), keysTaken: bool) -> skald.V
 			{label = "Grid Settings...", msg = Msg(Open_Grid_Settings{}), disabled = s.mode != .Scene},
 			{separator = true},
 			item("Toggle Bottom Panel", .Toggle_Bottom_Panel, keys),
+			// Layouts (layouts.odin): one panel alone, the presets
+			item("Maximize Panel", .Maximize_Panel, keys, checked = Mode_Layout(s).maximized != .None),
+			{label = "Layout", submenu = Layout_MenuItems(s)},
 			item("Clear Console", .Clear_Console, keys),
 		}},
 		{"Scene", []skald.Menu_Item(Msg){
@@ -401,6 +407,18 @@ sceneModeView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.Vi
 	layout.workspace = size
 	left, right := FittedSidebarWidths(&layout)
 	centerWidth := max(size.x - left - right - DIVIDER * 2, MIN_CENTER_WIDTH)
+	// One panel maximized over the workspace (layouts.odin)
+	switch layout.maximized {
+	case .None, .Right:
+	case .Left:       return browserView(s, ctx)
+	case .Center:     return viewportView(s, ctx)
+	case .Bottom:     return bottomPanelView(s, ctx)
+	case .Scene_Tree: return sceneTreeView(s, ctx)
+	case .Inspector:
+		_, inspectorStacked = Inspector_Layout(ctx.theme, size.x)
+		defer inspectorStacked = false
+		return inspectorView(s, ctx)
+	}
 
 	centerAndRight := skald.split(ctx,
 		first = centerView(s, ctx, &layout),
@@ -486,7 +504,8 @@ statusBarView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		middle[0],
 		middle[1],
 		middle[2],
-		skald.flex(1, skald.spacer(0)),
+		// The tool's keys and modifiers (tool_hints.odin): the room the rest leaves, elided
+		skald.flex(1, uiText(th, .Muted, Tool_Hint(s), overflow = .Ellipsis)),
 		statusText(ctx, FrameStats_Text()),
 		tool,
 		statusText(ctx, fmt.tprintf("%v", s.playState)),
@@ -507,10 +526,18 @@ statusText :: proc(ctx: ^skald.Ctx(Msg), text: string) -> skald.View {
 Header strip at the top of a panel: an icon and title, plus optional action buttons on the right.
 */
 panelHeader :: proc(ctx: ^skald.Ctx(Msg), icon, title: string, actions: ..skald.View) -> skald.View {
+	return panelHeaderOf(ctx, "", icon, title, ..actions)
+}
+
+/*
+`panelHeader` of a panel that maximizes: a double-click on its title (the zone
+`panel-title-<key>`, layouts.odin's `Maximize_Track`) shows it alone over the workspace.
+*/
+panelHeaderOf :: proc(ctx: ^skald.Ctx(Msg), key, icon, title: string, actions: ..skald.View) -> skald.View {
 	th := ctx.theme
 	t := uiTokens(ctx)
 	children := make([dynamic]skald.View, context.temp_allocator)
-	append(&children, uiText(th, .Panel_Title, fmt.tprintf("%s  %s", icon, title)))
+	append(&children, panelTitleZone(ctx, key, uiText(th, .Panel_Title, fmt.tprintf("%s  %s", icon, title))))
 	append(&children, skald.flex(1, skald.spacer(0)))
 	append(&children, ..actions)
 	return skald.row(..children[:],

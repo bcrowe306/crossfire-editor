@@ -50,6 +50,7 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	// switched the tab)
 	left, right := FittedSidebarWidths(layout)
 	panelWidth := layout.workspace.x - left - right - DIVIDER * 2
+	if layout.maximized == .Bottom do panelWidth = layout.workspace.x
 	tabsWidth, tabsHeight := f32(200), f32(30)
 	if ctx.renderer != nil {
 		tabsWidth = max(panelWidth - skald.view_size(ctx.renderer, buttons).x - th.spacing.xs * 3, 60)
@@ -94,13 +95,14 @@ bottomPanelView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		content = LevelMode_LDtkTab(s, ctx, shown)
 	}
 
-	return skald.col(
+	// The panel's area: the maximize shortcut finds it under the pointer (layouts.odin)
+	return skald.zone(ctx, skald.col(
 		header,
 		skald.divider(ctx),
 		skald.flex(1, content),
 		cross_align = .Stretch,
 		bg = th.color.bg,
-	)
+	), skald.hash_id("panel-bottom"))
 }
 
 @(private="file")

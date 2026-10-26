@@ -962,6 +962,14 @@ levelModeView :: proc(ctx: ^skald.Ctx(Msg), s: ^State, size: [2]f32) -> skald.Vi
 	layout := Mode_LayoutOf(s, .Level)^
 	layout.workspace = size
 	left, right := FittedSidebarWidths(&layout)
+	// One panel maximized over the workspace (layouts.odin)
+	switch layout.maximized {
+	case .None, .Scene_Tree, .Inspector:
+	case .Left:   return levelLevelsSidebarView(s, ctx)
+	case .Center: return levelMapView(s, ctx)
+	case .Bottom: return bottomPanelView(s, ctx)
+	case .Right:  return levelLayersSidebarView(s, ctx)
+	}
 	center: skald.View
 	if !layout.bottomOpen {
 		center = skald.col(skald.flex(1, levelMapView(s, ctx)), bottomPanelView(s, ctx), cross_align = .Stretch)
@@ -1071,7 +1079,8 @@ levelMapView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 		cross_align = .Center,
 		bg = th.color.surface,
 	)
-	append(&rows, header)
+	// A double-click on it maximizes the canvas (layouts.odin)
+	append(&rows, skald.zone(ctx, header, skald.hash_id("level-canvas-header")))
 	// LDtk saved the file over unsaved edits: reload it, or keep the edits
 	if names, clash := LDtkDoc_DiskConflict(s.project.rootPath, file); clash {
 		append(&rows, skald.wrap_row(

@@ -143,6 +143,8 @@ Layout :: struct {
 	// Space shared by the browser tree and preview, measured last frame
 	browserBodyHeight: f32,
 	bottomOpen: bool,
+	// The panel shown alone over the workspace (layouts.odin), .None for all of them
+	maximized: MaxPanel,
 	// Size of the area between the toolbar and the status bar, measured last frame.
 	// Needed to turn a dragged divider position into a sidebar or bottom panel size
 	workspace: [2]f32,
@@ -427,6 +429,8 @@ State :: struct {
 	// The Scene mode's bottom tab and panel sizes (the Level mode's are in `level`: Mode_Layout)
 	bottomTab: BottomTab,
 	layout: Layout,
+	// The project's saved layouts and the Save Current Layout As... dialog (layouts.odin)
+	layouts: LayoutState,
 	// Console tab: editor messages and the running game's output, with its filters (console.odin)
 	console: LogList,
 	// Output tab: build and export output
@@ -523,6 +527,8 @@ init :: proc() -> State {
 	if message == "" do Recent_Add(&state.recentProjects, state.project.rootPath)
 	// The mode the project was left in (editor_modes.odin)
 	Mode_Load(&state)
+	// Its panel layouts (layouts.odin)
+	Layouts_Load(&state)
 	return state
 }
 
@@ -570,6 +576,7 @@ State_Destroy :: proc(state: ^State) {
 	delete(state.session.newProject.location)
 	delete(state.session.recent)
 	History_Destroy(&state.history)
+	LayoutState_Destroy(&state.layouts)
 	Notifications_Destroy(&state.notifications)
 	Problems_Destroy(&state.problems)
 	ScriptCatalog_Clear(&state.scripts)

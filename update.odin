@@ -36,6 +36,8 @@ update :: proc(s: State, m: Msg) -> (State, skald.Command(Msg)) {
 	snap: ^EditSnapshot
 	if info.scope != .None do snap = History_Snapshot(&out, info)
 	command := applyMsg(&out, m)
+	// The panel layouts are saved when they change (layouts.odin)
+	Layouts_Follow(&out, m)
 	// The Timeline follows the selected Animator; an edit elsewhere shows the scene as it is
 	// again, not the clip at the playhead
 	if info.scope != .None && !Timeline_IsEdit(m) do out.timeline.previewing = false
@@ -156,6 +158,17 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	// The open project's log points (read when the project changes: log_points.odin)
 	LogPoints_Follow(out)
 	if command, handled := ContextMenu_Update(out, m); handled do return command
+	// Maximizing a panel; Escape restores a maximized one first (layouts.odin)
+	if action, isAction := m.(Action); isAction {
+		if action == .Maximize_Panel {
+			Layout_ToggleMaximized(out, Maximize_ActionPanel(out))
+			return {}
+		}
+		if (action == .Deselect || action == .Level_Cancel) && Mode_Layout(out).maximized != .None {
+			Mode_Layout(out).maximized = .None
+			return {}
+		}
+	}
 	// Switching modes, and the Level mode's messages (before the LDtk ones: a level picked on the
 	// browser's world map selects it there while the Level mode shows)
 	if command, handled := Modes_Update(out, m); handled do return command
@@ -187,6 +200,7 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 	if command, handled := Docs_Update(out, m); handled do return command
 	if command, handled := Palette_Update(out, m); handled do return command
 	if command, handled := Notifications_Update(out, m); handled do return command
+	if Layouts_Update(out, m) do return {}
 	if command, handled := Problems_Update(out, m); handled do return command
 	if UndoHistory_Update(out, m) do return {}
 	if command, handled := CodeActions_Update(out, m); handled do return command
@@ -567,6 +581,8 @@ applyMsg :: proc(out: ^State, m: Msg) -> skald.Command(Msg) {
 		out.viewport.tickPending = true
 		out.viewport.nextTick = time.tick_now()
 		return nextViewportTick(&out.viewport)
+	case Panel_Maximized, Layout_Preset_Applied, Layout_Save_Opened, Layout_Save_Name_Changed, Layout_Save_Confirmed, Layout_Save_Cancelled:
+		// Layouts_Update (layouts.odin), above
 	case Toast_Dismissed, Toast_Action_Clicked, Toasts_Expired, Notify_Requested, Problems_Refresh, Problem_Picked, History_Jump:
 		// Handled above (notifications.odin, problems.odin, undo_history.odin)
 	case Script_Tick, Preview_Tick:
@@ -1408,6 +1424,8 @@ handleAction :: proc(out: ^State, action: Action) -> skald.Command(Msg) {
 
 	case .Toggle_Bottom_Panel:
 		Mode_Layout(out).bottomOpen = !Mode_Layout(out).bottomOpen
+	case .Maximize_Panel:
+		// applyMsg, before the modes' messages (layouts.odin)
 	case .Clear_Console:
 		// Clears whichever log tab is showing
 		LogList_Clear(logListOf(out, Mode_BottomTab(out) == .Output))

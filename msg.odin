@@ -51,6 +51,8 @@ Action :: enum {
 	// Stop the game and play it again as it was started (Play or Play Scene), rebuilt if needed
 	Restart,
 	Toggle_Bottom_Panel,
+	// Shows the panel under the pointer alone over the workspace, or restores (layouts.odin)
+	Maximize_Panel,
 	Clear_Console,
 	About,
 	// Help > User Manual: the manual's contents in the browser (docs/manual)
@@ -1511,6 +1513,13 @@ Msg :: union {
 	Toast_Dismissed,
 	Toast_Action_Clicked,
 	Toasts_Expired,
+	// Layouts (layouts.odin)
+	Panel_Maximized,
+	Layout_Preset_Applied,
+	Layout_Save_Opened,
+	Layout_Save_Name_Changed,
+	Layout_Save_Confirmed,
+	Layout_Save_Cancelled,
 	Notify_Requested,
 	Problems_Refresh,
 	Problem_Picked,

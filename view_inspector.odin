@@ -62,7 +62,7 @@ SceneTree_Row :: proc(th: ^skald.Theme, scene: ^SceneDef, nodeIndex: int, select
 	}
 }
 
-@(private="file")
+// The scene tree panel (package: layouts.odin maximizes it)
 sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	skald.prof_scope("sceneTreeView")
 	th := ctx.theme
@@ -98,7 +98,7 @@ sceneTreeView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	}
 
 	return skald.col(
-		panelHeader(ctx, ICON_SITEMAP, scene.name,
+		panelHeaderOf(ctx, "scene-tree", ICON_SITEMAP, scene.name,
 			panelButton(ctx, "add-node", ACTION_ICONS[.Add], actionTip(s, "Add node", .Add_Node), Action.Add_Node),
 			panelButton(ctx, "delete-node", ACTION_ICONS[.Delete], actionTip(s, "Delete node", .Delete_Node), Action.Delete_Node, disabled = s.selectedNode < 0),
 		),
@@ -295,13 +295,13 @@ pointIn :: proc(r: skald.Rect, p: [2]f32) -> bool {
 	return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h
 }
 
-@(private="file")
+// The inspector panel (package: layouts.odin maximizes it)
 inspectorView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	tk := uiTokens(ctx)
 	skald.prof_scope("inspectorView")
 	th := ctx.theme
 	scene := &s.project.scenes[s.currentScene]
-	header := panelHeader(ctx, ICON_CIRCLE_INFO, "Inspector")
+	header := panelHeaderOf(ctx, "inspector", ICON_CIRCLE_INFO, "Inspector")
 	Scroll_RevealClicked(ctx, "inspector-scroll")
 	inspectorRevealStep(ctx)
 

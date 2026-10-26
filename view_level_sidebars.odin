@@ -83,7 +83,7 @@ levelLevelsPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 			Msg(Level_Spot_Started{cancel = s.level.spot}), on = s.level.spot))
 	}
 	title := readable ? fmt.tprintf("Levels (%d)", len(levels)) : "Levels"
-	append(&parts, panelHeader(ctx, ICON_MAP, title, ..actions[:]))
+	append(&parts, panelHeaderOf(ctx, "levels", ICON_MAP, title, ..actions[:]))
 	textWidth := sidebarTextWidth(s, ctx, false)
 	if file == "" {
 		append(&parts, skald.divider(ctx), skald.col(
@@ -184,7 +184,7 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 	file := LevelMode_File(s)
 	doc := file != "" ? LDtkDoc_Get(s.project.rootPath, file) : nil
 	if doc == nil || doc.problem != "" {
-		append(&parts, panelHeader(ctx, ICON_LAYERS, "Layers"), skald.divider(ctx))
+		append(&parts, panelHeaderOf(ctx, "layers", ICON_LAYERS, "Layers"), skald.divider(ctx))
 		append(&parts, placeholder(ctx, "The selected level's layers show here."))
 		return parts[:]
 	}
@@ -217,7 +217,7 @@ levelLayersPart :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> []skald.View {
 			append(&layers, Layer{Json_Int(main, Json_Get(main, d, "uid"), -1), Json_String(main, Json_Get(main, d, "identifier")), Json_String(main, Json_Get(main, d, "__type")), true, false})
 		}
 	}
-	append(&parts, panelHeader(ctx, ICON_LAYERS, level >= 0 ? fmt.tprintf("Layers: %s", s.level.level) : "Layers (every level)"), skald.divider(ctx))
+	append(&parts, panelHeaderOf(ctx, "layers", ICON_LAYERS, level >= 0 ? fmt.tprintf("Layers: %s", s.level.level) : "Layers (every level)"), skald.divider(ctx))
 
 	rows := make([dynamic]ListRow, context.temp_allocator)
 	tree := make([dynamic]ColoredTreeRow, context.temp_allocator)

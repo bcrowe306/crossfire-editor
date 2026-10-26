@@ -24,7 +24,7 @@ browserView :: proc(s: ^State, ctx: ^skald.Ctx(Msg)) -> skald.View {
 	th := ctx.theme
 	selectedAsset := s.browserSelection.kind == .Asset
 
-	header := panelHeader(ctx, ICON_FOLDER, fmt.tprintf("Project: %s", s.project.name),
+	header := panelHeaderOf(ctx, "browser", ICON_FOLDER, fmt.tprintf("Project: %s", s.project.name),
 		panelButton(ctx, "import-asset", ACTION_ICONS[.Add], actionTip(s, "Import asset", .Import_Asset), Action.Import_Asset),
 		panelButton(ctx, "remove-asset", ACTION_ICONS[.Delete], "Remove asset", Action.Remove_Asset, disabled = !selectedAsset),
 	)
