@@ -4,6 +4,51 @@ Work that's decided but not built, for the editor and the engine (odin_sdl_engin
 sections first. When something is done, delete it here and describe it in the CLAUDE.md that
 owns it.
 
+## Version 1: from dev builds to a release (planned 2026-10-26)
+
+The user asked for a plan to version 1 (2026-10-26). Today's releases are development builds
+(`v0.1.0-dev.N`, pre-releases). Version 1 is the first release made for people outside the
+project: every desktop platform it lists works, installs without warnings, and its docs match it.
+Each step is its own release; the order is the build order. **Decisions still open** are marked
+(ask the user before building them).
+
+1. **The speed work first** (the "Performance" section below, run 2026-10-26): the viewport and
+   the engine's frame, measured.
+2. **Platforms, as shipped:**
+   - **macOS Developer ID signing and notarization** ("Builds and releases" below has the plan).
+   - **The missing prebuilt players on CI:** Linux ARM64 (`ubuntu-24.04-arm`), Windows ARM64
+     (`windows-11-arm`), macOS x86_64 (`macos-13`): a build job each making the player only, its
+     export of the UI fixture started with `--quit-after`, the `combine` jobs adding them. Or,
+     **open:** list them as unsupported for v1 and drop them from the Export tab.
+   - **Windows installer signing**: **open** (a code-signing certificate costs money; without one
+     SmartScreen warns on first run).
+3. **Gaps users will hit:**
+   - **Files added to `assets/` outside the editor** show up (a folder watch on focus and every
+     few seconds: new files imported in place, removed ones reported in Problems).
+   - **Images other than PNG and BMP on the web:** SDL3_image built for Emscripten like
+     SDL3_mixer (`tools/build_web_mixer.sh`'s pattern, its PNG / JPEG / WebP codecs), exports
+     linking it.
+   - **A running game's levels in the Mixer's meters** (the player sends its buses' levels over
+     the live link, as it sends stats).
+4. **Hardening:**
+   - **Crash reporting:** an editor crash leaves a log with the stack in the data folder and the
+     next start offers to open it; the editor saves a recovery copy of unsaved scenes every
+     minute (`.editor/recovery/`) and offers it after a crash.
+   - **Settings and project migrations tested from every older format version** (fixtures of
+     format 1 to 14 loaded and saved).
+   - **The flaky UI scripts fixed** (players, scenes, globals_data, code_drops: a game's output
+     arriving late) so a full suite passes ten runs in a row.
+5. **The release itself:**
+   - **Versioning:** `v1.0.0` on both repos (the engine's API declared stable from then: breaking
+     changes need a major version); release candidates first (`v1.0.0-rc.N`, pre-releases).
+   - **The website:** a v1 announcement page, the download page listing only what's supported,
+     the manual checked page by page against the editor (screens, keys, menus), a "what's new"
+     changelog page made from the releases.
+   - **Licenses:** the third-party notices (SDL, Box2D, Skald, fonts, the demo's art and sounds)
+     in the app's About box and the archives.
+6. **Not in version 1 (decided "later"):** mobile exports, Steam's real backend, shader editing
+   in the code editor, consoles. **Open:** whether any of them should move into v1.
+
 ## Performance: Spall profiling, a harness, a faster Skald (asked 2026-10-24)
 
 The user decided to make Skald faster rather than move the editor to Dear ImGui. Work is
@@ -64,7 +109,9 @@ item 1 below would skip that.
 
 Left:
 1. **Reuse unchanged parts of the tree:** something like `cached(key, version, builder)`, which
-   returns last frame's subtree when its version hasn't changed.
+   returns last frame's subtree when its version hasn't changed. **Deferred by the user
+   (2026-10-25):** too big a Skald change for now; if it comes back, a measured one-panel
+   prototype first.
 2. **The remaining text calls:** about 900 `measure_text` and 500 `draw_text` calls a frame at
    rest, each now a hash and a lookup (0.7-1.2 us); fewer calls (the item above) is what's
    left there. `wrap_text` keeps its lines across frames now (2026-10-25: the inspector's
