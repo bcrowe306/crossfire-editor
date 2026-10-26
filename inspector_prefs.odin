@@ -235,12 +235,14 @@ inspectorPinnedRow :: proc(ctx: ^skald.Ctx(Msg), label: string, labelView, contr
 	if st, drawn := ctx.widgets.states[rowId]; drawn && st.last_drawn_frame + 1 >= ctx.widgets.frame {
 		hovered = pointIn(st.last_rect, ctx.input.mouse_pos) && !Overlay_PopupOpen(ctx)
 	}
+	// The pin is a glyph in a zone, not a button: no taller than the label, so showing it on hover
+	// never moves the row's control (a click landing on it would miss)
 	pin: skald.View = skald.spacer(0)
 	if index >= 0 || hovered {
-		button := skald.button(ctx, ICON_THUMBTACK, Msg(Inspector_Pin_Toggled{kind = p.kind, label = label}),
-			id = skald.hash_id(fmt.tprintf("inspector-pin-%s", label)), bg = th.color.bg, fg = index >= 0 ? th.color.primary : th.color.fg_muted,
-			padding = {tk.xxs, 0}, font_size = th.font.size_xs)
-		pin = skald.tooltip(ctx, button, index >= 0 ? "Unpin (for every node of this type)" : "Pin to the top (for every node of this type)",
+		pinId := skald.hash_id(fmt.tprintf("inspector-pin-%s", label))
+		if skald.widget_clicked(ctx, pinId) do skald.send(ctx, Msg(Inspector_Pin_Toggled{kind = p.kind, label = label}))
+		glyph := skald.row(skald.spacer(tk.xxs), uiText(th, .Muted, ICON_THUMBTACK, color = index >= 0 ? th.color.primary : {}))
+		pin = skald.tooltip(ctx, skald.zone(ctx, glyph, pinId), index >= 0 ? "Unpin (for every node of this type)" : "Pin to the top (for every node of this type)",
 			id = skald.hash_id(fmt.tprintf("inspector-pin-tip-%s", label)))
 	}
 	composed := skald.zone(ctx, inspectorLabelled(ctx, skald.row(labelView, skald.flex(1, skald.spacer(0)), pin, cross_align = .Center), control), rowId)
