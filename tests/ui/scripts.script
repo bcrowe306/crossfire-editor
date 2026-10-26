@@ -114,6 +114,8 @@ expect code_tabs 0
 
 # Clickable errors: a script with a compile error; a click on the Output tab's error line opens
 # the file at its line and column, and the line's menu has Go to Error
+# (the save's "Saved" toast lasts 4 s: on a slow machine it is still toast 0 here)
+wait_until toasts 0 timeout=15
 write_project_file scripts/z_broken.odin package scripts\n\nbroken :: proc() {\n\tx := undefined_name\n}\n
 action Build_Scripts
 wait_until scripts Failed timeout=240
