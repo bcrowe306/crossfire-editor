@@ -137,6 +137,11 @@ Under them, the tileset's picture shows its **Tile data**:
   tiles with data are outlined; empty removes it.
 - **Tag** *value*: drag over tiles to tag them with the value, with the right button to untag.
 
+Every tileset picture in these tabs (a tileset's, an entity type's tile, an icon's) zooms like the
+canvas: the wheel around the pointer, a middle drag or Space + drag to pan, and the **−** / **+** /
+**Fit** buttons over it. Its pixels stay sharp at every zoom, and each tileset keeps its zoom (per
+project).
+
 ## Questions
 
 **My new layer isn't in a level.** It is in every level, empty: select the level and the layer in

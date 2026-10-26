@@ -217,7 +217,21 @@ rendering").
 
 Pick tiles in the palette's **tileset**: a click picks a tile, a drag a rectangle of them (a
 **stamp**); Shift or Ctrl + drag adds to the selection, the right button takes tiles out of it,
-Ctrl + click on a picked tile removes it. The wheel scrolls the tileset, Ctrl + wheel zooms it.
+Ctrl + click on a picked tile removes it.
+
+The tileset **zooms and pans like the canvas**, its pixels sharp at every zoom:
+
+- **The wheel** zooms around the pointer (with Settings > Editor > **Wheel pans** on, Ctrl +
+  wheel zooms and the wheel pans); Shift + wheel pans sideways, Ctrl + wheel up and down.
+- **Middle drag**, or **Space + drag**, pans (the right button keeps its meaning here: it takes
+  tiles out of the selection).
+- The buttons over it: **−** and **+** zoom around the middle, **Fit** shows the whole tileset;
+  the zoom is shown beside them.
+
+Each tileset keeps its zoom and place (per project, in `.editor/tile_zoom.ini`): switch layers or
+open the project again and the palette shows it as you left it. The tile pickers in the tabs
+(the Auto-layer Rules tab's, the Entities' and Tilesets' pictures) zoom the same way, each tileset
+with its own zoom there.
 
 | Do | What happens |
 |---|---|
@@ -488,6 +502,9 @@ a script (the code tabs are beside the scene tabs), a Console line's error locat
 bar's Git branch (the Git tab is the Scene mode's).
 
 ## Questions
+
+**The tileset in the palette is tiny (or huge).** Zoom it: the wheel over it, or its **+** / **−**
+buttons; **Fit** shows it whole again. Each tileset remembers its zoom.
 
 **The world is empty.** The project has no LDtk file yet: import one (**Ctrl+I**, or the Levels
 sidebar's **Import...**). See [LDtk levels](levels.md).

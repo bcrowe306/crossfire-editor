@@ -87,18 +87,19 @@ Left:
   physics, particles), with numbers before and after in the engine's CLAUDE.md "Performance"
   section.
 
-## UI and UX: look and usability (asked 2026-10-25; build in this order, a release per round)
+## UI and UX: look and usability (asked 2026-10-25; done 2026-10-25)
 
-The user's decisions (2026-10-25): the editor-wide command palette is Ctrl+Shift+P, merged with the
-code editor's (in a code tab it lists the code editor's commands too); with no project argument the
-editor starts on a welcome screen (the demo no longer opens by itself; tests and a path argument
-unaffected); layouts are maximize + presets (no docking); **no motion** (the UI stays instant).
-
-1. **A zoomable palette in the Level mode** (asked 2026-10-25): the tile palette (the tileset
-   shown for picking tiles and stamps, and the rules' tile picker and the entity / tileset tile
-   pickers that show a tileset) zooms like the canvas: wheel or Ctrl+wheel around the pointer,
-   + / − / fit buttons, pan when zoomed in, crisp pixels at every zoom, the zoom remembered per
-   tileset.
+Built in rounds, each its own release, with the user's decisions: the command palette is
+Ctrl+Shift+P, merged with the code editor's; a welcome screen when no project is given; maximize
+and layout presets, no docking; no motion. The rounds: finding things (the command palette,
+breadcrumbs) and pointers that say what a press does; the canvases' colors in Settings >
+Appearance; design tokens, text roles, focus rings, Enter confirming dialogs, readable contrast and
+one icon per action; feedback (toasts, the Problems and History tabs, empty states); workflow
+(maximized panels, layout presets, multi-node editing, pinned inspector rows, drop targets, tool
+hints, the welcome screen); and a zoomable tile palette and tile pickers in the Level mode (the
+wheel, pan, − / + / Fit, crisp pixels, the zoom kept per tileset). CLAUDE.md's sections ("Finding
+things", "Feedback", "Workflow", "Design tokens", "Focus, contrast and icons", "Pointers", "The
+editor's look", "Painting in the Level mode") describe them; the manual's pages are the guides.
 
 ## LDtk level editor: parity with LDtk (asked 2026-10-24; done 2026-10-25)
 

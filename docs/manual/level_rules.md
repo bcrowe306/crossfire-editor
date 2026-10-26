@@ -83,7 +83,9 @@ A rule's editor replaces the list (**Back to the rules** returns), so the level 
 - **Tiles**: **Individual tiles** (one of them, at random, in each matching cell) or **Rectangles
   of tiles** (stamps: one of them at random, placed by the stamp's **pivot**). Pick them on the
   tileset: a drag picks a rectangle of tiles, **Shift** adds to them, the right button removes. For
-  stamps, click one to replace it, right-click to remove it, **+ Stamp** to add another.
+  stamps, click one to replace it, right-click to remove it, **+ Stamp** to add another. The
+  tileset zooms like the canvas (the wheel around the pointer, a middle or Space + drag pans, the
+  **−** / **+** / **Fit** buttons over it), its pixels sharp; each tileset keeps its zoom.
 - **Pattern**: what the cells around the matching cell must hold (its center is the cell drawn).
   Pick a value in the palette (an IntGrid value, a whole group of values, or **"Any value" / "No
   value"**), then on the 9 x 9 grid:

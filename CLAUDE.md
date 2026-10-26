@@ -221,7 +221,8 @@ Skald is not immediate-mode and not a retained widget tree:
 | `level_paint.odin` | **Painting in the Level mode** (phase 2; its doc block has LDtk's buttons and keys): `LevelPaint` (`LevelMode.paint`: the picked value per layer, tiles per tileset, entity type, flips, random, LDtk's toggles, the `LevelStroke`, a `LevelPick` waiting, the chain), the focused level's model (`LevelPaint_Model`, kept across strokes, rebuilt per document version), `LevelPaint_PlanPress` (what a press does: a grid stroke, erase, resize, point, place, Alt pick / copy, a pick, refused with why), `LevelPaint_Press` / `_Moved` / `_Released` / `_Commit` (one `LDtkDoc_Commit` a stroke), entity boxes and handles (`LevelEntityBox`, `LevelPaint_HandleAt`, LDtk's isOver and ResizeTool), `LevelPaint_Update` (the palette's picks, the keys' actions, Delete, Ctrl+D), `LevelPaint_Classify` (the history's labels), `LevelPaint_Cursor` |
 | `level_canvas_paint.odin` | **The painting overlay**: `LevelOverlay` (grid lines, the brush's cells, rectangle or stamp image, the selected entity's handles, its points' path, the hint: why a press did nothing), `LevelOverlay_Build` / `_DrawGrid` / `_Draw` / `_DrawHint`, `LevelEntity_Draw` (an entity as LDtk draws it: its shape, color, alphas, tile) |
 | `level_layers_render.odin` | **The level pictures**, drawn as LDtk's LayerRender from the decoded levels: the focused level a picture per layer in `LEVEL_CHUNK` pieces (only changed pieces drawn and uploaded, `LEVEL_RENDER_BUDGET_MS` a frame), others one composite; backgrounds (`__bgPos`), IntGrid colors, auto tiles in display order, tiles with LDtk's pivot slip (`LevelPictures_Update` / `_Pieces` / `_Draw`, `LevelPictures_BrushImage`, `LevelPictures_RedrawDirty`) |
-| `view_level_palette.odin` | **The palette** under the Layers sidebar (LDtk's IntGridPalette, TilePalette, EntityPalette): IntGrid values (`level-value-<v>`), the tileset with LDtk's selection rules (`level-palette-tiles`; Stamp / Random, flips, stacking toggles), entity types (`level-entity-type-<uid>`) |
+| `view_level_palette.odin` | **The palette** under the Layers sidebar (LDtk's IntGridPalette, TilePalette, EntityPalette): IntGrid values (`level-value-<v>`), the tileset with LDtk's selection rules (`level-palette-tiles`, zoomed and panned through tile_zoom.odin; Stamp / Random, flips, stacking toggles, the zoom buttons), entity types (`level-entity-type-<uid>`) |
+| `tile_zoom.odin` | **Zoomable tileset views** (the palette, the rules' `rTilePicker`, the definitions' `tilesetPicker`): `TileZoom` (zoom, 0 Fit; the center), `TileZoom_Transform` (the one transform that draws and hit-tests), `_ZoomAt` / `_Pan` / `_ClampCenter` / `_FitScale` / `_CellAt`, `tileZoomInput` (the wheel through `wheelAction`, a middle or Space drag pans: Grab / Grabbing), `tileZoomControls` (− / + / Fit, the zoom), `TileZoom_DrawImage` (Skald's nearest sampling), `LevelMode.tileZooms` by `TileZoom_Key` (`Tile_Zoom_Changed`), `.editor/tile_zoom.ini` (`TileZoom_Save` / `_Load` / `_Text` / `_Parse`), the driver's probes (`TileZoom_Record`, `_TileCenter`) |
 | `ldtk_level_model.odin` | **A level decoded for painting**: `LDtkLevelModel` (its layers' IntGrid values, grid tiles and auto tiles per cell, rule area counts, what changed, the tilesets' opaque tiles), `LDtkLevel_Read`, the layer edits (`LDtkLayer_SetIntGrid`, `_AddTile`, `_RemoveTiles`...), `LDtkLevel_Patches` (the changed layers written back as LDtk writes them: fast text writers) |
 | `ldtk_rules.odin` | **LDtk's auto-layer rules, ported** (its AutoLayerRuleDef, LayerInstance.applyAllRules...): rules and groups read, `LDtkRule_Matches`, LDtk's seeds (`ldtkRandSeedCoords` with JavaScript's number semantics) and Perlin noise (heaps' `hxd.Perlin`), stamps, offsets, `breakOnMatch`, `LDtkRules_ApplyArea` / `_AfterChange` / `_ApplyAll`, evaluation and display order, biomes / optional groups |
 | `ldtk_paint.odin` | **LDtk's painting tools on a model**: `LDtkPaintMode`, `LDtkTileBrush` (stamp, random, flips, stacking), `LDtkPaintStroke`, lines (Bresenham), `ldtkFloodFill` (LDtk's order), IntGrid cell / line / rectangle / fill, tiles at a cell, stamps, rectangles, fills, removal |
@@ -1875,7 +1876,8 @@ MyGame/
   .editor/                 per-user editor state (gitignored): guides.ini (the viewport's guides),
                            logpoints.ini (the code tabs' log points), modes.ini (the editor mode
                            and the Level mode's world: editor_modes.odin), slicer.ini (the sprite
-                           sheet slicer's settings per image: slicer_edit.odin)
+                           sheet slicer's settings per image: slicer_edit.odin), tile_zoom.ini
+                           (the Level mode's tileset views' zooms: tile_zoom.odin)
 ```
 
 - **Version 14:** an AnimatedSprite's animations each have their own sheet (`AnimationDef.sheet`,
@@ -2656,6 +2658,21 @@ keys; the manual's level_mode.md "Painting" is the user's guide.
   texts split after `,` and line breaks, resynced on six equal segments in a row, the nearest
   within 4096): 0.1 MB a stroke on the 256 x 256 level instead of 13 MB. A hunk step needs the
   document as the step left it (applied exactly); otherwise it waits on the conflict dialog.
+- **The tileset views zoom like the canvas** (tile_zoom.odin, TODO.md's last "UI and UX" round,
+  2026-10-25): the palette's tileset and the tabs' tile pickers (`rTilePicker`, `tilesetPicker`)
+  are a box (the palette's area; a picker's box is the size its old fitted zoom gave, so Fit looks
+  as before) in which the tileset zooms and pans: the wheel through `wheelAction` (a pan that moves
+  nothing leaves the wheel to the tab's scroll), a middle or Space + drag (the right button keeps
+  LDtk's meaning there: it removes tiles), − / + / Fit (`<widget key>-zoom-out`, `-zoom-in`,
+  `-fit`). Drawing and hit-testing share `TileZoom_Transform` (from the canvas's last rect for
+  input, its bounds for drawing, the same zoom). Pixels are crisp: Skald's
+  `draw_image_region(..., nearest = true)` (a second sampler and descriptor set per image, added
+  for this). Zooms are view state in `LevelMode.tileZooms`, kept per tileset and place (the
+  palette's apart from the pickers': their fitted sizes differ), written to
+  `.editor/tile_zoom.ini` on every change but a pan's moves. Tests:
+  `tile_zoom_transform_zooms_pans_and_hits_tiles`, `tile_zooms_are_remembered_per_tileset`,
+  `tests/ui/palette_zoom.script` (driver: `click_tileset_tile <key> <id>`, checks `tile_zoom`,
+  `tile_shown`). Looked at in PNGs at 640x660 and 1280x720.
 - Tests: `level_paint_test.odin` (each tool and layer type against LDtk's behaviour, rules and
   writing, entity edits, the Level mode's strokes with undo, the performance test with
   byte-identical undo / redo), `ldtk_rules_test.odin` (LDtk's samples, the JSON writer),
@@ -3258,7 +3275,8 @@ TODO.md's "UI and UX" round 3 (2026-10-25), with the tokens.
 - **Icons** (`ACTION_ICONS`, `Icon_Action`, `Action_Icon`): one icon per action, the table the
   single source: Add, Delete (the item goes: trash), Remove (out of a list: ×), Clear,
   Duplicate (ICON_CLONE; Copy is the clipboard's), Move Up / Down, Close, Back, Forward, Reset,
-  Fit View (ICON_FIT: the viewport, Level canvas and slicer had three), Focus, Manual, Open
+  Fit View (ICON_FIT: the viewport, Level canvas and slicer had three), Zoom In / Zoom Out (the
+  tileset views' buttons), Focus, Manual, Open
   Externally, Refresh, Randomize, Warning, More; the toolbar's buttons take `Action_Icon`.
   Sizes per context are tokens (`iconSmall` panel buttons, `iconMedium` toolbar, rows and tabs).
   Menus are text only. Test: `action_icons_are_the_single_source` (their glyphs used nowhere
@@ -3311,7 +3329,8 @@ TODO.md's "UI and UX" round 1 (2026-10-25): the pointer says what a press does.
   the arrow over empty space); the Level canvas (`levelCanvasView`: Move over levels in the world
   view and over entities, Pointer over another level, Grab over the focused level, Grabbing
   while panning, the paint tools' crosshair, `LevelHandle_Cursor` over the selected entity's
-  handles via `LevelPaint_HandleHovered`); the slicer (Grab / Grabbing); the code view takes the
+  handles via `LevelPaint_HandleHovered`); the slicer (Grab / Grabbing); the Level mode's tileset
+  views (tile_zoom.odin: Crosshair, Grab with Space held, Grabbing while panning); the code view takes the
   code editor's (I-beam, scrub arrows).
 - **Drags:** Move while a drop would be taken, Not_Allowed where it wouldn't (the asset drag's
   release cases, the scene tree's `valid` spot or a code tab, a code drag over the code).
@@ -4267,7 +4286,7 @@ Highlights:
     doc block): its tools on the toolbar `level-tool-<Tool>` (overflow `toolbar-more`), the Levels
     sidebar's `level-list`, `level-row-<i>`, `level-new`, `level-file`, `level-world`,
     `level-import`, the Layers sidebar's `level-layers`, `level-layer-row-<i>` / `-eye-<i>`, the palette's `level-value-<v>`,
-    `level-palette-tiles` / `-random` / `-flip-x` / `-flip-y` / `-stacking`,
+    `level-palette-tiles` / `-random` / `-flip-x` / `-flip-y` / `-stacking` / `-zoom-in` / `-zoom-out` / `-fit`,
     `level-entity-type-<uid>`, the canvas `ldtk-map-Level` and its header's
     `panel-level-fit` / `-world-view` / `-focus` / `-open-ldtk`, the disk bar's `ldtk-disk-reload` /
     `-keep`, its bottom strip `level-bottom-tabs` (far tabs: `send Bottom_Tab <Tab>`), the tabs'
